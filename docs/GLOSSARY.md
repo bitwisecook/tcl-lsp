@@ -737,6 +737,29 @@ safe interpreter) contributes no edge.
 
 ## Phase 7 — Interprocedural analysis and specialised passes
 
+### Unit linkage
+
+The registry-declared fact that a file is part of a **bigger program**, and
+so has callers its own compilation unit cannot enumerate. Carried as `Traits`
+bits on the command specs — `PROVIDES_PACKAGE` (`package provide`),
+`EXPORTS_COMMAND` (`namespace export`), `LOADS_EXTERNAL_UNIT` (`source`,
+`load`, `package require`) — and read generically via
+`CommandRegistry::unit_linkage`, so no command name appears in the compiler.
+The interprocedural constant seed refuses to treat a file's visible call
+sites as the complete caller set once a linkage trait is present, unless the
+host supplied cross-file call-site evidence. See
+[compilation-unit-scope.md](design/compiler/compilation-unit-scope.md).
+
+### Call-site evidence
+
+The per-callee, per-argument-position record of what every resolvable call
+passes — `CallSiteEvidence` in `tcl_compiler::unit_scope`. Merging evidence
+from another file is *monotone*: it adds values, unknowns, and observed
+argument counts, so a second file can retract a constant fold but never
+manufacture one. An **opaque caller** (a deferred `-command` prefix, a
+`rename`, an import binding a new name) is recorded as "a call site exists
+whose arguments are unknown" rather than being left out.
+
 ### IPA
 
 Interprocedural Analysis — walks every proc in the compilation unit

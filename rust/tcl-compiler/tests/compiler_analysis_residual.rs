@@ -931,10 +931,13 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
     let build = |s: &str, cache: &mut HashMap<String, FunctionUnit>| -> CompilationUnit {
         CompilationUnit::build_for_memoized(
             s,
-            &registry,
-            false,
-            tcl_lexer::LexerConfig::default(),
-            D,
+            tcl_compiler::compilation_unit::UnitBuildOptions {
+                registry: &registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::default(),
+                dialect: D,
+                external_call_sites: None,
+            },
             &mut |req: &tcl_compiler::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
                 let key = format!(
                     "{}\u{0}{:?}\u{0}{:?}\u{0}{:?}",

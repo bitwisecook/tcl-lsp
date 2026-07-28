@@ -49,7 +49,11 @@ pub fn spec() -> CommandSpec {
         // `CmdInfo` row and is absent from the exact C Tcl
         // safe-interpreter hidden-command table documented on
         // `Traits::SAFE_INTERP_HIDDEN` — that trait does not apply here.
-        traits: Traits::OVERRIDABLE_LIBRARY_PROC,
+        traits: Traits::OVERRIDABLE_LIBRARY_PROC
+            // Auto-loads (and imports) the commands matching `pattern`
+            // from whichever unit the auto-index names, so another unit's
+            // script runs in this interpreter.
+            | Traits::LOADS_EXTERNAL_UNIT,
         // `auto_import pattern` — exactly one argument, unchanged across
         // every documented release, Tcl library.n 8.4 through 9.1.
         arity: Arity::exact(1),

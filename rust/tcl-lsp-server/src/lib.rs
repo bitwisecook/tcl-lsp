@@ -2454,6 +2454,8 @@ impl Backend {
             // untouched (a body edit then backdates `project_proc_names`).
             file.set_text(&mut *db).to(text);
             file.set_dialect(&mut *db).to(dialect);
+            let project = self.db_project.lock().await;
+            Self::sync_cross_file_evidence(&mut db, &files, project.as_ref());
         } else {
             let path = uri.to_file_path().map(|p| p.display().to_string());
             let file = tcl_lsp_db::SourceFile::new(&*db, text, dialect, path);
@@ -2461,6 +2463,7 @@ impl Backend {
             // Membership changed — re-set the `Project` file set.
             let mut project = self.db_project.lock().await;
             Self::sync_db_project(&mut db, &files, &mut project);
+            Self::sync_cross_file_evidence(&mut db, &files, project.as_ref());
         }
     }
 
@@ -2472,6 +2475,7 @@ impl Backend {
         if files.remove(uri).is_some() {
             let mut project = self.db_project.lock().await;
             Self::sync_db_project(&mut db, &files, &mut project);
+            Self::sync_cross_file_evidence(&mut db, &files, project.as_ref());
         }
     }
 
@@ -2500,10 +2504,11 @@ impl Backend {
                 membership_changed = true;
             }
         }
+        let mut project = self.db_project.lock().await;
         if membership_changed {
-            let mut project = self.db_project.lock().await;
             Self::sync_db_project(&mut db, &files, &mut project);
         }
+        Self::sync_cross_file_evidence(&mut db, &files, project.as_ref());
     }
 
     /// Drop many salsa `SourceFile` inputs at once (files under a removed workspace
@@ -2524,6 +2529,7 @@ impl Backend {
         if membership_changed {
             let mut project = self.db_project.lock().await;
             Self::sync_db_project(&mut db, &files, &mut project);
+            Self::sync_cross_file_evidence(&mut db, &files, project.as_ref());
         }
     }
 
@@ -2547,6 +2553,71 @@ impl Backend {
                 p.set_files(db).to(sources);
             }
             None => *project = Some(tcl_lsp_db::Project::new(&*db, sources)),
+        }
+    }
+
+    /// Refresh every file's [`tcl_lsp_db::SourceFile::external_call_sites`] —
+    /// the call sites in *other* project files that reach the procedures it
+    /// declares (issue #977).
+    ///
+    /// Without this, a compilation unit only ever sees its own file's callers
+    /// and can seed a proc parameter as a compile-time literal that a caller
+    /// in another file contradicts.  Setting the evidence turns the unit's
+    /// "every caller I found agrees" into a claim about the whole project —
+    /// and `Some` of an *empty* slice is itself meaningful: it says the
+    /// server enumerated the project and found no external caller, which is
+    /// what lets a file carrying a registry-declared boundary
+    /// (`package provide`, `source`, `namespace export`) keep folding.
+    ///
+    /// **Compare-then-set**, so an edit that moves no call-site literal
+    /// writes no input and invalidates nothing.  The per-file slice is keyed
+    /// on the file's own declarations, so a call site edited in `main.tcl`
+    /// re-sets only the file that *defines* the callee — not the whole
+    /// project.  Cost per call is one memoised
+    /// [`tcl_lsp_db::project_call_site_evidence`] demand (which backdates
+    /// unless a literal actually moved) plus an O(procs-in-file) slice each.
+    ///
+    /// Runs unconditionally, including when the project drops back to a single
+    /// file: the claim is always "these are the files the server knows about",
+    /// so a file left behind by a `didClose` must have the departed file's
+    /// call sites *removed* from its evidence, not kept.
+    ///
+    /// The workspace is the trust boundary. A caller outside it — a `source`
+    /// target that was never scanned, another project `package require`ing
+    /// this one — is still unenumerable, which is why the registry's
+    /// `PROVIDES_PACKAGE` / `EXPORTS_COMMAND` boundaries decline the seed
+    /// outright rather than trusting an enumeration that cannot cover them.
+    ///
+    /// Salsa cancellation is caught and treated as "leave the evidence
+    /// alone": the edit that cancelled this pass drives its own refresh.
+    fn sync_cross_file_evidence(
+        db: &mut tcl_lsp_db::TclDatabase,
+        files: &HashMap<Uri, tcl_lsp_db::SourceFile>,
+        project: Option<&tcl_lsp_db::Project>,
+    ) {
+        use salsa::Setter as _;
+        let Some(&project) = project else {
+            return;
+        };
+        let snapshot: Vec<tcl_lsp_db::SourceFile> = files.values().copied().collect();
+        let pending = salsa::Cancelled::catch(|| {
+            snapshot
+                .iter()
+                .filter_map(|&file| {
+                    let want = tcl_lsp_db::file_external_call_sites(&*db, file, project);
+                    let unchanged = file
+                        .external_call_sites(&*db)
+                        .as_ref()
+                        .is_some_and(|have| **have == *want);
+                    (!unchanged).then_some((file, want))
+                })
+                .collect::<Vec<_>>()
+        });
+        let Ok(pending) = pending else {
+            return;
+        };
+        for (file, want) in pending {
+            file.set_external_call_sites(db).to(Some(want));
         }
     }
 

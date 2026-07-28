@@ -67,6 +67,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   `tailcall` in a safe-interpreter body, and the *Inline proc* code action
   is missing on `file`, `exec`, `open`, and seven other commands — two
   symptoms of one trait-flag bit collision.
+- [kcs-issue-always-true-condition-in-a-sourced-library-file.md](kcs-issue-always-true-condition-in-a-sourced-library-file.md)
+  — I230 says a condition is always true in a library file whose procedure
+  is really called with different values from another file.
 - [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
   — the same finding is reported twice.
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)

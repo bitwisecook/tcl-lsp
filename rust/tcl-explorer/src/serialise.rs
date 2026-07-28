@@ -1108,6 +1108,73 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
     Value::Array(funcs)
 }
 
+/// Serialise the `unitScope` view: who else can call this file's procedures.
+///
+/// Shows the registry-declared unit boundaries the file crosses
+/// (`package provide`, `source`, `namespace export`, …), whether the host
+/// supplied a cross-file view, and the merged call-site evidence per callee
+/// with the seed verdict at each argument position — the inputs
+/// `tcl_compiler::unit_scope::params_constants_from_call_sites` reads, so a
+/// surprising (or surprisingly absent) constant fold can be traced to the
+/// evidence that produced it (issue #977).
+#[must_use]
+pub fn serialise_unit_scope(result: &ExplorerResult) -> Value {
+    let scope = &result.unit.caller_scope;
+    // `scan_unit_linkage` already masks to `UNIT_LINKAGE_TRAITS`, so every
+    // name here is a boundary — and `iter_names` is generated from the trait
+    // declarations, so this cannot drift from them (#1034).
+    let boundaries: Vec<Value> = scope
+        .linkage
+        .iter_names()
+        .map(|k| Value::String(k.to_owned()))
+        .collect();
+    let callees: Vec<Value> = scope
+        .call_sites
+        .callees()
+        .map(|name| {
+            let evidence = scope
+                .call_sites
+                .get(name)
+                .expect("callee listed by the evidence table");
+            let max_index = evidence.slots.keys().copied().max().map_or(0, |m| m + 1);
+            let positions: Vec<Value> = (0..max_index)
+                .map(|index| {
+                    json!({
+                        "index": index.to_string(),
+                        "verdict": match evidence.uniform_literal_at(index) {
+                            Some(literal) => format!("uniform literal {literal:?}"),
+                            None => "not uniform".to_owned(),
+                        },
+                    })
+                })
+                .collect();
+            let arg_counts: Vec<Value> = evidence
+                .arg_counts
+                .iter()
+                .map(|n| Value::String(n.to_string()))
+                .collect();
+            json!({ "name": name, "positions": positions, "argCounts": arg_counts })
+        })
+        .collect();
+    json!({
+        "boundaries": boundaries,
+        "hasCrossFileEvidence": scope.has_cross_file_evidence,
+        "seeding": if scope
+            .linkage
+            .intersects(tcl_registry::Traits::PROVIDES_PACKAGE | tcl_registry::Traits::EXPORTS_COMMAND)
+        {
+            "declined — the file publishes commands beyond any enumerable project"
+        } else if !scope.has_cross_file_evidence
+            && scope.linkage.intersects(tcl_registry::Traits::LOADS_EXTERNAL_UNIT)
+        {
+            "declined — another unit is loaded here and no cross-file view was supplied"
+        } else {
+            "allowed — evidence is treated as the complete caller set"
+        },
+        "callees": callees,
+    })
+}
+
 /// Serialise the `interprocedural` view: per-procedure summaries followed
 /// by `TclOO` method summaries.
 #[must_use]
@@ -1758,6 +1825,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     if let Some(interproc) = &result.unit.interproc {
         out.insert("interprocedural".to_owned(), serialise_interproc(interproc));
     }
+    out.insert("unitScope".to_owned(), serialise_unit_scope(result));
     out.insert("types".to_owned(), serialise_types(result));
     // Honour the document's dialect so the CST and segment views tokenise
     // `{*}` / iRules braces the same way the rest of the pipeline does.
@@ -1883,10 +1951,11 @@ mod tests {
         let meta = serialise_meta();
         // 16 dialects: the prior 15 + `tcl9.1` (the Tcl 9.1 sync).
         assert_eq!(meta["dialects"].as_array().unwrap().len(), 16);
-        // 26 views: the base 24 minus the dropped `greentree` tab (Rust has a
+        // 27 views: the base 24 minus the dropped `greentree` tab (Rust has a
         // single red-green CST) plus the Rust-native `structuralIndex`,
-        // `sourceMap`, and `optimiserPasses` views.
-        assert_eq!(meta["views"].as_array().unwrap().len(), 26);
+        // `sourceMap`, and `optimiserPasses` views, plus `unitScope`
+        // (issue #977's cross-file caller evidence).
+        assert_eq!(meta["views"].as_array().unwrap().len(), 27);
         assert_eq!(meta["severities"], json!(["error", "warning", "info"]));
         // The parse-tree tab is the CST; there is no `greentree` entry.
         assert_eq!(
@@ -2460,6 +2529,53 @@ mod tests {
         assert_eq!(add["returnShape"], "passthrough(x)");
         assert!(add["pure"].is_boolean());
         assert!(add["calls"].is_array());
+    }
+
+    /// The Unit Scope view must show *why* the interprocedural seed fired:
+    /// the registry-declared boundaries the file crosses, whether a
+    /// cross-file view was supplied, and the per-position verdict (#977).
+    #[test]
+    fn unit_scope_reports_uniform_literals_and_no_boundary() {
+        let result = run_pipeline(
+            "proc helper {mode} { if {$mode eq \"prod\"} { set r 1 } }\nhelper prod\nhelper prod\n",
+            "tcl8.6",
+        );
+        let scope = serialise_result(&result)["unitScope"].clone();
+        assert_eq!(scope["boundaries"].as_array().unwrap().len(), 0);
+        assert_eq!(scope["hasCrossFileEvidence"], false);
+        assert!(
+            scope["seeding"].as_str().unwrap().starts_with("allowed"),
+            "{scope:?}"
+        );
+        let helper = scope["callees"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["name"] == "::helper")
+            .expect("::helper evidence present");
+        assert_eq!(
+            helper["positions"][0]["verdict"],
+            "uniform literal \"prod\""
+        );
+    }
+
+    /// The same file with a `package provide` crosses a registry-declared
+    /// boundary, so the view must report the boundary and the declined seed.
+    #[test]
+    fn unit_scope_reports_a_registry_declared_boundary() {
+        let result = run_pipeline(
+            "package provide mylib 1.0\nproc helper {mode} { if {$mode eq \"prod\"} { set r 1 } }\nhelper prod\n",
+            "tcl8.6",
+        );
+        let scope = serialise_result(&result)["unitScope"].clone();
+        assert_eq!(
+            scope["boundaries"].as_array().unwrap(),
+            &vec![Value::String("PROVIDES_PACKAGE".to_owned())]
+        );
+        assert!(
+            scope["seeding"].as_str().unwrap().starts_with("declined"),
+            "{scope:?}"
+        );
     }
 
     #[test]

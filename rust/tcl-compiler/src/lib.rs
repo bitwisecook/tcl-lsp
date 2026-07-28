@@ -154,6 +154,7 @@ pub mod tcl_expr_eval;
 pub mod text;
 pub mod type_infer;
 pub mod types;
+pub mod unit_scope;
 pub mod uri_split;
 pub mod value_provenance;
 pub mod value_shapes;

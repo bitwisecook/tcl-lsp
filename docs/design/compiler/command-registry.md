@@ -338,6 +338,34 @@ generically wherever a `COMMAND_PREFIX`/`BODY`/`LAMBDA_LITERAL` argument
 position needs to see through the quoting -- never by comparing a command
 head to the literal string `"list"`.
 
+### Unit-linkage traits
+
+Three traits record that a command makes the file it appears in part of a
+**bigger program** — the fact `tcl_compiler::unit_scope` needs to decide
+whether one file's call sites can be trusted as every call site (issue #977):
+
+| Trait | Set on | Means |
+|---|---|---|
+| `PROVIDES_PACKAGE` | `package provide`, `package ifneeded` | the file is a loadable package; its commands are public API |
+| `EXPORTS_COMMAND` | `namespace export`, `namespace ensemble` | the file publishes command names for another unit to import or dispatch through |
+| `LOADS_EXTERNAL_UNIT` | `source`, `load`, `package require`, `auto_load`, `auto_import` | another unit's script runs in this interpreter and can call back in |
+
+`CommandRegistry::unit_linkage(name, args, dialect)` resolves an invocation
+through `resolve_call` and returns the union of `spec.traits | sub.traits`
+masked to `UNIT_LINKAGE_TRAITS`, so the answer is subcommand-precise:
+`package provide` is a boundary, `package names` is not. Adding a new
+boundary command is a spec edit — the compiler never names one.
+
+The first two traits publish the file's commands to consumers no project
+enumeration can bound, so they decline the interprocedural seed
+unconditionally; `LOADS_EXTERNAL_UNIT` names a caller a workspace normally
+contains, so it defers to host-supplied cross-file evidence. See
+[compilation-unit-scope.md](compilation-unit-scope.md).
+
+`namespace import` is deliberately excluded: it is as often an intra-file
+convenience over a namespace the same file defines, and `unit_scope`'s
+evidence scan already models the import as a real caller path.
+
 ### Resolution priority
 
 Three mechanisms assign roles to command arguments. They are evaluated in

@@ -188,7 +188,6 @@ fn main() {
     // must pay against its ~120 ms summary-floor saving.
     println!("\n== 2b gate: warm duplicate-build cost (function_lattice cache hot) ==");
     {
-        let dialect_opt = Some(dialect);
         let cfg_d = tcl_lexer::LexerConfig::for_dialect(dialect);
         // Warm the shared build (populates function_lattice / taint_cascade) on the
         // *edited* text, mirroring the per-edit state proc_taint_solve runs in.
@@ -198,10 +197,13 @@ fn main() {
             tcl_lsp_db::memoised_compilation_unit(
                 &db,
                 &edited,
-                &registry,
-                false,
-                cfg_d,
-                dialect_opt,
+                tcl_compiler::compilation_unit::UnitBuildOptions {
+                    registry: &registry,
+                    defer_top_level: false,
+                    config: cfg_d,
+                    dialect,
+                    external_call_sites: None,
+                },
             )
         });
         println!(

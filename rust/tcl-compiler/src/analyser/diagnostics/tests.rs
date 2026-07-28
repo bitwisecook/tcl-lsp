@@ -3503,10 +3503,13 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
         let build_cu = |cache: &mut HashMap<String, FunctionUnit>| {
             CompilationUnit::build_for_memoized(
                 src,
-                &registry,
-                false,
-                tcl_lexer::LexerConfig::default(),
-                "tcl",
+                crate::compilation_unit::UnitBuildOptions {
+                    registry: &registry,
+                    defer_top_level: false,
+                    config: tcl_lexer::LexerConfig::default(),
+                    dialect: "tcl",
+                    external_call_sites: None,
+                },
                 &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
                     // Key + build mirror the db's `function_lattice` query,
                     // including the whole-unit `known_classes` /
@@ -3611,10 +3614,13 @@ fn memoized_compilation_unit_shift_correctness() {
     let build = |s: &str, cache: &mut HashMap<String, FunctionUnit>| {
         let cu = CompilationUnit::build_for_memoized(
             s,
-            &registry,
-            false,
-            tcl_lexer::LexerConfig::default(),
-            "tcl",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: &registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::default(),
+                dialect: "tcl",
+                external_call_sites: None,
+            },
             // Position-independent key: the body is normalised to offset 0
             // before the callback sees it, so a shifted-but-unedited proc
             // hits and the builder rebases the cached offset-0 unit.

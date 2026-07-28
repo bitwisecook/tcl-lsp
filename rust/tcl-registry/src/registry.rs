@@ -950,6 +950,35 @@ impl CommandRegistry {
             .is_some_and(|specs| specs.iter().any(|s| s.unsafe_command))
     }
 
+    /// The [`crate::traits::UNIT_LINKAGE_TRAITS`] this concrete invocation
+    /// carries — the registry's answer to "does this command widen the set
+    /// of callers beyond the file it appears in?".
+    ///
+    /// `PROVIDES_PACKAGE` (`package provide` / `ifneeded`) and
+    /// `EXPORTS_COMMAND` (`namespace export`, `namespace ensemble`) say the
+    /// file publishes an API surface; `LOADS_EXTERNAL_UNIT` (`source`,
+    /// `load`, `package require`, `auto_load`, `auto_import`, `namespace
+    /// import`) says another unit's script runs in this interpreter and can
+    /// call back in.  Any of the three sinks the "every caller of this
+    /// file's procs is in this file" assumption that
+    /// `tcl_compiler::unit_scope`'s interprocedural call-site seed rests on
+    /// (issue #977).
+    ///
+    /// Resolved through [`Self::resolve_call`], so the subcommand word is
+    /// honoured (`package provide` is a boundary, `package names` is not)
+    /// and `spec.traits | sub.traits` composes exactly as
+    /// [`crate::spec::SubCommand::traits`] documents. An unknown command
+    /// carries no linkage — a user proc named `source` is a user proc.
+    #[must_use]
+    pub fn unit_linkage(&self, name: &str, args: &[&str], dialect: DialectSet) -> Traits {
+        let Some(resolved) = self.resolve_call(name, args, dialect) else {
+            return Traits::empty();
+        };
+        let traits =
+            resolved.spec.traits | resolved.sub.map_or_else(Traits::empty, |sub| sub.traits);
+        traits.intersection(crate::traits::UNIT_LINKAGE_TRAITS)
+    }
+
     /// Whether `name` is valid only at the top level of an iRule script
     /// (`when`, `proc`, `priority`, `timing`).  Drives the IRULE5006 /
     /// IRULE5007 placement checks ([`Traits::IRULES_TOP_LEVEL_ONLY`]).
@@ -3935,5 +3964,96 @@ mod tests {
         // An unknown command name is safely neither.
         assert!(!reg.is_xc_never_translatable("no_such_command_xyz"));
         assert!(!reg.is_xc_translatable_override("no_such_command_xyz"));
+    }
+
+    /// `unit_linkage` composes `spec.traits | sub.traits` and filters to the
+    /// linkage union, so the answer is subcommand-precise: `package provide`
+    /// publishes an API surface, `package require` pulls another unit in, and
+    /// `package names` does neither (issue #977).
+    #[test]
+    fn unit_linkage_is_subcommand_precise() {
+        let reg = CommandRegistry::build_default();
+        let empty = DialectSet::empty();
+        assert_eq!(
+            reg.unit_linkage("package", &["provide", "mylib", "1.0"], empty),
+            Traits::PROVIDES_PACKAGE
+        );
+        assert_eq!(
+            reg.unit_linkage("package", &["ifneeded", "mylib", "1.0", "body"], empty),
+            Traits::PROVIDES_PACKAGE
+        );
+        assert_eq!(
+            reg.unit_linkage("package", &["require", "mylib"], empty),
+            Traits::LOADS_EXTERNAL_UNIT
+        );
+        assert_eq!(
+            reg.unit_linkage("package", &["names"], empty),
+            Traits::empty()
+        );
+    }
+
+    /// The whole registry-declared boundary surface, resolved by name: every
+    /// command that widens a file's caller set reports its kind, a
+    /// `::`-qualified spelling resolves the same, and a command that does
+    /// neither reports nothing.
+    #[test]
+    fn unit_linkage_covers_every_declared_boundary_command() {
+        let reg = CommandRegistry::build_default();
+        let empty = DialectSet::empty();
+        for (name, args, want) in [
+            ("source", &["lib.tcl"][..], Traits::LOADS_EXTERNAL_UNIT),
+            ("::source", &["lib.tcl"][..], Traits::LOADS_EXTERNAL_UNIT),
+            ("load", &["libx.so"][..], Traits::LOADS_EXTERNAL_UNIT),
+            ("auto_load", &["helper"][..], Traits::LOADS_EXTERNAL_UNIT),
+            (
+                "auto_import",
+                &["::lib::*"][..],
+                Traits::LOADS_EXTERNAL_UNIT,
+            ),
+            // `namespace import` is deliberately not a boundary — see its
+            // own spec comment.
+            (
+                "namespace",
+                &["import", "::lib::helper"][..],
+                Traits::empty(),
+            ),
+            (
+                "namespace",
+                &["export", "helper"][..],
+                Traits::EXPORTS_COMMAND,
+            ),
+            (
+                "namespace",
+                &["ensemble", "create"][..],
+                Traits::EXPORTS_COMMAND,
+            ),
+            ("namespace", &["eval", "::ns", "{}"][..], Traits::empty()),
+            ("set", &["x", "1"][..], Traits::empty()),
+            ("no_such_command_xyz", &["source"][..], Traits::empty()),
+        ] {
+            assert_eq!(
+                reg.unit_linkage(name, args, empty),
+                want,
+                "unit_linkage({name}, {args:?})"
+            );
+        }
+    }
+
+    /// Widening `Traits` to `u128` gave `SAFE_INTERP_HIDDEN` a bit of its own
+    /// (issue #1031): while it aliased `TRANSFERS_CONTROL` at bit 61, every
+    /// `break`/`continue`/`tailcall`/`yield` read as safe-interp-hidden and
+    /// every `cd`/`exec`/`glob`/… read as control-transferring, which
+    /// `FRAME_SENSITIVE_TRAITS` consumes directly.
+    #[test]
+    fn safe_interp_hidden_no_longer_aliases_transfers_control() {
+        let reg = CommandRegistry::build_default();
+        assert_ne!(Traits::TRANSFERS_CONTROL, Traits::SAFE_INTERP_HIDDEN);
+        let cd = reg.get("cd").expect("cd is registered");
+        assert!(cd.traits.contains(Traits::SAFE_INTERP_HIDDEN));
+        assert!(!cd.traits.contains(Traits::TRANSFERS_CONTROL));
+        assert!(!reg.is_frame_sensitive("cd"));
+        let brk = reg.get("break").expect("break is registered");
+        assert!(brk.traits.contains(Traits::TRANSFERS_CONTROL));
+        assert!(!brk.traits.contains(Traits::SAFE_INTERP_HIDDEN));
     }
 }
