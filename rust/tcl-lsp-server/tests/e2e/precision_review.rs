@@ -214,6 +214,42 @@ fn constructor_of_a_deleted_class_does_not_draw_misleading_w308() {
     );
 }
 
+/// TP (issue #1013): the `set x [Cls new]` shape reaches the same
+/// misleading W308 through the SSA type lattice rather than the direct
+/// constructor recognition, so it needs its own end-to-end guard.
+/// tclsh8.6/9.0 fail the constructor itself with `invalid command name
+/// "Dog"`, so `x` never holds an object.
+#[test]
+fn set_var_constructor_of_a_deleted_class_does_not_draw_misleading_w308() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Dog { method bark {} { return woof } }\nrename Dog {}\nproc foo {} {\n    set x [Dog new]\n    $x fly\n}\n",
+    );
+    let cs = codes(&diags);
+    assert!(
+        !cs.iter().any(|c| c == "W308"),
+        "a deleted class must not draw the misleading unknown-method W308: {diags:?}"
+    );
+}
+
+/// FP control for the same gate: a class re-established after its deletion
+/// is live again, so the unknown method must still be flagged.
+#[test]
+fn set_var_constructor_of_a_reestablished_class_still_draws_w308() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Dog { method bark {} { return woof } }\nrename Dog {}\noo::class create Dog { method bark {} { return woof } }\nproc foo {} {\n    set x [Dog new]\n    $x fly\n}\n",
+    );
+    assert!(
+        codes(&diags).iter().any(|c| c == "W308"),
+        "a re-established class must still validate its methods: {diags:?}"
+    );
+}
+
 /// FP guard: `coroutine NAME cmd` binds NAME as a command — calling it is
 /// not unknown.  TP control: a typo'd coroutine name still fires.
 #[test]

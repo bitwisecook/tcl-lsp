@@ -5355,13 +5355,12 @@ fn analyse_w308_emitted_for_unknown_method_on_known_class_constructor() {
 // real, primary diagnostic.
 //
 // `harvest_constructor_object_types` (the `set x [Cls new]` variable-
-// assignment sibling of this same check) is fixed the same way, but a
+// assignment sibling of this same check) is fixed the same way. The
 // deeper, independent source in `type_infer.rs`'s `constructor_object_type`
-// still separately types `x` as `Object(Cls)` for that shape via the SSA
-// type lattice, so `$x method` there still draws the same misleading
-// W308 — tracked as a follow-up (that fix needs a call-site offset
-// threaded into a foundational, flow-insensitive type-inference helper,
-// a larger and riskier change than this session's other gate-only fixes).
+// — which types `x` as `Object(Cls)` for that shape via the SSA type
+// lattice — is gated in `aggregate_object_types`, where both sources are
+// unioned and the analyser's own deletion facts are in scope (issue #1013;
+// see the `w308_*_issue_1013_*` cases below).
 
 #[test]
 fn w308_tp_issue_1010_deleted_class_constructor_falls_back_to_w307() {
@@ -5377,6 +5376,61 @@ fn w308_tp_issue_1010_deleted_class_constructor_falls_back_to_w307() {
     assert!(
         codes.contains("W123"),
         "the deleted class itself must draw W123 as the real diagnostic; got {codes:?}"
+    );
+}
+
+#[test]
+fn w308_tp_issue_1013_deleted_class_set_var_constructor_draws_no_w308() {
+    // Issue #1013 primary repro: `type_infer.rs`'s `constructor_object_type`
+    // is a second, independent source of `Object(Dog)` typing for the
+    // `set x [Dog new]` shape, reached through the SSA type lattice rather
+    // than #1010's `harvest_constructor_object_types`. It reads an
+    // unfiltered "known classes" set with no deletion awareness, so this
+    // still drew the misleading "unknown method" W308 after #1010's fix.
+    // tclsh8.6 and 9.0 both fail the constructor first: `invalid command
+    // name "Dog"` — `x` is never assigned an object at all.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog {}\nproc foo {} {\n    set x [Dog new]\n    $x fly\n}\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    let codes: HashSet<String> = r.diagnostics.iter().map(|d| d.code.to_string()).collect();
+    assert!(
+        !codes.contains("W308"),
+        "a deleted class must not draw the misleading 'unknown method' W308; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w308_fp_issue_1013_reestablished_class_set_var_constructor_still_flags() {
+    // FP guard for the same gate: a class deleted and then re-established
+    // under the same name is live again at file end (the fresh definition
+    // postdates the deletion), so `x` must still type as `Object(Dog)` and
+    // the unknown method must still be flagged.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog {}\noo::class create Dog { method bark {} { return woof } }\nproc foo {} {\n    set x [Dog new]\n    $x fly\n}\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "a re-established class must still type its constructor result; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w308_tn_issue_1013_live_class_set_var_constructor_still_flags() {
+    // TN control: with no deletion anywhere, the ordinary `set x [Dog new]`
+    // shape must be entirely unaffected by the gate.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nproc foo {} {\n    set x [Dog new]\n    $x fly\n}\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "a live class must still validate its methods; got {:?}",
+        r.diagnostics,
     );
 }
 
