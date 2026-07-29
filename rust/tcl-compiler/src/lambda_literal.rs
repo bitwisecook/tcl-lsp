@@ -53,8 +53,33 @@ pub struct LambdaLiteralElements {
     pub params: Span,
     /// Element 1 — the body script, when present.
     pub body: Option<Span>,
+    /// `true` when [`Self::body`] was written as a `{braced}` list element.
+    /// See [`Self::braced_body`].
+    pub body_braced: bool,
     /// Element 2 — the namespace the body runs in, when present.
     pub namespace: Option<Span>,
+}
+
+impl LambdaLiteralElements {
+    /// [`Self::body`], but only for a `{braced}` body element — the one
+    /// shape whose script text is the source text verbatim at exactly this
+    /// span's offsets.
+    ///
+    /// A bare or double-quoted body element goes through list-element
+    /// decoding before `apply` ever evaluates it, so its backslash escapes
+    /// collapse first: `apply {{} if\ \{$x\}\ \{puts a\}}`'s real body is
+    /// `if {$x} {puts a}`, three words, while its *source* slice is a single
+    /// escaped word. A consumer that re-parses the slice in place and reports
+    /// source spans back — the refactor code-action descent, the dispatch
+    /// call-site scan — would be reading a script that does not exist. Those
+    /// consumers take this accessor and skip the element instead; consumers
+    /// that want the real value regardless of shape take
+    /// [`split_lambda_literal_decoded`], which has no spans to get wrong
+    /// (Codex review on #1047).
+    #[must_use]
+    pub fn braced_body(&self) -> Option<Span> {
+        self.body.filter(|_| self.body_braced)
+    }
 }
 
 /// Split a lambda-literal token into its list elements' absolute spans.
@@ -77,6 +102,7 @@ pub fn split_lambda_literal(source: &str, tok: Token) -> Option<LambdaLiteralEle
     Some(LambdaLiteralElements {
         params: to_span(&params_el)?,
         body: body_el.as_ref().and_then(to_span),
+        body_braced: body_el.as_ref().is_some_and(|el| el.braced),
         namespace: namespace_el.as_ref().and_then(to_span),
     })
 }
@@ -216,6 +242,42 @@ mod tests {
         let elems = split_lambda_literal(src, lambda_tok(src)).unwrap();
         assert!(elems.body.is_none());
         assert!(elems.namespace.is_none());
+    }
+
+    #[test]
+    fn braced_body_is_offered_for_in_place_reparse() {
+        let src = "apply {{} {Factory make}}";
+        let elems = split_lambda_literal(src, lambda_tok(src)).unwrap();
+        assert!(elems.body_braced);
+        let body = elems.braced_body().unwrap();
+        assert_eq!(
+            &src[body.start() as usize..body.end() as usize],
+            "Factory make"
+        );
+    }
+
+    /// Codex review on #1047: a bare body element with backslash escapes is
+    /// decoded by the list parser before `apply` evaluates it, so its source
+    /// slice is not the script that runs — an in-place re-parse would read
+    /// `if\ \{$x\}\ \{puts\ a\}` as one word.  `braced_body` withholds it.
+    #[test]
+    fn escaped_bare_body_is_withheld_from_in_place_reparse() {
+        let src = r"apply {{} if\ \{$x\}\ \{puts\ a\}}";
+        let elems = split_lambda_literal(src, lambda_tok(src)).unwrap();
+        assert!(elems.body.is_some());
+        assert!(!elems.body_braced);
+        assert!(elems.braced_body().is_none());
+    }
+
+    /// A double-quoted body element is likewise not brace-delimited: it is
+    /// decoded before evaluation, so it is withheld too.
+    #[test]
+    fn quoted_body_is_withheld_from_in_place_reparse() {
+        let src = r#"apply {{} "Factory make"}"#;
+        let elems = split_lambda_literal(src, lambda_tok(src)).unwrap();
+        assert!(elems.body.is_some());
+        assert!(!elems.body_braced);
+        assert!(elems.braced_body().is_none());
     }
 
     #[test]

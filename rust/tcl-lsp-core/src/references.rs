@@ -110,6 +110,16 @@
 //! ([`tcl_registry::CommandRegistry::plain_body_arg_indices`],
 //! [`tcl_registry::CaseListSpec`]); no command name is hardcoded in the
 //! walkers themselves (issue #957's general form).
+//!
+//! The `$obj`-dispatch scan goes one step further for its *command*-receiver
+//! half — a class command (`Factory make`) or an object command bound by
+//! `CLASS create NAME` (`rex bark`).  Those are ordinary commands, resolvable
+//! from any frame, so that half also descends the **frame-shifting** regions
+//! ([`frame_shifted_dispatch_regions`]): `Structural`-`BodyKind` bodies
+//! (`namespace eval`, `uplevel`, `oo::define`, …) and `apply` lambda bodies.
+//! The `$var`-receiver half stops at those boundaries, because a `$f` inside
+//! a `namespace eval` body names that namespace's own `f` and inside an
+//! `apply` lambda a fresh local (tclsh 9.0.4-verified).
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::AnalysisResult;
@@ -1764,6 +1774,7 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
         var_set: &var_set,
         cmd_set: &cmd_set,
         method,
+        var_receivers_in_scope: true,
     };
 
     // Region 1: the whole document.
@@ -1813,6 +1824,28 @@ struct ObjMethodScan<'a> {
     var_set: &'a FxHashSet<&'a str>,
     cmd_set: &'a FxHashSet<&'a str>,
     method: &'a str,
+    /// `false` once the scan has descended through a frame-shifting region
+    /// ([`frame_shifted_dispatch_regions`]), where a `$var` receiver's bare
+    /// name no longer names the enclosing frame's variable — so `var_set`
+    /// stops matching while `cmd_set` (an ordinary command, resolvable from
+    /// any frame) keeps going.
+    var_receivers_in_scope: bool,
+}
+
+impl ObjMethodScan<'_> {
+    /// This context as it applies inside a frame-shifting region.
+    fn frame_shifted(self) -> Self {
+        Self {
+            var_receivers_in_scope: false,
+            ..self
+        }
+    }
+
+    /// Whether this context can still match anything — a frame-shifted scan
+    /// with no command receivers to look for has nothing left to do.
+    fn has_receivers(&self) -> bool {
+        !self.cmd_set.is_empty() || (self.var_receivers_in_scope && !self.var_set.is_empty())
+    }
 }
 
 /// Mutable sink for matched call-site spans plus the dedup set, threaded
@@ -1877,7 +1910,8 @@ fn scan_obj_method_region(
             if h_start < source.len() && h_end <= source.len() {
                 let raw = &source[h_start..h_end];
                 let receiver_matches = if head.kind == TokenType::Var {
-                    strip_var_decoration(raw).is_some_and(|name| ctx.var_set.contains(name))
+                    ctx.var_receivers_in_scope
+                        && strip_var_decoration(raw).is_some_and(|name| ctx.var_set.contains(name))
                 } else {
                     // A bare-word object command (`rex bark`).  `cmd_set` holds
                     // only plain names, and a braced / bracketed / substituted
@@ -1902,6 +1936,13 @@ fn scan_obj_method_region(
         }
         for (inner_start, inner_end) in nested_dispatch_regions(source, ctx.dialect, cmd) {
             scan_obj_method_region(ctx, inner_start, inner_end, depth + 1, sink);
+        }
+        let shifted = ctx.frame_shifted();
+        if shifted.has_receivers() {
+            for (inner_start, inner_end) in frame_shifted_dispatch_regions(source, ctx.dialect, cmd)
+            {
+                scan_obj_method_region(shifted, inner_start, inner_end, depth + 1, sink);
+            }
         }
     }
 }
@@ -1991,6 +2032,87 @@ fn nested_dispatch_regions(
             if start < end {
                 regions.push((start, end));
             }
+        }
+    }
+    regions
+}
+
+/// Every nested script region reachable from one segmented command whose body
+/// runs in a **different frame** from the enclosing one, as `(start, end)`
+/// byte offsets into `source`:
+///
+/// * an argument the registry marks [`tcl_registry::ArgRole::Body`] with a
+///   `Structural` [`tcl_registry::BodyKind`] — `namespace eval`, `uplevel`,
+///   `oo::define`, `interp eval`, `proc`, … (the complement of
+///   [`nested_dispatch_regions`]'s `Plain` set); and
+/// * the body element of an [`tcl_registry::ArgRole::LambdaLiteral`]
+///   argument — `apply`'s `{argList body ?ns?}` — split by the shared
+///   [`tcl_compiler::lambda_literal`] splitter, and only when that element is
+///   `{braced}` (a bare / quoted one is backslash-decoded before `apply`
+///   evaluates it, so its source slice is not the script that runs).
+///
+/// These carry the *command*-receiver half of the `$obj method` scan only.
+/// A class command (`Factory make`) or a `CLASS create NAME` object command
+/// (`rex bark`) is an ordinary command and resolves the same from a
+/// `namespace eval` body, an `apply` lambda, or the top level, so a dispatch
+/// written in one of them is a real reference to the method — Find All
+/// References, rename, the code lens, and the call hierarchy all missed those
+/// sites before (adversarial review of #1047, item 2; all three shapes
+/// verified dispatching under tclsh 9.0.4).  A `$var` receiver does not
+/// survive the boundary — `$f` inside `namespace eval ::zz` names `::zz::f`,
+/// and inside an `apply` lambda a fresh local — so the caller drops
+/// `var_set` for the descended subtree
+/// ([`ObjMethodScan::frame_shifted`]).
+///
+/// Registry-driven throughout: which arguments are bodies, and whether they
+/// are same-frame, comes from the command's spec, never from its name.
+fn frame_shifted_dispatch_regions(
+    source: &str,
+    dialect: &str,
+    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+) -> Vec<(usize, usize)> {
+    use tcl_lexer::TokenType;
+    let mut regions: Vec<(usize, usize)> = Vec::new();
+    let Some(cmd_name) = cmd.texts.first() else {
+        return regions;
+    };
+    let registry = tcl_registry::registry_for_dialect(dialect);
+    let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
+    // `plain_body_arg_indices` is `arg_indices_for_role(Body)` gated on the
+    // call's resolved `BodyKind`, so an empty plain list against a non-empty
+    // body list means every body argument of *this* call is `Structural`.
+    if registry.plain_body_arg_indices(cmd_name, &args).is_empty() {
+        for idx in registry.arg_indices_for_role(cmd_name, &args, tcl_registry::ArgRole::Body) {
+            let Some(tok) = cmd.argv.get(idx + 1) else {
+                continue;
+            };
+            // Only a braced literal body is script at these exact offsets;
+            // a `$var` / `[cmd]` body is assembled at runtime.
+            if tok.kind != TokenType::Str {
+                continue;
+            }
+            let (start, end) = strip_outer_braces(source, tok.span);
+            if start < end {
+                regions.push((start, end));
+            }
+        }
+    }
+    for idx in registry.arg_indices_for_role(cmd_name, &args, tcl_registry::ArgRole::LambdaLiteral)
+    {
+        let Some(&tok) = cmd.argv.get(idx + 1) else {
+            continue;
+        };
+        if tok.kind != TokenType::Str {
+            continue;
+        }
+        let Some(body) = tcl_compiler::lambda_literal::split_lambda_literal(source, tok)
+            .and_then(|elems| elems.braced_body())
+        else {
+            continue;
+        };
+        let (start, end) = (body.start() as usize, body.end() as usize);
+        if start < end && end <= source.len() {
+            regions.push((start, end));
         }
     }
     regions
@@ -3356,6 +3478,68 @@ mod tests {
                 "{sites:?}"
             );
         }
+    }
+
+    /// TP (adversarial review of #1047, item 2): a bare class-command
+    /// dispatch written inside an `apply` lambda body or a `namespace eval`
+    /// body — at the top level or nested inside a method — is a real call.
+    /// All three shapes were confirmed dispatching under tclsh 9.0.4
+    /// (`MAKE CALLED` printed three times).
+    #[test]
+    fn find_obj_method_call_sites_reaches_lambda_and_namespace_eval_bodies() {
+        let src = "oo::class create Factory {\n\
+                       classmethod make {} { return 1 }\n\
+                       method inst {} { apply {{} { Factory make }} }\n\
+                       method nsev {} { namespace eval ::zz { Factory make } }\n\
+                   }\n\
+                   namespace eval ::top2 { Factory make }\n";
+        let analysis = analyse(src);
+        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Factory", "make", true);
+        assert_eq!(sites.len(), 3, "{sites:?}");
+        for s in &sites {
+            assert_eq!(
+                &src[s.start() as usize..s.end() as usize],
+                "make",
+                "{sites:?}"
+            );
+        }
+    }
+
+    /// TN — the instance half must **not** follow the class-command half
+    /// through a frame shift.  `$f` inside `namespace eval ::zz` names
+    /// `::zz::f`, and inside an `apply` lambda a fresh local, so neither is
+    /// a dispatch on the outer `f` (tclsh 9.0.4: both raise `can't read
+    /// "f": no such variable`).
+    #[test]
+    fn find_obj_method_call_sites_excludes_var_receivers_across_a_frame_shift() {
+        let src = "oo::class create Dog {\n\
+                       method bark {} {}\n\
+                   }\n\
+                   set f [Dog new]\n\
+                   namespace eval ::zz { $f bark }\n\
+                   apply {{} { $f bark }}\n\
+                   $f bark\n";
+        let analysis = analyse(src);
+        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark", false);
+        assert_eq!(sites.len(), 1, "{sites:?}");
+        let s = sites[0];
+        let line = src[..s.start() as usize].lines().count();
+        assert_eq!(line, 7, "only the same-frame `$f bark` matches: {sites:?}");
+    }
+
+    /// TN — a bare (backslash-escaped) `apply` body element is decoded
+    /// before `apply` evaluates it, so its source slice is not the script
+    /// that runs; the scan must not re-parse it in place (Codex review on
+    /// #1047).
+    #[test]
+    fn find_obj_method_call_sites_skips_escaped_lambda_body_element() {
+        let src = "oo::class create Factory {\n\
+                       classmethod make {} { return 1 }\n\
+                   }\n\
+                   apply {{} Factory\\ make}\n";
+        let analysis = analyse(src);
+        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Factory", "make", true);
+        assert!(sites.is_empty(), "{sites:?}");
     }
 
     #[test]

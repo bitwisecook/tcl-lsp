@@ -65,7 +65,13 @@ rename. A **pure-consumer** file — one that only calls the method (`set f
 declares no part of the class — is rewritten too: rename and **Find
 References** resolve those call sites through one shared resolver, so a
 consumer file can never be left calling a name the rename has already taken
-away. Renaming a property rewrites the declaration plus every `my
+away. A bare classmethod dispatch is rewritten wherever it is written,
+including inside a `namespace eval` body or an `apply` lambda body — a class
+command is an ordinary command and resolves from any frame, unlike a `$obj`
+receiver. A subclass's own `Subclass method` dispatch renames with the
+parent's `classmethod`, but **not** with a stock-TclOO `self method`, which
+is not inherited and so was never calling the renamed member. Renaming a
+property rewrites the declaration plus every `my
 <property>` read; a property has no `$obj` dispatch or inheritance model,
 so those are out of scope by design, not a gap. Because a method is never a
 bare-callable command (only `my method` dispatches it), a method / property
