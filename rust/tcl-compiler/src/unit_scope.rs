@@ -1558,8 +1558,9 @@ fn walk_statement<'a>(
 ) {
     use crate::ir::Statement;
     visit(stmt);
+    // Only the body-bearing arms have anything left to do — everything else
+    // is a leaf the visit above has already seen.
     match stmt {
-        Statement::Call { .. } | Statement::Barrier { .. } => {}
         Statement::Block { body, .. }
         | Statement::UpFrame { body, .. }
         | Statement::While { body, .. }
@@ -1608,7 +1609,9 @@ fn walk_statement<'a>(
                 walk_script(body, visit);
             }
         }
-        Statement::AssignConst { .. }
+        Statement::Call { .. }
+        | Statement::Barrier { .. }
+        | Statement::AssignConst { .. }
         | Statement::AssignExpr { .. }
         | Statement::AssignValue { .. }
         | Statement::Incr { .. }
