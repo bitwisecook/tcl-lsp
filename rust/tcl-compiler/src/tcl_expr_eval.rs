@@ -1232,15 +1232,21 @@ pub(crate) fn split_tcl_list(text: &str) -> Vec<String> {
 }
 
 /// Apply an iRules string operator to two rendered string operands.
+///
+/// Reached only through [`FoldOps::binary_other`], which the shared
+/// [`tcl_syntax::expr::eval`] tree-walk calls for the operators its own
+/// `match` does not handle.  That match already covers `equals`
+/// ([`BinOp::StrEquals`], via `compare_string` alongside `eq`) and `in` /
+/// `ni` (via `in_list`), so those three never arrive here — the arms that
+/// re-implemented them were unreachable, and re-implementing `in`/`ni` with
+/// a private list split risked disagreeing with the shared `in_list`
+/// semantics if either drifted.
 fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue> {
     let res = match op {
         BinOp::Contains => left.contains(right),
         BinOp::StartsWith => left.starts_with(right),
         BinOp::EndsWith => left.ends_with(right),
-        BinOp::StrEquals => left == right,
         BinOp::MatchesGlob => tcl_syntax::glob::string_match(right, left),
-        BinOp::In => split_tcl_list(right).iter().any(|e| e == left),
-        BinOp::Ni => !split_tcl_list(right).iter().any(|e| e == left),
         // `matches_regex` is deliberately *not* constant-folded (along
         // with any other / unsupported operator): the Rust `regex` crate
         // is not Tcl's ARE engine — classes, anchors, word boundaries,
