@@ -19,8 +19,8 @@
 //! Whole-callee uplevel-passthrough inlining.
 //!
 //! Detects procs whose entire body is a single
-//! [`Statement::UpFrame`] with `frame_shift == 1` (the canonical
-//! "shift to caller's frame, evaluate body, restore frame" idiom)
+//! [`Statement::UpFrame`] with a *relative* `frame_shift == 1` (the
+//! canonical "shift to caller's frame, evaluate body, restore frame" idiom)
 //! and rewrites every callsite to splice the body inline.
 
 use std::collections::HashMap;
@@ -33,8 +33,8 @@ use tcl_registry::CommandRegistry;
 #[derive(Debug, Clone)]
 pub enum PassthroughShape {
     /// Zero-param proc whose body is exactly one
-    /// `Statement::UpFrame { frame_shift: 1, body, .. }` — splice
-    /// `body` directly at every callsite.
+    /// `Statement::UpFrame { frame_shift: 1, absolute: false, body, .. }`
+    /// — splice `body` directly at every callsite.
     Static {
         /// Pre-lowered body to inline at every callsite.
         body: Script,
@@ -92,9 +92,11 @@ fn classify_passthrough(proc: &Procedure) -> Option<PassthroughShape> {
 }
 
 /// Return the inner body if *proc* is a zero-param `uplevel 1`
-/// passthrough — body is exactly one [`Statement::UpFrame`] with
-/// `frame_shift == 1` and contains no nested frame-reaching
-/// commands.
+/// passthrough — body is exactly one [`Statement::UpFrame`] with a
+/// *relative* `frame_shift == 1` and no nested frame-reaching
+/// commands. The absolute `uplevel #1` names a frame counted down
+/// from the global one, so it is not the same-frame idiom and is
+/// rejected alongside `#0`.
 fn static_passthrough_body(proc: &Procedure) -> Option<Script> {
     if !proc.params.is_empty() {
         return None;
@@ -104,8 +106,11 @@ fn static_passthrough_body(proc: &Procedure) -> Option<Script> {
     }
     match &proc.body.statements[0] {
         Statement::UpFrame {
-            frame_shift, body, ..
-        } if *frame_shift == 1 => {
+            frame_shift,
+            absolute,
+            body,
+            ..
+        } if !*absolute && *frame_shift == 1 => {
             if body_has_frame_reach(body) || body_has_completion_escape(body) {
                 None
             } else {
@@ -624,6 +629,20 @@ mod tests {
         // expressed as a same-frame inline.
         let m = lower_to_ir("proc reset {} { uplevel #0 {set counter 0} }", &reg());
         assert!(detect_static_passthrough(&m).is_empty());
+    }
+
+    #[test]
+    fn absolute_level_one_is_not_static_passthrough() {
+        // `uplevel #1` counts *down* from the global frame, so it is not the
+        // caller's-frame idiom `uplevel 1` denotes. Both carry the magnitude
+        // 1; only the `absolute` flag separates them.
+        let m = lower_to_ir("proc reset {} { uplevel #1 {set counter 0} }", &reg());
+        assert!(detect_static_passthrough(&m).is_empty());
+        let relative = lower_to_ir("proc reset {} { uplevel 1 {set counter 0} }", &reg());
+        assert!(
+            !detect_static_passthrough(&relative).is_empty(),
+            "the relative form is still recognised",
+        );
     }
 
     #[test]

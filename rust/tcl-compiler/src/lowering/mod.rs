@@ -285,20 +285,40 @@ pub(crate) fn static_bool(expr_text: &str) -> Option<bool> {
     }
 }
 
-/// Parse the level argument of an `uplevel` call into a frame
-/// shift. Accepts the canonical positive-integer form (`uplevel 1
-/// body`, `uplevel 3 body`) and the global form (`#0` / `#N`),
-/// returning `None` when the argument is dynamic (`$lvl`, `[expr
-/// {...}]`) or otherwise unparseable.
+/// An `uplevel` level argument, parsed.
 ///
-/// The returned shift is normalised so callers can decide whether to
-/// route the call through [`Statement::UpFrame`] (positive shifts)
-/// or fall back to a barrier.
-fn parse_uplevel_level(text: &str) -> Option<i32> {
+/// The two forms address different frames and must not be conflated:
+/// `#N` counts *down* from the global frame, `N` counts *up* from the
+/// current one. They coincide only when the current frame is the
+/// global frame, which static analysis cannot assume.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct UplevelLevel {
+    /// The level number as written, without the `#`.
+    shift: i32,
+    /// `true` for the `#N` absolute form, `false` for the relative form.
+    absolute: bool,
+}
+
+/// Parse the level argument of an `uplevel` call. Accepts the
+/// canonical relative form (`uplevel 1 body`, `uplevel 3 body`) and
+/// the absolute form (`#0` / `#N`), returning `None` when the argument
+/// is dynamic (`$lvl`, `[expr {...}]`) or otherwise unparseable.
+///
+/// `#0` and `0` both yield a `shift` of `0` and are told apart by
+/// `absolute` — `uplevel #0 {…}` runs the body in the global frame
+/// while `uplevel 0 {…}` runs it in the current one
+/// (tclsh8.6/9.0-confirmed).
+fn parse_uplevel_level(text: &str) -> Option<UplevelLevel> {
     if let Some(rest) = text.strip_prefix('#') {
-        return rest.parse::<i32>().ok().map(|n| -n);
+        return rest.parse::<i32>().ok().map(|shift| UplevelLevel {
+            shift,
+            absolute: true,
+        });
     }
-    text.parse::<i32>().ok()
+    text.parse::<i32>().ok().map(|shift| UplevelLevel {
+        shift,
+        absolute: false,
+    })
 }
 
 /// Return `(name, literal)` when *seg* is `set name {literal}`.
@@ -1649,8 +1669,15 @@ impl<'r> Lowerer<'r> {
         // activation) is an opt-in optimiser pass, not wired into codegen.
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
-        let (frame_shift, body_tok_idx) = match args.len() {
-            1 => (1_i32, 0),
+        let (level, body_tok_idx) = match args.len() {
+            // A bare `uplevel {body}` means relative level 1.
+            1 => (
+                UplevelLevel {
+                    shift: 1,
+                    absolute: false,
+                },
+                0,
+            ),
             2 => (parse_uplevel_level(&args[0])?, 1),
             _ => return None,
         };
@@ -1679,7 +1706,8 @@ impl<'r> Lowerer<'r> {
         };
         Some(Statement::UpFrame {
             span: seg.span,
-            frame_shift,
+            frame_shift: level.shift,
+            absolute: level.absolute,
             body,
             tokens: Some(Self::cmd_tokens(seg)),
         })
@@ -3424,15 +3452,41 @@ mod tests {
 
     #[test]
     fn parse_uplevel_level_decimal() {
-        assert_eq!(parse_uplevel_level("1"), Some(1));
-        assert_eq!(parse_uplevel_level("3"), Some(3));
-        assert_eq!(parse_uplevel_level("0"), Some(0));
+        let relative = |shift| {
+            Some(UplevelLevel {
+                shift,
+                absolute: false,
+            })
+        };
+        assert_eq!(parse_uplevel_level("1"), relative(1));
+        assert_eq!(parse_uplevel_level("3"), relative(3));
+        assert_eq!(parse_uplevel_level("0"), relative(0));
     }
 
     #[test]
     fn parse_uplevel_level_hash_form() {
-        assert_eq!(parse_uplevel_level("#0"), Some(0));
-        assert_eq!(parse_uplevel_level("#3"), Some(-3));
+        let absolute = |shift| {
+            Some(UplevelLevel {
+                shift,
+                absolute: true,
+            })
+        };
+        assert_eq!(parse_uplevel_level("#0"), absolute(0));
+        assert_eq!(parse_uplevel_level("#3"), absolute(3));
+    }
+
+    #[test]
+    fn parse_uplevel_level_zero_keeps_absolute_and_relative_apart() {
+        // `uplevel #0` runs the body in the global frame; `uplevel 0` runs it
+        // in the current frame. Both carry the magnitude 0, so only the
+        // `absolute` flag tells them apart — conflating them miscompiled the
+        // command-word namespace of every `uplevel 0` body.
+        let hash_zero = parse_uplevel_level("#0").expect("#0 parses");
+        let bare_zero = parse_uplevel_level("0").expect("0 parses");
+        assert_eq!(hash_zero.shift, bare_zero.shift);
+        assert!(hash_zero.absolute);
+        assert!(!bare_zero.absolute);
+        assert_ne!(hash_zero, bare_zero);
     }
 
     #[test]
@@ -3461,7 +3515,14 @@ mod tests {
     fn uplevel_static_body_with_level_one() {
         let m = lower_to_ir("uplevel 1 {set x 1}", &reg());
         match &m.top_level.statements[0] {
-            Statement::UpFrame { frame_shift, .. } => assert_eq!(*frame_shift, 1),
+            Statement::UpFrame {
+                frame_shift,
+                absolute,
+                ..
+            } => {
+                assert_eq!(*frame_shift, 1);
+                assert!(!*absolute, "`uplevel 1` is the relative form");
+            }
             other => panic!("expected UpFrame, got {other:?}"),
         }
     }
@@ -3470,8 +3531,34 @@ mod tests {
     fn uplevel_static_body_with_hash_zero() {
         let m = lower_to_ir("uplevel #0 {set x 1}", &reg());
         match &m.top_level.statements[0] {
-            Statement::UpFrame { frame_shift, .. } => assert_eq!(*frame_shift, 0),
+            Statement::UpFrame {
+                frame_shift,
+                absolute,
+                ..
+            } => {
+                assert_eq!(*frame_shift, 0);
+                assert!(*absolute, "`uplevel #0` is the absolute global form");
+            }
             other => panic!("expected UpFrame for #0, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn uplevel_static_body_with_bare_zero_is_relative() {
+        // `uplevel 0 {body}` evaluates the body in the *current* frame, not
+        // the global one. It shares the magnitude 0 with `#0` and is told
+        // apart only by `absolute`.
+        let m = lower_to_ir("uplevel 0 {set x 1}", &reg());
+        match &m.top_level.statements[0] {
+            Statement::UpFrame {
+                frame_shift,
+                absolute,
+                ..
+            } => {
+                assert_eq!(*frame_shift, 0);
+                assert!(!*absolute, "`uplevel 0` is the relative current-frame form");
+            }
+            other => panic!("expected UpFrame for bare 0, got {other:?}"),
         }
     }
 

@@ -257,11 +257,13 @@ fn rewrite_block_like(stmt: &Statement, rename: &HashMap<String, String>) -> Sta
         Statement::UpFrame {
             span,
             frame_shift,
+            absolute,
             body,
             tokens,
         } => Statement::UpFrame {
             span: *span,
             frame_shift: *frame_shift,
+            absolute: *absolute,
             body: rewrite_script(body, rename),
             tokens: tokens.clone(),
         },

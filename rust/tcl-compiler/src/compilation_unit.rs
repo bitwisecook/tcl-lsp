@@ -2243,8 +2243,8 @@ mod tests {
         /// caller's `"a"` folded the condition.
         ///
         /// `build_extra_call_site_scan_contexts` now builds a bare CFG for
-        /// every `frame_shift == 0` `UpFrame` body, resolved as `"::top"` —
-        /// mirroring how a `TclOO` method body is forced global.
+        /// every *absolute* shift-`0` `UpFrame` body, resolved as `"::top"`
+        /// — mirroring how a `TclOO` method body is forced global.
         ///
         /// `uplevel N` for any relative (non-`#0`) level stays out of scope:
         /// the target frame's namespace depends on the live call stack,
@@ -2284,6 +2284,44 @@ mod tests {
                 !folds_condition_mentioning(ns_helper, "mode"),
                 "::foo::helper is never actually called by real Tcl semantics: {:?}",
                 ns_helper.sccp.constant_branches,
+            );
+        }
+
+        /// MISCOMPILE regression (adversarial review): `uplevel 0 { … }` is
+        /// the *relative* current-frame form and must NOT be treated as the
+        /// absolute global form. Lowering encoded `#0` and `0` as the same
+        /// `frame_shift == 0`, so this body was resolved against `"::top"`
+        /// and `::foo::helper` lost its only varying call site — folding a
+        /// branch that real Tcl reaches both ways.
+        ///
+        /// Oracle (tclsh8.6 and tclsh9.0, `review-probes/up1.tcl`): inside
+        /// `::foo::runIt`, `uplevel #0 { helper b }` prints `GLOBAL helper`
+        /// while `uplevel 0 { helper c }` prints `FOO helper`.
+        #[test]
+        fn uplevel_bare_zero_body_resolves_against_the_enclosing_namespace() {
+            let reg = registry();
+            let src = "
+                namespace eval ::foo {
+                    proc helper {mode} {
+                        if {$mode eq \"a\"} { set r 1 } else { set r 2 }
+                    }
+                    proc runIt {} {
+                        uplevel 0 { helper b }
+                    }
+                }
+                ::foo::helper a
+                ::foo::runIt
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu
+                .procedures
+                .get("::foo::helper")
+                .expect("::foo::helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "`uplevel 0` runs in the current frame, so ::foo::helper sees both \
+                 \"a\" (direct) and \"b\" (the uplevel body): {:?}",
+                helper.sccp.constant_branches,
             );
         }
 

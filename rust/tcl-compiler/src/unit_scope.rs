@@ -1054,18 +1054,26 @@ struct UpFrameCaller<'a> {
 /// Every static-body `uplevel` in the module, paired with the namespace
 /// context its body's bare command words resolve against.
 ///
-/// `uplevel #0` (`frame_shift == 0`) is the *absolute* frame form: its body
-/// runs in the global frame, so bare command words resolve against the
+/// `uplevel #0` (`absolute`, shift `0`) is the *absolute* frame form: its
+/// body runs in the global frame, so bare command words resolve against the
 /// global namespace, not the enclosing proc's — tclsh8.6/9.0-confirmed,
 /// `uplevel #0 { helper b }` inside `::foo::runIt` calls `::helper`, never
 /// `::foo::helper` (issue #980).
 ///
-/// Any *relative* level (`uplevel 1`, `uplevel 2`, …) targets a frame whose
-/// namespace depends on the live call stack, which single-file static
-/// analysis cannot decide. Those keep the enclosing unit's own namespace —
-/// the documented, permanent approximation this scan has always used for
-/// them, now expressed here rather than falling out of a text re-walk of
-/// the enclosing definition's body.
+/// Every other level keeps the enclosing unit's own namespace:
+///
+/// * `uplevel 0` is the *relative* current-frame form. Despite sharing the
+///   magnitude `0` with `#0` it is the opposite case — tclsh8.6/9.0 confirm
+///   `uplevel 0 { helper c }` inside `::foo::runIt` calls `::foo::helper`.
+///   Resolving it against the enclosing unit is exact, not an approximation.
+/// * Any other relative level (`uplevel 1`, `uplevel 2`, …) targets a frame
+///   whose namespace depends on the live call stack, which single-file
+///   static analysis cannot decide. Those keep the enclosing unit's
+///   namespace as the documented, permanent approximation this scan has
+///   always used for them.
+/// * An absolute `#N` for `N > 0` names a frame counted down from the
+///   global one, equally undecidable statically, so it takes the same
+///   approximation.
 fn upframe_scan_bodies(ir_module: &IrModule) -> Vec<UpFrameCaller<'_>> {
     let mut out = Vec::new();
     collect_upframes("::top", &ir_module.top_level, &mut out);
@@ -1093,13 +1101,14 @@ fn collect_upframes<'a>(
     walk_script(script, &mut |stmt| {
         if let crate::ir::Statement::UpFrame {
             frame_shift,
+            absolute,
             body,
             span,
             ..
         } = stmt
         {
             out.push(UpFrameCaller {
-                resolve_as: if *frame_shift == 0 {
+                resolve_as: if *absolute && *frame_shift == 0 {
                     "::top".to_owned()
                 } else {
                     enclosing.to_owned()
