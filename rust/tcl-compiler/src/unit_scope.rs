@@ -768,10 +768,27 @@ fn record_call_site_evidence(
         // ::foo { proc runIt {} { uplevel #0 { helper b } } }` invented a
         // call to `::foo::helper` — a proc tclsh8.6/9.0 confirm real Tcl
         // never reaches this way.
+        // And the same rule again for a body that runs in another *frame*
+        // (`Traits::EVALUATES_IN_SHIFTED_FRAME` — `uplevel`). The frame the
+        // level argument selects decides which namespace the body's bare
+        // command words resolve against, and the enclosing unit is not it.
+        // `upframe_scan_bodies` visits every such body with the frame it
+        // actually targets, so recursing here would scan it a second time
+        // under the wrong one.
+        //
+        // Sound-7: `proc runIt {} { catch { uplevel #0 { helper b } } }`
+        // inside `::foo`. The `catch` body is walked correctly (catch does
+        // not shift anything), and the `uplevel` body inside it was then
+        // re-walked as `::foo`, inventing a call to `::foo::helper` on top
+        // of the correct `::helper` the upframe scan had already recorded.
+        // tclsh8.6/9.0 confirm only `::helper` runs.
         if ctx
             .registry
             .get(command.strip_prefix("::").unwrap_or(command))
-            .is_some_and(|spec| spec.traits.contains(Traits::DEFINES_PROCEDURE))
+            .is_some_and(|spec| {
+                spec.traits
+                    .intersects(Traits::DEFINES_PROCEDURE | Traits::EVALUATES_IN_SHIFTED_FRAME)
+            })
         {
             continue;
         }
@@ -2043,6 +2060,39 @@ mod tests {
         assert_eq!(
             cu.caller_scope.call_sites.callees().collect::<Vec<_>>(),
             vec!["::a::helper"],
+        );
+    }
+
+    /// An `uplevel` body nested inside another `ArgRole::Body` must not be
+    /// re-walked with the enclosing unit's namespace.
+    ///
+    /// The `catch` body is walked correctly — `catch` shifts nothing — and
+    /// the `uplevel #0` body inside it was then walked again as `::foo`,
+    /// inventing a call to `::foo::helper` alongside the correct `::helper`
+    /// that `upframe_scan_bodies` had already recorded with the right
+    /// frame. Both the phantom callee and the double attribution are wrong:
+    /// tclsh8.6/9.0 confirm `uplevel #0 { helper b }` inside `::foo::runIt`
+    /// calls `::helper` and nothing else.
+    ///
+    /// The `Traits::EVALUATES_IN_SHIFTED_FRAME` skip is what stops it, so
+    /// no command name appears in the walker.
+    #[test]
+    fn an_uplevel_body_inside_a_catch_body_is_not_reattributed() {
+        let reg = registry();
+        let src = "namespace eval ::foo {\n    proc helper {mode} { return $mode }\n    proc runIt {} { catch { uplevel #0 { helper b } } }\n}\n";
+        let evidence = scan_source_call_sites(
+            src,
+            &reg,
+            "tcl8.6",
+            &known(&["::foo::helper", "::foo::runIt", "::helper"]),
+            &[],
+        );
+        let mut callees: Vec<&str> = evidence.callees().collect();
+        callees.sort_unstable();
+        assert_eq!(
+            callees,
+            vec!["::helper"],
+            "the global helper takes the evidence and ::foo::helper gets no phantom call",
         );
     }
 

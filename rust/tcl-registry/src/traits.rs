@@ -645,6 +645,31 @@ declare_traits! {
     /// path is already modelled by its handler argument's
     /// [`crate::arg_role::ArgRole::CommandPrefix`] role.)
     UnresolvedCommandHandler => UNRESOLVED_COMMAND_HANDLER;
+
+    /// Evaluates its script argument in a **different stack frame** than
+    /// the one the call is written in — `uplevel`, whose body runs in the
+    /// frame the level argument selects (`Tcl_UplevelObjCmd`,
+    /// `generic/tclProc.c`).
+    ///
+    /// Distinct from [`Traits::EVALUATES_CODE`], which every `eval`-family
+    /// command carries: `eval`, `catch`, and `namespace inscope` bodies all
+    /// run somewhere, but only this one runs somewhere the *writing* frame
+    /// does not describe. And distinct from
+    /// [`crate::arg_role::ArgRole::Name`]-qualified commands like
+    /// `namespace eval`, which shift *namespace* while staying in the same
+    /// frame.
+    ///
+    /// A consumer that walks `ArgRole::Body` arguments with the enclosing
+    /// unit's own context must skip these bodies: the context is wrong, so
+    /// every bare command word in the body resolves against the wrong
+    /// namespace. `tcl_compiler::unit_scope` has a dedicated scan
+    /// (`upframe_scan_bodies`) that visits them with the frame the level
+    /// argument actually selects.
+    ///
+    /// tclsh8.6/9.0-confirmed: inside `::foo::runIt`, `uplevel #0 { helper
+    /// b }` calls `::helper`, never the `::foo::helper` sitting in the
+    /// enclosing namespace.
+    EvaluatesInShiftedFrame => EVALUATES_IN_SHIFTED_FRAME;
 }
 
 /// Every trait that widens a file's caller set beyond the file itself — the
