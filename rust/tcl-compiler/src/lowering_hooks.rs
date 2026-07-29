@@ -56,6 +56,15 @@ pub struct LoweringCommand<'a> {
     /// Per-arg token kinds.
     /// Uses a simplified enum since we only check STR/ESC/CMD.
     pub arg_kinds: &'a [ArgTokenKind],
+    /// The document's analysis dialect, or `None` for plain Tcl.
+    ///
+    /// Threaded into [`crate::expr_parser::parse_expr`] by the hooks that
+    /// parse an expression (`expr`, `return [expr …]`, `set x [expr …]`), so
+    /// an iRules word operator (`contains`, `starts_with`, …) parses as the
+    /// operator it is rather than falling back to
+    /// [`crate::expr_ast::ExprNode::Raw`] — which no downstream fold can
+    /// evaluate.
+    pub dialect: Option<&'a str>,
 }
 
 /// Simplified token kind for hook arg inspection.
@@ -295,7 +304,7 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                     .unwrap_or(value);
                 let alias_names = expr_alias_names(aliases);
                 if let Some((expr_arg, rel_base)) = extract_single_expr_arg(inner, &alias_names) {
-                    let expr = parse_expr(&expr_arg, None);
+                    let expr = parse_expr(&expr_arg, cmd.dialect);
                     // Anchor the expression text absolutely when both the
                     // `[...]` value word's content and the expr word within
                     // it are verbatim slices: absolute = the bracketed
@@ -796,6 +805,7 @@ mod tests {
             expand_word: None,
             tokens: None,
             arg_kinds: &kinds,
+            dialect: None,
         };
         let result = lower_set(&cmd, &aliases);
         assert!(
@@ -818,6 +828,7 @@ mod tests {
             expand_word: None,
             tokens: None,
             arg_kinds: &kinds,
+            dialect: None,
         };
         let result = lower_set(&cmd, &aliases);
         assert!(
@@ -839,6 +850,7 @@ mod tests {
             expand_word: None,
             tokens: None,
             arg_kinds: &kinds,
+            dialect: None,
         };
         let result = lower_upvar(&cmd);
         assert!(result.is_some());
@@ -931,6 +943,7 @@ mod tests {
             expand_word: None,
             tokens: None,
             arg_kinds: &kinds,
+            dialect: None,
         };
         let result = try_lower_hook(&cmd, &aliases, &registry);
         assert!(
@@ -957,6 +970,7 @@ mod tests {
             expand_word: None,
             tokens: None,
             arg_kinds: &kinds,
+            dialect: None,
         };
         assert!(try_lower_hook(&cmd, &aliases, &registry).is_none());
     }

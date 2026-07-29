@@ -24,8 +24,8 @@
 //! is the order for this verb specifically.
 
 use tcl_cli_support::{
-    OutputTarget, combine_sources, expand_tabs, highlight_ansi, highlight_html,
-    read_input_documents, resolve_use_colour, write_text_output,
+    OutputTarget, combine_sources, combined_effective_dialect, expand_tabs, highlight_ansi,
+    highlight_html, read_input_documents, resolve_use_colour, write_text_output,
 };
 
 use crate::cli::{ColourArgs, InputArgs};
@@ -36,13 +36,14 @@ const DEFAULT_TAB_WIDTH: usize = 4;
 /// `tcl highlight` — emit syntax-highlighted source (ANSI or HTML).
 pub fn run_highlight(input: &InputArgs, format: &str, colour: &ColourArgs) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
     let target = OutputTarget::from_arg(input.output.as_deref());
 
     let mut out = if format == "html" {
-        highlight_html(&source, input.dialect_or_default())
+        highlight_html(&source, &dialect)
     } else if resolve_use_colour(colour.colour, colour.no_colour, &target) {
-        highlight_ansi(&source, input.dialect_or_default())
+        highlight_ansi(&source, &dialect)
     } else {
         source
     };

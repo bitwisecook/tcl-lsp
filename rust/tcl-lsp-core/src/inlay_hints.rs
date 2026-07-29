@@ -229,8 +229,7 @@ fn collect_type_hints(
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
 ) {
-    let config = tcl_lexer::LexerConfig::for_dialect(dialect);
-    let cu = CompilationUnit::build_for_with_config(source, registry, false, config);
+    let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect);
 
     // Build a *per-function* name → display map, keyed by the function's
     // qualified name (leading `::` stripped so it matches the analyser's

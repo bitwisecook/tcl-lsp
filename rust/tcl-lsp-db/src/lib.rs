@@ -1121,6 +1121,7 @@ pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Sc
         key.namespace(db),
         &registry,
         config,
+        key.dialect(db),
     ))
 }
 

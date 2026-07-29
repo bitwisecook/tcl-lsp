@@ -38,8 +38,8 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Value, json};
 use tcl_cli_support::{
-    OutputTarget, combine_sources, difflib, ensure_ascii, read_input_documents,
-    registry_for_dialect, write_text_output,
+    OutputTarget, combine_sources, combined_effective_dialect, difflib, ensure_ascii,
+    read_input_documents, registry_for_dialect, write_text_output,
 };
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::segmenter::{SegmentedCommand, UnclosedDelimiter, segment_commands};
@@ -220,7 +220,7 @@ fn layer_payload(
             // native `tcl-explorer` serialiser reproduces that view, so reuse
             // it (through the shared `value_to_json` adapter) rather than
             // carrying a second IR serialiser.
-            let cu = CompilationUnit::build_for(src, registry, false);
+            let cu = CompilationUnit::build_for_dialect(src, registry, false, dialect);
             let ir = tcl_explorer::serialise::serialise_ir(&cu.ir_module, line_index, src);
             Ok(value_to_json(&ir).dumps_indent2())
         }
@@ -285,7 +285,7 @@ pub fn run_diff(
     right: Option<&Path>,
     left_source: Option<&str>,
     right_source: Option<&str>,
-    dialect: &str,
+    dialect: Option<&str>,
     show: &[String],
     json_out: bool,
     output: Option<&Path>,
@@ -319,6 +319,12 @@ pub fn run_diff(
     let left_src = combine_sources(&left_docs);
     let right_src = combine_sources(&right_docs);
 
+    // One dialect for the whole comparison — both sides are rendered through
+    // the same pipeline, so a per-side dialect would diff two different
+    // pipelines rather than two sources. Detected from the left-hand (baseline)
+    // input unless `--dialect` names one.
+    let dialect = combined_effective_dialect(&left_docs, dialect);
+    let dialect = dialect.as_str();
     let registry = registry_for_dialect(dialect);
     let left_index = LineIndex::new(&left_src);
     let right_index = LineIndex::new(&right_src);
@@ -430,7 +436,7 @@ mod tests {
             None,
             Some("set x 1"),
             Some("set x 2"),
-            "tcl8.6",
+            Some("tcl8.6"),
             &show,
             true,
             None,
@@ -443,7 +449,7 @@ mod tests {
             None,
             None,
             Some("set x 2"),
-            "tcl8.6",
+            Some("tcl8.6"),
             &show,
             true,
             None,

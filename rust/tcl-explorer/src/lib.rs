@@ -122,15 +122,15 @@ impl ExplorerResult {
 #[must_use]
 pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     let registry = registry_for_dialect(dialect);
-    // Tokenise with the requested dialect's lexer config so dialect-sensitive
-    // parsing is honoured: Tcl 8.4 / iRules disable `{*}` expansion, and
-    // iRules enable the `}{` brace-separator. `build_for` would otherwise use
-    // the default Tcl-8.5+ config and mis-tokenise those dialects.
-    let config = tcl_lexer::LexerConfig::for_dialect(dialect);
+    // Build for the requested dialect so every dialect-sensitive layer is
+    // honoured: Tcl 8.4 / iRules disable `{*}` expansion, iRules enable the
+    // `}{` brace-separator, and the iRules word operators (`contains`, …) are
+    // real expression operators. `build_for` would otherwise use the default
+    // Tcl-8.5+ config and plain-Tcl grammar for both.
     // Memory-SSA is built so the `dataflow` view can surface alias sets
     // (upvar / global / variable / namespace upvar). Without it the
     // `aliases` list degrades to empty.
-    let unit = CompilationUnit::build_for_with_config(source, registry, false, config)
+    let unit = CompilationUnit::build_for_dialect(source, registry, false, dialect)
         .with_interprocedural(registry, Some(dialect))
         .with_memory_ssa(registry);
 

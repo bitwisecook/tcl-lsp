@@ -437,22 +437,19 @@ fn walk_script(
 }
 
 /// Extract structured `{events, procedures}` flow data from a source, using
-/// the caller-supplied registry to classify diagram-action commands. Lexes with
-/// the stock-Tcl preset; use [`diagram_data_with_config`] for a dialect (e.g.
-/// `f5-irules`, so an iRule's `}{` control flow is parsed correctly).
+/// the caller-supplied registry to classify diagram-action commands. Parses as
+/// plain Tcl; use [`diagram_data_for_dialect`] for a dialect (e.g. `f5-irules`,
+/// so an iRule's `}{` control flow is parsed correctly).
 #[must_use]
 pub fn diagram_data(source: &str, registry: &CommandRegistry) -> Value {
-    diagram_data_with_config(source, registry, tcl_lexer::LexerConfig::default())
+    diagram_data_for_dialect(source, registry, "")
 }
 
-/// [`diagram_data`] with an explicit lexer preset.
+/// [`diagram_data`] for an explicit dialect. `registry` must be that
+/// dialect's registry.
 #[must_use]
-pub fn diagram_data_with_config(
-    source: &str,
-    registry: &CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-) -> Value {
-    let cu = CompilationUnit::build_for_with_config(source, registry, false, config);
+pub fn diagram_data_for_dialect(source: &str, registry: &CommandRegistry, dialect: &str) -> Value {
+    let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect);
     let module = &cu.ir_module;
 
     // Recover the source-order dict iteration (the procedures map is a

@@ -25,7 +25,7 @@
 use serde_json::Value;
 use tcl_registry::CommandRegistry;
 
-use crate::data::diagram_data_with_config;
+use crate::data::diagram_data_for_dialect;
 
 const MAX_NODES: usize = 600;
 
@@ -256,11 +256,7 @@ pub fn irule_flowchart_graph(source: &str, registry: &CommandRegistry) -> String
     // Always the iRules dialect: lex with the f5-irules preset so `if {expr}{body}`
     // (`}{` valid in TMM) forms correct control-flow branches instead of the
     // stock-Tcl mis-segmentation.
-    let data = diagram_data_with_config(
-        source,
-        registry,
-        tcl_lexer::LexerConfig::for_dialect("f5-irules"),
-    );
+    let data = diagram_data_for_dialect(source, registry, "f5-irules");
     let events = data
         .get("events")
         .and_then(Value::as_array)

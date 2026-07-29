@@ -3725,8 +3725,8 @@ impl Backend {
             // user-class object-method resolution still apply, matching the
             // salsa path below.
             return tokio::task::spawn_blocking(move || {
-                let cu = tcl_compiler::compilation_unit::CompilationUnit::build_for(
-                    &text, &registry, false,
+                let cu = tcl_compiler::compilation_unit::CompilationUnit::build_for_dialect(
+                    &text, &registry, false, &dialect,
                 );
                 let analysis = tcl_compiler::analyser::Analyser::new().analyse(&text, &dialect);
                 core_semantic_tokens::full_with_cu_and_analysis(

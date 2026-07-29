@@ -82,9 +82,48 @@ impl InputDocument {
         if let Some(d) = explicit {
             return d.to_string();
         }
-        let filename = self.path.as_deref().and_then(Path::to_str);
-        tcl_registry::dialects::detect_dialect(&self.source, filename, "tcl8.6").to_string()
+        tcl_registry::dialects::detect_dialect(&self.source, self.filename(), "tcl8.6").to_string()
     }
+
+    /// The dialect this document's own content or name gives away, or `None`
+    /// when nothing does. Same detector as [`Self::effective_dialect`], minus
+    /// the `tcl8.6` fallback — so a caller resolving one dialect for several
+    /// documents can tell "this file says nothing" from "this file says plain
+    /// Tcl".
+    #[must_use]
+    fn detected_dialect(&self) -> Option<&'static str> {
+        let detected = tcl_registry::dialects::detect_dialect(&self.source, self.filename(), "");
+        (!detected.is_empty()).then_some(detected)
+    }
+
+    /// The originating file name, for the detector's extension tier.
+    fn filename(&self) -> Option<&str> {
+        self.path.as_deref().and_then(Path::to_str)
+    }
+}
+
+/// The analysis dialect for a verb that works over **all** its input documents
+/// at once — the transforms (`format`, `opt`, `minify`), the graph verbs, the
+/// explorer, and the compile verbs, which combine their inputs into one source
+/// via [`combine_sources`].
+///
+/// An explicit `--dialect` wins. Otherwise the documents are detected in input
+/// order and the first one that gives something away decides the invocation
+/// (`probe.irule`, or a `.tcl` file opening `when HTTP_REQUEST {`, selects
+/// `f5-irules`); when no document does, the `tcl8.6` fallback applies. This is
+/// the same detector and priority order [`InputDocument::effective_dialect`]
+/// gives the per-document diagnostics verbs, so `tcl opt` and `tcl diag` agree
+/// about what a file is.
+#[must_use]
+pub fn combined_effective_dialect(documents: &[InputDocument], explicit: Option<&str>) -> String {
+    if let Some(d) = explicit {
+        return d.to_string();
+    }
+    documents
+        .iter()
+        .find_map(InputDocument::detected_dialect)
+        .unwrap_or("tcl8.6")
+        .to_owned()
 }
 
 /// `pkgIndex.tcl` is always accepted; otherwise the extension must be known.

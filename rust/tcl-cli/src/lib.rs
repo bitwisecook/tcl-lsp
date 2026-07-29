@@ -129,7 +129,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             right.as_deref(),
             left_source.as_deref(),
             right_source.as_deref(),
-            dialect,
+            dialect.as_deref(),
             show,
             *json,
             output.as_deref(),

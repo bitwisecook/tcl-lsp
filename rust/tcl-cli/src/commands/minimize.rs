@@ -369,7 +369,10 @@ pub fn run_minimize(input: &InputArgs, no_rename: bool, json: bool) -> anyhow::R
 
     let mut results: Vec<MinimizeItem> = Vec::new();
     for document in &documents {
-        match minimize_diagnostic(&document.source, code, rename, input.dialect_or_default()) {
+        // Per document, like `diag`: the reproducer is reduced under the same
+        // dialect the diagnostic was reported under.
+        let dialect = document.effective_dialect(input.dialect.as_deref());
+        match minimize_diagnostic(&document.source, code, rename, &dialect) {
             Ok(r) => results.push(MinimizeItem {
                 file: document.label.clone(),
                 code: r.code,

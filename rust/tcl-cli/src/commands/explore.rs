@@ -26,7 +26,8 @@
 use serde_json::Value;
 
 use tcl_cli_support::{
-    OutputTarget, combine_sources, read_input_documents, resolve_use_colour, write_text_output,
+    OutputTarget, combine_sources, combined_effective_dialect, read_input_documents,
+    resolve_use_colour, write_text_output,
 };
 
 use crate::cli::{ColourArgs, InputArgs};
@@ -41,13 +42,14 @@ pub fn run_explore(
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
 
     if tui {
-        return run_tui(&source, input.dialect_or_default());
+        return run_tui(&source, &dialect);
     }
 
-    let result = tcl_explorer::run_pipeline(&source, input.dialect_or_default());
+    let result = tcl_explorer::run_pipeline(&source, &dialect);
     let value = tcl_explorer::serialise_result(&result);
 
     let target = OutputTarget::from_arg(input.output.as_deref());

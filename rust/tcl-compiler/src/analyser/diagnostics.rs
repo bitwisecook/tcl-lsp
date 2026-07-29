@@ -159,8 +159,17 @@ impl Analyser {
         // `catch_unwind` cannot contain a SIGABRT.)
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let dialect_opt = dialect_owned.as_deref();
-            let cu = crate::compilation_unit::CompilationUnit::build_for(source, registry, false)
-                .with_interprocedural(registry, dialect_opt);
+            // Build under the analyser's own dialect, not a blind default: the
+            // lowering needs it to parse a dialect-only operator (an iRules
+            // `contains` condition) as an operator, and the lattice pipeline
+            // needs it to fold one.
+            let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+                source,
+                registry,
+                false,
+                dialect_opt.unwrap_or_default(),
+            )
+            .with_interprocedural(registry, dialect_opt);
             self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
         }));
     }

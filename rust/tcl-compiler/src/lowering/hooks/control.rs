@@ -67,7 +67,7 @@ pub fn try_lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     ) {
         return None;
     }
-    let expr = parse_expr(&cmd.args[0], None);
+    let expr = parse_expr(&cmd.args[0], cmd.dialect);
     // Anchor the expression text absolutely when the arg word's content is
     // a verbatim source slice (see `word_content_base`) so consumers can map
     // expression-AST leaf offsets to source operand spans.
@@ -129,7 +129,7 @@ pub fn try_lower_return(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) ->
                     .unwrap_or(&cmd.args[0]);
                 let alias_names = expr_alias_names(aliases);
                 if let Some((expr_arg, _)) = extract_single_expr_arg(inner, &alias_names) {
-                    expr = Some(parse_expr(&expr_arg, None));
+                    expr = Some(parse_expr(&expr_arg, cmd.dialect));
                 }
             }
             _ => {}
@@ -310,6 +310,7 @@ mod tests {
             expand_word: expand,
             tokens: None,
             arg_kinds: kinds,
+            dialect: None,
         }
     }
 

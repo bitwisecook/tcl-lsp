@@ -305,11 +305,7 @@ fn memory_aliases(args: &Value) -> Value {
 fn diagram(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    tcl_diagram::diagram_data_with_config(
-        source,
-        registry(&dialect),
-        tcl_lexer::LexerConfig::for_dialect(&dialect),
-    )
+    tcl_diagram::diagram_data_for_dialect(source, registry(&dialect), &dialect)
 }
 
 fn detect_dialect(args: &Value) -> Value {

@@ -34,8 +34,8 @@
 //! the `optimise` rewrites), then compiles the rewritten source.
 
 use tcl_cli_support::{
-    OutputTarget, combine_sources, read_input_documents, registry_for_dialect, write_binary_output,
-    write_text_output,
+    OutputTarget, combine_sources, combined_effective_dialect, read_input_documents,
+    registry_for_dialect, write_binary_output, write_text_output,
 };
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
@@ -62,7 +62,8 @@ fn maybe_optimise(source: &str, registry: &CommandRegistry, optimise_on: bool) -
 /// `tcl dis` — compile source and emit human-readable bytecode disassembly.
 pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let registry = registry_for_dialect(input.dialect_or_default());
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let registry = registry_for_dialect(&dialect);
     let source = maybe_optimise(&combine_sources(&documents), registry, optimise_on);
 
     let ir = lower_to_ir_for_bytecode(&source, registry);
@@ -161,7 +162,8 @@ fn run_compwasm_tree_walker(
     wat_output: Option<&std::path::Path>,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let registry = registry_for_dialect(input.dialect_or_default());
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let registry = registry_for_dialect(&dialect);
     let source = combine_sources(&documents);
 
     let ir = lower_to_ir(&source, registry);

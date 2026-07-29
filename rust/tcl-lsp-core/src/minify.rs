@@ -972,7 +972,7 @@ fn compact_names(
     let mut edits: Vec<Edit> = Vec::new();
 
     let barrier_scopes = find_barrier_scopes(&analysis, registry, isolated);
-    let rmw_targets = rmw_target_var_names(source, registry);
+    let rmw_targets = rmw_target_var_names(source, dialect, registry);
     let builtin_names: FxHashSet<&str> = registry.command_names().collect();
 
     let scope_ctx = ScopeCtx {
@@ -1321,8 +1321,12 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
 /// target argument. The name compaction excludes them so it cannot rename
 /// the `set` / `$var` sites while leaving the `incr var` target untouched
 /// (which would corrupt the program).
-fn rmw_target_var_names(source: &str, registry: &CommandRegistry) -> FxHashSet<String> {
-    let cu = CompilationUnit::build_for(source, registry, false);
+fn rmw_target_var_names(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+) -> FxHashSet<String> {
+    let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect);
     let mut names = FxHashSet::default();
     let mut units: Vec<&FunctionUnit> = vec![&cu.top_level];
     units.extend(cu.procedures.values());
@@ -1869,8 +1873,7 @@ fn fold_static_substrings(
     dialect: &str,
     registry: &CommandRegistry,
 ) -> (String, usize, BTreeMap<String, String>) {
-    let cu = CompilationUnit::build_for(source, registry, false);
-    let _ = dialect;
+    let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect);
     let mut edits: Vec<Edit> = Vec::new();
     let mut fold_map: BTreeMap<String, String> = BTreeMap::new();
 
