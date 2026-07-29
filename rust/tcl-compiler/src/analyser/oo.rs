@@ -259,8 +259,7 @@ impl Analyser {
     }
 
     /// Emit W002 for a definition-body member the active dialect's grammar
-    /// does not have, returning `true` when it did (so the caller skips
-    /// recording a member the runtime lacks).
+    /// does not have.
     ///
     /// Shared by the three call shapes a member can take — inside a
     /// metaclass's `create` body, inside an `oo::define Cls { … }` block
@@ -268,6 +267,15 @@ impl Analyser {
     /// `oo::define Cls classmethod …` form (via
     /// [`Self::handle_oo_define_command`]) — so all three report the same way
     /// rather than only the bodies being checked.
+    ///
+    /// Reports **without** dropping the member: the walk still records it,
+    /// so go-to-definition, references, rename, document symbols, and code
+    /// lenses keep working on the code the user actually wrote.  That
+    /// matches the whole-command W002 ([`Self::emit_w002_disabled_command`]),
+    /// which likewise reports a dialect-unavailable command while the
+    /// analyser goes on modelling the call.  Erasing the member instead
+    /// would answer "this needs Tcl 9.0" by silently breaking every editor
+    /// feature over it.
     ///
     /// `definer_disabled` bypasses the gate: when the enclosing definer is
     /// itself unavailable (`oo::configurable` under 8.6) its own diagnostic
@@ -279,9 +287,9 @@ impl Analyser {
         subcmd: &str,
         tok: Token,
         definer_disabled: bool,
-    ) -> bool {
+    ) {
         if definer_disabled || self.oo_member_available(grammar, subcmd) {
-            return false;
+            return;
         }
         self.result.diagnostics.push(super::types::Diagnostic {
             code: tcl_core_types::DiagCode::W002,
@@ -293,7 +301,6 @@ impl Analyser {
             severity: super::types::Severity::Warning,
             fixes: Vec::new(),
         });
-        true
     }
 
     /// Record the command references a definition-body member names as
@@ -409,13 +416,11 @@ impl Analyser {
             // A member keyword gated to a newer core — `classmethod`,
             // `private`, `initialise`/`initialize`, `definitionnamespace`,
             // and `property` are all 9.0+ — does not exist in this dialect's
-            // definition grammar.  Flag it (the same disabled-in-dialect
-            // diagnostic a command draws) and skip recording a member the
-            // runtime lacks.
-            if let (Some(subcmd), Some(tok)) = (cmd.texts.first(), cmd.argv.first())
-                && self.emit_w002_oo_member_disabled(grammar, subcmd, *tok, definer_disabled)
-            {
-                continue;
+            // definition grammar.  Flag it with the same disabled-in-dialect
+            // diagnostic a command draws, then carry on recording it (see
+            // the emitter's doc for why reporting must not erase).
+            if let (Some(subcmd), Some(tok)) = (cmd.texts.first(), cmd.argv.first()) {
+                self.emit_w002_oo_member_disabled(grammar, subcmd, *tok, definer_disabled);
             }
             apply_oo_subcommand(grammar, &cmd.texts, &cmd.argv, class_def);
             // A member argument that *names* a command — the class a
@@ -2253,8 +2258,13 @@ mod tests {
     }
 
     /// `property` is a 9.0 `TclOO` member: under 8.6 it is flagged
-    /// disabled-in-dialect (W002) and records no property, but from 9.0 on it
-    /// is accepted.
+    /// disabled-in-dialect (W002), but from 9.0 on it is accepted silently.
+    ///
+    /// Either way the member is **recorded** — reporting "this needs Tcl
+    /// 9.0" must not also break go-to-definition, references, rename, and
+    /// document symbols over the code the user wrote, and the whole-command
+    /// W002 behaves the same way (it reports a dialect-unavailable command
+    /// while the analyser goes on modelling the call).
     #[test]
     fn property_member_is_gated_to_9_0() {
         let src = "oo::class create C {\n    property color\n}\n";
@@ -2269,8 +2279,8 @@ mod tests {
         assert!(
             r86.all_classes
                 .get("::C")
-                .is_none_or(|c| c.properties.is_empty()),
-            "a disabled property records nothing",
+                .is_some_and(|c| c.properties.contains_key("color")),
+            "the member is still recorded, so editor features keep working",
         );
 
         let mut a90 = Analyser::new();

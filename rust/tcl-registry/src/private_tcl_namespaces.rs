@@ -162,9 +162,13 @@ pub struct PrivateTclNamespaceCall {
 /// Returns `None` when:
 /// * the namespace segment has no tail at all (`::tcl::dict` alone) — there
 ///   is nothing to suggest in its place;
-/// * `cmd_name` is itself a registered command for `dialect` — the registry
-///   knows `tcl::chan::memchan` as a real tcllib package command, so it is
-///   public by construction, whatever namespace it happens to live in;
+/// * `cmd_name` is itself a registered command for `dialect` that the
+///   registry does *not* mark as an ensemble's private backing — it knows
+///   `tcl::chan::memchan` as a real tcllib package command, so that is
+///   public by construction, whatever namespace it happens to live in,
+///   while `::tcl::dict::create`'s standalone spec carries
+///   [`crate::spec::CommandSpec::implementation_namespace`] and stays
+///   private;
 /// * the namespace is [`TailRule::EnsembleSubcommandsOnly`] and the tail is
 ///   not one of the public ensemble's subcommands.
 #[must_use]

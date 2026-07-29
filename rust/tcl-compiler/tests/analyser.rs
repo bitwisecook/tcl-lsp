@@ -3059,6 +3059,36 @@ mod tcloo_classes {
         }
     }
 
+    /// Reporting a 9.0-only member must not *erase* it: the analyser still
+    /// records the member under 8.6, so go-to-definition, references,
+    /// rename, document symbols, and code lenses keep working over the code
+    /// the user actually wrote. Same contract as the whole-command W002,
+    /// which reports a dialect-unavailable command while the analyser goes
+    /// on modelling the call.
+    #[test]
+    fn a_gated_oo_member_is_reported_but_still_recorded() {
+        let cd = class_in(
+            "oo::class create Counter {\n    classmethod instances {} { return 0 }\n}\n",
+            "::Counter",
+            D,
+        );
+        assert!(
+            cd.class_methods.contains_key("instances"),
+            "the classmethod must still be recorded under tcl8.6; got {:?}",
+            cd.class_methods.keys().collect::<Vec<_>>()
+        );
+        let cd2 = class_in(
+            "oo::class create Dog { }\noo::define Dog classmethod count {} { return 0 }\n",
+            "::Dog",
+            D,
+        );
+        assert!(
+            cd2.class_methods.contains_key("count"),
+            "the single-command form's member must still be recorded; got {:?}",
+            cd2.class_methods.keys().collect::<Vec<_>>()
+        );
+    }
+
     /// TN — the members that have existed since `TclOO` shipped in 8.6 are
     /// never gated, in any of the three shapes.
     #[test]
