@@ -405,6 +405,79 @@ fn tp_classmethod_lens_click_and_count_reach_a_consumer_document() {
     );
 }
 
+// Issue #981 — bare class-command dispatch is namespace-scoped.
+
+/// TN, the issue's own repro, across files: two classes named `Factory` in
+/// `::a` and `::b`, each with its own `make`, and a consumer document that
+/// dispatches `Factory make` inside `namespace eval ::b`.  Real Tcl resolves
+/// that to `::b::Factory` (verified on tclsh 8.6.14 and 9.0.4), so a rename
+/// of `::a::Factory`'s `make` must not rewrite it — which it did before,
+/// corrupting an unrelated class's call site in a different file.
+#[test]
+fn tn_consumer_bare_dispatch_is_attributed_to_its_own_namespaces_class() {
+    let mut lsp = Lsp::tcl();
+    let a = unique_uri("tcl");
+    lsp.open_ready(
+        &a,
+        "namespace eval ::a {\n    oo::class create Factory {\n        classmethod make {} { return 1 }\n    }\n}\n",
+    );
+    let b = unique_uri("tcl");
+    lsp.open_ready(
+        &b,
+        "namespace eval ::b {\n    oo::class create Factory {\n        classmethod make {} { return 2 }\n    }\n}\n",
+    );
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(&consumer, "namespace eval ::b {\n    Factory make\n}\n");
+
+    let refs = lsp.references(&a, 2, 20, false);
+    assert!(
+        location_lines(&refs, &consumer).is_empty(),
+        "`::b`'s bare dispatch is not a reference to `::a::Factory`'s make: {refs:?}"
+    );
+
+    let edits = rename_edits(&lsp.rename(&a, 2, 20, "produce"));
+    assert!(
+        edit_lines(&edits, &consumer).is_empty(),
+        "and rename must not rewrite it: {edits:?}"
+    );
+    assert!(
+        edit_lines(&edits, &b).is_empty(),
+        "nor `::b`'s own class: {edits:?}"
+    );
+}
+
+/// TP: the same consumer document *is* attributed to `::b::Factory`, so the
+/// scoping is a re-attribution, not a loss — and the cross-file consumer
+/// rename from #1047 still reaches it.
+#[test]
+fn tp_consumer_bare_dispatch_belongs_to_the_matching_namespaces_class() {
+    let mut lsp = Lsp::tcl();
+    let a = unique_uri("tcl");
+    lsp.open_ready(
+        &a,
+        "namespace eval ::a {\n    oo::class create Factory {\n        classmethod make {} { return 1 }\n    }\n}\n",
+    );
+    let b = unique_uri("tcl");
+    lsp.open_ready(
+        &b,
+        "namespace eval ::b {\n    oo::class create Factory {\n        classmethod make {} { return 2 }\n    }\n}\n",
+    );
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(&consumer, "namespace eval ::b {\n    Factory make\n}\n");
+
+    let refs = lsp.references(&b, 2, 20, false);
+    assert!(
+        location_lines(&refs, &consumer).contains(&1),
+        "`::b`'s bare dispatch must be a reference to `::b::Factory`'s make: {refs:?}"
+    );
+    let edits = rename_edits(&lsp.rename(&b, 2, 20, "produce"));
+    assert_eq!(
+        edit_lines(&edits, &consumer),
+        vec![1],
+        "and rename must rewrite it: {edits:?}"
+    );
+}
+
 // Issue #990 — [incr Tcl]'s colon-qualified class-proc dispatch.
 
 /// TP: `Factory::make` is how [incr Tcl] dispatches a class-scoped `proc`

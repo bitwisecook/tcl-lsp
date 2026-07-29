@@ -96,17 +96,14 @@ double-quoted string.
   guarded in the other direction too: `Factory make` there is itcl's
   instance-creation syntax (`ClassName instanceName`), never a class-proc
   dispatch, and is never counted as one.
-- A classmethod's / typemethod's own-class-command dispatch (unlike an
-  instance's `$obj method`) is matched by exact name-set membership (the
-  class's as-written simple name plus its fully `::`-qualified name), so a
-  call spelled with a *partial* namespace qualifier from a sibling namespace
-  is not matched — the same imprecision `CLASS create NAME` object-command
-  dispatch already has. The same imprecision can also over-match: two
-  unrelated classes sharing a simple (tail) name in different namespaces
-  aren't distinguished by lexical scope, so a bare dispatch inside one
-  namespace can be wrongly attributed to the other's same-named class —
-  renaming from the wrong one's declaration could then rewrite the
-  unrelated class's call site. Tracked as a follow-up; not yet fixed.
+- A `CLASS create NAME` object command (`rex bark`) is matched by name text
+  alone. Two object commands called `rex` in different namespaces are one
+  name as far as the analyser is concerned — it records instance-command
+  names without their creating namespace — so a bare `rex bark` in either
+  namespace counts for whichever `rex` the analyser bound first. A
+  classmethod's own-class-command dispatch (`Factory make`) does **not**
+  have this problem: it is resolved against the call's own namespace, first
+  the current one and then the global one, exactly as Tcl resolves it.
 
 ## Test anchors
 
@@ -118,7 +115,9 @@ double-quoted string.
   exact repro and call-site-cursor resolution;
   `non_identifier_method_names` — hyphenated / dotted / TIP 558
   angle-bracketed method names; `itcl_class_proc_dispatch` — the
-  colon-qualified [incr Tcl] class-proc TP/FP/TN matrix)
+  colon-qualified [incr Tcl] class-proc TP/FP/TN matrix;
+  `namespace_scoped_class_dispatch` — two same-named classes in different
+  namespaces are not cross-linked)
 - `rust/tcl-lsp-core/src/references.rs` (`mod tests`, including
   `references_for_property_includes_decl_and_my_dispatch_call_sites`,
   `references_disambiguates_property_and_method_sharing_a_name_by_cursor`,

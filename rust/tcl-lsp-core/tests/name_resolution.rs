@@ -934,3 +934,139 @@ mod non_identifier_method_names {
         assert_eq!(refs_at(src, 1, 13), vec![1], "declaration only");
     }
 }
+
+// ─────── #981 — namespace-aware bare class-command dispatch matching ───────
+
+/// A bare `Factory make` is resolved the way Tcl resolves it — current
+/// namespace first, then global — instead of by matching the class's simple
+/// name as text.  Two classes sharing a tail name in different namespaces are
+/// therefore no longer cross-linked, which matters because since #1047 this
+/// one scanner feeds references, rename (including consumer-document edits),
+/// the code lens count and click, and call hierarchy: a wrong match rewrites
+/// real code.
+///
+/// Oracle, identical on tclsh 8.6.14 and 9.0.4, for classes in `::a` and
+/// `::b` each declaring `make`:
+///
+/// | written | in | result |
+/// |---|---|---|
+/// | `Factory make` | `::b` | `b-made` — `::b::Factory`, never `::a::Factory` |
+/// | `Factory make` | `::a` | `a-made` |
+/// | `Factory make` | `::c`, with no `::c::Factory` and no `::Factory` | `invalid command name "Factory"` |
+/// | `Factory make` | `::d`, with a global `::Factory` | the global class |
+/// | `::a::Factory make` | global | `a-made` |
+mod namespace_scoped_class_dispatch {
+    use super::*;
+
+    /// Two same-tailed classes, one dispatch each.
+    fn two_namespaces() -> &'static str {
+        concat!(
+            "namespace eval ::a {\n",
+            "    oo::class create Factory {\n",
+            "        classmethod make {} { return 1 }\n",
+            "    }\n",
+            "    Factory make\n",
+            "}\n",
+            "namespace eval ::b {\n",
+            "    oo::class create Factory {\n",
+            "        classmethod make {} { return 2 }\n",
+            "    }\n",
+            "    Factory make\n",
+            "}\n",
+            "::a::Factory make\n",
+        )
+    }
+
+    /// TN (the issue's own repro) + TP in one: `::a::Factory::make` counts
+    /// its own namespace's bare dispatch and the absolute spelling, and does
+    /// **not** count `::b`'s bare dispatch.
+    #[test]
+    fn tn_bare_dispatch_in_a_sibling_namespace_is_not_cross_linked() {
+        assert_eq!(
+            refs_at(two_namespaces(), 2, 20),
+            vec![2, 4, 12],
+            "decl + the `::a` bare dispatch + the absolute `::a::Factory make`"
+        );
+    }
+
+    /// TN, the mirror direction: `::b::Factory::make` likewise keeps only its
+    /// own sites.
+    #[test]
+    fn tn_the_mirror_direction_is_scoped_too() {
+        assert_eq!(
+            refs_at(two_namespaces(), 8, 20),
+            vec![8, 10],
+            "decl + the `::b` bare dispatch only"
+        );
+    }
+
+    /// TP: the global-fallback case still matches — a bare `Factory make`
+    /// inside a namespace that declares no `Factory` reaches the global class.
+    #[test]
+    fn tp_global_fallback_dispatch_still_matches() {
+        let src = concat!(
+            "oo::class create Factory {\n",
+            "    classmethod make {} { return 1 }\n",
+            "}\n",
+            "namespace eval ::d {\n",
+            "    Factory make\n",
+            "}\n",
+            "Factory make\n",
+        );
+        assert_eq!(
+            refs_at(src, 1, 16),
+            vec![1, 4, 6],
+            "decl + the `::d` fallback dispatch + the top-level one"
+        );
+    }
+
+    /// TN: where neither the current namespace nor the global namespace has a
+    /// `Factory`, the call is `invalid command name` in real Tcl — so it is
+    /// not a reference to the class in some *other* namespace.
+    #[test]
+    fn tn_dispatch_with_no_reachable_candidate_matches_nothing() {
+        let src = concat!(
+            "namespace eval ::a {\n",
+            "    oo::class create Factory {\n",
+            "        classmethod make {} { return 1 }\n",
+            "    }\n",
+            "}\n",
+            "namespace eval ::c {\n",
+            "    Factory make\n",
+            "}\n",
+        );
+        assert_eq!(refs_at(src, 2, 20), vec![2], "declaration only");
+    }
+
+    /// FP guard: a same-named *proc* in the calling namespace shadows the
+    /// class, so the bare call is not a class dispatch at all.
+    #[test]
+    fn fp_a_shadowing_proc_in_the_calling_namespace_wins() {
+        let src = concat!(
+            "oo::class create Factory {\n",
+            "    classmethod make {} { return 1 }\n",
+            "}\n",
+            "namespace eval ::e {\n",
+            "    proc Factory {args} { return 2 }\n",
+            "    Factory make\n",
+            "}\n",
+        );
+        assert_eq!(refs_at(src, 1, 16), vec![1], "declaration only");
+    }
+
+    /// TP: the object-command (`CLASS create NAME`) matcher keeps working —
+    /// a bare `rex make` on an instance command still resolves.
+    #[test]
+    fn tp_object_command_dispatch_still_matches() {
+        let src = concat!(
+            "namespace eval ::a {\n",
+            "    oo::class create Factory {\n",
+            "        method make {} { return 1 }\n",
+            "    }\n",
+            "    Factory create rex\n",
+            "    rex make\n",
+            "}\n",
+        );
+        assert_eq!(refs_at(src, 2, 15), vec![2, 5], "decl + `rex make`");
+    }
+}
