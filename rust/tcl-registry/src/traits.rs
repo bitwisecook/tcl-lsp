@@ -658,6 +658,29 @@ declare_traits! {
     /// the query consumers use instead of a literal name test.
     TclooIntrospection => TCLOO_INTROSPECTION;
 
+    /// Each body argument runs only when this command's own run-time
+    /// selection picks it, and the command performs no iteration — `if`
+    /// (at most one clause body plus an optional `else`) and `try` (handler
+    /// bodies reached only on the matching exception, with `finally` the one
+    /// exception that always runs).
+    ///
+    /// The fact a consumer needs is that nothing established inside such a
+    /// body **dominates** the code after the command: a `package require`
+    /// there is conditional, and a variable written there is not reliably
+    /// set afterwards.
+    ///
+    /// Deliberately narrower than [`Traits::CONTROL_FLOW`], which also
+    /// covers `while` / `for` / `foreach` / `lmap`. A loop body is
+    /// *repeatable* as well as skippable, so the two questions have
+    /// different answers and different consumers —
+    /// `Analyser::control_flow_body_depth` (straight-line-ness, driven by
+    /// `CONTROL_FLOW`) and `Analyser::conditional_depth` (domination, driven
+    /// by this trait) must not be merged. Also distinct from
+    /// [`Traits::HAS_BOOLEAN_COND`], which is about an argument being read
+    /// as a boolean expression (`if` / `while` / `for`) rather than about
+    /// which bodies run.
+    BranchSelectedBody => BRANCH_SELECTED_BODY;
+
     /// Raises a *catchable* exception — completes `TCL_ERROR`, which
     /// `catch` / `try` intercept: `error` (`Tcl_ErrorObjCmd`,
     /// `generic/tclCmdAH.c`) and `throw` (`TclNRThrowObjCmd`,

@@ -157,6 +157,7 @@ const ALL_TRAITS: &[Traits] = &[
     Traits::SCRIPT_APPENDS_LIST_ARGS,
     Traits::TCLOO_SELF_DISPATCH,
     Traits::TCLOO_INTROSPECTION,
+    Traits::BRANCH_SELECTED_BODY,
 ];
 
 /// Assert the basic arity invariant shared by every `Arity` (command or

@@ -217,6 +217,7 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::HAS_BOOLEAN_COND
             | Traits::NEVER_INLINE_BODY
+            | Traits::BRANCH_SELECTED_BODY
             | Traits::STRUCTURALLY_CHECKED_ARITY,
         // The floor here is purely descriptive (hover / hint text): the real
         // minimum is enforced by `clause_shape_check`, which also covers the

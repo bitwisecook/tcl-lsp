@@ -1503,11 +1503,22 @@ impl Analyser {
                 .or_default()
                 .insert(name.clone());
         }
+        // Registry facts, not command names (gap-review C3). The event
+        // handler is whatever carries `IS_EVENT_HANDLER` — `when` today, but
+        // a dialect that adds another gets the same treatment without an edit
+        // here; its synopsis (`when EVENT { body }`) puts the event name in
+        // the first argument. `conditional_depth` rises for a command whose
+        // bodies are branch-selected (`BRANCH_SELECTED_BODY` — `if` / `try`),
+        // which is what makes a `package require` inside one conditional.
+        let spec_traits = registry
+            .get(cmd_name)
+            .map_or_else(tcl_registry::Traits::empty, |s| s.traits);
+        let is_event_handler = spec_traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER);
         let prev_event = self.current_event.clone();
-        if cmd_name == "when" && !args.is_empty() {
+        if is_event_handler && !args.is_empty() {
             self.current_event = Some(args[0].clone());
         }
-        let is_conditional = matches!(cmd_name, "if" | "try");
+        let is_conditional = spec_traits.contains(tcl_registry::Traits::BRANCH_SELECTED_BODY);
         if is_conditional {
             self.conditional_depth += 1;
         }
@@ -1517,9 +1528,7 @@ impl Analyser {
         // or many, so anything inside it is not straight-line. `namespace
         // eval` / `eval` / `uplevel` bodies carry no such trait and stay
         // straight-line, which is correct — they always run.
-        let is_control_flow = registry
-            .get(cmd_name)
-            .is_some_and(|s| s.traits.contains(tcl_registry::Traits::CONTROL_FLOW));
+        let is_control_flow = spec_traits.contains(tcl_registry::Traits::CONTROL_FLOW);
         if is_control_flow {
             self.control_flow_body_depth += 1;
         }
@@ -1543,7 +1552,7 @@ impl Analyser {
         if is_control_flow {
             self.control_flow_body_depth -= 1;
         }
-        if cmd_name == "when" {
+        if is_event_handler {
             self.current_event = prev_event;
         }
     }
