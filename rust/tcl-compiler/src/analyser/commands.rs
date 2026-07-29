@@ -1515,6 +1515,18 @@ impl Analyser {
         if is_conditional {
             self.conditional_depth += 1;
         }
+        // Whether these bodies are guaranteed to run once when the enclosing
+        // script runs. A `Traits::CONTROL_FLOW` command's body may run zero
+        // times (`if {0}`, an empty `foreach` list, an untaken `switch` arm)
+        // or many, so anything inside it is not straight-line. `namespace
+        // eval` / `eval` / `uplevel` bodies carry no such trait and stay
+        // straight-line, which is correct — they always run.
+        let is_control_flow = registry
+            .get(cmd_name)
+            .is_some_and(|s| s.traits.contains(tcl_registry::Traits::CONTROL_FLOW));
+        if is_control_flow {
+            self.control_flow_body_depth += 1;
+        }
         for idx in body_indices {
             if let (Some(body_text), Some(body_tok)) = (args.get(idx), arg_tokens.get(idx).copied())
             {
@@ -1531,6 +1543,9 @@ impl Analyser {
         }
         if is_conditional {
             self.conditional_depth -= 1;
+        }
+        if is_control_flow {
+            self.control_flow_body_depth -= 1;
         }
         if cmd_name == "when" {
             self.current_event = prev_event;

@@ -5435,6 +5435,97 @@ fn w308_tn_issue_1013_live_class_set_var_constructor_still_flags() {
 }
 
 #[test]
+fn w308_tp_copy_propagated_handle_with_a_trailing_rename_still_flags() {
+    // TP restored by moving the class-liveness gate from file end to the
+    // dispatch site. `foo` runs while `Dog` is alive; the rename is the last
+    // line of the file and cannot affect a call that already happened.
+    //
+    // The file-end gate dropped `x`'s `Object(::Dog)` type outright, so the
+    // dispatch lost its W308 *and* picked up a spurious W307 in its place.
+    //
+    // Oracle (tclsh8.6, `review-probes-sound/w308d.tcl`): exits 1 with
+    // `unknown method "fly": must be bark or destroy`.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nproc foo {} {\n    set y [Dog new]\n    set x $y\n    $x fly\n}\nfoo\nrename Dog {}\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "the class is alive at the dispatch, so the unknown method must flag; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w308_tp_class_renamed_to_a_name_keeps_typing_its_existing_objects() {
+    // `rename Dog Cat` deletes the command *name* `Dog` but not the class —
+    // the object in `d` is still a Dog and still rejects `fly`.
+    //
+    // Oracle (tclsh8.6 and tclsh9.0): after `set d [Dog new]` and `rename
+    // Dog Cat`, `$d bark` returns `woof` while `$d fly` fails with `unknown
+    // method "fly": must be bark or destroy`.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nset d [Dog new]\nrename Dog Cat\n$d fly\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "a class renamed to a name is re-established, not deleted; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_tp_a_class_renamed_away_still_flags_its_old_name() {
+    // The paired guard: making the *class* survive a rename must not make
+    // the vacated *command name* resolve. Oracle (tclsh8.6,
+    // `review-probes/cls1_run.tcl`): after `rename Dog Cat`, `Dog new`
+    // fails with `invalid command name "Dog"`.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\nDog new\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    let codes: HashSet<String> = r.diagnostics.iter().map(|d| d.code.to_string()).collect();
+    assert!(
+        codes.contains("W123"),
+        "the vacated name must still be unknown; got {codes:?}",
+    );
+}
+
+#[test]
+fn w123_tp_a_rename_in_a_dead_branch_is_not_an_unconditional_deletion() {
+    // A `rename` nested in a control-flow body may never run, so it is not
+    // evidence the command is gone. The analyser proves this very branch
+    // dead in the same run (it emits I230 on it) yet honoured the deletion,
+    // flagging a command that is demonstrably still callable and — through
+    // the shared liveness facts — withdrawing the W308 as well.
+    //
+    // Oracle (tclsh8.6, `review-probes/cls5.tcl`): `Dog new` succeeds and
+    // `$d fly` fails with `unknown method "fly": must be bark or destroy`.
+    let src = "oo::class create Dog {\n    method bark {} { return woof }\n}\nif {0} { rename Dog {} }\nset d [Dog new]\n$d fly\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    let codes: HashSet<String> = r.diagnostics.iter().map(|d| d.code.to_string()).collect();
+    assert!(
+        !codes.contains("W123"),
+        "the branch never runs, so `Dog` is still bound; got {:?}",
+        r.diagnostics,
+    );
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "and the live class must still validate its methods; got {:?}",
+        r.diagnostics,
+    );
+    assert!(
+        codes.contains("I230"),
+        "the dead branch itself is still reported; got {codes:?}",
+    );
+}
+
+#[test]
 fn w308_fp_issue_1010_reestablished_class_constructor_still_flags_unknown_method() {
     let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog {}\noo::class create Dog { method bark {} { return woof } }\n[Dog new] fly";
     let mut a = Analyser::new();

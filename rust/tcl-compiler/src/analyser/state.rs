@@ -277,6 +277,23 @@ pub struct Analyser {
     /// `if` / `catch` / `try` arms, used to mark
     /// ``package require`` records as ``conditional=true``.
     pub conditional_depth: u32,
+    /// Nesting depth inside the body of a [`tcl_registry::Traits::CONTROL_FLOW`]
+    /// command — `if`, `while`, `for`, `foreach`, `lmap`, `switch`, `try`,
+    /// `catch` and their dialect siblings.
+    ///
+    /// A body at depth 0 is *straight-line*: it runs exactly once when its
+    /// enclosing script runs. Depth above 0 means the walker cannot say
+    /// whether the command runs at all, which is what
+    /// [`Self::handle_rename`] needs before recording a command deletion as
+    /// unconditional. Deliberately distinct from `conditional_depth`, which
+    /// covers only `if`/`try` and drives the `package require` conditional
+    /// flag.
+    ///
+    /// Registry-driven: the trait decides, so no command name appears in the
+    /// walker. `namespace eval`, `eval`, and `uplevel` bodies do *not* count
+    /// — they run unconditionally, so a deletion inside one is still
+    /// straight-line.
+    pub control_flow_body_depth: u32,
     /// Body-nesting depth — incremented on entry to a braced
     /// body. Used for top-level-only command checks.
     pub body_depth: u32,
@@ -866,6 +883,7 @@ impl Analyser {
             builtin_names: None,
             builtin_dialect: None,
             conditional_depth: 0,
+            control_flow_body_depth: 0,
             body_depth: 0,
             e207_emitted: false,
             body_scope_stack: Vec::new(),

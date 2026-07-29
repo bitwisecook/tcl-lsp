@@ -250,16 +250,20 @@ impl Analyser {
     /// types: var name → the set of `TclType::Object` class qualified names it
     /// can hold, for the W308 method-resolution check.
     ///
-    /// Every class name is gated on [`Self::class_live_at_file_end`] (issue
-    /// #1013): `type_infer.rs`'s `constructor_object_type` types `[Cls new]`
-    /// straight off an unfiltered "known classes" set with no deletion
-    /// awareness, so a `rename Cls {}` left `set x [Cls new]; $x fly`
-    /// drawing a misleading "unknown method" W308 even though tclsh8.6/9.0
-    /// fail the constructor itself with `invalid command name "Cls"`. This
-    /// is the same gate #1010 applied to
-    /// [`Self::harvest_constructor_object_types`], the other source this
-    /// map unions — filtering both here keeps the two in step regardless of
-    /// which one typed the symbol.
+    /// The map itself is **unfiltered**. Deletion awareness (issue #1013 —
+    /// `type_infer.rs`'s `constructor_object_type` types `[Cls new]` straight
+    /// off a "known classes" set that has none) belongs at the *emit* sites,
+    /// which know the dispatch offset and can ask
+    /// [`Self::class_live_for_call`]. Filtering here instead used
+    /// `class_live_at_file_end`, and dropping the type outright cost the
+    /// diagnostic in both directions: a class used before a *later* deletion
+    /// lost its W308 and drew a spurious W307 in its place, even though the
+    /// dispatch happens while the class is still live.
+    ///
+    /// Oracle (tclsh8.6, `review-probes-sound/w308d.tcl`): `proc foo {} {
+    /// set y [Dog new]; set x $y; $x fly }`, `foo`, then `rename Dog {}`
+    /// fails with `unknown method "fly"` — the class is alive at the
+    /// dispatch, and the trailing rename is irrelevant to it.
     fn aggregate_object_types(
         &self,
         cu: &crate::compilation_unit::CompilationUnit,
@@ -280,9 +284,6 @@ impl Analyser {
                     let Some(class_name) = tl.class_name() else {
                         continue;
                     };
-                    if !self.class_live_at_file_end(class_name) {
-                        continue;
-                    }
                     out.entry(fu.ssa.var_name(*sym).to_owned())
                         .or_default()
                         .insert(class_name.to_owned());
@@ -680,33 +681,78 @@ impl Analyser {
             .is_some_and(|c| self.fact_live_for_call(qualified, c.name_span.start(), call_off))
     }
 
-    /// Whether `qualified` names a class still live when the file finishes
-    /// loading — the file-end sibling of [`Self::class_live_for_call`],
-    /// for the SSA type lattice (issue #1013).
+    /// The object classes `site`'s receiver may hold that are still live
+    /// *at this dispatch*, out of everything
+    /// [`Self::aggregate_object_types`] recorded for the variable.
     ///
-    /// File-end, not per-call-site, is the only granularity available here
-    /// and it is the right boundary: `fu.types` is a *flow-insensitive
-    /// per-symbol* lattice with no offset attached to the entry that typed
-    /// the symbol, so there is no call site to gate against. The
-    /// consequence is deliberate and matches
-    /// [`super::unresolved::Analyser::fact_live_at_file_end`]'s own
-    /// contract — a class deleted and then re-established under the same
-    /// name reads as live (the re-establishment postdates the deletion),
-    /// while a class deleted for good does not. A class *used* before a
-    /// later deletion is the one case this is coarser than
-    /// `class_live_for_call`: W308's "unknown method" is a secondary
-    /// diagnostic, and suppressing it there costs only a hint, whereas
-    /// asserting a dead class exists actively misleads.
+    /// A class deleted before the dispatch cannot answer it, so its method
+    /// table says nothing about the call; a class deleted only afterwards is
+    /// fully live here and must still be checked (issue #1013, refined by
+    /// the adversarial review). An empty result means the site has no usable
+    /// object type left, and the caller falls through to the W307 path
+    /// exactly as it did when the type was dropped wholesale.
+    fn live_classes_at_dispatch(
+        &self,
+        all_object_types: &std::collections::HashMap<String, HashSet<String>>,
+        site: &crate::analyser::state::VarCommandSite,
+    ) -> HashSet<String> {
+        let Some(names) = all_object_types.get(&site.var_name) else {
+            return HashSet::new();
+        };
+        names
+            .iter()
+            .filter(|cls| self.class_live_by_name_for_call(cls, site.cmd_span.start()))
+            .cloned()
+            .collect()
+    }
+
+    /// Whether the class `name` is still live at `call_off` — the
+    /// by-written-name wrapper around [`Self::class_live_for_call`], for the
+    /// type-lattice class names [`Self::aggregate_object_types`] collects
+    /// (issue #1013).
+    ///
+    /// Gating at the dispatch offset rather than at file end is what keeps
+    /// a class *used before a later deletion* diagnosable: the dispatch runs
+    /// while the class is alive, so its methods are exactly as checkable as
+    /// if the deletion were not there. `fu.types` is flow-insensitive and
+    /// carries no offset of its own, but the *dispatch site* does
+    /// (`VarCommandSite::cmd_span`), and that is the offset that decides
+    /// whether the call succeeds — the same granularity issue #1010 used
+    /// for the constructor sites.
     ///
     /// A name this file declares no class for (a cross-file or
     /// registry-provided class) has no deletion fact to check and stays
-    /// live, exactly as before.
-    fn class_live_at_file_end(&self, name: &str) -> bool {
+    /// live.
+    ///
+    /// # A rename to a name is re-establishment, not deletion
+    ///
+    /// `rename Dog Cat` records a deletion of `::Dog`, which is right for
+    /// the *command name* — `Dog new` genuinely fails afterwards. It is
+    /// wrong for the *class*, which is alive and well under its new name,
+    /// along with every object already constructed from it.
+    ///
+    /// Oracle (tclsh8.6 and tclsh9.0): after `set d [Dog new]` and `rename
+    /// Dog Cat`, `$d bark` returns `woof` and `$d fly` fails with `unknown
+    /// method "fly"`. Treating the class as dead dropped that W308.
+    ///
+    /// So a class named as some rename's *source* stays live here. The
+    /// command-name question is a different one and keeps using
+    /// [`Self::fact_live_for_call`] directly, which is what still lets
+    /// `Dog new` draw its W123.
+    fn class_live_by_name_for_call(&self, name: &str, call_off: u32) -> bool {
         let qualified = self.canonicalise_class_name(name);
+        if self
+            .result
+            .renamed_commands
+            .values()
+            .any(|old| *old == qualified)
+        {
+            return true;
+        }
         self.result
             .all_classes
             .get(&qualified)
-            .is_none_or(|c| self.fact_live_at_file_end(&qualified, c.name_span.start()))
+            .is_none_or(|c| self.fact_live_for_call(&qualified, c.name_span.start(), call_off))
     }
 
     /// True when `v` resolves to a known, *live* command at `call_off`: a
@@ -1132,10 +1178,12 @@ impl Analyser {
             // **W308 path.**  Variable known to hold an Object — validate the
             // method against the hierarchy and emit W308 when it isn't found.
             // The W307 path never fires for a known-Object var, so `continue`.
-            if let Some(class_names) = all_object_types.get(&site.var_name) {
+            //
+            let live_classes = self.live_classes_at_dispatch(&all_object_types, site);
+            if !live_classes.is_empty() {
                 if let Some(diag) = self.w308_for_object_var(
                     site,
-                    class_names,
+                    &live_classes,
                     hierarchy.as_ref(),
                     &objdefined_vars,
                 ) {

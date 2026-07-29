@@ -3436,6 +3436,33 @@ impl Analyser {
                 self.interpreters.insert(new_interp_key, state);
             }
         }
+        // A rename nested inside a control-flow body may not run at all, so it
+        // is not evidence that `OLD` is gone. Recording it anyway produced a
+        // W123 on a command that is demonstrably still callable, and — once
+        // class liveness started consulting the same facts — withdrew the
+        // W308 on objects of that class too.
+        //
+        // Oracle (tclsh8.6, `review-probes/cls5.tcl`): with `if {0} { rename
+        // Dog {} }`, `Dog new` succeeds and `$d fly` fails with `unknown
+        // method "fly"`. The analyser proves the same branch dead in the same
+        // run — it emits I230 on it — yet honoured the deletion.
+        //
+        // Only straight-line deletions count. This is the *syntactic* rule:
+        // `if {1} { rename Dog {} }` is equally not recorded, even though it
+        // does run. Reading the branch's real value needs SCCP, which runs
+        // later over the IR this walk feeds, so it is not available here. The
+        // narrower rule errs towards treating commands as live, matching the
+        // existing "a deletion inside a definition body does not count"
+        // rule in `fact_live_for_call` (issue #973).
+        if self.control_flow_body_depth > 0 {
+            if !new.is_empty() {
+                self.renamed_commands.insert(new.clone(), old.clone());
+                self.rename_offsets.insert(new.clone(), offset);
+                self.result.rename_offsets.insert(new.clone(), offset);
+                self.result.renamed_commands.insert(new, old);
+            }
+            return false;
+        }
         if new.is_empty() {
             self.deleted_commands.insert(old, deletion_offset);
             return false;
