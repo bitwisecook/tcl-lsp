@@ -375,3 +375,45 @@ suite("Variable-name positions (W212/W216)", () => {
     assert.ok(!linesWithCode(diags, "W212").includes(3), "upvar line must not fire W212");
   });
 });
+
+// The `Tcl_ConcatObj` eval family (issue #1051).
+//
+// `eval`, `uplevel`, `namespace eval`, and `interp eval` evaluate the
+// *concatenation* of every trailing script word, so analysing only the first
+// one invents an E002 and loses the writes the joined script performs. The
+// fixture's last line (`eval set`, line index 9) is a genuinely short joined
+// script and MUST fire E002 — that doubles as the marker that analysis ran.
+// `namespace inscope`'s tail is list-appended rather than joined, so its line
+// must stay silent too.
+suite("Multi-word eval concatenation (#1051)", () => {
+  const docUri = getDocUri("multiWordEval.tcl");
+
+  test("a genuinely short joined script still fires E002 (true case)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "E002"),
+    });
+    assert.deepStrictEqual(
+      linesWithCode(diags, "E002"),
+      [9],
+      "only the `eval set` line is a short joined script",
+    );
+  });
+
+  test("well-formed multi-word eval draws no E002 and no W210 (false case)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "E002"),
+    });
+    for (const ln of linesWithCode(diags, "E002")) {
+      assert.strictEqual(ln, 9, `E002 fired on well-formed eval line ${ln}`);
+    }
+    // The joined scripts really do set `total` and `label`, so the reads on
+    // lines 3 and 5 are not read-before-set.
+    assert.strictEqual(
+      linesWithCode(diags, "W210").length,
+      0,
+      "a variable a multi-word eval sets must not read as read-before-set",
+    );
+  });
+});

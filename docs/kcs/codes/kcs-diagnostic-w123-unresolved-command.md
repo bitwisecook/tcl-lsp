@@ -104,6 +104,35 @@ though the command itself survives under its new name. `rename Dog Cat`
 moves the class to `Cat`; `Dog new` afterwards fails with `invalid
 command name "Dog"`, so the old name is reported.
 
+## What a `proc unknown` changes
+
+Defining your own `unknown` handler at **global** scope switches this check
+off for the whole file: Tcl sends every unresolved command word to that
+handler, so the analyser cannot prove any name is really unresolved.
+
+```tcl
+proc unknown {cmd args} { exec $cmd {*}$args }
+totallyBogusCommand
+```
+
+Nothing is flagged here.
+
+A `proc unknown` written **inside a namespace** is an ordinary procedure
+that happens to share the name, and changes nothing:
+
+```tcl
+namespace eval ::mylib {
+    proc unknown {cmd args} { exec $cmd {*}$args }
+}
+totallyBogusCommand
+```
+
+The analyser still reports **`W123`** on `totallyBogusCommand`, and running
+this really does fail with `invalid command name "totallyBogusCommand"` —
+Tcl consults `::unknown` for a bare unresolved word regardless of the calling
+namespace. To register a per-namespace handler, use `namespace unknown NAME`,
+which the analyser models separately.
+
 A built-in `expr` math function (`sin`, `max`, `abs`, …) called with
 function-call syntax inside `expr` resolves to the command it dispatches to
 (`::tcl::mathfunc::<name>`) and never draws `W123`, whether or not it has

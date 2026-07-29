@@ -366,6 +366,108 @@ contains, so it defers to host-supplied cross-file evidence. See
 convenience over a namespace the same file defines, and `unit_scope`'s
 evidence scan already models the import as a real caller path.
 
+### The `Tcl_ConcatObj` eval family
+
+Five commands evaluate the **concatenation** of every trailing word from
+their first `BODY`-role argument onwards, rather than that one word alone:
+
+| Trait | Set on | Means |
+|---|---|---|
+| `SCRIPT_CONCATENATES_ARGS` | `eval`, `uplevel`, `namespace eval`, `namespace inscope`, `interp eval` | every word from the first `BODY` index to the end of the call is part of one script |
+| `SCRIPT_APPENDS_LIST_ARGS` | `namespace inscope` | refines the above: the tail is appended as *list elements*, not space-joined |
+
+`Tcl_ConcatObj` (`generic/tclUtil.c`) takes each word's **string
+representation** — so a braced word contributes its *contents*, the outer
+braces already removed by Tcl's word parsing — trims ASCII whitespace from
+each end, drops words that trim to nothing, and joins the rest with a single
+space. Commands therefore span word boundaries:
+
+```text
+concat {set x} {5}      -> set x 5
+concat "  a  " "  b  "  -> a b
+eval set l2 hello       == set l2 hello
+eval {set l2} hello     == set l2 hello
+```
+
+The consumer contract is that no pass may treat the first `BODY`-role word as
+the whole script when the trait is present and further words follow. Either
+join them per the rule above — sound only when every trailing word is a
+static literal, since substitution runs *before* concatenation — or consume
+the command without walking it. Analysing `eval set l2 hello` as the
+one-word script `set` invents a wrong-#-args error and loses the write to
+`l2` (issue #1051).
+
+`namespace inscope` is the one member that does not space-join:
+`namespace inscope ns script ?arg ...?` is `namespace eval ns [concat script
+[list arg ...]]`, so `namespace inscope :: {puts} {a b}` prints `a b` where
+`namespace eval :: {puts} {a b}` errors `can not find channel named "a"`.
+Reconstructing that needs list quoting the analyser does not model, so any
+trailing word means the call is consumed without walking.
+
+`catch` is deliberately outside the family: it takes a single bounded script
+argument, so its remaining words are result / options variable names.
+
+The `EXPR_CONCATENATES_ARGS` trait is the expression-side counterpart, for
+`expr`'s whole-tail expression.
+
+### `TclOO` method-context keywords
+
+Three traits classify the words that appear at the head of a call inside a
+`TclOO` method body. They sit on **different axes** and must not be
+conflated:
+
+| Trait | Set on | Means |
+|---|---|---|
+| `TCLOO_SELF_DISPATCH` | `my` | instance self-dispatch — the next word names a method on *this* object, reaching non-exported (and, from 9.0, private) methods |
+| `TCLOO_NEXT_CHAIN` | `next`, `nextto` | superclass chain — no word names a method; the callee is the next implementation of the *currently executing* one |
+| `TCLOO_INTROSPECTION` | `self` | introspection, never dispatch — its argument is a closed subcommand set |
+
+`link` carries none of them, deliberately: it *creates* per-object bareword
+commands (`link {alias method}`), so the barewords it installs are per-class
+data rather than language keywords (issue #1026).
+
+`CommandRegistry::method_dispatch_keyword(head) -> Option<MethodDispatchKind>`
+is the single query every consumer uses instead of a `head == "my"` /
+`matches!(head, "my" | "next" | "nextto")` literal (issue #1050). It:
+
+- normalises a leading `::`, matching `get`;
+- answers under the **registry instance's own** dialect profile, so a
+  registry built by `registry_for_dialect("tcl8.5")` returns `None` for all
+  four (every one is `TCL86_PLUS`), while a profile-less
+  `CommandRegistry::build_default()` answers dialect-agnostically;
+- returns `SelfDispatch` / `NextChain` / `Introspection`, so a consumer that
+  wants "does the next word name a method" can ask for `SelfDispatch` alone.
+
+`nextto`'s explicit resume-from class is distinguished from `next`
+*structurally* — an `ArgRole::Name` at argument index 0 on the spec — not by
+name, so a consumer capturing that target queries the role rather than
+matching the spelling.
+
+A future dialect variant of any of these keywords propagates through its
+`CommandSpec`, never through a walker edit; the contract tests in
+`registry_commands.rs` assert the consumer-visible keyword set equals the
+trait-carrying specs, per dialect.
+
+### Branch-selected bodies
+
+`BRANCH_SELECTED_BODY` marks a command whose body arguments run only when
+its own run-time selection picks them, and which performs no iteration —
+`if` (at most one clause body plus an optional `else`) and `try` (handler
+bodies reached only on the matching exception).
+
+The fact a consumer needs is that nothing established inside such a body
+**dominates** the code after the command: a `package require` there is
+conditional, and a variable written there is not reliably set afterwards.
+
+Deliberately narrower than `CONTROL_FLOW`, which also covers `while` / `for`
+/ `foreach` / `lmap` / `switch`. A loop body is *repeatable* as well as
+skippable, so the two questions have different answers and different
+consumers — the analyser's `control_flow_body_depth` (straight-line-ness,
+driven by `CONTROL_FLOW`) and `conditional_depth` (domination, driven by this
+trait) stay separate. Also distinct from `HAS_BOOLEAN_COND`, which is about
+an argument being *read* as a boolean expression rather than about which
+bodies run.
+
 ### Resolution priority
 
 Three mechanisms assign roles to command arguments. They are evaluated in
