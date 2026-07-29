@@ -151,6 +151,16 @@ impl WorkspaceClass {
             .iter()
             .find(|m| m.name == name && m.kind != "classmethod")
     }
+
+    /// The typed record for the *class-receiver* member `name` — a
+    /// `classmethod` / `self method` / snit `typemethod` — if this record
+    /// defines one.  The counterpart of [`Self::instance_method`].
+    #[must_use]
+    pub fn class_method(&self, name: &str) -> Option<&WorkspaceMethod> {
+        self.methods
+            .iter()
+            .find(|m| m.name == name && m.kind == "classmethod")
+    }
 }
 
 /// One method a class record directly defines, as indexed for cross-file
@@ -170,6 +180,18 @@ pub struct WorkspaceMethod {
     /// dispatch *and* to subclasses; callable only via `my` within the
     /// declaring class's own methods.
     pub private: bool,
+    /// `true` for a stock-`TclOO` `self method` (as opposed to `ooutil`'s
+    /// `classmethod` keyword).  Both land in the class-receiver bucket
+    /// (`kind == "classmethod"`), but a `self method` is visible **only**
+    /// on the exact class object that declared it: `Gadget make` on a
+    /// subclass of a class declaring `self method make` errors `unknown
+    /// method "make"` under tclsh 8.6 and 9.0.4, whereas `classmethod`
+    /// propagates to the subclass's own bound command through its
+    /// `Delegate`-mixin machinery.  The single-document scan reads
+    /// [`tcl_compiler::analyser::MethodDef::is_self_method`] for this;
+    /// carrying it here is what lets a *cross-file* consumer scan tell the
+    /// two apart (Codex review on #1047).
+    pub is_self_method: bool,
 }
 
 /// The access context of a method call site — `TclOO` dispatches an
@@ -430,6 +452,7 @@ impl WorkspaceIndex {
                         kind: m.kind.clone(),
                         exported: m.visibility == "public",
                         private: m.visibility == "private",
+                        is_self_method: m.is_self_method,
                     })
                     .chain(
                         sorted_by_span(class_def.class_methods.values(), |m| m.name_span)
@@ -439,6 +462,7 @@ impl WorkspaceIndex {
                                 kind: "classmethod".to_string(),
                                 exported: m.visibility == "public",
                                 private: m.visibility == "private",
+                                is_self_method: m.is_self_method,
                             }),
                     )
                     .collect();

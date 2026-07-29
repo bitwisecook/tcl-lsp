@@ -4756,9 +4756,21 @@ impl Backend {
     /// [`core_workspace_index::WorkspaceMethod::kind`]) is the centralised
     /// answer instead of guessing from the command name, exactly as the
     /// same-document path reads `ClassDef::class_methods` locally.
+    ///
+    /// A stock-`TclOO` `self method` is **not** inherited: it lives on the
+    /// class object that declared it, and a subclass's own class command
+    /// never reaches it (`Gadget make` against a parent's `self method make`
+    /// errors `unknown method "make": must be create, destroy or new` under
+    /// tclsh 8.6 and 9.0.4).  `ooutil`'s `classmethod` keyword does
+    /// propagate.  Both share the `"classmethod"` receiver kind, so the
+    /// inheritors are folded in only when an indexed definer declares a
+    /// genuinely inheritable copy — otherwise a rename rewrote a subclass
+    /// consumer's `Gadget make`, which never called the renamed member at
+    /// all (Codex review on #1047).
     fn classmethod_dispatch_names(
         definers: &[&core_workspace_index::WorkspaceClass],
         inheritors: &[&core_workspace_index::WorkspaceClass],
+        method: &str,
         is_classmethod: bool,
         dialect: &str,
     ) -> Vec<String> {
@@ -4770,9 +4782,17 @@ impl Backend {
         if !is_classmethod {
             return Vec::new();
         }
+        let declarations: Vec<&core_workspace_index::WorkspaceMethod> = definers
+            .iter()
+            .filter_map(|wc| wc.class_method(method))
+            .collect();
+        // No indexed declaration at all (a class not yet indexed) keeps the
+        // inheritors, as before — the exclusion needs positive knowledge that
+        // every declaration is a `self method`.
+        let inheritable = declarations.is_empty() || declarations.iter().any(|m| !m.is_self_method);
         definers
             .iter()
-            .chain(inheritors.iter())
+            .chain(inheritors.iter().filter(|_| inheritable))
             .filter(|wc| !wc.is_itcl(dialect))
             .flat_map(|wc| [wc.name.clone(), wc.qualified_name.clone()])
             .collect()
@@ -4905,8 +4925,13 @@ impl Backend {
         let index = self.workspace_index.read().await;
         let definers = index.method_override_family(seed_class, method);
         let inheritors = index.method_inheritor_classes(seed_class, method);
-        let classmethod_cmd_names =
-            Self::classmethod_dispatch_names(&definers, &inheritors, is_classmethod, dialect);
+        let classmethod_cmd_names = Self::classmethod_dispatch_names(
+            &definers,
+            &inheritors,
+            method,
+            is_classmethod,
+            dialect,
+        );
         let mut family: Vec<String> = definers
             .iter()
             .map(|wc| wc.qualified_name.clone())
@@ -5021,8 +5046,13 @@ impl Backend {
         let index = self.workspace_index.read().await;
         let definers = index.method_override_family(seed_class, method);
         let inheritors = index.method_inheritor_classes(seed_class, method);
-        let classmethod_cmd_names =
-            Self::classmethod_dispatch_names(&definers, &inheritors, is_classmethod, dialect);
+        let classmethod_cmd_names = Self::classmethod_dispatch_names(
+            &definers,
+            &inheritors,
+            method,
+            is_classmethod,
+            dialect,
+        );
         let mut by_uri: std::collections::BTreeMap<String, FamilyClasses> =
             std::collections::BTreeMap::new();
         for wc in definers {
@@ -20512,6 +20542,63 @@ mod tests {
                 .any(|l| l.uri == consumer && l.range.start.line == 0),
             "`SubFactory make` (inherited classmethod) in the pure-consumer document missing: {refs:?}"
         );
+    }
+
+    /// TN (Codex review on #1047): a stock-`TclOO` `self method` is not
+    /// inherited, so a subclass's own class command never reaches it —
+    /// tclsh 8.6 and 9.0.4 both answer `Gadget make` with `unknown method
+    /// "make": must be create, destroy or new`.  A consumer document's
+    /// `Gadget make` therefore calls something else entirely and must not
+    /// appear as a reference (nor be rewritten by a rename) when the
+    /// parent's `self method make` is renamed.  The TP half — the parent's
+    /// own `Parent make` — must still be found.
+    #[tokio::test]
+    async fn cross_file_consumer_excludes_subclass_dispatch_of_a_self_method() {
+        let backend = test_backend();
+        let parent = Uri::from_str("file:///selfparent.tcl").unwrap();
+        let consumer = Uri::from_str("file:///selfconsumer.tcl").unwrap();
+        let parent_src = "oo::class create Parent {\n    self method make {} { return 1 }\n}\noo::class create Gadget {\n    superclass Parent\n}\n";
+        register(&backend, &parent, parent_src).await;
+        register(&backend, &consumer, "Parent make\nGadget make\n").await;
+        let refs = backend
+            .cross_file_consumer_method_references(
+                &parent, parent_src, "tcl8.6", "::Parent", "make", true,
+            )
+            .await;
+        assert!(
+            refs.iter()
+                .any(|l| l.uri == consumer && l.range.start.line == 0),
+            "`Parent make` (the declaring class's own dispatch) missing: {refs:?}"
+        );
+        assert!(
+            !refs
+                .iter()
+                .any(|l| l.uri == consumer && l.range.start.line == 1),
+            "`Gadget make` is not a call of a non-inherited `self method`: {refs:?}"
+        );
+    }
+
+    /// The rename half of the same rule: the consumer edit list rewrites
+    /// `Parent make` and leaves `Gadget make` alone.  References and rename
+    /// resolve consumer sites through the one resolver, so this pins that
+    /// they stay in step.
+    #[tokio::test]
+    async fn cross_file_rename_of_a_self_method_leaves_subclass_dispatch_alone() {
+        let backend = test_backend();
+        let parent = Uri::from_str("file:///selfparent2.tcl").unwrap();
+        let consumer = Uri::from_str("file:///selfconsumer2.tcl").unwrap();
+        let parent_src = "oo::class create Parent {\n    self method make {} { return 1 }\n}\noo::class create Gadget {\n    superclass Parent\n}\n";
+        register(&backend, &parent, parent_src).await;
+        register(&backend, &consumer, "Parent make\nGadget make\n").await;
+        let ranges = backend
+            .consumer_method_site_ranges(&parent, parent_src, "tcl8.6", "::Parent", "make", true)
+            .await;
+        let consumer_ranges: Vec<u32> = ranges
+            .iter()
+            .filter(|(uri, _)| *uri == consumer)
+            .flat_map(|(_, rs)| rs.iter().map(|r| r.start.line))
+            .collect();
+        assert_eq!(consumer_ranges, vec![0], "{ranges:?}");
     }
 
     #[tokio::test]
