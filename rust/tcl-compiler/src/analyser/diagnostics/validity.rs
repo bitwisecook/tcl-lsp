@@ -2664,6 +2664,45 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         });
     }
 
+    /// **W143.** Warn on a direct call into a private, undocumented
+    /// `::tcl::` implementation namespace (`::tcl::dict::create`,
+    /// `tcl::string::totitle`, …) — real Tcl backs several built-in ensemble
+    /// commands this way, and the call works, but it is never a documented
+    /// or supported way to write Tcl. Prefix-level only (issue #988): no
+    /// per-subcommand or per-version modelling, so this fires the same way
+    /// regardless of dialect/version. Registry-driven — the namespace list
+    /// lives in [`tcl_registry::private_tcl_namespaces`], not here, so a
+    /// user's own namespace nested under `tcl::` and Tcl's own public
+    /// `tcl::`-rooted commands (`tcl::mathop::*`, `tcl::mathfunc::*`,
+    /// `tcl::prefix`) are never flagged — see that module's classifier for
+    /// the exact matching rule.
+    pub(in crate::analyser) fn emit_w143_private_tcl_namespace(
+        &mut self,
+        cmd_name: &str,
+        cmd_tok: tcl_lexer::Token,
+    ) {
+        let Some(call) =
+            tcl_registry::private_tcl_namespaces::classify_private_tcl_namespace_call(cmd_name)
+        else {
+            return;
+        };
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::W143,
+            span: cmd_tok.span,
+            message: format!(
+                "'{cmd_name}' is a private Tcl implementation namespace; use the public \
+                 ensemble command instead — e.g. '{}'.",
+                call.suggestion
+            ),
+            severity: Severity::Warning,
+            fixes: vec![super::types::CodeFix {
+                span: cmd_tok.span,
+                new_text: call.suggestion,
+                description: format!("Replace with '{}'", call.public_command),
+            }],
+        });
+    }
+
     /// **IRULE2001.** Warn that `matchclass` is deprecated — use
     /// `class match` instead.  Only fires under the `f5-irules` dialect.
     /// This fires *alongside* IRULE2002 at the same span (the

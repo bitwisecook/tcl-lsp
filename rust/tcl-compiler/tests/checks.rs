@@ -2777,3 +2777,73 @@ mod call_by_name_dynamic_name_local {
         );
     }
 }
+
+// W143 — direct call into a private `::tcl::` implementation namespace.
+//
+// tclsh ground truth: `::tcl::dict::create a 1` runs and returns `a 1` under
+// both tclsh8.6 and tclsh9.0 (confirmed live) — the call works, so this is
+// advisory (Warning), not an error. Prefix-level only: no per-subcommand or
+// per-version modelling (issue #988).
+mod private_tcl_namespace {
+    use super::*;
+
+    #[test]
+    fn direct_call_is_flagged_with_concrete_suggestion() {
+        let ds = of_code("::tcl::dict::create a 1", D, "W143");
+        assert_eq!(ds.len(), 1);
+        assert!(
+            ds[0].0.contains("dict create"),
+            "expected the concrete 'dict create' suggestion in the message; got {:?}",
+            ds[0].0
+        );
+        // The bare (non-`::`-rooted) spelling is equally flagged.
+        assert!(fires("tcl::dict::create a 1", D, "W143"));
+    }
+
+    #[test]
+    fn quick_fix_replaces_head_with_public_ensemble_call() {
+        let ds = of_code("::tcl::string::totitle abc", D, "W143");
+        assert_eq!(ds.len(), 1);
+        assert_eq!(ds[0].2, vec!["string totitle".to_string()]);
+    }
+
+    #[test]
+    fn every_private_namespace_fires() {
+        for ns in tcl_registry::private_tcl_namespaces::PRIVATE_TCL_NAMESPACES {
+            let src = format!("::tcl::{ns}::sub arg");
+            assert!(fires(&src, D, "W143"), "expected W143 for {src:?}");
+        }
+    }
+
+    #[test]
+    fn public_ensemble_call_not_flagged() {
+        assert!(!fires("dict create a 1", D, "W143"));
+        assert!(!fires("string totitle abc", D, "W143"));
+    }
+
+    #[test]
+    fn users_own_tcl_namespace_not_flagged() {
+        assert!(!fires(
+            "namespace eval ::tcl::mycustom { proc foo {} {} }\n::tcl::mycustom::foo",
+            D,
+            "W143"
+        ));
+    }
+
+    #[test]
+    fn public_documented_tcl_rooted_namespaces_not_flagged() {
+        // `tcl::mathop`/`tcl::mathfunc` are public, documented namespaces —
+        // must never be confused with the private implementation ones.
+        assert!(!fires("::tcl::mathop::+ 1 2", D, "W143"));
+        assert!(!fires("::tcl::mathfunc::sin 0", D, "W143"));
+        // `tcl::prefix` is likewise a real, public, documented command
+        // (Tcl 8.6+) — not a private namespace.
+        assert!(!fires("tcl::prefix match {apple banana} app", D, "W143"));
+    }
+
+    #[test]
+    fn near_miss_namespace_not_flagged() {
+        // Shares the `dict` prefix textually but is not the exact segment.
+        assert!(!fires("::tcl::dictionary::foo", D, "W143"));
+    }
+}

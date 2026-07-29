@@ -1177,6 +1177,8 @@ impl Analyser {
     /// - **W004** (option not available in the active dialect).
     /// - **E002 / E003** (arity) — collected here and flushed
     ///   post-walk by [`Self::flush_arity_diagnostics`].
+    /// - **W143** (direct call into a private `::tcl::` implementation
+    ///   namespace) — dialect-independent, registry-driven.
     fn emit_dispatch_site_diagnostics(&mut self, site: &DispatchSite<'_>) {
         let DispatchSite {
             cmd_name,
@@ -1229,6 +1231,9 @@ impl Analyser {
         // W310 runs for every command (it scans args for credential
         // option flags), so it takes no cmd_name guard.
         self.emit_w310_hardcoded_credentials(cmd_name, args, arg_tokens);
+        // W143: direct call into a private `::tcl::` implementation
+        // namespace. Dialect-independent (prefix-level only, issue #988).
+        self.emit_w143_private_tcl_namespace(cmd_name, cmd_tok);
         // IRULE2002: deprecated iRules command (f5-irules only).
         self.emit_irule2002_deprecated_command(cmd_name, cmd_tok);
         // IRULE2001: deprecated `matchclass` (f5-irules only).  Fires

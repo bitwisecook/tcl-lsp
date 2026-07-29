@@ -75,6 +75,7 @@ object DiagnosticCatalog {
         DiagnosticDef("W140", "warning", "W140: interp eval / interp subcommand targets an interpret...", true),
         DiagnosticDef("W141", "warning", "W141: Option value fails a declared shape/content check (e...", true),
         DiagnosticDef("W142", "warning", "W142: Command invalid in its current lexical/dispatch cont...", true),
+        DiagnosticDef("W143", "warning", "W143: Direct call into a private ::tcl:: implementation na...", true),
         DiagnosticDef("W200", "warning", "W200: exec result not captured or binary format modifier r...", true),
         DiagnosticDef("W201", "warning", "W201: Manual path concatenation", true),
         DiagnosticDef("W230", "warning", "W230: Constant list index out of range", true),
