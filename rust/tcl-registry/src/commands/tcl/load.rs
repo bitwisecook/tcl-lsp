@@ -82,7 +82,14 @@ pub fn spec() -> CommandSpec {
         // execution in the process, at least as severe as `exec`'s argv
         // hazard or `open`'s pipe-form hazard (both already modelled as
         // sinks the same way).
-        traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN | Traits::TAINT_SINK,
+        traits: Traits::BYTE_COMPILED
+            | Traits::SAFE_INTERP_HIDDEN
+            | Traits::TAINT_SINK
+            // Binds a shared library's commands into this interpreter: the
+            // loaded package's own initialisation script can call straight
+            // back into whatever this file has defined, so this file's
+            // visible call sites are no longer the complete caller set.
+            | Traits::LOADS_EXTERNAL_UNIT,
         // Positional-argument count only: 1 (fileName alone) to 3
         // (fileName + prefix/packageName + interp) in every version.
         // `check_simple_arity` (tcl-compiler) skips leading words that

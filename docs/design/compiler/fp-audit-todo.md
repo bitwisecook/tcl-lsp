@@ -356,15 +356,12 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   statically enumerated at all) that pre-dates this fix and is orthogonal to
   what #969 actually reported — documented as a known limitation rather than
   papered over with disproportionate collateral damage.
-  **Known, deliberately out-of-scope residual gaps** (none reproduce the
-  reported shape; listed so they aren't mistaken for silently-missed):
-  cross-file soundness for a plain (non-`package provide`) file `source`d
-  by another that calls its procs differently; `CommandPrefix`-role
+  **Residual gaps at the time** (since closed by FP-IPCP-02 below, except
+  the last): cross-file soundness for a plain (non-`package provide`) file
+  `source`d by another that calls its procs differently; `CommandPrefix`-role
   indirection (`trace add variable … command cb`, `-command` callback
-  options) — neither this scan nor the pre-existing
-  `interprocedural::scan_source_for_calls` call-graph walk follows a
-  `CommandPrefix` argument, so this is a shared, pre-existing limitation,
-  not a regression; and `namespace ensemble configure -map` redirection.
+  options); and `namespace ensemble configure -map` redirection, which
+  remains open.
   Traced end-to-end: the same `SccpResult` feeds I230, the optimiser's O101
   fold and O107 dead-code suggestions (all suggestion-only text rewrites,
   never applied to the compiled CFG/IR — confirmed codegen/`tcl-vm`/WASM
@@ -431,6 +428,76 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   `call_site_param_constants` module (19 passing + 1 pinned `#[ignore]`),
   plus the `namespace_eval_body_unit_does_not_change_bytecode` regression
   in `regex_source.rs` updated for the corrected qname format.
+- [x] **FP-IPCP-02** I230 on a plain library file `source`d by a caller with
+  a differing literal — CLOSED (issue #977). FP-IPCP-01's `package
+  provide`-in-file guard covered a package file, but not the more common
+  shape the issue reported: `lib.tcl` with **no** `package provide`, whose
+  two visible callers both pass `"prod"`, `source`d by `main.tcl` which calls
+  `helper dev`. `CompilationUnit::build_for` is single-source-text by
+  construction, so that caller is invisible and `mode` folded. Closed on
+  three fronts, all in the new `tcl-compiler/src/unit_scope.rs` (which also
+  lifts `ArgConsts` / `collect_call_site_constants` /
+  `params_constants_from_call_sites` / `build_extra_call_site_scan_contexts`
+  out of the 2 900-line `compilation_unit.rs`):
+  1. **Cross-file evidence.** `unit_scope::scan_source_call_sites` runs the
+     *identical* lowering → CFG → `record_call_site_evidence` walk over
+     another file's source, resolving each call against the whole project's
+     proc names, and `CallSiteEvidence::merge_from` folds the result into the
+     unit's own evidence before seeding. Merging is monotone (more values,
+     more unknowns, more observed argument counts), so extra evidence can
+     only ever *retract* a fold — never manufacture one. Plumbed through
+     `UnitBuildOptions::external_call_sites`; salsa-side by
+     `tcl_lsp_db::file_call_site_evidence` → `project_call_site_evidence` →
+     `file_external_call_sites` (sliced to the file's own declarations, so a
+     call-site edit in one file re-sets only the file that *defines* the
+     callee) onto `SourceFile::external_call_sites`, which the server
+     compare-then-sets in `sync_cross_file_evidence`. The `tcl` CLI does the
+     same across a multi-file `diag` / `validate` invocation.
+  2. **Registry-declared unit boundaries.** `has_package_provide_statement`
+     knew one command pair by name; `unit_scope::scan_unit_linkage` asks the
+     registry instead (`CommandRegistry::unit_linkage`, resolving the
+     subcommand word so `package provide` is a boundary and `package names`
+     is not). Three new `Traits` bits carry the fact as spec data:
+     `PROVIDES_PACKAGE` (`package provide` / `ifneeded`), `EXPORTS_COMMAND`
+     (`namespace export`, `namespace ensemble`), and `LOADS_EXTERNAL_UNIT`
+     (`source`, `load`, `package require`, `auto_load`, `auto_import`).
+     The two kinds are gated differently, because a host's enumeration can
+     only bound one of them: `PROVIDES_PACKAGE` / `EXPORTS_COMMAND` publish
+     this file's commands to consumers that need not be in the project at
+     all (another checkout can `package require` it), so they decline the
+     seed **unconditionally**; `LOADS_EXTERNAL_UNIT` names a caller the
+     project normally does contain, so it declines only without a
+     cross-file view. `namespace import` is
+     deliberately *not* a boundary — it is as often an intra-file convenience
+     over a namespace the same file defines, and the evidence scan already
+     models the import as a real caller path.
+  3. **Indirect callers.** `record_indirect_callers` records an *opaque
+     caller* — "a call site exists whose arguments I do not know" — for a
+     deferred command prefix (`ArgRole::CommandPrefix`: `after 0 helper`,
+     `trace add variable … helper`, `-command helper`) and for a
+     `CommandTableEffect::RenamesCommands` / `CreatesAliases` word naming a
+     known command. That closes FP-IPCP-01's documented `CommandPrefix`
+     limitation for both scans at once, and gives cross-file `rename` the
+     coverage `command_binding`'s single-file trust lattice cannot have.
+  Also fixed here: only a **trailing** `args` is Tcl's variadic catch-all
+  (`TclCreateProc`, `generic/tclProc.c`), so `proc f {args x}`'s `x` is no
+  longer skipped. The three traits above are declared through the
+  `declare_traits!` macro PR #1034 introduced (issue #1031), so they carry no
+  hand-written bit number and `Traits::iter_names` renders them in the
+  explorer with no second name table to maintain. **Accepted residual:** the workspace *is* the
+  trust boundary — a caller outside it (a `source` target not in the project,
+  another project `package require`ing this one) is still unenumerable, which
+  is why `PROVIDES_PACKAGE` / `EXPORTS_COMMAND` decline the seed regardless
+  of what evidence a host supplies. Visible in the compiler explorer's new **Unit Scope**
+  view (`unitScope`), which shows the boundaries crossed, whether a
+  cross-file view was supplied, and the per-position seed verdict. Tests: the
+  `call_site_param_constants::cross_file` module (8 TP/FP/TN/FN cases) plus
+  `exported_namespace_declines_the_seed_even_with_a_workspace_view`,
+  `unit_scope`'s own 8-case suite over the evidence primitives and the gate,
+  `tcl-lsp-db`'s `cross_file_call_sites` module (4, including a backdating
+  guard), four native e2e cases in `diagnostics.rs`,
+  `cli::diag_shares_call_sites_across_inputs`, two explorer serialisation
+  tests, and the VS Code `issue977.test.ts` suite.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 

@@ -151,6 +151,19 @@ impl Traits {
         Self(self.0 | other.0)
     }
 
+    /// Set intersection — the traits set in both.
+    ///
+    /// The counterpart to [`Self::union`], for a consumer that wants to
+    /// *narrow* a set to a mask rather than test it
+    /// ([`Self::contains`] / [`Self::intersects`] answer a question; this
+    /// returns the overlap). Used by
+    /// [`crate::registry::CommandRegistry::unit_linkage`] to report only the
+    /// [`crate::UNIT_LINKAGE_TRAITS`] a command carries.
+    #[must_use]
+    pub const fn intersection(self, other: Self) -> Self {
+        Self(self.0 & other.0)
+    }
+
     /// Add every trait in `other`.
     pub const fn insert(&mut self, other: Self) {
         self.0 |= other.0;
@@ -586,7 +599,41 @@ declare_traits! {
     /// consults this flag generically — no command name appears in
     /// the consumer (issue #945 fault 7).
     SafeInterpHidden => SAFE_INTERP_HIDDEN;
+
+    /// Declares the enclosing file to be a loadable **package**, so the
+    /// commands it defines are public API that files this compilation unit
+    /// cannot see may call — `package provide`, `package ifneeded`.  The
+    /// interprocedural call-site seed (`tcl_compiler::unit_scope`) refuses
+    /// to treat a file's visible call sites as the complete caller set once
+    /// this appears, because no project enumeration bounds a consumer in
+    /// another checkout (issue #977).
+    ProvidesPackage => PROVIDES_PACKAGE;
+
+    /// Pulls another compilation unit's script into *this* interpreter, so
+    /// that unit's code can call back into the commands this file defines —
+    /// `source`, `load`, `package require`, `auto_load`, `auto_import`.  A
+    /// weaker signal than [`Traits::PROVIDES_PACKAGE`]: the loaded unit is
+    /// normally a file the host's project already contains, so real
+    /// cross-file evidence can cover it (issue #977).
+    LoadsExternalUnit => LOADS_EXTERNAL_UNIT;
+
+    /// Publishes a command name for another unit to import or dispatch
+    /// through — `namespace export`, `namespace ensemble create` /
+    /// `configure`.  Like [`Traits::PROVIDES_PACKAGE`], it marks the file's
+    /// commands as an API surface whose callers the file does not contain
+    /// and no enumeration bounds (issue #977).
+    ExportsCommand => EXPORTS_COMMAND;
 }
+
+/// Every trait that widens a file's caller set beyond the file itself — the
+/// union [`crate::registry::CommandRegistry::unit_linkage`] reports, and that
+/// `tcl_compiler::unit_scope` gates the interprocedural call-site seed on.
+///
+/// Kept beside the declarations so a newly-stamped linkage trait joins the
+/// union here rather than needing a second edit in the consumer.
+pub const UNIT_LINKAGE_TRAITS: Traits = Traits::PROVIDES_PACKAGE
+    .union(Traits::LOADS_EXTERNAL_UNIT)
+    .union(Traits::EXPORTS_COMMAND);
 
 /// A `Trait`'s bit is `1 << discriminant`, so the set must fit the `u128`.
 /// Unlike a collision — which the enum makes unrepresentable — running out of

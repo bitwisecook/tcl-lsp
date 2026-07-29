@@ -445,6 +445,15 @@ pub const TRAITS: &[Variant] = &[
     v("CONTINUES_LOOP", "continues a loop"),
     v("REPLACES_FRAME", "replaces the current call frame"),
     v("SAFE_INTERP_HIDDEN", "hidden in a safe interpreter"),
+    v("PROVIDES_PACKAGE", "declares this file a loadable package"),
+    v(
+        "LOADS_EXTERNAL_UNIT",
+        "runs another unit's script in this interpreter",
+    ),
+    v(
+        "EXPORTS_COMMAND",
+        "publishes a command name for another unit",
+    ),
 ];
 
 /// [`TaintColour`] bits.

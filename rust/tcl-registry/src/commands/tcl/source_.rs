@@ -138,6 +138,12 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
             | Traits::SOURCES_FILE
+            // Evaluates another file's script in this interpreter, so that
+            // file's commands can call back into whatever this one defines
+            // — the signal `tcl_compiler::unit_scope` needs to stop
+            // treating this file's own call sites as the complete caller
+            // set (issue #977).
+            | Traits::LOADS_EXTERNAL_UNIT
             | Traits::DYNAMIC_EVAL_BODY
             | Traits::SAFE_INTERP_HIDDEN
             // fileName is unconditionally read and evaluated as Tcl code:

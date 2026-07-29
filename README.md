@@ -921,6 +921,13 @@ labelled `block` / `loop` / `if` for each Tcl construct (`foreach`,
 above every instruction group, and orthogonal control-flow arrows in the
 left gutter.
 
+The **Interproc** tab opens with a *unit scope* card: which registry-declared
+boundaries the file crosses (`package provide`, `source`, `namespace export`,
+…), whether the analysis had a cross-file view of the workspace, and the
+per-argument verdict behind every interprocedural constant fold.  It is the
+first place to look when a constant fold — or its absence — is a surprise;
+the same data is the `unitScope` view in the `tcl explore` CLI and TUI.
+
 The IR, CFG, SSA, bytecode, and WASM tabs each carry an **optimiser lens**
 (`off` / `on` / `diff`).  The `diff` mode compares the relevant node — IR
 statement, CFG block, or bytecode instruction — rather than raw text, so

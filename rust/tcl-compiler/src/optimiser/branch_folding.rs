@@ -509,6 +509,7 @@ mod tests {
             body_units: HashMap::new(),
             interproc: None,
             connection_scope: None,
+            caller_scope: crate::compilation_unit::UnitCallerScope::default(),
         }
     }
 

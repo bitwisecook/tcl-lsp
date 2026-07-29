@@ -1910,6 +1910,119 @@ fn two_callers_with_uniform_literal_still_fires_i230() {
     );
 }
 
+// -- TestI230CrossFileCallSiteSeedingE2E ---------------------------------
+// Issue #977: PR #970's `package provide` guard did not cover the more common
+// shape — a plain library file with NO `package provide`, `source`d by another
+// file that calls its procs with a different literal. `lib.tcl` analysed alone
+// sees only its own two `helper prod` callers, seeds `mode` as `"prod"`, and
+// folds. The fix threads the project's call sites into the compilation unit
+// (`tcl_lsp_db::project_call_site_evidence` → `SourceFile::external_call_sites`
+// → `tcl_compiler::unit_scope`), so `main.tcl`'s `helper dev` retracts it.
+
+/// The library file from the issue: no `package provide`, two agreeing
+/// in-file callers.
+const CROSS_FILE_LIB: &str = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n}\nhelper prod\nhelper prod\n";
+
+#[test]
+fn caller_in_a_sourcing_file_with_a_differing_literal_clears_i230() {
+    let mut lsp = Lsp::tcl();
+    let main_uri = unique_uri("tcl");
+    let lib_uri = unique_uri("tcl");
+    // Open the caller first so it is already in the project when the library
+    // is analysed — the same ordering a workspace scan produces.
+    lsp.open_ready(&main_uri, "source lib.tcl\nhelper dev\n");
+    lsp.open_document(&lib_uri, CROSS_FILE_LIB);
+    // The cross-file retraction lands on a *later* publish than the library's
+    // own first result: the project's call-site evidence is refreshed after
+    // publishing, not in front of it (putting it in front delayed the
+    // semantic-token enrichment tier on a large document). Wait for the
+    // converged state rather than the first publish.
+    let diags = lsp.await_diagnostics_settled(&lib_uri, Duration::from_secs(20), |d| {
+        !d.is_empty() && !has_code(d, "I230")
+    });
+    assert!(
+        !has_code(&diags, "I230"),
+        "helper is called with \"dev\" from the sourcing file; must not fold: {:?}",
+        codes(&diags)
+    );
+}
+
+/// TP control: with every project caller agreeing on the literal the seed is
+/// sound and I230 still fires — the fix must not disable the mechanism.
+#[test]
+fn caller_in_another_file_agreeing_on_the_literal_still_fires_i230() {
+    let mut lsp = Lsp::tcl();
+    let main_uri = unique_uri("tcl");
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(&main_uri, "source lib.tcl\nhelper prod\n");
+    let diags = lsp.open_ready(&lib_uri, CROSS_FILE_LIB);
+    assert!(
+        has_code(&diags, "I230"),
+        "every caller in the project passes \"prod\": {:?}",
+        codes(&diags)
+    );
+}
+
+/// TN control: a project file that never calls into the library contributes
+/// no evidence and must not disturb a sound fold.
+#[test]
+fn unrelated_project_file_does_not_clear_i230() {
+    let mut lsp = Lsp::tcl();
+    let other_uri = unique_uri("tcl");
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(&other_uri, "proc other {x} { return $x }\nother 1\n");
+    let diags = lsp.open_ready(&lib_uri, CROSS_FILE_LIB);
+    assert!(
+        has_code(&diags, "I230"),
+        "an unrelated file must not retract a sound fold: {:?}",
+        codes(&diags)
+    );
+}
+
+/// The other direction: the *sourcing* file's own proc is called back from
+/// the file it sources. `main.tcl`'s two visible callers agree on `"prod"`,
+/// but `lib.tcl` — whose script runs in the same interpreter — calls
+/// `local dev`, so the fold must be retracted there too.
+#[test]
+fn callback_from_a_sourced_file_clears_i230_in_the_sourcing_file() {
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(&lib_uri, "local dev\n");
+    let src = "source lib.tcl\nproc local {mode} {\n    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n}\nlocal prod\nlocal prod\n";
+    lsp.open_document(&main_uri, src);
+    let diags = lsp.await_diagnostics_settled(&main_uri, Duration::from_secs(20), |d| {
+        !d.is_empty() && !has_code(d, "I230")
+    });
+    assert!(
+        !has_code(&diags, "I230"),
+        "the sourced script calls ::local with \"dev\": {:?}",
+        codes(&diags)
+    );
+}
+
+/// A workspace pools every file into one project, so an unrelated file that
+/// happens to reuse a common proc name must not drag its call sites into
+/// this one's evidence.  Regression for the VS Code suite, where ~200
+/// fixtures share a workspace folder and a second global `helper` (zero
+/// arity) silently killed issue #969's TP control.
+#[test]
+fn an_unrelated_file_reusing_a_proc_name_does_not_clear_i230() {
+    let mut lsp = Lsp::tcl();
+    let unrelated_uri = unique_uri("tcl");
+    let ctl_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &unrelated_uri,
+        "proc helper {} {}\nproc caller {} { helper }\n",
+    );
+    let diags = lsp.open_ready(&ctl_uri, CROSS_FILE_LIB);
+    assert!(
+        has_code(&diags, "I230"),
+        "the unrelated file's own `helper` binds to its own definition: {:?}",
+        codes(&diags)
+    );
+}
+
 // -- TestDiagnosticsTrackEdits -------------------------------------------
 
 #[test]
