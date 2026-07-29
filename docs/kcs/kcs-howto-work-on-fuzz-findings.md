@@ -57,7 +57,7 @@ from vm.types import TclError
 
 interp = TclInterp()
 try:
-    result = interp.eval('expr {91 >> -41}')
+    result = interp.eval("expr {91 >> -41}")
     print(f"OK: {result.value}")
 except TclError as e:
     print(f"TclError: {e}")

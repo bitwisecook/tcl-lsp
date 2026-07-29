@@ -75,6 +75,7 @@ class ProcArgTrait(Enum):
     EXPR = auto()
     LOOP_LIST = auto()
 
+
 # On ProcDef (analyser level):
 param_traits: dict[str, frozenset[ProcArgTrait]]
 

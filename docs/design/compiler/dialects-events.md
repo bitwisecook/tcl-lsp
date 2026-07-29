@@ -23,19 +23,25 @@ Source: [`compiler/registry/dialects.py`](../../../compiler/registry/dialects.py
 ### Known dialects
 
 ```python
-KNOWN_DIALECTS = frozenset({
-    "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1",  # Tcl version dialects
-    "f5-irules",                                 # F5 iRules
-    "f5-iapps",                                  # F5 iApps
-    "f5-tmsh",                                   # F5 tmsh scripts
-    "f5-bigip",                                  # F5 BIG-IP config
-    "synopsys-eda-tcl",                          # Synopsys EDA
-    "cadence-eda-tcl",                           # Cadence EDA
-    "xilinx-eda-tcl",                            # Xilinx/AMD EDA
-    "intel-quartus-eda-tcl",                     # Intel Quartus
-    "mentor-eda-tcl",                            # Mentor/Siemens EDA
-    "expect",                                    # Expect
-})
+KNOWN_DIALECTS = frozenset(
+    {
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1",  # Tcl version dialects
+        "f5-irules",  # F5 iRules
+        "f5-iapps",  # F5 iApps
+        "f5-tmsh",  # F5 tmsh scripts
+        "f5-bigip",  # F5 BIG-IP config
+        "synopsys-eda-tcl",  # Synopsys EDA
+        "cadence-eda-tcl",  # Cadence EDA
+        "xilinx-eda-tcl",  # Xilinx/AMD EDA
+        "intel-quartus-eda-tcl",  # Intel Quartus
+        "mentor-eda-tcl",  # Mentor/Siemens EDA
+        "expect",  # Expect
+    }
+)
 ```
 
 ### Dialect base versions
@@ -96,10 +102,10 @@ correctly.
 
 ```python
 class DialectStatus(Enum):
-    EXISTS       # available in this dialect
-    DEPRECATED   # available but has a replacement
-    DISALLOWED   # exists in some dialect, but not this one
-    NOT_EXISTS   # not known anywhere
+    EXISTS  # available in this dialect
+    DEPRECATED  # available but has a replacement
+    DISALLOWED  # exists in some dialect, but not this one
+    NOT_EXISTS  # not known anywhere
 ```
 
 `DISALLOWED` produces diagnostic W102 with a hint about which dialect the
@@ -122,7 +128,7 @@ command belongs to.
 
 **Example** — `HTTP::host`:
 ```python
-event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"}))
+event_requires = EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"}))
 ```
 
 ### Event validation

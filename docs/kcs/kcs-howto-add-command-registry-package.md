@@ -110,9 +110,7 @@ class Sqlite3Command(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(1)),
-            side_effect_hints=(
-                SideEffect(target=SideEffectTarget.FILE_IO, writes=True),
-            ),
+            side_effect_hints=(SideEffect(target=SideEffectTarget.FILE_IO, writes=True),),
         )
 ```
 
@@ -177,11 +175,9 @@ return CommandSpec(
     forms=(...),
     validation=ValidationSpec(arity=Arity(1, 3)),
     arg_roles={2: _BODY},
-    side_effect_hints=(
-        SideEffect(target=SideEffectTarget.FILE_IO, reads=True, writes=True),
-    ),
-    evaluates_code=True,            # script arg is treated as Tcl code
-    creates_dynamic_barrier=True,   # callback body crosses analysis boundary
+    side_effect_hints=(SideEffect(target=SideEffectTarget.FILE_IO, reads=True, writes=True),),
+    evaluates_code=True,  # script arg is treated as Tcl code
+    creates_dynamic_barrier=True,  # callback body crosses analysis boundary
 )
 ```
 

@@ -18,11 +18,7 @@ for name in q(".ltm.virtual[] | .name", "bigip.conf"):
 
 # Progressive — chain queries.  The prior values become the new
 # primary input; the typed wrapper stays immutable.
-filtered = (
-    q(".ltm.virtual[]", "bigip.conf")
-    .q('.[] | select(.pool != null)')
-    .q('.[] | .name')
-)
+filtered = q(".ltm.virtual[]", "bigip.conf").q(".[] | select(.pool != null)").q(".[] | .name")
 
 # Render with a built-in plugin OR an inline callable.
 filtered.render("ascii-blocks")

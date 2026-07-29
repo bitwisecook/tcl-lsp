@@ -62,8 +62,8 @@ alike.
 class NamespaceScope:
     """A namespace scope at a point in the source."""
 
-    path: tuple[str, ...]               # ("", "foo", "bar") for ::foo::bar
-    source: str                         # "namespace_eval", "proc_body", "irule", "oo_class"
+    path: tuple[str, ...]  # ("", "foo", "bar") for ::foo::bar
+    source: str  # "namespace_eval", "proc_body", "irule", "oo_class"
 
     @property
     def qualified(self) -> str:
@@ -89,7 +89,7 @@ class NamespaceTracker:
     """
 
     _stack: list[NamespaceScope] = field(default_factory=list)
-    _irule_name: str | None = None      # from pragma or filename
+    _irule_name: str | None = None  # from pragma or filename
 
     @property
     def current(self) -> NamespaceScope:
@@ -158,10 +158,10 @@ This is the profile/event/layer/side model specific to F5.
 class ProfileSpec:
     """Metadata for one F5 profile type."""
 
-    name: str                           # "HTTP", "CLIENTSSL", "SERVERSSL", "TCP", ...
-    layer: str                          # "transport", "tls", "application", "security"
-    side: str                           # "client", "server", "both", "global"
-    requires: frozenset[str] = frozenset()   # profiles this one requires
+    name: str  # "HTTP", "CLIENTSSL", "SERVERSSL", "TCP", ...
+    layer: str  # "transport", "tls", "application", "security"
+    side: str  # "client", "server", "both", "global"
+    requires: frozenset[str] = frozenset()  # profiles this one requires
     conflicts: frozenset[str] = frozenset()  # profiles this one conflicts with
     capabilities: frozenset[str] = frozenset()  # capabilities this profile provides
 ```
@@ -291,11 +291,11 @@ class ProtocolNamespaceSpec:
     depends on attached profiles.
     """
 
-    prefix: str                         # "HTTP", "SSL", "TCP", "LB", ...
-    profiles: frozenset[str]            # profiles that provide this namespace
-    layer: str                          # which protocol layer it operates on
-    side: str                           # default connection side
-    side_selectable: bool = False       # can append "clientside"/"serverside"
+    prefix: str  # "HTTP", "SSL", "TCP", "LB", ...
+    profiles: frozenset[str]  # profiles that provide this namespace
+    layer: str  # which protocol layer it operates on
+    side: str  # default connection side
+    side_selectable: bool = False  # can append "clientside"/"serverside"
 ```
 
 The key insight: **profiles map to protocol namespaces**.  When a profile is
@@ -319,13 +319,13 @@ active, its command prefixes become available.  When it's removed (e.g.
 class LayerStack:
     """Active protocol layers for a connection at a point in time."""
 
-    transport: str | None = None        # "TCP" or "UDP"
-    tls_client: str | None = None       # "CLIENTSSL" or None
-    tls_server: str | None = None       # "SERVERSSL" or None
+    transport: str | None = None  # "TCP" or "UDP"
+    tls_client: str | None = None  # "CLIENTSSL" or None
+    tls_server: str | None = None  # "SERVERSSL" or None
     tls_shared: frozenset[str] = frozenset()  # {"PERSIST"}, ...
     application: frozenset[str] = frozenset()  # {"HTTP"}, {"DNS"}, ...
-    security: frozenset[str] = frozenset()     # {"ASM", "ACCESS"}, ...
-    acceleration: frozenset[str] = frozenset() # {"STREAM", "WEBACCELERATION"}, ...
+    security: frozenset[str] = frozenset()  # {"ASM", "ACCESS"}, ...
+    acceleration: frozenset[str] = frozenset()  # {"STREAM", "WEBACCELERATION"}, ...
 ```
 
 Shared/non-terminating TLS helpers such as `PERSIST` live in `tls_shared`
@@ -339,10 +339,10 @@ displacing them in the stack model.
 class StackModification:
     """A command that changes the effective profile stack."""
 
-    command: str                        # "SSL::disable", "HTTP::disable"
-    side: str | None                    # "clientside", "serverside", or None (both)
+    command: str  # "SSL::disable", "HTTP::disable"
+    side: str | None  # "clientside", "serverside", or None (both)
     removes_profile: str | None = None  # profile type removed
-    adds_profile: str | None = None     # profile type added (rare)
+    adds_profile: str | None = None  # profile type added (rare)
     requires_before_event: str | None = None  # must happen before this event
 ```
 
@@ -359,8 +359,8 @@ connection is available.  There are no negative-form stored sets like
 class ConnectionModel:
     """Models a connection's profile state across its lifecycle."""
 
-    initial_profiles: frozenset[str]    # from virtual server config
-    current_stack: LayerStack           # active at current event
+    initial_profiles: frozenset[str]  # from virtual server config
+    current_stack: LayerStack  # active at current event
     modifications: list[StackModification] = field(default_factory=list)
 
     def available_namespaces(self) -> frozenset[str]:
@@ -384,20 +384,20 @@ class EventNode:
     """A node in the event graph."""
 
     event: str
-    side: str                           # "client", "server", "both", "global"
-    profiles: frozenset[str]            # profiles active when this fires
-    layer: str                          # which layer triggers this event
-    multiplicity: str                   # "once_per_connection", "per_request"
+    side: str  # "client", "server", "both", "global"
+    profiles: frozenset[str]  # profiles active when this fires
+    layer: str  # which layer triggers this event
+    multiplicity: str  # "once_per_connection", "per_request"
 
 
 @dataclass(frozen=True, slots=True)
 class EventEdge:
     """An edge in the event graph (temporal ordering)."""
 
-    source: str                         # preceding event
-    target: str                         # following event
-    conditional: bool = False           # only fires under conditions
-    condition: str = ""                 # human-readable condition
+    source: str  # preceding event
+    target: str  # following event
+    conditional: bool = False  # only fires under conditions
+    condition: str = ""  # human-readable condition
 
 
 @dataclass(slots=True)
@@ -406,16 +406,20 @@ class EventGraph:
 
     nodes: dict[str, EventNode]
     edges: list[EventEdge]
-    profiles: frozenset[str]            # virtual server profiles
+    profiles: frozenset[str]  # virtual server profiles
 
     def reachable_after(
-        self, event: str, modifications: list[StackModification] | None = None,
+        self,
+        event: str,
+        modifications: list[StackModification] | None = None,
     ) -> frozenset[str]:
         """Events reachable after this one, considering modifications."""
         ...
 
     def valid_namespaces_at(
-        self, event: str, modifications: list[StackModification] | None = None,
+        self,
+        event: str,
+        modifications: list[StackModification] | None = None,
     ) -> frozenset[str]:
         """Protocol command namespaces valid at this event."""
         ...
@@ -443,7 +447,10 @@ class NamespaceRegistry:
     # ── Tier 1: Tcl namespace scope ──────────────────────────────────
 
     def tracker_for_file(
-        self, source: str, *, filename: str | None = None,
+        self,
+        source: str,
+        *,
+        filename: str | None = None,
         dialect: str = "tcl8.6",
     ) -> NamespaceTracker:
         """Create a namespace tracker for a file.
@@ -475,12 +482,15 @@ class NamespaceRegistry:
     # Stack computation
     def initial_stack(self, profiles: frozenset[str]) -> LayerStack: ...
     def stack_after_modification(
-        self, stack: LayerStack, mod: StackModification,
+        self,
+        stack: LayerStack,
+        mod: StackModification,
     ) -> LayerStack: ...
 
     # Virtual server model
     def virtual_server_model(
-        self, profiles: frozenset[str],
+        self,
+        profiles: frozenset[str],
     ) -> VirtualServerModel: ...
 ```
 
@@ -767,48 +777,76 @@ docs/design/contracts/
 
 ```python
 PROFILE_SPECS: dict[str, ProfileSpec] = {
-    "TCP":         ProfileSpec("TCP",       layer="transport",    side="both"),
-    "UDP":         ProfileSpec("UDP",       layer="transport",    side="both"),
-    "FASTL4":      ProfileSpec("FASTL4",    layer="transport",    side="both"),
-    "CLIENTSSL":   ProfileSpec("CLIENTSSL", layer="tls",          side="client",
-                               requires=frozenset({"TCP"}),
-                               capabilities=frozenset({
-                                   "sni", "extensions", "sessionid",
-                                   "cipher", "cert", "tls_data", "tls_control",
-                               })),
-    "SERVERSSL":   ProfileSpec("SERVERSSL", layer="tls",          side="server",
-                               requires=frozenset({"TCP"}),
-                               capabilities=frozenset({
-                                   "sni", "extensions", "sessionid",
-                                   "cipher", "cert", "tls_data", "tls_control",
-                               })),
-    "SSL_PERSISTENCE": ProfileSpec("SSL_PERSISTENCE", layer="tls", side="client",
-                               requires=frozenset({"TCP"}),
-                               capabilities=frozenset({
-                                   "sni", "extensions", "sessionid",
-                               })),
-    "HTTP":        ProfileSpec("HTTP",      layer="application",  side="both",
-                               requires=frozenset({"TCP"})),
-    "FASTHTTP":    ProfileSpec("FASTHTTP",  layer="application",  side="both",
-                               requires=frozenset({"TCP"})),
-    "DNS":         ProfileSpec("DNS",       layer="application",  side="both"),
-    "SIP":         ProfileSpec("SIP",       layer="application",  side="both"),
-    "FIX":         ProfileSpec("FIX",       layer="application",  side="both",
-                               requires=frozenset({"TCP"})),
-    "DIAMETER":    ProfileSpec("DIAMETER",  layer="application",  side="both",
-                               requires=frozenset({"TCP"})),
-    "MQTT":        ProfileSpec("MQTT",      layer="application",  side="both",
-                               requires=frozenset({"TCP"})),
-    "ASM":         ProfileSpec("ASM",       layer="security",     side="both",
-                               requires=frozenset({"HTTP"})),
-    "ACCESS":      ProfileSpec("ACCESS",    layer="security",     side="client",
-                               requires=frozenset({"TCP"})),
-    "BOTDEFENSE":  ProfileSpec("BOTDEFENSE",layer="security",     side="client",
-                               requires=frozenset({"HTTP"})),
-    "STREAM":      ProfileSpec("STREAM",    layer="acceleration", side="both",
-                               requires=frozenset({"TCP"})),
-    "WEBACCELERATION": ProfileSpec("WEBACCELERATION", layer="acceleration", side="both",
-                               requires=frozenset({"HTTP"})),
+    "TCP": ProfileSpec("TCP", layer="transport", side="both"),
+    "UDP": ProfileSpec("UDP", layer="transport", side="both"),
+    "FASTL4": ProfileSpec("FASTL4", layer="transport", side="both"),
+    "CLIENTSSL": ProfileSpec(
+        "CLIENTSSL",
+        layer="tls",
+        side="client",
+        requires=frozenset({"TCP"}),
+        capabilities=frozenset(
+            {
+                "sni",
+                "extensions",
+                "sessionid",
+                "cipher",
+                "cert",
+                "tls_data",
+                "tls_control",
+            }
+        ),
+    ),
+    "SERVERSSL": ProfileSpec(
+        "SERVERSSL",
+        layer="tls",
+        side="server",
+        requires=frozenset({"TCP"}),
+        capabilities=frozenset(
+            {
+                "sni",
+                "extensions",
+                "sessionid",
+                "cipher",
+                "cert",
+                "tls_data",
+                "tls_control",
+            }
+        ),
+    ),
+    "SSL_PERSISTENCE": ProfileSpec(
+        "SSL_PERSISTENCE",
+        layer="tls",
+        side="client",
+        requires=frozenset({"TCP"}),
+        capabilities=frozenset(
+            {
+                "sni",
+                "extensions",
+                "sessionid",
+            }
+        ),
+    ),
+    "HTTP": ProfileSpec("HTTP", layer="application", side="both", requires=frozenset({"TCP"})),
+    "FASTHTTP": ProfileSpec(
+        "FASTHTTP", layer="application", side="both", requires=frozenset({"TCP"})
+    ),
+    "DNS": ProfileSpec("DNS", layer="application", side="both"),
+    "SIP": ProfileSpec("SIP", layer="application", side="both"),
+    "FIX": ProfileSpec("FIX", layer="application", side="both", requires=frozenset({"TCP"})),
+    "DIAMETER": ProfileSpec(
+        "DIAMETER", layer="application", side="both", requires=frozenset({"TCP"})
+    ),
+    "MQTT": ProfileSpec("MQTT", layer="application", side="both", requires=frozenset({"TCP"})),
+    "ASM": ProfileSpec("ASM", layer="security", side="both", requires=frozenset({"HTTP"})),
+    "ACCESS": ProfileSpec("ACCESS", layer="security", side="client", requires=frozenset({"TCP"})),
+    "BOTDEFENSE": ProfileSpec(
+        "BOTDEFENSE", layer="security", side="client", requires=frozenset({"HTTP"})
+    ),
+    "STREAM": ProfileSpec("STREAM", layer="acceleration", side="both", requires=frozenset({"TCP"})),
+    "WEBACCELERATION": ProfileSpec(
+        "WEBACCELERATION", layer="acceleration", side="both", requires=frozenset({"HTTP"})
+    ),
     # ... remaining profiles
 }
 ```
@@ -817,26 +855,40 @@ PROFILE_SPECS: dict[str, ProfileSpec] = {
 
 ```python
 PROTOCOL_NAMESPACE_SPECS: dict[str, ProtocolNamespaceSpec] = {
-    "HTTP":   ProtocolNamespaceSpec("HTTP",  profiles=frozenset({"HTTP", "FASTHTTP"}),
-                                    layer="application", side="both"),
-    "SSL":    ProtocolNamespaceSpec("SSL",   profiles=frozenset({"CLIENTSSL", "SERVERSSL", "SSL_PERSISTENCE"}),
-                                    layer="tls", side="both", side_selectable=True),
-    "TCP":    ProtocolNamespaceSpec("TCP",   profiles=frozenset({"TCP"}),
-                                    layer="transport", side="both", side_selectable=True),
-    "UDP":    ProtocolNamespaceSpec("UDP",   profiles=frozenset({"UDP"}),
-                                    layer="transport", side="both"),
-    "IP":     ProtocolNamespaceSpec("IP",    profiles=frozenset({"TCP", "UDP"}),
-                                    layer="transport", side="both", side_selectable=True),
-    "LB":     ProtocolNamespaceSpec("LB",    profiles=frozenset(),
-                                    layer="load_balance", side="global"),
-    "DNS":    ProtocolNamespaceSpec("DNS",   profiles=frozenset({"DNS"}),
-                                    layer="application", side="both"),
-    "SIP":    ProtocolNamespaceSpec("SIP",   profiles=frozenset({"SIP"}),
-                                    layer="application", side="both"),
-    "ACCESS": ProtocolNamespaceSpec("ACCESS",profiles=frozenset({"ACCESS"}),
-                                    layer="security", side="client"),
-    "ASM":    ProtocolNamespaceSpec("ASM",   profiles=frozenset({"ASM"}),
-                                    layer="security", side="both"),
+    "HTTP": ProtocolNamespaceSpec(
+        "HTTP", profiles=frozenset({"HTTP", "FASTHTTP"}), layer="application", side="both"
+    ),
+    "SSL": ProtocolNamespaceSpec(
+        "SSL",
+        profiles=frozenset({"CLIENTSSL", "SERVERSSL", "SSL_PERSISTENCE"}),
+        layer="tls",
+        side="both",
+        side_selectable=True,
+    ),
+    "TCP": ProtocolNamespaceSpec(
+        "TCP", profiles=frozenset({"TCP"}), layer="transport", side="both", side_selectable=True
+    ),
+    "UDP": ProtocolNamespaceSpec(
+        "UDP", profiles=frozenset({"UDP"}), layer="transport", side="both"
+    ),
+    "IP": ProtocolNamespaceSpec(
+        "IP",
+        profiles=frozenset({"TCP", "UDP"}),
+        layer="transport",
+        side="both",
+        side_selectable=True,
+    ),
+    "LB": ProtocolNamespaceSpec("LB", profiles=frozenset(), layer="load_balance", side="global"),
+    "DNS": ProtocolNamespaceSpec(
+        "DNS", profiles=frozenset({"DNS"}), layer="application", side="both"
+    ),
+    "SIP": ProtocolNamespaceSpec(
+        "SIP", profiles=frozenset({"SIP"}), layer="application", side="both"
+    ),
+    "ACCESS": ProtocolNamespaceSpec(
+        "ACCESS", profiles=frozenset({"ACCESS"}), layer="security", side="client"
+    ),
+    "ASM": ProtocolNamespaceSpec("ASM", profiles=frozenset({"ASM"}), layer="security", side="both"),
     # ... remaining namespaces
 }
 ```
@@ -847,7 +899,7 @@ PROTOCOL_NAMESPACE_SPECS: dict[str, ProtocolNamespaceSpec] = {
 MODIFICATION_SPECS: dict[str, StackModification] = {
     "SSL::disable": StackModification(
         command="SSL::disable",
-        side=None,          # resolved from arg: clientside/serverside
+        side=None,  # resolved from arg: clientside/serverside
         removes_profile=None,  # resolved: CLIENTSSL or SERVERSSL per side
     ),
     "SSL::enable": StackModification(

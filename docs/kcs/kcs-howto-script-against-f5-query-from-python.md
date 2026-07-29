@@ -79,16 +79,14 @@ web_vses = f5q.q('.[] | select(contains(., "web"))', virtuals)
 
 # Method form — identical semantics, reads top-down.
 web_vses = (
-    f5q.q(".ltm.virtual[] | .name", "bigip.conf")
-    .q('.[] | select(contains(., "web"))')
-    .q("count")
+    f5q.q(".ltm.virtual[] | .name", "bigip.conf").q('.[] | select(contains(., "web"))').q("count")
 )
 ```
 
 Multiple priors combine into one flat list:
 
 ```python
-all_names = f5q.q(".[]", virtuals, pools)   # union
+all_names = f5q.q(".[]", virtuals, pools)  # union
 ```
 
 Mix a prior with a file and the prior binds as `$_chain` while the
@@ -113,11 +111,11 @@ from dialects.f5 import query as f5q
 
 run = f5q.q(".ltm.virtual[]", "bigip.conf")
 
-run.values()    # flat list of every value the query produced
-run.first()     # the first value, or None
-run.objects()   # only the ObjectRef instances
-run.paths()     # full_path of every ObjectRef / PathRef
-run.rows()      # [QueryRow(uri, value), ...] keeping the source URI
+run.values()  # flat list of every value the query produced
+run.first()  # the first value, or None
+run.objects()  # only the ObjectRef instances
+run.paths()  # full_path of every ObjectRef / PathRef
+run.rows()  # [QueryRow(uri, value), ...] keeping the source URI
 ```
 
 `ObjectRef`, `PathRef`, and `Stream` are exported from `dialects.f5.query` so
@@ -168,13 +166,16 @@ from dialects.f5 import query as f5q
 
 # ASCII Gantt of pool-member up/down transitions.
 print(
-    f5q.q("""
+    f5q.q(
+        """
         f5log_load("ltm.log")[]
         | select(.module == "01340011" or .module == "01340012")
         | tsv(.timestamp,
               (sub(.message, "^.*member ", "") | sub(., " monitor.*$", "")),
               (if .module == "01340011" then "DOWN" else "UP" end))
-    """, "bigip.conf").render("gantt", **{"unit-minutes": "10"})
+    """,
+        "bigip.conf",
+    ).render("gantt", **{"unit-minutes": "10"})
 )
 ```
 
@@ -195,11 +196,14 @@ text = f5q.q(".ltm.virtual[] | .name", "bigip.conf").render(
     lambda values, **opts: ", ".join(str(v) for v in values) + "\n"
 )
 
+
 # Inline input parser — (source, *, uri, options=()) -> Any.
 def parse_xml(source, *, uri, options=()):
     import xml.etree.ElementTree as ET
+
     root = ET.fromstring(source)
     return [e.attrib for e in root]
+
 
 routes = f5q.load("routes.xml", parser=parse_xml)
 # or in one shot:
@@ -216,6 +220,7 @@ up without copy-paste.
 ```python
 from dialects.f5.query import renderer
 
+
 @renderer(
     "md-table",
     summary="Markdown table of results.",
@@ -225,8 +230,7 @@ def _render_md_table(values, **opts):
     if not values:
         return "(no rows)\n"
     headers = list(values[0].keys())
-    out = ["| " + " | ".join(headers) + " |",
-           "| " + " | ".join("---" for _ in headers) + " |"]
+    out = ["| " + " | ".join(headers) + " |", "| " + " | ".join("---" for _ in headers) + " |"]
     for row in values:
         out.append("| " + " | ".join(str(row.get(h, "")) for h in headers) + " |")
     return "\n".join(out) + "\n"
@@ -240,6 +244,7 @@ decorator:
 
 ```python
 from dialects.f5.query import builtin
+
 
 @builtin(
     "uppercase",
@@ -267,12 +272,14 @@ in-tree builtins.
 ```python
 from dialects.f5.query import input_format
 
+
 @input_format(
     "yaml",
     summary="YAML side-input (single document or stream).",
 )
 def _parse_yaml(source, *, uri, options=()):
     import yaml  # third-party — install separately
+
     loaded = list(yaml.safe_load_all(source))
     return loaded[0] if len(loaded) == 1 else loaded
 ```
@@ -337,9 +344,10 @@ The same loader runs from Python:
 
 ```python
 from dialects.f5 import query as f5q
-f5q.load_user_plugins()        # idempotent — call once at startup
-print(f5q.xdg_plugin_dir())    # diagnostic: where the loader looks
-print(f5q.list_renderers())    # everything available after loading
+
+f5q.load_user_plugins()  # idempotent — call once at startup
+print(f5q.xdg_plugin_dir())  # diagnostic: where the loader looks
+print(f5q.list_renderers())  # everything available after loading
 ```
 
 `load_user_plugins(force=True)` re-scans for **new** files — files

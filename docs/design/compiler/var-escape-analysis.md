@@ -211,15 +211,15 @@ call. Callers that want to avoid re-running it can pass a pre-built
 ```python
 @dataclass(frozen=True)
 class ProcEscapeSummary:
-    tags: dict[str, EscapeTag]               # per-var-name, collapsed over SSA versions
-    dynamic_barrier: bool                    # proc-pessimistic flag
-    frame_needed: bool                       # any FRAME var, or dynamic_barrier
-    upvar_source_names: frozenset[str]       # transitive callee-upvar source set
-    unbounded_upvar_source: bool             # any callee uses dynamic-source upvar
-    direct_callees: frozenset[str]           # statically resolvable callees
-    has_fallback: bool                       # codegen will dispatch to tcl_eval
-    has_call_fallback: bool                  # raw call-shaped reasons (interproc-downgradable)
-    ssa_tags: dict[SSAValueKey, EscapeTag]   # per-version, populated on the CFG path
+    tags: dict[str, EscapeTag]  # per-var-name, collapsed over SSA versions
+    dynamic_barrier: bool  # proc-pessimistic flag
+    frame_needed: bool  # any FRAME var, or dynamic_barrier
+    upvar_source_names: frozenset[str]  # transitive callee-upvar source set
+    unbounded_upvar_source: bool  # any callee uses dynamic-source upvar
+    direct_callees: frozenset[str]  # statically resolvable callees
+    has_fallback: bool  # codegen will dispatch to tcl_eval
+    has_call_fallback: bool  # raw call-shaped reasons (interproc-downgradable)
+    ssa_tags: dict[SSAValueKey, EscapeTag]  # per-version, populated on the CFG path
 ```
 
 ### Emit-time contract

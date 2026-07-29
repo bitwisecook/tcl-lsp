@@ -86,9 +86,9 @@ The segmenter groups tokens into commands at `EOL`/`EOF` boundaries:
 SegmentedCommand(
     range=Range(start, end),
     argv=[first_token_per_word, ...],
-    texts=["set", "x", "42"],           # concatenated text per word
-    single_token_word=[True, True, True], # True when word is one token
-    all_tokens=[...],                     # every token in the command
+    texts=["set", "x", "42"],  # concatenated text per word
+    single_token_word=[True, True, True],  # True when word is one token
+    all_tokens=[...],  # every token in the command
 )
 ```
 
@@ -206,7 +206,7 @@ for the leaf tokenisation but keeps that result cache.
 SegmentedCommand(
     texts=["set", "y", "${x}"],
     single_token_word=[True, True, True],
-    argv=[Token(ESC,"set"), Token(ESC,"y"), Token(VAR,"x")],
+    argv=[Token(ESC, "set"), Token(ESC, "y"), Token(VAR, "x")],
 )
 
 # Lowered (Stage 3):

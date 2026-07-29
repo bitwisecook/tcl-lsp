@@ -387,10 +387,10 @@ Python functions:
 
 ```python
 from dialects.f5.query import (
-    format_grammar,    # full grammar reference
-    format_builtins,   # all builtins, or one named function
-    format_examples,   # worked-example cookbook
-    list_builtins,     # iterable of BuiltinSpec dataclasses
+    format_grammar,  # full grammar reference
+    format_builtins,  # all builtins, or one named function
+    format_examples,  # worked-example cookbook
+    list_builtins,  # iterable of BuiltinSpec dataclasses
 )
 ```
 
@@ -619,6 +619,7 @@ For the cert-audit `tls_handshake` / `url_get` recipes:
 ```python
 # https_server.py
 import http.server, ssl
+
 ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 ctx.load_cert_chain("server.crt", "server.key")
 srv = http.server.HTTPServer(("127.0.0.1", 8443), http.server.SimpleHTTPRequestHandler)

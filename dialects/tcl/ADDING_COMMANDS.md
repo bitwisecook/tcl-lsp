@@ -17,6 +17,7 @@ from compiler.registry.models import CommandSpec, FormKind, FormSpec, HoverSnipp
 from compiler.registry.signatures import Arity
 from ._base import register
 
+
 @register
 class MycommandCommand(CommandDef):
     name = "mycommand"
@@ -31,9 +32,7 @@ class MycommandCommand(CommandDef):
                 snippet="A sentence or two of extra context.",
                 source="Tcl mycommand(1)",
             ),
-            forms=(
-                FormSpec(kind=FormKind.DEFAULT, synopsis="mycommand arg ?options?"),
-            ),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="mycommand arg ?options?"),),
             validation=ValidationSpec(arity=Arity(1)),
         )
 ```
@@ -59,7 +58,7 @@ underscore: `for_.py`, `set_.py`, `exec_.py`.
 Shown when the user hovers over the command name.
 
 ```python
-hover=HoverSnippet(
+hover = HoverSnippet(
     summary="One-sentence description.",
     synopsis=("cmd arg1 ?arg2?", "cmd -server callback port"),
     snippet="Extra paragraph of context.",
@@ -81,13 +80,13 @@ use `FormKind.GETTER` and `FormKind.SETTER` with per-form arity.
 Arity checking.  Args are counted after the command name.
 
 ```python
-validation=ValidationSpec(arity=Arity(1, 3))
+validation = ValidationSpec(arity=Arity(1, 3))
 ```
 
 For subcommand commands, list per-subcommand arity:
 
 ```python
-validation=ValidationSpec(
+validation = ValidationSpec(
     arity=Arity(1),
     subcommands={
         "length": Arity(1, 1),
@@ -104,8 +103,8 @@ properties used by the compiler, formatter, or analyser:
 ```python
 CommandSpec(
     name="proc",
-    never_inline_body=True,    # formatter: don't inline the body
-    has_loop_body=True,        # optimiser: body is a loop
+    never_inline_body=True,  # formatter: don't inline the body
+    has_loop_body=True,  # optimiser: body is a loop
     creates_dynamic_barrier=True,  # compiler: prevents optimisation
 )
 ```
@@ -162,7 +161,7 @@ FormSpec(
     options=(
         OptionSpec(name="-nocase"),
         OptionSpec(name="-start", takes_value=True, value_hint="index"),
-        OptionSpec(name="--"),   # <-- this is all you need
+        OptionSpec(name="--"),  # <-- this is all you need
     ),
 )
 ```
@@ -229,12 +228,12 @@ _IS_CLASSES = (
 )
 
 # In the subcommands dict:
-subcommands={
+subcommands = {
     "is": SubCommand(
         name="is",
         arity=Arity(2),
         detail="Test if string is a member of a character class.",
-        arg_values={0: _IS_CLASSES},   # arg 0 after "string is"
+        arg_values={0: _IS_CLASSES},  # arg 0 after "string is"
     ),
 }
 ```
@@ -296,7 +295,7 @@ CommandSpec(
 ### Subcommand command
 
 ```python
-subcommands={
+subcommands = {
     "eval": SubCommand(
         name="eval",
         arity=Arity(2),
@@ -318,7 +317,7 @@ When one argument plays more than one role at once, list them all in
 the same `frozenset` — `dict with` arg 0 is read *and* written:
 
 ```python
-arg_roles={0: frozenset({ArgRole.VAR_READ, ArgRole.VAR_WRITE})}
+arg_roles = {0: frozenset({ArgRole.VAR_READ, ArgRole.VAR_WRITE})}
 ```
 
 ### Variable-layout command (dynamic resolver)
@@ -407,7 +406,7 @@ CommandSpec(
 ```python
 from compiler.types import TclType
 
-subcommands={
+subcommands = {
     "length": SubCommand(
         name="length",
         arity=Arity(1, 1),

@@ -72,9 +72,9 @@ state at barrier points — the command can read/write any variable.
 
 ```python
 IRModule(
-    top_level=IRScript(statements=(...)),          # code outside procs
-    procedures={"::add": IRProcedure(...)},        # qualified name → proc
-    redefined_procedures=set(),                    # procs defined twice
+    top_level=IRScript(statements=(...)),  # code outside procs
+    procedures={"::add": IRProcedure(...)},  # qualified name → proc
+    redefined_procedures=set(),  # procs defined twice
 )
 ```
 
