@@ -2337,6 +2337,21 @@ pub struct Backend {
     /// [`Backend::semantic_tokens_core_data`]) can compare the enriched result
     /// it lands against what was last served, without borrowing `Backend`.
     last_semantic_tokens: SemanticTokensCache,
+    /// Per-URI memo of [`Backend::analyse_with_workspace_classes`] — the
+    /// analysis that resolves a cross-file constructor (`set d [::other::Cls
+    /// new]`) by feeding the workspace class set to instance inference.
+    ///
+    /// Unlike the ordinary document analysis this one is not a salsa query:
+    /// it depends on the workspace class set as well as the document, which
+    /// is not a salsa input.  Without a memo the consumer scan re-ran it once
+    /// per candidate document per request, so one code-lens resolve cost
+    /// (documents × analysis) — measured at 0.31 s over 40 consumer documents,
+    /// paid again for every lens the editor has on screen (adversarial review
+    /// of #1047, item 8).  Entries validate against a fingerprint of both
+    /// inputs rather than a revision counter, so a stale entry is impossible
+    /// however the document or the index changed; the URI key just keeps the
+    /// map small and evictable on `did_close`.
+    workspace_class_analyses: Arc<Mutex<HashMap<Uri, WorkspaceClassAnalysis>>>,
     /// Set while a debounced `workspace/semanticTokens/refresh` fire is
     /// scheduled (see [`SemanticTokensRefreshCtx::request_refresh_coalesced`]).
     /// The refresh carries no data — a client that receives it simply
@@ -2704,6 +2719,41 @@ struct MethodFamily {
     classmethod_cmd_names: Vec<String>,
 }
 
+/// One memoised workspace-class-oracle analysis — see
+/// [`Backend::workspace_class_analyses`].
+struct WorkspaceClassAnalysis {
+    /// Hash of everything the analysis depends on: the document's text and
+    /// dialect, and the workspace class set.  Recomputing it is a few
+    /// microseconds against the several milliseconds of a re-analysis.
+    fingerprint: (u64, u64),
+    analysis: Arc<AnalysisResult>,
+}
+
+/// Hash of one document's analysis inputs, for
+/// [`WorkspaceClassAnalysis::fingerprint`].
+fn document_fingerprint(source: &str, dialect: &str) -> u64 {
+    use std::hash::{Hash as _, Hasher as _};
+    let mut hasher = std::hash::DefaultHasher::new();
+    source.hash(&mut hasher);
+    dialect.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Order-independent hash of the workspace class set, for
+/// [`WorkspaceClassAnalysis::fingerprint`].  The set comes out of a
+/// `HashSet`, so iteration order carries no meaning and the combining step
+/// must not depend on it.
+fn class_set_fingerprint(classes: &std::collections::HashSet<String>) -> u64 {
+    use std::hash::{Hash as _, Hasher as _};
+    let mut combined = classes.len() as u64;
+    for name in classes {
+        let mut hasher = std::hash::DefaultHasher::new();
+        name.hash(&mut hasher);
+        combined = combined.wrapping_add(hasher.finish());
+    }
+    combined
+}
+
 /// One document a consumer scan visits, with the text and index needed to
 /// lift its spans to LSP ranges.
 struct ConsumerDoc {
@@ -2774,6 +2824,7 @@ impl Backend {
             closed_diag_gen: Arc::new(Mutex::new(HashMap::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
+            workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
@@ -4067,7 +4118,7 @@ impl Backend {
         // external call resolves the exported dispatch entry only
         // (issue #945 faults 4 + 6).
         if let Some((class_q, method, _is_classmethod, access)) = self
-            .resolve_method_target(&doc.text, &doc.dialect, &analysis, pos)
+            .resolve_method_target(uri, &doc.text, &doc.dialect, &analysis, pos)
             .await
         {
             let method_defs = self
@@ -4699,22 +4750,52 @@ impl Backend {
     /// (`set d [::other::Cls new]`) still records `d`'s class.  Used only by the
     /// cross-file method reference / definition path; the normal cached
     /// analysis (which drives diagnostics) leaves the oracle empty.
+    ///
+    /// Memoised per `uri` in [`Self::workspace_class_analyses`] and validated
+    /// against a fingerprint of both inputs, so a consumer scan that visits
+    /// the same documents for every lens on screen analyses each of them
+    /// once.  Returns a shared `Arc` the caller can move into a
+    /// `spawn_blocking` worker, as [`Self::analysis_for`] does.
     async fn analyse_with_workspace_classes(
         &self,
+        uri: &Uri,
         source: &str,
         dialect: &str,
-    ) -> tcl_compiler::analyser::AnalysisResult {
+    ) -> Arc<AnalysisResult> {
         let workspace_classes = self.workspace_index.read().await.all_class_qnames();
-        let source = source.to_owned();
-        let dialect = dialect.to_owned();
-        tokio::task::spawn_blocking(move || {
-            tcl_compiler::analyser::Analyser::new()
-                .with_workspace_classes(workspace_classes)
-                .analyse(&source, &dialect)
-                .clone()
+        let fingerprint = (
+            document_fingerprint(source, dialect),
+            class_set_fingerprint(&workspace_classes),
+        );
+        if let Some(hit) = self
+            .workspace_class_analyses
+            .lock()
+            .await
+            .get(uri)
+            .filter(|entry| entry.fingerprint == fingerprint)
+        {
+            return Arc::clone(&hit.analysis);
+        }
+        let owned_source = source.to_owned();
+        let owned_dialect = dialect.to_owned();
+        let analysis: Arc<AnalysisResult> = tokio::task::spawn_blocking(move || {
+            Arc::new(
+                tcl_compiler::analyser::Analyser::new()
+                    .with_workspace_classes(workspace_classes)
+                    .analyse(&owned_source, &owned_dialect)
+                    .clone(),
+            )
         })
         .await
-        .unwrap_or_default()
+        .unwrap_or_default();
+        self.workspace_class_analyses.lock().await.insert(
+            uri.clone(),
+            WorkspaceClassAnalysis {
+                fingerprint,
+                analysis: Arc::clone(&analysis),
+            },
+        );
+        analysis
     }
 
     /// Resolve the `TclOO` method `(class, name, access)` under the cursor.
@@ -4725,6 +4806,7 @@ impl Backend {
     /// class oracle.
     async fn resolve_method_target(
         &self,
+        uri: &Uri,
         source: &str,
         dialect: &str,
         analysis: &AnalysisResult,
@@ -4735,7 +4817,9 @@ impl Backend {
         {
             return Some(target);
         }
-        let oracle = self.analyse_with_workspace_classes(source, dialect).await;
+        let oracle = self
+            .analyse_with_workspace_classes(uri, source, dialect)
+            .await;
         core_rename::method_target_with_access(source, pos.line, pos.character, &oracle)
     }
 
@@ -4971,7 +5055,7 @@ impl Backend {
         is_classmethod: bool,
     ) -> Vec<Range> {
         let analysis = self
-            .analyse_with_workspace_classes(&doc.text, &doc.dialect)
+            .analyse_with_workspace_classes(&doc.uri, &doc.text, &doc.dialect)
             .await;
         let source = doc.text.clone();
         let dialect = doc.dialect.clone();
@@ -5323,7 +5407,7 @@ impl Backend {
     ) -> Vec<Location> {
         let mut locations = Vec::new();
         if let Some((seed_class, method, is_classmethod, _access)) = self
-            .resolve_method_target(&doc.text, &doc.dialect, analysis, pos)
+            .resolve_method_target(uri, &doc.text, &doc.dialect, analysis, pos)
             .await
         {
             locations.extend(
@@ -8423,6 +8507,9 @@ impl LanguageServer for Backend {
         // Drop the cached semantic-token baseline so a reopened document starts
         // from a fresh `full` rather than diffing against a stale stream.
         self.last_semantic_tokens.lock().await.remove(uri);
+        // The workspace-class analysis memo is keyed by URI; a closed
+        // document's entry would otherwise linger for the process's life.
+        self.workspace_class_analyses.lock().await.remove(uri);
         // Re-index the file from disk rather than dropping it: the file still
         // exists on disk and was (or would be) part of the on-disk index, so
         // cross-document definition / references / rename / call-hierarchy — and
@@ -16092,6 +16179,7 @@ mod tests {
             closed_diag_gen: Arc::new(Mutex::new(HashMap::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
+            workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
