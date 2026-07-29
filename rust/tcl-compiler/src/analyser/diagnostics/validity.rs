@@ -2668,39 +2668,145 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
     /// `::tcl::` implementation namespace (`::tcl::dict::create`,
     /// `tcl::string::totitle`, …) — real Tcl backs several built-in ensemble
     /// commands this way, and the call works, but it is never a documented
-    /// or supported way to write Tcl. Prefix-level only (issue #988): no
-    /// per-subcommand or per-version modelling, so this fires the same way
-    /// regardless of dialect/version. Registry-driven — the namespace list
-    /// lives in [`tcl_registry::private_tcl_namespaces`], not here, so a
-    /// user's own namespace nested under `tcl::` and Tcl's own public
-    /// `tcl::`-rooted commands (`tcl::mathop::*`, `tcl::mathfunc::*`,
-    /// `tcl::prefix`) are never flagged — see that module's classifier for
-    /// the exact matching rule.
+    /// or supported way to write Tcl.
+    ///
+    /// Registry-driven — the namespace table, its per-namespace
+    /// [`TailRule`](tcl_registry::private_tcl_namespaces::TailRule), and the
+    /// tail-to-subcommand resolution all live in
+    /// [`tcl_registry::private_tcl_namespaces`], not here.  So a user's own
+    /// namespace nested under `tcl::`, Tcl's own public `tcl::`-rooted
+    /// commands (`tcl::mathop::*`, `tcl::mathfunc::*`, `tcl::prefix`), and
+    /// tcllib's public packages that live *inside* a shared private
+    /// namespace (`tcl::chan::memchan` and the rest of `virtchannel_base`)
+    /// are never flagged.
+    ///
+    /// The **quick fix** is attached only when the classifier hands back a
+    /// `suggestion` — i.e. when the tail is a genuine subcommand of the
+    /// public ensemble in the active dialect, so `<public> <tail>` is a
+    /// legal rewrite — and only for an undelimited command head (see
+    /// [`Self::head_word_is_delimited`]).  A private helper with no public
+    /// spelling (`::tcl::clock::GetSystemTimeZone`) still warns, but with no
+    /// code-corrupting fix.
+    ///
+    /// Always **deferred** to [`Self::flush_w143_diagnostics`]: the two
+    /// remaining suppressions are whole-file facts (a `proc` this document
+    /// defines at the qualified name, and a `package require` covering it).
     pub(in crate::analyser) fn emit_w143_private_tcl_namespace(
         &mut self,
         cmd_name: &str,
         cmd_tok: tcl_lexer::Token,
+        scope_path: &[usize],
     ) {
-        let Some(call) =
-            tcl_registry::private_tcl_namespaces::classify_private_tcl_namespace_call(cmd_name)
-        else {
+        let Some(registry) = self.registry else {
             return;
         };
-        self.result.diagnostics.push(super::types::Diagnostic {
+        let Some(call) = tcl_registry::private_tcl_namespaces::classify_private_tcl_namespace_call(
+            cmd_name,
+            registry,
+            self.profile.availability_mask,
+        ) else {
+            return;
+        };
+        let message = match &call.suggestion {
+            Some(suggestion) => format!(
+                "'{cmd_name}' is a private Tcl implementation namespace; use the public \
+                 ensemble command instead — e.g. '{suggestion}'."
+            ),
+            None => format!(
+                "'{cmd_name}' is a private Tcl implementation namespace; '{}' is not a \
+                 subcommand of the public '{}' ensemble, so there is no supported \
+                 spelling of this call.",
+                call.tail, call.public_command
+            ),
+        };
+        let fixes = match call.suggestion {
+            Some(suggestion) if !self.head_word_is_delimited(cmd_tok) => {
+                vec![super::types::CodeFix {
+                    span: cmd_tok.span,
+                    description: format!("Replace with '{suggestion}'"),
+                    new_text: suggestion,
+                }]
+            }
+            _ => Vec::new(),
+        };
+        let diag = super::types::Diagnostic {
             code: DiagCode::W143,
             span: cmd_tok.span,
-            message: format!(
-                "'{cmd_name}' is a private Tcl implementation namespace; use the public \
-                 ensemble command instead — e.g. '{}'.",
-                call.suggestion
-            ),
+            message,
             severity: Severity::Warning,
-            fixes: vec![super::types::CodeFix {
-                span: cmd_tok.span,
-                new_text: call.suggestion,
-                description: format!("Replace with '{}'", call.public_command),
-            }],
-        });
+            fixes,
+        };
+        let ns = self.command_resolution_namespace(scope_path);
+        let enforce_order = !self.scope_path_in_proc_body(scope_path);
+        self.pending_w143
+            .push((cmd_name.to_string(), ns, enforce_order, diag));
+    }
+
+    /// Whether the command head at `cmd_tok` is written as a *delimited*
+    /// word — braced (`{::tcl::dict::create}`) or quoted
+    /// (`"::tcl::dict::create"`).
+    ///
+    /// The lexer's word tokens do not span their delimiters uniformly: a
+    /// braced word's span is the inner text only (the `{`/`}` are stripped),
+    /// while a quoted word's span starts *on* the opening `"` and stops
+    /// before the closing one.  A head-token-sized replacement therefore
+    /// leaves an orphan `}` / `"` behind, and for the braced form the result
+    /// (`{dict create} a 1`) is a single command word rather than the
+    /// intended two — so the quick fix is suppressed for these heads and the
+    /// warning stands on its own.
+    fn head_word_is_delimited(&self, cmd_tok: tcl_lexer::Token) -> bool {
+        cmd_tok.kind == tcl_lexer::TokenType::Str
+            || self
+                .source
+                .as_bytes()
+                .get(cmd_tok.span.start() as usize)
+                .is_some_and(|b| *b == b'"')
+    }
+
+    /// Post-walk flush of the [`Self::pending_w143`] candidates.
+    ///
+    /// Drops a candidate when the document itself supplies the command:
+    ///
+    /// * **it defines it** — a `proc ::tcl::dict::mine`, a class, an
+    ///   `interp alias`, a `rename` target, or an ensemble namespace at the
+    ///   qualified name, resolved through the shared
+    ///   [`UserResolutionFacts`] with the same namespace / load-order rules
+    ///   the W002 and arity flushes use.  A `namespace eval ::tcl::dict {
+    ///   proc mine … }` lands in `all_procs` fully qualified, so it is
+    ///   covered by the same check;
+    /// * **it requires a package that owns it** — a `package require
+    ///   tcl::chan::memchan` (or of any namespace prefix of the call) means
+    ///   the name belongs to that package, not to Tcl's internals.  Without
+    ///   this, a file could draw W120 ("needs `package require X`") and W143
+    ///   ("this is Tcl-private") for the same command, which cannot both be
+    ///   true.
+    ///
+    /// Idempotent: drains `pending_w143`, so a second call is a no-op.
+    pub(in crate::analyser) fn flush_w143_diagnostics(&mut self) {
+        if self.pending_w143.is_empty() {
+            return;
+        }
+        let facts = UserResolutionFacts::build(self);
+        let required: Vec<String> = self
+            .result
+            .package_requires
+            .iter()
+            .map(|pr| pr.name.trim_start_matches(':').to_string())
+            .collect();
+        let pending = std::mem::take(&mut self.pending_w143);
+        for (cmd_name, ns, enforce_order, diag) in pending {
+            if facts.resolves_to_user(&cmd_name, &ns, enforce_order, diag.span.start()) {
+                continue;
+            }
+            let bare = cmd_name.trim_start_matches(':');
+            if required
+                .iter()
+                .any(|pkg| bare == pkg || bare.starts_with(&format!("{pkg}::")))
+            {
+                continue;
+            }
+            self.result.diagnostics.push(diag);
+        }
     }
 
     /// **IRULE2001.** Warn that `matchclass` is deprecated — use

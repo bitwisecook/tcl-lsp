@@ -25,6 +25,7 @@ import {
   waitForEffectiveConfig,
   getServerLogSize,
   waitForDeepDiagnostics,
+  pollUntil,
 } from "./helper";
 
 suite("Diagnostics", () => {
@@ -207,6 +208,73 @@ suite("Diagnostics", () => {
     assert.ok(
       w128.some((d) => d.message.includes("renamed or deleted")),
       `Expected W128 message to mention rename/delete, got: ${w128.map((d) => d.message).join("; ")}`,
+    );
+  });
+
+  test("W143 flags private ::tcl:: namespace calls only, and only fixes the legal rewrites", async () => {
+    const privateUri = getDocUri("diagnostics-private-tcl-namespace.tcl");
+    await activate(privateUri);
+    const diagnostics = await waitForDiagnostics(privateUri, { minCount: 1 });
+
+    const w143 = diagnostics.filter((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "W143";
+    });
+
+    // Exactly the two private calls — `dict create`, the public
+    // `tcl::chan::memchan` package command, and `tcl::mathop::+` are all
+    // public and must stay clear.
+    assert.strictEqual(
+      w143.length,
+      2,
+      `Expected exactly 2 W143 diagnostics, got ${w143.length}: ${w143
+        .map((d) => d.message)
+        .join("; ")}`,
+    );
+    assert.ok(
+      w143.every((d) => d.severity === vscode.DiagnosticSeverity.Warning),
+      "W143 should be a warning",
+    );
+    assert.ok(
+      w143.some((d) => d.message.includes("dict create")),
+      `Expected a W143 suggesting 'dict create', got: ${w143.map((d) => d.message).join("; ")}`,
+    );
+    assert.ok(
+      w143.some((d) => d.message.includes("GetSystemTimeZone")),
+      `Expected a W143 for the private clock helper, got: ${w143
+        .map((d) => d.message)
+        .join("; ")}`,
+    );
+
+    // The legal rewrite is offered as a quick fix; the one with no public
+    // spelling must never suggest a code-corrupting `clock
+    // GetSystemTimeZone`.
+    const dictDiag = w143.find((d) => d.message.includes("dict create"));
+    const clockDiag = w143.find((d) => d.message.includes("GetSystemTimeZone"));
+    assert.ok(dictDiag && clockDiag, "both W143 diagnostics located");
+    const dictActions = (await pollUntil(
+      () =>
+        vscode.commands.executeCommand(
+          "vscode.executeCodeActionProvider",
+          privateUri,
+          dictDiag.range,
+        ),
+      (r) => Array.isArray(r) && (r as vscode.CodeAction[]).some((a) => a.title.includes("dict")),
+      { timeout: 10_000, label: "W143 quick fix" },
+    )) as vscode.CodeAction[];
+    assert.ok(
+      dictActions.some((a) => a.title.includes("dict create")),
+      `Expected a 'dict create' quick fix, got: ${dictActions.map((a) => a.title).join("; ")}`,
+    );
+    const clockActions =
+      (await vscode.commands.executeCommand<vscode.CodeAction[]>(
+        "vscode.executeCodeActionProvider",
+        privateUri,
+        clockDiag.range,
+      )) ?? [];
+    assert.ok(
+      !clockActions.some((a) => a.title.includes("clock GetSystemTimeZone")),
+      `Expected no code-corrupting rewrite, got: ${clockActions.map((a) => a.title).join("; ")}`,
     );
   });
 

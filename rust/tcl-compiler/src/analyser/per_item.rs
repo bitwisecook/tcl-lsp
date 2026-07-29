@@ -591,6 +591,8 @@ impl Analyser {
         // `all_classes` / `ensemble_namespaces`.
         self.pending_disabled_commands
             .extend(frag.disabled_commands);
+        // Same treatment for the body's deferred W143 sites.
+        self.pending_w143.extend(frag.private_ns_calls);
         // Re-defer the body's source-dependent W304 sites, rebasing the token,
         // fix, and diagnostic spans to absolute; the tail classifies each `$var`
         // against the full file source.
@@ -695,6 +697,11 @@ pub struct BodyFragment {
     /// `command_aliases` / `renamed_commands` / `all_classes` /
     /// `ensemble_namespaces`.
     disabled_commands: Vec<(String, String, bool, super::types::Diagnostic)>,
+    /// W143 (private `::tcl::` namespace) sites — likewise always deferred
+    /// (see [`super::state::Analyser::pending_w143`]) and carried in the same
+    /// shape, so the tail can apply the whole-file `proc` / `package require`
+    /// suppressions an isolated body cannot see.
+    private_ns_calls: Vec<(String, String, bool, super::types::Diagnostic)>,
     /// Deferred W304 (missing `--`) sites whose `$var` classification needs the
     /// whole-file most-recent-`set` resolution (invisible to an isolated body).
     /// The graft rebases the token + fix + diagnostic spans; the tail classifies
@@ -825,6 +832,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         cmd_sites: a.cmd_command_sites,
         global_reads: a.capture_global_reads.unwrap_or_default(),
         disabled_commands: a.pending_disabled_commands,
+        private_ns_calls: a.pending_w143,
         w304: a.pending_w304,
         instances: a.pending_instances.unwrap_or_default(),
     }
@@ -1015,6 +1023,9 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
         rebase_diag(diag, d);
     }
     for (_, _, _, diag) in &mut frag.disabled_commands {
+        rebase_diag(diag, d);
+    }
+    for (_, _, _, diag) in &mut frag.private_ns_calls {
         rebase_diag(diag, d);
     }
     for cand in &mut frag.pending_user_call_arity {

@@ -30,11 +30,37 @@ between Tcl releases. `::tcl::zlib`, for example, is missing on some Tcl
 documented, version-stable way to reach the same functionality, so the
 analyser suggests it instead.
 
-This check works at the namespace level only: it does not track which
-subcommands each private namespace happens to carry on any particular Tcl
-version, because that detail is not part of Tcl's documented contract and
-churns release to release. It fires the same way regardless of dialect or
-Tcl version.
+## Limits
+
+The check never claims a name the document, the registry, or a package
+already accounts for. It stays quiet when:
+
+- **The registry knows the command.** `tcl::chan::memchan`, `tcl::chan::cat`,
+  and the rest of tcllib's virtual-channel packages live inside `::tcl::chan`
+  but are public, documented commands, so they are never flagged. For
+  `::tcl::chan` — the one namespace Tcl shares with third-party packages —
+  only a tail that is a real subcommand of the public `chan` command counts
+  as private at all.
+- **The file defines the command itself.** A `proc ::tcl::dict::mine` (or the
+  same proc written inside `namespace eval ::tcl::dict { … }`) makes
+  `::tcl::dict::mine` the document's own command, not Tcl's.
+- **A `package require` covers the name.** `package require
+  tcl::chan::memchan`, or a requirement on any namespace prefix of the
+  called command, means the name belongs to that package.
+
+Two further limits are deliberate:
+
+- **No per-version modelling.** Which subcommands a private namespace carries
+  on a given Tcl release is not part of Tcl's documented contract and churns
+  release to release, so the check fires the same way under every dialect.
+- **A quick fix only when the rewrite is legal.** The fix is offered only
+  when the tail after the namespace is a genuine subcommand of the public
+  ensemble in the active dialect. `::tcl::clock::GetSystemTimeZone` is real
+  private machinery with no public spelling, so it warns with no fix rather
+  than suggesting the broken `clock GetSystemTimeZone`. A command head
+  written as a braced or quoted word (`{::tcl::dict::create}`) likewise
+  warns without a fix, because the head token's range does not cover its
+  delimiters.
 
 ## Symptoms
 
@@ -58,7 +84,8 @@ set d [dict create a 1 b 2]
 
 Use the public ensemble command and subcommand instead of calling directly
 into the private namespace that backs it. A quick fix is offered that
-performs exactly this rewrite.
+performs exactly this rewrite whenever the rewrite is legal — see
+**Limits** above.
 
 ## How to suppress
 
@@ -68,9 +95,10 @@ Add `# noqa: W143` at the end of the offending line.
 
 Tcl's own public, documented commands that also live directly under
 `tcl::` — `tcl::mathop::+`, `tcl::mathfunc::sin`, `tcl::prefix` — are never
-flagged. Only the 11 private, undocumented implementation namespaces listed
-above trigger this check; a user's own namespace nested under `tcl::` (for
-example `::tcl::mycustom::foo`) is unaffected, since it is not one of them.
+flagged, in either the `::`-rooted or the bare spelling. Only the 11
+private, undocumented implementation namespaces listed above trigger this
+check; a user's own namespace nested under `tcl::` (for example
+`::tcl::mycustom::foo`) is unaffected, since it is not one of them.
 
 ## Related
 

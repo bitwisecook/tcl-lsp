@@ -1232,8 +1232,9 @@ impl Analyser {
         // option flags), so it takes no cmd_name guard.
         self.emit_w310_hardcoded_credentials(cmd_name, args, arg_tokens);
         // W143: direct call into a private `::tcl::` implementation
-        // namespace. Dialect-independent (prefix-level only, issue #988).
-        self.emit_w143_private_tcl_namespace(cmd_name, cmd_tok);
+        // namespace (issue #988).  Deferred — the whole-file suppressions
+        // are applied by `flush_w143_diagnostics`.
+        self.emit_w143_private_tcl_namespace(cmd_name, cmd_tok, scope_path);
         // IRULE2002: deprecated iRules command (f5-irules only).
         self.emit_irule2002_deprecated_command(cmd_name, cmd_tok);
         // IRULE2001: deprecated `matchclass` (f5-irules only).  Fires
