@@ -24,9 +24,10 @@
 //!
 //! Results are cached in a bounded LRU keyed by source text *and* scan
 //! mode — the same word/script strings are scanned repeatedly across SSA,
-//! GVN, and interprocedural passes, and the two modes ([`
-//! VarReferenceScanner::scan_word`] vs [`VarReferenceScanner::scan_script`])
-//! can legitimately disagree about the same text.
+//! GVN, and interprocedural passes, and the two modes
+//! ([`VarReferenceScanner::scan_word`] vs
+//! [`VarReferenceScanner::scan_script`]) can legitimately disagree about
+//! the same text.
 
 use std::collections::{BTreeSet, HashMap, VecDeque};
 

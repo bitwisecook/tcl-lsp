@@ -1023,9 +1023,17 @@ fn record_indirect_callers(
 /// [`scan_source_call_sites`]) cannot drift from what the context builder
 /// actually consumes.
 pub(crate) fn needs_extra_call_site_scan_contexts(ir_module: &IrModule) -> bool {
-    !ir_module.methods.is_empty()
-        || !ir_module.body_units.is_empty()
-        || !upframe_scan_bodies(ir_module).is_empty()
+    if !ir_module.methods.is_empty() || !ir_module.body_units.is_empty() {
+        return true;
+    }
+    // Only a module with neither pays for the statement walk, and it costs
+    // no allocation — a bare `uplevel {…}` is rare enough that building the
+    // caller list here just to test it for emptiness would be wasteful.
+    let mut found = false;
+    walk_module_scripts(ir_module, &mut |stmt| {
+        found |= matches!(stmt, crate::ir::Statement::UpFrame { .. });
+    });
+    found
 }
 
 /// The synthetic caller name prefix an `uplevel` body's bare CFG carries:
