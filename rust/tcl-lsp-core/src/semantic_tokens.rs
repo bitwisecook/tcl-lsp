@@ -6312,6 +6312,56 @@ mod tests {
     }
 
     #[test]
+    fn return_code_option_classified_as_decorator_issue_967() {
+        // Issue #967: `return -code error "bad"` highlighted `-code` as a
+        // plain string instead of an option. `-code` is a declared OptionSpec
+        // on `return` (a decorator) and `error` is one of its closed-set
+        // values (an enumMember); `"bad"` stays a plain string.
+        let ks = kinds("return -code error \"bad\"\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::Decorator as u32)),
+            "expected -code to be a decorator; got {ks:?}"
+        );
+        assert!(
+            ks.contains(&(TokenKind::EnumMember as u32)),
+            "expected error to be an enumMember; got {ks:?}"
+        );
+
+        // `-level` is likewise a declared option (Tcl 8.5+) and its value
+        // (`0`) is an OptionValue, not a plain number/string.
+        let ks = kinds("return -level 0 \"bad\"\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::Decorator as u32)),
+            "expected -level to be a decorator; got {ks:?}"
+        );
+        assert!(
+            ks.contains(&(TokenKind::OptionValue as u32)),
+            "expected 0 to be an OptionValue; got {ks:?}"
+        );
+
+        // `-options $opts` — `-options` is a decorator and its dict value
+        // stays highlighted as the variable it is (not recoloured away).
+        let ks = kinds("return -options $opts\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::Decorator as u32)),
+            "expected -options to be a decorator; got {ks:?}"
+        );
+        assert!(
+            ks.contains(&(TokenKind::Variable as u32)),
+            "expected $opts to keep its variable highlight; got {ks:?}"
+        );
+
+        // TN: a plain word `-code` passed to a command with no declared
+        // OptionSpec (`concat` takes no options at all) must not be painted
+        // as an option — it is just a string argument.
+        let ks = kinds("concat -code error\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::Decorator as u32)),
+            "-code is not a declared option of concat; got {ks:?}"
+        );
+    }
+
+    #[test]
     fn info_object_class_sub_subcommand_classified_as_keyword() {
         // Issue #798: in `info object class $obj`, the `class` word is a
         // second-level subcommand (OBJECT INTROSPECTION), not a string. Both the

@@ -793,4 +793,45 @@ suite("Semantic Tokens", () => {
       );
     }
   });
+
+  // Issue #967: `return -code error "bad"` highlighted `-code` as a plain
+  // string. `-code` is a declared option (decorator) and `error` is its
+  // closed-set value (enumMember).
+  test("return -code error is highlighted as an option/value pair (issue #967)", async () => {
+    const uri = getDocUri("simple.tcl");
+    const doc = await activate(uri);
+    const editor = await vscode.window.showTextDocument(doc);
+    const originalContent = doc.getText();
+    try {
+      await setTestContent(editor, 'return -code error "bad"\n');
+
+      const tokens = (await vscode.commands.executeCommand(
+        "vscode.provideDocumentSemanticTokens",
+        uri,
+      )) as vscode.SemanticTokens;
+      const legend = (await vscode.commands.executeCommand(
+        "vscode.provideDocumentSemanticTokensLegend",
+        uri,
+      )) as vscode.SemanticTokensLegend;
+      assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+      const decoded = decodeTokens(tokens, legend);
+      const textOf = (t: DecodedToken): string =>
+        doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+
+      const decoratorWords = new Set(decoded.filter((t) => t.type === "decorator").map(textOf));
+      assert.ok(
+        decoratorWords.has("-code"),
+        `expected '-code' as an option (decorator) token, got ${JSON.stringify([...decoratorWords])}`,
+      );
+
+      const enumWords = new Set(decoded.filter((t) => t.type === "enumMember").map(textOf));
+      assert.ok(
+        enumWords.has("error"),
+        `expected 'error' as a closed-set (enumMember) value token, got ${JSON.stringify([...enumWords])}`,
+      );
+    } finally {
+      await setTestContent(editor, originalContent);
+    }
+  });
 });
