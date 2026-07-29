@@ -153,7 +153,7 @@ pub use special_vars::{
 };
 pub use symbol_def::{DefinedSymbolKind, SymbolDef};
 pub use taint::{SetterConstraint, TaintColour};
-pub use traits::Traits;
+pub use traits::{Traits, UNIT_LINKAGE_TRAITS};
 pub use types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 
 /// Crate version string.

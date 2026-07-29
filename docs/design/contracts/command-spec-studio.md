@@ -82,6 +82,18 @@ Those fields use `FieldKind::RustExpr`: the value is a string emitted
 verbatim, so it carries its own `Some(…)` and type path. The schema's `hint`
 shows the exact expression shape expected.
 
+One unrecoverable expression is not a top-level field. `OptionArity::Hook`
+holds a function pointer inside an *option row*, so it gets a `hook fn` text
+box in that row rather than an entry under Advanced, and its
+`__unrenderable` key is `draft::OPTION_HOOK_KEY` (`options.arity_hook`)
+instead of a field name. Both the form's warning list and the renderer's
+`TODO` resolve that key against the `options` array, so they name the exact
+options still missing a hook — `return`'s `-errorstack` is the registry's
+live example — and both clear once every hook holds an expression. Before
+this, the whole `options` field was reported unreadable even though only one
+option's arity was, and the note could never clear because the filled-in
+check only understood string-valued fields.
+
 ## Renderer contract
 
 `render_rs::render` produces a complete `tcl-registry/src/commands/<pack>/`
@@ -154,15 +166,22 @@ assertion.**
 Procedures are deduplicated by qualified name across files, last definition
 winning, matching what the interpreter would end up with.
 
-## Known registry defect the studio works around
+## Trait names come from the registry
 
-`Traits` is a `u64` with all 64 bits allocated, and `SAFE_INTERP_HIDDEN`
-shares bit 61 with `TRANSFERS_CONTROL` — the two are the same flag at run
-time (issue #1031). `catalogue::trait_keys` therefore deduplicates by bit
-*value*, first catalogue entry winning, so a rendered spec stays bit-identical
-to the one it was seeded from rather than claiming a trait its author never
-set. `catalogue::tests::traits_catalogue_pins_the_known_bit_collision` fails
-once the registry widens `Traits`, which is the cue to remove the workaround.
+`catalogue::trait_keys` renders a spec's traits by asking the registry for
+them (`Traits::iter_names`), and `catalogue::trait_bit` resolves a name
+against `Trait::ALL`. There is no name↔bit table in the studio to drift out of
+step with the registry, and
+`catalogue::tests::traits_catalogue_matches_the_registry_flags` asserts the
+studio's descriptive catalogue covers exactly the registry's declared flags,
+in order.
+
+This previously needed a workaround. `Traits` was a `bitflags` `u64` holding
+65 flags, with `SAFE_INTERP_HIDDEN` and `TRANSFERS_CONTROL` both spelled
+`1 << 61` — the same flag at run time (issue #1031) — so `trait_keys` had to
+deduplicate by bit *value* to avoid rendering a spec that claimed a trait its
+author never set. The registry now derives each bit from an enum discriminant,
+so two flags cannot share one and the deduplication is gone.
 
 ## Publishing
 

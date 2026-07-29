@@ -42,18 +42,29 @@
 //! tracks the `expr` grammar, not the command table) only became callable
 //! as `::tcl::mathfunc::abs` from 8.5 on. A function introduced later
 //! (`isnan` in 9.0, `gamma` in 9.1, …) keeps its own, tighter gate.
+use std::sync::OnceLock;
+
 use crate::prelude::*;
 use tcl_syntax::expr::mathfunc::{self, MathFuncSince};
 
 /// All `tcl::mathfunc` math-function command specs (both qualified
 /// spellings).
+///
+/// Built **once per process** and cloned per call — see
+/// `mathop_generated::specs` for why memoising here is what bounds [`leak`]
+/// (issue #1035).
 #[must_use]
 pub fn specs() -> Vec<CommandSpec> {
-    let mut out = Vec::new();
-    for spec in mathfunc::all() {
-        push_spellings(&mut out, &spec);
-    }
-    out
+    static SPECS: OnceLock<Vec<CommandSpec>> = OnceLock::new();
+    SPECS
+        .get_or_init(|| {
+            let mut out = Vec::new();
+            for spec in mathfunc::all() {
+                push_spellings(&mut out, &spec);
+            }
+            out
+        })
+        .clone()
 }
 
 /// The two spellings a math function is invocable under as a command (see
@@ -125,9 +136,12 @@ fn to_registry_arity(a: tcl_syntax::expr::operators::CommandArity) -> Arity {
     Arity::new(min, max)
 }
 
-/// Leak an owned `String` to a `'static` `&str` — safe and cheap here: every
-/// mathfunc `CommandSpec` is built exactly once, at registry-construction
-/// time, from a small fixed set (2 spellings x ~56 functions).
+/// Leak an owned `String` to a `'static` `&str`.
+///
+/// Bounded **only** because [`specs`] memoises its result: this runs once per
+/// process, over a small fixed set (2 spellings x ~56 functions).  Registry
+/// construction itself is *not* a one-off (issue #1035), so any new caller must
+/// go through [`specs`].
 fn leak(s: String) -> &'static str {
     &*s.leak()
 }
@@ -141,6 +155,24 @@ fn leak_slice<T>(v: Vec<T>) -> &'static [T] {
 mod tests {
     use super::specs;
     use crate::prelude::DialectSet;
+
+    /// Issue #1035, mathfunc half — see `mathop_generated`'s twin for the full
+    /// rationale.  `specs()` leaks `&'static` strings, so it must memoise:
+    /// pointer identity across two calls is what proves it did.
+    #[test]
+    fn specs_are_built_once_and_never_releaked() {
+        let first = specs();
+        let second = specs();
+        assert!(!first.is_empty(), "the mathfunc ensemble must not be empty");
+        assert_eq!(first.len(), second.len());
+        for (a, b) in first.iter().zip(second.iter()) {
+            assert!(
+                std::ptr::eq(a.name, b.name),
+                "`{}` was re-leaked: specs() must memoise, not rebuild",
+                a.name
+            );
+        }
+    }
 
     /// Adversarial-review finding: this file's own translation from
     /// `MathFuncSpec` to `CommandSpec` (`push_spellings`/`since_to_dialects`/

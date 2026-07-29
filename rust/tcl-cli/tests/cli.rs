@@ -177,3 +177,40 @@ fn minify_symbol_map_written_for_plain_minify() {
     );
     let _ = std::fs::remove_file(&tmp);
 }
+
+/// Issue #977: `tcl diag` over several inputs is a multi-file compilation, so
+/// a call in one file must be visible to another file's interprocedural
+/// constant seed.  On its own, the library's two agreeing callers make
+/// `$mode eq "prod"` fold (I230); adding the file that calls it with `dev`
+/// must retract that.
+#[test]
+fn diag_shares_call_sites_across_inputs() {
+    let lib = fixtures_dir().join("issue977Lib.tcl");
+    let main = fixtures_dir().join("issue977Main.tcl");
+    let alone = String::from_utf8(run_tcl_allow_failure(&["diag", lib.to_str().unwrap()]))
+        .expect("utf-8 output");
+    assert!(
+        alone.contains("I230"),
+        "the library alone has only agreeing callers, so the fold is expected: {alone}"
+    );
+    let together = String::from_utf8(run_tcl_allow_failure(&[
+        "diag",
+        lib.to_str().unwrap(),
+        main.to_str().unwrap(),
+    ]))
+    .expect("utf-8 output");
+    assert!(
+        !together.contains("I230"),
+        "issue977Main.tcl calls the helper with \"dev\": {together}"
+    );
+}
+
+/// Like [`run_tcl`] but tolerates a non-zero exit — `diag` returns 1 whenever
+/// it reports a problem-severity finding, which is not a harness failure.
+fn run_tcl_allow_failure(args: &[&str]) -> Vec<u8> {
+    Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(args)
+        .output()
+        .expect("failed to spawn tcl binary")
+        .stdout
+}

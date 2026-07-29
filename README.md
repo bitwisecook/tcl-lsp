@@ -325,7 +325,11 @@ nested call, `{*}` expansion, the `package ifneeded name ver [list apply
 {dir {...}} $dir]` deferred-command idiom, and a `namespace ensemble
 create`/`configure -map` redirect to a hidden target — so a hidden
 `source` reached only that way is flagged the same as a direct call, in
-both a one-shot lint and the live editor session.
+both a one-shot lint and the live editor session. The hidden set is the
+one Tcl itself hides — `source`, `load`, `file`, `exec`, `open`, `socket`,
+`cd`, `pwd`, `glob`, `exit`, `fconfigure`, `encoding`, and `unload`;
+control-transfer commands such as `break` and `yield` stay visible and are
+never flagged.
 
 ```tcl
 interp create -safe s
@@ -651,6 +655,15 @@ moves into a new `proc` with detected variable parameters; the original
 lines are replaced with a call. The editor places the cursor on the new
 proc name so you can rename it immediately.
 
+**Inline proc** — put the cursor on a call to a single-command proc,
+trigger code actions (`Ctrl+.`), and choose *Inline proc* to replace the
+call with the proc's body. Branchy bodies are declined, as is any call
+whose head is *frame-sensitive* — a command that terminates a block,
+transfers control, creates a scope alias, or creates a barrier (`return`,
+`break`, `continue`, `tailcall`, `yield`, `uplevel`, `upvar`, `global`,
+`variable`, `source`, `exit`, …) — because lifting one of those out of its
+proc frame changes what it returns from, breaks out of, or binds against.
+
 ### Snippets
 
 Bundled code templates for Tcl structures and iRules event skeletons with
@@ -766,6 +779,27 @@ zero frame-sync overhead on interpreter fallbacks. See the
 [design doc](docs/design/compiler/var-escape-analysis.md) and the
 [KCS note](docs/kcs/features/kcs-feature-var-escape-analysis.md) for the
 rules and the interprocedural propagation of callee `upvar` sources.
+
+### Interprocedural constant seeding
+
+A procedure's parameter is analysed as a compile-time constant only when
+every call site in view passes the same literal. "In view" is the whole
+claim, so the analysis resolves the indirect ways a call can reach a
+procedure rather than ignoring them: a dispatch through a variable
+(`set cmd helper; $cmd dev`) is resolved to the set of names the variable
+can hold and counted as a real call to each, and a callback registration
+(`lsort -command helper`, `trace add variable v write helper`) is counted as
+a call whose arguments the runtime supplies.
+
+When a call cannot be pinned to any command at all — a dispatch on a value
+read at run time, or a script passed by reference (`eval $script`,
+`apply $fn`) — no parameter in the file is treated as constant, because that
+call could reach any procedure with any argument. Fewer folded parameters
+means fewer diagnostics, never wrong ones. See the
+[KCS note](docs/kcs/kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md)
+for what this means when a diagnostic you expected does not appear, and the
+[design doc](docs/design/compiler/interprocedural-call-site-seeding.md) for
+the analysis itself.
 
 ### Static optimiser
 
@@ -907,6 +941,16 @@ labelled `block` / `loop` / `if` for each Tcl construct (`foreach`,
 `while`, `for`, `if`, `catch body`, `switch arm`), a source-line comment
 above every instruction group, and orthogonal control-flow arrows in the
 left gutter.
+
+The **Interproc** tab opens with a *unit scope* card: which registry-declared
+boundaries the file crosses (`package provide`, `source`, `namespace export`,
+…), whether the analysis had a cross-file view of the workspace, the
+per-argument verdict behind every interprocedural constant fold, and the
+`param constants` each procedure was actually analysed under.  That last line
+is the direct answer to "why did this condition fold?" — and, by its absence,
+to "why didn't it?".  It is the first place to look when a constant fold — or
+its absence — is a surprise; the same data is the `unitScope` view in the
+`tcl explore` CLI and TUI.
 
 The IR, CFG, SSA, bytecode, and WASM tabs each carry an **optimiser lens**
 (`off` / `on` / `diff`).  The `diff` mode compares the relevant node — IR
@@ -2557,6 +2601,37 @@ The explorer renders:
 - interprocedural summaries
 - optimiser rewrites
 - source callouts with caret markers and `+-->` arrows for salient spans
+
+### Per-keystroke cost and memory profiling
+
+Two examples measure what an editing session actually costs, rather than what a
+cold run costs. Both read a corpus from `tmp/` (see the `fetch-tcl-source`
+skill, or any directory of `.tcl` files).
+
+```sh
+# Which incremental-analysis guard forces a whole-file re-walk, and what it costs.
+# Weighted by document, by source line, and by measured milliseconds.
+cargo run --release -p tcl-compiler --example per_item_fallbacks
+
+# ROOT=<dir>    sweep a different corpus
+# COMPARE=1     also time the whole-file walk, per document, and show the ratio
+# TK_AUDIT=1    audit the Tk guard: how many documents trip it vs really need it
+
+# Resident memory across a simulated typing session — a fresh, constant-length
+# buffer on every keystroke, with per-subsystem attribution.
+cargo run --release -p tcl-lsp-db --example edit_memory -- 400 both
+```
+
+`edit_memory`'s mode argument bisects growth onto a subsystem: `both`
+(production), `fa` / `cc` (one diagnostic query each), `set` (input writes only,
+no analysis) and `nosalsa` (the analyser with no query database at all). That
+last pair is how [issue #1035](https://github.com/bitwisecook/tcl-lsp/issues/1035)
+was localised — `set` stayed flat while `nosalsa` leaked just as steadily,
+placing the bug in the compiler rather than in the incremental layer. See
+[`docs/kcs/kcs-issue-memory-grows-while-editing.md`](docs/kcs/kcs-issue-memory-grows-while-editing.md)
+for the user-facing symptoms and
+[`docs/design/rust/incremental-analysis.md`](docs/design/rust/incremental-analysis.md)
+for the fallback taxonomy.
 
 ### Developing the extension client
 

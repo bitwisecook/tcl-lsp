@@ -1201,6 +1201,10 @@ async fn compute_compiler_diags(
                     &c_registry,
                     &c_dialect,
                     c_generic.as_deref(),
+                    // The no-salsa-input fallback: this document is not in the
+                    // db, so there is genuinely no workspace view to pass —
+                    // `None` is the honest answer, not a missed wiring.
+                    None,
                 ))
             })
             .await
@@ -1212,6 +1216,302 @@ async fn compute_compiler_diags(
             }),
         )
     }
+}
+
+/// The debounced, detached diagnostics worker for one document.
+///
+/// A free function rather than an inline `tokio::spawn` body so it can
+/// **respawn itself for a peer document**: refreshing cross-file call-site
+/// evidence here can invalidate another file's diagnostics, and that file's
+/// own worker has to be (re)started to republish them.
+fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri) {
+    tokio::spawn(async move {
+        loop {
+            // Debounce, then claim the dirty flag *and* the freshest inputs.
+            // A burst collapses to one run; with nothing dirty we retire the
+            // worker (under the lock, so a concurrent edit either sees
+            // `running` and skips the spawn while we run, or sees
+            // `!running` and starts a fresh one).
+            tokio::time::sleep(DIAGNOSTICS_DEBOUNCE).await;
+            let inputs = {
+                let mut guard = slots.lock().await;
+                let Some(slot) = guard.get_mut(&uri) else {
+                    return;
+                };
+                if slot.dirty {
+                    slot.dirty = false;
+                    slot.latest_inputs.clone()
+                } else {
+                    slot.running = false;
+                    return;
+                }
+            };
+            // `latest_inputs` is set alongside `dirty`, so this is `Some`;
+            // guard defensively and retire if it is somehow absent.
+            let Some(inputs) = inputs else {
+                if let Some(slot) = slots.lock().await.get_mut(&uri) {
+                    slot.running = false;
+                }
+                return;
+            };
+            // A document that has never had cross-file evidence set gets it
+            // *before* its first analysis, so its first published diagnostics
+            // are already correct — publishing an "always true" fold and
+            // retracting it a moment later is precisely the flicker issue #977
+            // is about. Subsequent passes skip this and refresh after
+            // publishing instead, keeping the project-wide scan off the
+            // critical path for every later edit (and out from in front of the
+            // semantic-token enrichment tier on a large document).
+            // Handles for the post-publish evidence refresh below
+            // (`run_diagnostics_core` consumes `inputs`).
+            let evidence_handles = (
+                Arc::clone(&inputs.db),
+                Arc::clone(&inputs.db_files),
+                Arc::clone(&inputs.db_project),
+                Arc::clone(&inputs.workspace_index),
+            );
+            // Capture + analyse the document's current state.  If it is gone
+            // (closed) there is nothing to publish — retire.
+            let Some(job) = inputs.capture_job(&uri).await else {
+                let mut guard = slots.lock().await;
+                if let Some(slot) = guard.get_mut(&uri) {
+                    slot.running = false;
+                }
+                return;
+            };
+            let settled = run_diagnostics_core(inputs, &uri, job).await;
+            if !settled {
+                // Cancelled mid-flight — re-mark dirty so we retry the latest
+                // state next loop.
+                if let Some(slot) = slots.lock().await.get_mut(&uri) {
+                    slot.dirty = true;
+                }
+            }
+            // Refresh the project's cross-file call-site evidence *after*
+            // publishing (issue #977). Off the edit handler, as it must be —
+            // but also behind this document's own result rather than in front
+            // of it: the cold path lowers every project file, and on a large
+            // document that delayed both the diagnostics and the semantic-token
+            // enrichment tier gated behind them.
+            //
+            // The cost of publishing first is that a file's *first* run uses
+            // whatever evidence it already had. When the refresh then changes
+            // this file's own evidence we re-mark it dirty, so the loop
+            // immediately re-analyses under the corrected view — the same
+            // publish-then-enrich shape the semantic-token tiers use. Salsa
+            // memoisation makes the second pass cheap apart from what the
+            // evidence genuinely invalidated.
+            let (db, db_files, db_project, workspace_index) = evidence_handles;
+            let changed =
+                sync_cross_file_evidence(&db, &db_files, &db_project, &workspace_index).await;
+            // Re-analyse *this* document only when the refresh gave it evidence
+            // that can actually change its result: a non-empty table means some
+            // other file calls into it, which is what retracts a fold. Going
+            // from "no view" to an *empty* view leaves the merged evidence
+            // identical, so re-running would publish a byte-identical second
+            // result — and one publish per version is a contract
+            // (`diagnostics_delivery_smoke`, and the duplicate-diagnostics KCS
+            // note). Residual: an empty view also lifts a `LOADS_EXTERNAL_UNIT`
+            // decline, which can *add* a fold; not republishing leaves that as
+            // a missing hint until the next edit, the safe direction.
+            if changed.contains(&uri)
+                && has_external_callers(&db, &db_files, &uri).await
+                && let Some(slot) = slots.lock().await.get_mut(&uri)
+            {
+                slot.dirty = true;
+            }
+            // Republish every peer the refresh invalidated. Only documents
+            // that already have resolved inputs are eligible: a file nobody
+            // has analysed has no published diagnostics to go stale, and its
+            // inputs cannot be resolved from here anyway. This converges — the
+            // peer's own run re-syncs, finds nothing changed
+            // (compare-then-set), and reschedules nobody.
+            reschedule_peers(&slots, &uri, changed).await;
+        }
+    });
+}
+
+/// Mark each peer dirty and start its worker if one is not already draining
+/// it. See [`spawn_diagnostics_worker`] for why this exists.
+async fn reschedule_peers(
+    slots: &Arc<Mutex<HashMap<Uri, DiagSlot>>>,
+    self_uri: &Uri,
+    peers: Vec<Uri>,
+) {
+    let mut to_spawn = Vec::new();
+    {
+        let mut guard = slots.lock().await;
+        for peer in peers {
+            if &peer == self_uri {
+                continue;
+            }
+            let Some(slot) = guard.get_mut(&peer) else {
+                continue;
+            };
+            if slot.latest_inputs.is_none() {
+                continue;
+            }
+            slot.dirty = true;
+            if !slot.running {
+                slot.running = true;
+                to_spawn.push(peer);
+            }
+        }
+    }
+    for peer in to_spawn {
+        spawn_diagnostics_worker(Arc::clone(slots), peer);
+    }
+}
+
+/// Whether `uri`'s cross-file evidence actually names a caller.
+///
+/// Distinguishes "the project has something to say about this file's
+/// procedures" from "the project was enumerated and had nothing to add" — the
+/// latter cannot change what the file folds, so it must not trigger a second,
+/// identical publish. Lock order is `db` → `db_files`.
+async fn has_external_callers(
+    db: &Mutex<tcl_lsp_db::TclDatabase>,
+    db_files: &Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>,
+    uri: &Uri,
+) -> bool {
+    let db = db.lock().await;
+    let files = db_files.lock().await;
+    files.get(uri).is_some_and(|f| {
+        f.external_call_sites(&*db)
+            .as_ref()
+            .is_some_and(|e| !e.is_empty())
+    })
+}
+
+/// Refresh every project file's [`tcl_lsp_db::SourceFile::external_call_sites`]
+/// — the call sites in *other* files that reach the procedures it declares
+/// (issue #977) — and report the URIs whose evidence actually moved.
+///
+/// **Runs on the debounced diagnostics worker, never on the edit handler.**
+/// The cold path lowers and builds a CFG for every project file
+/// (`file_call_site_evidence`), which measured ~7s for a 500-file workspace;
+/// doing that inside `did_change` while the `documents` and `db` locks are
+/// held would block the LSP message loop on every keystroke. On the worker it
+/// is already off the message loop, already debounced, and already the place
+/// that pays for analysis.
+///
+/// **Compare-then-set**, so an edit that moves no call-site literal writes no
+/// input and invalidates nothing. The returned URIs are the files whose
+/// published diagnostics are now stale — editing `main.tcl` can change what
+/// `lib.tcl` folds, and `did_change` only ever schedules the edited document,
+/// so the caller must reschedule them or `lib.tcl` keeps showing a diagnostic
+/// the project no longer supports.
+///
+/// Salsa cancellation is caught and reported as "nothing changed": the edit
+/// that cancelled this pass drives its own refresh.
+async fn sync_cross_file_evidence(
+    db: &Mutex<tcl_lsp_db::TclDatabase>,
+    db_files: &Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>,
+    db_project: &Mutex<Option<tcl_lsp_db::Project>>,
+    workspace_index: &RwLock<core_workspace_index::WorkspaceIndex>,
+) -> Vec<Uri> {
+    use salsa::Setter as _;
+    // Which files the host can honestly claim a closed world for, resolved
+    // before taking the db locks (the index has its own).
+    let covered = files_with_covered_load_targets(db_files, workspace_index).await;
+    let mut db = db.lock().await;
+    let files = db_files.lock().await;
+    let project = db_project.lock().await;
+    let Some(&project) = project.as_ref() else {
+        return Vec::new();
+    };
+    let snapshot: Vec<(Uri, tcl_lsp_db::SourceFile)> =
+        files.iter().map(|(u, &f)| (u.clone(), f)).collect();
+    // `AssertUnwindSafe`: the closure only *reads* the database, and a
+    // cancellation unwind discards the whole `pending` list without applying
+    // anything, so no torn state can be observed afterwards.
+    let pending = salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
+        snapshot
+            .iter()
+            .filter_map(|(uri, file)| {
+                // A file whose `source` target the host never indexed has a
+                // caller the project cannot enumerate, so it gets **no**
+                // evidence: `None` keeps its `LOADS_EXTERNAL_UNIT` boundary
+                // closed rather than letting `Some(empty)` assert a closed
+                // world the scan cannot back (issue #977).
+                let want = covered
+                    .contains(uri)
+                    .then(|| tcl_lsp_db::file_external_call_sites(&*db, *file, project));
+                let unchanged = match (&want, file.external_call_sites(&*db)) {
+                    (Some(want), Some(have)) => **have == **want,
+                    (None, None) => true,
+                    _ => false,
+                };
+                (!unchanged).then(|| (uri.clone(), *file, want))
+            })
+            .collect::<Vec<_>>()
+    }));
+    let Ok(pending) = pending else {
+        return Vec::new();
+    };
+    let mut changed = Vec::with_capacity(pending.len());
+    for (uri, file, want) in pending {
+        file.set_external_call_sites(&mut *db).to(want);
+        changed.push(uri);
+    }
+    changed
+}
+
+/// The project files whose unit-loading boundaries the host can actually
+/// account for — the precondition for claiming a closed world over their
+/// callers (issue #977).
+///
+/// `has_cross_file_evidence` only ever proved that the server enumerated *its
+/// configured project*; it never proved the thing a `source` boundary
+/// actually implies, namely that the loaded unit was among them. A
+/// `source ../shared.tcl` pointing outside the workspace runs a script that
+/// can call this file's procedures with anything, so handing that file
+/// `Some(empty)` would re-open exactly the unsound fold this change closes.
+///
+/// A file is covered when **every** `source` site it contains is a literal
+/// path resolving to a document the project holds. A non-literal path
+/// (`source [file join $dir x.tcl]`) is never covered — the target is a
+/// runtime value.
+///
+/// `package require` / `load` are deliberately not consulted: the required
+/// unit is third-party code written without knowledge of this file, so it
+/// cannot name its procedures. The one way it *can* re-enter — a callback
+/// this file registers — is already recorded as an opaque caller by
+/// `tcl_compiler::unit_scope::record_indirect_callers`.
+async fn files_with_covered_load_targets(
+    db_files: &Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>,
+    workspace_index: &RwLock<core_workspace_index::WorkspaceIndex>,
+) -> HashSet<Uri> {
+    let files = db_files.lock().await;
+    let known_paths: HashSet<std::path::PathBuf> = files
+        .keys()
+        .filter_map(|u| u.to_file_path().map(|p| p.to_path_buf()))
+        .collect();
+    let mut uncovered: HashSet<&str> = HashSet::new();
+    let index = workspace_index.read().await;
+    for site in index.sources() {
+        if uncovered.contains(site.uri.as_str()) {
+            continue;
+        }
+        let covered = site.is_literal
+            && Uri::from_str(&site.uri)
+                .ok()
+                .and_then(|u| u.to_file_path().map(|p| p.to_path_buf()))
+                .is_some_and(|parent| {
+                    known_paths.contains(&tcl_lsp_core::source_graph::resolve_source_target(
+                        &parent,
+                        &site.raw_path,
+                    ))
+                });
+        if !covered {
+            uncovered.insert(site.uri.as_str());
+        }
+    }
+    files
+        .keys()
+        .filter(|u| !uncovered.contains(u.as_str()))
+        .cloned()
+        .collect()
 }
 
 async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bool {
@@ -2525,6 +2825,28 @@ impl Backend {
             let mut project = self.db_project.lock().await;
             Self::sync_db_project(&mut db, &files, &mut project);
         }
+    }
+
+    /// This document's cross-file call-site evidence, cloned out of the salsa
+    /// db so a `spawn_blocking` build can carry it (issue #977).
+    ///
+    /// The tracked `compilation_unit` query reads
+    /// [`tcl_lsp_db::SourceFile::external_call_sites`] itself, but every
+    /// **uncached** build — the pull-diagnostics path and code actions — makes
+    /// a standalone unit that cannot. Without this a pull-mode client would
+    /// get a correct analyser I230 alongside an unsound optimiser O101 for the
+    /// very shape this change exists to fix.
+    ///
+    /// `None` when the document is not in the salsa db (no workspace view to
+    /// speak of), which is the honest answer rather than a claim of one.
+    /// Lock order is `db` → `db_files`, matching [`Self::db_set_source`].
+    async fn cross_file_evidence_for(
+        &self,
+        uri: &Uri,
+    ) -> Option<Arc<tcl_compiler::unit_scope::CallSiteEvidence>> {
+        let db = self.db.lock().await;
+        let files = self.db_files.lock().await;
+        files.get(uri)?.external_call_sites(&*db).clone()
     }
 
     /// Re-set the salsa [`tcl_lsp_db::Project`] input to the current `db_files`
@@ -6648,12 +6970,17 @@ impl Backend {
         // path's `resolved_generic_variable_patterns(uri)` so IRULE4002
         // honours a folder's `diagnostics.genericVariablePatterns` override.
         let c_generic = self.resolved_generic_variable_patterns(uri).await;
+        // The pull path builds a standalone unit, so it must be handed the
+        // project's call-site evidence explicitly — the tracked query's own
+        // read of `SourceFile::external_call_sites` never reaches here.
+        let c_evidence = self.cross_file_evidence_for(uri).await;
         tokio::task::spawn_blocking(move || {
             tcl_lsp_db::compiler_check_diagnostics_uncached(
                 &c_text,
                 &c_registry,
                 &c_dialect,
                 c_generic.as_deref(),
+                c_evidence.as_deref(),
             )
         })
         .await
@@ -6888,54 +7215,7 @@ impl Backend {
             return;
         }
         let slots = Arc::clone(&self.diag_slots);
-        tokio::spawn(async move {
-            loop {
-                // Debounce, then claim the dirty flag *and* the freshest inputs.
-                // A burst collapses to one run; with nothing dirty we retire the
-                // worker (under the lock, so a concurrent edit either sees
-                // `running` and skips the spawn while we run, or sees
-                // `!running` and starts a fresh one).
-                tokio::time::sleep(DIAGNOSTICS_DEBOUNCE).await;
-                let inputs = {
-                    let mut guard = slots.lock().await;
-                    let Some(slot) = guard.get_mut(&uri) else {
-                        return;
-                    };
-                    if slot.dirty {
-                        slot.dirty = false;
-                        slot.latest_inputs.clone()
-                    } else {
-                        slot.running = false;
-                        return;
-                    }
-                };
-                // `latest_inputs` is set alongside `dirty`, so this is `Some`;
-                // guard defensively and retire if it is somehow absent.
-                let Some(inputs) = inputs else {
-                    if let Some(slot) = slots.lock().await.get_mut(&uri) {
-                        slot.running = false;
-                    }
-                    return;
-                };
-                // Capture + analyse the document's current state.  If it is gone
-                // (closed) there is nothing to publish — retire.
-                let Some(job) = inputs.capture_job(&uri).await else {
-                    let mut guard = slots.lock().await;
-                    if let Some(slot) = guard.get_mut(&uri) {
-                        slot.running = false;
-                    }
-                    return;
-                };
-                let settled = run_diagnostics_core(inputs, &uri, job).await;
-                if !settled {
-                    // Cancelled mid-flight — re-mark dirty so we retry the latest
-                    // state next loop.
-                    if let Some(slot) = slots.lock().await.get_mut(&uri) {
-                        slot.dirty = true;
-                    }
-                }
-            }
-        });
+        spawn_diagnostics_worker(slots, uri);
     }
 
     /// Best-effort dynamic registration of
@@ -9758,6 +10038,10 @@ impl LanguageServer for Backend {
         // IRULE4002 generic-name patterns for the iRules-only compiler-checks
         // code-action lowering below (uncached, off the salsa path).
         let generic_patterns = self.generic_variable_patterns.lock().await.clone();
+        // Same standalone-unit caveat as the pull-diagnostics path: without
+        // the project's evidence a quick-fix could offer to delete a branch
+        // the project proves reachable (issue #977).
+        let evidence = self.cross_file_evidence_for(&uri).await;
         let actions = tokio::task::spawn_blocking(move || {
             let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
             actions.extend(core_code_actions::package_require_actions(
@@ -9793,6 +10077,7 @@ impl LanguageServer for Backend {
                 &registry,
                 &dialect,
                 generic_patterns.as_deref(),
+                evidence.as_deref(),
             );
             actions.extend(core_code_actions::check_diagnostic_actions(
                 &doc.text,
@@ -13454,7 +13739,7 @@ mod tests {
         let src = "if {1} { set x 1 } else { set y 2 }\n";
         let diags = lift_compiler_diagnostics(
             src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None),
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None, None),
             true,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
@@ -13480,7 +13765,7 @@ mod tests {
         // Master switch off: no optimiser O-codes at all (compiler checks still run).
         let off = lift_compiler_diagnostics(
             src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None),
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None, None),
             false,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
@@ -13496,7 +13781,7 @@ mod tests {
         disabled.insert("O100".to_string());
         let per_code = lift_compiler_diagnostics(
             src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None),
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None, None),
             true,
             &disabled,
             &std::collections::HashSet::new(),
@@ -13517,7 +13802,7 @@ mod tests {
         let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
         let cdiags =
-            tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "f5-irules", None);
+            tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "f5-irules", None, None);
         let diags = lift_compiler_diagnostics(
             src,
             &cdiags,
@@ -13546,7 +13831,7 @@ mod tests {
         let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
         let cdiags =
-            tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "f5-irules", None);
+            tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "f5-irules", None, None);
         let is_irule3001 = |d: &tower_lsp_server::ls_types::Diagnostic| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "IRULE3001");
         // Baseline: IRULE3001 is present with no disabled codes.
         let baseline = lift_compiler_diagnostics(
@@ -13593,7 +13878,7 @@ mod tests {
         // Baseline: S100 fires with no suppression.
         let baseline = lift_compiler_diagnostics(
             src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None),
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None, None),
             true,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
@@ -13609,7 +13894,13 @@ mod tests {
             .clone();
         let filtered = lift_compiler_diagnostics(
             suppressed_src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(suppressed_src, &registry, "", None),
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(
+                suppressed_src,
+                &registry,
+                "",
+                None,
+                None,
+            ),
             true,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
@@ -13630,7 +13921,13 @@ mod tests {
             .clone();
         let unfiltered = lift_compiler_diagnostics(
             unrelated_src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(unrelated_src, &registry, "", None),
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(
+                unrelated_src,
+                &registry,
+                "",
+                None,
+                None,
+            ),
             true,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),

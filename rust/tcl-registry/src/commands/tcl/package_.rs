@@ -111,6 +111,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // it as part of the enclosing `package ifneeded` call's own scope.
         arg_roles: &[(2, ArgRole::Body)],
         body_kind: BodyKind::Structural,
+        // Registering a load script names *this* file as the thing that
+        // supplies `package`, so the commands it defines are public API a
+        // `package require` in some other file reaches — the same
+        // caller-set widening `provide` declares, one step earlier.
+        traits: Traits::PROVIDES_PACKAGE,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -167,6 +172,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "package provide package ?version?",
         return_type: Some(TclType::String),
         analyser_hook: Some(crate::hooks::AnalyserHookId::PackageProvide),
+        // Declares the file a loadable package: every command it defines
+        // is reachable from any file that `package require`s it, so a
+        // single-file view of the call sites is never the whole picture.
+        traits: Traits::PROVIDES_PACKAGE,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -186,6 +195,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
             }]
         },
         analyser_hook: Some(crate::hooks::AnalyserHookId::PackageRequire),
+        // Evaluates another unit's `ifneeded` script in this interpreter,
+        // so that unit's top level can call straight back into whatever
+        // this file has already defined.
+        traits: Traits::LOADS_EXTERNAL_UNIT,
         ..SubCommand::DEFAULT
     },
     SubCommand {

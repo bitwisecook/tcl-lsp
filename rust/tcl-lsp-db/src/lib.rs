@@ -33,14 +33,14 @@
 //! rather than modelled as a salsa input — reading an immutable value inside a
 //! tracked query is sound and avoids requiring `CommandRegistry: PartialEq`.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use tcl_compiler::cfg_builder::build_cfg_function_with_upvars;
 use tcl_compiler::cfg_builder::global_write_info::GlobalWriteInfo;
 use tcl_compiler::cfg_builder::upvar_info::UpvarInfo;
 use tcl_compiler::compilation_unit::{
-    CompilationUnit, FunctionUnit, LatticeRequest, ModuleTraceFacts,
+    CompilationUnit, FunctionUnit, LatticeRequest, ModuleTraceFacts, UnitBuildOptions,
 };
 use tcl_compiler::compiler_checks::{DiagCode, Diagnostic as CompilerCheck};
 use tcl_compiler::interprocedural::{InterproceduralAnalysis, ProcSummary};
@@ -48,6 +48,7 @@ use tcl_compiler::ir::Script;
 use tcl_compiler::optimiser::Optimisation;
 use tcl_compiler::ssa::ValueKey;
 use tcl_compiler::taint::TaintLattice;
+use tcl_compiler::unit_scope::CallSiteEvidence;
 // The compiler's per-proc return-taint summary (the colour-aware transfer
 // function the interprocedural fixpoint converges) — aliased to avoid clashing
 // with this crate's `ProcTaintSummary` (the *interproc-analysis* projection in
@@ -137,7 +138,7 @@ impl TclDb for TclDatabase {
 ///
 /// `set_text` (generated) is the single write on an edit — salsa cascades
 /// invalidation to every query that read it.
-#[salsa::input]
+#[salsa::input(constructor = with_call_site_evidence)]
 pub struct SourceFile {
     #[returns(ref)]
     pub text: String,
@@ -150,6 +151,42 @@ pub struct SourceFile {
     /// manifests) is analysed with that environment ambient.
     #[returns(ref)]
     pub path: Option<String>,
+    /// Call sites in **other** project files that reach the procedures this
+    /// file defines — the cross-file half of the interprocedural constant
+    /// seed (issue #977).
+    ///
+    /// `None` means "no workspace view": the compilation unit is then on its
+    /// own, and any registry-declared unit boundary in the file — including
+    /// `source` / `package require`, whose loaded unit a workspace normally
+    /// *does* contain — disables the seed rather than trusting an unprovable
+    /// "every caller is in this file".  `Some` is the host asserting it
+    /// enumerated the project, so the merged evidence is the whole picture;
+    /// `Some` of an *empty* evidence set is the meaningful statement "no
+    /// other file calls into this one".  A file that *publishes* commands
+    /// (`package provide`, `namespace export`) declines either way — no
+    /// project enumeration bounds another checkout's `package require`.
+    ///
+    /// Set by the server from [`project_call_site_evidence`] whenever the
+    /// slice relevant to *this* file changes (compare-then-set), so a
+    /// keystroke in an unrelated file leaves it — and every query reading it
+    /// — untouched.
+    #[returns(ref)]
+    pub external_call_sites: Option<Arc<CallSiteEvidence>>,
+}
+
+impl SourceFile {
+    /// Create a source file with **no** cross-file view (`external_call_sites
+    /// = None`) — the shape every standalone consumer (tests, examples, the
+    /// CLI's single-file paths) wants.  Hosts with a workspace call
+    /// [`Self::with_call_site_evidence`] instead, or set the field later.
+    pub fn new(
+        db: &dyn salsa::Database,
+        text: String,
+        dialect: String,
+        path: Option<String>,
+    ) -> Self {
+        Self::with_call_site_evidence(db, text, dialect, path, None)
+    }
 }
 
 /// Analyser configuration mirrored from the editor (the former
@@ -187,6 +224,14 @@ pub struct AnalyserConfig {
 /// concurrent edit's `set_text` until the whole walk finishes). `file_analysis`
 /// itself stays live as the differential-fuzzer / corpus-gate ground truth
 /// [`file_analysis_incremental`] is proven byte-identical against.
+///
+/// One deliberate asymmetry: this query lets the analyser build its **own**
+/// compilation unit, so it never sees [`SourceFile::external_call_sites`],
+/// while [`file_analysis_incremental`] feeds it the shared
+/// [`compilation_unit`] (which does). The two therefore agree exactly when
+/// the file has no cross-file view — which is every gate and fuzzer input,
+/// since [`SourceFile::new`] leaves the field `None`. Production reads only
+/// the incremental query.
 #[salsa::tracked]
 pub fn file_analysis(
     db: &dyn salsa::Database,
@@ -276,6 +321,91 @@ pub fn project_proc_names(db: &dyn salsa::Database, project: Project) -> Arc<BTr
         names.extend(file_decls(db, file).procs.iter().cloned());
     }
     Arc::new(names)
+}
+
+/// Every call site **this** file contributes, resolved against the whole
+/// project's procedure names.
+///
+/// The per-file half of the cross-file interprocedural seed (issue #977):
+/// `lib.tcl`'s own compilation unit can never see `main.tcl`'s `helper dev`,
+/// so each file publishes its call sites here and
+/// [`project_call_site_evidence`] merges them.
+///
+/// Depends on the file's text **and** on [`project_proc_names`] — the
+/// signature firewall — so a body edit anywhere else in the project leaves
+/// this query's inputs unchanged and it is not re-run.  Its own result
+/// early-cutoffs too: an edit that does not move a call site's literal
+/// arguments produces an equal `CallSiteEvidence` and backdates, so
+/// [`project_call_site_evidence`] (and every compilation unit downstream of
+/// it) is left alone.
+#[salsa::tracked]
+pub fn file_call_site_evidence(
+    db: &dyn TclDb,
+    file: SourceFile,
+    project: Project,
+) -> Arc<CallSiteEvidence> {
+    let dialect = file.dialect(db).clone();
+    let registry = db.registry(&dialect);
+    let known: std::collections::HashSet<String> =
+        project_proc_names(db, project).iter().cloned().collect();
+    let scanned = tcl_compiler::unit_scope::scan_source_call_sites(
+        file.text(db),
+        &registry,
+        &dialect,
+        &known,
+    );
+    // Drop the callees *this* file declares. A call to a name the file also
+    // defines binds to its own definition, so it is in-unit evidence (already
+    // collected during the build) — not evidence about a same-named proc in
+    // some other file.
+    //
+    // Without this, any two unrelated workspace files that happen to reuse a
+    // common helper name (`helper`, `init`, `run` — pervasive in Tcl) pool
+    // their call sites: differing arities make `binds_position` fail and
+    // differing literals contradict each other, so *both* files lose folds
+    // they are individually entitled to, and editing one changes diagnostics
+    // in the other. Excluding self-declared callees keeps the merge to what
+    // the query name promises — the call sites a file contributes to *other*
+    // files' procedures.
+    let declared = file_decls(db, file);
+    let external: Vec<&str> = scanned
+        .callees()
+        .filter(|qname| !declared.procs.contains(*qname))
+        .collect();
+    Arc::new(scanned.slice_for(external.into_iter()))
+}
+
+/// The project-wide merge of every file's [`file_call_site_evidence`].
+///
+/// One table serves every file: a unit's own call sites are already in it, and
+/// merging is monotone, so handing a file the whole project's view is exactly
+/// what it would have collected had the project been one source text.
+#[salsa::tracked]
+pub fn project_call_site_evidence(db: &dyn TclDb, project: Project) -> Arc<CallSiteEvidence> {
+    let mut merged = CallSiteEvidence::default();
+    for &file in project.files(db) {
+        merged.merge_from(&file_call_site_evidence(db, file, project));
+    }
+    Arc::new(merged)
+}
+
+/// The slice of [`project_call_site_evidence`] that concerns the procedures
+/// `file` itself declares — what a host sets on
+/// [`SourceFile::external_call_sites`].
+///
+/// Narrowing to the file's own declarations is what keeps invalidation
+/// precise: editing a call site in `main.tcl` changes only the evidence of the
+/// file that *defines* the callee, so only that file's compilation unit is
+/// rebuilt.
+#[salsa::tracked]
+pub fn file_external_call_sites(
+    db: &dyn TclDb,
+    file: SourceFile,
+    project: Project,
+) -> Arc<CallSiteEvidence> {
+    let declared = file_decls(db, file);
+    let all = project_call_site_evidence(db, project);
+    Arc::new(all.slice_for(declared.procs.iter().map(String::as_str)))
 }
 
 /// Extract the unknown-command name from a W123 message
@@ -900,12 +1030,9 @@ pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Sc
 pub fn memoised_compilation_unit(
     db: &dyn TclDb,
     source: &str,
-    registry: &CommandRegistry,
-    defer_top_level: bool,
-    config: tcl_lexer::LexerConfig,
-    dialect_opt: Option<&str>,
+    options: UnitBuildOptions<'_>,
 ) -> CompilationUnit {
-    build_unit_with_keys(db, source, registry, defer_top_level, config, dialect_opt).0
+    build_unit_with_keys(db, source, options).0
 }
 
 /// [`memoised_compilation_unit`] that also returns the per-procedure
@@ -924,12 +1051,13 @@ pub fn memoised_compilation_unit(
 fn build_unit_with_keys<'db>(
     db: &'db dyn TclDb,
     source: &str,
-    registry: &CommandRegistry,
-    defer_top_level: bool,
-    config: tcl_lexer::LexerConfig,
-    dialect_opt: Option<&str>,
+    options: UnitBuildOptions<'_>,
 ) -> (CompilationUnit, HashMap<String, FnLatticeKey<'db>>) {
-    let dialect = dialect_opt.unwrap_or("");
+    let UnitBuildOptions {
+        registry, config, ..
+    } = options;
+    let dialect = options.dialect;
+    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
     // The module CFG context is the same for every procedure in this build;
     // intern it once on the first request and reuse the id (O(procs), not
     // O(procs²)).
@@ -989,14 +1117,7 @@ fn build_unit_with_keys<'db>(
     // empty table — so a file that may establish aliases forgoes the cache
     // entirely (the per-body scan cannot see a top-level alias).
     let cu = if tcl_compiler::lowering::source_may_alias_commands(source) {
-        CompilationUnit::build_for_memoized(
-            source,
-            registry,
-            defer_top_level,
-            config,
-            dialect,
-            &mut lattice_memo,
-        )
+        CompilationUnit::build_for_memoized(source, options, &mut lattice_memo)
     } else {
         let body_memo = |body_text: &str, namespace: &str| -> Script {
             let key = ProcBodyKey::new(
@@ -1011,10 +1132,7 @@ fn build_unit_with_keys<'db>(
         };
         CompilationUnit::build_for_memoized_with_body_cache(
             source,
-            registry,
-            defer_top_level,
-            config,
-            dialect,
+            options,
             &mut lattice_memo,
             &body_memo,
         )
@@ -1447,13 +1565,17 @@ pub fn proc_taint_solve<'db>(
     let dialect = file.dialect(db).clone();
     let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
     let registry = db.registry(&dialect);
+    let external = file.external_call_sites(db).clone();
     let (cu, lattice_keys) = build_unit_with_keys(
         db,
         file.text(db),
-        &registry,
-        false,
-        cfg.to_config(db),
-        dialect_opt,
+        UnitBuildOptions {
+            registry: &registry,
+            defer_top_level: false,
+            config: cfg.to_config(db),
+            dialect: &dialect,
+            external_call_sites: external.as_deref(),
+        },
     );
     let interproc = cu.interproc.as_ref();
 
@@ -1831,9 +1953,9 @@ pub fn function_optimisations<'db>(
         body_units: HashMap::new(),
         interproc: Some(ia),
         connection_scope: None,
-        // Explorer-only provenance; this synthetic per-proc unit is an
-        // optimiser input, never an explorer one.
-        interproc_param_constants: BTreeMap::new(),
+        // A synthetic single-procedure unit: no source text of its own to
+        // scan for boundaries, and no cross-file view to inherit.
+        caller_scope: tcl_compiler::compilation_unit::UnitCallerScope::default(),
     };
     Arc::new(tcl_compiler::optimiser::optimise_unit_raw(
         &cu,
@@ -2007,7 +2129,10 @@ fn solve_optimisations<'db>(
         body_units: HashMap::new(),
         interproc: cu.interproc.clone(),
         connection_scope: None,
-        interproc_param_constants: cu.interproc_param_constants.clone(),
+        // Carried from the real unit: the top-level's own O103 folds must
+        // read the same boundary / cross-file facts the whole-module build
+        // resolved, not a fresh empty scope.
+        caller_scope: cu.caller_scope.clone(),
     };
     for mut opt in tcl_compiler::optimiser::optimise_unit_raw(&top_unit, registry, dialect_opt) {
         if let Some(g) = opt.group {
@@ -2067,15 +2192,18 @@ pub fn compilation_unit<'db>(
     cfg: LexerCfgKey<'db>,
 ) -> Arc<CompilationUnit> {
     let dialect = file.dialect(db).clone();
-    let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
     let registry = db.registry(&dialect);
+    let external = file.external_call_sites(db).clone();
     Arc::new(memoised_compilation_unit(
         db,
         file.text(db),
-        &registry,
-        false,
-        cfg.to_config(db),
-        dialect_opt,
+        UnitBuildOptions {
+            registry: &registry,
+            defer_top_level: false,
+            config: cfg.to_config(db),
+            dialect: &dialect,
+            external_call_sites: external.as_deref(),
+        },
     ))
 }
 
@@ -2229,13 +2357,18 @@ pub fn compiler_check_diagnostics_uncached(
     registry: &CommandRegistry,
     dialect: &str,
     generic_patterns: Option<&[String]>,
+    external_call_sites: Option<&CallSiteEvidence>,
 ) -> CompilerDiagnostics {
     let dialect_opt = (!dialect.is_empty()).then_some(dialect);
-    let cu = CompilationUnit::build_for_with_config(
+    let cu = CompilationUnit::build_with_options(
         text,
-        registry,
-        false,
-        tcl_lexer::LexerConfig::for_dialect(dialect),
+        UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::for_dialect(dialect),
+            dialect,
+            external_call_sites,
+        },
     )
     .with_interprocedural(registry, dialect_opt);
     compiler_diagnostics_from_unit(&cu, registry, dialect_opt, generic_patterns)
@@ -2467,7 +2600,7 @@ mod tests {
         let registry = db.registry(dialect);
         let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
         let got = compiler_check_diagnostics(&db, file, cfg(&db));
-        let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None);
+        let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None, None);
         assert!(
             got.optimisations.iter().any(|o| o.code == DiagCode::O122),
             "expected O122 to fire on the tail-recursive proc"
@@ -2634,6 +2767,160 @@ mod tests {
             "a single-body edit must recompute exactly one item via the token \
              path: {after_edit:?}"
         );
+    }
+
+    /// Issue #977, end-to-end through the query graph: `lib.tcl` has no
+    /// `package provide`, its two in-file callers agree on `"prod"`, and
+    /// `main.tcl` — which the single-file compilation unit can never see —
+    /// calls `helper dev`.  With the project's evidence set on the file, the
+    /// I230 "condition is always true/false" fold must not happen.
+    mod cross_file_call_sites {
+        use super::*;
+
+        const LIB: &str = "proc helper {mode} {\n\
+                           if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n\
+                           }\n\
+                           helper prod\n\
+                           helper prod\n";
+
+        /// Build a two-file project and return `lib`'s compilation unit with
+        /// the project evidence applied, exactly as the server's
+        /// `sync_cross_file_evidence` does.
+        fn lib_unit_with_project(main_src: &str) -> Arc<CompilationUnit> {
+            use salsa::Setter as _;
+            let mut db = TclDatabase::default();
+            let lib = SourceFile::new(&db, LIB.to_owned(), "tcl8.6".to_owned(), None);
+            let main = SourceFile::new(&db, main_src.to_owned(), "tcl8.6".to_owned(), None);
+            let project = Project::new(&db, vec![lib, main]);
+            let evidence = file_external_call_sites(&db, lib, project);
+            lib.set_external_call_sites(&mut db).to(Some(evidence));
+            document_compilation_unit(&db, lib)
+        }
+
+        fn folds_mode(cu: &CompilationUnit) -> bool {
+            !cu.procedures
+                .get("::helper")
+                .expect("helper analysed")
+                .sccp
+                .constant_branches
+                .is_empty()
+        }
+
+        #[test]
+        fn caller_in_another_file_with_a_differing_literal_retracts_the_fold() {
+            let cu = lib_unit_with_project("source lib.tcl\nhelper dev\n");
+            assert!(
+                !folds_mode(&cu),
+                "main.tcl calls helper with \"dev\"; the seed is unsound"
+            );
+        }
+
+        #[test]
+        fn caller_in_another_file_agreeing_still_folds() {
+            let cu = lib_unit_with_project("source lib.tcl\nhelper prod\n");
+            assert!(
+                folds_mode(&cu),
+                "every caller in the project passes \"prod\""
+            );
+        }
+
+        /// The per-file slice is keyed on the file's own declarations *and*
+        /// carries only calls from **other** files.
+        ///
+        /// `main` both declares and calls `::other`, so that call is in-unit
+        /// evidence for `main` and never reaches its external slice — leaving
+        /// it empty, which is still the meaningful "the project was
+        /// enumerated, nobody else calls in" claim. `lib`'s slice does carry
+        /// `::helper`, because `main` calls it without declaring it.
+        #[test]
+        fn slice_carries_only_other_files_calls_to_this_files_procs() {
+            let db = TclDatabase::default();
+            let lib = SourceFile::new(&db, LIB.to_owned(), "tcl8.6".to_owned(), None);
+            let main = SourceFile::new(
+                &db,
+                "proc other {x} { return $x }\nother 1\nhelper dev\n".to_owned(),
+                "tcl8.6".to_owned(),
+                None,
+            );
+            let project = Project::new(&db, vec![lib, main]);
+            let lib_slice = file_external_call_sites(&db, lib, project);
+            assert_eq!(lib_slice.callees().collect::<Vec<_>>(), vec!["::helper"]);
+            let main_slice = file_external_call_sites(&db, main, project);
+            assert!(
+                main_slice.is_empty(),
+                "main's call to its own `other` is in-unit evidence: {main_slice:?}"
+            );
+        }
+
+        /// A workspace pools every file into one project, so two *unrelated*
+        /// files reusing a common helper name (`helper`, `init`, `run` — endemic
+        /// in Tcl) must not pool their call sites.  Here the second file declares
+        /// its own zero-arity `::helper`; without the self-declared-callee
+        /// exclusion its call contributes `arg_counts {0}`, `binds_position(0)`
+        /// fails, and the first file loses a fold it is entitled to — and would
+        /// regain only when the unrelated file changed.
+        ///
+        /// Caught by the VS Code suite, where ~200 fixtures share one workspace
+        /// folder: this exact collision broke issue #969's TP control.
+        #[test]
+        fn an_unrelated_file_reusing_a_proc_name_does_not_poison_the_seed() {
+            use salsa::Setter as _;
+            let mut db = TclDatabase::default();
+            let ctl = SourceFile::new(
+                &db,
+                "proc helper {mode} {\n if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n}\n\
+             proc c1 {} { helper prod }\nproc c2 {} { helper prod }\n"
+                    .to_owned(),
+                "tcl8.6".to_owned(),
+                None,
+            );
+            let unrelated = SourceFile::new(
+                &db,
+                "proc helper {} {}\nproc caller {} { helper }\n".to_owned(),
+                "tcl8.6".to_owned(),
+                None,
+            );
+            let project = Project::new(&db, vec![ctl, unrelated]);
+            let evidence = file_external_call_sites(&db, ctl, project);
+            assert!(
+                evidence.get("::helper").is_none(),
+                "the unrelated file's own `helper` is in-unit evidence there, not \
+             evidence about this file's proc: {evidence:?}"
+            );
+            ctl.set_external_call_sites(&mut db).to(Some(evidence));
+            let cu = document_compilation_unit(&db, ctl);
+            assert!(
+                !cu.procedures
+                    .get("::helper")
+                    .expect("helper analysed")
+                    .sccp
+                    .constant_branches
+                    .is_empty(),
+                "every caller that can actually reach this proc passes \"prod\""
+            );
+        }
+
+        /// A body edit that moves no call-site literal must leave
+        /// `project_call_site_evidence` equal, so it backdates and no
+        /// compilation unit downstream of it is invalidated.
+        #[test]
+        fn evidence_backdates_across_an_unrelated_body_edit() {
+            use salsa::Setter as _;
+            let mut db = TclDatabase::default();
+            let lib = SourceFile::new(&db, LIB.to_owned(), "tcl8.6".to_owned(), None);
+            let main = SourceFile::new(
+                &db,
+                "source lib.tcl\nhelper dev\n".to_owned(),
+                "tcl8.6".to_owned(),
+                None,
+            );
+            let project = Project::new(&db, vec![lib, main]);
+            let before = file_external_call_sites(&db, lib, project);
+            main.set_text(&mut db)
+                .to("source lib.tcl\nset unrelated 1\nhelper dev\n".to_owned());
+            let after = file_external_call_sites(&db, lib, project);
+            assert_eq!(*before, *after, "an unrelated edit must not move evidence");
+        }
     }
 
     /// [`project_class_index`] and [`project_proc_var_index`] must likewise
@@ -3070,7 +3357,7 @@ mod tests {
                 ),
             );
             let registry = db.registry(dialect);
-            let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None);
+            let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None, None);
             assert_eq!(
                 got.checks, want.checks,
                 "checks differ for ({dialect}):\n{src}"
@@ -3134,7 +3421,7 @@ mod tests {
                     None,
                 ),
             );
-            let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None);
+            let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None, None);
             assert_eq!(
                 got.checks, want.checks,
                 "cascade checks diverge after edit to:\n{src}"
@@ -3227,7 +3514,7 @@ mod tests {
             file.set_text(&mut db).to(src.clone());
 
             let got = compiler_check_diagnostics(&db, file, cfg(&db));
-            let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None);
+            let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None, None);
             assert_eq!(
                 got.checks, want.checks,
                 "iter {iter}: checks diverge from fresh build for state {state:?}:\n{src}"

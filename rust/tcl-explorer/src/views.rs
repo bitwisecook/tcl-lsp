@@ -44,6 +44,7 @@ pub const VIEW_META: &[ViewMeta] = &[
     ("bounds", "Bounds", "compiler"),
     ("dataflow", "Data Flow", "compiler"),
     ("interproc", "Interprocedural", "compiler"),
+    ("unitScope", "Unit Scope", "compiler"),
     ("rendered", "Rendered Props", "compiler"),
     ("opt", "Optimisations", "optimiser"),
     ("optimiserPasses", "Pass Pipeline", "optimiser"),

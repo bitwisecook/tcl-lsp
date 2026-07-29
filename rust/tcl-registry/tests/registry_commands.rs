@@ -378,6 +378,49 @@ fn splice_safe_membership() {
 /// registry-metadata: frame-sensitivity is our classification (the
 /// `TERMINATES_BLOCK` | `TRANSFERS_CONTROL` | `CREATES_SCOPE_ALIAS` |
 /// `CREATES_BARRIER` trait union).
+/// Every `::tcl::mathop` operator command is `PURE`.
+///
+/// The namespace spec carried `PURE` but the commands generated under it did
+/// not, so `classify_side_effects` treated `[+ $a $b]` as impure and the GVN
+/// pass would neither hoist nor CSE it. Found by scanning all specs for trait
+/// pairs that never co-occur: `OPERATOR_COMMAND` (87 specs) and `PURE` (379)
+/// had no overlap at all, which for arithmetic is not a plausible fact.
+///
+/// Purity here is a statement about the command, not a policy: an operator
+/// reads its operands and returns a result, touching no variable, channel, or
+/// interpreter state. A bad operand raises an error, which the registry
+/// models as control flow rather than a side effect.
+#[test]
+fn operator_commands_are_pure() {
+    let reg = CommandRegistry::build_default();
+    let ops = [
+        "!", "!=", "%", "&", "*", "**", "+", "-", "/", "<", "<<", "<=", "==", ">", ">=", ">>", "^",
+        "eq", "ge", "gt", "in", "le", "lt", "ne", "ni", "|", "~",
+    ];
+    for op in ops {
+        let spec = reg
+            .get(op)
+            .unwrap_or_else(|| panic!("{op} is a registered operator"));
+        assert!(
+            spec.traits.contains(Traits::OPERATOR_COMMAND),
+            "{op} is an operator command"
+        );
+        assert!(
+            spec.traits.contains(Traits::PURE),
+            "{op} computes a value with no side effect and must be PURE, or \
+             the optimiser cannot hoist or CSE it"
+        );
+    }
+    // The qualified spellings carry the traits too — the optimiser sees
+    // whichever spelling the source used.
+    for name in ["::tcl::mathop::+", "tcl::mathop::eq"] {
+        let spec = reg
+            .get(name)
+            .unwrap_or_else(|| panic!("{name} is registered"));
+        assert!(spec.traits.contains(Traits::PURE), "{name} must be PURE");
+    }
+}
+
 #[test]
 fn frame_sensitive_membership() {
     let (reg, _) = reg_and_set("tcl8.6");

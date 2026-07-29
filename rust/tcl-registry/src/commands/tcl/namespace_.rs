@@ -269,6 +269,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         closed_value_args: &[0],
         arg_values_accept_prefix: true,
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceEnsemble),
+        // An ensemble publishes its namespace's commands under a single
+        // dispatching command name (and `-map` can redirect a subcommand
+        // to an arbitrary prefix), so the mapped commands acquire callers
+        // that need not appear in this file at all.
+        traits: Traits::EXPORTS_COMMAND,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -308,6 +313,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::List),
         options: EXPORT_OPTIONS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceExport),
+        // Publishes this namespace's commands for another unit to
+        // `namespace import`, so the exported names have callers this file
+        // does not contain.
+        traits: Traits::EXPORTS_COMMAND,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -342,6 +351,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::List),
         options: IMPORT_OPTIONS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceImport),
+        // Deliberately NOT `LOADS_EXTERNAL_UNIT`: `namespace import
+        // ::lib::*` is just as often an intra-file convenience over a
+        // namespace the same file defines, which proves nothing about
+        // other units. The import *is* a real caller path, but
+        // `unit_scope`'s evidence scan already models it precisely (it
+        // resolves calls through the import, and records an opaque caller
+        // when it cannot), so nothing is lost by leaving the coarse
+        // boundary flag off.
         ..SubCommand::DEFAULT
     },
     SubCommand {

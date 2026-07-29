@@ -739,6 +739,46 @@ fn build_interproc(d: &Value) -> Vec<ViewNode> {
     }
 }
 
+/// Why the interprocedural constant seed fired (or declined) for each
+/// procedure: the registry-declared unit boundaries the file crosses, whether
+/// the host supplied a cross-file view, and the merged call-site evidence
+/// per callee (issue #977).
+fn build_unit_scope(d: &Value) -> Vec<ViewNode> {
+    let scope = &d["unitScope"];
+    let boundaries = join_str_array(&scope["boundaries"]);
+    let mut out = vec![ViewNode::leaf(
+        "unit".to_owned(),
+        vec![
+            det(
+                "registry boundaries",
+                if boundaries.is_empty() {
+                    "none".to_owned()
+                } else {
+                    boundaries
+                },
+            ),
+            det("cross-file view", yn(&scope["hasCrossFileEvidence"])),
+            det("seeding", s(scope, "seeding")),
+        ],
+        Some("cyan"),
+    )];
+    for callee in arr(scope, "callees") {
+        let detail = arr(callee, "positions")
+            .iter()
+            .map(|p| det("arg", format!("{}: {}", s(p, "index"), s(p, "verdict"))))
+            .chain(std::iter::once(det(
+                "argument counts",
+                join_str_array(&callee["argCounts"]),
+            )))
+            .collect();
+        out.push(ViewNode::leaf(s(callee, "name"), detail, Some("green")));
+    }
+    if out.len() == 1 {
+        out.push(ViewNode::note("(no resolvable call sites)", "dim"));
+    }
+    out
+}
+
 // --- Optimiser / GVN / shimmer / taint / iRules / callouts ---
 
 fn build_opt(d: &Value) -> Vec<ViewNode> {
@@ -1161,6 +1201,7 @@ pub const TREE_VIEWS: &[&str] = &[
     "bounds",
     "dataflow",
     "interproc",
+    "unitScope",
     "rendered",
     "opt",
     "optimiserPasses",
@@ -1186,6 +1227,7 @@ pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
         "bounds" => build_bounds(data),
         "dataflow" => build_dataflow(data),
         "interproc" => build_interproc(data),
+        "unitScope" => build_unit_scope(data),
         "rendered" => build_rendered(data),
         "structuralIndex" => build_structural_index(data),
         "sourceMap" => build_source_map(data),

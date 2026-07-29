@@ -150,6 +150,10 @@ User-facing compiler troubleshooting and how-tos live in
   command-substitution intent facts used by the optimiser and shimmer.
 - [compilation-unit-contracts.md](compilation-unit-contracts.md) —
   compilation unit orchestration and incremental cache expectations.
+- [compilation-unit-scope.md](compilation-unit-scope.md) — when a fact
+  derived from one file's call sites may be trusted as a fact about every
+  caller: cross-file evidence, registry-declared unit boundaries, and the
+  interprocedural constant seed's gate.
 
 ## Optimisation passes
 

@@ -49,7 +49,11 @@ pub fn spec() -> CommandSpec {
         // `CmdInfo` row and is absent from the exact C Tcl
         // safe-interpreter hidden-command table documented on
         // `Traits::SAFE_INTERP_HIDDEN` — that trait does not apply here.
-        traits: Traits::OVERRIDABLE_LIBRARY_PROC,
+        traits: Traits::OVERRIDABLE_LIBRARY_PROC
+            // Sources the auto-index-named file that defines `cmdName`
+            // into this interpreter, so that file's script can call back
+            // into whatever this one has defined.
+            | Traits::LOADS_EXTERNAL_UNIT,
         // `auto_load cmd ?namespace?`: library.n (8.4 through 9.1) only
         // documents `cmd`, but every shipped `library/init.tcl` defines
         // `proc auto_load {cmd {namespace {}}} …` — confirmed against the

@@ -263,11 +263,42 @@ function renderCfgPost() {
   requestAnimationFrame(function() { drawAllCfgEdges(pane, funcs); });
 }
 
+// Unit scope: who else can call this file's procedures (issue #977).
+// Rendered at the top of the Interproc pane because it is the precondition
+// for every interprocedural constant seed below it — the `seeding` line says
+// whether the seeds were allowed, and which boundary declined them.
+function renderUnitScope() {
+  var scope = data.unitScope;
+  if (!scope) return '';
+  var boundaries = (scope.boundaries && scope.boundaries.length)
+    ? esc(scope.boundaries.join(', '))
+    : 'none';
+  var html = '<div class="proc-card">';
+  html += '<div class="proc-name">unit scope';
+  html += '<span class="pure-badge ' + (scope.hasCrossFileEvidence ? 'pure-yes' : 'pure-no') + '">'
+    + (scope.hasCrossFileEvidence ? 'cross-file view' : 'single file') + '</span>';
+  html += '</div>';
+  html += '<div class="proc-detail">registry boundaries: <span class="val">' + boundaries + '</span></div>';
+  html += '<div class="proc-detail">seeding: <span class="val">' + esc(scope.seeding || '') + '</span></div>';
+  for (var c of (scope.callees || [])) {
+    var parts = [];
+    for (var pos of (c.positions || [])) parts.push('arg ' + esc(pos.index) + ': ' + esc(pos.verdict));
+    html += '<div class="proc-detail">' + esc(c.name) + ': <span class="val">'
+      + (parts.length ? parts.join('; ') : '\u2014') + '</span></div>';
+  }
+  html += '</div>';
+  return html;
+}
+
 // Interprocedural
 function renderInterproc() {
   var pane = $('#pane-interproc');
-  if (!data.interprocedural.length) { pane.innerHTML = '<div class="empty-state">No procedures to analyse</div>'; return; }
-  var html = '';
+  var scopeHtml = renderUnitScope();
+  if (!data.interprocedural.length) {
+    pane.innerHTML = scopeHtml + '<div class="empty-state">No procedures to analyse</div>';
+    return;
+  }
+  var html = scopeHtml;
   for (var p of data.interprocedural) {
     // TclOO method summaries carry a different shape than proc summaries
     // (no arity/foldable/returnShape; instead methodKind + instance-var

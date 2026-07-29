@@ -509,7 +509,7 @@ mod tests {
             body_units: HashMap::new(),
             interproc: None,
             connection_scope: None,
-            interproc_param_constants: std::collections::BTreeMap::new(),
+            caller_scope: crate::compilation_unit::UnitCallerScope::default(),
         }
     }
 

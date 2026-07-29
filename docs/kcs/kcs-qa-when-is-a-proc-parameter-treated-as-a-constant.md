@@ -44,23 +44,38 @@ Here the analyser works out which names `$cmd` can hold (`helper`), treats the
 line as an ordinary call to `helper` with `dev`, and stops folding `$mode`.
 Adding that one line is what makes the earlier `I230` disappear — correctly.
 
-Some indirections cannot be resolved at all. When the analyser cannot tell
-which command a dispatch will run, or cannot read a script the code hands to
-another command, it must assume the worst — that *any* procedure in the file
-may be called with *any* argument — and it stops treating **every** parameter
-in that file as constant:
+A callback names its command, so only *that* procedure is affected. The
+analyser knows `helper` is called but not with what, because the runtime
+supplies the arguments — so `helper`'s parameters stop being constant while
+every other procedure in the file keeps its own:
+
+```tcl
+lsort -command helper $l   ;# helper runs with arguments the runtime supplies
+trace add variable v write helper
+```
+
+Some indirections name no command at all. When the analyser cannot tell which
+command a dispatch will run, or cannot read a script the code hands to another
+command, it must assume the worst — that *any* procedure in the file may be
+called with *any* argument — and it stops treating **every** parameter in that
+file as constant:
 
 ```tcl
 set cmd [gets stdin]     ;# could be any command name
 $cmd dev
 
 eval $script             ;# could be any script
-lsort -command helper $l ;# helper runs with arguments the runtime supplies
 ```
+
+Note the contrast with the first example on this page: `set cmd helper; $cmd
+dev` names a command the analyser *can* work out, so it is treated as an
+ordinary call to `helper` and affects nothing else. It is only when the value
+cannot be pinned down that the whole file loses its constants.
 
 A [`package provide`](codes/kcs-diagnostic-w123-unresolved-command.md) in the
 file has the same effect, because another file may call the procedure
-differently. None of this is something to work around: fewer folded parameters
+differently. So does a `source` of another file when the analyser has no view
+of the rest of the project. None of this is something to work around: fewer folded parameters
 means fewer diagnostics, never wrong ones. If you see a condition folded that
 your code really does vary at run time, that is a bug worth reporting — the
 fix is always to make the analyser see the call, never to special-case the

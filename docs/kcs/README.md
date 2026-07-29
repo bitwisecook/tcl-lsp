@@ -35,6 +35,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   you want to know whether the Tcl Language Server started at all.
 - [kcs-issue-stale-compiler-cache.md](kcs-issue-stale-compiler-cache.md)
   — stale incremental cache produces wrong diagnostics.
+- [kcs-issue-memory-grows-while-editing.md](kcs-issue-memory-grows-while-editing.md)
+  — the language server's memory use climbs with every keystroke and never
+  comes back down.
 - [kcs-issue-problems-not-retained-after-closing-files.md](kcs-issue-problems-not-retained-after-closing-files.md)
   — a file's problems and File Explorer badge vanish after its editor
   tab is closed.
@@ -59,6 +62,14 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   hidden command is reached only through a `[...]` bracket substitution —
   most importantly the `package ifneeded ... [list apply {...} $dir]`
   deferred-command idiom.
+- [kcs-issue-w129-false-positive-on-control-transfer-commands.md](kcs-issue-w129-false-positive-on-control-transfer-commands.md)
+  — W129 wrongly fires on `break`, `continue`, `yield`, `yieldto`, and
+  `tailcall` in a safe-interpreter body, and the *Inline proc* code action
+  is missing on `file`, `exec`, `open`, and seven other commands — two
+  symptoms of one trait-flag bit collision.
+- [kcs-issue-always-true-condition-in-a-sourced-library-file.md](kcs-issue-always-true-condition-in-a-sourced-library-file.md)
+  — I230 says a condition is always true in a library file whose procedure
+  is really called with different values from another file.
 - [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
   — the same finding is reported twice.
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)

@@ -3,39 +3,48 @@
   "commands": [
     {
       "name": "!",
-      "summary": "logical NOT"
+      "summary": "logical NOT",
+      "pure": true
     },
     {
       "name": "!=",
-      "summary": "numeric inequality"
+      "summary": "numeric inequality",
+      "pure": true
     },
     {
       "name": "%",
-      "summary": "modulo"
+      "summary": "modulo",
+      "pure": true
     },
     {
       "name": "&",
-      "summary": "bitwise AND"
+      "summary": "bitwise AND",
+      "pure": true
     },
     {
       "name": "*",
-      "summary": "multiplication"
+      "summary": "multiplication",
+      "pure": true
     },
     {
       "name": "**",
-      "summary": "exponentiation"
+      "summary": "exponentiation",
+      "pure": true
     },
     {
       "name": "+",
-      "summary": "arithmetic identity"
+      "summary": "arithmetic identity",
+      "pure": true
     },
     {
       "name": "-",
-      "summary": "arithmetic negation"
+      "summary": "arithmetic negation",
+      "pure": true
     },
     {
       "name": "/",
-      "summary": "division"
+      "summary": "division",
+      "pure": true
     },
     {
       "name": "::tcl::dict::append",
@@ -439,111 +448,138 @@
     },
     {
       "name": "::tcl::mathop::!",
-      "summary": "logical NOT"
+      "summary": "logical NOT",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::!=",
-      "summary": "numeric inequality"
+      "summary": "numeric inequality",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::%",
-      "summary": "modulo"
+      "summary": "modulo",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::&",
-      "summary": "bitwise AND"
+      "summary": "bitwise AND",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::*",
-      "summary": "multiplication"
+      "summary": "multiplication",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::**",
-      "summary": "exponentiation"
+      "summary": "exponentiation",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::+",
-      "summary": "arithmetic identity"
+      "summary": "arithmetic identity",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::-",
-      "summary": "arithmetic negation"
+      "summary": "arithmetic negation",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::/",
-      "summary": "division"
+      "summary": "division",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::<",
-      "summary": "numeric less-than"
+      "summary": "numeric less-than",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::<<",
-      "summary": "left shift"
+      "summary": "left shift",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::<=",
-      "summary": "numeric less-or-equal"
+      "summary": "numeric less-or-equal",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::==",
-      "summary": "numeric equality"
+      "summary": "numeric equality",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::>",
-      "summary": "numeric greater-than"
+      "summary": "numeric greater-than",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::>=",
-      "summary": "numeric greater-or-equal"
+      "summary": "numeric greater-or-equal",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::>>",
-      "summary": "right shift"
+      "summary": "right shift",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::^",
-      "summary": "bitwise XOR"
+      "summary": "bitwise XOR",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::eq",
-      "summary": "string equality"
+      "summary": "string equality",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::ge",
-      "summary": "string greater-or-equal"
+      "summary": "string greater-or-equal",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::gt",
-      "summary": "string greater-than"
+      "summary": "string greater-than",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::in",
-      "summary": "list membership"
+      "summary": "list membership",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::le",
-      "summary": "string less-or-equal"
+      "summary": "string less-or-equal",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::lt",
-      "summary": "string less-than"
+      "summary": "string less-than",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::ne",
-      "summary": "string inequality"
+      "summary": "string inequality",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::ni",
-      "summary": "list non-membership"
+      "summary": "list non-membership",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::|",
-      "summary": "bitwise OR"
+      "summary": "bitwise OR",
+      "pure": true
     },
     {
       "name": "::tcl::mathop::~",
-      "summary": "bitwise complement"
+      "summary": "bitwise complement",
+      "pure": true
     },
     {
       "name": "::tcl::process",
@@ -581,31 +617,38 @@
     },
     {
       "name": "<",
-      "summary": "numeric less-than"
+      "summary": "numeric less-than",
+      "pure": true
     },
     {
       "name": "<<",
-      "summary": "left shift"
+      "summary": "left shift",
+      "pure": true
     },
     {
       "name": "<=",
-      "summary": "numeric less-or-equal"
+      "summary": "numeric less-or-equal",
+      "pure": true
     },
     {
       "name": "==",
-      "summary": "numeric equality"
+      "summary": "numeric equality",
+      "pure": true
     },
     {
       "name": ">",
-      "summary": "numeric greater-than"
+      "summary": "numeric greater-than",
+      "pure": true
     },
     {
       "name": ">=",
-      "summary": "numeric greater-or-equal"
+      "summary": "numeric greater-or-equal",
+      "pure": true
     },
     {
       "name": ">>",
-      "summary": "right shift"
+      "summary": "right shift",
+      "pure": true
     },
     {
       "name": "DES::Decrypt",
@@ -681,7 +724,8 @@
     },
     {
       "name": "^",
-      "summary": "bitwise XOR"
+      "summary": "bitwise XOR",
+      "pure": true
     },
     {
       "name": "aes::Decrypt",
@@ -1934,7 +1978,8 @@
     },
     {
       "name": "eq",
-      "summary": "string equality"
+      "summary": "string equality",
+      "pure": true
     },
     {
       "name": "error",
@@ -2345,7 +2390,8 @@
     },
     {
       "name": "ge",
-      "summary": "string greater-or-equal"
+      "summary": "string greater-or-equal",
+      "pure": true
     },
     {
       "name": "generator",
@@ -2665,7 +2711,8 @@
     },
     {
       "name": "gt",
-      "summary": "string greater-than"
+      "summary": "string greater-than",
+      "pure": true
     },
     {
       "name": "history",
@@ -3264,7 +3311,8 @@
     },
     {
       "name": "in",
-      "summary": "list membership"
+      "summary": "list membership",
+      "pure": true
     },
     {
       "name": "incr",
@@ -3758,7 +3806,8 @@
     },
     {
       "name": "le",
-      "summary": "string less-or-equal"
+      "summary": "string less-or-equal",
+      "pure": true
     },
     {
       "name": "ledit",
@@ -4019,7 +4068,8 @@
     },
     {
       "name": "lt",
-      "summary": "string less-than"
+      "summary": "string less-than",
+      "pure": true
     },
     {
       "name": "map",
@@ -6564,7 +6614,8 @@
     },
     {
       "name": "ne",
-      "summary": "string inequality"
+      "summary": "string inequality",
+      "pure": true
     },
     {
       "name": "nettool::allocate_port",
@@ -6608,7 +6659,8 @@
     },
     {
       "name": "ni",
-      "summary": "list non-membership"
+      "summary": "list non-membership",
+      "pure": true
     },
     {
       "name": "nmea::checksum",
@@ -8447,111 +8499,138 @@
     },
     {
       "name": "tcl::mathop::!",
-      "summary": "logical NOT"
+      "summary": "logical NOT",
+      "pure": true
     },
     {
       "name": "tcl::mathop::!=",
-      "summary": "numeric inequality"
+      "summary": "numeric inequality",
+      "pure": true
     },
     {
       "name": "tcl::mathop::%",
-      "summary": "modulo"
+      "summary": "modulo",
+      "pure": true
     },
     {
       "name": "tcl::mathop::&",
-      "summary": "bitwise AND"
+      "summary": "bitwise AND",
+      "pure": true
     },
     {
       "name": "tcl::mathop::*",
-      "summary": "multiplication"
+      "summary": "multiplication",
+      "pure": true
     },
     {
       "name": "tcl::mathop::**",
-      "summary": "exponentiation"
+      "summary": "exponentiation",
+      "pure": true
     },
     {
       "name": "tcl::mathop::+",
-      "summary": "arithmetic identity"
+      "summary": "arithmetic identity",
+      "pure": true
     },
     {
       "name": "tcl::mathop::-",
-      "summary": "arithmetic negation"
+      "summary": "arithmetic negation",
+      "pure": true
     },
     {
       "name": "tcl::mathop::/",
-      "summary": "division"
+      "summary": "division",
+      "pure": true
     },
     {
       "name": "tcl::mathop::<",
-      "summary": "numeric less-than"
+      "summary": "numeric less-than",
+      "pure": true
     },
     {
       "name": "tcl::mathop::<<",
-      "summary": "left shift"
+      "summary": "left shift",
+      "pure": true
     },
     {
       "name": "tcl::mathop::<=",
-      "summary": "numeric less-or-equal"
+      "summary": "numeric less-or-equal",
+      "pure": true
     },
     {
       "name": "tcl::mathop::==",
-      "summary": "numeric equality"
+      "summary": "numeric equality",
+      "pure": true
     },
     {
       "name": "tcl::mathop::>",
-      "summary": "numeric greater-than"
+      "summary": "numeric greater-than",
+      "pure": true
     },
     {
       "name": "tcl::mathop::>=",
-      "summary": "numeric greater-or-equal"
+      "summary": "numeric greater-or-equal",
+      "pure": true
     },
     {
       "name": "tcl::mathop::>>",
-      "summary": "right shift"
+      "summary": "right shift",
+      "pure": true
     },
     {
       "name": "tcl::mathop::^",
-      "summary": "bitwise XOR"
+      "summary": "bitwise XOR",
+      "pure": true
     },
     {
       "name": "tcl::mathop::eq",
-      "summary": "string equality"
+      "summary": "string equality",
+      "pure": true
     },
     {
       "name": "tcl::mathop::ge",
-      "summary": "string greater-or-equal"
+      "summary": "string greater-or-equal",
+      "pure": true
     },
     {
       "name": "tcl::mathop::gt",
-      "summary": "string greater-than"
+      "summary": "string greater-than",
+      "pure": true
     },
     {
       "name": "tcl::mathop::in",
-      "summary": "list membership"
+      "summary": "list membership",
+      "pure": true
     },
     {
       "name": "tcl::mathop::le",
-      "summary": "string less-or-equal"
+      "summary": "string less-or-equal",
+      "pure": true
     },
     {
       "name": "tcl::mathop::lt",
-      "summary": "string less-than"
+      "summary": "string less-than",
+      "pure": true
     },
     {
       "name": "tcl::mathop::ne",
-      "summary": "string inequality"
+      "summary": "string inequality",
+      "pure": true
     },
     {
       "name": "tcl::mathop::ni",
-      "summary": "list non-membership"
+      "summary": "list non-membership",
+      "pure": true
     },
     {
       "name": "tcl::mathop::|",
-      "summary": "bitwise OR"
+      "summary": "bitwise OR",
+      "pure": true
     },
     {
       "name": "tcl::mathop::~",
-      "summary": "bitwise complement"
+      "summary": "bitwise complement",
+      "pure": true
     },
     {
       "name": "tcl::prefix",
@@ -10655,11 +10734,13 @@
     },
     {
       "name": "|",
-      "summary": "bitwise OR"
+      "summary": "bitwise OR",
+      "pure": true
     },
     {
       "name": "~",
-      "summary": "bitwise complement"
+      "summary": "bitwise complement",
+      "pure": true
     }
   ]
 }

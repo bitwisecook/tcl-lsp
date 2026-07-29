@@ -26,8 +26,16 @@
 import { clone, el, type Child } from "./dom.js";
 import type { Catalogues, FieldKind, Json, Variant } from "./types.js";
 
-/** Callback an editor uses to replace the field's whole value. */
-export type Setter = (next: Json) => void;
+/**
+ * Callback an editor uses to replace the field's whole value.
+ *
+ * `structural` says whether the change alters the editor's *shape* — a row
+ * added or removed, a discriminant switched, a toggle revealing further
+ * controls. It defaults to `true`, which is the safe answer: the field is
+ * rebuilt. A composite editor passes `false` for a plain text or number edit
+ * inside a row, so the input the user is typing into survives the keystroke.
+ */
+export type Setter = (next: Json, structural?: boolean) => void;
 
 /** Builds the editor DOM for one field kind. */
 export type Editor = (kind: FieldKind, value: Json, set: Setter) => HTMLElement;
@@ -72,7 +80,7 @@ export interface EditorContext {
 /* Value coercions. A draft arrives from `JSON.parse`, so every read has to
    narrow before use rather than trusting the declared shape. */
 
-function asRecord(value: Json): Record<string, Json> {
+export function asRecord(value: Json): Record<string, Json> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, Json>)
     : {};
@@ -82,7 +90,7 @@ function asArray(value: Json): Json[] {
   return Array.isArray(value) ? value : [];
 }
 
-function asString(value: Json | undefined): string {
+export function asString(value: Json | undefined): string {
   return typeof value === "string" ? value : "";
 }
 
@@ -162,22 +170,27 @@ function removeButton(onRemove: () => void): HTMLButtonElement {
 function rowList<T extends Json>(
   items: T[],
   blank: () => T,
-  make: (item: T, index: number, update: (next: T) => void, remove: () => void) => HTMLElement,
-  onChange: (next: T[]) => void,
+  make: (
+    item: T,
+    index: number,
+    update: (next: T, structural?: boolean) => void,
+    remove: () => void,
+  ) => HTMLElement,
+  onChange: (next: T[], structural?: boolean) => void,
   addLabel: string,
 ): HTMLElement {
   const list = items.slice();
   const wrap = el("div", { class: "rows" });
-  const commit = (): void => onChange(list.slice());
+  const commit = (structural = true): void => onChange(list.slice(), structural);
 
   list.forEach((item, i) => {
     wrap.appendChild(
       make(
         item,
         i,
-        (next) => {
+        (next, structural) => {
           list[i] = next;
-          commit();
+          commit(structural);
         },
         () => {
           list.splice(i, 1);
@@ -326,12 +339,16 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
   function optionRow(
     item: Json,
     _index: number,
-    update: (next: Json) => void,
+    update: (next: Json, structural?: boolean) => void,
     remove: () => void,
   ): HTMLElement {
     const opt = asRecord(item);
-    const patch = (next: Record<string, Json>): void => {
-      update({ ...clone(opt), ...next });
+    // `structural: false` for a plain text edit — the row keeps its DOM, so
+    // the input being typed into is not torn down mid-word. Anything that
+    // shows or hides a control (toggling "takes a value", switching the arity
+    // kind) leaves it defaulted so the row rebuilds.
+    const patch = (next: Record<string, Json>, structural = true): void => {
+      update({ ...clone(opt), ...next }, structural);
     };
     const takesValue = opt.value !== null && opt.value !== undefined;
 
@@ -339,7 +356,7 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
       el("div", { class: "ctl" }, [
         labelled(
           "flag",
-          textInput(asString(opt.name), (t) => patch({ name: t }), { size: 14 }),
+          textInput(asString(opt.name), (t) => patch({ name: t }, false), { size: 14 }),
         ),
         checkbox(
           takesValue,
@@ -363,7 +380,7 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
         ),
         removeButton(remove),
       ]),
-      textInput(asString(opt.detail), (t) => patch({ detail: t }), {
+      textInput(asString(opt.detail), (t) => patch({ detail: t }, false), {
         placeholder: "what the option does",
       }),
     ];
@@ -371,22 +388,26 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
     if (takesValue) {
       const value = asRecord(opt.value);
       const arity = asRecord(value.arity);
-      const patchValue = (next: Record<string, Json>): void => {
-        patch({ value: { ...clone(value), ...next } });
+      const patchValue = (next: Record<string, Json>, structural = true): void => {
+        patch({ value: { ...clone(value), ...next } }, structural);
       };
       const words = el("select", {}, [
         el("option", { value: "One", text: "one" }),
         el("option", { value: "Fixed", text: "fixed count" }),
+        el("option", { value: "Hook", text: "computed (hook)" }),
       ]);
-      words.value = asString(arity.kind) === "Fixed" ? "Fixed" : "One";
-      words.addEventListener("change", () =>
-        patchValue({
-          arity:
-            words.value === "Fixed"
-              ? { kind: "Fixed", n: asNumber(arity.n) ?? 2 }
-              : { kind: "One" },
-        }),
-      );
+      const arityKind = asString(arity.kind);
+      words.value = arityKind === "Fixed" || arityKind === "Hook" ? arityKind : "One";
+      words.addEventListener("change", () => {
+        if (words.value === "Fixed") {
+          patchValue({ arity: { kind: "Fixed", n: asNumber(arity.n) ?? 2 } });
+        } else if (words.value === "Hook") {
+          // Preserve any expression already typed when toggling back and forth.
+          patchValue({ arity: { kind: "Hook", hook: arity.hook ?? null } });
+        } else {
+          patchValue({ arity: { kind: "One" } });
+        }
+      });
 
       rows.push(
         el("div", { class: "ctl" }, [
@@ -397,7 +418,7 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
             ),
           ),
           labelled("words", words),
-          asString(arity.kind) === "Fixed"
+          arityKind === "Fixed"
             ? labelled(
                 "n",
                 numberInput(asNumber(arity.n), (n) =>
@@ -405,9 +426,25 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
                 ),
               )
             : null,
+          // A function pointer the studio cannot recover by seeding — the
+          // author types the expression and it renders like any other arity.
+          arityKind === "Hook"
+            ? labelled(
+                "hook fn",
+                textInput(
+                  asString(arity.hook),
+                  (t) =>
+                    patchValue(
+                      { arity: { kind: "Hook", hook: t.trim() === "" ? null : t.trim() } },
+                      false,
+                    ),
+                  { size: 16, placeholder: "errorstack_value" },
+                ),
+              )
+            : null,
           labelled(
             "hint",
-            textInput(asString(value.hint), (t) => patchValue({ hint: t }), { size: 10 }),
+            textInput(asString(value.hint), (t) => patchValue({ hint: t }, false), { size: 10 }),
           ),
           checkbox(asBool(value.closed), (on) => patchValue({ closed: on }), "closed set"),
         ]),

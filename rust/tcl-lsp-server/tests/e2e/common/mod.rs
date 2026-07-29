@@ -580,6 +580,66 @@ impl Lsp {
         self.await_diagnostics_version(uri, None, DEFAULT_TIMEOUT)
     }
 
+    /// Block until the most recent `publishDiagnostics` for `uri` satisfies
+    /// `settled`, returning it.
+    ///
+    /// For facts the server publishes **progressively**: a cross-file
+    /// correction (issue #977) lands on a later publish than the document's
+    /// own first result, because the project-wide call-site evidence is
+    /// refreshed after publishing rather than in front of it — putting it in
+    /// front delayed the semantic-token enrichment tier on a large document.
+    /// [`Self::open_ready`] returns the *first* publish, so a test asserting a
+    /// cross-file outcome has to wait for the converged one instead.
+    pub fn await_diagnostics_settled(
+        &self,
+        uri: &str,
+        timeout: Duration,
+        settled: impl Fn(&[Value]) -> bool,
+    ) -> Vec<Value> {
+        let deadline = Instant::now() + timeout;
+        let mut notes = self.shared.notifications.lock().unwrap();
+        loop {
+            let mut latest: Option<Vec<Value>> = None;
+            for note in notes.iter() {
+                if note.get("method").and_then(Value::as_str)
+                    != Some("textDocument/publishDiagnostics")
+                {
+                    continue;
+                }
+                let params = note.get("params").cloned().unwrap_or(Value::Null);
+                if params.get("uri").and_then(Value::as_str) != Some(uri) {
+                    continue;
+                }
+                latest = Some(
+                    params
+                        .get("diagnostics")
+                        .and_then(Value::as_array)
+                        .cloned()
+                        .unwrap_or_default(),
+                );
+            }
+            if let Some(diags) = &latest
+                && settled(diags)
+            {
+                return latest.unwrap_or_default();
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                drop(notes);
+                panic!(
+                    "diagnostics for {uri:?} never settled within {timeout:?}{}",
+                    latency_barrier_timeout_note()
+                );
+            }
+            let (guard, _) = self
+                .shared
+                .notify_cv
+                .wait_timeout(notes, remaining)
+                .unwrap();
+            notes = guard;
+        }
+    }
+
     /// Block until a `publishDiagnostics` for `uri` (optionally carrying exactly
     /// `version`) arrives; return the latest matching diagnostics array.
     pub fn await_diagnostics_version(

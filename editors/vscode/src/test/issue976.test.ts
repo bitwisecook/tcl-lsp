@@ -19,7 +19,7 @@
 // Issue #976: interprocedural call-site literal seeding was unsound across
 // dynamic dispatch — `set cmd helper; $cmd dev` reached a proc the scan had
 // already seeded from its literal call sites. The deep TP/FP/TN/FN coverage
-// lives in `call_site_scan.rs` / `compilation_unit.rs` unit tests and the
+// lives in `unit_scope.rs` / `compilation_unit.rs` unit tests and the
 // native `e2e` suite; these prove the same behaviour arrives through a real
 // VS Code session.
 

@@ -10,15 +10,15 @@ The whole contract of that seed is one sentence: **it is sound only if the
 scan enumerated every caller.** A caller the scan fails to attribute does
 not merely go uncounted — it vanishes from the "every caller agrees"
 evidence, so an absence of contradicting evidence reads as agreement. Every
-bug in this area (issues #969, #976) has been an instance of that single
-failure, reached through a different kind of caller.
+bug in this area (issues #969, #976, #977, #978) has been an instance of
+that single failure, reached through a different kind of caller.
 
 ## Ownership
 
 | Concern | Owner |
 |---|---|
-| Enumerating callers and their literal arguments | `tcl-compiler/src/call_site_scan.rs` |
-| Turning that evidence into an SCCP seed | `compilation_unit.rs::params_constants_from_call_sites` |
+| Enumerating callers and their literal arguments | `tcl-compiler/src/unit_scope.rs` |
+| Turning that evidence into an SCCP seed | `unit_scope.rs::params_constants_from_call_sites` |
 | Interning the seed into the memo key | `compilation_unit.rs::encode_param_constants` |
 | Which argument is a script / callback / variable name | `tcl-registry` (`ArgRole`, `Traits`) |
 | Namespace-relative command resolution | `interprocedural::resolve_internal_call` |
