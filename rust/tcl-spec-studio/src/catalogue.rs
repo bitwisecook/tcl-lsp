@@ -458,6 +458,10 @@ pub const TRAITS: &[Variant] = &[
         "UNRESOLVED_COMMAND_HANDLER",
         "handles the dialect's unresolved command words",
     ),
+    v(
+        "EVALUATES_IN_SHIFTED_FRAME",
+        "runs its body script in another stack frame",
+    ),
 ];
 
 /// [`TaintColour`] bits.
