@@ -10880,3 +10880,44 @@ fn w123_tp_issue_1009_codex_review_escape_hatch_requires_specific_enclosing_call
     let src = "proc helper {} {}\nproc caller {} { helper }\nproc unrelated {} { return 1 }\nunrelated\nrename helper {}\n";
     assert_eq!(w123_codes(src), vec!["W123".to_string()]);
 }
+
+#[test]
+fn w123_fp_issue_1015_two_level_call_chain_before_later_deletion_resolves() {
+    // FP guard (issue #1015): the escape hatch must follow a *chain* of
+    // enclosing definitions, not one level. `inner` is never invoked at
+    // the top level — only `outer` is — but `outer` calls `inner`, which
+    // calls `helper`, all before the rename. tclsh8.6/9.0 both run this
+    // clean (exit 0, no error).
+    let src = "proc helper {} { return hi }\nproc inner {} { helper }\nproc outer {} { inner }\nouter\nrename helper {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_fp_issue_1015_three_level_call_chain_before_later_deletion_resolves() {
+    // FP guard, one level deeper still — the reachability query is a
+    // fixpoint, so depth is not bounded by the number of hops.
+    let src = "proc helper {} { return hi }\nproc l1 {} { helper }\nproc l2 {} { l1 }\nproc l3 {} { l2 }\nl3\nrename helper {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_tp_issue_1015_mutual_recursion_cycle_never_entered_still_flags() {
+    // TP guard (issue #1015): `pingCaller`/`pongCaller` call each other and
+    // nothing calls either at the top level, so neither is ever reached —
+    // the cycle must terminate as "unreachable" rather than looping, and
+    // the `helper` call inside must still draw W123. tclsh8.6 loads the
+    // file fine precisely *because* the cycle is never entered; calling
+    // into it after the rename fails `invalid command name "helper"`.
+    let src = "proc helper {} {}\nproc pingCaller {} { helper\n pongCaller }\nproc pongCaller {} { pingCaller }\nrename helper {}\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_string()]);
+}
+
+#[test]
+fn w123_fp_issue_1015_mutual_recursion_cycle_entered_at_top_level_resolves() {
+    // FP guard: the same cycle, but entered by a real top-level call
+    // before the deletion — every member is then reachable, so the nested
+    // `helper` call resolves. Confirms the cycle handling short-circuits
+    // without also poisoning the reachable case.
+    let src = "proc helper {} { return hi }\nproc pingCaller {} { helper }\nproc pongCaller {} { pingCaller }\nproc entry {} { pongCaller }\nentry\nrename helper {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}

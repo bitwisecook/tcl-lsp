@@ -2297,6 +2297,42 @@ fn defstyle_body_typo_still_w123() {
 }
 
 #[test]
+fn w123_call_chain_reaching_a_command_before_its_deletion_issue_1015() {
+    // Issue #1015, end-to-end: `inner` is never invoked at the top level —
+    // only `outer` is — but `outer` calls `inner`, which calls `helper`,
+    // all before the `rename helper {}`. tclsh8.6/9.0 both run this clean
+    // (exit 0, no error), so the analyser must not draw W123 on `helper`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc helper {} { return hi }\nproc inner {} { helper }\nproc outer {} { inner }\nouter\nrename helper {}\n",
+    );
+    assert!(
+        !has_code(&diags, "W123"),
+        "outer's top-level call reaches helper two bodies deep, before the rename: {diags:?}"
+    );
+}
+
+#[test]
+fn w123_unreached_mutual_recursion_cycle_still_flags_issue_1015() {
+    // TP control for the same fix: neither cycle member is ever called, so
+    // `helper` is genuinely unreachable before the rename and the call must
+    // still be flagged — the reachability query must terminate on the
+    // cycle, not treat it as proof of reachability.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc helper {} {}\nproc pingCaller {} { helper\n pongCaller }\nproc pongCaller {} { pingCaller }\nrename helper {}\n",
+    );
+    assert!(
+        has_code(&diags, "W123"),
+        "an unreached cycle proves nothing; helper is deleted: {diags:?}"
+    );
+}
+
+#[test]
 fn defstyle_bad_operation_is_w001() {
     // `top bogus` — unknown ensemble operation of a scoped command.
     let mut lsp = Lsp::tcl();

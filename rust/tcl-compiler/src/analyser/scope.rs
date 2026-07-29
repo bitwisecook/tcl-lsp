@@ -296,7 +296,7 @@ struct KnownPredicateCtx<'a, A> {
     alias_offsets: &'a HashMap<String, u32>,
     rename_offsets: &'a HashMap<String, u32>,
     deleted_commands: &'a HashMap<String, u32>,
-    top_level_call_offsets: &'a HashMap<String, u32>,
+    reachable_call_offsets: &'a HashMap<String, u32>,
 }
 
 impl<A> KnownPredicateCtx<'_, A> {
@@ -361,6 +361,12 @@ impl<A> KnownPredicateCtx<'_, A> {
     /// global `::bar` — confirmed against tclsh 8.6.14 — because
     /// `foo::caller`'s own top-level invocation already ran before the
     /// rename.
+    ///
+    /// The enclosing definition need not be called at the top level
+    /// *itself* — [`Analyser::reachable_call_offsets`] answers the
+    /// transitive question (issue #1015), so an arbitrarily deep chain of
+    /// enclosing definitions bottoming out at a real top-level call counts,
+    /// while a mutual-recursion cycle no top-level call enters does not.
     fn live_for_call(&self, qualified: &str, fact_off: u32, call_off: u32) -> bool {
         let Some(&del_off) = self.deleted_commands.get(qualified) else {
             return true;
@@ -375,7 +381,7 @@ impl<A> KnownPredicateCtx<'_, A> {
             return call_off <= del_off;
         }
         self.enclosing_definition(call_off)
-            .and_then(|qn| self.top_level_call_offsets.get(qn))
+            .and_then(|qn| self.reachable_call_offsets.get(qn))
             .is_some_and(|&t| t < del_off)
     }
 
@@ -683,29 +689,73 @@ impl Analyser {
             .collect()
     }
 
-    /// Build [`Analyser::top_level_call_offsets`]: the earliest offset,
-    /// among the walk's recorded invocations, of a call whose own site is
-    /// *not* inside any proc/class body — grouped by resolved qualified
-    /// name.  Read by [`Self::finalise_invocation_resolutions`]'s
-    /// `live_for_call` and by [`Self::fact_live_for_call`] as the "was the
-    /// enclosing definition itself invoked before the deletion" escape
-    /// hatch for a call nested inside a body (issue #1009 Codex review).
-    fn compute_top_level_call_offsets(&self) -> HashMap<String, u32> {
-        let mut offsets: HashMap<String, u32> = HashMap::new();
+    /// Build [`Analyser::reachable_call_offsets`]: the earliest offset at
+    /// which each resolved qualified name is *provably reached* by the
+    /// file's own top-level execution.
+    ///
+    /// The base case is a call whose own site is not inside any proc/class
+    /// body — that call runs where it is written. The recursive case is a
+    /// call inside some definition `E`'s body: it runs whenever `E` runs, so
+    /// it inherits `E`'s own earliest reachable offset (issue #1015:
+    /// `proc helper {}`, `proc inner {} { helper }`, `proc outer {} { inner
+    /// }`, `outer`, `rename helper {}` — tclsh8.6/9.0 run this clean,
+    /// because `outer`'s top-level call reaches `helper` two bodies deep,
+    /// before the rename).
+    ///
+    /// Computed as a monotone least-fixpoint over the call graph rather
+    /// than a memoised recursion: offsets only ever decrease, so the loop
+    /// terminates, and a mutual-recursion cycle with no top-level entry
+    /// simply never acquires a value (`None` — unreachable) instead of
+    /// recursing forever.
+    ///
+    /// Read by [`Self::finalise_invocation_resolutions`]'s `live_for_call`
+    /// and by [`Self::fact_live_for_call`] as the "was this call's enclosing
+    /// definition itself reached before the deletion" escape hatch (issue
+    /// #1009 Codex review, generalised by #1015).
+    fn compute_reachable_call_offsets(&self) -> HashMap<String, u32> {
+        let mut reachable: HashMap<String, u32> = HashMap::new();
+        // Call-graph edges: `enclosing definition -> callee`, for every
+        // invocation whose own site sits inside a body.
+        let mut body_edges: Vec<(&str, &str)> = Vec::new();
         for inv in &self.result.command_invocations {
             let Some(qualified) = inv.resolved_qualified_name.as_deref() else {
                 continue;
             };
             let call_off = inv.range.start();
-            if self.result.offset_is_inside_any_definition_body(call_off) {
+            if !self.result.offset_is_inside_any_definition_body(call_off) {
+                reachable
+                    .entry(qualified.to_string())
+                    .and_modify(|off| *off = (*off).min(call_off))
+                    .or_insert(call_off);
                 continue;
             }
-            offsets
-                .entry(qualified.to_string())
-                .and_modify(|off| *off = (*off).min(call_off))
-                .or_insert(call_off);
+            if let Some(enclosing) = self.result.enclosing_definition_qualified_name(call_off) {
+                body_edges.push((enclosing, qualified));
+            }
         }
-        offsets
+        loop {
+            let mut changed = false;
+            for &(enclosing, callee) in &body_edges {
+                let Some(&reached) = reachable.get(enclosing) else {
+                    continue;
+                };
+                match reachable.get_mut(callee) {
+                    Some(off) if *off <= reached => {}
+                    Some(off) => {
+                        *off = reached;
+                        changed = true;
+                    }
+                    None => {
+                        reachable.insert(callee.to_string(), reached);
+                        changed = true;
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        reachable
     }
 
     pub(super) fn finalise_invocation_resolutions(&mut self) {
@@ -739,11 +789,11 @@ impl Analyser {
         // review) can consult it, and cached on `self` so the later W123 /
         // const-dispatch / variable-command passes' `Self::fact_live_for_call`
         // calls reuse the same map instead of rebuilding it.
-        self.top_level_call_offsets = self.compute_top_level_call_offsets();
+        self.reachable_call_offsets = self.compute_reachable_call_offsets();
         let renamed_away = self.renamed_away_builtin_names();
         let deleted_commands = &self.deleted_commands;
         let rename_offsets = &self.rename_offsets;
-        let top_level_call_offsets = &self.top_level_call_offsets;
+        let reachable_call_offsets = &self.reachable_call_offsets;
         let result = &mut self.result;
         let (procs, classes, aliases, renames) = (
             &result.all_procs,
@@ -766,7 +816,7 @@ impl Analyser {
             alias_offsets,
             rename_offsets,
             deleted_commands,
-            top_level_call_offsets,
+            reachable_call_offsets,
         };
         for inv in &mut result.command_invocations {
             // Absolute names are exact — the sole candidate is the name itself.
@@ -2425,6 +2475,48 @@ mod tests {
             bar_call.resolved_qualified_name.as_deref(),
             Some("::bar"),
             "foo::caller is never invoked, so the escape hatch must not apply"
+        );
+    }
+
+    #[test]
+    fn escape_hatch_follows_a_chain_of_enclosing_definitions_issue_1015() {
+        // FP guard (issue #1015): `foo::caller` is never invoked at the top
+        // level — only `foo::entry` is — but `entry` calls `caller`, which
+        // calls `bar`, all before the rename, so the local `::foo::bar`
+        // stays the resolution. tclsh8.6/9.0 confirm the chain runs clean.
+        let mut a = Analyser::new();
+        let src = "proc bar {} { return global }\nnamespace eval foo {\n    proc bar {} { return local }\n    proc caller {} { return [bar] }\n    proc entry {} { return [caller] }\n}\nfoo::entry\nrename foo::bar {}\n";
+        let r = a.analyse(src, "tcl8.6");
+        let bar_call = r
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "bar" && !i.indirect)
+            .expect("bar call recorded");
+        assert_eq!(
+            bar_call.resolved_qualified_name.as_deref(),
+            Some("::foo::bar"),
+            "foo::entry reaches foo::caller, which reaches bar, before the rename"
+        );
+    }
+
+    #[test]
+    fn escape_hatch_terminates_on_a_never_entered_mutual_recursion_cycle_issue_1015() {
+        // TP guard (issue #1015): `foo::ping` and `foo::pong` call each
+        // other and nothing calls either, so neither is ever reached — the
+        // reachability fixpoint must terminate and leave the escape hatch
+        // shut, falling the `bar` call back to the global `::bar`.
+        let mut a = Analyser::new();
+        let src = "proc bar {} { return global }\nnamespace eval foo {\n    proc bar {} { return local }\n    proc ping {} { pong\n        return [bar] }\n    proc pong {} { return [ping] }\n}\nrename foo::bar {}\n";
+        let r = a.analyse(src, "tcl8.6");
+        let bar_call = r
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "bar" && !i.indirect)
+            .expect("bar call recorded");
+        assert_eq!(
+            bar_call.resolved_qualified_name.as_deref(),
+            Some("::bar"),
+            "neither cycle member is ever reached, so the escape hatch must not apply"
         );
     }
 
