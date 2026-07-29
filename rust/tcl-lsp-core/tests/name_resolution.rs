@@ -447,6 +447,70 @@ mod itcl_class_proc_dispatch {
         assert_eq!(refs_at(src, 1, 12), vec![1], "declaration only");
     }
 
+    /// FN→TP: itcl's class-namespace resolver **pre-empts** the stock global
+    /// fallback.  A global `::Factory::make` proc exists here, which stock
+    /// resolution reaches from inside the class's own namespace — but itcl
+    /// installs a custom command resolver on every class namespace and Tcl
+    /// consults it first, so the class's own bodies still dispatch the class
+    /// proc.
+    ///
+    /// Oracle (tclsh 8.6 + Itcl 3.4, probe `itcl2.tcl` — this script's exact
+    /// shape):
+    ///
+    /// ```text
+    /// A) from inside class proc  : ITCL-CLASSPROC
+    /// B) from inside method      : ITCL-CLASSPROC
+    /// C) from ::app              : ITCL-CLASSPROC
+    /// D) from global             : GLOBAL-NS-PROC
+    /// E) from ::other            : GLOBAL-NS-PROC
+    /// ```
+    #[test]
+    fn fn_to_tp_the_class_resolver_pre_empts_a_global_namespace_proc() {
+        let src = concat!(
+            "namespace eval ::Factory { proc make {} { return \"GLOBAL-NS-PROC\" } }\n",
+            "namespace eval ::app {\n",
+            "    itcl::class Factory {\n",
+            "        proc make {} { return \"ITCL-CLASSPROC\" }\n",
+            "        proc probeSelf {} { return [Factory::make] }\n",
+            "        method viaSelf {} { return [Factory::make] }\n",
+            "    }\n",
+            "}\n",
+            "Factory::make\n",
+        );
+        let analysis = analyse(src);
+        // Inside the class's own bodies (a class `proc` body and a `method`
+        // body) the class proc wins, even though `::Factory::make` exists.
+        for (line, character) in [(4, 37), (5, 39)] {
+            assert_eq!(
+                tcl_lsp_core::definition::itcl_class_proc_target_at(
+                    src, "tcl8.6", line, character, &analysis
+                ),
+                Some(("::app::Factory".to_owned(), "make".to_owned())),
+                "line {line}: itcl's class resolver must pre-empt the global proc",
+            );
+            // Go-to-definition lands on the class proc's declaration (line 3),
+            // not the global proc's (line 0).
+            assert_eq!(
+                ref_lines(&tcl_lsp_core::definition::definition(
+                    src, line, character, &analysis
+                )),
+                vec![3],
+                "line {line}: go-to-definition must reach the class proc",
+            );
+        }
+        // From the global namespace the ordinary proc wins (oracle rows D/E).
+        assert_eq!(
+            tcl_lsp_core::definition::itcl_class_proc_target_at(src, "tcl8.6", 8, 2, &analysis),
+            None,
+            "from global, `Factory::make` is the plain ::Factory::make proc",
+        );
+        assert_eq!(
+            ref_lines(&tcl_lsp_core::definition::definition(src, 8, 2, &analysis)),
+            vec![0],
+            "go-to-definition from global reaches the plain proc",
+        );
+    }
+
     /// FP guard: a real proc at a higher-priority resolution candidate
     /// shadows the class proc, exactly as it would at runtime — oracle
     /// (tclsh 8.6.14 + Itcl 3.4): this exact script prints

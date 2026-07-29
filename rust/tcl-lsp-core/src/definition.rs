@@ -247,6 +247,19 @@ pub fn definition(
         cursor_offset,
         &analysis.namespace_overrides,
     );
+    // `Factory::make` — [incr Tcl]'s colon-qualified class-proc dispatch
+    // (issue #990).  Asked **before** the stock proc resolution below, because
+    // itcl installs a custom command resolver on every class namespace and Tcl
+    // consults it ahead of the ordinary lookup: inside a class's own bodies the
+    // class proc wins even when a real `::Factory::make` proc exists (oracle in
+    // `itcl_self_qualified_candidate`).  Order is safe because
+    // `itcl_class_proc_target` applies the whole precedence itself — its own
+    // resolver first, then stock resolution — and answers `None` unless the
+    // winning candidate really is an itcl class-scoped `proc`, so a genuine
+    // `::ns::helper` call still falls through to `resolve_called_proc`.
+    if let Some(span) = itcl_class_proc_declaration(analysis, &namespace, &word) {
+        return vec![span_to_range(source, &line_index, span)];
+    }
     if let Some(proc_def) = resolve_called_proc(
         analysis,
         source,
@@ -255,15 +268,6 @@ pub fn definition(
         Some(tcl_registry::registry_for_dialect("")),
     ) {
         return vec![span_to_range(source, &line_index, proc_def.name_span)];
-    }
-    // `Factory::make` — [incr Tcl]'s colon-qualified class-proc dispatch
-    // (issue #990).  Structurally identical to a qualified proc call, so it
-    // is tried only once `resolve_called_proc` has found no real proc: a
-    // genuine `::ns::helper` call keeps priority, and this fires only when
-    // the written word's parent namespace really is an itcl class declaring
-    // that class-scoped `proc`.
-    if let Some(span) = itcl_class_proc_declaration(analysis, &namespace, &word) {
-        return vec![span_to_range(source, &line_index, span)];
     }
     if let Some(span) = class_declaration_at(analysis, &word, cursor_offset) {
         return vec![span_to_range(source, &line_index, span)];
@@ -1550,22 +1554,37 @@ pub(crate) fn itcl_class_proc_at<'a>(
 }
 
 /// Resolve a written command word to the [incr Tcl] class-scoped `proc` it
-/// dispatches, following Tcl's own resolution order via
-/// [`resolved_command_name`] — so a call is attributed to the class the
-/// runtime would actually reach, and an ordinary proc or class command at a
-/// higher-priority candidate shadows it exactly as it would at runtime.
+/// dispatches.
+///
+/// Two resolvers, in the order the interpreter applies them:
+///
+/// 1. [`itcl_self_qualified_candidate`] — itcl installs a **custom command
+///    resolver** on each class namespace, and it is consulted *before* the
+///    ordinary namespace lookup, so inside a class's own namespace the class's
+///    simple name qualifies its members ahead of every stock candidate.
+/// 2. [`resolved_command_name`] — stock Tcl resolution (current namespace,
+///    `namespace path`, then global) for every other call site, so a call is
+///    attributed to the class the runtime would actually reach and an ordinary
+///    proc or class command shadows it exactly as it would at runtime.
 pub(crate) fn itcl_class_proc_target<'a>(
     analysis: &'a AnalysisResult,
     dialect: &str,
     namespace: &str,
     word: &str,
 ) -> Option<(&'a String, String)> {
-    let winner = resolved_command_name(analysis, namespace, word, &|candidate| {
-        analysis.all_procs.contains_key(candidate)
-            || analysis.all_classes.contains_key(candidate)
-            || itcl_class_proc_at(analysis, dialect, candidate).is_some()
-    })
-    .or_else(|| itcl_self_qualified_candidate(analysis, dialect, namespace, word))?;
+    let winner = itcl_self_qualified_candidate(analysis, dialect, namespace, word)
+        // The custom resolver only claims a member the class really declares;
+        // anything else falls through to the stock candidates (oracle: a
+        // sibling class's `Other::omake`, and an undeclared `Factory::nope`,
+        // both raise `invalid command name` rather than resolving).
+        .filter(|candidate| itcl_class_proc_at(analysis, dialect, candidate).is_some())
+        .or_else(|| {
+            resolved_command_name(analysis, namespace, word, &|candidate| {
+                analysis.all_procs.contains_key(candidate)
+                    || analysis.all_classes.contains_key(candidate)
+                    || itcl_class_proc_at(analysis, dialect, candidate).is_some()
+            })
+        })?;
     itcl_class_proc_at(analysis, dialect, &winner)
 }
 
@@ -1576,14 +1595,28 @@ pub(crate) fn itcl_class_proc_target<'a>(
 /// `::app::Factory::Factory::make` and `::Factory::make`, neither of which
 /// exists.
 ///
-/// Pinned against tclsh 8.6.14 + Itcl 3.4 from inside `::app::Factory`:
-/// `Factory::make` succeeds, while a *sibling* class's simple name
-/// (`Other::omake`) fails — the rule covers the enclosing class only, not
-/// every class in the parent namespace.  The ordinary spellings
-/// (`app::Factory::make`, `::app::Factory::make`, `app::Other::omake`) all
-/// succeed by stock global fallback and are already covered by
-/// [`resolved_command_name`], so this is tried last: a real command at any
-/// standard candidate always wins.
+/// This resolver **pre-empts** the stock candidates rather than backing them
+/// up: itcl installs a custom command resolver (`Itcl_ClassCmdResolver`) on
+/// every class namespace, and Tcl consults a namespace's resolver *before* its
+/// ordinary command lookup.  A real command at a stock candidate — even the
+/// current-namespace-relative one — does **not** win.
+///
+/// Pinned against tclsh 8.6 + Itcl 3.4 (probes `itcl2.tcl`, `itcl2b.tcl`,
+/// `itcl2c.tcl`), with a class `::app::Factory` declaring `proc make`:
+///
+/// | Written          | Called from            | Also defined                      | Dispatches |
+/// |------------------|------------------------|-----------------------------------|------------|
+/// | `Factory::make`  | the class's own bodies | `::Factory::make` (a plain proc)   | the **class proc** |
+/// | `Factory::make`  | the class's own bodies | `::app::Factory::Factory::make`    | the **class proc** |
+/// | `Factory::make`  | `::app`                | —                                 | the class proc, by stock relative lookup |
+/// | `Factory::make`  | `::` or `::other`      | `::Factory::make`                 | the **plain proc** |
+/// | `Other::omake`   | `::app::Factory`       | class `::app::Other` with `omake`  | nothing — `invalid command name` |
+/// | `Factory::nope`  | `::app::Factory`       | —                                 | nothing — `invalid command name` |
+///
+/// So the rule covers the *enclosing* class only, and only for members it
+/// declares; the ordinary spellings (`app::Factory::make`,
+/// `::app::Factory::make`) keep resolving through
+/// [`resolved_command_name`].
 fn itcl_self_qualified_candidate(
     analysis: &AnalysisResult,
     dialect: &str,
