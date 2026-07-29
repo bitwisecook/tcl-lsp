@@ -1449,3 +1449,46 @@ fn test_w201_no_rewrite_for_mixed_segment() {
         "a mixed segment does not decompose cleanly: {actions:?}"
     );
 }
+
+/// Issue #1000: refactor code actions must reach control flow inside an
+/// `apply` lambda body.  `apply`'s literal is `ArgRole::LambdaLiteral`, so
+/// the refactor descent has to split it and walk element 1; re-segmenting
+/// the whole `{argList body}` blob read `{m}` as a command name and left
+/// every `body_words`-backed action (if-to-switch, switch-to-dict,
+/// brace-expr, inline-variable, extract-to-datagroup) silently unavailable
+/// in there.  tclsh8.6/9.0-verified that this lambda really does run the
+/// `if` it wraps.
+#[test]
+fn test_if_to_switch_offered_inside_an_apply_lambda_body() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc handler {} {\n    apply {{m} {\n        if {$m eq \"GET\"} {\n            puts get\n        } elseif {$m eq \"POST\"} {\n            puts post\n        }\n    }} $x\n}\n";
+    lsp.open_ready(&uri, src);
+    // Cursor on the `if` inside the lambda body.
+    let actions = lsp.code_actions(&uri, range((2, 8), (2, 8)), json!([]));
+    assert!(
+        titles(&actions)
+            .iter()
+            .any(|t| t.to_lowercase().contains("switch")),
+        "the if-to-switch refactor must be offered inside the lambda: {actions:?}"
+    );
+}
+
+/// TN: the lambda's *argument list* is a plain word list, not code, so a
+/// cursor on it offers no control-flow refactor even when a parameter
+/// happens to be spelled like a command.
+#[test]
+fn test_no_refactor_offered_on_the_lambda_arg_list() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "apply {{if} {\n    puts $if\n}} 1\n";
+    lsp.open_ready(&uri, src);
+    // Cursor on the `if` parameter name in the argument list (line 0).
+    let actions = lsp.code_actions(&uri, range((0, 8), (0, 8)), json!([]));
+    assert!(
+        !titles(&actions)
+            .iter()
+            .any(|t| t.to_lowercase().contains("switch")),
+        "a parameter word named `if` is not an `if` command: {actions:?}"
+    );
+}

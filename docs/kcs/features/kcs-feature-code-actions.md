@@ -37,6 +37,15 @@ batch-applied. The extract-to-proc refactoring attaches a post-edit command
 new proc name — VS Code handles this automatically; other editors silently
 ignore the command and the user can rename manually.
 
+The refactoring actions that work on the command under the cursor —
+if-to-switch, switch-to-dict, brace-expr, inline-variable, and
+extract-to-datagroup — descend into every script-bearing argument the
+registry declares, so they are offered inside a `proc` body, a control-flow
+body, and an `apply` lambda's body alike. An `apply` lambda's *argument
+list* is a plain word list rather than code, so it is never walked as a
+script: a parameter that happens to be spelled like a command does not
+offer a control-flow refactor.
+
 Inline proc declines a proc whose body is branchy, and any call whose head
 is **frame-sensitive** — a command that terminates a block, transfers
 control, creates a scope alias, or creates a barrier (`return`, `break`,
