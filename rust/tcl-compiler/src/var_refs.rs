@@ -22,9 +22,11 @@
 //! variable names.  It tokenises the input with the Rust lexer, collects
 //! `VAR` tokens, and optionally recurses into command substitutions.
 //!
-//! Results are cached in a bounded LRU keyed by source text — the same
-//! word/script strings are scanned repeatedly across SSA, GVN, and
-//! interprocedural passes.
+//! Results are cached in a bounded LRU keyed by source text *and* scan
+//! mode — the same word/script strings are scanned repeatedly across SSA,
+//! GVN, and interprocedural passes, and the two modes ([`
+//! VarReferenceScanner::scan_word`] vs [`VarReferenceScanner::scan_script`])
+//! can legitimately disagree about the same text.
 
 use std::collections::{BTreeSet, HashMap, VecDeque};
 
@@ -72,17 +74,24 @@ const DEFAULT_CACHE_SIZE: usize = 512;
 
 /// Scan Tcl words/scripts for referenced variable names.
 ///
-/// Results are cached in a bounded LRU keyed by source text.
-/// The same word/script strings are scanned repeatedly across SSA,
+/// Results are cached in a bounded LRU keyed by source text **and** scan
+/// mode. The same word/script strings are scanned repeatedly across SSA,
 /// GVN, and interprocedural passes, so caching avoids redundant
-/// lexer creation and tokenisation.
+/// lexer creation and tokenisation. The mode is part of the key because
+/// value-body and script-body scans of identical text give different
+/// answers (`set literal {$x}` reads `x` as a value word, nothing as a
+/// script) — issue #1024.
 pub struct VarReferenceScanner {
     options: VarScanOptions,
     /// Bounded LRU: `order` tracks access recency, `cache` stores results.
-    cache: HashMap<String, BTreeSet<String>>,
-    order: VecDeque<String>,
+    cache: HashMap<CacheKey, BTreeSet<String>>,
+    order: VecDeque<CacheKey>,
     cache_size: usize,
 }
+
+/// LRU key: the scanned text plus the mode it was scanned in
+/// (`quoted_body` — see [`scan_tokens`]).
+type CacheKey = (String, bool);
 
 impl VarReferenceScanner {
     /// Create a new scanner with the given options and default cache size.
@@ -125,26 +134,46 @@ impl VarReferenceScanner {
         }
     }
 
-    /// Scan one Tcl word for variable references.
+    /// Scan one Tcl word for variable references (LRU-cached).
+    ///
+    /// `text` is already-extracted word/value text whose own enclosing
+    /// quotes or braces were stripped by whatever produced it, so it is
+    /// scanned in *value body* mode — see [`scan_tokens`].
     pub fn scan_word(&mut self, text: &str, registry: &CommandRegistry) -> BTreeSet<String> {
-        self.scan_script(text, registry)
+        self.scan_cached(text, registry, true)
     }
 
     /// Scan a Tcl script for variable references (LRU-cached).
+    ///
+    /// `source` is a genuine script body (an `eval`/`catch`/`uplevel` body,
+    /// a proc body), so ordinary top-level Tcl word-splitting and
+    /// brace-quoting apply: a `{…}` word inside it really does suppress
+    /// substitution (issue #1024). Use [`Self::scan_word`] for a value word.
     pub fn scan_script(&mut self, source: &str, registry: &CommandRegistry) -> BTreeSet<String> {
+        self.scan_cached(source, registry, false)
+    }
+
+    /// Shared cache lookup/insert for both scan modes.
+    fn scan_cached(
+        &mut self,
+        source: &str,
+        registry: &CommandRegistry,
+        quoted_body: bool,
+    ) -> BTreeSet<String> {
+        let key: CacheKey = (source.to_owned(), quoted_body);
+
         // Check cache.
-        if let Some(cached) = self.cache.get(source) {
+        if let Some(cached) = self.cache.get(&key) {
             let result = cached.clone();
             // Move to end of LRU order.
-            self.order.retain(|k| k != source);
-            self.order.push_back(source.to_owned());
+            self.order.retain(|k| k != &key);
+            self.order.push_back(key);
             return result;
         }
 
-        let result = self.scan_script_uncached(source, registry);
+        let result = scan_tokens(source, registry, self.options, quoted_body);
 
         // Insert into cache.
-        let key = source.to_owned();
         self.cache.insert(key.clone(), result.clone());
         self.order.push_back(key);
 
@@ -164,18 +193,6 @@ impl VarReferenceScanner {
         self.order.clear();
     }
 
-    /// Scan without cache — called on cache miss. The outermost scan is
-    /// always over *value body* text (see [`scan_tokens`]): whatever
-    /// produced `source` (a `set` value, a proc-arg default, …) already
-    /// stripped its own enclosing quotes/braces, so any `{`/`}` surviving
-    /// in `source` is literal content, never a fresh word boundary.
-    fn scan_script_uncached(
-        &mut self,
-        source: &str,
-        registry: &CommandRegistry,
-    ) -> BTreeSet<String> {
-        scan_tokens(source, registry, self.options, true)
-    }
 }
 
 /// The variable name a `TokenType::Var` token contributes, per
@@ -578,6 +595,62 @@ mod tests {
     }
 
     #[test]
+    fn scan_script_keeps_brace_quoting_in_a_genuine_script_body_issue_1024() {
+        // TN twin of `scan_word_finds_a_var_inside_braces_within_a_value_body`
+        // — same `{$x}` text, opposite answer, because a *script* body is
+        // ordinary Tcl: its `{…}` is real brace-quoting, not literal text
+        // that survived from an enclosing quoted word. tclsh8.6/9.0: `set x
+        // GLOBALX; eval {set literal {$x}}; puts [set literal]` prints `$x`
+        // — unsubstituted.
+        let reg = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        let vars = scanner.scan_script("set literal {$x}", &reg);
+        assert!(
+            !vars.contains("x"),
+            "a script body's brace-quoted {{$x}} must stay literal; got {vars:?}"
+        );
+    }
+
+    #[test]
+    fn scan_script_still_finds_a_bare_substitution_in_a_script_body_issue_1024() {
+        // TP guard for the same fix: dropping quoted-body mode must not
+        // stop `scan_script` seeing ordinary substitutions.
+        let reg = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        let vars = scanner.scan_script("set copy $x\nputs [foo $y]", &reg);
+        assert!(vars.contains("x"), "should find bare $x; got {vars:?}");
+        assert!(
+            vars.contains("y"),
+            "should recurse into [foo $y]; got {vars:?}"
+        );
+    }
+
+    #[test]
+    fn scan_word_and_scan_script_cache_the_same_text_separately_issue_1024() {
+        // The LRU key must carry the mode: the same source text has two
+        // legitimate answers, and whichever ran first must not poison the
+        // other.
+        let reg = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        let as_word = scanner.scan_word("set literal {$x}", &reg);
+        let as_script = scanner.scan_script("set literal {$x}", &reg);
+        assert!(
+            as_word.contains("x"),
+            "value-body mode substitutes {{$x}}; got {as_word:?}"
+        );
+        assert!(
+            !as_script.contains("x"),
+            "script mode must not inherit the cached value-body answer; got {as_script:?}"
+        );
+        // And the reverse order, on a fresh scanner.
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        let as_script = scanner.scan_script("set literal {$x}", &reg);
+        let as_word = scanner.scan_word("set literal {$x}", &reg);
+        assert!(!as_script.contains("x"), "got {as_script:?}");
+        assert!(as_word.contains("x"), "got {as_word:?}");
+    }
+
+    #[test]
     fn scan_no_recurse() {
         let reg = default_registry();
         let mut scanner = VarReferenceScanner::new(VarScanOptions {
@@ -629,7 +702,7 @@ mod tests {
         scanner.scan_word("$c", &reg); // should evict $a
         assert_eq!(scanner.cache.len(), 2);
         assert!(
-            !scanner.cache.contains_key("$a"),
+            !scanner.cache.contains_key(&("$a".to_owned(), true)),
             "oldest entry should be evicted"
         );
     }

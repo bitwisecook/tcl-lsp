@@ -1343,10 +1343,12 @@ file; this call falls through to the 'unknown' handler."
             };
 
             // Collect the variable names read by the return value (word
-            // substitutions + nested `[...]`) and any parsed expr.
+            // substitutions + nested `[...]`) and any parsed expr. The
+            // return value is a single already-extracted word, not a
+            // script, so it scans in value-body mode.
             let mut reads: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
             if let Some(v) = value {
-                reads.extend(scanner.scan_script(v, registry));
+                reads.extend(scanner.scan_word(v, registry));
             }
             if let Some(e) = expr {
                 reads.extend(crate::var_refs::vars_in_expr(e));
