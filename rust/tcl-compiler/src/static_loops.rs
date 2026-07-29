@@ -30,6 +30,7 @@ use crate::expr_ast::{ExprNode, expr_text};
 use crate::ir::{IfClause, Script, Statement, SwitchArm, SwitchMode};
 use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr_with_octal};
+use crate::value_shapes::is_static_var_word;
 
 /// Default cap on iteration count — beyond this we give up and
 /// return `None` rather than simulate any further.
@@ -146,30 +147,18 @@ pub fn simple_var_ref(text: &str) -> Option<String> {
         .strip_prefix("${")
         .and_then(|s| s.strip_suffix('}'))
     {
-        if !valid_ident(inner) {
+        if !is_static_var_word(inner) {
             return None;
         }
         inner
     } else {
         let rest = stripped.strip_prefix('$')?;
-        if !valid_ident(rest) {
+        if !is_static_var_word(rest) {
             return None;
         }
         rest
     };
     Some(normalise_var_name(name).to_owned())
-}
-
-fn valid_ident(s: &str) -> bool {
-    if s.is_empty() {
-        return false;
-    }
-    let mut bytes = s.bytes();
-    let first = bytes.next().unwrap();
-    if !(first.is_ascii_alphabetic() || first == b'_') {
-        return false;
-    }
-    bytes.all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
 }
 
 fn strip_word_delimiters(text: &str) -> String {

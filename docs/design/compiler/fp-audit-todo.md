@@ -352,16 +352,16 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   seed" wildcard was tried and **reverted** — it broke a genuine,
   already-covered TP (`fp_var_as_cmd_param_flow_non_command_fires`, a
   dispatch-table proc whose own body legitimately uses `$cmd`) for a
-  residual soundness gap (a dynamic dispatch site's target can't be
-  statically enumerated at all) that pre-dates this fix and is orthogonal to
-  what #969 actually reported — documented as a known limitation rather than
-  papered over with disproportionate collateral damage.
-  **Residual gaps at the time** (since closed by FP-IPCP-02 below, except
-  the last): cross-file soundness for a plain (non-`package provide`) file
-  `source`d by another that calls its procs differently; `CommandPrefix`-role
-  indirection (`trace add variable … command cb`, `-command` callback
-  options); and `namespace ensemble configure -map` redirection, which
-  remains open.
+  residual soundness gap that is orthogonal to what #969 actually
+  reported. Every one of those gaps is now closed precisely — not by a
+  wildcard — in **FP-IPCP-02**.
+  **Residual gaps at the time** (listed so they aren't mistaken for
+  silently-missed; all since closed): cross-file soundness for a plain
+  (non-`package provide`) file `source`d by another that calls its procs
+  differently (issue #977); dynamic dispatch (`$cmd args`, issue #976);
+  `CommandPrefix`-role indirection (`trace add variable … command cb`,
+  `-command` callback options, issue #978). Still open: `namespace ensemble
+  configure -map` redirection (issue #979).
   Traced end-to-end: the same `SccpResult` feeds I230, the optimiser's O101
   fold and O107 dead-code suggestions (all suggestion-only text rewrites,
   never applied to the compiled CFG/IR — confirmed codegen/`tcl-vm`/WASM
@@ -410,16 +410,20 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   **Newly confirmed (not merely theoretical) by the same review, deliberately
   left open:** `uplevel #0 { … }` also resolves against global
   (tclsh8.6-confirmed), and reproduces the identical misattribution +
-  phantom-fold pair as the `TclOO`/namespace-eval cases — but
-  `Statement::UpFrame`'s body is inlined into the enclosing function's own
-  CFG blocks *before* `collect_call_site_constants` ever runs, and
-  `frame_shift` (the field that distinguishes `#0` from a relative level)
-  doesn't survive that flattening to where this scan could consult it.
-  Properly fixing this needs `frame_shift == 0` preserved through CFG
-  construction, or a pre-CFG scan of `Statement::UpFrame` mirroring
-  `build_extra_call_site_scan_contexts`'s method/body-unit approach — larger
-  than the one-line namespace-context overrides above, so left as a pinned,
-  `#[ignore]`d regression
+  phantom-fold pair as the `TclOO`/namespace-eval cases — but the scan never
+  reaches that body as an `UpFrame` statement at all. `Statement::UpFrame`
+  keeps its body as a nested `Script` that CFG construction does *not*
+  flatten into blocks (re-confirmed during the #976 work, correcting this
+  entry's original "is inlined into CFG blocks" reading), so the walk over
+  `block.statements` skips it and the call is seen only through the
+  enclosing `proc` statement's own `ArgRole::Body` argument, re-segmented in
+  the frame that `proc` statement sits in — the declaring namespace, not
+  global. Fixing it properly needs the registry to say *which* argument of a
+  frame-shifting command is its level (`uplevel`'s level detection is a
+  private spec helper today, and the body-text recursion sees only raw
+  words), so the scan can switch its resolution context to global for an
+  absolute `#0` — a registry extension, not the one-line namespace-context
+  overrides above, so left as a pinned, `#[ignore]`d regression
   (`uplevel_zero_body_resolves_against_global_not_enclosing_namespace`) for
   follow-up rather than a rushed fix. `uplevel N` for any relative
   (non-`#0`) level remains a separate, permanent approximation: the target
@@ -498,6 +502,170 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   guard), four native e2e cases in `diagnostics.rs`,
   `cli::diag_shares_call_sites_across_inputs`, two explorer serialisation
   tests, and the VS Code `issue977.test.ts` suite.
+
+- [x] **FP-IPCP-02** I230 on a parameter reached through dynamic dispatch —
+  CLOSED (issue #976). FP-IPCP-01 closed every way a *literal* call site
+  could go unresolved, but a call dispatched through a variable (`set cmd
+  helper; $cmd dev`) was skipped outright: it counted neither for nor
+  against any callee, so a proc whose only *visible* callers agreed on a
+  literal was still seeded with it even when the dispatch demonstrably
+  reached that same proc with a different one. The scan's completeness
+  claim was therefore unproven for every module containing an indirection.
+  Fixed by extracting the whole scan into `tcl-compiler/src/call_site_scan.rs`
+  and resolving indirection **by value** rather than skipping it:
+  1. **Dispatch value sets.** The literal strings a dispatch word can hold
+     are enumerated from the enclosing scope's own literal assignments
+     (`AssignConst`, plus the plain-bareword `AssignValue` shape lowering
+     leaves alone) unioned, when the word names one of the body's
+     parameters, with the literals its callers pass at that position. A
+     word that resolves to a known set of names is recorded as an ordinary
+     call site for **each** of them, so a dispatch that agrees with every
+     other caller keeps folding — the per-target precision the reverted
+     PR #970 wildcard lacked. Which words *write* a variable is registry
+     data (`ArgRole::VarWrite`, plus `Traits::CREATES_SCOPE_ALIAS` for the
+     vararg `global`/`variable`/`upvar` forms the role query does not
+     expand); no command name appears in the scan.
+  2. **A monotone fixpoint, not the SCCP result.** A parameter's value set
+     comes from the call-site evidence the scan itself produces, so the
+     rounds start from "no callers seen" and re-derive the whole evidence
+     set until it stops growing (`MAX_CALL_SITE_SCAN_ROUNDS`). Each round
+     is monotone in its input (values only union, unknown flags only set),
+     so the chain increases to a fixpoint at which the value sets and the
+     evidence agree — the circularity the issue warned about is resolved
+     without ever consulting the SCCP lattice this seed feeds. Rounds run
+     only when a value set was actually consulted, so an indirection-free
+     module still costs exactly one walk.
+  3. **Unreadable channels withdraw every seed.** When a dispatch word's
+     value set cannot be enumerated (`set cmd [gets stdin]`, a
+     namespace-qualified `$::cmd`, a parameter of an untracked `TclOO`
+     method / `apply` lambda body), or a script reaches a command as a
+     *value* rather than as text (`eval $script`, `catch $body`, `apply
+     $fn`), the evidence is flagged `opaque_callee` and
+     `params_constants_from_call_sites` returns `None` for the whole
+     module. A body written literally — including the overwhelmingly
+     common one that merely *mentions* a variable, `catch {puts $x}` — is
+     still walked in place; the discriminator is
+     `value_shapes::is_pure_var_ref` / `parse_command_substitution` ("the
+     whole word is one substitution"), not "the word contains a `$`".
+  4. **`CommandPrefix` callbacks and user-proc invokers** (issue #978, the
+     residual gap FP-IPCP-01 documented) close on the same machinery: a
+     `-command cb` callback's target is invoked with arguments the *runtime*
+     appends, so every parameter of the named proc is poisoned (and only
+     that proc's — the poison is per-target); a `[list cb $x]` prefix is
+     destructured through `Traits::BUILDS_COMMAND_PREFIX`; and a
+     `Traits::INVOKES_USER_PROC` head (the iRules `call PROC …` form)
+     records the tail as the callee's real arguments.
+  Also centralised while here: `value_shapes::whole_word_scalar_var_name`,
+  the one place that answers "is this whole word just a variable, and which
+  one" for value-set analyses, replacing what would have been a fifth
+  hand-rolled `$name`/`${name}` parser. Tests: `unit_scope.rs`'s own
+  unit suite (11 cases over the evidence map, the value-set facts, and the
+  prefix-head/whole-substitution shape helpers), 14 further TP/FP/TN/FN
+  cases in `compilation_unit.rs`'s `call_site_param_constants` module
+  (differing literal, agreeing literal, branch-joined value set, unrelated
+  target, unenumerable word, parameter dispatch tables in both directions,
+  namespace variables, `namespace import` aliases, untracked method
+  parameters, literal vs dynamic `apply`, callback prefixes built and
+  bare), 5 native e2e cases
+  (`diagnostics::dynamic_dispatch_with_a_differing_literal_does_not_fire_i230`
+  and siblings), and a VS Code integration suite (`issue976.test.ts`).
+  **Residual gaps, unchanged by this entry:** the cross-file `source` one
+  above; `namespace ensemble configure -map` redirection; a computed head
+  that resolves to a variable-*writing builtin* (`set cmd set; $cmd x 5`),
+  which would need a builtin's own name to be among the literals a local
+  holds; `uplevel`'s cross-frame writes, handled conservatively by making
+  every value set unenumerable in a module that shifts frames rather than
+  modelled per-variable; and the global `unknown` handler (a module that
+  both defines `proc unknown {cmd args}` and seeds another procedure would
+  need every unresolved command word counted as a call to it — the registry
+  fact that would mark the handler needs the `Traits` bitfield widened past
+  its current full 64 bits, so it is recorded rather than rushed).
+  `namespace unknown` / `package unknown` handlers are already covered:
+  the registry declares their handler argument `ArgRole::CommandPrefix`.
+
+- [x] **FP-IPCP-03** A procedure invoked only through a `CommandPrefix`
+  callback is invisible to interprocedural analysis — CLOSED (issue #978).
+  Filed as a sibling of #976 on the reading that
+  `interprocedural::scan_source_for_calls` "also only recurses into
+  `ArgRole::Body`, never `ArgRole::CommandPrefix`". Measured rather than
+  assumed, that turned out to be only partly true, and the two halves needed
+  different work:
+  1. **The call-site *seed* half had the whole gap** and is closed by
+     FP-IPCP-02's machinery — see its point 4.
+  2. **The call-*graph* half already recorded a bare `-command cb` edge**
+     (`scan_call_facts` has consulted `CommandRegistry::command_prefixes`
+     since PR #915), so a callback-only proc was already not dead code. What
+     it missed was the *built* prefix: `-command [list cb $x]` read its head
+     as `[list`, failed the bareword guard, and recorded nothing. Confirmed
+     with a probe before fixing (`bare → ["::cb"]`, `built → []`).
+  The fix answers the issue's own "share one primitive or fix each
+  independently" question in favour of sharing: `interprocedural::
+  command_prefix_head` is now the one place that reads a callback prefix's
+  head — bareword, braced list, or built by a
+  `Traits::BUILDS_COMMAND_PREFIX` command — consumed by both the call-graph
+  builder and `call_site_scan`. Fixing them independently is precisely what
+  let one shape work in one consumer and not the other; one primitive means
+  the next prefix-building shape lands in both at once.
+  Also removed while here: `scan_call_facts`'s `command == "call"` literal,
+  the last command name hardcoded into that scan. It is now
+  `Traits::INVOKES_USER_PROC`, which both fixes a misfire (a user proc
+  *named* `call` under a dialect with no such invoker was read as an
+  indirection) and generalises to any dialect's equivalent.
+  Tests: `interprocedural.rs` gains five cases (every prefix shape, the
+  reported `trace add variable … write` shape, a computed-prefix TN control,
+  the registry-driven invoker in both directions, and the primitive's own
+  shape table); `unit_scope.rs` gains the `trace` registration in both
+  bareword and built spellings.
+  **Adjacent hole found while measuring, NOT fixed here** (different
+  mechanism, deserves its own investigation): a `[cmd …]` substitution in a
+  *plain statement's* argument records no call-graph edge at all —
+  `puts [pick]` and `lsort -command [pick] …` both yield none, while the
+  same substitution in an assignment value (`set x [pick]`) or a `return`
+  value does. `scan_value_substitutions` is reached only from
+  value/return/expr scanning; the `Statement::Call` arm does not propagate
+  into its arguments.
+
+- [x] **FP-IPCP-04** Composing an unenumerable dispatch with cross-file
+  evidence — CLOSED.
+  FP-IPCP-02 recorded "a caller exists that names no callee I can identify"
+  (`set cmd [gets stdin]; $cmd dev`, `eval $script`, `apply $fn`) as one
+  module-wide flag, which is right within a unit. FP-IPCP-03 then merges
+  several files' evidence into one project view — and a flag has no callee to
+  narrow by, so it spread: one `eval $script` anywhere in a workspace
+  withdrew every interprocedural seed in every file, costing three true
+  positives outright in the extension suite.
+  The fix is neither to drop the propagation (unsound) nor to keep it
+  (useless) but to bound what such a dispatch can **reach**, and to record it
+  *per callee* over that set so it composes through `merge_from` and
+  `slice_for` with no special casing. The module-wide gate in
+  `params_constants_from_call_sites` then disappears entirely: a withdrawn
+  seed is just a poisoned slot, which `uniform_literal_at` already handles.
+  **The bound is the `source`-connected component, and it took two attempts.**
+  The first tried to derive it inside the compiler from the scanning file's
+  own linkage traits — "a file that pulls in no other unit cannot dispatch
+  outside its own declarations". That is right for the *outbound* direction
+  and wrong for the inbound one: a library declaring no `source` of its own
+  still runs inside its sourcer's interpreter, so its unreadable dispatch can
+  name the sourcer's procedures. Caught by probe, not by the suite —
+  `main.tcl` sources `lib.tcl`, `lib.tcl` has `set cmd [gets stdin]; $cmd
+  dev`, and `main.tcl`'s `helper` still folded.
+  Connectivity is a *project* fact, so the host owns it:
+  `tcl_lsp_db::file_link_targets` records each file's resolved literal
+  `source` targets (signature-level, so a body edit backdates), and
+  `file_dispatch_reach` unions the procedures of every file in the same
+  **undirected** component — undirected precisely because the exposure runs
+  both ways. `unit_scope::scan_source_call_sites` takes that set from the
+  host rather than deriving it; with none supplied the file's own
+  declarations remain the honest bound, and within a single unit the reach is
+  that unit's own procedures, so in-unit behaviour is exactly what FP-IPCP-02
+  specified. `tcl diag a.tcl b.tcl` supplies the union of its inputs — naming
+  files on one command line asserts they are one program.
+  Only *literal* `source` targets create edges: guessing a computed path
+  would widen what an unenumerable dispatch may reach, so a missed edge is
+  the safer error.
+  Tests: five in `unit_scope` (own-unit withdrawal; reaches a linked file in
+  both directions; leaves an unlinked one alone) and two end-to-end in
+  `tcl-lsp-db` over a real two-file project with paths.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 

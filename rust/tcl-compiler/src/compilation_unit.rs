@@ -28,7 +28,7 @@
 //! accessor methods that return `Option<&T>` — `None` when the analysis
 //! hasn't been run on this unit yet.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use tcl_registry::CommandRegistry;
 
@@ -661,6 +661,11 @@ pub struct UnitCallerScope {
     pub has_cross_file_evidence: bool,
     /// The merged (in-unit + cross-file) call-site evidence the seed read.
     pub call_sites: crate::unit_scope::CallSiteEvidence,
+    /// The seed each procedure was actually built under, keyed by qualified
+    /// name and encoded as the same sorted `(param, version, literal)`
+    /// triples the lattice memo key interns.  Only procedures that received
+    /// a seed appear.  Sorted so the explorer's rendering is deterministic.
+    pub param_constants_by_proc: BTreeMap<String, Vec<(String, u32, String)>>,
 }
 
 /// Whole-module facts every per-function build in a [`CompilationUnit`] build
@@ -814,8 +819,9 @@ struct ProcedureBuildContext<'a> {
 fn build_procedure_units(
     ctx: &ProcedureBuildContext<'_>,
     mut cache: Option<&mut ProcLatticeCache<'_>>,
-) -> HashMap<String, FunctionUnit> {
+) -> BuiltProcedureUnits {
     let mut procedures: HashMap<String, FunctionUnit> = HashMap::new();
+    let mut param_constants_by_proc: BTreeMap<String, Vec<(String, u32, String)>> = BTreeMap::new();
     for (qname, cfg) in &ctx.cfg_module.procedures {
         let params = ctx
             .ir_module
@@ -851,6 +857,14 @@ fn build_procedure_units(
         // can't intern (defensive; the current producer only emits string
         // consts) → build fresh.
         let encoded_pc = encode_param_constants(param_constants.as_ref());
+        // Keep the seed for the explorer's interprocedural view: it is the
+        // one fact that explains why a condition on a parameter folded —
+        // and, by its absence, that an indirect or cross-file call site
+        // withdrew it.  The non-empty filter keeps the map to procedures
+        // that were actually seeded.
+        if let Some(encoded) = encoded_pc.as_ref().filter(|e| !e.is_empty()) {
+            param_constants_by_proc.insert(qname.clone(), encoded.clone());
+        }
         // Route through the memo only when (a) a cache is present, (b) the
         // procedure has a real body, (c) the module context is available,
         // and (d) the seeds encode into the hashable key form.
@@ -901,7 +915,18 @@ fn build_procedure_units(
         });
         procedures.insert(qname.clone(), fu);
     }
-    procedures
+    BuiltProcedureUnits {
+        procedures,
+        param_constants_by_proc,
+    }
+}
+
+/// [`build_procedure_units`]'s two outputs: the units themselves, and the
+/// interprocedural seed each was built under (explorer provenance only —
+/// the pipeline consumes the seed where it is produced).
+struct BuiltProcedureUnits {
+    procedures: HashMap<String, FunctionUnit>,
+    param_constants_by_proc: BTreeMap<String, Vec<(String, u32, String)>>,
 }
 
 impl CompilationUnit {
@@ -1051,7 +1076,7 @@ impl CompilationUnit {
                 trace_facts,
             },
         );
-        let mut procedures = build_procedure_units(
+        let built = build_procedure_units(
             &ProcedureBuildContext {
                 ir_module: &ir_module,
                 cfg_module: &cfg_module,
@@ -1067,6 +1092,7 @@ impl CompilationUnit {
             },
             cache,
         );
+        let mut procedures = built.procedures;
         let methods = Self::build_method_units(
             &ir_module,
             cfg_context.as_ref(),
@@ -1112,6 +1138,7 @@ impl CompilationUnit {
                 linkage: caller_view.linkage,
                 has_cross_file_evidence: caller_view.has_cross_file_evidence,
                 call_sites: call_site_constants,
+                param_constants_by_proc: built.param_constants_by_proc,
             },
         }
     }
@@ -2684,7 +2711,7 @@ mod tests {
             /// against the procedures `LIB` declares.
             fn evidence_from(other: &str, reg: &CommandRegistry) -> CallSiteEvidence {
                 let known: HashSet<String> = ["::helper".to_owned()].into_iter().collect();
-                crate::unit_scope::scan_source_call_sites(other, reg, "", &known)
+                crate::unit_scope::scan_source_call_sites(other, reg, "", &known, &[])
             }
 
             fn build_with_evidence(

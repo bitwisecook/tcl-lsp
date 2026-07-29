@@ -707,7 +707,7 @@ fn build_interproc(d: &Value) -> Vec<ViewNode> {
                 Some("cyan"),
             ));
         } else {
-            let detail = vec![
+            let mut detail = vec![
                 det("arity", s(p, "arity")),
                 det("pure", yn(&p["pure"])),
                 det("foldable", yn(&p["foldable"])),
@@ -716,8 +716,15 @@ fn build_interproc(d: &Value) -> Vec<ViewNode> {
                     let c = join_str_array(&p["calls"]);
                     if c.is_empty() { "—".to_owned() } else { c }
                 }),
-                det("flags", flags(p)),
             ];
+            // The caller-uniform-literal seed SCCP ran this procedure under.
+            // Shown only when there is one, so the common unseeded procedure
+            // reads no differently than before.
+            let seeds = join_str_array(&p["paramConstants"]);
+            if !seeds.is_empty() {
+                detail.push(det("param constants", seeds));
+            }
+            detail.push(det("flags", flags(p)));
             out.push(ViewNode::leaf(
                 format!("{} arity={}", s(p, "name"), s(p, "arity")),
                 detail,

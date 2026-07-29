@@ -780,6 +780,27 @@ zero frame-sync overhead on interpreter fallbacks. See the
 [KCS note](docs/kcs/features/kcs-feature-var-escape-analysis.md) for the
 rules and the interprocedural propagation of callee `upvar` sources.
 
+### Interprocedural constant seeding
+
+A procedure's parameter is analysed as a compile-time constant only when
+every call site in view passes the same literal. "In view" is the whole
+claim, so the analysis resolves the indirect ways a call can reach a
+procedure rather than ignoring them: a dispatch through a variable
+(`set cmd helper; $cmd dev`) is resolved to the set of names the variable
+can hold and counted as a real call to each, and a callback registration
+(`lsort -command helper`, `trace add variable v write helper`) is counted as
+a call whose arguments the runtime supplies.
+
+When a call cannot be pinned to any command at all — a dispatch on a value
+read at run time, or a script passed by reference (`eval $script`,
+`apply $fn`) — no parameter in the file is treated as constant, because that
+call could reach any procedure with any argument. Fewer folded parameters
+means fewer diagnostics, never wrong ones. See the
+[KCS note](docs/kcs/kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md)
+for what this means when a diagnostic you expected does not appear, and the
+[design doc](docs/design/compiler/interprocedural-call-site-seeding.md) for
+the analysis itself.
+
 ### Static optimiser
 
 Twenty-plus optimisation passes detect constant propagation, dead code,
@@ -923,10 +944,13 @@ left gutter.
 
 The **Interproc** tab opens with a *unit scope* card: which registry-declared
 boundaries the file crosses (`package provide`, `source`, `namespace export`,
-…), whether the analysis had a cross-file view of the workspace, and the
-per-argument verdict behind every interprocedural constant fold.  It is the
-first place to look when a constant fold — or its absence — is a surprise;
-the same data is the `unitScope` view in the `tcl explore` CLI and TUI.
+…), whether the analysis had a cross-file view of the workspace, the
+per-argument verdict behind every interprocedural constant fold, and the
+`param constants` each procedure was actually analysed under.  That last line
+is the direct answer to "why did this condition fold?" — and, by its absence,
+to "why didn't it?".  It is the first place to look when a constant fold — or
+its absence — is a surprise; the same data is the `unitScope` view in the
+`tcl explore` CLI and TUI.
 
 The IR, CFG, SSA, bytecode, and WASM tabs each carry an **optimiser lens**
 (`off` / `on` / `diff`).  The `diff` mode compares the relevant node — IR

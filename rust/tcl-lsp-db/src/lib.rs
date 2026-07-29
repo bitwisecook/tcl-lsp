@@ -323,6 +323,115 @@ pub fn project_proc_names(db: &dyn salsa::Database, project: Project) -> Arc<BTr
     Arc::new(names)
 }
 
+/// The project files this file pulls into its own interpreter — its resolved
+/// literal `source` targets, as document-path strings keyed the same way
+/// [`SourceFile::path`] is.
+///
+/// Only *literal* targets are recorded. A computed path (`source [file join
+/// $dir x.tcl]`) is not resolved here: guessing an edge would be worse than
+/// missing one, because the edge widens what an unenumerable dispatch is
+/// allowed to reach (see [`file_dispatch_reach`]).
+///
+/// Signature-level, like [`file_decls`]: a body edit that does not add or
+/// remove a `source` leaves this equal, so it backdates and no cross-file
+/// query re-runs.
+#[salsa::tracked]
+pub fn file_link_targets(db: &dyn TclDb, file: SourceFile) -> Arc<BTreeSet<String>> {
+    let Some(path) = file.path(db).as_deref() else {
+        return Arc::new(BTreeSet::new());
+    };
+    let dialect = file.dialect(db).clone();
+    let registry = db.registry(&dialect);
+    let scanned = tcl_compiler::signature_scan::extract_signatures(file.text(db), &registry);
+    let parent = std::path::Path::new(path);
+    Arc::new(
+        scanned
+            .source_targets
+            .iter()
+            .filter(|target| target.is_literal)
+            .map(|target| {
+                tcl_lsp_core::source_graph::resolve_source_target(parent, &target.raw_path)
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect(),
+    )
+}
+
+/// Union-find root of `i`, with path halving.
+fn component_root(parent: &mut [usize], mut i: usize) -> usize {
+    while parent[i] != i {
+        parent[i] = parent[parent[i]];
+        i = parent[i];
+    }
+    i
+}
+
+/// The procedures an *unenumerable* dispatch in `file` may reach — every proc
+/// declared by a file in the same `source`-connected component.
+///
+/// `set cmd [gets stdin]; $cmd dev` names a command this analysis cannot
+/// determine, so it is a caller of *something*. Which something is bounded by
+/// the interpreter the file's script runs in, and `source` is what puts two
+/// files in one interpreter — in **both** directions: a file reaches the procs
+/// of what it sources, and equally the procs of whatever sources *it*, because
+/// its script runs in that caller's interpreter. Hence connected components of
+/// the undirected `source` graph, not reachability along its arrows.
+///
+/// Bounding it this way is what keeps the blast radius proportionate: an
+/// unrelated file in the same workspace folder is not in the component, so its
+/// `eval $script` cannot withdraw this file's seeds. Without any bound, one
+/// such file disables interprocedural folding project-wide; with a
+/// *directional* bound (what the file loads, but not what loads it) a sourced
+/// library's unreadable dispatch silently fails to retract its sourcing file's
+/// seeds — the hole this replaces.
+///
+/// Depends only on signature-level facts ([`file_link_targets`],
+/// [`file_decls`]), so it sits behind the same firewall as the rest of the
+/// cross-file layer.
+#[salsa::tracked]
+pub fn file_dispatch_reach(
+    db: &dyn TclDb,
+    file: SourceFile,
+    project: Project,
+) -> Arc<BTreeSet<String>> {
+    let files = project.files(db);
+    // Index files by path so `source` targets can be matched to project files.
+    let mut by_path: HashMap<&str, usize> = HashMap::new();
+    for (i, f) in files.iter().enumerate() {
+        if let Some(p) = f.path(db).as_deref() {
+            by_path.insert(p, i);
+        }
+    }
+    // Union-find over the undirected `source` graph.
+    let mut parent: Vec<usize> = (0..files.len()).collect();
+    for (i, f) in files.iter().enumerate() {
+        for target in file_link_targets(db, *f).iter() {
+            let Some(&j) = by_path.get(target.as_str()) else {
+                continue;
+            };
+            let (a, b) = (
+                component_root(&mut parent, i),
+                component_root(&mut parent, j),
+            );
+            if a != b {
+                parent[a] = b;
+            }
+        }
+    }
+    let Some(me) = files.iter().position(|f| *f == file) else {
+        return Arc::new(file_decls(db, file).procs.clone());
+    };
+    let mine = component_root(&mut parent, me);
+    let mut reach: BTreeSet<String> = BTreeSet::new();
+    for (i, f) in files.iter().enumerate() {
+        if component_root(&mut parent, i) == mine {
+            reach.extend(file_decls(db, *f).procs.iter().cloned());
+        }
+    }
+    Arc::new(reach)
+}
+
 /// Every call site **this** file contributes, resolved against the whole
 /// project's procedure names.
 ///
@@ -348,11 +457,16 @@ pub fn file_call_site_evidence(
     let registry = db.registry(&dialect);
     let known: std::collections::HashSet<String> =
         project_proc_names(db, project).iter().cloned().collect();
+    let reach: Vec<String> = file_dispatch_reach(db, file, project)
+        .iter()
+        .cloned()
+        .collect();
     let scanned = tcl_compiler::unit_scope::scan_source_call_sites(
         file.text(db),
         &registry,
         &dialect,
         &known,
+        &reach,
     );
     // Drop the callees *this* file declares. A call to a name the file also
     // defines binds to its own definition, so it is in-unit evidence (already
@@ -2795,6 +2909,82 @@ mod tests {
             let evidence = file_external_call_sites(&db, lib, project);
             lib.set_external_call_sites(&mut db).to(Some(evidence));
             document_compilation_unit(&db, lib)
+        }
+
+        /// Build a project from `(path, source)` pairs and return the
+        /// compilation unit of the first, with project evidence applied.
+        fn unit_with_paths(files: &[(&str, &str)]) -> Arc<CompilationUnit> {
+            use salsa::Setter as _;
+            let mut db = TclDatabase::default();
+            let handles: Vec<SourceFile> = files
+                .iter()
+                .map(|(path, src)| {
+                    SourceFile::new(
+                        &db,
+                        (*src).to_owned(),
+                        "tcl8.6".to_owned(),
+                        Some((*path).to_owned()),
+                    )
+                })
+                .collect();
+            let project = Project::new(&db, handles.clone());
+            let target = handles[0];
+            let evidence = file_external_call_sites(&db, target, project);
+            target.set_external_call_sites(&mut db).to(Some(evidence));
+            document_compilation_unit(&db, target)
+        }
+
+        /// A sourced library's *unreadable* dispatch reaches the procedures of
+        /// the file that sources it: `lib.tcl`'s script runs in `main.tcl`'s
+        /// interpreter, so `$cmd` can name `::helper`.
+        ///
+        /// The inbound direction. Bounding an unenumerable dispatch by what
+        /// the scanning file itself loads gets this wrong — `lib.tcl` declares
+        /// no linkage at all — which is why the bound is the `source`-
+        /// connected component (`file_dispatch_reach`), not the file's own
+        /// linkage traits.
+        #[test]
+        fn an_unreadable_dispatch_in_a_sourced_library_clears_the_sourcing_files_fold() {
+            let cu = unit_with_paths(&[
+                (
+                    "/w/main.tcl",
+                    "proc helper {mode} {\n\
+                     if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n\
+                     }\n\
+                     source lib.tcl\n\
+                     helper prod\n\
+                     helper prod\n",
+                ),
+                ("/w/lib.tcl", "set cmd [gets stdin]\n$cmd dev\n"),
+            ]);
+            assert!(
+                !folds_mode(&cu),
+                "lib.tcl runs in main.tcl's interpreter; $cmd may name ::helper",
+            );
+        }
+
+        /// TN control: the same unreadable dispatch in a file nothing sources
+        /// and which sources nothing shares no interpreter, so it must leave
+        /// an unrelated file's sound seed alone. Without the component bound
+        /// this is the case that breaks — one `eval $script` anywhere in a
+        /// workspace would withdraw every seed in every file.
+        #[test]
+        fn an_unreadable_dispatch_in_an_unlinked_file_leaves_the_fold_alone() {
+            let cu = unit_with_paths(&[
+                (
+                    "/w/main.tcl",
+                    "proc helper {mode} {\n\
+                     if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n\
+                     }\n\
+                     helper prod\n\
+                     helper prod\n",
+                ),
+                ("/w/unrelated.tcl", "set cmd [gets stdin]\n$cmd dev\n"),
+            ]);
+            assert!(
+                folds_mode(&cu),
+                "an unlinked file shares no interpreter with main.tcl",
+            );
         }
 
         fn folds_mode(cu: &CompilationUnit) -> bool {

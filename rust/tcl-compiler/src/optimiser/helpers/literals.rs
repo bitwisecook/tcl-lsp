@@ -19,7 +19,12 @@
 //! Literal parsing and Tcl-source rendering for the optimiser.
 
 use crate::analyses::ConstValue;
+// The static variable-name grammar lives with the other word-shape
+// predicates in `value_shapes`; re-exported here so the optimiser's
+// existing `helpers::literals::is_static_var_word` call sites keep one
+// import path and there is still only one definition.
 use crate::tcl_expr_eval::{TclValue, format_tcl_value};
+pub use crate::value_shapes::is_static_var_word;
 
 /// Grammar of a word that can be emitted into Tcl source without
 /// needing brace quoting:
@@ -30,21 +35,6 @@ pub fn is_safe_word(text: &str) -> bool {
         && text.bytes().all(|b| {
             b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'/' | b':' | b'+' | b'-')
         })
-}
-
-/// Grammar of a static variable-name word (identifier-only, plus
-/// namespace separator):
-/// `[A-Za-z_][A-Za-z0-9_:]*`.
-#[must_use]
-pub fn is_static_var_word(text: &str) -> bool {
-    let mut iter = text.bytes();
-    let Some(first) = iter.next() else {
-        return false;
-    };
-    if !(first.is_ascii_alphabetic() || first == b'_') {
-        return false;
-    }
-    iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b':'))
 }
 
 /// Return `true` when `text` contains no substitutions — no `$`,
