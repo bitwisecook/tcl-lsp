@@ -2036,6 +2036,71 @@ mod tests {
         );
     }
 
+    /// TP — the tcllib pki idiom: `proc [namespace current]::_x {...}` inside
+    /// `::pki`.  The body's own definitions must home to `::pki`, not to a
+    /// phantom namespace made out of the substitution's source text.
+    ///
+    /// Oracle (tclsh 8.6.16 and 9.0.4, probe `s5_probe.tcl`):
+    ///
+    /// ```text
+    /// inner exists: ::pki::_inner
+    /// helper homed at: ::pki::helper / global:
+    /// ```
+    #[test]
+    fn a_dynamically_named_procs_body_homes_to_the_lexical_namespace() {
+        let src = "namespace eval ::pki {\n\
+                       proc _outer {} {\n\
+                           proc [namespace current]::_inner {} {\n\
+                               proc helper {} { return HELPED }\n\
+                           }\n\
+                       }\n\
+                   }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.all_procs.contains_key("::pki::helper"),
+            "the body of a `[namespace current]`-named proc runs in ::pki: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !r.all_procs
+                .keys()
+                .any(|k| k.contains("[namespace current]") && k.ends_with("helper")),
+            "no phantom substitution-text namespace may appear: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// TN — a statically-named proc is untouched: the scope name is the
+    /// resolved name verbatim, so an ordinary qualified-name proc still homes
+    /// its nested definitions to its own defining namespace.
+    #[test]
+    fn a_statically_named_procs_body_still_homes_to_its_defining_namespace() {
+        let src = "proc ::pki::_outer {} { proc helper {} {} }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.all_procs.contains_key("::pki::helper"),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// A `$`-spelled dynamic tail (`proc _$n {...}`) keeps the lexical
+    /// namespace too — the fallback is the trailing segment, whose holder is
+    /// the enclosing namespace.
+    #[test]
+    fn a_dollar_named_procs_body_homes_to_the_lexical_namespace() {
+        let src = "namespace eval ::pki { proc _$suffix {} { proc helper {} {} } }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.all_procs.contains_key("::pki::helper"),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
     #[test]
     fn apply_body_proc_honours_explicit_lambda_namespace() {
         // A lambda pinning a namespace (element 2) runs its body there.

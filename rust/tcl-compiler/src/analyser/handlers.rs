@@ -78,6 +78,31 @@ pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
     crate::naming::qualify(ns_prefix, name)
 }
 
+/// The [`super::types::Scope`] name for a routine whose written name is
+/// `resolved_name` (after [`Analyser::resolve_dynamic_word`]).
+///
+/// A `Proc` / `Method` scope's name is not decoration: it *is* the routine's
+/// qualified name for
+/// [`super::scope::advance_command_resolution_namespace`], which takes
+/// everything before the last `::` as the namespace the body runs in.  So a
+/// scope named with the raw, unresolved word invents a namespace out of the
+/// substitution: the real tcllib idiom `proc [namespace current]::_x {...}`
+/// inside `::pki` (tcllib 2.0 `modules/pki/pki.tcl`:316) made every definition
+/// in the body home to `::pki::[namespace current]`.
+///
+/// When the name still carries a `$` / `[` after resolution there is no
+/// trustworthy qualifier in it, so the scope keeps only the trailing segment —
+/// whose holder is the *lexical* parent namespace, which is where the idiom
+/// actually lands (tclsh 8.6.16 / 9.0.4: a `proc helper` inside
+/// `proc [namespace current]::_inner` in `::pki` becomes `::pki::helper`).
+pub(super) fn scope_name_for_routine(resolved_name: &str) -> &str {
+    if crate::naming::is_dynamic_word(resolved_name) {
+        crate::naming::key_tail(resolved_name)
+    } else {
+        resolved_name
+    }
+}
+
 /// Normalise a literal `interp` path word to the interpreter-domain map
 /// key: the path is a Tcl *list* naming a descent through child
 /// interpreters (`{s t}` = child `t` of child `s`), so whitespace runs
@@ -204,7 +229,10 @@ fn summarise_detail(description: &str) -> String {
 struct ProcBodyWalkArgs<'a> {
     /// Parent scope path, *before* the new proc scope is pushed.
     path: &'a [usize],
-    raw_name: &'a str,
+    /// The routine's name after [`Analyser::resolve_dynamic_word`] — the
+    /// `Scope` name is derived from it via [`scope_name_for_routine`], never
+    /// from the raw written word.
+    resolved_name: &'a str,
     body_span: Span,
     arg_tokens: &'a [Token],
     name_tok: Token,
@@ -904,14 +932,15 @@ impl Analyser {
         self.mark_locally_defined_in_enclosing_interp(&simple_key);
 
         // Walk the body in a fresh proc scope when the body is a
-        // braced literal. ``raw_name`` is used as the proc-scope
-        // name because ``define_var`` keys ``result.all_variables``
-        // on ``"<scope_name>::<var>"``, so the scope name must be
-        // the proc name to key that map consistently.
+        // braced literal. The *resolved* name is the proc-scope name:
+        // ``define_var`` keys ``result.all_variables`` on
+        // ``"<scope_name>::<var>"``, and the scope name is also what
+        // ``advance_command_resolution_namespace`` reads the body's namespace
+        // off — see ``scope_name_for_routine``.
         if body_tok.kind == TokenType::Str {
             self.walk_proc_body_in_new_scope(ProcBodyWalkArgs {
                 path: &path,
-                raw_name,
+                resolved_name: &resolved_name,
                 body_span,
                 arg_tokens,
                 name_tok,
@@ -934,7 +963,7 @@ impl Analyser {
     fn walk_proc_body_in_new_scope(&mut self, ctx: ProcBodyWalkArgs<'_>) {
         let ProcBodyWalkArgs {
             path,
-            raw_name,
+            resolved_name,
             body_span,
             arg_tokens,
             name_tok,
@@ -943,11 +972,15 @@ impl Analyser {
             body_tok,
             ns_prefix,
         } = ctx;
+        // One scope key for both the inline and the deferred path — a
+        // divergence here would make the per-item and whole-file walks
+        // disagree about which namespace the body runs in.
+        let scope_name = scope_name_for_routine(resolved_name);
         let proc_scope_idx = {
             let parent = super::scope::scope_at_mut(&mut self.result.global_scope, path)
                 .expect("scope_path resolved when registering proc must still resolve");
             let mut child =
-                super::types::Scope::new(super::types::ScopeKind::Proc, raw_name.to_string());
+                super::types::Scope::new(super::types::ScopeKind::Proc, scope_name.to_string());
             child.body_span = Some(body_span);
             parent.children.push(child);
             parent.children.len() - 1
@@ -1001,7 +1034,7 @@ impl Analyser {
                 is_method: false,
                 oo_global_resolution: false,
                 namespace: ns_prefix.to_string(),
-                scope_name: raw_name.to_string(),
+                scope_name: scope_name.to_string(),
                 params: params.to_vec(),
                 class_variables: Vec::new(),
                 safe_interp_ctx,
@@ -1105,11 +1138,15 @@ impl Analyser {
         self.mark_locally_defined_in_enclosing_interp(&simple_key);
 
         if body_tok.kind == TokenType::Str {
+            // The *resolved* name keys the scope — see
+            // `scope_name_for_routine`; the raw written word would invent a
+            // namespace out of a substitution.
+            let scope_name = scope_name_for_routine(&resolved_name).to_string();
             let proc_scope_idx = {
                 let parent = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
                     .expect("scope_path resolved when registering proc must still resolve");
                 let mut child =
-                    super::types::Scope::new(super::types::ScopeKind::Proc, raw_name.clone());
+                    super::types::Scope::new(super::types::ScopeKind::Proc, scope_name.clone());
                 child.body_span = Some(body_span);
                 parent.children.push(child);
                 parent.children.len() - 1
@@ -1160,7 +1197,7 @@ impl Analyser {
                     is_method: false,
                     oo_global_resolution: false,
                     namespace: ns_prefix.clone(),
-                    scope_name: raw_name.clone(),
+                    scope_name,
                     params: combined_params,
                     class_variables: Vec::new(),
                     safe_interp_ctx,

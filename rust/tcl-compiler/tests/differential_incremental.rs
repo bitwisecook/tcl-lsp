@@ -168,6 +168,40 @@ fn incremental_matches_fresh_for_apply_lambda_bodies() {
     }
 }
 
+/// Same parity guard for a **dynamically-named** `proc` — the tcllib pki
+/// idiom `proc [namespace current]::_x {...}` (tcllib 2.0
+/// `modules/pki/pki.tcl`:316) and its `$`-spelled cousins.  The `Scope` name
+/// these produce feeds `advance_command_resolution_namespace`, and the
+/// deferred (per-item) path builds its scope from `DeferredBody::scope_name`,
+/// so the two must derive it identically or the incremental walk homes the
+/// body's definitions in a different namespace from the full walk.
+#[test]
+fn incremental_matches_fresh_for_dynamically_named_procs() {
+    let dialect = "tcl8.6";
+    let sources = [
+        "namespace eval ::pki {\n  proc [namespace current]::_x {} { proc helper {} {} }\n}\n",
+        "namespace eval ::pki {\n  proc _outer {} {\n    proc [namespace current]::_x {} { proc helper {} { set v 1 } }\n  }\n}\n",
+        "set ns ::pki\nproc ${ns}::_x {} { proc helper {} {} }\n",
+        "namespace eval ::pki { proc _$suffix {} { proc helper {} {} } }\n",
+    ];
+    for src in sources {
+        let mut text = src.to_string();
+        let mut cur = segment_commands(&text);
+        for edit in ["", "\nset z 9\n", " "] {
+            let new_text = format!("{text}{edit}");
+            let inc = Analyser::new().analyse_incremental(&text, &cur, &new_text, dialect);
+            let fresh = Analyser::new().analyse(&new_text, dialect);
+            assert!(
+                inc == fresh,
+                "incremental != fresh for a dynamically-named proc:\n{}",
+                describe_analysis_divergence(src, &inc, &fresh)
+            );
+            text = new_text;
+            cur = segment_commands(&text);
+        }
+    }
+}
+
 #[test]
 #[ignore = "corpus fuzz; run explicitly with --ignored (needs tmp/ trees)"]
 fn incremental_matches_fresh_over_corpus() {
