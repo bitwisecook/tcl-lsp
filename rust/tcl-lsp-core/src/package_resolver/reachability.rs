@@ -135,13 +135,16 @@ impl Condition {
                 requirements,
                 expect,
             } => match target {
-                Some(v) => {
-                    if v.satisfies_any(requirements) == *expect {
-                        Ternary::Yes
-                    } else {
-                        Ternary::No
-                    }
-                }
+                // A requirement naming a patch level (`9.0.1`, `9.0.1-`)
+                // cannot be evaluated against the two-component release model
+                // and comes back `Inert` — the one direction that would
+                // otherwise make a real 9.0.4 look like it fails its own
+                // guard, and so fire a false W123 on the package's commands.
+                Some(v) => match v.satisfies_any_ternary(requirements) {
+                    Ternary::Yes => Ternary::from(*expect),
+                    Ternary::No => Ternary::from(!*expect),
+                    Ternary::Inert => Ternary::Inert,
+                },
                 None => Ternary::Inert,
             },
             Self::Undecidable => Ternary::Inert,

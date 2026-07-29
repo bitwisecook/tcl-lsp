@@ -282,6 +282,80 @@ fn the_then_noise_word_and_a_braceless_return_are_understood() {
     );
 }
 
+/// A requirement naming a **patch level** cannot be evaluated against the
+/// two-component release model, so the guard abstains instead of deciding it
+/// wrongly.
+///
+/// Oracle (`tclsh9.0`, `[package provide Tcl]` = 9.0.4):
+///
+/// ```text
+/// vsatisfies 9.0.4 9.0.1  = 1
+/// vsatisfies 9.0.4 9.0.1- = 1
+/// vsatisfies 9.0.4 9.0.9- = 0
+/// ```
+///
+/// `TclVersion::V9_0`'s `version_string` is `9.0`, which compares *below*
+/// `9.0.1` — so evaluating the requirement would report the guard as failing
+/// on a real 9.0.4 and mark the package `Unavailable`, the one direction that
+/// makes W123 fire falsely on its commands.  Two shipped 9.0 releases disagree
+/// about `9.0.9-`, so "conditional" is the only honest answer.
+#[test]
+fn a_patch_level_requirement_leaves_the_declaration_conditional() {
+    for requirement in ["9.0.1", "9.0.1-", "9.0-9.0.2"] {
+        let src = format!(
+            "if {{![package vsatisfies [package provide Tcl] {requirement}]}} {{return}}\n\
+             package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n"
+        );
+        assert_eq!(
+            only(&src, V90),
+            Availability::Conditional,
+            "a patch-level requirement must abstain: {requirement}",
+        );
+        assert_eq!(
+            only(&src, V86),
+            Availability::Conditional,
+            "a patch-level requirement must abstain: {requirement}",
+        );
+    }
+}
+
+/// TN for the same rule: a requirement that *is* satisfiable two-component
+/// still settles the whole `vsatisfies` OR, however many patch-level
+/// requirements sit beside it — real `package vsatisfies` is an OR.
+#[test]
+fn a_satisfied_two_component_requirement_still_decides_beside_a_patch_level_one() {
+    let src = "if {![package vsatisfies [package provide Tcl] 9.0.1 9]} {return}\n\
+               package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
+    // 9.0 satisfies the bare `9`, so the guard is decided true regardless of
+    // the undecidable `9.0.1`.
+    assert_eq!(only(src, V90), Availability::Available);
+    // 8.6 satisfies neither the bare `9` nor (decidably) `9.0.1`.
+    assert_eq!(only(src, V86), Availability::Conditional);
+}
+
+/// Control — the two-component matrix this module already decided is
+/// unchanged by the patch-level rule.
+#[test]
+fn the_two_component_requirement_matrix_is_unchanged() {
+    for (requirement, on_86, on_90) in [
+        ("8.5", Availability::Available, Availability::Unavailable),
+        ("8.5-", Availability::Available, Availability::Available),
+        (
+            "8.5-9.0",
+            Availability::Available,
+            Availability::Unavailable,
+        ),
+        ("9-", Availability::Unavailable, Availability::Available),
+    ] {
+        let src = format!(
+            "if {{![package vsatisfies [package provide Tcl] {requirement}]}} {{return}}\n\
+             package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n"
+        );
+        assert_eq!(only(&src, V86), on_86, "8.6 / {requirement}");
+        assert_eq!(only(&src, V90), on_90, "9.0 / {requirement}");
+    }
+}
+
 /// Deeply nested guards must not recurse without bound; past the cap the scan
 /// abstains rather than descending further.
 #[test]

@@ -51,7 +51,9 @@ pub use dialect_set::{DialectSet, KNOWN_DIALECTS, available_dialects};
 pub use grammar::{BracedVarStyle, LexerGrammar};
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 pub use profile::DialectProfile;
-pub use version::{TclVersion, Ternary, compare_versions, version_satisfies};
+pub use version::{
+    TclVersion, Ternary, compare_versions, requirement_names_patch_level, version_satisfies,
+};
 
 /// Crate version string.
 ///
