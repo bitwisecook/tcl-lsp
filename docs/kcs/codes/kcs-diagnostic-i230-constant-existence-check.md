@@ -62,6 +62,44 @@ the call-site scan see the call, never to special-case the parameter. For
 the full rule, see
 [when a parameter is treated as a constant](../kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md).
 
+## Where a parameter is never treated as a constant
+
+Some procs have callers no scan can list, so their parameters are never
+seeded and `I230` never fires inside them.
+
+A `proc unknown` is the clearest case. Tcl sends it every command word
+that resolves to nothing at the moment of the call — a name an
+autoloader supplies, a name another sourced file introduces, a name built
+by string arithmetic — and most of those appear nowhere in your source.
+Whatever calls the analyser can see are only some of them, so none of
+them counts as evidence:
+
+```tcl
+proc unknown {cmd args} {
+    if {$cmd eq "alpha"} { return 1 } else { return 2 }
+}
+unknown alpha
+unknown alpha
+```
+
+No `I230` is reported on the condition, even though both visible calls
+pass `alpha`.
+
+The same reasoning applies to a proc reached in a way the scan cannot
+enumerate at all — through a command name it cannot read (`set cmd [gets
+stdin]; $cmd dev`), or through a `namespace import`.
+
+Two shapes that used to lose evidence now keep it, so a fold you saw
+before may correctly have gone away:
+
+- A body pinned to a namespace by `apply {params body ns}`. Its bare
+  command words resolve in that namespace, so `apply {{x} { helper $x }
+  ::foo} b` counts as a call to `::foo::helper`, not to a global
+  `::helper`.
+- A body run by `uplevel 0`. That is the *current* frame, not the global
+  one — only `uplevel #0` is global — so its calls count against the
+  enclosing namespace's procs.
+
 ## Fix
 
 To remember a value across calls, give it real cross-call storage instead of a

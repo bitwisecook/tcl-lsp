@@ -46,6 +46,48 @@ $p distance
 The analyser reports **`W308`** on `$p distance` — `Point` has no `distance`
 method.
 
+## What a deleted class changes
+
+The check asks whether the class is still live **at the dispatch**, not
+whether it survives to the end of the file. A class deleted later in the
+file is fully alive at any dispatch written before the deletion, so those
+dispatches are still checked:
+
+```tcl
+oo::class create Dog { method bark {} { return woof } }
+proc walk {} {
+    set d [Dog new]
+    $d fly
+}
+walk
+rename Dog {}
+```
+
+The analyser reports **`W308`** on `$d fly`. Running this really does
+fail with `unknown method "fly"` — the trailing `rename` happens after
+`walk` has already run.
+
+A class deleted *before* the dispatch is a different matter. There the
+constructor itself fails, so the object is never created and the method
+name is not the real problem. The analyser stays quiet about the method
+and reports the dead class instead, as
+[`W123`](kcs-diagnostic-w123-unresolved-command.md).
+
+`rename Dog Cat` does not delete the class. It moves the class to a new
+name, and every object already built from it keeps answering its
+methods, so those dispatches are still checked:
+
+```tcl
+oo::class create Dog { method bark {} { return woof } }
+set d [Dog new]
+rename Dog Cat
+$d fly
+```
+
+The analyser reports **`W308`** on `$d fly`. The vacated name `Dog` is a
+separate question, and is reported separately as `W123` if anything
+still calls it.
+
 ## Fix
 
 Call a method the class actually defines, or add the method to the class:
@@ -65,4 +107,5 @@ Add `# noqa: W308` at the end of the offending line.
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
+- [W123 — unresolved command](kcs-diagnostic-w123-unresolved-command.md)
 - Related codes: `W001`, `W307`

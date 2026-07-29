@@ -768,6 +768,7 @@ fn record_call_site_evidence(
         // ::foo { proc runIt {} { uplevel #0 { helper b } } }` invented a
         // call to `::foo::helper` — a proc tclsh8.6/9.0 confirm real Tcl
         // never reaches this way.
+        //
         // And the same rule again for a body that runs in another *frame*
         // (`Traits::EVALUATES_IN_SHIFTED_FRAME` — `uplevel`). The frame the
         // level argument selects decides which namespace the body's bare
