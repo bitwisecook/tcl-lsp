@@ -2427,6 +2427,80 @@ mod tests {
             );
         }
 
+        /// MISCOMPILE regression (adversarial review): `apply {params body
+        /// ns}`'s third element names the namespace the body runs in, so a
+        /// bare command word inside it resolves against *that* namespace.
+        /// `lower_apply` computed the right `body_ns` and lowered the body
+        /// against it, then registered the body unit under the bare `apply`
+        /// marker — whose qname puts it in the global namespace. The call
+        /// site was attributed to a `::helper` that does not exist and
+        /// vanished from `::foo::helper`'s evidence, folding a branch real
+        /// Tcl reaches both ways.
+        ///
+        /// Oracle (tclsh8.6 and tclsh9.0, `review-probes/ap3_run.tcl`):
+        /// inside `::foo::runIt`, `apply {{x} { helper $x } ::foo} b`
+        /// returns 2 — the `else` arm of `::foo::helper` — while the direct
+        /// `::foo::helper a` returns 1.
+        #[test]
+        fn apply_with_a_namespace_element_resolves_the_body_against_it() {
+            let reg = registry();
+            let src = "
+                namespace eval ::foo {
+                    proc helper {mode} {
+                        if {$mode eq \"a\"} { set r 1 } else { set r 2 }
+                    }
+                    proc runIt {} {
+                        apply {{x} { helper $x } ::foo} b
+                    }
+                }
+                ::foo::helper a
+                ::foo::runIt
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu
+                .procedures
+                .get("::foo::helper")
+                .expect("::foo::helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "::foo::helper is called with both \"a\" (direct) and \"b\" (through the \
+                 ::foo-pinned lambda): {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// The two-element form is unchanged: with no namespace element,
+        /// `apply` runs the body in the *global* namespace, not the caller's
+        /// (Tcl `apply` manual). So the enclosing namespace's `helper` is
+        /// genuinely never called from the lambda and keeps its fold.
+        #[test]
+        fn apply_without_a_namespace_element_still_resolves_globally() {
+            let reg = registry();
+            let src = "
+                namespace eval ::foo {
+                    proc helper {mode} {
+                        if {$mode eq \"a\"} { set r 1 } else { set r 2 }
+                    }
+                    proc runIt {} {
+                        apply {{x} { helper $x }} b
+                    }
+                }
+                ::foo::helper a
+                ::foo::runIt
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu
+                .procedures
+                .get("::foo::helper")
+                .expect("::foo::helper analysed");
+            assert!(
+                folds_condition_mentioning(helper, "mode"),
+                "an unpinned lambda body resolves globally, so ::foo::helper only ever \
+                 sees the direct \"a\": {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
         /// True if any constant-branch condition recorded for `fu` mentions
         /// `needle` (a variable name) — the ambient SCCP-fold check the I230
         /// diagnostic, and the O101/O107 optimiser suggestions, all key off.

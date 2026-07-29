@@ -1980,7 +1980,16 @@ impl<'r> Lowerer<'r> {
                 body_offset,
                 body_offset + u32::try_from(body_text.len()).unwrap_or(u32::MAX),
             );
-            self.register_body_unit("apply", params, span, body);
+            // Prefix the body unit's qualified name with the namespace the
+            // lambda actually runs in, exactly as `lower_namespace_eval` does
+            // — a bare command word inside the body resolves against
+            // `body_ns`, never the caller's own namespace, and
+            // `interprocedural::resolve_internal_call` reads that off the
+            // qname. `join_namespace` normalises the global case back to the
+            // plain `apply` marker. tclsh8.6/9.0-confirmed: inside
+            // `::foo::runIt`, `apply {{x} { helper $x } ::foo} b` calls
+            // `::foo::helper`, not `::helper`.
+            self.register_body_unit(&join_namespace(&body_ns, "apply"), params, span, body);
         }
 
         Statement::Barrier {
