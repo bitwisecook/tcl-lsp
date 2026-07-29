@@ -3935,21 +3935,36 @@ impl Analyser {
             let inline_args: Vec<String> = args[1..].to_vec();
             let inline_tokens: Vec<Token> = arg_tokens.iter().skip(1).copied().collect();
             if let Some(grammar) = self.definition_grammar(cmd_name) {
-                super::oo::parse_oo_define_inline(
-                    grammar,
-                    &inline_args,
-                    &inline_tokens,
-                    &mut class_def,
-                );
-                // Inline `oo::define Class superclass Base` (or `mixin`, or a
-                // `forward` target) names commands too; record them like the
-                // body walk so references / rename reach the referenced class.
-                self.record_member_command_references(
-                    grammar,
-                    &inline_args,
-                    &inline_tokens,
-                    scope_path,
-                );
+                // The single-command form reaches the same member grammar as
+                // a definition body, so it gets the same version gate: `oo::define
+                // Cls classmethod m {} {…}` is as much a 9.0-only construct as
+                // the block form, and must not silently record a member the
+                // 8.6 runtime would reject with `invalid command name`.
+                let definer_disabled = self.command_dialect_disabled(cmd_name);
+                let member_disabled = match (inline_args.first(), inline_tokens.first()) {
+                    (Some(subcmd), Some(tok)) => {
+                        self.emit_w002_oo_member_disabled(grammar, subcmd, *tok, definer_disabled)
+                    }
+                    _ => false,
+                };
+                if !member_disabled {
+                    super::oo::parse_oo_define_inline(
+                        grammar,
+                        &inline_args,
+                        &inline_tokens,
+                        &mut class_def,
+                    );
+                    // Inline `oo::define Class superclass Base` (or `mixin`, or
+                    // a `forward` target) names commands too; record them like
+                    // the body walk so references / rename reach the referenced
+                    // class.
+                    self.record_member_command_references(
+                        grammar,
+                        &inline_args,
+                        &inline_tokens,
+                        scope_path,
+                    );
+                }
             }
         } else if let Some(body_tok) = arg_tokens.get(1).copied() {
             // ``oo::define Class { body }`` — args[1] is the
