@@ -200,8 +200,75 @@ pub fn eval_tcl_expr_with_octal_and_dialect(
     octal: Option<bool>,
     dialect: Option<&str>,
 ) -> Option<TclValue> {
-    let is_irules = dialect.is_some_and(|d| tcl_dialect::DialectProfile::by_name(d).is_irules());
-    eval_with_config(node, env, octal, None, is_irules)
+    eval_tcl_expr_with_policy(node, env, FoldPolicy::for_dialect(octal, dialect))
+}
+
+/// The dialect-derived facts a constant fold needs: the leading-zero octal
+/// rule, and whether the dialect's `expr` grammar carries the iRules word
+/// operators (`contains`, `starts_with`, `equals`, …).
+///
+/// Bundled into one `Copy` value rather than threaded as two parallel
+/// parameters, because the passes that need it — SCCP, the static-loop
+/// simulator — already carry `octal` through a long chain of helpers, several
+/// of which sit on the `clippy::too_many_arguments` ceiling.  Adding a
+/// further dialect fact then means extending this struct in one place instead
+/// of every signature on the chain.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FoldPolicy {
+    /// Leading-zero octal policy: `Some(true)` = the 8.x octal rule,
+    /// `Some(false)` = the 9.0 decimal rule, `None` = decline to fold a
+    /// dialect-ambiguous leading-zero operand.
+    pub octal: Option<bool>,
+    /// Whether the active dialect's `expr` grammar has the iRules word
+    /// operators.  `false` (the default) declines that fold, which is always
+    /// safe — see [`FoldOps::is_irules`].
+    pub is_irules: bool,
+}
+
+impl FoldPolicy {
+    /// The policy for an explicit octal rule with no known dialect — the
+    /// iRules word operators are declined.
+    #[must_use]
+    pub const fn from_octal(octal: Option<bool>) -> Self {
+        Self {
+            octal,
+            is_irules: false,
+        }
+    }
+
+    /// The policy for an octal rule plus the dialect string a pass already
+    /// holds (`PassContext::dialect`, a `dialect: Option<&str>` parameter).
+    #[must_use]
+    pub fn for_dialect(octal: Option<bool>, dialect: Option<&str>) -> Self {
+        Self {
+            octal,
+            is_irules: dialect.is_some_and(|d| tcl_dialect::DialectProfile::by_name(d).is_irules()),
+        }
+    }
+
+    /// The policy a registry's own dialect profile implies — both facts from
+    /// the one source of truth, for the pipeline entry points that hold a
+    /// registry rather than a dialect string.
+    #[must_use]
+    pub fn from_registry(registry: &tcl_registry::CommandRegistry) -> Self {
+        Self {
+            octal: registry.octal_fold_policy(),
+            is_irules: registry
+                .profile()
+                .is_some_and(tcl_dialect::DialectProfile::is_irules),
+        }
+    }
+}
+
+/// Evaluate `node` under a bundled [`FoldPolicy`] — the entry point for
+/// passes that thread the policy rather than the raw octal flag.
+#[must_use]
+pub fn eval_tcl_expr_with_policy(
+    node: &ExprNode,
+    env: &Env,
+    policy: FoldPolicy,
+) -> Option<TclValue> {
+    eval_with_config(node, env, policy.octal, None, policy.is_irules)
 }
 
 /// Whether the dialect's *runtime* reads a bare leading-zero integer as

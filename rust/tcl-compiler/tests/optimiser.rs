@@ -461,6 +461,48 @@ fn instcombine_ternary_and_boolean_context() {
 // Structure elimination — O112 constant-condition compound statements
 // ---------------------------------------------------------------------------
 
+/// The iRules word operators fold through **SCCP** — not just through the
+/// expression-simplification passes that already carried a dialect.
+///
+/// Regression for the Codex #1046 / soundness review finding: SCCP,
+/// interprocedural propagation, the static-loop simulator, and codegen's
+/// expression folder all evaluated with a dialect-blind policy, so
+/// `FoldOps::is_irules` was `false` there and every word operator declined.
+/// The `eq` control below folded on the same input, proving the loss was
+/// dialect threading rather than the fold itself.
+#[test]
+fn irules_word_operators_fold_through_sccp() {
+    const IR: &str = "f5-irules";
+    // A known-constant subject: the lattice resolves `$x` to `abcde` and the
+    // word operator folds, collapsing the condition to a literal.
+    let contains = "when HTTP_REQUEST {\n    set x \"abcde\"\n    if {$x contains \"cd\"} {\n        pool p1\n    }\n}";
+    assert!(
+        optimised(contains, IR).contains("if {1}"),
+        "`contains` on a known constant must fold under f5-irules; got {:?}",
+        optimised(contains, IR)
+    );
+    // Control: `eq`, an operator plain Tcl shares, folds on the identical
+    // shape — the two dialect halves now agree.
+    let eq = "when HTTP_REQUEST {\n    set x \"abcde\"\n    if {$x eq \"abcde\"} {\n        pool p1\n    }\n}";
+    assert!(opt_fires(eq, IR, "O112"));
+
+    // A provably-false subject folds the other way.
+    let miss = "when HTTP_REQUEST {\n    set x \"abcde\"\n    if {$x contains \"zz\"} {\n        pool p1\n    }\n}";
+    assert!(
+        optimised(miss, IR).contains("if {0}"),
+        "a provably-false `contains` must fold to 0; got {:?}",
+        optimised(miss, IR)
+    );
+
+    // TN: plain Tcl has no word operators, so the same text must not fold —
+    // the dialect gate still holds after the threading.
+    assert!(
+        opt_codes(contains, TCL).is_empty(),
+        "plain Tcl must decline the iRules word-operator fold; got {:?}",
+        opt_codes(contains, TCL)
+    );
+}
+
 #[test]
 fn structure_elimination_if_while_for() {
     // tclsh: `if {1} {set x 1}` runs the body ⇒ unwrap to `set x 1`.

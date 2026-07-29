@@ -64,6 +64,7 @@ use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{CommandTokens, Script, Statement};
 use crate::naming::normalise_var_name;
+use crate::tcl_expr_eval::FoldPolicy;
 use tcl_core_types::DiagCode;
 use tcl_registry::CommandRegistry;
 
@@ -1042,7 +1043,7 @@ fn evaluate_proc_with_constants(
     callee: &FunctionUnit,
     params: &[String],
     args: &[ConstValue],
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> Option<ConstValue> {
     let seed = seed_params_from_args(params, args)?;
     let registry: &CommandRegistry = ctx
@@ -1057,14 +1058,14 @@ fn evaluate_proc_with_constants(
         &callee.cfg,
         &callee.ssa,
         Some(&seed),
-        octal,
+        policy,
         crate::sccp::TraceInputs {
             registry,
             traced_variables,
             has_dynamic_variable_trace,
         },
     );
-    resolve_return_constant(callee, &result, octal)
+    resolve_return_constant(callee, &result, policy)
 }
 
 /// Bind each of `params` to its constant call argument for the
@@ -1142,7 +1143,7 @@ fn const_value_text(cv: &ConstValue) -> String {
 fn resolve_return_constant(
     fu: &FunctionUnit,
     result: &crate::sccp::SccpResult,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> Option<ConstValue> {
     use crate::cfg::Terminator;
     let preds = fu.cfg.predecessors();
@@ -1153,9 +1154,9 @@ fn resolve_return_constant(
         }
         let folded = match &block.terminator {
             Some(Terminator::Return { value, expr, .. }) => {
-                fold_return_under_lattice(fu, *bn, value.as_deref(), expr.as_ref(), result, octal)?
+                fold_return_under_lattice(fu, *bn, value.as_deref(), expr.as_ref(), result, policy)?
             }
-            None => resolve_fallthrough_value(fu, *bn, result, &preds, octal)?,
+            None => resolve_fallthrough_value(fu, *bn, result, &preds, policy)?,
             Some(_) => continue, // Goto / Branch — not an exit point
         };
         match &found {
@@ -1196,7 +1197,7 @@ fn resolve_fallthrough_value(
         crate::cfg::BlockId,
         std::collections::HashSet<crate::cfg::BlockId>,
     >,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> Option<ConstValue> {
     let mut executable_preds = preds
         .get(&bn)
@@ -1209,7 +1210,7 @@ fn resolve_fallthrough_value(
     }
     let block = fu.cfg.blocks.get(pred)?;
     let last = block.statements.last()?;
-    fold_tail_statement_under_lattice(fu, *pred, last, result, octal)
+    fold_tail_statement_under_lattice(fu, *pred, last, result, policy)
 }
 
 /// Resolve the value Tcl's "result of the last executed command" rule
@@ -1226,10 +1227,10 @@ fn fold_tail_statement_under_lattice(
     bn: crate::cfg::BlockId,
     stmt: &Statement,
     result: &crate::sccp::SccpResult,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> Option<ConstValue> {
     match stmt {
-        Statement::ExprEval { expr, .. } => fold_expr_under_lattice(fu, bn, expr, result, octal),
+        Statement::ExprEval { expr, .. } => fold_expr_under_lattice(fu, bn, expr, result, policy),
         Statement::AssignConst { name, .. }
         | Statement::AssignExpr { name, .. }
         | Statement::AssignValue { name, .. }
@@ -1247,7 +1248,7 @@ fn fold_return_under_lattice(
     value: Option<&str>,
     expr: Option<&crate::expr_ast::ExprNode>,
     result: &crate::sccp::SccpResult,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> Option<ConstValue> {
     let value = value?.trim();
 
@@ -1262,7 +1263,7 @@ fn fold_return_under_lattice(
     }
 
     // Path 3 — `return [expr {…}]`.
-    fold_expr_under_lattice(fu, bn, expr?, result, octal)
+    fold_expr_under_lattice(fu, bn, expr?, result, policy)
 }
 
 /// Resolve a simple `$name` variable reference to its SCCP-proved constant
@@ -1322,9 +1323,9 @@ fn fold_expr_under_lattice(
     bn: crate::cfg::BlockId,
     expr: &crate::expr_ast::ExprNode,
     result: &crate::sccp::SccpResult,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> Option<ConstValue> {
-    use crate::tcl_expr_eval::{Env, eval_tcl_expr_with_octal};
+    use crate::tcl_expr_eval::{Env, eval_tcl_expr_with_policy};
 
     let mut env: Env = Env::new();
     if let Some(ssa_block) = fu.ssa.blocks.get(&bn) {
@@ -1338,7 +1339,7 @@ fn fold_expr_under_lattice(
             }
         }
     }
-    let v = eval_tcl_expr_with_octal(expr, &env, octal)?;
+    let v = eval_tcl_expr_with_policy(expr, &env, policy)?;
     Some(crate::sccp::tcl_value_to_const(v))
 }
 
@@ -1627,7 +1628,7 @@ fn try_substitute_assign_expr(
     use super::helpers::spans::full_rewrite_span;
     use crate::expr_parser::parse_expr;
     use crate::tcl_expr_eval::{
-        Env, eval_tcl_expr_with_octal, format_tcl_value, leading_zero_is_octal,
+        Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value, leading_zero_is_octal,
     };
 
     if matches!(expr, crate::expr_ast::ExprNode::Raw { .. }) {
@@ -1663,7 +1664,7 @@ fn try_substitute_assign_expr(
     let parsed = parse_expr(&result.text, ctx.dialect);
     let env = Env::new();
     let octal = ctx.dialect.and_then(leading_zero_is_octal);
-    if let Some(val) = eval_tcl_expr_with_octal(&parsed, &env, octal) {
+    if let Some(val) = eval_tcl_expr_with_octal_and_dialect(&parsed, &env, octal, ctx.dialect) {
         let folded = format_tcl_value(&val);
         let needs_quoting = folded.is_empty()
             || folded.contains([
@@ -1915,8 +1916,11 @@ fn try_o103_proc_fold(
             callee,
             &summary.params,
             &args,
-            ctx.dialect
-                .and_then(crate::tcl_expr_eval::leading_zero_is_octal),
+            crate::tcl_expr_eval::FoldPolicy::for_dialect(
+                ctx.dialect
+                    .and_then(crate::tcl_expr_eval::leading_zero_is_octal),
+                ctx.dialect,
+            ),
         )
     {
         // Argument-sensitive: re-run SCCP on the pure callee with the call's

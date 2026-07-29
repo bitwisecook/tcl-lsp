@@ -425,18 +425,20 @@ impl FunctionUnit {
         }
         let ssa = build_ssa(&cfg, registry);
         let def_use = build_def_use_chains(&ssa, Some(&cfg));
-        // The registry carries its dialect profile's octal policy, which fixes
-        // how a bare leading-zero literal (`08`, `010`) is read when SCCP folds
-        // `==`/`!=`: octal in the 8.x runtimes (tcl8.x / F5 / EDA), decimal in
-        // the 9.x runtimes (tcl9.0/9.1 and bpf), and `None` — abstain — when
-        // there is no Tcl runtime to have an opinion (f5-bigip, an unknown
-        // dialect). A hand-assembled registry without a profile keeps the
-        // historical loaded-packs derivation via `leading_zero_is_octal`.
+        // The registry carries its dialect profile's fold policy: the octal
+        // rule, which fixes how a bare leading-zero literal (`08`, `010`) is
+        // read when SCCP folds `==`/`!=` — octal in the 8.x runtimes (tcl8.x /
+        // F5 / EDA), decimal in the 9.x runtimes (tcl9.0/9.1 and bpf), and
+        // `None` (abstain) when there is no Tcl runtime to have an opinion
+        // (f5-bigip, an unknown dialect) — plus whether the dialect's `expr`
+        // grammar carries the iRules word operators, so `if {$x contains
+        // "cd"}` folds under `f5-irules`. A hand-assembled registry without a
+        // profile keeps the historical loaded-packs octal derivation.
         let mut sccp = sccp_with_extra_escaping(
             &cfg,
             &ssa,
             param_constants,
-            registry.octal_fold_policy(),
+            crate::tcl_expr_eval::FoldPolicy::from_registry(registry),
             extra_global_escaping,
             crate::sccp::TraceInputs {
                 registry,
