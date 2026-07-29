@@ -2048,6 +2048,80 @@ mod tests {
         );
     }
 
+    /// TP — a *relative* (non-`::`-prefixed) lambda namespace element is
+    /// interpreted against the GLOBAL namespace, never the caller's.
+    ///
+    /// `doc/apply.n`: "If given, namespace is interpreted relative to the
+    /// global namespace even if its name does not start with `::`";
+    /// `tclProc.c`'s `TclNRApplyObjCmd` `::`-prefixes the word before the
+    /// lookup. tclsh 9.0.4 oracle (probe `a2b_apply.tcl`), with `::sub`,
+    /// `::pin::sub`, and `::lex::sub` all defined:
+    ///
+    /// ```text
+    /// lex-body current=::lex -> ns=::sub who=GLOBAL-SUB
+    /// proc current=::pin     -> ns=::sub who=GLOBAL-SUB
+    /// c2 current=::pin       -> ns=::sub who=GLOBAL-SUB
+    /// ```
+    #[test]
+    fn apply_relative_lambda_namespace_homes_globally_not_to_the_caller() {
+        let src = "namespace eval ::sub {}\n\
+                   namespace eval ::caller::sub {}\n\
+                   proc ::caller::p {} {\n\
+                       apply {{} { proc helper {} { return 1 } } sub}\n\
+                   }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.all_procs.contains_key("::sub::helper"),
+            "relative lambda ns must resolve against ::, not the caller: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !r.all_procs.contains_key("::caller::sub::helper"),
+            "relative lambda ns must NOT pin against the caller namespace: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        let (_, ns) = r
+            .namespace_overrides
+            .first()
+            .expect("the lambda body records a namespace override");
+        assert_eq!(ns, "::sub");
+    }
+
+    /// TN — an *absolute* namespace element is unaffected by the
+    /// global-relative rule: `::caller::sub` stays `::caller::sub`.
+    #[test]
+    fn apply_absolute_lambda_namespace_is_unchanged() {
+        let src = "namespace eval ::sub {}\n\
+                   namespace eval ::caller::sub {}\n\
+                   proc ::caller::p {} {\n\
+                       apply {{} { proc helper {} { return 1 } } ::caller::sub}\n\
+                   }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.all_procs.contains_key("::caller::sub::helper"),
+            "absolute lambda ns must be honoured verbatim: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// Control — no namespace element at all still means the global
+    /// namespace, from inside a qualified-name proc as much as anywhere.
+    #[test]
+    fn apply_without_a_namespace_element_stays_global_inside_a_qualified_proc() {
+        let src = "proc ::caller::p {} {\n\
+                       apply {{} { proc helper {} { return 1 } }}\n\
+                   }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.all_procs.contains_key("::helper"),
+            "an absent lambda ns means global: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
     #[test]
     fn apply_with_namespace_element_records_a_namespace_override() {
         // TP — issue #923 idx 116 Part 1 (the core mechanism): a literal

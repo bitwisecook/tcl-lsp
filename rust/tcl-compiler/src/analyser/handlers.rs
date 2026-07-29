@@ -1434,18 +1434,17 @@ impl Analyser {
 
         // `apply` runs the lambda body in the namespace named by lambda element
         // 2, or the *global* namespace when it is absent — never the caller's
-        // namespace (Tcl `apply` manual). Derive the body namespace so a nested
-        // `proc` registers under the qualified name the runtime `apply` would
-        // give it (`::p`, not `::caller::p`). A non-`::`-qualified pin resolves
-        // relative to the caller (as `TclGetNamespaceFromObj`); absent → global.
+        // namespace. Element 2 is interpreted relative to the **global**
+        // namespace even when it does not start with `::` (`doc/apply.n`:
+        // "If given, namespace is interpreted relative to the global namespace
+        // even if its name does not start with ::"; `tclProc.c`
+        // `TclNRApplyObjCmd` literally `::`-prefixes the word before the
+        // lookup). So `apply {{} {…} sub}` homes to `::sub` no matter which
+        // namespace the call sits in, and a nested `proc` registers under the
+        // qualified name the runtime `apply` would give it.
         let body_ns = match elements.get(2).map(|(_, t)| t.as_str()) {
             Some(ns) if !ns.is_empty() && !ns.starts_with('$') && !ns.starts_with('[') => {
-                // "Relative to the caller" means the caller's *current*
-                // namespace at run time — the command-resolution namespace, so
-                // an `apply` inside `proc ::ns::p {}` pins against `::ns`
-                // (issue #923 idx 85).
-                let caller_ns = self.command_resolution_namespace(scope_path);
-                qualify(caller_ns.trim_start_matches(':'), ns)
+                qualify("", ns)
             }
             _ => "::".to_string(),
         };
@@ -5393,10 +5392,11 @@ mod tests {
         );
         // Outer proc registered.
         assert!(a.result.all_procs.contains_key("::outer"));
-        // Inner proc registered under outer's qualified prefix?
-        // Namespace resolution skips proc scopes —
-        // so an `inner` proc declared inside ``outer`` qualifies as
-        // ``::inner`` (the outer proc is not a namespace).
+        // A nested definition homes to the enclosing proc's *defining*
+        // namespace (`command_resolution_namespace` /
+        // `advance_command_resolution_namespace`), not to a namespace named
+        // after the proc. ``outer`` is unqualified, so its defining namespace
+        // is ``::`` and the nested ``inner`` qualifies as ``::inner``.
         assert!(a.result.all_procs.contains_key("::inner"));
         // Outer's proc scope holds the nested proc scope as a child.
         let outer_scope = &a.result.global_scope.children[0];

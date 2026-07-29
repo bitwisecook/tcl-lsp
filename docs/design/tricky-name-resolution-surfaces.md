@@ -422,8 +422,19 @@ the ensemble configuration string. Same fix location, same milestone.
   in issue #923 idx 85: `proc` / TclOO `oo::class create` (earlier wave), then
   `namespace ensemble create|configure`, `oo::define`, snit `type`/`widget`, itcl
   `class`, `namespace import`, `namespace export`, `<pkg>::import` aliases, command-alias
-  resolution, `apply`'s relative namespace pin, registry-definer symbol qualification,
-  the imported-command body-role fallback, and the deferred method-body namespace.
+  resolution, registry-definer symbol qualification, the imported-command body-role
+  fallback, and the deferred method-body namespace.
+- **Not part of this conversion — `apply`'s namespace element:** an earlier revision of
+  this section listed `apply`'s relative namespace pin among the conversions. That was
+  wrong, and the code that followed it was a bug. `apply`'s optional third lambda
+  element is **never** relative to the caller: `doc/apply.n` states it "is interpreted
+  relative to the global namespace even if its name does not start with `::`", and
+  `tclProc.c`'s `TclNRApplyObjCmd` literally `::`-prefixes the word before looking the
+  namespace up. tclsh 9.0.4 confirms: with `::sub`, `::pin::sub`, and `::lex::sub` all
+  defined, `apply {{} {…} sub}` runs in `::sub` from a `namespace eval ::lex` body, from
+  inside `proc ::pin::caller`, and from a proc lexically in `::lex` but named
+  `::pin::c2`. `handle_apply_command` therefore qualifies the element against the global
+  namespace unconditionally; the absent-element case is likewise global.
 - **Known limits:** a TclOO **method** body resolves globally
   (`Scope::oo_global_resolution`) because at run time it executes in the *object's*
   namespace, which is not statically known — so a `namespace import` written inside a
