@@ -67,13 +67,28 @@
 //!   `error`, `throw`, `exit`) ends the script — `tclPkgUnknown` sources the
 //!   index inside a `catch`, so a raise stops registration just as a `return`
 //!   does;
-//! * `if` / `elseif` / `else` chains, with the clause structure taken from the
-//!   registry's own `if` grammar ([`ArgRole::Expr`] / [`ArgRole::Body`]), so
-//!   `then` noise words and implicit else-bodies are handled without this
-//!   module re-deriving the grammar;
+//! * `if` / `elseif` / `else` chains, **symbolically**: each clause's guard
+//!   becomes a [`Condition`], the clause structure comes from the registry's
+//!   own `if` grammar ([`ArgRole::Expr`] / [`ArgRole::Body`]), and a branch
+//!   that terminates gates everything after the chain under the negated guard.
+//!   That last step is what makes the `if {GUARD} {return}` index head work,
+//!   and it is why only `if` may go through [`walk_if`]: `while` / `for` /
+//!   `foreach` have `Expr` and `Body` arguments too, so reading one as a clause
+//!   chain would treat `for {set i 0} {$i < $n} {incr i} {…}` as "if `$i < $n`
+//!   then `incr i`, else `…`" and gate the loop body behind a *negated* guard —
+//!   a false [`Condition::Impossible`] for anything declared in it.  The
+//!   load-bearing distinction is not "loops are not modelled" but
+//!   `spec.arg_role_resolver.is_some()`: `if`'s roles are computed from the
+//!   actual clause words by a resolver, while the loops carry fixed
+//!   `arg_roles`.
 //! * conditions that are a constant boolean (`1`, `0`, `true`, `no`, …) or a
 //!   `package vsatisfies [package provide Tcl] REQ …` test, optionally negated
 //!   with `!`.
+//! * every **other** body-taking command's script regions ([`ArgRole::Body`]
+//!   and `apply`'s [`ArgRole::LambdaLiteral`]) — visited, but under
+//!   [`Condition::Undecidable`], since this scan models neither whether nor how
+//!   often such a body runs.  Visiting them is not optional: Tcl 9 declares its
+//!   own core packages from inside `apply {{dir} { … foreach … }} $dir`.
 //!
 //! Deliberately **not** modelled — each yields [`Condition::Undecidable`], so
 //! the registration is reported as merely *conditional* rather than guessed
@@ -81,12 +96,17 @@
 //!
 //! * any other expression (`$::tcl_platform(platform) eq "windows"`,
 //!   `[file exists …]`, arithmetic, `&&` / `||` of two guards);
-//! * loops (`while`, `for`, `foreach`) — a `return` inside one is treated as
-//!   "may terminate", never "does terminate";
-//! * `catch`, `uplevel`, `eval`, and any other command that runs a script
-//!   argument;
+//! * which iterations of a loop run, or whether a `catch` / `eval` /
+//!   `namespace eval` / `apply` body runs at all — the body is walked, but
+//!   everything found in it is conditional, and a `return` inside one is
+//!   treated as "may terminate", never "does terminate";
 //! * a guard whose two branches disagree about terminating in a way that
-//!   cannot be written as one negated condition.
+//!   cannot be written as one negated condition;
+//! * a declaration whose *name* or *version* word is a substitution — Tcl 9's
+//!   own index writes `package ifneeded $package $version …` inside a
+//!   `foreach` over a literal list, and this scan reports the declaration but
+//!   does not evaluate the loop, so [`super::parse_pkg_index`] still cannot
+//!   name it.
 //!
 //! Nothing here is a *decision* about diagnostics — it reports availability,
 //! and the caller decides what to do with `Conditional`.
@@ -332,8 +352,74 @@ fn walk_script<'t>(
         {
             reached = reached.with(Condition::Undecidable);
         }
+        // Declarations *inside* that body still have to be found.  Every
+        // body-taking command's script regions are visited under
+        // [`Condition::Undecidable`]: this scan cannot say whether — or how
+        // many times — the body runs, and "conditional" is the safe direction
+        // (a conditional registration counts as loadable downstream, so a
+        // package whose commands really are there draws no false W123).
+        //
+        // Not looking at all was the defect: Tcl 9 ships its own core-package
+        // index as `apply {{dir} { … foreach … { package ifneeded … } }} $dir`
+        // (`library/pkgIndex.tcl` in the zipfs `tcl_library`), so a tcl9.0
+        // workspace saw http / msgcat / tcltest / platform / cookiejar declare
+        // nothing whatsoever.
+        for body in body_scripts(text, words, head, registry) {
+            walk_script(
+                &body,
+                registry,
+                &reached.with(Condition::Undecidable),
+                depth + 1,
+                visit,
+            );
+        }
     }
     Some(reached)
+}
+
+/// The script text of every body-role region of one command.
+///
+/// Both script-bearing argument roles, taken from the registry so no command
+/// name appears here:
+///
+/// * [`ArgRole::Body`] — the argument *is* the script (`foreach`'s body,
+///   `namespace eval`'s block, `catch`'s script, `eval`'s argument).
+/// * [`ArgRole::LambdaLiteral`] — the argument is `apply`'s
+///   `{params} {body} ?ns?` **list**, one word containing the script one level
+///   down.  Split with the shared
+///   [`tcl_compiler::lambda_literal`] splitter rather than re-deriving the
+///   shape; the decoded variant is the one documented for consumers that need
+///   the script text and report no spans back into it, so a bare or quoted
+///   body element's escapes collapse exactly as `apply` collapses them.
+///
+/// An `if` chain never reaches here — [`walk_if`] models its clauses
+/// symbolically and the caller continues past it.
+fn body_scripts(
+    text: &str,
+    words: &[Vec<Token>],
+    head: &str,
+    registry: &CommandRegistry,
+) -> Vec<String> {
+    let args: Vec<&str> = words[1..].iter().map(|w| word_raw(text, w)).collect();
+    let mut out: Vec<String> = registry
+        .arg_indices_for_role(head, &args, ArgRole::Body)
+        .into_iter()
+        .filter_map(|i| words[1..].get(i))
+        .map(|word| script_of(text, word))
+        .collect();
+    for index in registry.arg_indices_for_role(head, &args, ArgRole::LambdaLiteral) {
+        // A statically-splittable lambda is a single braced word; a `$var` /
+        // `[cmd]` lambda has nothing to walk and is skipped.
+        let Some([token]) = words[1..].get(index).map(Vec::as_slice) else {
+            continue;
+        };
+        if let Some(body) = tcl_compiler::lambda_literal::split_lambda_literal_decoded(text, *token)
+            .and_then(|elements| elements.body)
+        {
+            out.push(body.into_owned());
+        }
+    }
+    out
 }
 
 /// Whether any [`ArgRole::Body`] argument of this command contains a

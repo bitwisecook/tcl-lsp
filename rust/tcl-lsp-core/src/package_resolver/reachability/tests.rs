@@ -282,6 +282,111 @@ fn the_then_noise_word_and_a_braceless_return_are_understood() {
     );
 }
 
+/// Tcl 9's **own** core-package index — `apply {{dir} { … foreach … }} $dir`
+/// (the zipfs `tcl_library/pkgIndex.tcl`, shrunk to three packages and
+/// otherwise verbatim).  Before the body descent this scan saw only the
+/// `apply` call, so http / msgcat / tcltest declared nothing at all on a
+/// tcl9.0 workspace.  Each declaration is reached under an undecidable guard
+/// (the `apply` frame, the `foreach` iteration, the `if … continue`), so all
+/// three are `Conditional` — which counts as loadable downstream.
+#[test]
+fn the_tcl9_zipfs_index_shape_declares_its_packages() {
+    let src = "apply {{dir} {\n\
+               \x20 set isafe [interp issafe]\n\
+               \x20 foreach {safe package version file} {\n\
+               \x20   0 http    2.10.2 {http http.tcl}\n\
+               \x20   1 msgcat  1.7.1  {msgcat msgcat.tcl}\n\
+               \x20   1 tcltest 2.5.11 {tcltest tcltest.tcl}\n\
+               \x20 } {\n\
+               \x20   if {$isafe && !$safe} continue\n\
+               \x20   package ifneeded $package $version [list source [file join $dir {*}$file]]\n\
+               \x20 }\n\
+               }} $dir\n";
+    let found = availabilities(src, V90);
+    assert_eq!(
+        found,
+        vec![("$package".to_owned(), Availability::Conditional)],
+        "the declaration inside the apply/foreach body must be reached",
+    );
+}
+
+/// The same shape with literal name and version words, which is what a
+/// consumer can actually key on — the `apply` lambda body and the `foreach`
+/// body are both descended, and the declaration comes back `Conditional`.
+#[test]
+fn a_declaration_inside_an_apply_lambda_and_a_foreach_is_conditional() {
+    let src = "apply {{dir} {\n\
+               \x20 foreach f {mypkg.tcl} {\n\
+               \x20   package ifneeded mypkg 1.0 [list source [file join $dir $f]]\n\
+               \x20 }\n\
+               }} $dir\n";
+    assert_eq!(only(src, V90), Availability::Conditional);
+    assert_eq!(only(src, V86), Availability::Conditional);
+    assert_eq!(only(src, None), Availability::Conditional);
+}
+
+/// The other body-taking commands the module names, each reached through its
+/// registry [`super::ArgRole::Body`] argument rather than by name.
+#[test]
+fn every_body_taking_command_is_descended() {
+    for wrapper in [
+        "namespace eval ::pkg { PLACEHOLDER }",
+        "catch { PLACEHOLDER }",
+        "eval { PLACEHOLDER }",
+        "foreach v {1} { PLACEHOLDER }",
+        "while {0} { PLACEHOLDER }",
+        "uplevel #0 { PLACEHOLDER }",
+    ] {
+        let src = wrapper.replace(
+            "PLACEHOLDER",
+            "package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]",
+        );
+        assert_eq!(
+            only(&src, V90),
+            Availability::Conditional,
+            "must be reached, conditionally: {wrapper}",
+        );
+    }
+}
+
+/// TN — the descent must not turn an *unguarded* top-level declaration
+/// conditional, and must not disturb the #1017 guarded-return result.
+#[test]
+fn the_body_descent_leaves_top_level_declarations_alone() {
+    let plain = "package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
+    assert_eq!(only(plain, V90), Availability::Available);
+    assert_eq!(only(plain, V86), Availability::Available);
+
+    // Issue #1017's guarded-return TP still decides both ways.
+    let guarded = "if {[package vsatisfies [package provide Tcl] 9-]} { return }\n\
+                   package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
+    assert_eq!(only(guarded, V90), Availability::Unavailable);
+    assert_eq!(only(guarded, V86), Availability::Available);
+}
+
+/// TN — a declaration in a constant-false `if` branch stays `Unavailable`:
+/// `if` still goes through the symbolic clause walk, not the generic body
+/// descent, so its conditions are not flattened to `Undecidable`.
+#[test]
+fn if_branches_keep_their_symbolic_conditions() {
+    let src =
+        "if {0} {\n  package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n}\n";
+    assert_eq!(only(src, V90), Availability::Unavailable);
+
+    // And a single declaration is visited once, not twice.
+    let once =
+        "if {1} {\n  package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n}\n";
+    assert_eq!(availabilities(once, V90).len(), 1);
+}
+
+/// A dynamic (`$var` / `[cmd]`) lambda has no statically splittable body, so
+/// there is nothing to descend and nothing is invented.
+#[test]
+fn a_dynamic_lambda_is_not_descended() {
+    let src = "apply $loader $dir\n";
+    assert!(availabilities(src, V90).is_empty());
+}
+
 /// A requirement naming a **patch level** cannot be evaluated against the
 /// two-component release model, so the guard abstains instead of deciding it
 /// wrongly.

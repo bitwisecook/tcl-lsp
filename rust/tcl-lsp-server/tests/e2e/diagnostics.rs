@@ -2592,6 +2592,15 @@ static GUARDED_PKG_N: std::sync::atomic::AtomicUsize = std::sync::atomic::Atomic
 /// `mypkgHello`; `tclsh9.0` fails with `can't find package mypkg`, so the call
 /// is a genuine `invalid command name` error there.
 fn guarded_pkg_libdir() -> std::path::PathBuf {
+    pkg_libdir_with_index(
+        "if {[package vsatisfies [package provide Tcl] 9-]} { return }\n\
+         package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n",
+    )
+}
+
+/// Build a `mypkg` library dir whose `pkgIndex.tcl` is exactly `index`, next to
+/// a `mypkg.tcl` defining `mypkgHello`.
+fn pkg_libdir_with_index(index: &str) -> std::path::PathBuf {
     use std::sync::atomic::Ordering;
     let libdir = std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-guardedpkg-{}-{}",
@@ -2600,12 +2609,7 @@ fn guarded_pkg_libdir() -> std::path::PathBuf {
     ));
     let pkgdir = libdir.join("mypkg");
     std::fs::create_dir_all(&pkgdir).expect("mk mypkg lib dir");
-    std::fs::write(
-        pkgdir.join("pkgIndex.tcl"),
-        "if {[package vsatisfies [package provide Tcl] 9-]} { return }\n\
-         package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n",
-    )
-    .expect("write pkgIndex.tcl");
+    std::fs::write(pkgdir.join("pkgIndex.tcl"), index).expect("write pkgIndex.tcl");
     std::fs::write(
         pkgdir.join("mypkg.tcl"),
         "proc mypkgHello {} { return hi }\n",
@@ -2676,6 +2680,55 @@ fn guarded_pkgindex_available_on_target_suppresses_w123_issue_1017() {
     assert!(
         !has_code(&diags, "W123"),
         "a package the guard admits on 8.6 must suppress W123, got: {:?}",
+        codes(&diags),
+    );
+    let _ = std::fs::remove_dir_all(&libdir);
+}
+
+/// TN — Tcl 9's own core-package index shape: the `package ifneeded` lives
+/// inside `apply {{dir} { … foreach … }} $dir` (the zipfs
+/// `tcl_library/pkgIndex.tcl`).  The declaration is only *conditional* — this
+/// analysis models neither the `apply` frame nor the loop — and a conditional
+/// registration counts as loadable, so flagging the call would be a false
+/// positive.
+///
+/// Oracle: `tclsh9.0` sources exactly this shape at startup and
+/// `package require http` works, which is what makes an "unknown command"
+/// verdict on such a package wrong.
+#[test]
+fn apply_wrapped_pkgindex_declaration_suppresses_w123() {
+    let libdir = pkg_libdir_with_index(
+        "apply {{dir} {\n\
+         \x20 foreach f {mypkg.tcl} {\n\
+         \x20   package ifneeded mypkg 1.0 [list source [file join $dir $f]]\n\
+         \x20 }\n\
+         }} $dir\n",
+    );
+    let diags = guarded_pkg_child_diagnostics("tcl9.0", &libdir);
+    assert!(
+        !has_code(&diags, "W123"),
+        "a package declared inside an apply/foreach body must suppress W123, got: {:?}",
+        codes(&diags),
+    );
+    let _ = std::fs::remove_dir_all(&libdir);
+}
+
+/// TN — a guard naming a **patch level** cannot be decided against the
+/// `major.minor` release model, so it must not decide the package away.
+///
+/// Oracle (`tclsh9.0`, `[package provide Tcl]` = 9.0.4):
+/// `package vsatisfies 9.0.4 9.0.1-` = 1, so the real interpreter takes the
+/// guard's true arm, `mypkg` registers, and `mypkgHello` resolves.
+#[test]
+fn patch_level_guarded_pkgindex_suppresses_w123() {
+    let libdir = pkg_libdir_with_index(
+        "if {![package vsatisfies [package provide Tcl] 9.0.1-]} { return }\n\
+         package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n",
+    );
+    let diags = guarded_pkg_child_diagnostics("tcl9.0", &libdir);
+    assert!(
+        !has_code(&diags, "W123"),
+        "a patch-level guard must abstain rather than exclude the package, got: {:?}",
         codes(&diags),
     );
     let _ = std::fs::remove_dir_all(&libdir);
