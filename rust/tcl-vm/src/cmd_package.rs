@@ -24,6 +24,7 @@
 
 use std::cmp::Ordering;
 
+use tcl_dialect::{compare_versions as cmp_version, version_satisfies as vsatisfies};
 use tcl_runtime_api::Completion;
 
 use crate::interp::{Vm, err, ok};
@@ -121,56 +122,6 @@ fn pkg_require(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             }
         }
         None => err(format!("can't find package {name}")),
-    }
-}
-
-/// Parse a dotted version into numeric components.
-fn parse_version(v: &str) -> Vec<u64> {
-    v.split('.').map(|p| p.parse().unwrap_or(0)).collect()
-}
-
-/// Compare two dotted versions component-wise (missing components are 0).
-fn cmp_version(a: &str, b: &str) -> Ordering {
-    let (va, vb) = (parse_version(a), parse_version(b));
-    for i in 0..va.len().max(vb.len()) {
-        let x = va.get(i).copied().unwrap_or(0);
-        let y = vb.get(i).copied().unwrap_or(0);
-        match x.cmp(&y) {
-            Ordering::Equal => {}
-            other => return other,
-        }
-    }
-    Ordering::Equal
-}
-
-/// Does `version` satisfy a Tcl version requirement?
-///
-/// - `8.5` → `[8.5, 9)` (up to but excluding the next major).
-/// - `8.5-` → `[8.5, ∞)`.
-/// - `8.5-9.0` → `[8.5, 9.0)`.
-fn vsatisfies(version: &str, req: &str) -> bool {
-    let req = req.trim();
-    let (lo, hi) = if let Some((lo, hi)) = req.split_once('-') {
-        let hi = hi.trim();
-        (
-            lo.trim().to_string(),
-            if hi.is_empty() {
-                None
-            } else {
-                Some(hi.to_string())
-            },
-        )
-    } else {
-        // Bare `X.Y` → upper bound is the next major version.
-        let major = parse_version(req).first().copied().unwrap_or(0);
-        (req.to_string(), Some(format!("{}", major + 1)))
-    };
-    if cmp_version(version, &lo) == Ordering::Less {
-        return false;
-    }
-    match hi {
-        Some(hi) => cmp_version(version, &hi) == Ordering::Less,
-        None => true,
     }
 }
 

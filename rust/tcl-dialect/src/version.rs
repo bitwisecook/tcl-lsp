@@ -78,6 +78,95 @@ impl TclVersion {
             _ => None,
         }
     }
+
+    /// The `major.minor` string this release reports as
+    /// `[package provide Tcl]`.
+    ///
+    /// The real interpreter reports a full patchlevel (`9.0.4`), but every
+    /// requirement form compares major-then-minor first, so the two-component
+    /// form answers identically for any requirement that does not name a patch
+    /// level — and the enum models no patch levels to name.
+    #[must_use]
+    pub fn version_string(self) -> &'static str {
+        match self {
+            Self::V8_4 => "8.4",
+            Self::V8_5 => "8.5",
+            Self::V8_6 => "8.6",
+            Self::V9_0 => "9.0",
+            Self::V9_1 => "9.1",
+        }
+    }
+
+    /// Does this release satisfy *any* of `requirements` — the answer
+    /// `package vsatisfies [package provide Tcl] REQ ?REQ …?` gives?
+    ///
+    /// An empty `requirements` list is `false`: real `package vsatisfies`
+    /// rejects it as a wrong-argument-count error, and no caller here has a
+    /// meaningful "satisfies nothing" question to ask.
+    #[must_use]
+    pub fn satisfies_any<S: AsRef<str>>(self, requirements: &[S]) -> bool {
+        requirements
+            .iter()
+            .any(|r| version_satisfies(self.version_string(), r.as_ref()))
+    }
+}
+
+/// Parse a dotted version into numeric components.
+fn version_components(v: &str) -> Vec<u64> {
+    v.split('.').map(|p| p.parse().unwrap_or(0)).collect()
+}
+
+/// Compare two dotted versions component-wise (missing components are 0).
+#[must_use]
+pub fn compare_versions(a: &str, b: &str) -> core::cmp::Ordering {
+    let (va, vb) = (version_components(a), version_components(b));
+    for i in 0..va.len().max(vb.len()) {
+        let x = va.get(i).copied().unwrap_or(0);
+        let y = vb.get(i).copied().unwrap_or(0);
+        match x.cmp(&y) {
+            core::cmp::Ordering::Equal => {}
+            other => return other,
+        }
+    }
+    core::cmp::Ordering::Equal
+}
+
+/// Does the concrete `version` satisfy one `package vsatisfies` requirement?
+///
+/// The three requirement forms Tcl accepts (`package(n)`, verified against
+/// `tclsh8.6` and `tclsh9.0`):
+///
+/// | Written  | Means            | `8.6` | `9.0` |
+/// |----------|------------------|-------|-------|
+/// | `8.5`    | `[8.5, 9)` — up to but excluding the *next major* | yes | no  |
+/// | `8.5-`   | `[8.5, ∞)`       | yes   | yes   |
+/// | `8.5-9.0`| `[8.5, 9.0)`     | yes   | no    |
+///
+/// This is the single implementation shared by the bytecode VM's `package
+/// vsatisfies` and the language server's `pkgIndex.tcl` guard evaluation, so
+/// the two can never disagree about what a guard means.
+#[must_use]
+pub fn version_satisfies(version: &str, requirement: &str) -> bool {
+    use core::cmp::Ordering;
+    let requirement = requirement.trim();
+    let (lo, hi) = if let Some((lo, hi)) = requirement.split_once('-') {
+        let hi = hi.trim();
+        (lo.trim(), (!hi.is_empty()).then(|| hi.to_owned()))
+    } else {
+        // Bare `X.Y` → the upper bound is the next major version.
+        let major = version_components(requirement)
+            .first()
+            .copied()
+            .unwrap_or(0);
+        (requirement, Some(format!("{}", major + 1)))
+    };
+    if compare_versions(version, lo) == Ordering::Less {
+        return false;
+    }
+    match hi {
+        Some(hi) => compare_versions(version, &hi) == Ordering::Less,
+        None => true,
+    }
 }
 
 /// A three-valued behaviour policy, so a non-Tcl profile (`f5-bigip`) and
@@ -157,5 +246,58 @@ mod tests {
         assert_eq!(Ternary::Yes.as_bool(), Some(true));
         assert_eq!(Ternary::No.as_bool(), Some(false));
         assert_eq!(Ternary::Inert.as_bool(), None);
+    }
+
+    /// Every row pinned against a live `package vsatisfies [package provide
+    /// Tcl] REQ` on `tclsh8.6` (8.6.14) and `tclsh9.0` (9.0.4).
+    #[test]
+    fn version_satisfies_matches_the_interpreter() {
+        use super::version_satisfies;
+        // Bare `X.Y` is bounded by the next *major*, not the next minor.
+        assert!(version_satisfies("8.6", "8.4"));
+        assert!(version_satisfies("8.6", "8.5"));
+        assert!(version_satisfies("8.6", "8.6"));
+        assert!(!version_satisfies("8.6", "9"));
+        assert!(!version_satisfies("9.0", "8.6"));
+        assert!(version_satisfies("9.0", "9"));
+        assert!(version_satisfies("9.0", "9.0"));
+        // Open-ended.
+        assert!(version_satisfies("8.6", "8.5-"));
+        assert!(version_satisfies("9.0", "8.5-"));
+        assert!(!version_satisfies("8.6", "9-"));
+        assert!(version_satisfies("9.0", "9-"));
+        // Explicit, half-open range.
+        assert!(version_satisfies("8.6", "8.5-9.0"));
+        assert!(!version_satisfies("9.0", "8.5-9.0"));
+        // Patch levels compare component-wise.
+        assert!(version_satisfies("8.5.2", "8.5-9.0"));
+    }
+
+    /// The tcllib `pkgIndex.tcl` head guard, both ways round.
+    #[test]
+    fn satisfies_any_is_the_multi_requirement_or() {
+        // `package vsatisfies [package provide Tcl] 8.5 9` — true on both.
+        assert!(TclVersion::V8_6.satisfies_any(&["8.5", "9"]));
+        assert!(TclVersion::V9_0.satisfies_any(&["8.5", "9"]));
+        // …but 8.4 satisfies neither requirement.
+        assert!(!TclVersion::V8_4.satisfies_any(&["8.5", "9"]));
+        // An empty requirement list is never satisfied.
+        assert!(!TclVersion::V9_0.satisfies_any::<&str>(&[]));
+    }
+
+    #[test]
+    fn version_string_round_trips_through_from_package_version() {
+        for v in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            assert_eq!(
+                TclVersion::from_package_version(v.version_string()),
+                Some(v)
+            );
+        }
     }
 }

@@ -593,15 +593,15 @@ fn package_defined_commands_unions_available_package_sources() {
             Vec::new()
         }
     };
-    let cmds = resolver.package_defined_commands(&["mylib".to_owned()], &extract);
+    let cmds = resolver.package_defined_commands(&["mylib".to_owned()], None, &extract);
     assert!(
         cmds.contains("draw"),
         "available package's command surfaced"
     );
     // A package the paths don't know contributes nothing (no source files).
-    let none = resolver.package_defined_commands(&["absent".to_owned()], &extract);
+    let none = resolver.package_defined_commands(&["absent".to_owned()], None, &extract);
     assert!(none.is_empty());
     // No available packages ⇒ empty, extractor never consulted.
-    let empty = resolver.package_defined_commands(&[], &extract);
+    let empty = resolver.package_defined_commands(&[], None, &extract);
     assert!(empty.is_empty());
 }

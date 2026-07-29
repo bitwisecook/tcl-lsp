@@ -74,6 +74,26 @@ pub struct PackageInfo {
     pub source_files: Vec<PathBuf>,
     /// The `pkgIndex.tcl` that declared this entry.
     pub pkg_index_path: PathBuf,
+    /// What must hold for the interpreter to reach this declaration at all —
+    /// empty for the ordinary unguarded index file.  See
+    /// [`reachability`] for the guard shapes modelled.
+    pub conditions: reachability::Conditions,
+}
+
+impl PackageInfo {
+    /// Whether a Tcl release running this index registers the declaration.
+    ///
+    /// `target` is the release the workspace targets; `None` (an unversioned
+    /// `tcl` dialect, or a non-Tcl one) leaves every version guard undecided,
+    /// so a guarded entry reports [`reachability::Availability::Conditional`]
+    /// rather than being guessed either way.
+    #[must_use]
+    pub fn availability(
+        &self,
+        target: Option<tcl_dialect::TclVersion>,
+    ) -> reachability::Availability {
+        self.conditions.availability(target)
+    }
 }
 
 /// One `proc → file` mapping from a `tclIndex` auto-load index.
@@ -95,7 +115,7 @@ pub struct AutoIndexEntry {
 /// non-separator tokens between `Sep` / `Eol` boundaries (so `a$b[c]` is one
 /// word). `{*}` expansion markers and comments are word/command boundaries,
 /// matching `resolver.py::_walk_command_words`.
-fn walk_command_words(text: &str) -> Vec<Vec<Vec<Token>>> {
+pub(super) fn walk_command_words(text: &str) -> Vec<Vec<Vec<Token>>> {
     let tokens = Lexer::new(text).tokenise_all().unwrap_or_default();
     let mut commands: Vec<Vec<Vec<Token>>> = Vec::new();
     let mut words: Vec<Vec<Token>> = Vec::new();
@@ -134,7 +154,7 @@ fn walk_command_words(text: &str) -> Vec<Vec<Vec<Token>>> {
 /// For a `[...]` command-substitution word the lexer's `Cmd` token excludes
 /// the closing `]` from its span, so this returns `[list …` (no trailing
 /// bracket) — exactly as `resolver.py::_word_raw` did.
-fn word_raw<'t>(text: &'t str, word: &[Token]) -> &'t str {
+pub(super) fn word_raw<'t>(text: &'t str, word: &[Token]) -> &'t str {
     let start = word[0].span.start() as usize;
     let end = word[word.len() - 1].span.end() as usize;
     text.get(start..end).unwrap_or("")
@@ -143,7 +163,7 @@ fn word_raw<'t>(text: &'t str, word: &[Token]) -> &'t str {
 /// The inner script text of `word` if it is a single wrapper word
 /// (`[...]` command substitution, `{...}` braced literal, or `"..."` quoted
 /// word); `None` for a bare word. Mirrors `resolver.py::_word_unwrap`.
-fn word_unwrap(text: &str, word: &[Token]) -> Option<String> {
+pub(super) fn word_unwrap(text: &str, word: &[Token]) -> Option<String> {
     if word.len() == 1 {
         let tok = word[0];
         if matches!(tok.kind, TokenType::Cmd | TokenType::Str) {
@@ -225,7 +245,6 @@ fn source_filename(text: &str, arg: &[Token]) -> Option<String> {
     None
 }
 
-/// Walk `commands` collecting `source <arg>` targets that exist under
 /// Cap on `[...]`/`{...}`/`"..."` wrapper-word nesting depth
 /// [`collect_source_targets`] will descend into — pathologically deep
 /// nesting in a `pkgIndex.tcl` `package ifneeded` body could otherwise
@@ -234,6 +253,7 @@ fn source_filename(text: &str, arg: &[Token]) -> Option<String> {
 const MAX_SOURCE_TARGET_SCAN_DEPTH: tcl_core_types::RecursionLimit =
     tcl_core_types::RecursionLimit(256);
 
+/// Walk `commands` collecting `source <arg>` targets that exist under
 /// `pkg_dir` (per `exists`), descending into `[...]` / `{...}` / `"..."`
 /// wrapper words. Mirrors `resolver.py::_collect_source_targets`.
 ///
@@ -316,6 +336,13 @@ fn is_version_word(word: &str) -> bool {
 /// (other than `pkgIndex.tcl`) reported by `list_tcl_files` — matching C
 /// Tcl-era `pkg_mkIndex` output, where the index always sources concrete
 /// files but hand-written indices sometimes don't.
+///
+/// Declarations are found through the [`reachability`] scan, so a declaration
+/// nested inside an `if` branch is found (the TEA "pick a Tcl 8 or Tcl 9
+/// library" shape) and each one carries the guard conditions standing in
+/// front of it. Nothing is filtered here: a caller that targets a specific
+/// Tcl release asks [`PackageInfo::availability`], and one that does not
+/// (go-to-definition, which is deliberately permissive) ignores the field.
 pub fn parse_pkg_index(
     content: &str,
     pkg_dir: &Path,
@@ -323,23 +350,31 @@ pub fn parse_pkg_index(
     exists: &dyn Fn(&Path) -> bool,
     list_tcl_files: &dyn Fn(&Path) -> Vec<PathBuf>,
 ) -> Vec<PackageInfo> {
+    // A `pkgIndex.tcl` is plain Tcl whatever dialect the workspace's own
+    // documents are in — `tclPkgUnknown` sources it in the ordinary
+    // interpreter — so the guard vocabulary (`package`, `if`, `return`) comes
+    // from the core registry, not the document's.  The lookup is cached and
+    // returns a `&'static`, so this costs nothing per file.
+    let registry = tcl_registry::registry_for_dialect("tcl");
     let mut out = Vec::new();
-    for words in walk_command_words(content) {
+    reachability::scan(content, registry, &mut |reached| {
+        let reachability::Reached {
+            text,
+            words,
+            conditions,
+        } = reached;
         if words.len() < 5 {
-            continue;
+            return;
         }
-        if word_raw(content, &words[0]) != "package" || word_raw(content, &words[1]) != "ifneeded" {
-            continue;
-        }
-        let name = word_raw(content, &words[2]);
-        let version = word_raw(content, &words[3]);
+        let name = word_raw(text, &words[2]);
+        let version = word_raw(text, &words[3]);
         if !is_version_word(version) {
-            continue;
+            return;
         }
         let body = &words[4..];
         let mut source_files = Vec::new();
         collect_source_targets(
-            content,
+            text,
             &[body.to_vec()],
             pkg_dir,
             exists,
@@ -359,9 +394,10 @@ pub fn parse_pkg_index(
                 version: version.to_owned(),
                 source_files,
                 pkg_index_path: pkg_index_path.to_owned(),
+                conditions,
             });
         }
-    }
+    });
     out
 }
 
@@ -843,15 +879,41 @@ impl PackageResolver {
     pub fn package_defined_commands(
         &self,
         available: &[String],
+        target: Option<tcl_dialect::TclVersion>,
         defined_commands: &dyn Fn(&Path) -> Vec<String>,
     ) -> HashSet<String> {
         let mut out = HashSet::new();
         for pkg in available {
-            for file in self.resolve(pkg, None) {
+            for file in self.reachable_files(pkg, target) {
                 out.extend(defined_commands(&file));
             }
         }
         out
+    }
+
+    /// The implementation files of `name` that a Tcl release `target` would
+    /// actually load, skipping any `package ifneeded` its `pkgIndex.tcl`
+    /// guards out ([`reachability`]).
+    ///
+    /// A declaration whose guards cannot be decided
+    /// ([`reachability::Availability::Conditional`]) counts as loadable: the
+    /// scan does not know it *won't* run, and treating "unsure" as "absent"
+    /// would resurrect exactly the false unknown-command reports this
+    /// modelling exists to remove (issue #923 idx 42).
+    #[must_use]
+    pub fn reachable_files(
+        &self,
+        name: &str,
+        target: Option<tcl_dialect::TclVersion>,
+    ) -> Vec<PathBuf> {
+        let Some(infos) = self.packages.get(name) else {
+            return Vec::new();
+        };
+        infos
+            .iter()
+            .filter(|i| i.availability(target) != reachability::Availability::Unavailable)
+            .flat_map(|i| i.source_files.iter().cloned())
+            .collect()
     }
 }
 
@@ -868,6 +930,8 @@ fn list_tcl_files(dir: &Path) -> Vec<PathBuf> {
     }
     files
 }
+
+pub mod reachability;
 
 #[cfg(test)]
 mod tests;

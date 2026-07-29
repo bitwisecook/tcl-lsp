@@ -1083,7 +1083,11 @@ async fn widen_recovery_extra_commands(
         names.insert(name.trim_start_matches("::").to_owned());
     }
     if !requires.is_empty() {
-        let commands = resolver.package_defined_commands(&requires, &|path| {
+        // Same release-aware package view the W123 refinement uses, so the
+        // known-name set and the diagnostic filter cannot disagree about which
+        // guarded packages this document can actually load.
+        let target = tcl_dialect::TclVersion::from_dialect(Some(dialect));
+        let commands = resolver.package_defined_commands(&requires, target, &|path| {
             std::fs::read_to_string(path)
                 .map(|text| defined_command_tails(&text, dialect))
                 .unwrap_or_default()
@@ -12366,6 +12370,25 @@ fn defined_command_tails(text: &str, dialect: &str) -> Vec<String> {
 /// resolve to a real library definition must not be reported "unknown". The
 /// check is entirely data-driven — the resolver is queried *by the flagged
 /// name*, never matched against a hard-coded command list.
+///
+/// # `pkgIndex.tcl` guards
+///
+/// A package whose `pkgIndex.tcl` gates its `package ifneeded` behind a
+/// version guard supplies commands only on the releases that guard admits, so
+/// the package database is queried for the release `dialect` names. The
+/// three-way answer maps onto the suppression like this:
+///
+/// | Availability  | W123 | Why |
+/// |---------------|------|-----|
+/// | `Available`   | suppressed | the command really is provided (issue #832) |
+/// | `Conditional` | suppressed | a guard the scan could not read; treating "unsure" as "absent" is what produced the false unknown-command reports of issue #923 idx 42 |
+/// | `Unavailable` | **fires**  | the guard was read and definitely skips the declaration, so `package require` really fails and the call really is an error (issue #1017) |
+///
+/// `Conditional` is suppressed outright rather than reported more quietly:
+/// W123's own default severity is already `Hint`, the lowest LSP severity, so
+/// there is no lower-confidence channel to downgrade into. Between a silent
+/// miss and a false "unknown command" on working code, the miss is the lesser
+/// error for a hint whose whole purpose is precision.
 fn refine_w123_diagnostics(
     diags: Vec<tcl_compiler::analyser::Diagnostic>,
     available: &[String],
@@ -12375,10 +12398,11 @@ fn refine_w123_diagnostics(
     // Command names the document's available packages define via their
     // `pkgIndex` implementation files. Empty in the common no-`package require`
     // case (where auto-load alone carries the fix), so no file is read then.
+    let target = tcl_dialect::TclVersion::from_dialect(Some(dialect));
     let package_commands = if available.is_empty() {
         HashSet::new()
     } else {
-        resolver.package_defined_commands(available, &|path| {
+        resolver.package_defined_commands(available, target, &|path| {
             std::fs::read_to_string(path)
                 .map(|text| defined_command_tails(&text, dialect))
                 .unwrap_or_default()
