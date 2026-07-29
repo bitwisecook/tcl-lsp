@@ -99,7 +99,8 @@ class _AnalyserDiagsMixin(_Base):
             analysis: FunctionAnalysis,
         ) -> None: ...
 
-        def _collect_defined_vars(self, cfg: CFGFunction) -> set[str]: ...
+        @staticmethod
+        def _collect_defined_vars(cfg: CFGFunction) -> set[str]: ...
 
         def _emit_invalid_ip_diagnostics(
             self,
