@@ -80,6 +80,16 @@
 //!   (`AnalysisResult::created_instance_commands`), so two same-named object
 //!   commands in different namespaces are already indistinguishable in the
 //!   data this scanner reads — qualifying them is an analyser-shape change.
+//! * An **explicit** `namespace import ::a::Factory` is followed: the imported
+//!   name is a real command in the importing namespace, so it joins the
+//!   resolver's `exists` universe and resolves through to the source command
+//!   for the class-identity test ([`explicit_import_aliases`]).  A **wildcard**
+//!   import (`namespace import ::a::*`) is **not**: reproducing it needs the
+//!   export-gated import *snapshot* — which commands existed in `::a` when the
+//!   import ran — that issue #1027 tracks, and treating every exported command
+//!   as imported regardless of definition order would invent aliases the
+//!   runtime never created.  So a wildcard-imported class's bare dispatch is
+//!   still not matched, and a rename still leaves it stale.
 //! * [incr Tcl]'s class-scoped `proc` uses a different dispatch shape
 //!   entirely — a single `::`-qualified command word (`Factory::make`), not
 //!   two words — so it is matched by [`crate::definition::itcl_class_proc_target`]
@@ -1791,6 +1801,7 @@ fn dispatch_receivers<'a>(
             .collect(),
         class_targets: FxHashSet::default(),
         class_tails: FxHashSet::default(),
+        import_aliases: explicit_import_aliases(analysis),
     };
     // A `classmethod` dispatches on the *class's own* command (`Factory
     // make`) — never on an instance: TclOO's `classmethod` sugar puts the
@@ -1985,6 +1996,47 @@ struct CommandReceivers {
     /// in the document.
     class_tails: FxHashSet<String>,
     object_commands: FxHashSet<String>,
+    /// `namespace import`-created command aliases: the *imported* name in the
+    /// importing namespace (`::b::Factory`) mapped to the source command
+    /// (`::a::Factory`).  See [`explicit_import_aliases`].
+    import_aliases: FxHashMap<String, String>,
+}
+
+/// The command aliases an **explicit** (pattern-free) `namespace import`
+/// creates, as `imported qualified name → source qualified name`.
+///
+/// `namespace import ::a::Factory` inside `::b` creates a real command
+/// `::b::Factory` that dispatches `::a::Factory` — tclsh 9.0.4 (probe
+/// `ns981.tcl`) confirms both halves: `Factory make` inside `::b` prints
+/// `A-MADE`, and `info commands ::b::Factory` lists `::b::Factory`.  Without
+/// these entries the bare-dispatch resolver's `exists` universe has no
+/// candidate for the imported name at all, so the call site is invisible and
+/// a rename leaves it stale.
+///
+/// **Wildcard imports are deliberately excluded.**  `namespace import ::a::*`
+/// needs the export-gated import *snapshot* model (which commands existed in
+/// `::a` at the moment the import ran, filtered by `namespace export`) — issue
+/// #1027.  Half-building it here, by treating every exported command as
+/// imported regardless of definition order, would invent aliases the runtime
+/// never created.  A pattern containing any glob metacharacter is skipped.
+fn explicit_import_aliases(analysis: &AnalysisResult) -> FxHashMap<String, String> {
+    analysis
+        .namespace_imports
+        .iter()
+        .filter(|import| !import.pattern.contains(['*', '?', '[']))
+        .filter_map(|import| {
+            let tail = std::str::from_utf8(tcl_syntax::naming::written_command_tail(
+                import.pattern.as_bytes(),
+            ))
+            .ok()?;
+            (!tail.is_empty()).then(|| {
+                (
+                    tcl_syntax::naming::qualify(&import.ns, tail),
+                    tcl_syntax::naming::normalise_qualified_name(&import.pattern),
+                )
+            })
+        })
+        .collect()
 }
 
 impl CommandReceivers {
@@ -2006,12 +2058,19 @@ impl CommandReceivers {
     /// class command in `class_targets` — resolved the way Tcl resolves it,
     /// from the namespace lexically in effect there.
     ///
-    /// The `exists` universe is this document's procs and classes plus the
-    /// caller-supplied targets themselves: a pure-consumer document does not
-    /// declare the class it calls, so without the targets no candidate would
-    /// ever "exist" and every cross-file consumer site would be lost.  A
-    /// same-named proc or class at a higher-priority candidate still shadows
-    /// the target, exactly as it would at runtime.
+    /// The `exists` universe is this document's procs and classes, the
+    /// caller-supplied targets themselves, and every explicit
+    /// `namespace import` alias: a pure-consumer document does not declare the
+    /// class it calls, so without the targets no candidate would ever "exist"
+    /// and every cross-file consumer site would be lost.  A same-named proc or
+    /// class at a higher-priority candidate still shadows the target, exactly
+    /// as it would at runtime.
+    ///
+    /// An imported name is a real command in the importing namespace, so it
+    /// both *exists* as a candidate and, when it wins, resolves through to the
+    /// source command for the class-identity test — otherwise
+    /// `namespace import ::a::Factory; Factory make` inside `::b` matches
+    /// nothing (the winning `::b::Factory` is not itself a class target).
     fn class_head_matches(&self, analysis: &AnalysisResult, raw: &str, offset: u32) -> bool {
         if self.class_targets.is_empty() {
             return false;
@@ -2033,8 +2092,12 @@ impl CommandReceivers {
             self.class_targets.contains(candidate)
                 || analysis.all_classes.contains_key(candidate)
                 || analysis.all_procs.contains_key(candidate)
+                || self.import_aliases.contains_key(candidate)
         })
-        .is_some_and(|winner| self.class_targets.contains(&winner))
+        .is_some_and(|winner| {
+            let dispatched = self.import_aliases.get(&winner).unwrap_or(&winner);
+            self.class_targets.contains(dispatched)
+        })
     }
 }
 

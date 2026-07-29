@@ -1133,4 +1133,83 @@ mod namespace_scoped_class_dispatch {
         );
         assert_eq!(refs_at(src, 2, 15), vec![2, 5], "decl + `rex make`");
     }
+
+    /// FN→TP: an **explicit** `namespace import` creates a real command in the
+    /// importing namespace, so a bare dispatch through the imported name is a
+    /// reference to the source class's method.  Post-#1047 this one scanner
+    /// also drives rename, so missing it left the call site stale.
+    ///
+    /// Oracle (tclsh 9.0.4, probe `ns981.tcl`):
+    ///
+    /// ```text
+    /// 1) import+bare in ::b : A-MADE
+    ///    info commands ::b::Factory = ::b::Factory
+    /// ```
+    #[test]
+    fn fn_to_tp_an_explicit_namespace_import_is_followed() {
+        let src = concat!(
+            "namespace eval ::a {\n",
+            "    oo::class create Factory {\n",
+            "        classmethod make {} { return 1 }\n",
+            "    }\n",
+            "    namespace export Factory\n",
+            "}\n",
+            "namespace eval ::b {\n",
+            "    namespace import ::a::Factory\n",
+            "    Factory make\n",
+            "}\n",
+        );
+        assert_eq!(
+            refs_at(src, 2, 20),
+            vec![2, 8],
+            "decl + the bare dispatch through the imported name"
+        );
+    }
+
+    /// TN (deliberate boundary): a **wildcard** import is not followed.
+    /// Reproducing it needs the export-gated import snapshot of issue #1027 —
+    /// which commands existed in `::a` when the import ran — and inventing
+    /// aliases without it would match sites the runtime never dispatches.
+    /// Documented in this module's limitations list.
+    #[test]
+    fn tn_a_wildcard_import_is_not_followed() {
+        let src = concat!(
+            "namespace eval ::a {\n",
+            "    oo::class create Factory {\n",
+            "        classmethod make {} { return 1 }\n",
+            "    }\n",
+            "    namespace export Factory\n",
+            "}\n",
+            "namespace eval ::b {\n",
+            "    namespace import ::a::*\n",
+            "    Factory make\n",
+            "}\n",
+        );
+        assert_eq!(
+            refs_at(src, 2, 20),
+            vec![2],
+            "declaration only — the wildcard-import model is out of scope (#1027)"
+        );
+    }
+
+    /// FP guard: importing a *different* command does not make an unrelated
+    /// bare `Factory make` a reference — the alias only maps the name it
+    /// really imports.
+    #[test]
+    fn fp_an_unrelated_import_does_not_match() {
+        let src = concat!(
+            "namespace eval ::a {\n",
+            "    oo::class create Factory {\n",
+            "        classmethod make {} { return 1 }\n",
+            "    }\n",
+            "    proc helper {} { return 2 }\n",
+            "    namespace export helper\n",
+            "}\n",
+            "namespace eval ::b {\n",
+            "    namespace import ::a::helper\n",
+            "    Factory make\n",
+            "}\n",
+        );
+        assert_eq!(refs_at(src, 2, 20), vec![2], "declaration only");
+    }
 }
