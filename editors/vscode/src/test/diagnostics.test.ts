@@ -241,9 +241,7 @@ suite("Diagnostics", () => {
     );
     assert.ok(
       w143.some((d) => d.message.includes("GetSystemTimeZone")),
-      `Expected a W143 for the private clock helper, got: ${w143
-        .map((d) => d.message)
-        .join("; ")}`,
+      `Expected a W143 for the private clock helper, got: ${w143.map((d) => d.message).join("; ")}`,
     );
 
     // The legal rewrite is offered as a quick fix; the one with no public
