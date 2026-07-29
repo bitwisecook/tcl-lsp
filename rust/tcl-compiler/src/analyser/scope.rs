@@ -712,8 +712,47 @@ impl Analyser {
     /// and by [`Self::fact_live_for_call`] as the "was this call's enclosing
     /// definition itself reached before the deletion" escape hatch (issue
     /// #1009 Codex review, generalised by #1015).
+    ///
+    /// # A body edge may raise a callee's offset but never lower a base one
+    ///
+    /// A call site's *presence* in a body is not proof that the body reaches
+    /// it. `proc a {} { if {0} { b } }` never calls `b`, so `a`'s own
+    /// earliest offset says nothing about when `b` first runs — yet the
+    /// unrestricted fixpoint handed `b` (and everything `b` calls) `a`'s
+    /// early offset, which then read as "reached before the deletion" and
+    /// silently withdrew a correct W123.
+    ///
+    /// Oracle (tclsh8.6, `review-probes-sound/r1.tcl`): with `proc b {}
+    /// { helper }`, `proc a {} { if {0} { b } }`, `a`, `rename helper {}`,
+    /// `b` — the final `b` really does fail with `invalid command name
+    /// "helper"`.
+    ///
+    /// The precise rule would drop edges inside regions a constant-branch
+    /// analysis proves unreachable, but those facts do not exist yet here:
+    /// SCCP runs later, over the IR this analyser's result feeds, so
+    /// consulting it at edge-collection time would be circular. What is
+    /// available is the base case itself, so the fixpoint keeps the
+    /// **weaker, non-circular** rule the review offered as its alternative:
+    ///
+    /// > a body edge may only ever *add* a callee offset, never *lower* a
+    /// > base top-level one.
+    ///
+    /// A callee with its own top-level call site has an offset that is
+    /// already a fact about real execution; a speculative path through some
+    /// body may not undercut it. A callee with no top-level call site keeps
+    /// the old optimism — the chain is the only evidence there is, and
+    /// dropping it would reopen issue #1015.
+    ///
+    /// This is deliberately approximate in the sound direction for the
+    /// review's repros and deliberately optimistic elsewhere. It does not
+    /// catch a dead edge to a callee that is never called at top level at
+    /// all, and it can raise an offset for a *live* body edge whose callee
+    /// also has a later top-level call.
     fn compute_reachable_call_offsets(&self) -> HashMap<String, u32> {
         let mut reachable: HashMap<String, u32> = HashMap::new();
+        // Callees with a top-level (non-body) call site. Their offsets are
+        // observations of real execution, so body edges may not lower them.
+        let mut has_base_offset: HashSet<&str> = HashSet::new();
         // Call-graph edges: `enclosing definition -> callee`, for every
         // invocation whose own site sits inside a body.
         let mut body_edges: Vec<(&str, &str)> = Vec::new();
@@ -723,6 +762,7 @@ impl Analyser {
             };
             let call_off = inv.range.start();
             if !self.result.offset_is_inside_any_definition_body(call_off) {
+                has_base_offset.insert(qualified);
                 reachable
                     .entry(qualified.to_string())
                     .and_modify(|off| *off = (*off).min(call_off))
@@ -741,6 +781,7 @@ impl Analyser {
                 };
                 match reachable.get_mut(callee) {
                     Some(off) if *off <= reached => {}
+                    Some(_) if has_base_offset.contains(callee) => {}
                     Some(off) => {
                         *off = reached;
                         changed = true;

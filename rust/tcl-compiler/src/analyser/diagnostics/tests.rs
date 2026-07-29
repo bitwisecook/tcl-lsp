@@ -10967,6 +10967,47 @@ fn w123_tp_issue_1015_mutual_recursion_cycle_never_entered_still_flags() {
 }
 
 #[test]
+fn w123_tp_a_dead_body_edge_does_not_lower_a_later_top_level_offset() {
+    // TP guard (Codex review of PR #1045, adversarial soundness review):
+    // `a` runs before the rename, but its only call to `b` sits inside `if
+    // {0} { … }` and never executes. `b`'s real first invocation is the
+    // top-level one *after* the rename, so `b`'s `helper` call fails.
+    //
+    // The unrestricted fixpoint let the dead `a` -> `b` edge lower `b`'s
+    // offset to `a`'s, which read as "reached before the deletion" and
+    // withdrew the warning. A body edge may no longer undercut a callee's
+    // own top-level offset.
+    //
+    // Oracle (tclsh8.6, `review-probes-sound/r1.tcl`): exits 1 with
+    // `invalid command name "helper"` from `b`, invoked at line 6.
+    let src = "proc helper {} { return hi }\nproc b {} { helper }\nproc a {} { if {0} { b } }\na\nrename helper {}\nb\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_string()]);
+}
+
+#[test]
+fn w123_tp_an_empty_enclosing_body_leaves_the_later_top_level_offset() {
+    // The paired FP guard for the test above: same shape with `a`'s body
+    // empty, so there is no `a` -> `b` edge to drop in the first place.
+    // Both must warn, or the fix would be indistinguishable from "the edge
+    // never mattered".
+    //
+    // Oracle (tclsh8.6, `review-probes-sound/r2.tcl`): exits 1, same error.
+    let src = "proc helper {} { return hi }\nproc b {} { helper }\nproc a {} { }\na\nrename helper {}\nb\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_string()]);
+}
+
+#[test]
+fn w123_fp_a_live_body_edge_still_reaches_a_callee_with_no_top_level_call() {
+    // FP guard for the restriction: `b` has no top-level call site of its
+    // own, so the `a` -> `b` edge is the only evidence there is and must
+    // still resolve. This is issue #1015's shape, and the restriction is
+    // written to leave it alone — without it, every #1015 chain would
+    // regress to a false positive.
+    let src = "proc helper {} { return hi }\nproc b {} { helper }\nproc a {} { b }\na\nrename helper {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
 fn w123_fp_issue_1015_mutual_recursion_cycle_entered_at_top_level_resolves() {
     // FP guard: the same cycle, but entered by a real top-level call
     // before the deletion — every member is then reachable, so the nested

@@ -356,6 +356,24 @@ pub struct Analyser {
     ///
     /// A name with no entry is one this file never reaches — including
     /// every member of a mutual-recursion cycle no top-level call enters.
+    ///
+    /// # Known false negative: only the *earliest* reach is recorded
+    ///
+    /// The map holds one offset per name — the earliest — so a definition
+    /// called both before and after a deletion looks reached-before, and the
+    /// deletion diagnostic on its body is withdrawn for *all* of its
+    /// invocations rather than just the early ones.
+    ///
+    /// Oracle (tclsh8.6, `review-probes-sound/r3.tcl`): `proc a {} {
+    /// helper }`, `a`, `rename helper {}`, `a` — the second `a` really does
+    /// fail with `invalid command name "helper"`, and no W123 is reported.
+    ///
+    /// This is unchanged by design: reporting it needs a per-invocation
+    /// reachability interval rather than a single floor, and the escape
+    /// hatch exists precisely to stop the far commoner call-before-deletion
+    /// shape being flagged. Issue #1015 widened the false negative — a
+    /// transitive chain now reaches through arbitrarily many bodies — but
+    /// did not introduce it.
     pub(super) reachable_call_offsets: HashMap<String, u32>,
     /// Static `namespace path {…}` declarations: ``declaring namespace →
     /// raw path entries`` (each declaration replaces the whole path, as in
