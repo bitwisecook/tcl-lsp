@@ -339,7 +339,13 @@ struct BodyWord {
 ///   splitter every other migrated consumer uses (issue #1000).  Treating
 ///   the whole literal as one body instead reads `argList` as a command
 ///   name and swallows the real body, which is why no refactor code action
-///   fired inside an `apply` lambda.
+///   fired inside an `apply` lambda.  Only a `{braced}` body element is
+///   descended
+///   ([`LambdaLiteralElements::braced_body`](tcl_compiler::lambda_literal::LambdaLiteralElements::braced_body)):
+///   a bare / double-quoted one is backslash-decoded before `apply`
+///   evaluates it, so its source slice is not the script that runs and the
+///   spans a code action derived from it would edit the wrong bytes (Codex
+///   review on #1047).
 fn body_words(source: &str, cmd: &SegmentedCommand, registry: &CommandRegistry) -> Vec<BodyWord> {
     let name = cmd.name();
     if name.is_empty() {
@@ -373,7 +379,7 @@ fn body_words(source: &str, cmd: &SegmentedCommand, registry: &CommandRegistry) 
             continue;
         }
         let Some(body) = tcl_compiler::lambda_literal::split_lambda_literal(source, tok)
-            .and_then(|elems| elems.body)
+            .and_then(|elems| elems.braced_body())
         else {
             continue;
         };

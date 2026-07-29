@@ -1474,6 +1474,29 @@ fn test_if_to_switch_offered_inside_an_apply_lambda_body() {
     );
 }
 
+/// TN (Codex review on #1047): a lambda body written as a **quoted** list
+/// element with escapes is backslash-decoded before `apply` evaluates it,
+/// so its source slice is not the script that runs — the source says `$m eq
+/// \"GET\"` where the real body says `$m eq "GET"` (tclsh 8.6 / 9.0.4 both
+/// run this lambda and answer `get` / `post`).  Re-parsing the slice in
+/// place offers a rewrite built from text that never executes, and lands
+/// its edits inside a string literal, so the descent must take only
+/// `{braced}` body elements.
+#[test]
+fn test_no_refactor_offered_inside_an_escaped_quoted_lambda_body() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "apply {{m} \"if {$m eq \\\"GET\\\"} {return get} elseif {$m eq \\\"POST\\\"} {return post}\"} GET\n";
+    lsp.open_ready(&uri, src);
+    // Cursor on the `if` word of the quoted body element.
+    let actions = lsp.code_actions(&uri, range((0, 12), (0, 12)), json!([]));
+    assert!(
+        kinds(&actions, "refactor").is_empty(),
+        "an escaped quoted body element is not script at these offsets: {:?}",
+        titles(&actions)
+    );
+}
+
 /// TN: the lambda's *argument list* is a plain word list, not code, so a
 /// cursor on it offers no control-flow refactor even when a parameter
 /// happens to be spelled like a command.
