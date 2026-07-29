@@ -439,9 +439,6 @@ pub struct Analyser {
     /// as [`Self::var_command_sites`] but for ``[cmd] args``
     /// shapes.
     pub cmd_command_sites: Vec<CmdCommandSite>,
-    /// Cache: ``scope_path → namespace string`` for
-    /// ``namespace_from_scope``. Cleared on snapshot restore.
-    pub ns_cache: HashMap<Vec<usize>, String>,
     /// Namespaces where ``namespace ensemble create`` was seen —
     /// their tail names become valid commands.
     pub ensemble_namespaces: HashSet<String>,
@@ -911,7 +908,6 @@ impl Analyser {
             seed_scope_path: Vec::new(),
             widget_dispatch_sites: Vec::new(),
             cmd_command_sites: Vec::new(),
-            ns_cache: HashMap::new(),
             ensemble_namespaces: HashSet::new(),
             ensemble_command_maps: HashMap::new(),
             objdefined_vars: HashSet::new(),
@@ -1458,7 +1454,6 @@ impl Analyser {
         self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
         self.tk_dialect = dialect == "tk";
         self.unresolved_commands_emitted = false;
-        self.ns_cache.clear();
 
         let file_codes = super::utils::parse_file_suppression(source);
         for code in &file_codes {
@@ -1542,7 +1537,6 @@ impl Analyser {
         self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
         self.tk_dialect = dialect == "tk";
         self.unresolved_commands_emitted = false;
-        self.ns_cache.clear();
 
         let file_codes = super::utils::parse_file_suppression(source);
         for code in &file_codes {
@@ -2001,7 +1995,6 @@ mod tests {
         assert!(a.builtin_names.is_none());
         assert!(a.builtin_dialect.is_none());
         assert!(a.current_event.is_none());
-        assert!(a.ns_cache.is_empty());
         assert!(a.ensemble_namespaces.is_empty());
         assert!(a.objdefined_vars.is_empty());
         assert!(!a.unresolved_commands_emitted);

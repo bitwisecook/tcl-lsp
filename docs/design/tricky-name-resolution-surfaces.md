@@ -66,7 +66,7 @@ actively corrupt code or mislead the user. They are the top-priority defects.
 | D1 | **TclOO object variables** (`variable v` / `my variable v`) | variable | Rename of `$v` emits a decl edit whose range is the **entire method body** and whose replacement is just the new name — `{ return $v }` becomes `w`, **destroying the body**. Cross-method uses split into two distinct vars. | M4 |
 | D2 | **`uplevel #0 { … }`** cursor resolution | variable | `lookup_var_in_scope_chain` lacks the proc-local-drop guard, so a `$g` in the body resolves to an **invisible proc-local** of the same name instead of the global the runtime reads. Drives Go-to-Def / Hover / References / Rename to the wrong var. | M4 |
 | D3 | **`uplevel 1`/`2` / bare `uplevel`** body vars | variable | Body vars are attributed to the **enclosing proc's own scope**; a same-named proc-local absorbs a use that at runtime targets the caller's frame — wrong reference link and wrong rename edit. | M4 |
-| D4 | **Nested `proc`/`oo::class create`** under a **qualified-name** enclosing proc | command / class / method | Definition homed by lexical `namespace_from_scope_path`, not the proc's defining namespace; on name collision two defs **hash to the same `all_procs` key and one overwrites the other**, so navigation binds to the wrong same-named symbol. | none (NEW) |
+| D4 | **Nested `proc`/`oo::class create`** under a **qualified-name** enclosing proc | command / class / method | ~~Definition homed by a purely lexical namespace walk, not the proc's defining namespace; on name collision two defs **hash to the same `all_procs` key and one overwrites the other**, so navigation binds to the wrong same-named symbol.~~ **CLOSED** — every analyser site now homes through `command_resolution_namespace`; see [§1.8](#18-nested-proc--ooclass-create-re-homing--closed) | done (#923 idx 85) |
 | D5 | **Event/idle callbacks** (`after`, `fileevent`, `bind`, `-command`) | command / variable | Body walked in the **enclosing** namespace, but Tcl runs it at **global (`::`)** scope; a `helper` in `namespace eval ::x { after 0 { helper } }` binds to `::x::helper` (wrong) instead of `::helper`. Confident-wrong only under `::x::helper`-vs-`::helper` collision. | none (NEW) |
 | D6 | **`oo::objdefine` per-object method** under name collision | method | Body ignored; if a class method shares the name, `lookup_method_in_class` returns the **class method's** span even though `$o m` dispatches the per-object override at runtime. | none (NEW) |
 
@@ -397,34 +397,38 @@ the ensemble configuration string. Same fix location, same milestone.
 - **Milestone:** none. Adjacent to but distinct from the M5 `$cmd` limitation (these
   names ARE literals in source, just embedded in data). **NEW — M5-adjacent** (see §6).
 
-### 1.8 Nested `proc` / `oo::class create` re-homing — **CONFIRMED** (medium) — DANGEROUS (D4)
+### 1.8 Nested `proc` / `oo::class create` re-homing — **CLOSED**
 
 - **Real Tcl:** a nested definition qualifies its name against the *runtime-current*
   namespace of the enclosing proc (its defining namespace), and a proc body runs with
   the proc's defining namespace current. `rust/tcl-vm/src/command.rs:1067`
   (`qualify_name` against current ns); `exec.rs:1085` (`push_ns(proc.namespace)` — body
   runs in defining ns); `cmd_oo.rs:951` (class create qualifies likewise).
-- **LSP today:** `handle_proc_command` computes the FQN from
-  `namespace_from_scope_path` (`handlers.rs:570,623-625`), which collects ONLY
-  `ScopeKind::Namespace` names and **skips proc/method scopes** (`scope.rs:465-497`,
-  pinned by `namespace_from_scope_path_skips_proc_scopes` at `scope.rs:1144`). The
-  correct defining-namespace rule already exists —
-  `command_resolution_namespace`/`advance_command_resolution_namespace`
-  (`scope.rs:112-136,513`) — but is used only for arity-shadow and call-site
-  resolution, NOT for definition homing.
-- **Gap:** both. Empirically confirmed by dumping `all_procs`/`all_classes` keys:
+- **The gap that was:** definition homing used a purely lexical namespace walk that
+  collected only `ScopeKind::Namespace` names and **skipped proc/method scopes**, so a
+  definition made inside `proc ::x::mk {} {...}` homed to `::` rather than `::x`.
+  Empirically confirmed at the time by dumping `all_procs`/`all_classes` keys:
   (A) `namespace eval ::x { proc mk {} { proc helper {} {} } }` → `::x::helper` **correct**;
   (B) `proc ::x::mk {} { proc helper {} {} }` → `::helper` **wrong** (real: `::x::helper`);
   (C) `namespace eval ::x { proc ::y::mk {} { proc helper {} {} } }` → `::x::helper`
   **wrong** (real: `::y::helper`);
   (D) `proc ::x::mk {} { oo::class create Helper {} }` → `::Helper` **wrong** (real:
-  `::x::Helper`). **False positive:** if a real global `::helper` also exists, both hash
-  to the same `all_procs` key and one silently overwrites the other → navigation binds to
-  the wrong same-named symbol.
-- **Milestone:** none. **NEW** — wire the existing `command_resolution_namespace`
-  helper into definition homing (`handlers.rs:570,623-625`; `oo.rs:335,385`). Slot into
-  **M1-adjacent / M0.5** (it is definition-side homing, distinct from the M0 call-site
-  target-selection family).
+  `::x::Helper`). The false positive: with a real global `::helper` also present, both
+  hashed to the same `all_procs` key and one silently overwrote the other.
+- **Fix:** `Analyser::command_resolution_namespace` (`analyser/scope.rs`) — built on the
+  shared `advance_command_resolution_namespace` per-scope-kind rule — is now the *single*
+  answer to "which namespace is current here?" for every analyser site. The purely
+  lexical walk has been deleted, so a new call site cannot pick the wrong one. Converted
+  in issue #923 idx 85: `proc` / TclOO `oo::class create` (earlier wave), then
+  `namespace ensemble create|configure`, `oo::define`, snit `type`/`widget`, itcl
+  `class`, `namespace import`, `namespace export`, `<pkg>::import` aliases, command-alias
+  resolution, `apply`'s relative namespace pin, registry-definer symbol qualification,
+  the imported-command body-role fallback, and the deferred method-body namespace.
+- **Known limits:** a TclOO **method** body resolves globally
+  (`Scope::oo_global_resolution`) because at run time it executes in the *object's*
+  namespace, which is not statically known — so a `namespace import` written inside a
+  TclOO method is attributed to `::`, not to the (unknowable) per-object namespace.
+  That is a deliberate, tclsh-pinned approximation, not a residual of this gap.
 
 ### 1.9 `interp eval CHILD SCRIPT` — cross-interp merge — **PLAUSIBLE** (medium) — DANGEROUS (PD1)
 
@@ -863,7 +867,7 @@ milestone slots are ordered by (severity × independence), matching the fix-plan
 
 | New item | Surfaces | What it does | Slot | Depends on |
 |----------|----------|--------------|------|------------|
-| **M0.5 — command name-link following** | 1.1, 1.2, 1.3, 1.5, 1.8, 1.10, 1.14, 3.1 | Make References/Rename/Call-Hierarchy (and the Go-to-Def/Hover path) consult `command_aliases`, `renamed_commands`, `namespace_imports`, forward targets, and the priority-ordered candidate list, so an alias/import/rename/forward is a followed reference and the definition/hover path becomes path-aware. Requires the analyser to record the missing **spans** (alias target word, `rename OLD NEW` args, import pattern, forward target token) and wire nested-def homing to `command_resolution_namespace`. Silent-correctness class — highest priority after M0. | **M0.5** (right after M0; several sub-items directly repair M0's "resolver already correct" assumption, esp. 1.14) | M0 (shared resolver in place) |
+| **M0.5 — command name-link following** | 1.1, 1.2, 1.3, 1.5, 1.8, 1.10, 1.14, 3.1 | Make References/Rename/Call-Hierarchy (and the Go-to-Def/Hover path) consult `command_aliases`, `renamed_commands`, `namespace_imports`, forward targets, and the priority-ordered candidate list, so an alias/import/rename/forward is a followed reference and the definition/hover path becomes path-aware. Requires the analyser to record the missing **spans** (alias target word, `rename OLD NEW` args, import pattern, forward target token) (nested-def homing is already wired to `command_resolution_namespace` — see §1.8). Silent-correctness class — highest priority after M0. | **M0.5** (right after M0; several sub-items directly repair M0's "resolver already correct" assumption, esp. 1.14) | M0 (shared resolver in place) |
 | **M4 explicit deliverables** | 2.1, 2.2, 2.3, 2.4 | Name upvar / global / variable / namespace-upvar **link-following** and TclOO **object variables** as first-class M4 deliverables (the spike text enumerates data models but not these link kinds). Fix the D1 whole-body-span rename corruption and the D2/D3 uplevel mis-scope even ahead of the broader spike. | within **M4** | — (M4 is a spike) |
 | **M3 sub-item — cross-file `oo::define` merge** | 3.5, 3.2, 3.3 | Dedup the cross-file `oo::define ::C` stub against the real ClassDef; honor a late cross-file `superclass`; add a per-object symbol store for `oo::objdefine`; add `next`/`nextto` reference sites. | within **M3** (per-object store may spill to M7) | M1, M2 |
 | **M6.5 — source-site namespace propagation** | 4.1, 4.3 | Re-home a sourced file's global-scope defs under the namespace active at the literal `source` call site; reuse `auto_path_eval` folding for computed source paths. | **M6.5** (after M6's lazy tier and M2's oracle) | M2, M6 |

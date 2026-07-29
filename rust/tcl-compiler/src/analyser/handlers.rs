@@ -461,7 +461,10 @@ impl Analyser {
             .max(name_tok.span.end());
         let full_span = Span::new(name_tok.span.start(), end);
 
-        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        // A registry definer called inside `proc ::ns::p {}` creates its symbol
+        // in `::ns` (the proc's defining namespace), not `::` — the
+        // command-resolution rule, not the lexical one (issue #923 idx 85).
+        let ns_prefix = self.command_resolution_namespace(scope_path);
         let qualified = qualify(ns_prefix.trim_start_matches(':'), &name);
 
         let symbol = DefinedSymbol {
@@ -493,12 +496,14 @@ impl Analyser {
         scope_path: &[usize],
     ) -> Option<tcl_registry::SymbolDef> {
         let dialect = self.profile.availability_mask;
-        // `namespace_from_scope_path` needs `&mut self`; compute it before the
-        // shared `registry` borrow, and only when imports could matter.
+        // Which namespace's imports are in effect is the *command-resolution*
+        // namespace: a proc body resolves unqualified commands (and so the
+        // imports covering them) in the proc's defining namespace, which the
+        // lexical walk misses for a qualified-name proc (issue #923 idx 85).
         let cur_ns = if self.result.namespace_imports.is_empty() {
             String::new()
         } else {
-            self.namespace_from_scope_path(scope_path)
+            self.command_resolution_namespace(scope_path)
         };
         // Does `cmd_name` (or an imported bare form of it) name a registry
         // definer?  The `registry` borrow is confined to this block so the
@@ -823,7 +828,7 @@ impl Analyser {
         // lexical one: a proc defined inside another proc's body homes to that
         // enclosing proc's **defining** namespace (the prefix of its qualified
         // name), the way Tcl resolves the `proc` command at run time.  The
-        // lexical `namespace_from_scope_path` skips proc scopes and so homed a
+        // purely lexical namespace walk skips proc scopes and so homed a
         // nested `proc helper` under `proc a::outer` to `::helper`, overwriting
         // the real global `::helper` in `all_procs`; the command-resolution
         // namespace homes it to `::a::helper`.
@@ -1435,7 +1440,11 @@ impl Analyser {
         // relative to the caller (as `TclGetNamespaceFromObj`); absent → global.
         let body_ns = match elements.get(2).map(|(_, t)| t.as_str()) {
             Some(ns) if !ns.is_empty() && !ns.starts_with('$') && !ns.starts_with('[') => {
-                let caller_ns = self.namespace_from_scope_path(scope_path);
+                // "Relative to the caller" means the caller's *current*
+                // namespace at run time — the command-resolution namespace, so
+                // an `apply` inside `proc ::ns::p {}` pins against `::ns`
+                // (issue #923 idx 85).
+                let caller_ns = self.command_resolution_namespace(scope_path);
                 qualify(caller_ns.trim_start_matches(':'), ns)
             }
             _ => "::".to_string(),
@@ -2179,7 +2188,14 @@ impl Analyser {
         if !is_create && !is_configure {
             return;
         }
-        let ns = self.namespace_from_scope_path(scope_path);
+        // `namespace ensemble create` names the ensemble after the namespace
+        // the command *resolves in*, not the lexically enclosing one: run
+        // inside the body of `proc ::tk::foo {} {...}` declared at top level,
+        // the current namespace is `::tk`, so the ensemble is `::tk` — the
+        // purely lexical namespace walk skips proc scopes and homed it
+        // to `::` instead, losing every `<ns> sub` call site (issue #923
+        // idx 85).
+        let ns = self.command_resolution_namespace(scope_path);
         let ns_prefix = ns.trim_start_matches(':').to_owned();
 
         let (opts, opt_tokens, configure_target) = if is_create {
@@ -3752,7 +3768,9 @@ impl Analyser {
         args: &[String],
         scope_path: &[usize],
     ) -> (String, Vec<String>) {
-        let ns = self.namespace_from_scope_path(scope_path);
+        // An alias is looked up the way any unqualified command is, so the
+        // lookup namespace is the command-resolution one (issue #923 idx 85).
+        let ns = self.command_resolution_namespace(scope_path);
         // `alias::resolve_alias` accepts `CommandAliasMap` (alias map
         // keyed by qualified alias name) — the same shape as
         // `self.command_aliases` already uses.
@@ -3916,7 +3934,9 @@ impl Analyser {
             return false;
         }
         let raw_class_name = &args[0];
-        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        // A relative class name resolves against the namespace current at the
+        // call — the command-resolution namespace (issue #923 idx 85).
+        let ns_prefix = self.command_resolution_namespace(scope_path);
         let ns_for_qualify = ns_prefix.trim_start_matches(':');
         // A dynamic target (`oo::define $class method ...`, the clay.tcl
         // `current_class`-based Ensemble DSL idiom) can't be resolved to the
@@ -4154,7 +4174,10 @@ impl Analyser {
         if idx < args.len() && args[idx] == "-force" {
             idx += 1;
         }
-        let importing_ns = self.namespace_from_scope_path(scope_path);
+        // `namespace import` imports into the namespace current at the call —
+        // the command-resolution namespace, so an import inside
+        // `proc ::ns::p {}` lands in `::ns` (issue #923 idx 85).
+        let importing_ns = self.command_resolution_namespace(scope_path);
         while idx < args.len() && idx < arg_tokens.len() {
             let pat_raw = args[idx].clone();
             // Patterns containing ``$`` / ``[`` substitutions can't be
@@ -4223,7 +4246,9 @@ impl Analyser {
             return;
         }
         let mut idx = 1;
-        let exporting_ns = self.namespace_from_scope_path(scope_path);
+        // As for `import`: the exporting namespace is the one current at the
+        // call, not the lexically enclosing one (issue #923 idx 85).
+        let exporting_ns = self.command_resolution_namespace(scope_path);
         if idx < args.len() && args[idx] == "-clear" {
             self.result
                 .namespace_exports
@@ -4315,7 +4340,7 @@ impl Analyser {
         // Relative aliases live under the current namespace —
         // ``namespace eval outer { some::ns::import vt }``
         // creates ``::outer::vt``, not ``::vt``.
-        let current_ns = self.namespace_from_scope_path(scope_path);
+        let current_ns = self.command_resolution_namespace(scope_path);
         let alias_ns = if alias.starts_with("::") {
             alias.clone()
         } else if current_ns == "::" {
@@ -6733,6 +6758,179 @@ mod tests {
         assert!(
             resolved.contains(&"::foo::show"),
             "the -subcommands name should map to `<ns>::show`: {resolved:?}",
+        );
+    }
+
+    /// Issue #923 idx 85 (tk-shaped): the ensemble-creating command runs inside
+    /// a proc whose *qualified name* homes it to `::tk`, but which is declared
+    /// at the top level with no enclosing `namespace eval`.  `namespace
+    /// current` there is `::tk` (tclsh 8.6.16 / 9.0.4-verified: the ensemble
+    /// created is `::tk` and `tk alpha` dispatches to `::tk::alpha`), so the
+    /// subcommand must map to `::tk::alpha` — the purely lexical namespace walk
+    /// skips proc scopes and mapped it to `::alpha`.
+    #[test]
+    fn namespace_ensemble_create_in_a_qualified_name_proc_homes_to_that_namespace_923_idx85() {
+        let mut a = Analyser::new();
+        let src = "namespace eval ::tk {}\n\
+                   proc ::tk::alpha {} {}\n\
+                   proc ::tk::SetupEnsemble {} {\n    \
+                   namespace ensemble create -subcommands {alpha}\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            resolved.contains(&"::tk::alpha"),
+            "the subcommand should map to the proc's defining namespace: {resolved:?}",
+        );
+        assert!(
+            !resolved.contains(&"::alpha"),
+            "the lexical (global) namespace is the wrong home: {resolved:?}",
+        );
+        assert!(
+            a.ensemble_namespaces.contains("::tk"),
+            "the ensemble command itself is `::tk`: {:?}",
+            a.ensemble_namespaces,
+        );
+    }
+
+    /// TN control for the above: the ordinary lexical case — the ensemble is
+    /// created directly inside `namespace eval ::foo`, so both the lexical and
+    /// the command-resolution namespace agree on `::foo`.  Pinned so the idx 85
+    /// fix cannot regress the common shape.
+    #[test]
+    fn namespace_ensemble_create_lexically_inside_namespace_eval_is_unchanged_923_idx85() {
+        let mut a = Analyser::new();
+        let src = "namespace eval ::foo {\n    \
+                   proc alpha {} {}\n    \
+                   namespace ensemble create -subcommands {alpha}\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            resolved.contains(&"::foo::alpha"),
+            "lexical case still maps to `::foo::alpha`: {resolved:?}",
+        );
+        assert!(a.ensemble_namespaces.contains("::foo"));
+    }
+
+    /// The definition-homing sweep behind issue #923 idx 85: every analyser
+    /// site that asks "which namespace is current here?" now answers with
+    /// [`Analyser::command_resolution_namespace`], so a definition made inside
+    /// a qualified-name proc's body homes to that proc's *defining* namespace.
+    /// These are cases (A)–(D) from `docs/design/tricky-name-resolution-surfaces.md`
+    /// §1.8, each with the real interpreter's answer as the expectation.
+    #[test]
+    fn definitions_inside_a_qualified_name_proc_home_to_its_defining_namespace_923_idx85() {
+        // (A) The already-correct lexical control.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::x { proc mk {} { proc helper {} {} } }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.all_procs.contains_key("::x::helper"),
+            "(A) lexical case: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>(),
+        );
+
+        // (B) A qualified-name proc with no enclosing `namespace eval`.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc ::x::mk {} { proc helper {} {} }\n", "tcl8.6");
+        assert!(
+            r.all_procs.contains_key("::x::helper"),
+            "(B) qualified encloser: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>(),
+        );
+
+        // (C) A qualified-name proc whose own name overrides the lexical
+        // `namespace eval` it sits in.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::x { proc ::y::mk {} { proc helper {} {} } }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.all_procs.contains_key("::y::helper"),
+            "(C) absolute name rebases: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>(),
+        );
+
+        // (D) The same rule for a class, not a proc.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc ::x::mk {} { oo::class create Helper {} }\n", "tcl8.6");
+        assert!(
+            r.all_classes.contains_key("::x::Helper"),
+            "(D) class create: {:?}",
+            r.all_classes.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    /// The false positive the idx 85 family caused: a nested definition that
+    /// mis-homed to `::` collided with a real global of the same name and one
+    /// silently overwrote the other.  Both must survive under their own keys.
+    #[test]
+    fn a_nested_definition_no_longer_overwrites_a_same_named_global_923_idx85() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc helper {} { return global }\n\
+             proc ::x::mk {} { proc helper {} { return nested } }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::helper"),
+            "global lost: {keys:?}"
+        );
+        assert!(
+            r.all_procs.contains_key("::x::helper"),
+            "nested lost: {keys:?}",
+        );
+    }
+
+    /// `namespace import` written inside a qualified-name proc imports into
+    /// that proc's defining namespace, not the global one (issue #923 idx 85).
+    #[test]
+    fn namespace_import_inside_a_qualified_name_proc_targets_that_namespace_923_idx85() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::src { proc thing {} {} namespace export thing }\n\
+             proc ::dst::setup {} { namespace import ::src::thing }\n",
+            "tcl8.6",
+        );
+        let targets: Vec<&str> = r.namespace_imports.iter().map(|i| i.ns.as_str()).collect();
+        assert!(
+            targets.contains(&"::dst"),
+            "the import lands in the proc's defining namespace: {targets:?}",
+        );
+    }
+
+    /// A `-map` target inside the same qualified-name proc resolves the same
+    /// way (issue #923 idx 85, the `-map` half the finding actually named).
+    #[test]
+    fn namespace_ensemble_map_in_a_qualified_name_proc_resolves_targets_923_idx85() {
+        let mut a = Analyser::new();
+        let src = "namespace eval ::tk {}\n\
+                   proc ::tk::getImpl {} {}\n\
+                   proc ::tk::SetupEnsemble {} {\n    \
+                   namespace ensemble create -map {get getImpl}\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            resolved.contains(&"::tk::getImpl"),
+            "the -map target resolves in the proc's defining namespace: {resolved:?}",
         );
     }
 

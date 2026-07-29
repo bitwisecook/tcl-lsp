@@ -921,8 +921,8 @@ in the stateful scope walk:
 
 - `handle_proc_command` (`analyser/handlers.rs:292`): `name = args[0]`,
   body span = `arg_tokens[2].span`, qualified via
-  `namespace_from_scope_path(scope_path)` + `qualify(ns, name)`
-  (`handlers.rs:65`, currently `pub(super)` — expose it).
+  `command_resolution_namespace(scope_path)` + `qualify(ns, name)`
+  (`analyser/scope.rs`, currently `pub(super)` — expose it).
 - `handle_namespace_eval_command` (`handlers.rs:477`) creates the child scope
   whose path drives qualification; `oo::class create` /`oo::define`
   (`handlers.rs:1154,1229`) for classes/methods; `interp alias` /`namespace
