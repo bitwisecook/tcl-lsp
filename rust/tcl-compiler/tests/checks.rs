@@ -3133,6 +3133,39 @@ mod script_concatenation {
         assert!(!fires(src, D, "W210"), "{:?}", codes(src, D));
     }
 
+    /// FP — a dynamic tail declines the *join*, not the braced first word:
+    /// `eval {script} $extra` still runs `script` as written (concatenation
+    /// only appends after it), so the write it performs must stay recorded.
+    #[test]
+    fn eval_fp_braced_script_before_a_dynamic_tail_is_still_walked_1051() {
+        let src = "set extra x\neval {set l2 5} $extra\nputs $l2\n";
+        assert!(!fires(src, D, "W210"), "{:?}", codes(src, D));
+    }
+
+    /// FP — a `namespace eval` whose body word is dragged open by an
+    /// unbalanced brace *inside* it (here a `${gre` fragment in a comment)
+    /// turns into a multi-word call with an un-joinable tail. Declining the
+    /// join must not discard the braced body word — it is the namespace's
+    /// whole visible content, and dropping it removed every proc scope from
+    /// the tree (the editors' variableContexts fixture regression).
+    #[test]
+    fn namespace_eval_fp_mangled_body_word_keeps_its_proc_scopes_1051() {
+        let src = "namespace eval ::ns1 {\n    proc p1 {} {\n        scan \"1 2\" \"%d %d\" sx sy\n    }\n    proc t2 {greeting} {\n        # probe (``$gre``, ``${gre``, midword)\n    }\n}\nset \"weird}name\" 1\n";
+        let mut analyser = tcl_compiler::analyser::Analyser::new();
+        let result = analyser.analyse(src, D);
+        let ns = result
+            .global_scope
+            .children
+            .iter()
+            .find(|c| c.name.contains("ns1"))
+            .expect("namespace scope registered");
+        assert_eq!(
+            ns.children.len(),
+            2,
+            "proc scopes lost from the mangled namespace body"
+        );
+    }
+
     /// TN — `catch` is not in the family: its remaining words are result and
     /// options variable names, so nothing is joined into the script.
     ///

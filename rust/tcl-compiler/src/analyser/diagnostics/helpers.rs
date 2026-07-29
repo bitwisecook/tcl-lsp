@@ -572,8 +572,26 @@ fn collect_script_concat_writes(
             };
             // `argv_texts` / `argv_kinds` include the command word at index 0;
             // `args` does not, so the body index shifts by one.
-            let Some(script) = concat_barrier_words(tokens, first + 1) else {
-                continue;
+            //
+            // A dynamic tail declines the join, not the braced first word:
+            // `eval {set l2 5} $extra` still runs `set l2 5` as written
+            // (concatenation only appends after it), so its writes are
+            // recovered from that word alone — mirroring the analyser's
+            // `dispatch_concatenated_script` fallback.
+            let script = match concat_barrier_words(tokens, first + 1) {
+                Some(script) => script,
+                None => {
+                    let (Some(text), Some(&kind)) = (
+                        tokens.argv_texts.get(first + 1),
+                        tokens.argv_kinds.get(first + 1),
+                    ) else {
+                        continue;
+                    };
+                    if kind != tcl_lexer::TokenType::Str {
+                        continue;
+                    }
+                    text.clone()
+                }
             };
             let mut writes = Vec::new();
             crate::ir_helpers::script_text_out_vars(&script, &mut writes);

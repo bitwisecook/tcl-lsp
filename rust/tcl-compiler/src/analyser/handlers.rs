@@ -1687,6 +1687,15 @@ impl Analyser {
             return;
         };
         let Some(script) = super::utils::concat_script_words(words, tokens) else {
+            // The tail cannot be joined (a dynamic word). A braced first word
+            // is still a literal script prefix — concatenation appends after
+            // it — and it is the namespace's whole visible body in the common
+            // mangled-document case (an unbalanced brace inside the body word
+            // drags trailing text into extra words). Walk it rather than
+            // discarding every proc and variable the namespace declares.
+            if first_tok.kind == TokenType::Str {
+                self.analyse_body(&words[0], *first_tok, child_path);
+            }
             return;
         };
         let start = first_tok.span.start() + u32::from(first_tok.content_offset);

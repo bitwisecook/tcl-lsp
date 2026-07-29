@@ -1652,6 +1652,17 @@ impl Analyser {
             arg_single.get(first).copied().unwrap_or(false),
         );
         let Some(script) = super::utils::concat_script_words(words, tokens) else {
+            // The tail cannot be joined (a dynamic word). A braced first word
+            // is still a literal script prefix — concatenation appends after
+            // it, so its own commands run as written — and walking it keeps
+            // every scope/definition it declares visible to the editor. The
+            // `eval {script} $extra` shape (and a brace-mangled document
+            // whose mis-extended body word drags real code into this arm)
+            // must not lose the script to the decline.
+            if first_tok.kind == TokenType::Str {
+                self.analyse_body(&words[0], *first_tok, scope_path);
+                return;
+            }
             // Declining the walk must not lose the *reference* a `$cmd` script
             // word carries — `uplevel #0 $cmd [list x y]` still dispatches
             // whatever `$cmd` holds.
