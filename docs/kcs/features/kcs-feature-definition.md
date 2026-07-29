@@ -26,6 +26,13 @@ Resolves proc calls, variable references, namespace-qualified names, and BIG-IP 
 - `server/features/definition.py`
 - `analyser/proc_lookup.py`
 
+A `TclOO` member name written as a bare word inside a class body is only a
+jump target when it really is one: the cursor must sit on the member's own
+declaration, or on a bare word that `link` (Tcl 9.0's `oo::Helpers::link`)
+actually made callable. An un-linked bare sibling call raises `invalid
+command name` in real Tcl, so Go to Definition abstains on it — in the
+current file and across the workspace alike.
+
 ## Failure modes
 
 - Definition not found after proc lookup or namespace resolution changes.
