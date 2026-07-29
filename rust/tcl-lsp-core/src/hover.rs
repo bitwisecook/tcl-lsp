@@ -2218,6 +2218,37 @@ fn clock_format_string_at_position(source: &str, line: u32, character: u32) -> O
     string_literal_with_percent_at(line_text, character)
 }
 
+/// The `[start, end)` char-index bounds of the bare Tcl word around `col`
+/// in `chars` (one source line), using [`WORD_DELIMS`].
+///
+/// This is the single word-bounding rule shared by every cursor-word
+/// consumer, so hover, definition, references, and rename all agree on
+/// where a word starts and ends.  It deliberately follows the *lexer's*
+/// notion of a bare word — bounded by whitespace and the structural
+/// characters `;{}[]"$` — rather than a programming-language identifier
+/// rule.  Tcl puts no character restriction on a command or method name, so
+/// `with-dash`, `a.b`, and TIP 558's generated property accessors
+/// `<ReadProp-x>` / `<WriteProp-x>` are all one word (verified against
+/// tclsh 8.6.14 and 9.0.4).
+///
+/// Returns `None` when the cursor sits on a delimiter run (empty word).
+///
+/// Deliberately *not* handled: a word split across lines by a
+/// backslash-newline continuation, and the interior structure of a word
+/// that mixes literal text with substitutions (`pre[cmd]post`) — the
+/// caller sees the literal slice only.
+pub(crate) fn word_char_bounds(chars: &[char], col: usize) -> Option<(usize, usize)> {
+    let mut start = col.min(chars.len());
+    while start > 0 && !WORD_DELIMS.contains(&chars[start - 1]) {
+        start -= 1;
+    }
+    let mut end = col.min(chars.len());
+    while end < chars.len() && !WORD_DELIMS.contains(&chars[end]) {
+        end += 1;
+    }
+    (start != end).then_some((start, end))
+}
+
 /// Find the word and its `[start, end)` columns at the given
 /// position, using Tcl's word delimiters.
 ///
@@ -2236,18 +2267,7 @@ pub fn find_word_span_at_position(
     if col >= chars.len() {
         return None;
     }
-
-    let mut start = col;
-    while start > 0 && !WORD_DELIMS.contains(&chars[start - 1]) {
-        start -= 1;
-    }
-    let mut end = col;
-    while end < chars.len() && !WORD_DELIMS.contains(&chars[end]) {
-        end += 1;
-    }
-    if start == end {
-        return None;
-    }
+    let (start, end) = word_char_bounds(&chars, col)?;
     let word: String = chars[start..end].iter().collect();
     let prefix: String = chars[..start].iter().collect();
     let start_u32 = crate::definition::utf16_len(&prefix);

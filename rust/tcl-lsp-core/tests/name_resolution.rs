@@ -736,3 +736,67 @@ mod apply_lambda {
         );
     }
 }
+
+// ───────────── #1019 idx 16 — non-identifier method names ─────────────
+
+/// Tcl puts no character restriction on a method name.  The cursor-word
+/// rule used to stop at `-`, `<`, and `>`, so a hyphenated method and TIP
+/// 558's generated property accessors (`<ReadProp-NAME>` /
+/// `<WriteProp-NAME>`) were truncated to a name no class declares, and never
+/// resolved from a call site.
+///
+/// Oracle (tclsh 8.6.14 + 9.0.4): `method with-dash`, `method a.b`, and
+/// `method <ReadProp-x>` all define real, dispatchable methods, and
+/// `oo::configurable`'s `property x` generates exactly `<ReadProp-x>` /
+/// `<WriteProp-x>`.  Only `with-dash` / `a.b` are *exported* (`TclOO` exports
+/// a method iff its name starts with an ASCII lowercase letter), so the
+/// angle-bracketed pair is reachable through `my` only.
+mod non_identifier_method_names {
+    use super::*;
+
+    /// FN→TP: a hyphenated method's external call site is a reference.
+    #[test]
+    fn tp_hyphenated_method_call_site_is_a_reference() {
+        let src = "oo::class create C {\n    method with-dash {} { return 1 }\n}\nC create rex\nrex with-dash\n";
+        assert_eq!(refs_at(src, 1, 13), vec![1, 4], "decl + `rex with-dash`");
+    }
+
+    /// FN→TP: the cursor *on the call site* resolves back to the declaration
+    /// too — the reverse direction, which shares the same word rule.
+    #[test]
+    fn tp_hyphenated_method_references_from_the_call_site() {
+        let src = "oo::class create C {\n    method with-dash {} { return 1 }\n}\nC create rex\nrex with-dash\n";
+        assert_eq!(refs_at(src, 4, 7), vec![1, 4]);
+    }
+
+    /// FN→TP: the TIP 558 accessor shape, dispatched internally via `my`.
+    #[test]
+    fn tp_angle_bracketed_property_accessor_my_dispatch_is_a_reference() {
+        let src = "oo::class create C {\n    method <ReadProp-x> {} { return 2 }\n    method probe {} { my <ReadProp-x> }\n}\n";
+        assert_eq!(refs_at(src, 1, 13), vec![1, 2], "decl + `my <ReadProp-x>`");
+    }
+
+    /// TP: a dotted method name is one word too.
+    #[test]
+    fn tp_dotted_method_call_site_is_a_reference() {
+        let src =
+            "oo::class create C {\n    method a.b {} { return 1 }\n}\nC create rex\nrex a.b\n";
+        assert_eq!(refs_at(src, 1, 12), vec![1, 4]);
+    }
+
+    /// FP guard: `$x-1` is arithmetic, not a `-1` method on `$x`, even when
+    /// `x` really does hold an object whose class has methods.
+    #[test]
+    fn fp_subtraction_on_an_object_variable_is_not_a_method_call() {
+        let src = "oo::class create C {\n    method with-dash {} { return 1 }\n}\nset x [C new]\nset y [expr {$x-1}]\n";
+        assert_eq!(refs_at(src, 1, 13), vec![1], "declaration only");
+    }
+
+    /// TN: a hyphenated *option flag* written after an unrelated command is
+    /// not a reference to a same-named method.
+    #[test]
+    fn tn_option_flag_is_not_a_method_reference() {
+        let src = "oo::class create C {\n    method with-dash {} { return 1 }\n}\nputs -nonewline with-dash\n";
+        assert_eq!(refs_at(src, 1, 13), vec![1], "declaration only");
+    }
+}

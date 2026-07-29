@@ -759,6 +759,25 @@ fn canonicalise_class(analysis: &AnalysisResult, owner: &str, name: &str) -> Str
 /// [`receiver_instance_class`], which gates bare receivers on
 /// `created_instance_commands` (so a plain variable's bare name — never a
 /// valid dispatch — does not resolve).
+///
+/// The method-name word is bounded by [`crate::hover::word_char_bounds`] —
+/// the same lexer-faithful rule every other cursor-word consumer uses — so
+/// a method whose name is not a programming-language identifier still
+/// resolves.  Tcl imposes no character restriction on a method name:
+/// `$obj with-dash`, `$obj a.b`, and TIP 558's generated property accessors
+/// (`my <ReadProp-x>` / `my <WriteProp-x>`, produced by `oo::configurable`'s
+/// `property`) all dispatch for real (verified against tclsh 8.6.14 and
+/// 9.0.4), and an identifier rule that stopped at `-` / `<` / `>` silently
+/// truncated those names to something no class declares (issue #1019 idx
+/// 16).
+///
+/// A word carrying no alphanumeric / `_` content at all — `<`, `<=`, `-`,
+/// `::` — is rejected: those are expression operators and separators, so
+/// `expr {$a < $b}` must not read as `$a` dispatching a method named `<`.
+/// Tcl *would* let a class declare a method literally named `+` or `<`, and
+/// this deliberately does not resolve those: `expr` bodies are far more
+/// common than operator-named methods, and rejecting them keeps the
+/// pre-existing behaviour rather than trading one gap for a false positive.
 pub(crate) fn instance_method_at_cursor(
     source: &str,
     line: u32,
@@ -767,21 +786,13 @@ pub(crate) fn instance_method_at_cursor(
     let line_text = source.split('\n').nth(line as usize)?;
     let chars: Vec<char> = line_text.chars().collect();
     let col = utf16_col_to_char_col(line_text, character).min(chars.len());
-    let is_ident = |c: char| c.is_alphanumeric() || c == '_' || c == ':';
 
     // Method-name word bounds around the cursor.
-    let mut wstart = col;
-    while wstart > 0 && is_ident(chars[wstart - 1]) {
-        wstart -= 1;
-    }
-    let mut wend = col;
-    while wend < chars.len() && is_ident(chars[wend]) {
-        wend += 1;
-    }
-    if wstart == wend {
+    let (wstart, wend) = crate::hover::word_char_bounds(&chars, col)?;
+    let method: String = chars[wstart..wend].iter().collect();
+    if !method.chars().any(|c| c.is_alphanumeric() || c == '_') {
         return None;
     }
-    let method: String = chars[wstart..wend].iter().collect();
 
     // Command-segment start: nearest `;` / `[` / `{` to the
     // left, else the line start.
@@ -3093,6 +3104,102 @@ mod tests {
         // command.
         let src = "[x] bark\n";
         assert_eq!(instance_method_at_cursor(src, 0, 5), None);
+    }
+
+    // Method names with non-identifier characters (issue #1019 idx 16).
+    // Oracle (tclsh 8.6.14 + 9.0.4): `method with-dash`, `method a.b`, and
+    // TIP 558's `<ReadProp-x>` / `<WriteProp-x>` all dispatch for real.
+
+    #[test]
+    fn instance_method_at_cursor_keeps_a_hyphenated_method_name_whole() {
+        // TP — `-` is part of the method word, not a boundary.
+        let src = "$d with-dash\n";
+        assert_eq!(
+            instance_method_at_cursor(src, 0, 8),
+            Some(("d".to_string(), "with-dash".to_string(), true))
+        );
+    }
+
+    #[test]
+    fn instance_method_at_cursor_keeps_an_angle_bracketed_method_name_whole() {
+        // TP — the TIP 558 property-accessor shape, cursor inside the name.
+        let src = "my <ReadProp-colour>\n";
+        assert_eq!(
+            instance_method_at_cursor(src, 0, 8),
+            Some(("my".to_string(), "<ReadProp-colour>".to_string(), false))
+        );
+    }
+
+    #[test]
+    fn instance_method_at_cursor_keeps_a_dotted_method_name_whole() {
+        // TP — `method a.b` dispatches in real Tcl; `.` is not a boundary.
+        let src = "$d a.b\n";
+        assert_eq!(
+            instance_method_at_cursor(src, 0, 4),
+            Some(("d".to_string(), "a.b".to_string(), true))
+        );
+    }
+
+    #[test]
+    fn instance_method_at_cursor_rejects_subtraction_in_an_expression() {
+        // TN — `$x-1` is arithmetic. The whole `x-1` run is one word whose
+        // head slice is a bare `$`, so nothing dispatches.
+        let src = "expr {$x-1}\n";
+        assert_eq!(instance_method_at_cursor(src, 0, 8), None);
+        assert_eq!(instance_method_at_cursor(src, 0, 9), None);
+    }
+
+    #[test]
+    fn instance_method_at_cursor_rejects_a_bare_comparison_operator() {
+        // TN — `expr {$a < $b}` must not read as `$a` dispatching `<`:
+        // the word carries no alphanumeric content.
+        let src = "expr {$a < $b}\n";
+        assert_eq!(instance_method_at_cursor(src, 0, 9), None);
+    }
+
+    #[test]
+    fn hyphenated_and_angle_bracketed_methods_resolve_from_a_call_site() {
+        // TP — end-to-end. `with-dash` starts with an ASCII lowercase
+        // letter so it is exported and dispatches externally; the TIP 558
+        // accessor `<ReadProp-x>` starts with `<` so it is *unexported* and
+        // only reachable from inside the class via `my` (oracle: tclsh
+        // 9.0.4 answers `unknown method "<foo>"` for an external call but
+        // runs `my <ReadProp-x>` fine).
+        let src = concat!(
+            "oo::class create C {\n",
+            "    method with-dash {} { return 1 }\n",
+            "    method <ReadProp-x> {} { return 2 }\n",
+            "    method probe {} { my <ReadProp-x> }\n",
+            "}\n",
+            "C create rex\n",
+            "rex with-dash\n",
+        );
+        let analysis = analyse(src);
+        let dash = definition(src, 6, 6, &analysis);
+        assert_eq!(dash.len(), 1, "{dash:?}");
+        assert_eq!(dash[0].start_line, 1);
+        assert_eq!(dash[0].start_character, 11);
+        let prop = definition(src, 3, 28, &analysis);
+        assert_eq!(prop.len(), 1, "{prop:?}");
+        assert_eq!(prop[0].start_line, 2);
+        assert_eq!(prop[0].start_character, 11);
+    }
+
+    #[test]
+    fn unexported_angle_bracketed_method_is_not_externally_dispatchable() {
+        // TN — the export rule still applies to the widened word: an
+        // external `rex <ReadProp-x>` is `unknown method` in real Tcl
+        // (verified, tclsh 8.6.14 + 9.0.4), so it must resolve to nothing
+        // rather than to the declaration.
+        let src = concat!(
+            "oo::class create C {\n",
+            "    method <ReadProp-x> {} { return 2 }\n",
+            "}\n",
+            "C create rex\n",
+            "rex <ReadProp-x>\n",
+        );
+        let analysis = analyse(src);
+        assert!(definition(src, 4, 8, &analysis).is_empty());
     }
 
     #[test]

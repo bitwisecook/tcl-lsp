@@ -404,3 +404,96 @@ fn tp_classmethod_lens_click_and_count_reach_a_consumer_document() {
         "and its count must be that same number: {command:?}"
     );
 }
+
+// Issue #1019 idx 16 — method names that are not identifiers.
+
+/// TP: a hyphenated method (`with-dash`) and a TIP 558 property accessor
+/// (`<ReadProp-x>`) are ordinary dispatchable method names — oracle-checked
+/// on tclsh 8.6.14 and 9.0.4 — so definition, references, hover, and rename
+/// must all resolve them from their call sites.  Before the fix the cursor
+/// word stopped at `-` / `<` / `>`, truncating the name to something no
+/// class declares.
+#[test]
+fn tp_non_identifier_method_names_navigate_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create Widget {\n",
+            "    method with-dash {} { return 1 }\n",
+            "    method <ReadProp-x> {} { return 2 }\n",
+            "    method probe {} { my <ReadProp-x> }\n",
+            "}\n",
+            "Widget create rex\n",
+            "rex with-dash\n",
+        ),
+    );
+
+    // Go-to-definition from the hyphenated call site (line 6).
+    let def = lsp.definition(&uri, 6, 7);
+    assert_eq!(
+        start_lines(&def),
+        [1].into_iter().collect(),
+        "`rex with-dash` must reach the declaration: {def:?}"
+    );
+
+    // Go-to-definition from the `my <ReadProp-x>` internal dispatch.
+    let prop_def = lsp.definition(&uri, 3, 28);
+    assert_eq!(
+        start_lines(&prop_def),
+        [2].into_iter().collect(),
+        "`my <ReadProp-x>` must reach the accessor declaration: {prop_def:?}"
+    );
+
+    // References from the declaration cover the call site.
+    let refs = lsp.references(&uri, 1, 13, true);
+    assert_eq!(
+        start_lines(&refs),
+        [1, 6].into_iter().collect(),
+        "declaration + `rex with-dash`: {refs:?}"
+    );
+
+    // Hover on the call site names the method.
+    let hover = hover_text(&lsp.hover(&uri, 6, 7));
+    assert!(
+        hover.contains("with-dash"),
+        "hover must describe the hyphenated method: {hover:?}"
+    );
+
+    // Rename rewrites both sites.  The *new* name still has to pass the
+    // existing safe-symbol gate (`is_safe_symbol_name`), which is about what
+    // an editor may write, not about what Tcl can dispatch — so renaming
+    // *from* a hyphenated name works, renaming *to* one does not.
+    let edits = rename_edits(&lsp.rename(&uri, 1, 13, "renamed"));
+    assert_eq!(
+        edit_lines(&edits, &uri),
+        vec![1, 6],
+        "both the declaration and the call site must rename: {edits:?}"
+    );
+}
+
+/// TN: `$x-1` is arithmetic.  The widened word rule must not read it as a
+/// `-1` method dispatch on an object-holding variable, so the class's own
+/// method keeps exactly one reference (its declaration).
+#[test]
+fn tn_subtraction_is_not_a_method_dispatch() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create Widget {\n",
+            "    method with-dash {} { return 1 }\n",
+            "}\n",
+            "set x [Widget new]\n",
+            "set y [expr {$x-1}]\n",
+        ),
+    );
+    let refs = lsp.references(&uri, 1, 13, true);
+    assert_eq!(
+        start_lines(&refs),
+        [1].into_iter().collect(),
+        "only the declaration: {refs:?}"
+    );
+}

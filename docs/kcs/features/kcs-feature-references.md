@@ -79,6 +79,13 @@ double-quoted string.
   and a call site found in it would point at the wrong bytes.
 - Expect's `expect { -re pattern body … }` clause list is not descended (only
   a plain `{pattern body …}` clause list, `switch`'s shape, is).
+- A method whose name is a bare operator — Tcl lets you write `method + {o}
+  {…}` — is not resolved from its call site. Every other method name is:
+  hyphens, dots, and TIP 558's generated property accessors
+  (`<ReadProp-NAME>` / `<WriteProp-NAME>`, produced by `oo::configurable`'s
+  `property`) are all part of the name. Operator-only names stay out because
+  `expr {$a < $b}` would otherwise read as `$a` dispatching a method called
+  `<`, and `expr` bodies are far more common than operator-named methods.
 - [incr Tcl] dispatches a class-scoped `proc` (itcl's own class-method form)
   as a single `::`-qualified identifier — `Factory::make`, not `Factory make`
   — which is a different call shape entirely from `classmethod` /
@@ -107,7 +114,9 @@ double-quoted string.
   `obj_method_dispatch`, `next_dispatch`, `classmethod_dispatch` —
   control-flow-nested dispatch TP/FP/TN matrix (issue #957) and the
   classmethod/typemethod/itcl-proc TP/FP/TN/FN matrix, including issue #956's
-  exact repro and call-site-cursor resolution)
+  exact repro and call-site-cursor resolution;
+  `non_identifier_method_names` — hyphenated / dotted / TIP 558
+  angle-bracketed method names)
 - `rust/tcl-lsp-core/src/references.rs` (`mod tests`, including
   `references_for_property_includes_decl_and_my_dispatch_call_sites`,
   `references_disambiguates_property_and_method_sharing_a_name_by_cursor`,
