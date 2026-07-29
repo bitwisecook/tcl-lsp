@@ -126,6 +126,24 @@ pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRe
     };
     // Alias / trace declarations key off the canonical command name.
     let canon = stmt.canonical_command_or_source();
+    // `my variable NAME …` (TclOO) binds each instance variable into the
+    // method's local scope — a namespace-style scope alias, exactly like a
+    // bare `variable`, but reached through the `my` dispatch so the base
+    // command word is `my` and the declared names follow a `variable`
+    // subcommand word. An instance variable's intrep is externally
+    // determined (the constructor / other methods can set it to anything),
+    // so a use-site / merge / loop-oscillation check must treat it as
+    // escaping — the same protection FP-SH-02 / FP-SH-16 give a bare
+    // `variable`. Whether the head *is* the self-dispatch keyword comes from
+    // the registry, not a name literal (issue #1050); `get` resolves the
+    // `::`-qualified spelling itself.
+    if registry.method_dispatch_keyword(canon)
+        == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+    {
+        for i in my_variable_declaration_indices(args) {
+            mark(state, args, i, EscapeFlag::NAMESPACE);
+        }
+    }
     match canon.strip_prefix("::").unwrap_or(canon) {
         "global" => {
             for i in global_declaration_indices(args) {
@@ -137,21 +155,8 @@ pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRe
                 mark(state, args, i, EscapeFlag::NAMESPACE);
             }
         }
-        // `my variable NAME …` (TclOO) binds each instance variable into the
-        // method's local scope — a namespace-style scope alias, exactly like a
-        // bare `variable`, but reached through the `my` dispatch so the base
-        // command word is `my` and the declared names follow a `variable`
-        // subcommand word. An instance variable's intrep is externally
-        // determined (the constructor / other methods can set it to anything),
-        // so a use-site / merge / loop-oscillation check must treat it as
-        // escaping — the same protection FP-SH-02 / FP-SH-16 give a bare
-        // `variable`. (Traces are handled below by the registry-driven
+        // (Traces are handled below by the registry-driven
         // `variable_trace_write_indices`, not a hardcoded `"trace"` arm.)
-        "my" => {
-            for i in my_variable_declaration_indices(args) {
-                mark(state, args, i, EscapeFlag::NAMESPACE);
-            }
-        }
         _ => {}
     }
 

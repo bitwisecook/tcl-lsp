@@ -595,7 +595,14 @@ impl Analyser {
             let Some((target, prepended)) = method_def.forward_target.as_ref() else {
                 break;
             };
-            if target == "my" || target == "::my" {
+            // `forward m my other` re-dispatches on the same instance. The
+            // self-dispatch keyword comes from the registry (which resolves
+            // the `::`-qualified spelling itself), not a name literal
+            // (issue #1050).
+            if self.registry.is_some_and(|r| {
+                r.method_dispatch_keyword(target)
+                    == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+            }) {
                 let (next_method, rest) = prepended.split_first()?;
                 let next_provider = hierarchy.method_target(receiver_class, next_method)?;
                 // `my` dispatches on the same instance, so only an
@@ -1381,7 +1388,22 @@ impl Analyser {
             // the dispatched method resolves in the enclosing class and its
             // body is a simple `return <literal>`, the result is a plain
             // string, not an object — so the *outer* dispatch fires W307.
-            if matches!(head, "my" | "self") {
+            // `my <method>` (self-dispatch) and `self <subcommand>`
+            // (introspection) both return something the analyser treats as an
+            // object handle by default. Both kinds come from the registry;
+            // `next`/`nextto` are deliberately *not* included — they return
+            // the next implementation's result, not a handle.
+            if self
+                .registry
+                .and_then(|r| r.method_dispatch_keyword(head))
+                .is_some_and(|kind| {
+                    matches!(
+                        kind,
+                        tcl_registry::MethodDispatchKind::SelfDispatch
+                            | tcl_registry::MethodDispatchKind::Introspection
+                    )
+                })
+            {
                 let returns_literal = arg_strs.first().is_some_and(|method| {
                     self.oo_self_method_returns_literal(site.cmd_span.start(), method)
                 });

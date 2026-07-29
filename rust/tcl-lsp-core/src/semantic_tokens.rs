@@ -2612,10 +2612,15 @@ fn insert_self_method_overrides(
     ) else {
         return;
     };
-    // `my` is a bareword; `$self` / `$this` are variable handles for the object
-    // in snit / itcl method bodies.
-    let is_self_head =
-        head == "my" || object_handle_name(head).is_some_and(|n| n == "self" || n == "this");
+    // Two different axes, deliberately kept apart. `my` is the `TclOO`
+    // self-dispatch *command keyword* — registry data, queried through
+    // `method_dispatch_keyword` so a dialect that gains or loses it
+    // propagates through its `CommandSpec` (issue #1050). `$self` / `$this`
+    // are snit / itcl *object-handle variable names*, a naming convention of
+    // those class systems rather than a command at all, so they stay matched
+    // by name here.
+    let is_self_head = crate::definition::is_self_dispatch_keyword(head)
+        || object_handle_name(head).is_some_and(|n| n == "self" || n == "this");
     if !is_self_head {
         return;
     }
@@ -2789,7 +2794,10 @@ fn insert_oo_define_keyword_overrides(
     }
     mark_keyword(2);
     // `self` introduces the real definition keyword (`method`, `constructor`,
-    // …) at `seg.texts[3]`.
+    // …) at `seg.texts[3]`. This is the `oo::define` *definer-grammar*
+    // wrapper word, not the `TclOO` `self` introspection command — a
+    // different axis from `Traits::TCLOO_INTROSPECTION`, resolved through
+    // the definer grammar's own `MemberKind::Wrapper` modelling.
     if first == "self" && seg.texts.get(3).is_some_and(|w| grammar.is_member(w)) {
         mark_keyword(3);
     }

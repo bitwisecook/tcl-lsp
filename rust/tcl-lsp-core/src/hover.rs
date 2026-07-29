@@ -361,7 +361,7 @@ pub fn hover_with_profile(
     // is split across a separate `oo::define` block).
     if let Some((inst, method, _)) =
         crate::definition::instance_method_at_cursor(source, line, character)
-        && inst == "my"
+        && crate::definition::is_self_dispatch_keyword(&inst)
         && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor_offset)
         && let Some(text) = obj_method_hover_text(analysis, class_q, &method, registry)
     {

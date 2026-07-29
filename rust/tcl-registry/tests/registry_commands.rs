@@ -1948,6 +1948,40 @@ fn tcloo_dispatch_keyword_membership() {
     }
 }
 
+/// The consumer-visible keyword set equals the trait-carrying specs across
+/// every dialect a `TclOO` consumer may run under, including the F5 ones.
+///
+/// The guard for the #1050 migration: `tcl-lsp-core`'s references,
+/// call-hierarchy, definition, hover, rename, and semantic-token providers,
+/// plus the compiler's `var_command` / `elimination` / `class_lattice` /
+/// `var_observability` passes, all resolve these words through
+/// `method_dispatch_keyword`. If a consumer ever re-adds a literal name list
+/// it will disagree with this set the moment a dialect changes — which is
+/// exactly the drift this asserts cannot happen silently.
+#[test]
+fn tcloo_dispatch_keyword_set_matches_the_trait_carriers_per_dialect() {
+    for dialect in ["tcl8.6", "tcl9.0", "f5-irules", "f5-iapps", "expect"] {
+        let reg = registry_for_dialect(dialect);
+        let mut carriers: Vec<&str> = reg
+            .commands_with_trait(Traits::TCLOO_SELF_DISPATCH)
+            .into_iter()
+            .chain(reg.commands_with_trait(Traits::TCLOO_NEXT_CHAIN))
+            .chain(reg.commands_with_trait(Traits::TCLOO_INTROSPECTION))
+            .filter(|name| reg.method_dispatch_keyword(name).is_some())
+            .collect();
+        carriers.sort_unstable();
+        let mut answered: Vec<&str> = ["my", "next", "nextto", "self", "link", "puts", "proc"]
+            .into_iter()
+            .filter(|name| reg.method_dispatch_keyword(name).is_some())
+            .collect();
+        answered.sort_unstable();
+        assert_eq!(
+            carriers, answered,
+            "under {dialect} the answered keyword set must be exactly the trait carriers"
+        );
+    }
+}
+
 /// All four keywords are `TCL86_PLUS`, so a pre-8.6 dialect registry answers
 /// `None` — dialect-awareness comes from the registry instance, never from a
 /// per-consumer version check.
@@ -1972,6 +2006,46 @@ fn tcloo_dispatch_keywords_are_absent_before_86() {
         reg.method_dispatch_keyword("my"),
         Some(MethodDispatchKind::SelfDispatch)
     );
+}
+
+/// `BRANCH_SELECTED_BODY` is exactly `if` and `try` — the commands whose
+/// bodies are chosen at run time without iterating, so nothing established
+/// inside one dominates the code after it.
+///
+/// Deliberately narrower than `CONTROL_FLOW`, which also covers the loops.
+/// A loop body is skippable *and* repeatable, a different question with a
+/// different consumer (`control_flow_body_depth` versus
+/// `conditional_depth`) — the two must not be merged.
+///
+/// registry-metadata: "which bodies are branch-selected" is our
+/// classification. (`if`, `try`, `while`, `for`, `foreach`, and `switch` are
+/// all real tclsh 8.6/9.0 commands.)
+#[test]
+fn branch_selected_body_trait_membership() {
+    let (reg, ds) = reg_and_set("tcl8.6");
+    let mut carriers = reg.commands_with_trait(Traits::BRANCH_SELECTED_BODY);
+    carriers.sort_unstable();
+    assert_eq!(carriers, ["if", "try"]);
+    for negative in ["while", "for", "foreach", "switch", "lmap", "catch"] {
+        assert!(
+            !reg.get_for_dialect(negative, ds)
+                .expect("registered")
+                .traits
+                .contains(Traits::BRANCH_SELECTED_BODY),
+            "{negative} iterates or is otherwise not branch-selected"
+        );
+    }
+    // …and every carrier is control flow, so the narrower trait is a strict
+    // subset rather than an orthogonal axis.
+    for carrier in carriers {
+        assert!(
+            reg.get_for_dialect(carrier, ds)
+                .expect("registered")
+                .traits
+                .contains(Traits::CONTROL_FLOW),
+            "{carrier} must also be control flow"
+        );
+    }
 }
 
 /// The `Tcl_ConcatObj` eval family: every command whose trailing words after

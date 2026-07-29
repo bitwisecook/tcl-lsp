@@ -512,7 +512,7 @@ pub fn method_target_with_access(
     {
         // `my method` — an internal call from inside the enclosing class.
         // Always instance-context: `my` never reaches a classmethod.
-        if inst == "my"
+        if crate::definition::is_self_dispatch_keyword(&inst)
             && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor)
         {
             return Some((class_q.to_owned(), method, false, MethodAccess::Internal));

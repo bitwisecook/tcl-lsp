@@ -138,6 +138,20 @@ pub fn prepare(
 
 /// Synthetic call-hierarchy name for a class method:
 /// `<class-qualified-name>::<method-name>` (e.g. `::C::greet`).
+/// Whether `head` is a `TclOO` method-context keyword under `dialect` —
+/// `my`, `next`, `nextto`, or `self`.
+///
+/// The registry-first replacement for the `matches!(head, "my" | "next" |
+/// "nextto")` literals this module carried (issue #1050): a dialect that
+/// gains or loses one of these propagates through its `CommandSpec`, never
+/// through an edit here. All three kinds are excluded together because none
+/// of them is an *unresolved command reference* — a dispatch keyword resolves
+/// through the object's method table and an introspection keyword resolves to
+/// nothing at all, so neither belongs in a bare-head call scan.
+fn is_method_dispatch_keyword(dialect: &str, head: &str) -> bool {
+    crate::definition::method_dispatch_keyword_in(dialect, head).is_some()
+}
+
 fn method_item_name(class_def: &ClassDef, method: &MethodDef) -> String {
     format!("{}::{}", class_def.qualified_name, method.name)
 }
@@ -602,11 +616,12 @@ fn unresolved_method_outgoing_calls(
     let mut by_head: std::collections::BTreeMap<String, Vec<LspRange>> =
         std::collections::BTreeMap::new();
     for (head, span) in segment_body_calls(source, dialect, source_method.body_span) {
-        // `my` / `next` / `nextto` are `TclOO` dispatch keywords, not
-        // unresolved command references — the actual dispatch target (the
-        // word *after* `my`) is handled by `method_outgoing_calls`'s
-        // `scan_my_method_sites` pass, never by this bare-head scan.
-        if matches!(head.as_str(), "my" | "next" | "nextto") {
+        // A `TclOO` method-context keyword is not an unresolved command
+        // reference — the actual dispatch target (the word *after* `my`) is
+        // handled by `method_outgoing_calls`'s `scan_my_method_sites` pass,
+        // never by this bare-head scan. Membership comes from the registry,
+        // not a name list (issue #1050).
+        if is_method_dispatch_keyword(dialect, &head) {
             continue;
         }
         // Local top-level proc?  Resolved from the class's namespace (a
@@ -1037,7 +1052,7 @@ fn method_outgoing_calls(
     );
     let class_ns = tcl_syntax::naming::key_holder_and_tail(&class_def.qualified_name).0;
     for (head, span) in segment_body_calls(source, dialect, source_method.body_span) {
-        if matches!(head.as_str(), "my" | "next" | "nextto") {
+        if is_method_dispatch_keyword(dialect, &head) {
             continue;
         }
         // Top-level user proc?  Resolved from the class's namespace (a
