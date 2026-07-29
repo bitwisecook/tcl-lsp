@@ -1040,10 +1040,11 @@ impl CompilationUnit {
         // memoised request, the methods/body-units below, and the call-site
         // scan's extra caller contexts, so the offset-0 CFG the memo rebuilds
         // is identical to this whole-module build's.  Only needed on the
-        // memoised path or when methods/body units are present.
-        let cfg_context =
-            (cache.is_some() || !ir_module.methods.is_empty() || !ir_module.body_units.is_empty())
-                .then(|| crate::cfg_builder::prepare_cfg_context(&ir_module));
+        // memoised path or when the call-site scan has extra caller contexts
+        // to build (methods, body units, `uplevel #0` bodies).
+        let cfg_context = (cache.is_some()
+            || crate::unit_scope::needs_extra_call_site_scan_contexts(&ir_module))
+        .then(|| crate::cfg_builder::prepare_cfg_context(&ir_module));
         let (call_site_constants, command_mutations, linkage) =
             resolve_unit_scope(&ir_module, &cfg_module, cfg_context.as_ref(), options);
         let caller_view = crate::unit_scope::UnitCallerView {
@@ -2187,31 +2188,26 @@ mod tests {
             );
         }
 
-        /// KNOWN RESIDUAL GAP (Codex review, PR #970) — confirmed, not yet
-        /// fixed: `uplevel #0 { … }`'s body resolves bare commands against
-        /// the GLOBAL namespace (tclsh8.6-confirmed live,
-        /// `/tmp/uplevel0_probe.tcl`: `uplevel #0 { helper }` inside
-        /// `::foo::runIt` calls `::helper`, never `::foo::helper`), but
-        /// `Statement::UpFrame`'s body is inlined into the enclosing
-        /// function's own CFG blocks *before* `collect_call_site_constants`
-        /// ever sees it — `frame_shift` (the field that would tell us "this
-        /// call originated inside an absolute-frame `uplevel #0`, force
-        /// global") is consumed by CFG construction and isn't visible at the
-        /// point this scan walks `block.statements`. Confirmed live: this
-        /// call is misattributed to `::foo::helper` (which real Tcl never
-        /// actually invokes this way — a phantom fold) while the real target
-        /// `::helper` is *also* wrong, not merely under-evidenced. Properly
-        /// fixing this needs `frame_shift == 0` preserved through CFG
-        /// construction (or a pre-CFG scan of `Statement::UpFrame`, mirroring
-        /// `build_extra_call_site_scan_contexts`'s method/body-unit
-        /// approach) — larger than a one-line namespace-context override, so
-        /// deliberately left for follow-up rather than a rushed fix.
-        /// `uplevel N` for any relative (non-`#0`) level is separately
-        /// undecidable by a single-file static analysis (the target frame's
-        /// namespace depends on the live call stack) and stays a documented,
+        /// FN regression (issue #980, Codex review of PR #970): `uplevel #0
+        /// { … }`'s body resolves bare commands against the GLOBAL
+        /// namespace — tclsh8.6/9.0-confirmed live: `uplevel #0 { helper b
+        /// }` inside `::foo::runIt` prints `GLOBAL helper mode=b`, never the
+        /// `::foo::helper` sitting in the enclosing namespace.
+        /// `Statement::UpFrame`'s body survives CFG construction as a block
+        /// *statement*, which `scan_cfg_callers` (walking only
+        /// `Call`/`Barrier`) skips entirely, so this real, differing call
+        /// site vanished from `::helper`'s evidence and its one remaining
+        /// caller's `"a"` folded the condition.
+        ///
+        /// `build_extra_call_site_scan_contexts` now builds a bare CFG for
+        /// every `frame_shift == 0` `UpFrame` body, resolved as `"::top"` —
+        /// mirroring how a `TclOO` method body is forced global.
+        ///
+        /// `uplevel N` for any relative (non-`#0`) level stays out of scope:
+        /// the target frame's namespace depends on the live call stack,
+        /// which single-file static analysis cannot decide — a documented,
         /// permanent approximation.
         #[test]
-        #[ignore = "confirmed residual gap, PR #970 review: uplevel #0 body namespace context; see doc comment"]
         fn uplevel_zero_body_resolves_against_global_not_enclosing_namespace() {
             let reg = registry();
             let src = "
@@ -2245,6 +2241,69 @@ mod tests {
                 !folds_condition_mentioning(ns_helper, "mode"),
                 "::foo::helper is never actually called by real Tcl semantics: {:?}",
                 ns_helper.sccp.constant_branches,
+            );
+        }
+
+        /// Approximation pin (issue #980): a *relative* `uplevel N { … }`
+        /// keeps resolving against the enclosing unit's own namespace. The
+        /// target frame's namespace depends on the live call stack, so this
+        /// is a deliberate, permanent approximation — but it must stay an
+        /// approximation that still *counts* the call site, not one that
+        /// drops it. `::foo::helper` here sees both `"a"` and `"b"`.
+        #[test]
+        fn uplevel_relative_body_keeps_the_enclosing_units_namespace() {
+            let reg = registry();
+            let src = "
+                namespace eval ::foo {
+                    proc helper {mode} {
+                        if {$mode eq \"a\"} { set r 1 } else { set r 2 }
+                    }
+                    proc runIt {} {
+                        uplevel 1 { helper b }
+                    }
+                }
+                ::foo::helper a
+                ::foo::runIt
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu
+                .procedures
+                .get("::foo::helper")
+                .expect("::foo::helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "::foo::helper sees both \"a\" (direct) and \"b\" (the relative uplevel \
+                 body, approximated to the enclosing namespace): {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// FN guard for the `Traits::DEFINES_PROCEDURE` body-recursion skip
+        /// (issue #980): a definition body is no longer re-walked from the
+        /// definition site, so its call sites must still arrive through the
+        /// defined procedure's *own* CFG. A conditionally-defined proc is
+        /// the shape most at risk — its `proc` call is not a plain top-level
+        /// statement.
+        #[test]
+        fn conditionally_defined_proc_body_call_sites_are_still_counted() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"a\"} { set r 1 } else { set r 2 }
+                }
+                if {[info exists ::env(X)]} {
+                    proc runIt {} { helper b }
+                }
+                helper a
+                runIt
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("::helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "::helper is called with both \"a\" and \"b\" (the conditionally-defined \
+                 runIt's body): {:?}",
+                helper.sccp.constant_branches,
             );
         }
 

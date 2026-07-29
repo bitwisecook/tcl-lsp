@@ -755,6 +755,23 @@ fn record_call_site_evidence(
         {
             continue;
         }
+        // The same rule for a *definition* body (`Traits::DEFINES_PROCEDURE`
+        // — `proc`, `oo::class create`, …): it does not run at the
+        // definition site at all, and when it runs it resolves in the
+        // defined procedure's own namespace and frame. Lowering has already
+        // registered it as a procedure / method / body unit, all of which
+        // this scan visits with the right context, so recursing here would
+        // only re-walk it under the definer's. Issue #980: `namespace eval
+        // ::foo { proc runIt {} { uplevel #0 { helper b } } }` invented a
+        // call to `::foo::helper` — a proc tclsh8.6/9.0 confirm real Tcl
+        // never reaches this way.
+        if ctx
+            .registry
+            .get(command.strip_prefix("::").unwrap_or(command))
+            .is_some_and(|spec| spec.traits.contains(Traits::DEFINES_PROCEDURE))
+        {
+            continue;
+        }
         let nested = crate::segmenter::segment_commands_with_offset_and_config(
             body_text,
             0,
@@ -924,9 +941,99 @@ fn record_indirect_callers(
     }
 }
 
-/// Build bare CFGs (no further per-function analysis) for every `TclOO` method
-/// and synthetic body unit (`apply` lambda, `namespace eval` body), so
-/// [`collect_call_site_constants`] can walk them as *callers* too.
+/// Whether [`build_extra_call_site_scan_contexts`] has anything to build for
+/// this module — and therefore whether its
+/// [`crate::cfg_builder::prepare_cfg_context`] must be computed.
+///
+/// A single predicate so the two builders that gate on it
+/// ([`crate::compilation_unit::CompilationUnit`]'s build and
+/// [`scan_source_call_sites`]) cannot drift from what the context builder
+/// actually consumes.
+pub(crate) fn needs_extra_call_site_scan_contexts(ir_module: &IrModule) -> bool {
+    !ir_module.methods.is_empty()
+        || !ir_module.body_units.is_empty()
+        || !upframe_scan_bodies(ir_module).is_empty()
+}
+
+/// The synthetic caller name prefix an `uplevel` body's bare CFG carries:
+/// unique per occurrence, so its own variable-scope facts never clobber
+/// another scope's (issue #980).
+const UPFRAME_SCOPE_PREFIX: &str = "@upframe@";
+
+/// One `uplevel ?level? { … }` body the call-site scan visits as a caller.
+struct UpFrameCaller<'a> {
+    /// Qualified-name context the body's bare command words resolve against.
+    resolve_as: String,
+    /// Synthetic, occurrence-unique variable-scope identity for its CFG.
+    scope: String,
+    /// The lowered body.
+    body: &'a crate::ir::Script,
+}
+
+/// Every static-body `uplevel` in the module, paired with the namespace
+/// context its body's bare command words resolve against.
+///
+/// `uplevel #0` (`frame_shift == 0`) is the *absolute* frame form: its body
+/// runs in the global frame, so bare command words resolve against the
+/// global namespace, not the enclosing proc's — tclsh8.6/9.0-confirmed,
+/// `uplevel #0 { helper b }` inside `::foo::runIt` calls `::helper`, never
+/// `::foo::helper` (issue #980).
+///
+/// Any *relative* level (`uplevel 1`, `uplevel 2`, …) targets a frame whose
+/// namespace depends on the live call stack, which single-file static
+/// analysis cannot decide. Those keep the enclosing unit's own namespace —
+/// the documented, permanent approximation this scan has always used for
+/// them, now expressed here rather than falling out of a text re-walk of
+/// the enclosing definition's body.
+fn upframe_scan_bodies(ir_module: &IrModule) -> Vec<UpFrameCaller<'_>> {
+    let mut out = Vec::new();
+    collect_upframes("::top", &ir_module.top_level, &mut out);
+    for (qname, proc) in &ir_module.procedures {
+        collect_upframes(qname, &proc.body, &mut out);
+    }
+    // A `TclOO` method body resolves bare words against the global namespace
+    // (see `build_extra_call_site_scan_contexts`), so an `uplevel` inside one
+    // inherits `"::top"` for the relative case too.
+    for method in ir_module.methods.values() {
+        collect_upframes("::top", &method.body, &mut out);
+    }
+    for (qname, unit) in &ir_module.body_units {
+        collect_upframes(qname, &unit.body, &mut out);
+    }
+    out
+}
+
+/// The [`upframe_scan_bodies`] half that walks one enclosing unit's script.
+fn collect_upframes<'a>(
+    enclosing: &str,
+    script: &'a crate::ir::Script,
+    out: &mut Vec<UpFrameCaller<'a>>,
+) {
+    walk_script(script, &mut |stmt| {
+        if let crate::ir::Statement::UpFrame {
+            frame_shift,
+            body,
+            span,
+            ..
+        } = stmt
+        {
+            out.push(UpFrameCaller {
+                resolve_as: if *frame_shift == 0 {
+                    "::top".to_owned()
+                } else {
+                    enclosing.to_owned()
+                },
+                scope: format!("{UPFRAME_SCOPE_PREFIX}{}", span.start()),
+                body,
+            });
+        }
+    });
+}
+
+/// Build bare CFGs (no further per-function analysis) for every `TclOO` method,
+/// synthetic body unit (`apply` lambda, `namespace eval` body), and static
+/// `uplevel` body, so [`collect_call_site_constants`] can walk them as
+/// *callers* too.
 ///
 /// Neither is itself ever seeded with `param_constants`
 /// (`build_method_units` / `build_body_units` always pass `None` for their
@@ -939,16 +1046,17 @@ fn record_indirect_callers(
 /// caller agrees" evidence), reached through a method/lambda body instead
 /// of namespace-blind recursion or a `catch`/`uplevel` body.
 ///
-/// Returns an empty `Vec` (no cost beyond the emptiness checks) when the
-/// module has neither methods nor body units — the overwhelmingly common
-/// case — or when `cfg_context` is `None` (methods/body units require it;
-/// [`crate::compilation_unit::CompilationUnit`]'s builder only omits it when
-/// both are empty).
+/// Returns an empty `Vec` (no cost beyond
+/// [`needs_extra_call_site_scan_contexts`]) when the module has none of the
+/// three — the overwhelmingly common case — or when `cfg_context` is `None`
+/// (all three require it; the builders compute it exactly when
+/// [`needs_extra_call_site_scan_contexts`] says so).
 pub(crate) fn build_extra_call_site_scan_contexts(
     ir_module: &IrModule,
     cfg_context: Option<&crate::cfg_builder::CfgContext>,
 ) -> Vec<(String, CfgFunction)> {
-    if ir_module.methods.is_empty() && ir_module.body_units.is_empty() {
+    let upframes = upframe_scan_bodies(ir_module);
+    if ir_module.methods.is_empty() && ir_module.body_units.is_empty() && upframes.is_empty() {
         return Vec::new();
     }
     let Some((upvar_procs, proc_params, global_write_procs)) = cfg_context else {
@@ -987,6 +1095,16 @@ pub(crate) fn build_extra_call_site_scan_contexts(
                 .iter()
                 .map(|(qname, unit)| (qname.clone(), build(qname, &unit.body))),
         )
+        .chain(upframes.into_iter().map(|up| {
+            // Same shape as the method case: the caller context bare command
+            // words resolve against is chosen by the frame the body runs in
+            // (see [`upframe_scan_bodies`]), while the CFG keeps a distinct
+            // identity of its own. Here that identity must be *synthetic* —
+            // the CFG's name is this scan's variable-scope key, and reusing
+            // the resolution context would overwrite that scope's real
+            // variable facts in `collect_module_scope_var_facts`.
+            (up.resolve_as, build(&up.scope, up.body))
+        }))
         .collect()
 }
 
@@ -1210,7 +1328,7 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
     crate::specialise_factories::specialise_factories(&mut ir_module, registry);
     crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
     let cfg_module = crate::cfg_builder::build_cfg(&ir_module, false);
-    let cfg_context = (!ir_module.methods.is_empty() || !ir_module.body_units.is_empty())
+    let cfg_context = needs_extra_call_site_scan_contexts(&ir_module)
         .then(|| crate::cfg_builder::prepare_cfg_context(&ir_module));
     let extra = build_extra_call_site_scan_contexts(&ir_module, cfg_context.as_ref());
     // The cross-file scan resolves a dispatch word exactly as the in-unit one
@@ -1301,40 +1419,59 @@ pub fn scan_unit_linkage(
         tcl_dialect::DialectSet::parse(dialect).unwrap_or_else(tcl_dialect::DialectSet::empty);
     let mut found = Traits::empty();
 
-    let mut visit = |command: &str, args: &[String]| {
-        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        found |= registry.unit_linkage(command, &arg_strs, dialect_set);
+    let mut visit = |stmt: &crate::ir::Statement| {
+        if let crate::ir::Statement::Call { command, args, .. }
+        | crate::ir::Statement::Barrier { command, args, .. } = stmt
+        {
+            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+            found |= registry.unit_linkage(command, &arg_strs, dialect_set);
+        }
     };
-    walk_script(&ir_module.top_level, &mut visit);
-    for proc in ir_module.procedures.values() {
-        walk_script(&proc.body, &mut visit);
-    }
-    for method in ir_module.methods.values() {
-        walk_script(&method.body, &mut visit);
-    }
-    for unit in ir_module.body_units.values() {
-        walk_script(&unit.body, &mut visit);
-    }
+    walk_module_scripts(ir_module, &mut visit);
     found
 }
 
-/// Visit every `Call` / `Barrier` statement in `script`, descending into every
-/// nested control-flow body.  Written as a module-level pair with
-/// [`walk_statement`] rather than nested inside [`scan_unit_linkage`] so the
+/// Visit every statement of every script the module owns — top level,
+/// procedures, `TclOO` methods, and synthetic body units — descending into
+/// nested control-flow bodies.
+fn walk_module_scripts<'a>(
+    ir_module: &'a IrModule,
+    visit: &mut impl FnMut(&'a crate::ir::Statement),
+) {
+    walk_script(&ir_module.top_level, visit);
+    for proc in ir_module.procedures.values() {
+        walk_script(&proc.body, visit);
+    }
+    for method in ir_module.methods.values() {
+        walk_script(&method.body, visit);
+    }
+    for unit in ir_module.body_units.values() {
+        walk_script(&unit.body, visit);
+    }
+}
+
+/// Visit every statement in `script`, descending into every nested
+/// control-flow body.  Written as a module-level pair with
+/// [`walk_statement`] rather than nested inside its callers so the
 /// mutual recursion reads as two ordinary functions.
-fn walk_script(script: &crate::ir::Script, visit: &mut impl FnMut(&str, &[String])) {
+fn walk_script<'a>(
+    script: &'a crate::ir::Script,
+    visit: &mut impl FnMut(&'a crate::ir::Statement),
+) {
     for stmt in &script.statements {
         walk_statement(stmt, visit);
     }
 }
 
 /// The [`walk_script`] half that dispatches one statement.
-fn walk_statement(stmt: &crate::ir::Statement, visit: &mut impl FnMut(&str, &[String])) {
+fn walk_statement<'a>(
+    stmt: &'a crate::ir::Statement,
+    visit: &mut impl FnMut(&'a crate::ir::Statement),
+) {
     use crate::ir::Statement;
+    visit(stmt);
     match stmt {
-        Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
-            visit(command, args);
-        }
+        Statement::Call { .. } | Statement::Barrier { .. } => {}
         Statement::Block { body, .. }
         | Statement::UpFrame { body, .. }
         | Statement::While { body, .. }
