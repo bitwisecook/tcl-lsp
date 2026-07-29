@@ -173,6 +173,73 @@ fn tn_unrelated_same_named_proc_document_untouched_by_method_rename() {
     );
 }
 
+/// TN, the class gate under load: the consumer really *does* invoke a class
+/// — two of them — and both define `make`.  Only the `Factory` instance's
+/// call site may rename; the `Widget` instance's `$g make` calls a different
+/// method that keeps its name.  The `proc make` variant above never
+/// constructs anything, so it exercises only the "document mentions no class
+/// at all" cut, not this one (adversarial review of #1047).
+#[test]
+fn tn_second_classes_instance_dispatch_untouched_by_method_rename() {
+    let mut lsp = Lsp::tcl();
+    let factory = unique_uri("tcl");
+    lsp.open_ready(
+        &factory,
+        "oo::class create Factory {\n    method make {} { return 1 }\n}\n",
+    );
+    let widget = unique_uri("tcl");
+    lsp.open_ready(
+        &widget,
+        "oo::class create Widget {\n    method make {} { return 2 }\n}\n",
+    );
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(
+        &consumer,
+        "set f [Factory new]\nset g [Widget new]\n$f make\n$g make\n",
+    );
+
+    let edits = rename_edits(&lsp.rename(&factory, 1, 11, "produce"));
+    assert_eq!(
+        edit_lines(&edits, &consumer),
+        vec![2],
+        "only `$f make` (the Factory instance) may rename: {edits:?}"
+    );
+    assert!(
+        edit_lines(&edits, &widget).is_empty(),
+        "`Widget`'s own declaration must not rename: {edits:?}"
+    );
+}
+
+/// The classmethod twin of the two-class gate: `Factory make` renames,
+/// `Widget make` does not.  Both dispatch shapes are real under tclsh9.0.
+#[test]
+fn tn_second_classes_bare_dispatch_untouched_by_classmethod_rename() {
+    let mut lsp = Lsp::tcl();
+    let factory = unique_uri("tcl");
+    lsp.open_ready(
+        &factory,
+        "oo::class create Factory {\n    classmethod make {} { return 1 }\n}\n",
+    );
+    let widget = unique_uri("tcl");
+    lsp.open_ready(
+        &widget,
+        "oo::class create Widget {\n    classmethod make {} { return 2 }\n}\n",
+    );
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(&consumer, "Factory make\nWidget make\n");
+
+    let edits = rename_edits(&lsp.rename(&factory, 1, 16, "produce"));
+    assert_eq!(
+        edit_lines(&edits, &consumer),
+        vec![0],
+        "only the `Factory make` dispatch may rename: {edits:?}"
+    );
+    assert!(
+        edit_lines(&edits, &widget).is_empty(),
+        "`Widget`'s own classmethod declaration must not rename: {edits:?}"
+    );
+}
+
 /// TP (classmethod variant): a consumer document dispatching on the class's
 /// own command (`Factory make`, tclsh9.0-verified) is a consumer just like
 /// an instance-dispatch one, and renames with the declaration.
