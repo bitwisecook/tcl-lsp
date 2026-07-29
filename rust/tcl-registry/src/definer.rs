@@ -330,16 +330,25 @@ const VAR0_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite)];
 /// to the default classifier (`superclass A B`, `mixin M`, `export foo`, …).
 const NO_ROLES: &[(u8, ArgRole)] = &[];
 
+/// The `TclOO` definition members Tcl 9.0 added (TIP 478 `classmethod` /
+/// `initialise` / `initialize` / `private`, TIP 524 `definitionnamespace`).
+/// None of them exists in the 8.6 grammar — confirmed live: each of the
+/// three call shapes (a member inside `oo::class create`'s body, inside an
+/// `oo::define` block, and the single-command `oo::define Cls classmethod …`
+/// form) fails on tclsh8.6 with `invalid command name "<member>"` and
+/// succeeds on tclsh9.0.
+const TCL90_MEMBERS: crate::dialects::DialectSet = crate::dialects::DialectSet::TCL90_PLUS;
+
 const TCLOO_MEMBERS: &[MemberSpec] = &[
     MemberSpec::flat("method", METHOD_ROLES),
-    MemberSpec::flat("classmethod", METHOD_ROLES),
+    MemberSpec::flat("classmethod", METHOD_ROLES).with_dialects(TCL90_MEMBERS),
     MemberSpec::flat("constructor", CTOR_ROLES),
     MemberSpec::flat("destructor", BODY0_ROLES),
-    MemberSpec::flat("initialise", BODY0_ROLES),
-    MemberSpec::flat("initialize", BODY0_ROLES),
+    MemberSpec::flat("initialise", BODY0_ROLES).with_dialects(TCL90_MEMBERS),
+    MemberSpec::flat("initialize", BODY0_ROLES).with_dialects(TCL90_MEMBERS),
     // `private` is a prefix wrapper (`private method m {} {…}`, `private
     // variable x`) *and* a bare definition-script block (`private { … }`).
-    MemberSpec::wrapper_or_body("private"),
+    MemberSpec::wrapper_or_body("private").with_dialects(TCL90_MEMBERS),
     // `variable a b c` inside a class body declares every name.
     MemberSpec::all_vars("variable"),
     // Reference-only members: they declare nothing and recurse nothing, but
@@ -359,14 +368,14 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     MemberSpec::flat("forward", FORWARD_ROLES),
     // `renamemethod FROM TO` — both name methods.
     MemberSpec::all_refs("renamemethod", MemberRefKind::Method),
-    MemberSpec::keyword_only("definitionnamespace"),
+    MemberSpec::keyword_only("definitionnamespace").with_dialects(TCL90_MEMBERS),
     // Structurally irregular — a nested-member wrapper (`self method …`) and a
     // flag-keyed body form (`property … -get/-set …`); their body indices come
     // from the walker's `MemberKind`-driven handling, not a hardcoded name.
     MemberSpec::wrapper_or_body("self"),
     // `property` (and its configurable-class accessor machinery) is a 9.0
     // addition; the 8.6 `TclOO` definition grammar has no such member.
-    MemberSpec::flag_keyed("property").with_dialects(crate::dialects::DialectSet::TCL90_PLUS),
+    MemberSpec::flag_keyed("property").with_dialects(TCL90_MEMBERS),
 ];
 
 /// The definition-body grammar for every `TclOO` metaclass and the bare

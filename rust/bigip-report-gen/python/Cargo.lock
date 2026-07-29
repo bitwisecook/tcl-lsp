@@ -1151,6 +1151,7 @@ dependencies = [
  "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-syntax",
  "thiserror",
 ]
 

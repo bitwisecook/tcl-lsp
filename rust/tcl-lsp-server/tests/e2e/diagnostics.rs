@@ -3955,3 +3955,88 @@ fn opt_proc_real_call_draws_no_false_arity_diagnostic_end_to_end() {
         codes(&diags)
     );
 }
+
+/// Issue #988: a direct call into a private `::tcl::` implementation
+/// namespace is flagged W143 with a concrete public-command suggestion.
+#[test]
+fn direct_private_tcl_namespace_call_is_w143_with_suggestion() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "::tcl::dict::create a 1\n");
+    let hits = with_code(&diags, "W143");
+    assert_eq!(
+        hits.len(),
+        1,
+        "expected exactly one W143: {:?}",
+        codes(&diags)
+    );
+    assert!(
+        message(&hits[0]).contains("dict create"),
+        "expected the concrete 'dict create' suggestion in the message, got: {:?}",
+        message(&hits[0])
+    );
+}
+
+/// The ordinary public ensemble call is never flagged, nor is a user's own
+/// namespace nested under `tcl::`, nor Tcl's own public `tcl::`-rooted
+/// namespaces (`tcl::mathop`/`tcl::mathfunc`).
+#[test]
+fn public_and_user_owned_tcl_namespaces_are_not_w143() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "dict create a 1\n\
+         namespace eval ::tcl::mycustom { proc foo {} {} }\n\
+         ::tcl::mycustom::foo\n\
+         ::tcl::mathop::+ 1 2\n\
+         tcl::mathop::* 2 3\n\
+         ::tcl::mathfunc::sin 0\n\
+         tcl::mathfunc::max 1 2\n",
+    );
+    assert!(
+        !has_code(&diags, "W143"),
+        "no public/user-owned namespace call should draw W143: {:?}",
+        codes(&diags)
+    );
+}
+
+/// tcllib publishes public packages *inside* `::tcl::chan` (the whole
+/// `virtchannel_base` module), so W143's namespace claim there is
+/// tail-restricted to real `chan` ensemble subcommands — a
+/// `tcl::chan::memchan` call must never be flagged, and must never draw
+/// W143 alongside the W120 that asks for its `package require`.
+#[test]
+fn public_tcllib_channel_packages_are_not_w143() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "package require tcl::chan::memchan\n\
+         set c [tcl::chan::memchan]\n\
+         set f [tcl::chan::fifo]\n",
+    );
+    assert!(
+        !has_code(&diags, "W143"),
+        "public tcllib virtchannel packages must not draw W143: {:?}",
+        codes(&diags)
+    );
+}
+
+/// A file that defines the command itself owns that name — a user's own
+/// `proc ::tcl::dict::mine` is not a call into Tcl's internals.
+#[test]
+fn own_proc_in_a_private_namespace_is_not_w143() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "namespace eval ::tcl::dict { proc mine {d} { return $d } }\n\
+         ::tcl::dict::mine {a 1}\n",
+    );
+    assert!(
+        !has_code(&diags, "W143"),
+        "a self-defined private-namespace command must not draw W143: {:?}",
+        codes(&diags)
+    );
+}

@@ -36,8 +36,10 @@
 //!   [`HANDLER_EXTRA`] list for commands backed natively outside that literal
 //!   scan (the `TclOO` metaclasses, the per-object `my`);
 //! - the residue is accounted for by the committed classification below: the
-//!   [`is_expr_operator`] predicate for the `expr` operator family, and the
-//!   [`STDLIB`] / [`NOT_REQUIRED`] / [`KNOWN_UNBACKED`] lists.
+//!   [`is_expr_operator`] predicate for the `expr` operator family, the
+//!   [`is_mathop_command`] predicate for the qualified `tcl::mathop::*`
+//!   commands, and the [`STDLIB`] / [`NOT_REQUIRED`] / [`KNOWN_UNBACKED`]
+//!   lists.
 //!
 //! A generated report (`docs/generated/wasm-command-backing.md`) records the
 //! per-command status; `--check` fails on report drift **and** on any core
@@ -115,10 +117,11 @@ const STDLIB: &[(&str, &str)] = &[
 ];
 
 /// Core commands the runtime deliberately does **not** back, with the reason —
-/// the contract's explicit "not required" classification. The `expr` operators
-/// (`+`, `tcl::mathop::*`, `eq`, …) are handled separately by
-/// [`is_expr_operator`] rather than enumerated here. Names are canonical (no
-/// leading `::`). Kept sorted.
+/// the contract's explicit "not required" classification. The bare `expr`
+/// operators (`+`, `eq`, …) are handled separately by [`is_expr_operator`],
+/// and the qualified `tcl::mathop::*` command spellings by
+/// [`is_mathop_command`], rather than enumerated here. Names are canonical
+/// (no leading `::`). Kept sorted.
 const NOT_REQUIRED: &[(&str, &str)] = &[
     (
         "auto_mkindex",
@@ -279,10 +282,17 @@ fn canon(name: &str) -> &str {
     name.strip_prefix("::").unwrap_or(name)
 }
 
-/// The `expr` operators, exposed in the registry as commands (`+`,
-/// `tcl::mathop::+`, `eq`, …) but evaluated inside `expr`'s bytecode, not
-/// dispatched as standalone runtime commands (bare `+` is not even a command
-/// in tclsh). `c` must already be [`canon`]ical.
+/// The `expr` operators, exposed in the registry as **bare** commands (`+`,
+/// `eq`, …) but evaluated inside `expr`'s bytecode, not dispatched as
+/// standalone runtime commands (bare `+` is not even a command in tclsh).
+/// `c` must already be [`canon`]ical.
+///
+/// This intentionally does **not** match the qualified `tcl::mathop::*`
+/// spellings any more — those are real, separately-callable runtime commands
+/// (see [`is_mathop_command`]), so classifying them here as "not required"
+/// would hide a broken/missing runtime install from this gate (issue #983's
+/// #987 residual: the WASM-parity check couldn't have caught a broken
+/// `tcl::mathop` install because it never looked for one).
 ///
 /// The bare spellings are derived from `tcl_syntax::expr::operators` (issue
 /// #983's unification) rather than a hand-typed list — that list used to
@@ -296,7 +306,6 @@ fn canon(name: &str) -> &str {
 /// registry actually carries).
 fn is_expr_operator(c: &str) -> bool {
     c == "tcl::mathop"
-        || c.starts_with("tcl::mathop::")
         || tcl_syntax::expr::operators::ALL_BIN_OPS
             .iter()
             .any(|op| op.spec().spelling == c && op.spec().mathop_shape.is_some())
@@ -308,6 +317,42 @@ fn is_expr_operator(c: &str) -> bool {
 /// The reason attached to every [`is_expr_operator`] command in the report.
 const EXPR_OPERATOR_REASON: &str =
     "`expr` operator/function; evaluated inside `expr`, not a standalone runtime command";
+
+/// Whether `c` is a `tcl::mathop::<op>` (or `::`-qualified) command for a
+/// real `expr` operator with a mathop command form — derived from
+/// [`tcl_syntax::expr::operators`] (issue #983/#987's unification). `c` must
+/// already be [`canon`]ical.
+///
+/// Unlike [`is_expr_operator`]'s bare operator spellings (grammar-only, never
+/// a real command), `::tcl::mathop::*` commands genuinely **are** backed —
+/// `runtime/rust/src/cmd_mathop.rs`'s `install()` registers a real handler
+/// for every operator with a mathop shape — just via the same dynamic-
+/// name-construction pattern `cmd_mathfunc.rs`'s `install()` uses
+/// (`register_builtin(&full, …)` builds `full` from a runtime string, not a
+/// `register_builtin(b"…")` literal [`scan_handlers`] can see). So this is
+/// [`Status::HandlerNative`], not [`Status::NotRequired`] — real backing the
+/// literal scan just can't detect. Before this predicate existed, qualified
+/// `tcl::mathop::*` names fell through to [`is_expr_operator`]'s bare-prefix
+/// check and were wrongly classified `NotRequired`, so a broken or missing
+/// runtime `tcl::mathop` install could never fail this gate.
+fn is_mathop_command(c: &str) -> bool {
+    let Some(name) = c
+        .strip_prefix("tcl::mathop::")
+        .or_else(|| c.strip_prefix("::tcl::mathop::"))
+    else {
+        return false;
+    };
+    tcl_syntax::expr::operators::ALL_BIN_OPS
+        .iter()
+        .any(|op| op.spec().spelling == name && op.spec().mathop_shape.is_some())
+        || tcl_syntax::expr::operators::ALL_UNARY_OPS
+            .iter()
+            .any(|op| op.spec().spelling == name && op.spec().mathop_shape.is_some())
+}
+
+/// The reason attached to every [`is_mathop_command`] command in the report.
+const MATHOP_COMMAND_REASON: &str = "`::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop \
+     (register_builtin(&full, …) — not a literal the scan can see)";
 
 /// Whether `c` is a `tcl::mathfunc::<name>` (or `::`-qualified) command for
 /// a real `expr` math function — derived from
@@ -444,6 +489,9 @@ fn classify(name: &str, backed: &BTreeSet<String>) -> Status {
     }
     if is_mathfunc_command(c) {
         return Status::HandlerNative(MATHFUNC_COMMAND_REASON);
+    }
+    if is_mathop_command(c) {
+        return Status::HandlerNative(MATHOP_COMMAND_REASON);
     }
     if is_tcl_dict_qualified(c) {
         return Status::KnownGap(TCL_DICT_QUALIFIED_REASON);

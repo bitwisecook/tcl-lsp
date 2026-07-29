@@ -28,7 +28,7 @@ use super::values::{parse_braced_scalar_ref, parse_simple_var_ref};
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp, render_expr};
-use crate::tcl_expr_eval::{Env, TclValue, eval_tcl_expr_with_octal};
+use crate::tcl_expr_eval::{Env, FoldPolicy, TclValue, eval_tcl_expr_with_policy};
 
 /// Operators whose constant integer value `eval_tcl_expr` computes soundly and
 /// which C Tcl folds at compile time: arithmetic, shift, bitwise, logical, and
@@ -282,13 +282,15 @@ impl CodegenCtx<'_> {
             _ => false,
         };
         if foldable
-            && let Some(TclValue::Int(i)) = eval_tcl_expr_with_octal(
+            && let Some(TclValue::Int(i)) = eval_tcl_expr_with_policy(
                 node,
                 &Env::new(),
-                // Profile-built registries answer from the dialect profile
-                // (octal in 8.x, decimal in 9.x/bpf, abstain with no Tcl
-                // runtime); hand-built ones keep the loaded-packs rule.
-                self.registry.octal_fold_policy(),
+                // Profile-built registries answer both facts from the dialect
+                // profile — the octal rule (octal in 8.x, decimal in 9.x/bpf,
+                // abstain with no Tcl runtime) and whether the `expr` grammar
+                // carries the iRules word operators; hand-built ones keep the
+                // loaded-packs octal rule and decline the word operators.
+                FoldPolicy::from_registry(self.registry),
             )
         {
             self.push_lit(&i.to_string());

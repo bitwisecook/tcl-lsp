@@ -51,7 +51,18 @@ const FORMS: &[FormSpec] = &[
 /// `definitionnamespace` are Tcl 9.0+ only (absent from the 8.6
 /// `TclCmd/define.htm` SYNOPSIS/subcommand list, present in both the
 /// 9.0 and 9.1 `TclCmd/define.html` pages); every other entry is
-/// documented already at 8.6. `property` is not actually a plain
+/// documented already at 8.6.
+///
+/// This list is deliberately **dialect-blind**: it answers "is word 1 a
+/// member keyword rather than the bare `defScript`?", a purely structural
+/// question that must resolve the same way under every dialect, so an
+/// `oo::define Cls classmethod m {} {…}` written under 8.6 still parses as
+/// the subcommand form (and its body still folds and highlights) instead of
+/// being mistaken for a script.  *Availability* is the separate fact, carried
+/// by the matching [`crate::definer::MemberSpec::dialects`] in the `TclOO`
+/// grammar and reported by the analyser as W002.
+///
+/// `property` is not actually a plain
 /// `oo::define`/`oo::class` subcommand — it is installed by
 /// `oo::configurable` (Tcl 9.0+) — but is kept here since a real,
 /// legal `oo::define SomeConfigurableClass property ...` call must

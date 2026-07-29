@@ -29,7 +29,7 @@ use std::collections::HashMap;
 use crate::expr_ast::{ExprNode, expr_text};
 use crate::ir::{IfClause, Script, Statement, SwitchArm, SwitchMode};
 use crate::naming::normalise_var_name;
-use crate::tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr_with_octal};
+use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue, eval_tcl_expr_with_policy};
 use crate::value_shapes::is_static_var_word;
 
 /// Default cap on iteration count — beyond this we give up and
@@ -96,10 +96,10 @@ pub fn parse_literal_value(text: &str) -> StaticValue {
 pub fn evaluate_expr_with_constants(
     expr: &ExprNode,
     env: &StaticEnv,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> Option<i64> {
     let tcl_env = env_as_tcl_env(env);
-    let v = eval_tcl_expr_with_octal(expr, &tcl_env, octal)?;
+    let v = eval_tcl_expr_with_policy(expr, &tcl_env, policy)?;
     match v {
         TclValue::Int(i) => Some(i),
         // A beyond-wide loop bound is pathological — decline static
@@ -200,14 +200,14 @@ fn resolve_switch_pattern(pattern: &str) -> String {
 /// Returns `true` when the statement is in the supported subset;
 /// `false` when it should abort the whole summarisation (call,
 /// barrier, unhandled structured form, etc.).
-fn exec_statement(stmt: &Statement, env: &mut StaticEnv, octal: Option<bool>) -> bool {
+fn exec_statement(stmt: &Statement, env: &mut StaticEnv, policy: FoldPolicy) -> bool {
     match stmt {
         Statement::AssignConst { name, value, .. } => {
             env.insert(name.clone(), parse_literal_value(value));
             true
         }
         Statement::AssignExpr { name, expr, .. } => {
-            match evaluate_expr_with_constants(expr, env, octal) {
+            match evaluate_expr_with_constants(expr, env, policy) {
                 Some(v) => {
                     env.insert(name.clone(), StaticValue::Int(v));
                     true
@@ -259,23 +259,23 @@ fn exec_statement(stmt: &Statement, env: &mut StaticEnv, octal: Option<bool>) ->
         }
         Statement::If {
             clauses, else_body, ..
-        } => exec_if(clauses, else_body.as_ref(), env, octal),
+        } => exec_if(clauses, else_body.as_ref(), env, policy),
         Statement::Switch {
             subject,
             arms,
             default_body,
             mode,
             ..
-        } => exec_switch(subject, arms, default_body.as_ref(), *mode, env, octal),
+        } => exec_switch(subject, arms, default_body.as_ref(), *mode, env, policy),
         // Calls, barriers, returns, loops (other than the
         // top-level summarised `for`) — out of supported subset.
         _ => false,
     }
 }
 
-fn exec_script(script: &Script, env: &mut StaticEnv, octal: Option<bool>) -> bool {
+fn exec_script(script: &Script, env: &mut StaticEnv, policy: FoldPolicy) -> bool {
     for stmt in &script.statements {
-        if !exec_statement(stmt, env, octal) {
+        if !exec_statement(stmt, env, policy) {
             return false;
         }
     }
@@ -286,19 +286,19 @@ fn exec_if(
     clauses: &[IfClause],
     else_body: Option<&Script>,
     env: &mut StaticEnv,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> bool {
     for clause in clauses {
-        let Some(cond) = evaluate_expr_with_constants(&clause.condition, env, octal) else {
+        let Some(cond) = evaluate_expr_with_constants(&clause.condition, env, policy) else {
             return false;
         };
         if cond != 0 {
-            return exec_script(&clause.body, env, octal);
+            return exec_script(&clause.body, env, policy);
         }
     }
     match else_body {
         None => true,
-        Some(body) => exec_script(body, env, octal),
+        Some(body) => exec_script(body, env, policy),
     }
 }
 
@@ -308,7 +308,7 @@ fn exec_switch(
     default_body: Option<&Script>,
     _mode: SwitchMode,
     env: &mut StaticEnv,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> bool {
     let Some(subject_value) = resolve_switch_subject(subject, env) else {
         return false;
@@ -330,7 +330,7 @@ fn exec_switch(
     let body = selected_body.or(default_body);
     match body {
         None => true,
-        Some(b) => exec_script(b, env, octal),
+        Some(b) => exec_script(b, env, policy),
     }
 }
 
@@ -348,16 +348,16 @@ pub fn summarise_static_for(
     body: &Script,
     initial_constants: &StaticEnv,
     max_iterations: u64,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> Option<StaticEnv> {
     let mut env: StaticEnv = initial_constants.clone();
 
-    if !exec_script(init, &mut env, octal) {
+    if !exec_script(init, &mut env, policy) {
         return None;
     }
     let mut iterations: u64 = 0;
     loop {
-        let cond = evaluate_expr_with_constants(condition, &env, octal)?;
+        let cond = evaluate_expr_with_constants(condition, &env, policy)?;
         if cond == 0 {
             break;
         }
@@ -365,10 +365,10 @@ pub fn summarise_static_for(
         if iterations > max_iterations {
             return None;
         }
-        if !exec_script(body, &mut env, octal) {
+        if !exec_script(body, &mut env, policy) {
             return None;
         }
-        if !exec_script(next_script, &mut env, octal) {
+        if !exec_script(next_script, &mut env, policy) {
             return None;
         }
     }
@@ -383,7 +383,7 @@ pub fn summarise_for_statement(
     stmt: &Statement,
     initial_constants: &StaticEnv,
     max_iterations: u64,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> Option<StaticEnv> {
     let Statement::For {
         init,
@@ -403,7 +403,7 @@ pub fn summarise_for_statement(
         body,
         initial_constants,
         max_iterations,
-        octal,
+        policy,
     )
 }
 
@@ -511,7 +511,7 @@ mod tests {
             &body,
             &StaticEnv::new(),
             1000,
-            None,
+            FoldPolicy::default(),
         )
         .expect("summarised");
         assert_eq!(env.get("i"), Some(&StaticValue::Int(5)));
@@ -531,7 +531,7 @@ mod tests {
             &body,
             &StaticEnv::new(),
             1000,
-            None,
+            FoldPolicy::default(),
         )
         .expect("summarised");
         assert_eq!(env.get("total"), Some(&StaticValue::Int(3)));
@@ -551,7 +551,7 @@ mod tests {
             &body,
             &StaticEnv::new(),
             100,
-            None,
+            FoldPolicy::default(),
         );
         assert!(result.is_none(), "should exceed the 100-iter cap");
     }
@@ -582,7 +582,7 @@ mod tests {
                 &body,
                 &StaticEnv::new(),
                 1000,
-                None
+                FoldPolicy::default()
             )
             .is_none()
         );
@@ -638,7 +638,7 @@ mod tests {
             &body,
             &StaticEnv::new(),
             1000,
-            None,
+            FoldPolicy::default(),
         )
         .expect("summarised");
         assert_eq!(env.get("i"), Some(&StaticValue::Int(3)));
@@ -659,7 +659,7 @@ mod tests {
             &body,
             &StaticEnv::new(),
             1000,
-            None,
+            FoldPolicy::default(),
         )
         .expect("summarised");
         assert_eq!(env.get("v"), Some(&StaticValue::Int(1)));
@@ -679,7 +679,7 @@ mod tests {
             &body,
             &StaticEnv::new(),
             1000,
-            None,
+            FoldPolicy::default(),
         );
         assert!(result.is_none(), "unresolvable switch subject should bail");
     }
@@ -700,8 +700,8 @@ mod tests {
             raw_tokens: None,
             condition_base: None,
         };
-        let env =
-            summarise_for_statement(&for_stmt, &StaticEnv::new(), 100, None).expect("summarised");
+        let env = summarise_for_statement(&for_stmt, &StaticEnv::new(), 100, FoldPolicy::default())
+            .expect("summarised");
         assert_eq!(env.get("i"), Some(&StaticValue::Int(2)));
     }
 
@@ -712,7 +712,7 @@ mod tests {
         let mut env = StaticEnv::new();
         env.insert("x".into(), StaticValue::Int(5));
         assert_eq!(
-            evaluate_expr_with_constants(&parse_expr("$x + 3", None), &env, None),
+            evaluate_expr_with_constants(&parse_expr("$x + 3", None), &env, FoldPolicy::default()),
             Some(8)
         );
     }
@@ -720,7 +720,11 @@ mod tests {
     #[test]
     fn evaluate_expr_integer_valued_float() {
         assert_eq!(
-            evaluate_expr_with_constants(&parse_expr("6.0 / 2", None), &StaticEnv::new(), None),
+            evaluate_expr_with_constants(
+                &parse_expr("6.0 / 2", None),
+                &StaticEnv::new(),
+                FoldPolicy::default()
+            ),
             Some(3)
         );
     }
@@ -728,7 +732,11 @@ mod tests {
     #[test]
     fn evaluate_expr_fractional_float_none() {
         assert_eq!(
-            evaluate_expr_with_constants(&parse_expr("1.5", None), &StaticEnv::new(), None),
+            evaluate_expr_with_constants(
+                &parse_expr("1.5", None),
+                &StaticEnv::new(),
+                FoldPolicy::default()
+            ),
             None
         );
     }

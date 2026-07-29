@@ -995,6 +995,39 @@ fn test_regex_source_variable_highlights_def_site_literal() {
     );
 }
 
+/// Issue #967 end-to-end: `return -code error "bad"` must reach the client
+/// with `-code` as a `decorator` and `error` as an `enumMember`, not as
+/// plain strings.  The `tcl-lsp-core` unit test pins the classifier; this
+/// pins the whole server pipeline (registry `OptionSpec` → token pass →
+/// legend-encoded `textDocument/semanticTokens/full` response), which is what
+/// the editor actually sees.
+#[test]
+fn test_return_code_option_decorator_issue_967() {
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let uri = open_doc(&mut lsp, "return -code error \"bad\"\n");
+    let toks = typed(&mut lsp, &lg, &uri);
+    assert!(
+        toks.iter()
+            .any(|t| t.ttype == "decorator" && t.length == i64::try_from("-code".len()).unwrap()),
+        "expected `-code` to arrive as a decorator; got {toks:?}"
+    );
+    assert!(
+        toks.iter()
+            .any(|t| t.ttype == "enumMember" && t.length == i64::try_from("error".len()).unwrap()),
+        "expected `error` to arrive as an enumMember; got {toks:?}"
+    );
+
+    // TN: the same word passed to a command that declares no options at all
+    // stays a plain argument.
+    let uri2 = open_doc(&mut lsp, "concat -code error\n");
+    let toks2 = typed(&mut lsp, &lg, &uri2);
+    assert!(
+        !toks2.iter().any(|t| t.ttype == "decorator"),
+        "`-code` is not a declared option of `concat`; got {toks2:?}"
+    );
+}
+
 #[test]
 fn test_non_option_dash_word_not_decorator() {
     let mut lsp = Lsp::tcl();

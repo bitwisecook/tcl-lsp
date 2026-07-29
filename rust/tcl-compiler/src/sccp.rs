@@ -34,7 +34,7 @@ use crate::codegen::helpers::split_list_values;
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
-use crate::tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr_with_octal};
+use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue, eval_tcl_expr_with_policy};
 
 // Public aliases
 
@@ -222,12 +222,16 @@ pub struct SccpResult {
 ///   which consults the lattice environment and then the expression
 ///   evaluator.
 ///
-/// `octal` controls how a bare leading-zero string literal (`"08"`,
-/// `"010"`) is interpreted when folding `==` / `!=`: `Some(true)` for the
-/// tcl8.x octal rule (`"08"` is an invalid octal → string, `"010"` → 8),
-/// `Some(false)` for the tcl9.0 decimal rule (`"08"` → 8, `"010"` → 10),
-/// and `None` to decline folding such ambiguous operands (the safe default
-/// for callers without dialect context).
+/// `policy` carries the two dialect facts every fold on this pass needs —
+/// see [`FoldPolicy`].  Its `octal` half controls how a bare leading-zero
+/// string literal (`"08"`, `"010"`) is interpreted when folding `==` /
+/// `!=`: `Some(true)` for the tcl8.x octal rule (`"08"` is an invalid octal
+/// → string, `"010"` → 8), `Some(false)` for the tcl9.0 decimal rule
+/// (`"08"` → 8, `"010"` → 10), and `None` to decline folding such ambiguous
+/// operands (the safe default for callers without dialect context).  Its
+/// `is_irules` half enables the iRules word operators (`contains`,
+/// `starts_with`, …), so `if {$x contains "cd"}` with a known-constant `$x`
+/// folds through SCCP under `f5-irules` exactly as the `eq` control does.
 ///
 /// `trace` bundles the registry-driven whole-module trace facts this
 /// function consults in addition to its own intra-procedural
@@ -245,10 +249,10 @@ pub fn sccp(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
-    octal: Option<bool>,
+    policy: FoldPolicy,
     trace: TraceInputs<'_>,
 ) -> SccpResult {
-    sccp_with_extra_escaping(cfg, ssa, param_constants, octal, &HashSet::new(), trace)
+    sccp_with_extra_escaping(cfg, ssa, param_constants, policy, &HashSet::new(), trace)
 }
 
 /// Registry-driven whole-module trace facts [`sccp`] /
@@ -293,7 +297,7 @@ pub fn sccp_with_extra_escaping(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
-    octal: Option<bool>,
+    policy: FoldPolicy,
     extra_escaping: &HashSet<String>,
     trace: TraceInputs<'_>,
 ) -> SccpResult {
@@ -377,7 +381,7 @@ pub fn sccp_with_extra_escaping(
                     ssa_block,
                     ssa,
                     &escaping,
-                    octal,
+                    policy,
                     trace.has_dynamic_variable_trace,
                 );
 
@@ -386,7 +390,7 @@ pub fn sccp_with_extra_escaping(
                     cfg,
                     ssa,
                     values: &values,
-                    octal,
+                    policy,
                 };
                 if sccp_process_terminator(
                     *bn,
@@ -406,7 +410,7 @@ pub fn sccp_with_extra_escaping(
     }
 
     let constant_branches =
-        collect_constant_branches(cfg, ssa, &values, &executable_blocks, &order, octal);
+        collect_constant_branches(cfg, ssa, &values, &executable_blocks, &order, policy);
 
     SccpResult {
         values,
@@ -578,7 +582,7 @@ fn sccp_process_statements(
     ssa_block: &crate::ssa::SsaBlock,
     ssa: &SsaFunction,
     escaping: &HashSet<String>,
-    octal: Option<bool>,
+    policy: FoldPolicy,
     has_dynamic_variable_trace: bool,
 ) -> bool {
     let mut changed = false;
@@ -658,12 +662,12 @@ fn sccp_process_statements(
                                 .get(&(var, *prev_ver))
                                 .cloned()
                                 .unwrap_or(LatticeValue::Overdefined);
-                            join(&prev, &evaluate_def(stmt_ssa, &*values, ssa, octal))
+                            join(&prev, &evaluate_def(stmt_ssa, &*values, ssa, policy))
                         }
                         None => LatticeValue::Overdefined,
                     }
                 } else {
-                    evaluate_def(stmt_ssa, &*values, ssa, octal)
+                    evaluate_def(stmt_ssa, &*values, ssa, policy)
                 };
             if set_value(values, (var, *ver), &val) {
                 changed = true;
@@ -678,7 +682,7 @@ struct TerminatorInputs<'a> {
     cfg: &'a CfgFunction,
     ssa: &'a SsaFunction,
     values: &'a HashMap<ValueKey, LatticeValue>,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 }
 
 /// Process a block's terminator: mark the matching outgoing edges
@@ -695,7 +699,7 @@ fn sccp_process_terminator(
         cfg,
         ssa,
         values,
-        octal,
+        policy,
     } = *inputs;
     let mut changed = false;
     let Some(block) = cfg.blocks.get(&bn) else {
@@ -724,7 +728,7 @@ fn sccp_process_terminator(
             let Some(ssa_block) = ssa.blocks.get(&bn) else {
                 return changed;
             };
-            let decision = branch_decision(cfg, ssa, bn, ssa_block, condition, values, octal);
+            let decision = branch_decision(cfg, ssa, bn, ssa_block, condition, values, policy);
             let targets: Vec<BlockId> = match decision {
                 Some(true) => vec![*true_target],
                 Some(false) => vec![*false_target],
@@ -779,7 +783,7 @@ fn collect_constant_branches(
     values: &HashMap<ValueKey, LatticeValue>,
     executable_blocks: &HashSet<BlockId>,
     order: &[BlockId],
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> Vec<ConstantBranch> {
     let mut constant_branches: Vec<ConstantBranch> = Vec::new();
     for bn in order {
@@ -802,7 +806,7 @@ fn collect_constant_branches(
         let Some(ssa_block) = ssa.blocks.get(bn) else {
             continue;
         };
-        let decision = branch_decision(cfg, ssa, *bn, ssa_block, condition, values, octal);
+        let decision = branch_decision(cfg, ssa, *bn, ssa_block, condition, values, policy);
         let cond_text = crate::expr_ast::expr_text(condition);
         let (true_name, false_name) = (
             cfg.block_name(*true_target).to_owned(),
@@ -972,13 +976,13 @@ pub fn evaluate_def<S: std::hash::BuildHasher>(
     stmt_ssa: &SsaStatement,
     values: &HashMap<ValueKey, LatticeValue, S>,
     ssa: &SsaFunction,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> LatticeValue {
     match &stmt_ssa.statement {
         Statement::AssignConst { value, .. } => LatticeValue::Const(parse_literal_value(value)),
         Statement::AssignExpr { expr, .. } => {
             let env = env_from_uses(&stmt_ssa.uses, values, ssa);
-            match eval_tcl_expr_with_octal(expr, &env, octal) {
+            match eval_tcl_expr_with_policy(expr, &env, policy) {
                 Some(v) => LatticeValue::Const(tcl_value_to_const(v)),
                 None => LatticeValue::Overdefined,
             }
@@ -988,7 +992,7 @@ pub fn evaluate_def<S: std::hash::BuildHasher>(
             // (no command substitution), a simple `$var` that
             // resolves to a lattice Const, or a `[cmd args...]`
             // that try_fold_cmd_subst recognises.
-            fold_assign_value(value, &stmt_ssa.uses, values, ssa, octal)
+            fold_assign_value(value, &stmt_ssa.uses, values, ssa, policy)
         }
         Statement::Call {
             command,
@@ -1015,7 +1019,7 @@ pub fn evaluate_def<S: std::hash::BuildHasher>(
                     if arg.starts_with('[')
                         && arg.ends_with(']')
                         && let Some(LatticeValue::Const(ConstValue::String(s))) =
-                            try_fold_cmd_subst(arg, &stmt_ssa.uses, values, ssa, octal)
+                            try_fold_cmd_subst(arg, &stmt_ssa.uses, values, ssa, policy)
                     {
                         return Some(split_list_values(&s));
                     }
@@ -1137,10 +1141,10 @@ fn branch_decision(
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue>,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> Option<bool> {
-    loop_summary_decision(cfg, ssa, bn, condition, values, octal)
-        .or_else(|| evaluate_branch(ssa_block, condition, values, octal, ssa))
+    loop_summary_decision(cfg, ssa, bn, condition, values, policy)
+        .or_else(|| evaluate_branch(ssa_block, condition, values, policy, ssa))
 }
 
 /// Convert an SCCP [`ConstValue`] to the static simulator's
@@ -1165,7 +1169,7 @@ fn loop_summary_decision(
     bn: BlockId,
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue>,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> Option<bool> {
     let node = cfg.loop_nodes.get(&bn)?;
     let start_ssa = ssa.blocks.get(&node.entry_block)?;
@@ -1179,9 +1183,9 @@ fn loop_summary_decision(
         &node.for_stmt,
         &start_env,
         crate::static_loops::DEFAULT_MAX_STATIC_LOOP_ITERS,
-        octal,
+        policy,
     )?;
-    let v = crate::static_loops::evaluate_expr_with_constants(condition, &summarised, octal)?;
+    let v = crate::static_loops::evaluate_expr_with_constants(condition, &summarised, policy)?;
     Some(v != 0)
 }
 
@@ -1194,7 +1198,7 @@ pub fn evaluate_branch<S: std::hash::BuildHasher>(
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue, S>,
-    octal: Option<bool>,
+    policy: FoldPolicy,
     ssa: &SsaFunction,
 ) -> Option<bool> {
     let mut env = env_from_uses(&ssa_block.exit_versions, values, ssa);
@@ -1215,7 +1219,7 @@ pub fn evaluate_branch<S: std::hash::BuildHasher>(
             env.insert(name, const_to_env_value(c));
         }
     }
-    let v = eval_tcl_expr_with_octal(condition, &env, octal)?;
+    let v = eval_tcl_expr_with_policy(condition, &env, policy)?;
     // A NaN condition is C's "floating point value is Not a Number" runtime
     // error, not a truth value — folding either way would delete a branch
     // that must raise. Decline.
@@ -1377,7 +1381,7 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> LatticeValue {
     let stripped = value.trim();
     // Plain literal.
@@ -1391,7 +1395,7 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     // Command substitution.
     if stripped.starts_with('[')
         && stripped.ends_with(']')
-        && let Some(lv) = try_fold_cmd_subst(stripped, uses, values, ssa, octal)
+        && let Some(lv) = try_fold_cmd_subst(stripped, uses, values, ssa, policy)
     {
         return lv;
     }
@@ -1462,7 +1466,7 @@ fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
-    octal: Option<bool>,
+    policy: FoldPolicy,
 ) -> Option<LatticeValue> {
     // `[list ...]` — reuse the codegen fold.
     if let Some(folded) = crate::codegen::helpers::fold_list_cmd(value) {
@@ -1533,7 +1537,7 @@ fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         } else {
             env_from_uses_numeric(uses, values, ssa)
         };
-        return eval_tcl_expr_with_octal(&expr, &env, octal)
+        return eval_tcl_expr_with_policy(&expr, &env, policy)
             .map(|v| LatticeValue::Const(tcl_value_to_const(v)));
     }
 
@@ -1611,13 +1615,13 @@ mod tests {
         cfg: &CfgFunction,
         ssa: &SsaFunction,
         param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
-        octal: Option<bool>,
+        policy: FoldPolicy,
     ) -> SccpResult {
         sccp(
             cfg,
             ssa,
             param_constants,
-            octal,
+            policy,
             TraceInputs {
                 registry: &registry(),
                 traced_variables: &BTreeSet::new(),
@@ -1901,7 +1905,7 @@ mod tests {
             &block,
             &ssa,
             &escaping,
-            None,
+            FoldPolicy::default(),
             false
         ));
         assert_eq!(
@@ -1950,7 +1954,7 @@ mod tests {
         ssa.blocks.get_mut(&entry).unwrap().statements.push(stmt);
         let x = ssa.var_symbol("x").unwrap();
 
-        let r = sccp_no_traces(&f, &ssa, None, None);
+        let r = sccp_no_traces(&f, &ssa, None, FoldPolicy::default());
         assert!(r.executable_blocks.contains(&entry));
         assert_eq!(
             r.values.get(&(x, 1)),
@@ -1980,7 +1984,7 @@ mod tests {
         });
         let ssa = make_ssa(&f, vec![]);
 
-        let r = sccp_no_traces(&f, &ssa, None, None);
+        let r = sccp_no_traces(&f, &ssa, None, FoldPolicy::default());
         assert!(r.executable_blocks.contains(&t));
         assert!(!r.executable_blocks.contains(&e));
         assert_eq!(r.constant_branches.len(), 1);
@@ -2011,7 +2015,7 @@ mod tests {
         });
         let ssa = make_ssa(&f, vec![]);
 
-        let r = sccp_no_traces(&f, &ssa, None, None);
+        let r = sccp_no_traces(&f, &ssa, None, FoldPolicy::default());
         assert!(!r.executable_blocks.contains(&t));
         assert!(r.executable_blocks.contains(&e));
     }
@@ -2044,7 +2048,7 @@ mod tests {
         });
         let ssa = make_ssa(&f, vec![]);
 
-        let r = sccp_no_traces(&f, &ssa, None, None);
+        let r = sccp_no_traces(&f, &ssa, None, FoldPolicy::default());
         assert!(r.executable_blocks.contains(&t));
         assert!(r.executable_blocks.contains(&e));
         assert!(r.constant_branches.is_empty());
@@ -2055,12 +2059,12 @@ mod tests {
         let mut ssa = bare_ssa();
         let s_int = assign_const_stmt(&mut ssa, "x", "42", 1);
         assert_eq!(
-            evaluate_def(&s_int, &HashMap::new(), &ssa, None),
+            evaluate_def(&s_int, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(42))
         );
         let s_str = assign_const_stmt(&mut ssa, "x", "hello", 1);
         assert_eq!(
-            evaluate_def(&s_str, &HashMap::new(), &ssa, None),
+            evaluate_def(&s_str, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::String("hello".into()))
         );
     }
@@ -2107,8 +2111,72 @@ mod tests {
         values.insert((a, 1), LatticeValue::Const(ConstValue::Int(2)));
 
         assert_eq!(
-            evaluate_def(&stmt_ssa, &values, &ssa, None),
+            evaluate_def(&stmt_ssa, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(5))
+        );
+    }
+
+    /// SCCP folds the iRules word operators when — and only when — the
+    /// policy says the dialect has them.
+    ///
+    /// Regression for the Codex #1046-5 / soundness-review finding: SCCP
+    /// took a bare `octal: Option<bool>` and evaluated through the
+    /// dialect-blind entry point, so `FoldOps::is_irules` was always
+    /// `false` here and every word operator silently declined — while the
+    /// `eq` control on the same shape folded, because plain Tcl shares it.
+    #[test]
+    fn evaluate_def_folds_irules_word_operator_only_under_an_irules_policy() {
+        let mut ssa = bare_ssa();
+        let subject = ssa.intern_var("s");
+        let out = ssa.intern_var("hit");
+        let mut uses = HashMap::new();
+        uses.insert(subject, 1);
+        let mut defs = HashMap::new();
+        defs.insert(out, 1);
+
+        let expr = ExprNode::Binary {
+            op: crate::expr_ast::BinOp::Contains,
+            left: Box::new(ExprNode::Var {
+                text: "$s".into(),
+                name: "s".into(),
+                start: 0,
+                end: 2,
+            }),
+            right: Box::new(ExprNode::String {
+                text: "cd".into(),
+                start: 3,
+                end: 7,
+            }),
+        };
+        let stmt_ssa = SsaStatement {
+            statement: Statement::AssignExpr {
+                span: Span::new(0, 0),
+                name: "hit".into(),
+                name_braced: false,
+                expr,
+                expr_base: None,
+            },
+            uses,
+            defs,
+            may_defs: std::collections::HashSet::new(),
+        };
+        let mut values = HashMap::new();
+        values.insert(
+            (subject, 1),
+            LatticeValue::Const(ConstValue::String("abcde".into())),
+        );
+
+        let irules = FoldPolicy::for_dialect(Some(true), Some("f5-irules"));
+        assert_eq!(
+            evaluate_def(&stmt_ssa, &values, &ssa, irules),
+            LatticeValue::Const(ConstValue::Int(1)),
+            "`$s contains \"cd\"` with $s = abcde must fold to 1 under an iRules policy"
+        );
+        // TN: without the dialect fact the fold is declined, not guessed.
+        assert_eq!(
+            evaluate_def(&stmt_ssa, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Overdefined,
+            "a dialect-blind policy must decline the word-operator fold"
         );
     }
 
@@ -2149,7 +2217,7 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, None),
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(6))
         );
     }
@@ -2162,7 +2230,7 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(3)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, None),
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(13))
         );
     }
@@ -2175,7 +2243,7 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(10)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, None),
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(8))
         );
     }
@@ -2192,7 +2260,7 @@ mod tests {
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(6)));
         values.insert((y, 1), LatticeValue::Const(ConstValue::Int(4)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, None),
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(10))
         );
     }
@@ -2204,7 +2272,7 @@ mod tests {
         let values = HashMap::new();
         // No entry for x@1 → base is Unknown → result Unknown.
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, None),
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Unknown
         );
     }
@@ -2217,7 +2285,7 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Overdefined);
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, None),
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Overdefined
         );
     }
@@ -2230,7 +2298,7 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(1)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, None),
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Overdefined
         );
     }
@@ -2328,7 +2396,7 @@ mod tests {
     fn evaluate_def_foreach_literal_list_folds_constset() {
         let mut ssa = bare_ssa();
         let stmt = foreach_stmt(&mut ssa, "v", "{1 2 3}", 1);
-        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, None);
+        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
         match result {
             LatticeValue::ConstSet(ref vs) => {
                 assert_eq!(vs.len(), 3);
@@ -2345,7 +2413,7 @@ mod tests {
         // same element CONSTSET as the braced-literal form (issue #777).
         let mut ssa = bare_ssa();
         let stmt = foreach_stmt(&mut ssa, "v", "[list a b c]", 1);
-        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, None);
+        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
         match result {
             LatticeValue::ConstSet(ref vs) => {
                 assert_eq!(vs.len(), 3);
@@ -2361,7 +2429,7 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = foreach_stmt(&mut ssa, "v", "{only}", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, None),
+            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::String("only".into()))
         );
     }
@@ -2377,7 +2445,7 @@ mod tests {
             (lst, 1),
             LatticeValue::Const(ConstValue::String("a b c".into())),
         );
-        let result = evaluate_def(&stmt, &values, &ssa, None);
+        let result = evaluate_def(&stmt, &values, &ssa, FoldPolicy::default());
         match result {
             LatticeValue::ConstSet(ref vs) => assert_eq!(vs.len(), 3),
             other => panic!("expected ConstSet, got {other:?}"),
@@ -2391,7 +2459,7 @@ mod tests {
         let lst = ssa.intern_var("lst");
         stmt.uses.insert(lst, 1);
         // Empty lattice — var not bound.
-        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, None);
+        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
         assert_eq!(result, LatticeValue::Overdefined);
     }
 
@@ -2404,7 +2472,7 @@ mod tests {
             panic!();
         };
         defs.push("w".into());
-        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, None);
+        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
         assert_eq!(result, LatticeValue::Overdefined);
     }
 
@@ -2433,7 +2501,7 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "hello", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, None),
+            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::String("hello".into()))
         );
     }
@@ -2443,7 +2511,7 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "42", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, None),
+            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(42))
         );
     }
@@ -2457,7 +2525,7 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(7)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, None),
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(7))
         );
     }
@@ -2466,7 +2534,7 @@ mod tests {
     fn evaluate_def_assign_value_folds_list_cmd() {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "[list a b c]", 1);
-        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, None);
+        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
         match result {
             LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s, "a b c"),
             other => panic!("expected Const(String), got {other:?}"),
@@ -2478,7 +2546,7 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "n", "[llength {a b c d}]", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, None),
+            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(4))
         );
     }
@@ -2488,7 +2556,7 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "n", "[string length \"hello\"]", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, None),
+            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(5))
         );
     }
@@ -2498,7 +2566,7 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "[expr {1 + 2}]", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, None),
+            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(3))
         );
     }
@@ -2507,7 +2575,7 @@ mod tests {
     fn evaluate_def_assign_value_folds_format_literal() {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "s", "[format \"%d-%d\" 1 2]", 1);
-        match evaluate_def(&stmt, &HashMap::new(), &ssa, None) {
+        match evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()) {
             LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s, "1-2"),
             other => panic!("expected Const(String), got {other:?}"),
         }
@@ -2535,7 +2603,7 @@ mod tests {
             LatticeValue::Const(ConstValue::String("beta".into())),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, None),
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Overdefined
         );
     }
@@ -2554,7 +2622,7 @@ mod tests {
         values.insert((a, 1), LatticeValue::Const(ConstValue::Int(3)));
         values.insert((b, 1), LatticeValue::Const(ConstValue::Int(4)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, None),
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(7))
         );
     }
@@ -2579,7 +2647,7 @@ mod tests {
             LatticeValue::Const(ConstValue::String("beta".into())),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, None),
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(0))
         );
     }
@@ -2589,7 +2657,7 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "[nonexistent_fold args]", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, None),
+            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Overdefined
         );
     }
@@ -2606,7 +2674,7 @@ mod tests {
             LatticeValue::Const(ConstValue::String("a b c".into())),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, None),
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(3))
         );
     }
@@ -2684,7 +2752,7 @@ mod tests {
             "proc ::p {} { for {set i 0} {$i < 10} {incr i} {}\n if {$i == 10} { return yes } else { return no } }",
         );
         let fu = c.function("::p").unwrap();
-        let r = sccp_no_traces(&fu.cfg, &fu.ssa, None, None);
+        let r = sccp_no_traces(&fu.cfg, &fu.ssa, None, FoldPolicy::default());
         let cb = r
             .constant_branches
             .iter()
@@ -2697,7 +2765,7 @@ mod tests {
             "proc ::a {} { set j 0\n for {set k 5} {$k > 0} {incr k -1} { incr j }\n if {$j == 5} { return yes } else { return no } }",
         );
         let fa = ca.function("::a").unwrap();
-        let ra = sccp_no_traces(&fa.cfg, &fa.ssa, None, None);
+        let ra = sccp_no_traces(&fa.cfg, &fa.ssa, None, FoldPolicy::default());
         let cba = ra
             .constant_branches
             .iter()
@@ -2711,7 +2779,7 @@ mod tests {
             "proc ::q {n} { for {set i 0} {$i < $n} {incr i} {}\n if {$i == 10} { return yes } else { return no } }",
         );
         let fq = cq.function("::q").unwrap();
-        let rq = sccp_no_traces(&fq.cfg, &fq.ssa, None, None);
+        let rq = sccp_no_traces(&fq.cfg, &fq.ssa, None, FoldPolicy::default());
         assert!(
             !rq.constant_branches
                 .iter()
@@ -2769,7 +2837,7 @@ mod tests {
 
         let cg = cu(global_src);
         let fg = cg.function("::p").unwrap();
-        let rg = sccp_no_traces(&fg.cfg, &fg.ssa, None, None);
+        let rg = sccp_no_traces(&fg.cfg, &fg.ssa, None, FoldPolicy::default());
         assert!(
             rg.constant_branches.is_empty(),
             "global var must not fold a constant branch"
@@ -2777,7 +2845,7 @@ mod tests {
 
         let cl = cu(local_src);
         let fl = cl.function("::p").unwrap();
-        let rl = sccp_no_traces(&fl.cfg, &fl.ssa, None, None);
+        let rl = sccp_no_traces(&fl.cfg, &fl.ssa, None, FoldPolicy::default());
         assert!(
             !rl.constant_branches.is_empty(),
             "local var should still fold the constant branch"
@@ -2797,7 +2865,7 @@ mod tests {
         let with_upframe =
             cu("set n 5\nuplevel #0 { set n 99 }\nif {$n == 5} { set r yes } else { set r no }\n");
         let f = with_upframe.function("::top").unwrap();
-        let r = sccp_no_traces(&f.cfg, &f.ssa, None, None);
+        let r = sccp_no_traces(&f.cfg, &f.ssa, None, FoldPolicy::default());
         assert!(
             r.constant_branches.is_empty(),
             "a value reachable through an UpFrame must not fold a constant branch, got {:?}",

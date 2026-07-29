@@ -57,7 +57,7 @@ use crate::expr_ast::{BinOp, ExprNode, ExprOffset, render_expr};
 use crate::expr_parser::parse_expr;
 use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::{
-    Env, eval_tcl_expr_with_octal, format_tcl_value, leading_zero_is_octal,
+    Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value, leading_zero_is_octal,
 };
 use crate::types::{TclType, TypeKind, TypeLattice};
 
@@ -250,7 +250,12 @@ pub fn try_fold_expr(expr: &str, dialect: Option<&str>) -> Option<String> {
         return None;
     }
     let env = Env::new();
-    let value = eval_tcl_expr_with_octal(&node, &env, dialect.and_then(leading_zero_is_octal))?;
+    let value = eval_tcl_expr_with_octal_and_dialect(
+        &node,
+        &env,
+        dialect.and_then(leading_zero_is_octal),
+        dialect,
+    )?;
     let rendered = format_tcl_value(&value);
     if rendered == trimmed {
         return None;
@@ -296,7 +301,12 @@ pub fn try_fold_expr_with_constants<S: std::hash::BuildHasher>(
             env.insert(name.clone(), EnvValue::Str(value.clone()));
         }
     }
-    let value = eval_tcl_expr_with_octal(&node, &env, dialect.and_then(leading_zero_is_octal))?;
+    let value = eval_tcl_expr_with_octal_and_dialect(
+        &node,
+        &env,
+        dialect.and_then(leading_zero_is_octal),
+        dialect,
+    )?;
     let rendered = format_tcl_value(&value);
     if rendered == trimmed {
         return None;

@@ -2774,8 +2774,15 @@ mod tcloo_classes {
     use tcl_compiler::analyser::ClassDef;
 
     fn class(src: &str, qn: &str) -> ClassDef {
+        class_in(src, qn, D)
+    }
+
+    /// [`class`] under an explicit dialect — for the members `TclOO` only
+    /// gained in 9.0 (`classmethod`, `private`, `initialise`/`initialize`,
+    /// `definitionnamespace`), which the 8.6 grammar rejects.
+    fn class_in(src: &str, qn: &str, dialect: &str) -> ClassDef {
         Analyser::new()
-            .analyse(src, D)
+            .analyse(src, dialect)
             .all_classes
             .get(qn)
             .cloned()
@@ -2900,8 +2907,9 @@ mod tcloo_classes {
 
     #[test]
     fn oo_define_body_merges_methods() {
+        // `classmethod` is 9.0-only, so this merge case runs under tcl9.0.
         let src = "oo::class create Dog {\n    method bark {} { return \"woof\" }\n}\noo::define Dog {\n    method fetch {item} { return $item }\n    classmethod count {} { return 0 }\n}\n";
-        let cd = class(src, "::Dog");
+        let cd = class_in(src, "::Dog", "tcl9.0");
         assert!(cd.methods.contains_key("bark"));
         assert!(cd.methods.contains_key("fetch"));
         assert!(cd.class_methods.contains_key("count"));
@@ -2972,14 +2980,18 @@ mod tcloo_classes {
 
     #[test]
     fn classmethod_and_private_method() {
-        let cd = class(
+        // Both members are 9.0-only (TIP 478); under 8.6 they draw W002
+        // instead, which `oo_90_only_members_*` below pins.
+        let cd = class_in(
             "oo::class create Counter {\n    classmethod instances {} { return 0 }\n}\n",
             "::Counter",
+            "tcl9.0",
         );
         assert_eq!(cd.class_methods["instances"].kind, "classmethod");
-        let cd2 = class(
+        let cd2 = class_in(
             "oo::class create Foo {\n    private method helper {} { return 1 }\n}\n",
             "::Foo",
+            "tcl9.0",
         );
         assert_eq!(cd2.methods["helper"].visibility, "private");
     }
@@ -3020,13 +3032,145 @@ mod tcloo_classes {
         // (both go through the same `unwrap_wrapper_member`-based
         // `collect_method_body`), confirming the fix isn't scoped to
         // `self` alone.
+        // `private` is 9.0-only, so the body walk is exercised under tcl9.0.
         let src = "oo::class create Widget {\n    private method helper {} {\n        string length a b c d\n    }\n}\n";
         assert_eq!(
-            count(src, D, "E003"),
+            count(src, "tcl9.0", "E003"),
             1,
             "the wrong-arity call inside a private-method body must now be walked: {:?}",
-            codes(src, D)
+            codes(src, "tcl9.0")
         );
+    }
+
+    /// The `TclOO` definition members Tcl added in 9.0 — `classmethod`
+    /// (TIP 478), `private`, `initialise`/`initialize`, and
+    /// `definitionnamespace` (TIP 524) — do not exist in the 8.6 grammar.
+    ///
+    /// Oracle: each of the three call shapes below fails on real tclsh8.6
+    /// with `invalid command name "<member>"` and succeeds on tclsh9.0
+    /// (probes cm2 / cm3 / cm4). The registry's hover text already said
+    /// "Tcl 9.0 also added the classmethod, private, initialise/initialize,
+    /// and definitionnamespace subcommands (none exist under Tcl 8.6)"
+    /// while the analyser accepted them silently.
+    #[test]
+    fn oo_90_only_members_are_flagged_under_86() {
+        // Shape 1 — a member inside the metaclass's own `create` body.
+        for member in [
+            "classmethod count {} { return 0 }",
+            "private { method secret {} { return s } }",
+            "initialise { set n 1 }",
+            "initialize { set n 1 }",
+            "definitionnamespace ::mydefs",
+        ] {
+            let src =
+                format!("oo::class create Dog {{\n    method bark {{}} {{}}\n    {member}\n}}\n");
+            assert!(
+                fires(&src, D, "W002"),
+                "[create body] {member:?} must draw W002 under tcl8.6; got {:?}",
+                codes(&src, D)
+            );
+            // Shape 2 — the same member inside an `oo::define Cls { … }` block.
+            let block = format!(
+                "oo::class create Dog {{ method bark {{}} {{}} }}\noo::define Dog {{\n    {member}\n}}\n"
+            );
+            assert!(
+                fires(&block, D, "W002"),
+                "[oo::define block] {member:?} must draw W002 under tcl8.6; got {:?}",
+                codes(&block, D)
+            );
+            // Shape 3 — the single-command `oo::define Cls <member> …` form.
+            let single = format!(
+                "oo::class create Dog {{ method bark {{}} {{}} }}\noo::define Dog {member}\n"
+            );
+            assert!(
+                fires(&single, D, "W002"),
+                "[oo::define single] {member:?} must draw W002 under tcl8.6; got {:?}",
+                codes(&single, D)
+            );
+        }
+    }
+
+    /// TN — the same three shapes are clean under tcl9.0, where the members
+    /// exist.
+    #[test]
+    fn oo_90_only_members_are_clean_under_90() {
+        for member in [
+            "classmethod count {} { return 0 }",
+            "private { method secret {} { return s } }",
+            "initialise { set n 1 }",
+            "definitionnamespace ::mydefs",
+        ] {
+            for src in [
+                format!("oo::class create Dog {{\n    method bark {{}} {{}}\n    {member}\n}}\n"),
+                format!(
+                    "oo::class create Dog {{ method bark {{}} {{}} }}\noo::define Dog {{\n    {member}\n}}\n"
+                ),
+                format!(
+                    "oo::class create Dog {{ method bark {{}} {{}} }}\noo::define Dog {member}\n"
+                ),
+            ] {
+                assert!(
+                    !fires(&src, "tcl9.0", "W002"),
+                    "{member:?} exists in 9.0 and must be clean; got {:?}",
+                    codes(&src, "tcl9.0")
+                );
+            }
+        }
+    }
+
+    /// Reporting a 9.0-only member must not *erase* it: the analyser still
+    /// records the member under 8.6, so go-to-definition, references,
+    /// rename, document symbols, and code lenses keep working over the code
+    /// the user actually wrote. Same contract as the whole-command W002,
+    /// which reports a dialect-unavailable command while the analyser goes
+    /// on modelling the call.
+    #[test]
+    fn a_gated_oo_member_is_reported_but_still_recorded() {
+        let cd = class_in(
+            "oo::class create Counter {\n    classmethod instances {} { return 0 }\n}\n",
+            "::Counter",
+            D,
+        );
+        assert!(
+            cd.class_methods.contains_key("instances"),
+            "the classmethod must still be recorded under tcl8.6; got {:?}",
+            cd.class_methods.keys().collect::<Vec<_>>()
+        );
+        let cd2 = class_in(
+            "oo::class create Dog { }\noo::define Dog classmethod count {} { return 0 }\n",
+            "::Dog",
+            D,
+        );
+        assert!(
+            cd2.class_methods.contains_key("count"),
+            "the single-command form's member must still be recorded; got {:?}",
+            cd2.class_methods.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// TN — the members that have existed since `TclOO` shipped in 8.6 are
+    /// never gated, in any of the three shapes.
+    #[test]
+    fn always_available_oo_members_are_clean_under_86() {
+        for member in [
+            "method bark {} { return \"woof\" }",
+            "constructor {n} { set n $n }",
+            "destructor { return }",
+            "variable name",
+            "forward run puts",
+        ] {
+            for src in [
+                format!("oo::class create Dog {{\n    {member}\n}}\n"),
+                format!("oo::class create Dog {{ }}\noo::define Dog {{\n    {member}\n}}\n"),
+                format!("oo::class create Dog {{ }}\noo::define Dog {member}\n"),
+            ] {
+                assert!(
+                    !fires(&src, D, "W002"),
+                    "{member:?} is 8.6 `TclOO` and must be clean; got {:?}",
+                    codes(&src, D)
+                );
+            }
+        }
     }
 
     #[test]

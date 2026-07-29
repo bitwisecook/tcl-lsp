@@ -512,6 +512,7 @@ mod tests {
     use crate::ir::Statement;
     use crate::sccp::sccp;
     use crate::ssa::{SsaBlock, SsaStatement};
+    use crate::tcl_expr_eval::FoldPolicy;
     use std::collections::HashMap as Map;
     use tcl_lexer::Span;
 
@@ -568,7 +569,7 @@ mod tests {
             &cfg,
             &ssa,
             None,
-            None,
+            FoldPolicy::default(),
             crate::sccp::TraceInputs {
                 registry: &registry,
                 traced_variables: &BTreeSet::new(),

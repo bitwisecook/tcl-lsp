@@ -457,7 +457,7 @@ mod tests {
             &f,
             &ssa,
             None,
-            None,
+            crate::tcl_expr_eval::FoldPolicy::default(),
             crate::sccp::TraceInputs {
                 registry: &registry(),
                 traced_variables: &std::collections::BTreeSet::new(),

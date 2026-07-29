@@ -75,15 +75,19 @@ fn eval_str_env(expr: &str, env: &Env) -> Option<TclValue> {
 }
 
 /// Fold under the iRules dialect (enables `contains`/`starts_with`/`ends_with`/
-/// `equals`/`matches_glob`/`matches_regex`/`in`/`ni`/`and`/`or`/`not`).
+/// `equals`/`matches_glob`/`matches_regex`/`in`/`ni`/`and`/`or`/`not`). Must
+/// use the dialect-threading evaluator, not the bare [`eval_tcl_expr`] — the
+/// word operators parse under any dialect gate, but only actually *fold*
+/// when the evaluator's own iRules dialect flag is set (issue #983/#985's
+/// defence-in-depth fix), which only [`eval_tcl_expr_in_dialect`] does.
 fn eval_irules(expr: &str) -> Option<TclValue> {
     let env = Env::new();
-    eval_tcl_expr(&parse_expr(expr, Some("f5-irules")), &env)
+    eval_tcl_expr_in_dialect(&parse_expr(expr, Some("f5-irules")), &env, "f5-irules")
 }
 
 /// iRules-dialect fold over a caller-supplied environment.
 fn eval_irules_env(expr: &str, env: &Env) -> Option<TclValue> {
-    eval_tcl_expr(&parse_expr(expr, Some("f5-irules")), env)
+    eval_tcl_expr_in_dialect(&parse_expr(expr, Some("f5-irules")), env, "f5-irules")
 }
 
 /// Fold under a named dialect (resolves the 8.x-octal vs 9.0-decimal

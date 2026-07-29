@@ -139,7 +139,9 @@ pub type Env = HashMap<String, EnvValue>;
 /// [`FoldOps`]. A `None` result means "can't fold".
 #[must_use]
 pub fn eval_tcl_expr(node: &ExprNode, env: &Env) -> Option<TclValue> {
-    eval_with_config(node, env, None, None)
+    // No dialect context: decline the iRules word-operator fold rather than
+    // assume plain Tcl (safe — see `FoldOps::is_irules`).
+    eval_with_config(node, env, None, None, false)
 }
 
 /// Like [`eval_tcl_expr`] but resolves the *dialect* so a leading-zero decimal
@@ -158,6 +160,7 @@ pub fn eval_tcl_expr_in_dialect(node: &ExprNode, env: &Env, dialect: &str) -> Op
         env,
         leading_zero_is_octal(dialect),
         math_func_ceiling_for_dialect(dialect),
+        tcl_dialect::DialectProfile::by_name(dialect).is_irules(),
     )
 }
 
@@ -176,7 +179,96 @@ pub fn eval_tcl_expr_with_octal(
     env: &Env,
     octal: Option<bool>,
 ) -> Option<TclValue> {
-    eval_with_config(node, env, octal, None)
+    // The caller has resolved the octal policy but not a dialect string, so
+    // (as with `eval_tcl_expr`) decline the iRules word-operator fold rather
+    // than assume plain Tcl.
+    eval_with_config(node, env, octal, None, false)
+}
+
+/// Like [`eval_tcl_expr_with_octal`] but for the (more common) optimiser call
+/// sites that already have both an `octal` policy *and* the dialect string
+/// itself locally in scope (`PassContext::dialect` / a `dialect: Option<&str>`
+/// parameter) — so, unlike `eval_tcl_expr_with_octal`'s plain `None`-dialect
+/// callers, these can resolve [`FoldOps::is_irules`] precisely instead of
+/// defaulting it to declined (issue #983/#985 residual: several of these
+/// sites were passing the string on to `leading_zero_is_octal` for the octal
+/// policy while never using it to gate the iRules word-operator fold).
+#[must_use]
+pub fn eval_tcl_expr_with_octal_and_dialect(
+    node: &ExprNode,
+    env: &Env,
+    octal: Option<bool>,
+    dialect: Option<&str>,
+) -> Option<TclValue> {
+    eval_tcl_expr_with_policy(node, env, FoldPolicy::for_dialect(octal, dialect))
+}
+
+/// The dialect-derived facts a constant fold needs: the leading-zero octal
+/// rule, and whether the dialect's `expr` grammar carries the iRules word
+/// operators (`contains`, `starts_with`, `equals`, …).
+///
+/// Bundled into one `Copy` value rather than threaded as two parallel
+/// parameters, because the passes that need it — SCCP, the static-loop
+/// simulator — already carry `octal` through a long chain of helpers, several
+/// of which sit on the `clippy::too_many_arguments` ceiling.  Adding a
+/// further dialect fact then means extending this struct in one place instead
+/// of every signature on the chain.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FoldPolicy {
+    /// Leading-zero octal policy: `Some(true)` = the 8.x octal rule,
+    /// `Some(false)` = the 9.0 decimal rule, `None` = decline to fold a
+    /// dialect-ambiguous leading-zero operand.
+    pub octal: Option<bool>,
+    /// Whether the active dialect's `expr` grammar has the iRules word
+    /// operators.  `false` (the default) declines that fold, which is always
+    /// safe — see [`FoldOps::is_irules`].
+    pub is_irules: bool,
+}
+
+impl FoldPolicy {
+    /// The policy for an explicit octal rule with no known dialect — the
+    /// iRules word operators are declined.
+    #[must_use]
+    pub const fn from_octal(octal: Option<bool>) -> Self {
+        Self {
+            octal,
+            is_irules: false,
+        }
+    }
+
+    /// The policy for an octal rule plus the dialect string a pass already
+    /// holds (`PassContext::dialect`, a `dialect: Option<&str>` parameter).
+    #[must_use]
+    pub fn for_dialect(octal: Option<bool>, dialect: Option<&str>) -> Self {
+        Self {
+            octal,
+            is_irules: dialect.is_some_and(|d| tcl_dialect::DialectProfile::by_name(d).is_irules()),
+        }
+    }
+
+    /// The policy a registry's own dialect profile implies — both facts from
+    /// the one source of truth, for the pipeline entry points that hold a
+    /// registry rather than a dialect string.
+    #[must_use]
+    pub fn from_registry(registry: &tcl_registry::CommandRegistry) -> Self {
+        Self {
+            octal: registry.octal_fold_policy(),
+            is_irules: registry
+                .profile()
+                .is_some_and(tcl_dialect::DialectProfile::is_irules),
+        }
+    }
+}
+
+/// Evaluate `node` under a bundled [`FoldPolicy`] — the entry point for
+/// passes that thread the policy rather than the raw octal flag.
+#[must_use]
+pub fn eval_tcl_expr_with_policy(
+    node: &ExprNode,
+    env: &Env,
+    policy: FoldPolicy,
+) -> Option<TclValue> {
+    eval_with_config(node, env, policy.octal, None, policy.is_irules)
 }
 
 /// Whether the dialect's *runtime* reads a bare leading-zero integer as
@@ -257,12 +349,14 @@ fn eval_with_config(
     env: &Env,
     octal: Option<bool>,
     math_since: Option<tcl_syntax::expr::mathfunc::MathFuncSince>,
+    is_irules: bool,
 ) -> Option<TclValue> {
     let mut ops = FoldOps {
         env,
         ambiguous: false,
         octal,
         math_since,
+        is_irules,
     };
     // The final value must reduce to a number (a bare string like `expr {"x"}`
     // doesn't fold) — `to_number` maps a `Str` result through `parse_literal`.
@@ -342,6 +436,17 @@ struct FoldOps<'a> {
     /// core, so the runtime would error rather than produce a constant.
     /// `None` leaves the set unbounded (dialect not resolved).
     math_since: Option<tcl_syntax::expr::mathfunc::MathFuncSince>,
+    /// Whether the active dialect is iRules — the only dialect the iRules
+    /// word operators (`contains`/`starts_with`/`equals`/`matches_glob`/
+    /// `matches_regex`/…) are real in (see [`Self::binary_other`]).
+    /// Lexing already gates which operators can appear in the AST at all
+    /// (`irules_ops()`), but several call sites into this evaluator (the
+    /// optimiser's `parse_expr(text, None)` sites) have no dialect to hand,
+    /// so this is a defence-in-depth check at the fold site itself rather
+    /// than trusting the lexer gate alone (issue #983/#985 residual).
+    /// `false` — including when the dialect is genuinely unknown — declines
+    /// the fold; that is always safe, it just forgoes an optimisation.
+    is_irules: bool,
 }
 
 /// A comparison operand's numeric classification under the active dialect.
@@ -585,12 +690,20 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
 
     /// The iRules dialect string operators (`contains`/`starts_with`/`equals`/
     /// `matches_glob`/`matches_regex`/…) — apply to the operands as strings.
+    /// Declines the fold outright unless [`Self::is_irules`] is set: these
+    /// operators are only real Tcl outside iRules by way of a lexer bug the
+    /// lexer's own `irules_ops()` gate already prevents, but this is the
+    /// defence-in-depth check for the call sites that reach this evaluator
+    /// with no dialect context to gate on at lex time.
     fn binary_other(
         &mut self,
         op: BinOp,
         left: FoldValue,
         right: FoldValue,
     ) -> Result<FoldValue, ()> {
+        if !self.is_irules {
+            return Err(());
+        }
         apply_irules_string_op(op, &left.to_string_val(), &right.to_string_val())
             .map(FoldValue::from_tcl)
             .ok_or(())
@@ -1119,15 +1232,21 @@ pub(crate) fn split_tcl_list(text: &str) -> Vec<String> {
 }
 
 /// Apply an iRules string operator to two rendered string operands.
+///
+/// Reached only through [`FoldOps::binary_other`], which the shared
+/// [`tcl_syntax::expr::eval`] tree-walk calls for the operators its own
+/// `match` does not handle.  That match already covers `equals`
+/// ([`BinOp::StrEquals`], via `compare_string` alongside `eq`) and `in` /
+/// `ni` (via `in_list`), so those three never arrive here — the arms that
+/// re-implemented them were unreachable, and re-implementing `in`/`ni` with
+/// a private list split risked disagreeing with the shared `in_list`
+/// semantics if either drifted.
 fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue> {
     let res = match op {
         BinOp::Contains => left.contains(right),
         BinOp::StartsWith => left.starts_with(right),
         BinOp::EndsWith => left.ends_with(right),
-        BinOp::StrEquals => left == right,
         BinOp::MatchesGlob => tcl_syntax::glob::string_match(right, left),
-        BinOp::In => split_tcl_list(right).iter().any(|e| e == left),
-        BinOp::Ni => !split_tcl_list(right).iter().any(|e| e == left),
         // `matches_regex` is deliberately *not* constant-folded (along
         // with any other / unsupported operator): the Rust `regex` crate
         // is not Tcl's ARE engine — classes, anchors, word boundaries,
@@ -1186,14 +1305,18 @@ mod tests {
 
     /// Parse + evaluate using the iRules dialect, which enables
     /// `contains`/`starts_with`/`ends_with`/`equals`/`matches_glob`/
-    /// `matches_regex`/`in`/`ni` word operators.
+    /// `matches_regex`/`in`/`ni` word operators. Must use the
+    /// dialect-threading evaluator, not the bare [`eval_tcl_expr`] — the
+    /// word operators parse under any dialect gate, but only actually
+    /// *fold* when [`FoldOps::is_irules`] is set (issue #983/#985's
+    /// defence-in-depth fix), which only [`eval_tcl_expr_in_dialect`] does.
     fn eval_irules(expr: &str) -> Option<TclValue> {
         let env = Env::new();
-        eval_tcl_expr(&parse_expr(expr, Some("f5-irules")), &env)
+        eval_tcl_expr_in_dialect(&parse_expr(expr, Some("f5-irules")), &env, "f5-irules")
     }
 
     fn eval_irules_env(expr: &str, env: &Env) -> Option<TclValue> {
-        eval_tcl_expr(&parse_expr(expr, Some("f5-irules")), env)
+        eval_tcl_expr_in_dialect(&parse_expr(expr, Some("f5-irules")), env, "f5-irules")
     }
 
     #[test]
@@ -1760,6 +1883,31 @@ mod tests {
     }
 
     // -- simple iRules string ops --
+
+    /// #983/#985 residual: `FoldOps::binary_other` must only fold the iRules
+    /// word operators under an iRules dialect, and decline (not panic, not
+    /// silently misfold) everywhere else — the defence-in-depth check for
+    /// call sites that reach this evaluator without a dialect string
+    /// (`eval_tcl_expr`/`eval_tcl_expr_with_octal`).
+    #[test]
+    fn irules_contains_folds_under_irules_and_declines_under_plain_tcl() {
+        let node_irules = parse_expr(r#""abc" contains "b""#, Some("f5-irules"));
+        let env = Env::new();
+
+        // Folds to true under the iRules dialect.
+        assert_eq!(
+            eval_tcl_expr_in_dialect(&node_irules, &env, "f5-irules"),
+            Some(TclValue::Int(1))
+        );
+
+        // The bare, dialect-less entry points decline rather than assume
+        // plain Tcl — no fold, no crash.
+        assert_eq!(eval_tcl_expr(&node_irules, &env), None);
+        assert_eq!(eval_tcl_expr_with_octal(&node_irules, &env, None), None);
+
+        // And explicitly asking for a plain-Tcl dialect also declines.
+        assert_eq!(eval_tcl_expr_in_dialect(&node_irules, &env, "tcl"), None);
+    }
 
     #[test]
     fn irules_contains() {

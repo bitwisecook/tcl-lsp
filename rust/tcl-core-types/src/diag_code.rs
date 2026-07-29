@@ -427,6 +427,7 @@ diagnostic_codes! {
     W140 => "W140", diag(Warning, true, "`interp eval` / `interp` subcommand targets an interpreter path never created in this file — the call raises `could not find interpreter` at run time.");
     W141 => "W141", diag(Warning, true, "Option value fails a declared shape/content check (e.g. `-errorstack` must be an even-sized list) — the option-value sibling of W127 for a value that is structurally malformed rather than outside a closed set.");
     W142 => "W142", diag(Warning, true, "Command invalid in its current lexical/dispatch context (e.g. `return` with arguments directly inside an iRules event body).");
+    W143 => "W143", diag(Warning, true, "Direct call into a private `::tcl::` implementation namespace (e.g. `::tcl::dict::create`) — use the public ensemble command instead (`dict create`).");
     W200 => "W200", diag(Warning, true, "`exec` result not captured or binary format modifier requires newer Tcl.");
     W201 => "W201", diag(Warning, true, "Manual path concatenation — use `file join` instead.");
     W210 => "W210", diag(Variable, true, "Variable read before set.");

@@ -2777,3 +2777,223 @@ mod call_by_name_dynamic_name_local {
         );
     }
 }
+
+// W143 — direct call into a private `::tcl::` implementation namespace.
+//
+// tclsh ground truth: `::tcl::dict::create a 1` runs and returns `a 1` under
+// both tclsh8.6 and tclsh9.0 (confirmed live) — the call works, so this is
+// advisory (Warning), not an error. Prefix-level only: no per-subcommand or
+// per-version modelling (issue #988).
+mod private_tcl_namespace {
+    use super::*;
+
+    #[test]
+    fn direct_call_is_flagged_with_concrete_suggestion() {
+        let ds = of_code("::tcl::dict::create a 1", D, "W143");
+        assert_eq!(ds.len(), 1);
+        assert!(
+            ds[0].0.contains("dict create"),
+            "expected the concrete 'dict create' suggestion in the message; got {:?}",
+            ds[0].0
+        );
+        // The bare (non-`::`-rooted) spelling is equally flagged.
+        assert!(fires("tcl::dict::create a 1", D, "W143"));
+    }
+
+    #[test]
+    fn quick_fix_replaces_head_with_public_ensemble_call() {
+        let ds = of_code("::tcl::string::totitle abc", D, "W143");
+        assert_eq!(ds.len(), 1);
+        assert_eq!(ds[0].2, vec!["string totitle".to_string()]);
+    }
+
+    // The fix's description must name the *whole* replacement, not just the
+    // ensemble command — "Replace with 'dict'" alongside a `dict create`
+    // edit told the user one thing and did another.
+    #[test]
+    fn quick_fix_description_matches_its_replacement_text() {
+        let src = "::tcl::dict::create a 1";
+        let ds = Analyser::new()
+            .analyse(src, D)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.to_string() == "W143")
+            .flat_map(|d| d.fixes.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(ds.len(), 1);
+        assert_eq!(ds[0].new_text, "dict create");
+        assert_eq!(ds[0].description, "Replace with 'dict create'");
+    }
+
+    #[test]
+    fn every_whole_private_namespace_fires() {
+        use tcl_registry::private_tcl_namespaces::{PRIVATE_TCL_NAMESPACES, TailRule};
+        for ns in PRIVATE_TCL_NAMESPACES
+            .iter()
+            .filter(|n| n.tail_rule == TailRule::Whole)
+        {
+            let src = format!("::tcl::{}::sub arg", ns.namespace);
+            assert!(fires(&src, D, "W143"), "expected W143 for {src:?}");
+        }
+    }
+
+    // (a) `::tcl::chan` is shared with tcllib's public `virtchannel_base`
+    // packages, so only a genuine `chan` ensemble subcommand is private
+    // there.  `tcl::chan::memchan` and friends are real, documented,
+    // registry-known commands.
+    #[test]
+    fn public_tcllib_channel_packages_not_flagged() {
+        for src in [
+            "package require tcl::chan::memchan\nset c [tcl::chan::memchan]",
+            "set c [::tcl::chan::memchan]",
+            "set c [tcl::chan::fifo]",
+            "set c [tcl::chan::cat $a $b]",
+            "set c [tcl::transform::base64 $chan]",
+        ] {
+            assert!(!fires(src, D, "W143"), "unexpected W143 for {src:?}");
+        }
+    }
+
+    // …and W120 and W143 can no longer contradict each other: the memchan
+    // repro asks for a `package require` (W120) without also claiming the
+    // command is Tcl-private (W143).
+    #[test]
+    fn missing_package_require_does_not_also_draw_w143() {
+        let src = "set c [tcl::chan::memchan]";
+        assert!(
+            fires(src, D, "W120"),
+            "expected W120; got {:?}",
+            codes(src, D)
+        );
+        assert!(!fires(src, D, "W143"));
+    }
+
+    // A genuine `chan` ensemble-backing call under the shared namespace is
+    // still flagged, with the fix.
+    #[test]
+    fn genuine_chan_ensemble_backing_still_fires() {
+        let ds = of_code("::tcl::chan::truncate $c 0", D, "W143");
+        assert_eq!(ds.len(), 1);
+        assert_eq!(ds[0].2, vec!["chan truncate".to_string()]);
+    }
+
+    // (b) A file that defines the command itself owns that name — a user's
+    // own `proc ::tcl::dict::mine` is not a call into Tcl's internals.
+    #[test]
+    fn file_defining_the_command_suppresses_the_warning() {
+        for src in [
+            "proc ::tcl::dict::mine {d} { return $d }\n::tcl::dict::mine {a 1}",
+            "namespace eval ::tcl::dict { proc mine {d} { return $d } }\n::tcl::dict::mine {a 1}",
+            "proc ::tcl::dict::mine {d} { return $d }\nproc caller {} { ::tcl::dict::mine {a 1} }",
+        ] {
+            assert!(!fires(src, D, "W143"), "unexpected W143 for {src:?}");
+        }
+    }
+
+    // …but only for the name it actually defines.
+    #[test]
+    fn defining_one_private_name_does_not_licence_another() {
+        let src = "proc ::tcl::dict::mine {d} { return $d }\n::tcl::dict::create a 1";
+        assert!(fires(src, D, "W143"));
+    }
+
+    // (c) A `package require` covering the qualified name (or any namespace
+    // prefix of it) means the name belongs to that package.
+    #[test]
+    fn package_require_in_scope_suppresses_the_warning() {
+        for src in [
+            // The package *is* the command.
+            "package require tcl::dict::mycustom\n::tcl::dict::mycustom {a 1}",
+            // …or owns the namespace the command sits in.
+            "package require tcl::dict\n::tcl::dict::mycustom {a 1}",
+            // Order-independent: the analyser's whole-file view sees the
+            // requirement wherever it sits.
+            "::tcl::dict::mycustom {a 1}\npackage require tcl::dict::mycustom",
+        ] {
+            assert!(!fires(src, D, "W143"), "unexpected W143 for {src:?}");
+        }
+    }
+
+    // (d) A tail that is not a subcommand of the public ensemble still
+    // warns, but must NOT offer a code-corrupting rewrite.
+    #[test]
+    fn non_subcommand_tail_warns_without_a_fix() {
+        for (src, needle) in [
+            ("::tcl::clock::GetSystemTimeZone", "GetSystemTimeZone"),
+            ("::tcl::dict::mycustom {a 1}", "mycustom"),
+            ("::tcl::dict::a::b {a 1}", "a::b"),
+        ] {
+            let ds = of_code(src, D, "W143");
+            assert_eq!(ds.len(), 1, "expected exactly one W143 for {src:?}");
+            assert!(
+                ds[0].2.is_empty(),
+                "{src:?} must offer no quick fix; got {:?}",
+                ds[0].2
+            );
+            assert!(
+                ds[0].0.contains(needle),
+                "message should name the tail {needle:?}; got {:?}",
+                ds[0].0
+            );
+        }
+    }
+
+    // (e) A delimited command head — `"::tcl::dict::create"` or
+    // `{::tcl::dict::create}` — still warns, but the head token's span does
+    // not cover its delimiters, so no fix is offered rather than one that
+    // leaves an orphan `"`/`}` behind.
+    #[test]
+    fn delimited_head_warns_without_a_fix() {
+        for src in ["\"::tcl::dict::create\" a 1", "{::tcl::dict::create} a 1"] {
+            let ds = of_code(src, D, "W143");
+            assert_eq!(ds.len(), 1, "expected exactly one W143 for {src:?}");
+            assert!(
+                ds[0].2.is_empty(),
+                "{src:?} must offer no quick fix; got {:?}",
+                ds[0].2
+            );
+        }
+    }
+
+    #[test]
+    fn public_ensemble_call_not_flagged() {
+        assert!(!fires("dict create a 1", D, "W143"));
+        assert!(!fires("string totitle abc", D, "W143"));
+    }
+
+    #[test]
+    fn users_own_tcl_namespace_not_flagged() {
+        assert!(!fires(
+            "namespace eval ::tcl::mycustom { proc foo {} {} }\n::tcl::mycustom::foo",
+            D,
+            "W143"
+        ));
+    }
+
+    #[test]
+    fn public_documented_tcl_rooted_namespaces_not_flagged() {
+        // `tcl::mathop`/`tcl::mathfunc` are public, documented namespaces —
+        // must never be confused with the private implementation ones.
+        // Both the `::`-rooted and the bare spellings, at the integration
+        // layer (the registry classifier pins them too).
+        for src in [
+            "::tcl::mathop::+ 1 2",
+            "tcl::mathop::+ 1 2",
+            "::tcl::mathfunc::sin 0",
+            "tcl::mathfunc::sin 0",
+            "set x [tcl::mathop::* 2 3]",
+            "set y [tcl::mathfunc::max 1 2]",
+        ] {
+            assert!(!fires(src, D, "W143"), "unexpected W143 for {src:?}");
+        }
+        // `tcl::prefix` is likewise a real, public, documented command
+        // (Tcl 8.6+) — not a private namespace.
+        assert!(!fires("tcl::prefix match {apple banana} app", D, "W143"));
+    }
+
+    #[test]
+    fn near_miss_namespace_not_flagged() {
+        // Shares the `dict` prefix textually but is not the exact segment.
+        assert!(!fires("::tcl::dictionary::foo", D, "W143"));
+    }
+}

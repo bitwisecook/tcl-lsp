@@ -4020,6 +4020,7 @@ dependencies = [
  "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-syntax",
  "thiserror 2.0.18",
 ]
 

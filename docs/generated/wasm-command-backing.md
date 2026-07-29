@@ -13,9 +13,9 @@ or an explicit *not required* classification.
 | status | count |
 | --- | --- |
 | handler | 105 |
-| handler (native) | 123 |
+| handler (native) | 177 |
 | stdlib | 11 |
-| not-required | 108 |
+| not-required | 54 |
 | known-gap (`RUST_ISSUE_007`) | 32 |
 | **UNCLASSIFIED** | 0 |
 | **total** | 379 |
@@ -111,33 +111,33 @@ or an explicit *not required* classification.
 | `::tcl::mathfunc::tanh` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
 | `::tcl::mathfunc::trunc` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
 | `::tcl::mathfunc::wide` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
-| `::tcl::mathop::!` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::!=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::%` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::&` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::*` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::**` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::+` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::-` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::/` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::<` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::<<` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::<=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::==` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::>=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::>>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::^` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::eq` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::ge` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::gt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::in` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::le` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::lt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::ne` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::ni` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::|` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::~` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `::tcl::mathop::!` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::!=` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::%` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::&` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::*` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::**` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::+` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::-` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::/` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::<` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::<<` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::<=` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::==` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::>` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::>=` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::>>` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::^` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::eq` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::ge` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::gt` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::in` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::le` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::lt` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::ne` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::ni` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::|` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathop::~` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
 | `::tcl::process` | not-required | OS subprocess management; needs host processes |
 | `::tcl::unsupported::corotype` | handler |  |
 | `::tcl::zipfs` | known-gap | ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923 |
@@ -343,33 +343,33 @@ or an explicit *not required* classification.
 | `tcl::mathfunc::trunc` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
 | `tcl::mathfunc::wide` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
 | `tcl::mathop` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::!` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::!=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::%` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::&` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::*` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::**` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::+` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::-` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::/` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::<` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::<<` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::<=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::==` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::>=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::>>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::^` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::eq` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::ge` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::gt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::in` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::le` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::lt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::ne` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::ni` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::|` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::~` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `tcl::mathop::!` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::!=` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::%` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::&` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::*` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::**` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::+` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::-` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::/` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::<` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::<<` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::<=` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::==` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::>` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::>=` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::>>` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::^` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::eq` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::ge` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::gt` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::in` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::le` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::lt` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::ne` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::ni` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::|` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathop::~` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
 | `tcl::prefix` | handler |  |
 | `tcl::process` | not-required | OS subprocess management; needs host processes |
 | `tcl::unsupported::corotype` | handler |  |

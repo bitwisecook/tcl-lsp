@@ -80,6 +80,7 @@ for historical reference.
 - [W135 — command needs newer package version](kcs-diagnostic-w135-command-needs-newer-package.md)
 - [W136 — option needs newer package version](kcs-diagnostic-w136-option-needs-newer-package.md)
 - [W140 — interpreter never created in this file](kcs-diagnostic-w140-interpreter-never-created.md)
+- [W143 — private Tcl implementation namespace](kcs-diagnostic-w143-private-tcl-namespace.md)
 - [W200 — exec result not captured](kcs-diagnostic-w200-exec-result-not-captured.md)
 - [W201 — manual path concatenation](kcs-diagnostic-w201-manual-path-concatenation.md)
 - [W230 — list index out of range](kcs-diagnostic-w230-list-index-out-of-range.md)

@@ -337,6 +337,20 @@ interp eval s { source setup.tcl }   ;# W129: 'source' is hidden in this safe in
 interp eval ghost { puts hi }        ;# W140: interpreter 'ghost' is never created in this file
 ```
 
+A direct call into one of the 11 private, undocumented `::tcl::`
+implementation namespaces that back a built-in ensemble command
+(`::tcl::dict`, `::tcl::string`, `::tcl::array`, `::tcl::file`,
+`::tcl::info`, `::tcl::clock`, `::tcl::binary`, `::tcl::namespace`,
+`::tcl::encoding`, `::tcl::zlib`, `::tcl::chan`) is flagged with a
+concrete suggestion for the public ensemble command instead — the call
+works, but the namespace is not a documented or version-stable contract.
+Tcl's own public, documented `tcl::`-rooted commands (`tcl::mathop::+`,
+`tcl::mathfunc::sin`, `tcl::prefix`) are never flagged.
+
+```tcl
+::tcl::dict::create a 1              ;# W143: use 'dict create' instead
+```
+
 Analysis is file-aware where Tcl semantics demand it: in a `pkgIndex.tcl` the
 `$dir` variable the package loader injects before the index script runs is
 treated as already defined, so reading it is not flagged read-before-set
