@@ -860,17 +860,23 @@ fn record_invocation(
 /// lookup is global-scope only: a namespace-local `proc unknown` is *not*
 /// consulted for unresolved words in that namespace — tclsh8.6/9.0 both
 /// dispatch to `::unknown` regardless of the calling namespace.
+///
+/// [`CommandRegistry::commands_with_trait`] iterates a hash map, so the
+/// candidates are sorted before the first match is taken. Exactly one
+/// command carries the trait today (pinned by
+/// `only_one_command_carries_the_unresolved_handler_trait`), but an
+/// order-dependent answer would be a silent source of build-to-build drift
+/// the day a dialect adds a second carrier.
 fn unresolved_command_handler<'a, S: std::hash::BuildHasher>(
     registry: &CommandRegistry,
     known: &'a HashSet<String, S>,
 ) -> Option<&'a str> {
-    registry
-        .commands_with_trait(Traits::UNRESOLVED_COMMAND_HANDLER)
-        .into_iter()
-        .find_map(|name| {
-            let qualified = crate::naming::qualify("::", name);
-            known.get(&qualified).map(String::as_str)
-        })
+    let mut candidates = registry.commands_with_trait(Traits::UNRESOLVED_COMMAND_HANDLER);
+    candidates.sort_unstable();
+    candidates.into_iter().find_map(|name| {
+        let qualified = crate::naming::qualify("::", name);
+        known.get(&qualified).map(String::as_str)
+    })
 }
 
 /// Record the unresolved-command handler's own invocation for a literal
@@ -879,14 +885,25 @@ fn unresolved_command_handler<'a, S: std::hash::BuildHasher>(
 /// Only fires when the module defines a handler, and only for a word the
 /// registry does not know either — everything else either resolves or is a
 /// builtin. The word becomes the handler's first argument and the call's
-/// own arguments follow, exactly as Tcl passes them, so the evidence union
-/// is the precise set of values the handler's parameters really see.
+/// own arguments follow, exactly as Tcl passes them.
 ///
-/// Deliberately over-inclusive on the residue: a word bound by something
-/// this scan does not model (a class command, an ensemble, a coroutine)
-/// also reads as unresolved and contributes an extra value. That can only
-/// *retract* a fold, never manufacture one, and it costs nothing in a
-/// module with no handler.
+/// **This is additional evidence, never a complete caller set.** The
+/// handler is poisoned unconditionally in [`scan_cfg_callers`] the moment
+/// the module defines one, so nothing recorded here can seed a fold. It can
+/// only widen an already-unfoldable value set, which is what makes the two
+/// known imprecisions harmless:
+///
+/// * *Over-inclusive.* A word bound by something this scan does not model —
+///   a `TclOO` class command, an ensemble, a coroutine — also reads as
+///   unresolved and contributes a value real Tcl never passes the handler.
+/// * *Under-inclusive.* Most of the handler's real callers are words that
+///   exist nowhere in the source at all, so no scan can name them.
+///
+/// An earlier revision claimed the residue "can only retract a fold, never
+/// manufacture one". That was false while these dispatches were the
+/// handler's *only* recorded call sites: with no other evidence, a
+/// coincidentally-uniform set of invented words *was* a fold. The
+/// unconditional poison is what makes the claim true.
 fn record_unresolved_word_dispatch(
     out: &mut CallSiteEvidence,
     ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
@@ -1358,6 +1375,22 @@ fn scan_cfg_callers<'a>(
     ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
     funcs: impl Iterator<Item = (&'a str, &'a CfgFunction)>,
 ) {
+    // The unresolved-command handler's caller set is *never* enumerable, so
+    // it is poisoned before a single statement is read (issue #1044, and the
+    // adversarial review that followed).
+    //
+    // Tcl routes to it every command word that resolves to nothing at the
+    // moment of the call — a name typed at a prompt, a name a package
+    // autoloads, a name another file introduces, a name produced by string
+    // arithmetic. `record_unresolved_word_dispatch` can name *some* of those
+    // words, but naming some of a set is not enumerating it: treating those
+    // as the complete caller set let a coincidentally-uniform handful seed
+    // the handler's parameters and fold its body against values real Tcl
+    // never passes. The concrete dispatches stay, purely as extra retracting
+    // evidence.
+    if let Some(handler) = ctx.unresolved_handler {
+        out.record_opaque_caller(handler);
+    }
     for (resolve_as, func) in funcs {
         // The CFG function's own name is the *variable-scope* identity, which
         // differs from `resolve_as` for a `TclOO` method (global command
@@ -2148,17 +2181,79 @@ mod tests {
     }
 
     #[test]
-    fn a_handler_with_agreeing_callers_and_no_unresolved_words_still_seeds_1044() {
-        // TN: the gate must not blanket-disable seeding for any module that
-        // happens to define a handler — with every caller agreeing and no
-        // unresolved word anywhere, the seed still stands.
+    fn a_handler_never_seeds_even_when_every_visible_caller_agrees_1044() {
+        // The handler's caller set is unenumerable *by construction*, so
+        // agreement among the callers a scan can see proves nothing.
+        //
+        // This test previously asserted the opposite — that with no
+        // unresolved word in the file "the direct callers really are all of
+        // them" — and that premise is false. Real Tcl routes to the handler
+        // every word that resolves to nothing at the instant of the call:
+        // an auto-loaded name, a name another sourced file introduces, a
+        // name built by string arithmetic, a name typed at a prompt. None of
+        // those appear in the source for any scan to find.
+        //
+        // Oracle (tclsh8.6, `review-probes-sound/`): the seeded words are
+        // wrong in *both* directions. `Dog new` after `oo::class create Dog`
+        // and `worker` after `coroutine worker body` are recorded as
+        // dispatches, yet neither ever reaches the handler. And a `bogus
+        // beta` written *before* `proc unknown` is handled by the builtin
+        // `::unknown` — it errors — so it is not a call site of this
+        // handler either.
         let ev = evidence(
             "proc unknown {cmd args} { return $cmd }\nunknown alpha\nunknown alpha\nputs hi\n",
         );
         assert_eq!(
-            uniform(&ev, "::unknown", 0).as_deref(),
-            Some("alpha"),
-            "no unresolved word exists, so the direct callers really are all of them",
+            uniform(&ev, "::unknown", 0),
+            None,
+            "defining the handler is itself the unenumerable caller: {ev:?}",
+        );
+    }
+
+    #[test]
+    fn a_class_command_never_seeds_the_handler_1044() {
+        // Oracle (tclsh8.6): `oo::class create Dog` binds `Dog`, so `Dog
+        // new` dispatches to the class command and the handler is never
+        // called. The scan cannot resolve `Dog` and records it as an
+        // unresolved-word dispatch anyway; the unconditional poison is what
+        // stops that invented evidence becoming a fold.
+        let ev = evidence(
+            "proc unknown {cmd args} { if {$cmd eq \"Dog\"} { return 1 } else { return 2 } }\noo::class create Dog {\n    method bark {} { return woof }\n}\nDog new\n",
+        );
+        assert_eq!(
+            uniform(&ev, "::unknown", 0),
+            None,
+            "a class command is not a handler call site: {ev:?}",
+        );
+    }
+
+    #[test]
+    fn a_coroutine_command_never_seeds_the_handler_1044() {
+        // Oracle (tclsh8.6): `coroutine worker body` binds `worker`, so
+        // calling it resumes the coroutine and the handler is never called.
+        let ev = evidence(
+            "proc unknown {cmd args} { if {$cmd eq \"worker\"} { return 1 } else { return 2 } }\nproc body {} { yield ; return done }\ncoroutine worker body\nworker\n",
+        );
+        assert_eq!(
+            uniform(&ev, "::unknown", 0),
+            None,
+            "a coroutine command is not a handler call site: {ev:?}",
+        );
+    }
+
+    #[test]
+    fn a_word_written_before_the_handler_never_seeds_it_1044() {
+        // Oracle (tclsh8.6): `bogus beta` on line 1, with `proc unknown`
+        // defined only afterwards, is handled by the *builtin* `::unknown`
+        // and errors with `invalid command name "bogus"`. The scan is
+        // definition-order-insensitive, so it records the dispatch anyway.
+        let ev = evidence(
+            "bogus beta\nproc unknown {cmd args} { if {$cmd eq \"bogus\"} { return 1 } else { return 2 } }\n",
+        );
+        assert_eq!(
+            uniform(&ev, "::unknown", 0),
+            None,
+            "an order-insensitive scan may not seed an order-sensitive dispatch: {ev:?}",
         );
     }
 
@@ -2188,6 +2283,49 @@ mod tests {
             uniform(&ev, "::unknown", 0),
             None,
             "an unreadable dispatch may name anything, handler included: {ev:?}",
+        );
+    }
+
+    #[test]
+    fn a_cross_file_dispatch_never_seeds_another_files_handler_1044() {
+        // The cross-file scan resolves against the *project's* names, so a
+        // file that defines no handler still attributes its unresolved words
+        // to one another file defines. That path needs the same poison, or
+        // the miscompile simply moves across the file boundary.
+        //
+        // Shape: `h.tcl` holds `proc unknown`, `c.tcl` holds
+        // `oo::class create Dog` + `Dog new`. The `Dog` dispatch is invented
+        // (tclsh8.6: the class command answers, the handler is never called),
+        // and it would be the handler's only recorded call site.
+        let reg = registry();
+        let evidence = scan_source_call_sites(
+            "oo::class create Dog { method bark {} { return woof } }\nDog new\n",
+            &reg,
+            "",
+            &known(&["::unknown"]),
+            &[],
+        );
+        assert_eq!(
+            evidence
+                .get("::unknown")
+                .and_then(|e| e.uniform_literal_at(0)),
+            None,
+            "a sibling file's dispatch may not seed the project's handler: {evidence:?}",
+        );
+    }
+
+    #[test]
+    fn only_one_command_carries_the_unresolved_handler_trait() {
+        // `unresolved_command_handler` takes the first match from a hash-map
+        // walk, so more than one carrier would make the answer depend on
+        // iteration order. Sorting makes it deterministic; this pins the
+        // stronger property that there is nothing to choose between.
+        let reg = registry();
+        let carriers = reg.commands_with_trait(Traits::UNRESOLVED_COMMAND_HANDLER);
+        assert_eq!(
+            carriers.len(),
+            1,
+            "a second carrier needs a resolution rule, not an arbitrary pick: {carriers:?}",
         );
     }
 
