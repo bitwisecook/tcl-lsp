@@ -128,12 +128,21 @@ pub(super) fn is_braced_word(tok: &tcl_lexer::Token) -> bool {
 /// True when `text` carries a substitution (`$` / `[`) or `tok` is a
 /// `Var` / `Cmd` token.
 pub(in crate::analyser) fn has_substitution(text: &str, tok: &tcl_lexer::Token) -> bool {
+    has_substitution_of_kind(text, tok.kind)
+}
+
+/// [`has_substitution`] for a consumer that holds the word's token *kind*
+/// without the token itself — the IR's `CommandTokens` records `argv_kinds`
+/// alongside `argv_texts`, with no `Token` to hand.  The one predicate both
+/// spellings share, so a change to what counts as a substitution reaches
+/// every static-word check at once.
+pub(in crate::analyser) fn has_substitution_of_kind(
+    text: &str,
+    kind: tcl_lexer::TokenType,
+) -> bool {
     text.contains('$')
         || text.contains('[')
-        || matches!(
-            tok.kind,
-            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
-        )
+        || matches!(kind, tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd)
 }
 
 /// An identifier-continuation byte: ASCII alphanumeric, `_`, or `:` (the
@@ -392,6 +401,13 @@ pub(super) struct UndefSuppression {
     /// `$tmp` read in the same expression looks read-before-set.  Name-level,
     /// suppress-only.
     cmd_sub_writes: FxHashSet<String>,
+    /// Names written by a `Traits::SCRIPT_CONCATENATES_ARGS` call whose
+    /// script the lowering left as an opaque barrier — `eval set l2 hello`
+    /// really does set `l2` in the caller's own frame, but its words reach
+    /// the IR as barrier arguments with no def attached, so a later
+    /// `puts $l2` looked read-before-set (issue #1051).  Name-level,
+    /// suppress-only.
+    script_concat_writes: FxHashSet<String>,
     /// `(name, version)` pairs killed by an `unset` — undef at their reads,
     /// so a direct read of one is read-before-set just like a version-0
     /// origin.
@@ -455,6 +471,7 @@ impl UndefSuppression {
         if self.alias_tails.contains(name)
             || self.dict_vars.contains(name)
             || self.cmd_sub_writes.contains(name)
+            || self.script_concat_writes.contains(name)
         {
             return true;
         }
@@ -494,6 +511,103 @@ fn collect_expr_cmd_sub_writes(
         }
     }
     out
+}
+
+/// Names written by a [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`]
+/// command whose trailing words are all static literals.
+///
+/// The lowering only inlines the single-word `eval {script}` shape; a
+/// multi-word `eval set l2 hello` stays a `Statement::Barrier`, so SSA sees
+/// no definition of `l2` and a later `puts $l2` reads a version-0 origin.
+/// Reconstructing the `Tcl_ConcatObj` join here recovers the write without
+/// claiming anything the barrier does not already guarantee — name-level and
+/// suppress-only, exactly like [`collect_expr_cmd_sub_writes`].
+///
+/// Gated on [`tcl_registry::BodyKind::Plain`], which is the registry's own
+/// record of *whose frame the body runs in*.  `eval` is `Plain` — its script
+/// runs in the caller's own frame, so its writes are this function's writes.
+/// `uplevel`, `namespace eval`, `namespace inscope`, and `interp eval` are
+/// all `Structural`: their scripts write somewhere else entirely, and
+/// tclsh8.6.14/9.0.4 confirm the difference —
+/// `proc p {} {uplevel 1 set x 5; puts $x}` errors `can't read "x"` because
+/// the `set` landed in the *caller's* frame. Suppressing on those would hide
+/// a real read-before-set.
+fn collect_script_concat_writes(
+    fu: &crate::compilation_unit::FunctionUnit,
+    considered: &HashSet<BlockId>,
+) -> FxHashSet<String> {
+    use crate::ir::Statement;
+    let registry = tcl_registry::cache::registry_for_dialect("tcl8.6");
+    let mut out = FxHashSet::default();
+    for &bn in considered {
+        let Some(block) = fu.cfg.blocks.get(&bn) else {
+            continue;
+        };
+        for stmt in &block.statements {
+            let Statement::Barrier {
+                command,
+                args,
+                tokens: Some(tokens),
+                ..
+            } = stmt
+            else {
+                continue;
+            };
+            let Some(spec) = registry.get(command) else {
+                continue;
+            };
+            if !spec
+                .traits
+                .contains(tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS)
+                || spec.body_kind != tcl_registry::BodyKind::Plain
+            {
+                continue;
+            }
+            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+            let Some(&first) = registry
+                .arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::Body)
+                .first()
+            else {
+                continue;
+            };
+            // `argv_texts` / `argv_kinds` include the command word at index 0;
+            // `args` does not, so the body index shifts by one.
+            let Some(script) = concat_barrier_words(tokens, first + 1) else {
+                continue;
+            };
+            let mut writes = Vec::new();
+            crate::ir_helpers::script_text_out_vars(&script, &mut writes);
+            out.extend(writes);
+        }
+    }
+    out
+}
+
+/// The `Tcl_ConcatObj` join of a barrier call's words from `first` onwards,
+/// or `None` when any of them carries a substitution (the real script is then
+/// unknowable — see `crate::analyser::utils::concat_script_words`, which
+/// applies the same rule to the analyser's own token slices).
+fn concat_barrier_words(tokens: &crate::ir::CommandTokens, first: usize) -> Option<String> {
+    let texts = tokens.argv_texts.get(first..)?;
+    let kinds = tokens.argv_kinds.get(first..)?;
+    if texts.len() < 2 || texts.len() != kinds.len() {
+        return None;
+    }
+    let mut joined = String::new();
+    for (text, &kind) in texts.iter().zip(kinds) {
+        if has_substitution_of_kind(text, kind) {
+            return None;
+        }
+        let trimmed = text.trim_matches(|c: char| c.is_ascii_whitespace());
+        if trimmed.is_empty() {
+            continue;
+        }
+        if !joined.is_empty() {
+            joined.push(' ');
+        }
+        joined.push_str(trimmed);
+    }
+    Some(joined)
 }
 
 /// `dict with` / `dict update` key-aware suppression: record the dict-var
@@ -645,6 +759,7 @@ pub(super) fn build_undef_suppression(
     );
     let mut s = UndefSuppression {
         cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered),
+        script_concat_writes: collect_script_concat_writes(fu, considered),
         killed,
         can_undef,
         loop_entry_only_undef,

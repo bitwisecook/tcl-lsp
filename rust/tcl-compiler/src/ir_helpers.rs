@@ -413,6 +413,22 @@ fn catch_body_out_vars(body_word: &str, out: &mut Vec<String>) {
         .strip_prefix('{')
         .and_then(|s| s.strip_suffix('}'))
         .unwrap_or(body_word);
+    script_text_out_vars(body, out);
+}
+
+/// Out-vars assigned by a run of **script text** — direct
+/// `set`/`append`/`lappend`/`incr` targets plus nested command-substitution
+/// writers (`gets`/`scan`/`regexp`/`catch`).
+///
+/// Shared by [`catch_body_out_vars`] (a `catch` body word, braces already
+/// stripped) and the analyser's read-before-set suppression for a
+/// [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`] call whose words the
+/// lowering left as an opaque barrier (`eval set l2 hello` — issue #1051).
+/// Both need the same answer from the same text, so they ask once here.
+///
+/// Suppress-only: over-collection is safe (it only avoids false warnings),
+/// under-collection merely leaves the status quo.
+pub(crate) fn script_text_out_vars(body: &str, out: &mut Vec<String>) {
     // First-arg-writer membership is the registry's
     // `writes_first_arg_variable` query (cached default registry — the set
     // is core Tcl in every dialect); over-collection stays safe per the

@@ -1441,47 +1441,37 @@ impl Analyser {
             &body_args,
             tcl_registry::arg_role::ArgRole::Body,
         );
-        // Fallback for an *imported* command called by its unqualified name:
-        // `namespace import ::tcltest::*` followed by `test name desc { body }`
-        // calls the registry's `tcltest::test`, whose body roles only resolve
-        // under the qualified name. Re-query through each recorded import so the
-        // body walk reaches inside the imported command's body. Conservative:
-        // only when the bare name owns no body itself,
-        // and only against a namespace explicitly imported in this document.
         // The registry command name that actually owns the body role — usually
         // `cmd_name`, but the qualified target when an import fallback resolved
         // it.  Used to read the scoped-body environment from the same spec.
         let mut body_cmd_owned: Option<String> = None;
-        if body_indices.is_empty() && !cmd_name.contains("::") {
-            for imp in &self.result.namespace_imports {
-                // An import is only in effect where it was made: in its own
-                // namespace, or — for an import at global scope — everywhere, via
-                // Tcl's unqualified-name fallback to `::`. An import inside
-                // `namespace eval ns { … }` must NOT resolve a bare call made in a
-                // sibling or parent namespace.
-                if imp.ns != cur_ns && imp.ns != "::" {
-                    continue;
-                }
-                let candidate = if let Some(prefix) = imp.pattern.strip_suffix('*') {
-                    format!("{prefix}{cmd_name}")
-                } else if imp.pattern.rsplit("::").next() == Some(cmd_name) {
-                    imp.pattern.clone()
-                } else {
-                    continue;
-                };
-                let idxs = registry.arg_indices_for_role(
-                    &candidate,
-                    &body_args,
-                    tcl_registry::arg_role::ArgRole::Body,
-                );
-                if !idxs.is_empty() {
-                    body_indices = idxs;
-                    body_cmd_owned = Some(candidate);
-                    break;
-                }
-            }
+        if body_indices.is_empty()
+            && let Some((idxs, candidate)) =
+                self.imported_body_indices(cmd_name, &body_args, &cur_ns)
+        {
+            body_indices = idxs;
+            body_cmd_owned = Some(candidate);
         }
         if body_indices.is_empty() {
+            return;
+        }
+        // The `Tcl_ConcatObj` eval family: when the spec carries
+        // `SCRIPT_CONCATENATES_ARGS` and words follow the first body index,
+        // the script is the *concatenation* of every trailing word, not the
+        // first one on its own.  Walking only the first would analyse
+        // `eval set l2 hello` as the one-word script `set` — a false E002
+        // plus a lost write to `l2` that then draws a false W210 (#1051).
+        if body_indices.first().is_some_and(|&first| {
+            first + 1 < args.len()
+                && registry.get(cmd_name).is_some_and(|s| {
+                    s.traits
+                        .contains(tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS)
+                })
+        }) {
+            let first = body_indices[0];
+            self.dispatch_concatenated_script(
+                cmd_name, args, arg_tokens, arg_single, first, scope_path,
+            );
             return;
         }
         // Scoped command environment for this command's body args, if any — the
@@ -1558,6 +1548,119 @@ impl Analyser {
         }
     }
 
+    /// Body-role indices for an *imported* command called by its unqualified
+    /// name, plus the qualified registry name that owns them.
+    ///
+    /// `namespace import ::tcltest::*` followed by `test name desc { body }`
+    /// calls the registry's `tcltest::test`, whose body roles only resolve
+    /// under the qualified name. Re-queries through each recorded import so
+    /// the body walk reaches inside the imported command's body.
+    ///
+    /// Conservative on both axes: the caller only asks when the bare name owns
+    /// no body itself, and an import is only in effect where it was made — in
+    /// its own namespace, or, for an import at global scope, everywhere via
+    /// Tcl's unqualified-name fallback to `::`. An import inside
+    /// `namespace eval ns { … }` must not resolve a bare call made in a
+    /// sibling or parent namespace.
+    fn imported_body_indices(
+        &self,
+        cmd_name: &str,
+        body_args: &[&str],
+        cur_ns: &str,
+    ) -> Option<(Vec<usize>, String)> {
+        let registry = self.registry?;
+        if cmd_name.contains("::") {
+            return None;
+        }
+        for imp in &self.result.namespace_imports {
+            if imp.ns != cur_ns && imp.ns != "::" {
+                continue;
+            }
+            let candidate = if let Some(prefix) = imp.pattern.strip_suffix('*') {
+                format!("{prefix}{cmd_name}")
+            } else if imp.pattern.rsplit("::").next() == Some(cmd_name) {
+                imp.pattern.clone()
+            } else {
+                continue;
+            };
+            let idxs = registry.arg_indices_for_role(
+                &candidate,
+                body_args,
+                tcl_registry::arg_role::ArgRole::Body,
+            );
+            if !idxs.is_empty() {
+                return Some((idxs, candidate));
+            }
+        }
+        None
+    }
+
+    /// Analyse the script a [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`]
+    /// command actually evaluates: the `Tcl_ConcatObj` join of every word from
+    /// `first` (its first `ArgRole::Body` index) to the end of the call.
+    ///
+    /// Two outcomes, both sound:
+    ///
+    /// - **Every trailing word is a static literal** — join them per
+    ///   [`super::utils::concat_script_words`] and walk the result as one
+    ///   script, anchored across the whole word range so its diagnostics land
+    ///   inside the call rather than on the first word alone. `eval set l2
+    ///   hello` is analysed as `set l2 hello`, so `l2` is recorded as written
+    ///   and no arity error is invented.
+    /// - **Any word is dynamic** — consume the command without walking, the
+    ///   same answer `handle_interp_eval_command` gives a multi-word
+    ///   `interp eval`: substitution happens before concatenation, so the real
+    ///   script is unknowable and every definedness or arity fact derived from
+    ///   the written words would be a guess.
+    ///
+    /// The join can only ever be shorter than the source region it stands for
+    /// (word delimiters and inter-word whitespace collapse), so a mapped
+    /// offset always lands within the call. The length check below keeps that
+    /// an enforced invariant rather than an assumption.
+    fn dispatch_concatenated_script(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        first: usize,
+        scope_path: &[usize],
+    ) {
+        let (Some(words), Some(tokens)) = (args.get(first..), arg_tokens.get(first..)) else {
+            return;
+        };
+        let (Some(first_tok), Some(last_tok)) = (tokens.first(), tokens.last()) else {
+            return;
+        };
+        // W105 still belongs to the written first word (`eval set …` is an
+        // unbraced body however the tail concatenates), so fire it before the
+        // shape decision — with that word's own single-token flag, so a bare
+        // `eval $cmd arg` stays exempt exactly as `eval $cmd` is.
+        self.emit_w105_unbraced_body(
+            cmd_name,
+            &words[0],
+            *first_tok,
+            arg_single.get(first).copied().unwrap_or(false),
+        );
+        let Some(script) = super::utils::concat_script_words(words, tokens) else {
+            // Declining the walk must not lose the *reference* a `$cmd` script
+            // word carries — `uplevel #0 $cmd [list x y]` still dispatches
+            // whatever `$cmd` holds.
+            self.record_var_body_const_dispatch(*first_tok, scope_path);
+            return;
+        };
+        let start = first_tok.span.start() + u32::from(first_tok.content_offset);
+        let end = last_tok.span.end();
+        if script.is_empty() || u32::try_from(script.len()).is_ok_and(|len| start + len > end) {
+            return;
+        }
+        // `analyse_body` walks only a `Str` (braced) body and anchors at
+        // `span.start() + content_offset`, so the synthetic token carries the
+        // joined script's own base offset with no delimiter to skip.
+        let anchor = Token::new(TokenType::Str, tcl_lexer::Span::new(start, end));
+        self.analyse_body(&script, anchor, scope_path);
+    }
+
     /// Analyse a single body-role argument: fires `W105`, walks the script
     /// (through a scoped command environment when `body_scope` names one),
     /// and — for a bareword (unbraced) body — also dispatches it as a
@@ -1602,37 +1705,7 @@ impl Analyser {
                 scope_path,
             );
         }
-        // A bare `$var` body (`eval $cmd`, `uplevel #0 $cmd …`) dynamically
-        // evaluates $var's value as a script at runtime — its first word is
-        // the command actually dispatched, exactly the same "value is a
-        // command prefix" shape `{*}$cmd` already gets via `head_expanded`
-        // (issue #923 idx 94). `analyse_body` above only ever recurses a
-        // literal `Str` body, so this site was previously invisible to
-        // `command_invocations` entirely (missed by references/rename,
-        // unlike hover/go-to-definition's independent cursor-token walk) —
-        // record it the same way `record_var_or_cmd_command_site` records a
-        // command's own `$cmd`-headed dispatch, for `settle_const_dispatches`
-        // to resolve in the CFG/SSA phase. Guarded to a "pure" reference
-        // (`var_name == raw`) so a composite word like `${cmd}Suffix` (a
-        // literal-concatenated value, not $cmd's own value) is left alone.
-        if body_tok.kind == TokenType::Var {
-            let sm = tcl_lexer::SourceMap::new(&self.source);
-            let raw = sm.token_text(body_tok);
-            let var_name = raw
-                .split_once('}')
-                .map_or(raw, |(name, _)| name)
-                .to_string();
-            if var_name == raw {
-                let ns = self.command_resolution_namespace(scope_path);
-                self.pending_const_dispatches
-                    .push(super::state::ConstDispatchSite {
-                        var_name,
-                        span: body_tok.span,
-                        ns,
-                        head_expanded: true,
-                    });
-            }
-        }
+        self.record_var_body_const_dispatch(body_tok, scope_path);
         // When the body runs in a scoped command environment, record its
         // region (so the post-walk W123 pass and the LSP providers can
         // resolve the scoped heads by position) and push the environment
@@ -1651,6 +1724,50 @@ impl Analyser {
         } else {
             self.analyse_body(body_text, body_tok, scope_path);
         }
+    }
+
+    /// Record a bare `$var` script word (`eval $cmd`, `uplevel #0 $cmd …`) as
+    /// a pending const-dispatch site: the variable's value is the command
+    /// prefix actually dispatched, exactly the "value is a command prefix"
+    /// shape `{*}$cmd` gets via `head_expanded` (issue #923 idx 94).
+    ///
+    /// `analyse_body` only ever recurses a literal `Str` body, so without
+    /// this the site is invisible to `command_invocations` — found by
+    /// hover/definition (which resolve independently off the cursor token)
+    /// but missed by references/rename. Recorded the same way
+    /// `record_var_or_cmd_command_site` records a command's own `$cmd`-headed
+    /// dispatch, for `settle_const_dispatches` to resolve in the CFG/SSA
+    /// phase.
+    ///
+    /// Shared by the ordinary body walk and the
+    /// [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`] decline path: a
+    /// multi-word `uplevel #0 $cmd [list x y]` yields no analysable script,
+    /// but `$cmd` is still a real dispatch whose reference must be recorded.
+    ///
+    /// Guarded to a "pure" reference (`var_name == raw`) so a composite word
+    /// like `${cmd}Suffix` — a literal-concatenated value, not `$cmd`'s own —
+    /// is left alone.
+    fn record_var_body_const_dispatch(&mut self, body_tok: Token, scope_path: &[usize]) {
+        if body_tok.kind != TokenType::Var {
+            return;
+        }
+        let sm = tcl_lexer::SourceMap::new(&self.source);
+        let raw = sm.token_text(body_tok);
+        let var_name = raw
+            .split_once('}')
+            .map_or(raw, |(name, _)| name)
+            .to_string();
+        if var_name != raw {
+            return;
+        }
+        let ns = self.command_resolution_namespace(scope_path);
+        self.pending_const_dispatches
+            .push(super::state::ConstDispatchSite {
+                var_name,
+                span: body_tok.span,
+                ns,
+                head_expanded: true,
+            });
     }
 
     /// Record each [`tcl_registry::arg_role::ArgRole::CommandPrefix`] callback

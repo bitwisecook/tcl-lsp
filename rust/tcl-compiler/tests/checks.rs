@@ -2997,3 +2997,150 @@ mod private_tcl_namespace {
         assert!(!fires("::tcl::dictionary::foo", D, "W143"));
     }
 }
+
+// ===========================================================================
+// The `Tcl_ConcatObj` eval family — issue #1051.
+//
+// `eval`, `uplevel`, `namespace eval`, `namespace inscope`, and `interp eval`
+// evaluate the *concatenation* of every trailing script word, so analysing
+// only the first word invents diagnostics about a script that never runs.
+//
+// Every expectation here was pinned against tclsh8.6.14 and tclsh9.0.4 (both
+// agree on every shape); the transcript is quoted per test where the answer
+// is not obvious.
+// ===========================================================================
+mod script_concatenation {
+    use super::*;
+
+    /// FP — `eval set l2 hello` really runs `set l2 hello`, so neither the
+    /// wrong-#-args error nor the read-before-set warning is real.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: `eval set l2 hello; puts $l2` → `hello`.
+    #[test]
+    fn eval_fp_multiword_script_is_analysed_as_the_concatenation_1051() {
+        let src = "eval set l2 hello\nputs $l2\n";
+        assert!(!fires(src, D, "E002"), "{:?}", codes(src, D));
+        assert!(!fires(src, D, "W210"), "{:?}", codes(src, D));
+    }
+
+    /// FP — a braced word contributes its *contents* to the join, so
+    /// `eval {set l2} hello` is the same script as `eval set l2 hello`.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: `concat {set x} {5}` → `set x 5`; the outer
+    /// braces are gone by the time `Tcl_ConcatObj` sees the word.
+    #[test]
+    fn eval_fp_braced_word_contributes_its_contents_to_the_join_1051() {
+        let src = "eval {set l2} hello\nputs $l2\n";
+        assert!(!fires(src, D, "E002"), "{:?}", codes(src, D));
+        assert!(!fires(src, D, "W210"), "{:?}", codes(src, D));
+    }
+
+    /// TP — a genuinely short script still draws the arity error.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: `eval {set}` →
+    /// `wrong # args: should be "set varName ?newValue?"`.
+    #[test]
+    fn eval_tp_short_script_still_draws_e002_1051() {
+        assert!(fires("eval {set}\n", D, "E002"));
+        assert!(fires("eval set\n", D, "E002"));
+    }
+
+    /// TN — a dynamic word makes the real script unknowable (substitution
+    /// runs before concatenation), so the call is consumed without walking:
+    /// no arity or definedness claim. W101 still fires — the injection risk
+    /// is exactly what makes the script unknowable.
+    #[test]
+    fn eval_tn_dynamic_word_declines_without_claiming_anything_1051() {
+        let src = "eval $cmd arg\n";
+        assert!(!fires(src, D, "E002"), "{:?}", codes(src, D));
+        assert!(!fires(src, D, "E003"), "{:?}", codes(src, D));
+        assert!(fires(src, D, "W101"), "{:?}", codes(src, D));
+    }
+
+    /// TP — W101 keeps firing on the plain injection shape. Its gate now
+    /// reads `SCRIPT_CONCATENATES_ARGS + TAINT_SINK` rather than inferring
+    /// the concat shape from how `eval`'s arg roles happen to be spelled.
+    #[test]
+    fn eval_tp_w101_still_fires_on_a_user_input_script_1051() {
+        assert!(fires("eval $userinput\n", D, "W101"));
+        // `uplevel` stays W301's — the script runs in another frame, which is
+        // a frame-escalation finding with its own message, not a second W101.
+        assert!(!fires("uplevel 1 \"set x $y\"\n", D, "W101"));
+    }
+
+    /// FP — `uplevel` concatenates its post-level words the same way.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: `proc p {} {uplevel 1 set x 5}; p; puts $x`
+    /// → `5`. Written inside a proc because `uplevel 1` at top level errors
+    /// `bad level "1"` — there is no caller frame to reach.
+    #[test]
+    fn uplevel_fp_multiword_script_draws_no_arity_error_1051() {
+        let src = "proc p {} {\n    uplevel 1 set x 5\n}\np\nputs $x\n";
+        assert!(!fires(src, D, "E002"), "{:?}", codes(src, D));
+    }
+
+    /// TN — `uplevel`'s script runs in the **caller's** frame, so a write it
+    /// performs must not silence a read-before-set of the proc's own local.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: `proc p {} {uplevel 1 set x 5; puts $x}; p`
+    /// → `can't read "x": no such variable`.
+    #[test]
+    fn uplevel_tn_shifted_frame_write_does_not_define_a_local_1051() {
+        let src = "proc p {} {\n    uplevel 1 set x 5\n    puts $x\n}\np\n";
+        assert!(fires(src, D, "W210"), "{:?}", codes(src, D));
+    }
+
+    /// FP — `namespace eval` concatenates too, and used to drop everything
+    /// past the first script word.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4:
+    /// `namespace eval ::n set l2 hello; puts $::n::l2` → `hello`.
+    #[test]
+    fn namespace_eval_fp_multiword_script_is_walked_as_one_1051() {
+        let src = "namespace eval ::n set l2 hello\n";
+        assert!(codes(src, D).is_empty(), "{:?}", codes(src, D));
+        // …and the joined script is really walked: an over-long one still
+        // reports. tclsh8.6.14 / tclsh9.0.4: `namespace eval ::n set a b c` →
+        // `wrong # args: should be "set varName ?newValue?"`.
+        assert!(fires("namespace eval ::n set a b c\n", D, "E003"));
+    }
+
+    /// FP — `namespace inscope`'s tail is appended as *list elements*, not
+    /// space-joined, so the trailing words are arguments to the script's
+    /// command. Analysing `{handler}` alone claimed a zero-argument call.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: the repro prints `ready`; and
+    /// `namespace inscope :: {puts} {a b}` prints `a b` (one argument) where
+    /// `namespace eval :: {puts} {a b}` errors
+    /// `can not find channel named "a"`.
+    #[test]
+    fn namespace_inscope_fp_list_appended_tail_draws_nothing_1051() {
+        let src = "namespace eval ::app { proc handler {tag} { puts $tag } }\n\
+                   namespace inscope ::app {handler} ready\n";
+        assert!(codes(src, D).is_empty(), "{:?}", codes(src, D));
+    }
+
+    /// TN — `interp eval`'s existing consume-without-walk behaviour is
+    /// unchanged: the script runs in a child interpreter, so nothing it
+    /// defines may leak into this one.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4:
+    /// `interp create i; interp eval i {set y} 7; interp eval i {set y}` → `7`.
+    #[test]
+    fn interp_eval_tn_multiword_stays_isolated_1051() {
+        let src = "interp create i\ninterp eval i {set y} 7\n";
+        assert!(!fires(src, D, "E002"), "{:?}", codes(src, D));
+        assert!(!fires(src, D, "W210"), "{:?}", codes(src, D));
+    }
+
+    /// TN — `catch` is not in the family: its remaining words are result and
+    /// options variable names, so nothing is joined into the script.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: `catch {set z} m; puts $m` →
+    /// `can't read "z": no such variable` — `m` is a variable name, not
+    /// script text.
+    #[test]
+    fn catch_tn_is_not_in_the_concat_family_1051() {
+        assert!(fires("catch {set} m\n", D, "E002"));
+    }
+}

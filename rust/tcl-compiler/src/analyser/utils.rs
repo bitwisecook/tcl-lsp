@@ -823,6 +823,136 @@ pub fn irules_top_level_only(registry: &CommandRegistry) -> HashSet<String> {
         .collect()
 }
 
+/// Join the trailing words of a [`Traits::SCRIPT_CONCATENATES_ARGS`] call
+/// into the script Tcl will actually evaluate, or `None` when the join is
+/// not statically knowable.
+///
+/// `Tcl_ConcatObj` (`generic/tclUtil.c`) is the one rule the whole eval
+/// family shares: take each word's **string representation**, trim ASCII
+/// whitespace from both ends of it, drop the ones that end up empty, and
+/// join the rest with a single space. A braced word contributes its
+/// *contents* — Tcl's word parsing has already removed the outer braces
+/// before `Tcl_ConcatObj` ever sees the value — so braced and bare words
+/// concatenate identically and a command may span word boundaries.
+///
+/// Pinned against tclsh8.6.14 and tclsh9.0.4:
+///
+/// ```text
+/// concat {set x} {5}       → set x 5        (braces gone, single space)
+/// concat "  a  " "  b  "   → a b            (each word trimmed)
+/// concat a {} b            → a b            (empty word dropped)
+/// eval set l2 hello        ≡ set l2 hello
+/// eval {set l2} hello      ≡ set l2 hello
+/// eval {set l2 hello}      ≡ set l2 hello
+/// ```
+///
+/// Returns `None` as soon as any word carries a substitution, because
+/// substitution runs *before* concatenation: `eval $cmd arg` can build any
+/// script at all, so no analysis of the written text is sound. Callers must
+/// then consume the command without walking it rather than guess.
+///
+/// The static-word test is the analyser's one predicate for it,
+/// `diagnostics::helpers::has_substitution`, so this helper and every other
+/// static-word check move together.
+///
+/// This is **not** the rule for `namespace inscope`, whose tail is appended
+/// as list elements — see [`Traits::SCRIPT_APPENDS_LIST_ARGS`].
+#[must_use]
+pub fn concat_script_words(words: &[String], tokens: &[Token]) -> Option<String> {
+    if words.is_empty() || words.len() != tokens.len() {
+        return None;
+    }
+    let mut joined = String::new();
+    for (word, tok) in words.iter().zip(tokens) {
+        if crate::analyser::diagnostics::helpers::has_substitution(word, tok) {
+            return None;
+        }
+        let trimmed = word.trim_matches(|c: char| c.is_ascii_whitespace());
+        if trimmed.is_empty() {
+            continue;
+        }
+        if !joined.is_empty() {
+            joined.push(' ');
+        }
+        joined.push_str(trimmed);
+    }
+    Some(joined)
+}
+
+#[cfg(test)]
+mod concat_script_words_tests {
+    use super::concat_script_words;
+    use tcl_lexer::{Span, Token, TokenType};
+
+    fn words(pairs: &[(&str, TokenType)]) -> (Vec<String>, Vec<Token>) {
+        let mut texts = Vec::new();
+        let mut toks = Vec::new();
+        let mut at = 0u32;
+        for (text, kind) in pairs {
+            let len = u32::try_from(text.len()).expect("short fixture");
+            texts.push((*text).to_owned());
+            toks.push(Token::new(*kind, Span::new(at, at + len)));
+            at += len + 1;
+        }
+        (texts, toks)
+    }
+
+    /// `Tcl_ConcatObj` joins the words' string representations with a single
+    /// space; a braced word's string rep is its contents, so bare and braced
+    /// words concatenate identically.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: `concat {set x} {5}` → `set x 5`.
+    #[test]
+    fn braced_and_bare_words_join_identically() {
+        let (t, k) = words(&[("set l2", TokenType::Str), ("hello", TokenType::Esc)]);
+        assert_eq!(concat_script_words(&t, &k).as_deref(), Some("set l2 hello"));
+        let (t, k) = words(&[
+            ("set", TokenType::Esc),
+            ("l2", TokenType::Esc),
+            ("hello", TokenType::Esc),
+        ]);
+        assert_eq!(concat_script_words(&t, &k).as_deref(), Some("set l2 hello"));
+    }
+
+    /// Each word is trimmed, and one that trims to nothing is dropped.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: `concat "  a  " "  b  "` → `a b`;
+    /// `concat a {} b` → `a b`; `concat {  } a` → `a`.
+    #[test]
+    fn words_are_trimmed_and_empty_ones_dropped() {
+        let (t, k) = words(&[("  a  ", TokenType::Str), ("  b  ", TokenType::Str)]);
+        assert_eq!(concat_script_words(&t, &k).as_deref(), Some("a b"));
+        let (t, k) = words(&[
+            ("a", TokenType::Esc),
+            ("", TokenType::Str),
+            ("b", TokenType::Esc),
+        ]);
+        assert_eq!(concat_script_words(&t, &k).as_deref(), Some("a b"));
+    }
+
+    /// Substitution runs before concatenation, so one dynamic word makes the
+    /// whole join unknowable — the helper declines rather than guessing.
+    #[test]
+    fn a_dynamic_word_anywhere_declines() {
+        let (t, k) = words(&[("set", TokenType::Esc), ("$name", TokenType::Var)]);
+        assert_eq!(concat_script_words(&t, &k), None);
+        let (t, k) = words(&[("$cmd", TokenType::Var), ("arg", TokenType::Esc)]);
+        assert_eq!(concat_script_words(&t, &k), None);
+        let (t, k) = words(&[("puts", TokenType::Esc), ("[f]", TokenType::Cmd)]);
+        assert_eq!(concat_script_words(&t, &k), None);
+    }
+
+    /// The join is never longer than the words it came from, so a mapped
+    /// offset can only ever land inside the call.
+    #[test]
+    fn the_join_never_grows() {
+        let (t, k) = words(&[("set l2", TokenType::Str), ("hello", TokenType::Esc)]);
+        let joined = concat_script_words(&t, &k).expect("static");
+        let raw: usize = t.iter().map(String::len).sum::<usize>() + t.len() - 1;
+        assert!(joined.len() <= raw);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

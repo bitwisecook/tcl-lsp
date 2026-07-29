@@ -1589,11 +1589,76 @@ impl Analyser {
 
         // Body recursion lets procs and classes declared inside
         // ``namespace eval`` register with the correct namespace
-        // prefix.
-        if let (Some(text), Some(tok)) = (body_text, body_tok) {
+        // prefix.  Words past the body join into the script exactly as
+        // `eval`'s do, so a multi-word call is analysed as the whole
+        // concatenation or not at all (issue #1051) — never as its first
+        // word alone, which invented an E002 on the trailing words'
+        // arguments and lost every write they performed.
+        if args.len() > 3 {
+            self.analyse_namespace_eval_tail(args, arg_tokens, &child_path);
+        } else if let (Some(text), Some(tok)) = (body_text, body_tok) {
             self.analyse_body(&text, tok, &child_path);
         }
         true
+    }
+
+    /// Analyse the script a multi-word `namespace eval` / `namespace inscope`
+    /// evaluates, in the namespace scope `child_path` already opened for it.
+    ///
+    /// The two subcommands share this hook but not their tail semantics, and
+    /// the registry records the split:
+    ///
+    /// - `namespace eval ns arg ?arg …?` carries
+    ///   [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`] alone — the tail
+    ///   space-joins into the script (`namespace eval ::n set l2 hello` sets
+    ///   `::n::l2`, tclsh8.6.14/9.0.4-confirmed), so a fully-static tail is
+    ///   joined and walked.
+    /// - `namespace inscope ns script ?arg …?` adds
+    ///   [`tcl_registry::Traits::SCRIPT_APPENDS_LIST_ARGS`] — the tail is
+    ///   appended as *list elements*, so `namespace inscope :: {puts} {a b}`
+    ///   prints `a b` where `namespace eval :: {puts} {a b}` errors. A join
+    ///   would be simply wrong, and reconstructing the list quoting is beyond
+    ///   what the analyser models, so any trailing word means the call is
+    ///   consumed without walking.
+    ///
+    /// A dynamic word takes the same consume-without-walk route as
+    /// [`Self::handle_interp_eval_command`]'s multi-word arm: substitution
+    /// runs before concatenation, so the real script is unknowable.
+    fn analyse_namespace_eval_tail(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        child_path: &[usize],
+    ) {
+        let Some(registry) = self.registry else {
+            return;
+        };
+        let list_append = registry
+            .get("namespace")
+            .and_then(|spec| spec.subcommand(&args[0]))
+            .is_some_and(|sub| {
+                sub.traits
+                    .contains(tcl_registry::Traits::SCRIPT_APPENDS_LIST_ARGS)
+            });
+        if list_append {
+            return;
+        }
+        let (Some(words), Some(tokens)) = (args.get(2..), arg_tokens.get(2..)) else {
+            return;
+        };
+        let (Some(first_tok), Some(last_tok)) = (tokens.first(), tokens.last()) else {
+            return;
+        };
+        let Some(script) = super::utils::concat_script_words(words, tokens) else {
+            return;
+        };
+        let start = first_tok.span.start() + u32::from(first_tok.content_offset);
+        let end = last_tok.span.end();
+        if script.is_empty() || u32::try_from(script.len()).is_ok_and(|len| start + len > end) {
+            return;
+        }
+        let anchor = Token::new(TokenType::Str, tcl_lexer::Span::new(start, end));
+        self.analyse_body(&script, anchor, child_path);
     }
 
     /// Handle `interp eval PATH SCRIPT`: the script runs in a **child**
