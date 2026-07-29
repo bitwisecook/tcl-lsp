@@ -2011,19 +2011,32 @@ fn unresolved_word_reaching_the_unknown_handler_does_not_fire_i230() {
     );
 }
 
-/// TP control: a module that defines a handler but has no unresolved word
-/// anywhere really does see every caller, so an agreeing set still folds —
-/// the fix must not blanket-disable seeding for any file containing an
-/// `unknown` proc.
+/// End-to-end pair for the unit-level
+/// `a_handler_never_seeds_even_when_every_visible_caller_agrees_1044`:
+/// defining the handler is itself the unenumerable caller, so agreement
+/// among the callers the scan can see proves nothing and no fold happens.
+///
+/// This previously asserted the opposite, on the premise that with no
+/// unresolved word in the file "the direct callers are all of them". That
+/// premise is false — Tcl routes to the handler every word that resolves to
+/// nothing at the instant of the call, and most of those (an autoloaded
+/// name, a name another sourced file introduces, a name built by string
+/// arithmetic) appear nowhere in the source for any scan to find.
+///
+/// tclsh8.6 confirms the seeded words are wrong in both directions: `Dog
+/// new` after `oo::class create Dog` and `worker` after `coroutine worker
+/// body` are recorded as dispatches yet never reach the handler, while a
+/// `bogus beta` written before `proc unknown` is handled by the builtin
+/// `::unknown` and errors.
 #[test]
-fn unknown_handler_with_no_unresolved_words_still_fires_i230() {
+fn unknown_handler_never_fires_i230_even_with_agreeing_callers() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc unknown {cmd args} {\n    if {$cmd eq \"alpha\"} { return 1 } else { return 2 }\n}\nunknown alpha\nunknown alpha\nputs hi\n";
     let diags = lsp.open_ready(&uri, src);
     assert!(
-        has_code(&diags, "I230"),
-        "no unresolved word exists, so the direct callers are all of them: {:?}",
+        !has_code(&diags, "I230"),
+        "the handler's caller set is unenumerable, so it never seeds: {:?}",
         codes(&diags)
     );
 }
