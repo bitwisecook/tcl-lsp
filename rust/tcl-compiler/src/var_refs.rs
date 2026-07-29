@@ -192,7 +192,6 @@ impl VarReferenceScanner {
         self.cache.clear();
         self.order.clear();
     }
-
 }
 
 /// The variable name a `TokenType::Var` token contributes, per

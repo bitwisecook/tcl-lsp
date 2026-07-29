@@ -120,7 +120,21 @@ fn parse_interp_create_words<'a>(words: &[&'a str]) -> (bool, Option<&'a str>) {
 /// [`parse_interp_create_words`] (issue #923 idx 9).
 fn interp_create_words_from_value(text: &str) -> Option<Vec<&str>> {
     let inner = text.strip_prefix('[')?.strip_suffix(']')?;
-    let mut words = inner.split_whitespace();
+    // Tcl-list parse, not `split_whitespace` (issue #1025): the direct
+    // `interp create` handler sees segmenter-decoded words, so a braced
+    // path word (`{child}`, `{parent child}`) reaches it already stripped.
+    // Whitespace-splitting the raw substitution text instead keeps the
+    // braces and can even split one word in two (`{parent child}` →
+    // `"{parent"`, `"child}"`), binding the variable to a key the direct
+    // handler never records — later `$i eval` / `interp alias $i …` then
+    // resolve against a phantom interpreter.
+    let mut words = Vec::new();
+    let mut pos = 0usize;
+    while let Ok(Some(el)) = find_element(inner, pos) {
+        words.push(inner.get(el.value.clone())?);
+        pos = el.next;
+    }
+    let mut words = words.into_iter();
     if words.next()? != "interp" || words.next()? != "create" {
         return None;
     }
@@ -4533,6 +4547,61 @@ mod tests {
 
     fn span(start: u32, end: u32) -> Span {
         Span::new(start, end)
+    }
+
+    // interp_create_words_from_value — issue #1025
+
+    #[test]
+    fn interp_create_value_words_strip_a_single_braced_path_issue_1025() {
+        // TP — `{child}` is one Tcl word naming interpreter `child`; the
+        // direct handler sees it segmenter-decoded, so the value-flow path
+        // must strip the braces too rather than binding to `"{child}"`.
+        assert_eq!(
+            interp_create_words_from_value("[interp create {child}]"),
+            Some(vec!["child"])
+        );
+    }
+
+    #[test]
+    fn interp_create_value_words_keep_a_nested_path_as_one_word_issue_1025() {
+        // TP — `{parent child}` is one word (a descent path), not two.
+        // `split_whitespace` used to yield `["{parent", "child}"]`, whose
+        // first fragment became the bound key.
+        assert_eq!(
+            interp_create_words_from_value("[interp create {parent child}]"),
+            Some(vec!["parent child"])
+        );
+    }
+
+    #[test]
+    fn interp_create_value_words_unchanged_for_bare_and_flagged_forms_issue_1025() {
+        // TN — the shapes that already worked must be byte-for-byte
+        // unchanged by the switch to list parsing.
+        assert_eq!(
+            interp_create_words_from_value("[interp create -safe]"),
+            Some(vec!["-safe"])
+        );
+        assert_eq!(
+            interp_create_words_from_value("[interp create -safe -- name]"),
+            Some(vec!["-safe", "--", "name"])
+        );
+        assert_eq!(
+            interp_create_words_from_value("[interp create]"),
+            Some(vec![])
+        );
+        assert_eq!(interp_create_words_from_value("[set x 1]"), None);
+        assert_eq!(interp_create_words_from_value("interp create child"), None);
+    }
+
+    #[test]
+    fn interp_create_value_words_abstain_on_an_unmatched_brace_issue_1025() {
+        // FN guard — a malformed (mid-edit) path stops the element scan, so
+        // the words seen are only those parsed before the break; nothing
+        // may be silently mis-split into fragments.
+        assert_eq!(
+            interp_create_words_from_value("[interp create {child]"),
+            Some(vec![])
+        );
     }
 
     // handle_set_command
