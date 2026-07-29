@@ -83,12 +83,33 @@ pub struct ConfigDiagnostic {
 // guards (`pool (?!member)`, `persist (?!none)`) are handled by
 // filtering the captured name in code instead.
 
-const CLASS_OPERATORS: &str = "equals|starts_with|ends_with|contains|matches_glob|matches_regex";
+/// The `class match|search` word-operator alternation, derived from the
+/// shared `BinOp` source of truth (issue #983/#986's unification) rather
+/// than a hand-maintained string — the same canonical names `tcl-irules`'s
+/// `is_class_operator` matches against, so a rename of one of these variants
+/// is a compile error here too, not silent drift. See the sync test
+/// `class_operators_regex_matches_irules_word_operator_set`.
+static CLASS_OPERATORS: LazyLock<String> = LazyLock::new(|| {
+    use tcl_syntax::expr::ast::BinOp;
+    [
+        BinOp::StrEquals,
+        BinOp::StartsWith,
+        BinOp::EndsWith,
+        BinOp::Contains,
+        BinOp::MatchesGlob,
+        BinOp::MatchesRegex,
+    ]
+    .iter()
+    .map(|op| op.as_str())
+    .collect::<Vec<_>>()
+    .join("|")
+});
 
 /// `class match|search ?opts? <item> <operator> <dg>` — capture the dg name.
 static CLASS_MATCH_RE: LazyLock<Regex> = LazyLock::new(|| {
+    let ops = &*CLASS_OPERATORS;
     Regex::new(&format!(
-        r"\bclass\s+(?:match|search)\s+(?:(?:-\w+\s+)*)(?:--\s+)?\S+\s+(?:{CLASS_OPERATORS})\s+(\S+)"
+        r"\bclass\s+(?:match|search)\s+(?:(?:-\w+\s+)*)(?:--\s+)?\S+\s+(?:{ops})\s+(\S+)"
     ))
     .expect("static class-match regex")
 });
@@ -546,6 +567,40 @@ mod tests {
 
     fn has(source: &str, code: &str) -> bool {
         codes(source).iter().any(|c| c == code)
+    }
+
+    /// Sync test (#983 residual): the `class match`/`search` operator
+    /// alternation derived here from the shared `BinOp` source of truth must
+    /// contain exactly the same word set as `tcl-irules`'s own
+    /// `is_class_operator`, so the two independent consumers of the iRules
+    /// word-operator family can never drift apart again.
+    #[test]
+    fn class_operators_regex_matches_irules_word_operator_set() {
+        use tcl_syntax::expr::ast::BinOp;
+        let expected: HashSet<&str> = [
+            BinOp::StrEquals,
+            BinOp::StartsWith,
+            BinOp::EndsWith,
+            BinOp::Contains,
+            BinOp::MatchesGlob,
+            BinOp::MatchesRegex,
+        ]
+        .iter()
+        .map(|op| op.as_str())
+        .collect();
+        let derived: HashSet<&str> = CLASS_OPERATORS.split('|').collect();
+        assert_eq!(
+            derived, expected,
+            "CLASS_OPERATORS must contain exactly the iRules word-operator set"
+        );
+        // And each word is actually recognised by the built regex.
+        for word in &expected {
+            let src = format!("class match [HTTP::host] {word} /Common/dg\n");
+            assert!(
+                CLASS_MATCH_RE.is_match(&src),
+                "expected '{word}' to be matched by CLASS_MATCH_RE"
+            );
+        }
     }
 
     #[test]
