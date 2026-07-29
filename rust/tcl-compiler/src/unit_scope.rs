@@ -1199,6 +1199,7 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
     registry: &CommandRegistry,
     dialect: &str,
     known: &HashSet<String, S>,
+    dispatch_reach: &[String],
 ) -> CallSiteEvidence {
     let mut out = CallSiteEvidence::default();
     if known.is_empty() {
@@ -1218,14 +1219,19 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
     // just as an in-unit one would.  Without the same var facts and fixpoint
     // here, issue #976 would simply reopen across the file boundary.
     let var_facts = collect_module_scope_var_facts(&cfg_module, &extra, registry);
-    // What this file's own unreadable dispatches can reach: its declarations
-    // alone unless it pulls in another unit, in which case the project's
-    // names over-approximate the table it dispatches against.
-    let reach = unenumerable_reach(
-        &ir_module.procedures,
-        scan_unit_linkage(&ir_module, registry, dialect),
-        known,
-    );
+    // What this file's own unreadable dispatches can reach is a *project*
+    // fact, not a file one — `source` puts two files in one interpreter in
+    // both directions, so a library reaches its sourcer's procedures just as
+    // its sourcer reaches the library's.  Only the host knows that graph, so
+    // it supplies the set (`tcl_lsp_db::file_dispatch_reach`); with none
+    // given, the file's own declarations are the honest bound.
+    let reach: Vec<String> = if dispatch_reach.is_empty() {
+        let mut own: Vec<String> = ir_module.procedures.keys().cloned().collect();
+        own.sort();
+        own
+    } else {
+        dispatch_reach.to_vec()
+    };
     out = run_to_fixpoint(&reach, |previous| {
         let ctx = CallSiteScanCtx {
             known,
@@ -1549,6 +1555,7 @@ mod tests {
             &reg,
             "",
             &known(&["::helper"]),
+            &[],
         );
         let helper = evidence.get("::helper").expect("calls recorded");
         assert_eq!(helper.uniform_literal_at(0), Some("1"));
@@ -1569,6 +1576,7 @@ mod tests {
             &reg,
             "",
             &known(&["::helper"]),
+            &[],
         );
         assert_eq!(
             a.get("::helper").unwrap().uniform_literal_at(0),
@@ -1579,6 +1587,7 @@ mod tests {
             &reg,
             "",
             &known(&["::helper"]),
+            &[],
         );
         a.merge_from(&b);
         assert_eq!(a.get("::helper").unwrap().uniform_literal_at(0), None);
@@ -1595,6 +1604,7 @@ mod tests {
             &reg,
             "",
             &known(&["::helper"]),
+            &[],
         );
         let helper = evidence.get("::helper").expect("calls recorded");
         assert!(helper.arg_counts.contains(&0), "{helper:?}");
@@ -1610,7 +1620,7 @@ mod tests {
             "helper prod\nrename helper legacy\n",
             "helper prod\ninterp alias {} h {} helper\n",
         ] {
-            let evidence = scan_source_call_sites(src, &reg, "", &known(&["::helper"]));
+            let evidence = scan_source_call_sites(src, &reg, "", &known(&["::helper"]), &[]);
             let helper = evidence.get("::helper").expect("calls recorded");
             assert_eq!(helper.uniform_literal_at(0), None, "{src}");
         }
@@ -1627,6 +1637,7 @@ mod tests {
             &reg,
             "",
             &known(&["::helper"]),
+            &[],
         );
         let leading = seed(
             &params(&["args", "x"]),
@@ -1666,6 +1677,7 @@ mod tests {
             &reg,
             "",
             &known(&["::helper"]),
+            &[],
         );
         let p = params(&["mode"]);
         assert!(
@@ -1749,6 +1761,7 @@ mod tests {
             &reg,
             "tcl8.6",
             &known(&["::a::helper", "::a::run", "::helper"]),
+            &[],
         );
         assert_eq!(
             evidence.callees().collect::<Vec<_>>(),
@@ -1774,6 +1787,7 @@ mod tests {
             &reg,
             "tcl8.6",
             &known(&["::helper"]),
+            &[],
         );
         assert_eq!(
             evidence
@@ -1789,7 +1803,7 @@ mod tests {
     #[test]
     fn slice_for_keeps_only_the_named_callees() {
         let reg = registry();
-        let evidence = scan_source_call_sites("a 1\nb 2\n", &reg, "", &known(&["::a", "::b"]));
+        let evidence = scan_source_call_sites("a 1\nb 2\n", &reg, "", &known(&["::a", "::b"]), &[]);
         let sliced = evidence.slice_for(["::a"].into_iter());
         assert_eq!(sliced.callees().collect::<Vec<_>>(), vec!["::a"]);
         assert!(evidence.slice_for(["::zzz"].into_iter()).is_empty());
@@ -1939,21 +1953,60 @@ mod tests {
         );
     }
 
-    /// A file that *does* pull in another unit dispatches against whatever
-    /// that brought in, so the project's names bound it instead.
+    /// The host supplies the reach, so a file linked to the callee's — in
+    /// *either* direction — retracts its seed.
+    ///
+    /// The inbound direction is the one a file-local bound gets wrong: a
+    /// library declaring no `source` of its own still runs inside its
+    /// sourcer's interpreter, so its unreadable dispatch can name the
+    /// sourcer's procedures. Bounding by what the *scanning* file loads
+    /// missed exactly that.
     #[test]
-    fn an_unenumerable_dispatch_in_a_sourcing_file_reaches_the_project() {
+    fn an_unenumerable_dispatch_reaches_whatever_the_host_says_it_links_to() {
         let reg = registry();
-        let src = "source other.tcl\nset cmd [gets stdin]\n$cmd dev\n";
         let known: HashSet<String> = ["::theirs".to_owned()].into_iter().collect();
-        let opaque = scan_source_call_sites(src, &reg, "tcl", &known);
+        let linked = ["::theirs".to_owned()];
+        for src in [
+            // Outbound: this file sources the other.
+            "source other.tcl\nset cmd [gets stdin]\n$cmd dev\n",
+            // Inbound: this file declares no linkage at all, but the host put
+            // it in the callee's component because something sources it.
+            "set cmd [gets stdin]\n$cmd dev\n",
+        ] {
+            let opaque = scan_source_call_sites(src, &reg, "tcl", &known, &linked);
+            let mut project =
+                evidence("proc theirs {mode} { return $mode }\ntheirs prod\ntheirs prod\n");
+            project.merge_from(&opaque);
+            assert_eq!(
+                uniform(&project, "::theirs", 0),
+                None,
+                "a linked file's unreadable dispatch can name ::theirs: {src}",
+            );
+        }
+    }
+
+    /// ...and an *unlinked* file cannot: the host leaves it out of the reach,
+    /// so its `$cmd` does not disturb a sound seed in a file it shares only a
+    /// workspace folder with.
+    #[test]
+    fn an_unenumerable_dispatch_does_not_reach_an_unlinked_project_file() {
+        let reg = registry();
+        let known: HashSet<String> = ["::theirs".to_owned()].into_iter().collect();
+        let opaque = scan_source_call_sites(
+            "proc mine {x} { return $x }\nset cmd [gets stdin]\n$cmd dev\n",
+            &reg,
+            "tcl",
+            &known,
+            // Not in the callee's component: its reach is its own procs.
+            &["::mine".to_owned()],
+        );
         let mut project =
             evidence("proc theirs {mode} { return $mode }\ntheirs prod\ntheirs prod\n");
         project.merge_from(&opaque);
         assert_eq!(
-            uniform(&project, "::theirs", 0),
-            None,
-            "the sourcing file's dispatch can name anything it loaded",
+            uniform(&project, "::theirs", 0).as_deref(),
+            Some("prod"),
+            "an unlinked file shares no interpreter, so it cannot name ::theirs",
         );
     }
 

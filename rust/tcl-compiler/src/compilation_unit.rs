@@ -2711,7 +2711,7 @@ mod tests {
             /// against the procedures `LIB` declares.
             fn evidence_from(other: &str, reg: &CommandRegistry) -> CallSiteEvidence {
                 let known: HashSet<String> = ["::helper".to_owned()].into_iter().collect();
-                crate::unit_scope::scan_source_call_sites(other, reg, "", &known)
+                crate::unit_scope::scan_source_call_sites(other, reg, "", &known, &[])
             }
 
             fn build_with_evidence(

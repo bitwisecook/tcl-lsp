@@ -155,6 +155,12 @@ fn cross_file_call_site_evidence(
         let dialect = document.effective_dialect(dialect_override);
         known.extend(document_proc_names(document, &dialect));
     }
+    // Naming several files on one command line asserts they are one program,
+    // so an unenumerable dispatch in any of them may reach any of their
+    // procedures.  The editor derives the same bound from the `source` graph
+    // (`tcl_lsp_db::file_dispatch_reach`); here the user has stated it.
+    let mut reach: Vec<String> = known.iter().cloned().collect();
+    reach.sort();
     let mut merged = CallSiteEvidence::default();
     for document in documents {
         let dialect = document.effective_dialect(dialect_override);
@@ -163,6 +169,7 @@ fn cross_file_call_site_evidence(
             registry_for_dialect(&dialect),
             &dialect,
             &known,
+            &reach,
         ));
     }
     Some(merged)

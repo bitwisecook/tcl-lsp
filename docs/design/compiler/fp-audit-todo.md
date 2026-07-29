@@ -632,26 +632,40 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   module-wide flag, which is right within a unit. FP-IPCP-03 then merges
   several files' evidence into one project view — and a flag has no callee to
   narrow by, so it spread: one `eval $script` anywhere in a workspace
-  withdrew every interprocedural seed in every file. Measured, that cost
-  three true positives outright in the extension suite (#969, #976 and #977's
-  own TP controls), purely because one unrelated fixture in the shared
-  workspace folder contains an unenumerable dispatch.
-  The fix is not to drop the propagation (unsound) or keep it (useless), but
-  to bound what such a dispatch can *reach*. `$cmd`'s value resolves against
-  the command table the scanning unit has actually loaded, so a file
-  declaring no `LOADS_EXTERNAL_UNIT` linkage cannot dispatch outside its own
-  declarations however large the project is; one that does `source` /
-  `package require` can reach whatever that brought in, which the host's
-  project-wide name set over-approximates (`unenumerable_reach`).
-  Recording it that way makes it *per callee* — poisoning each name in the
-  reach set instead of setting a flag — so it composes through `merge_from`
-  and `slice_for` with no special casing, and the module-wide gate in
-  `params_constants_from_call_sites` disappears entirely: a withdrawn seed is
-  now just a poisoned slot, which `uniform_literal_at` already handles.
-  Within a single unit the reach is that unit's own procedures, so the
-  in-unit behaviour is exactly what FP-IPCP-02 specified.
-  Tests: the three reach cases (`withdraws_this_units_seeds`,
-  `does_not_reach_an_unlinked_file`, `in_a_sourcing_file_reaches_the_project`).
+  withdrew every interprocedural seed in every file, costing three true
+  positives outright in the extension suite.
+  The fix is neither to drop the propagation (unsound) nor to keep it
+  (useless) but to bound what such a dispatch can **reach**, and to record it
+  *per callee* over that set so it composes through `merge_from` and
+  `slice_for` with no special casing. The module-wide gate in
+  `params_constants_from_call_sites` then disappears entirely: a withdrawn
+  seed is just a poisoned slot, which `uniform_literal_at` already handles.
+  **The bound is the `source`-connected component, and it took two attempts.**
+  The first tried to derive it inside the compiler from the scanning file's
+  own linkage traits — "a file that pulls in no other unit cannot dispatch
+  outside its own declarations". That is right for the *outbound* direction
+  and wrong for the inbound one: a library declaring no `source` of its own
+  still runs inside its sourcer's interpreter, so its unreadable dispatch can
+  name the sourcer's procedures. Caught by probe, not by the suite —
+  `main.tcl` sources `lib.tcl`, `lib.tcl` has `set cmd [gets stdin]; $cmd
+  dev`, and `main.tcl`'s `helper` still folded.
+  Connectivity is a *project* fact, so the host owns it:
+  `tcl_lsp_db::file_link_targets` records each file's resolved literal
+  `source` targets (signature-level, so a body edit backdates), and
+  `file_dispatch_reach` unions the procedures of every file in the same
+  **undirected** component — undirected precisely because the exposure runs
+  both ways. `unit_scope::scan_source_call_sites` takes that set from the
+  host rather than deriving it; with none supplied the file's own
+  declarations remain the honest bound, and within a single unit the reach is
+  that unit's own procedures, so in-unit behaviour is exactly what FP-IPCP-02
+  specified. `tcl diag a.tcl b.tcl` supplies the union of its inputs — naming
+  files on one command line asserts they are one program.
+  Only *literal* `source` targets create edges: guessing a computed path
+  would widen what an unenumerable dispatch may reach, so a missed edge is
+  the safer error.
+  Tests: five in `unit_scope` (own-unit withdrawal; reaches a linked file in
+  both directions; leaves an unlinked one alone) and two end-to-end in
+  `tcl-lsp-db` over a real two-file project with paths.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 
