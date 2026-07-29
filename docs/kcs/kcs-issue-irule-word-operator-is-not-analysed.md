@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, tcl-lsp CLI, mcp
+all-editors, tcl-lsp CLI, mcp, diagnostic, lowering, sccp, const-fold
 
 ## Question
 
