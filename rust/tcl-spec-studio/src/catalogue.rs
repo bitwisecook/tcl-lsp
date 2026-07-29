@@ -454,6 +454,10 @@ pub const TRAITS: &[Variant] = &[
         "EXPORTS_COMMAND",
         "publishes a command name for another unit",
     ),
+    v(
+        "UNRESOLVED_COMMAND_HANDLER",
+        "handles the dialect's unresolved command words",
+    ),
 ];
 
 /// [`TaintColour`] bits.
