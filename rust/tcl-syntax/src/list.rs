@@ -153,14 +153,23 @@ fn list_junk_fragment(src: &str) -> String {
 }
 
 /// One located list element: the interior byte range in the source, whether it
-/// is `literal` (no backslash collapse needed — Tcl's `literal` flag), and the
-/// offset to resume scanning at (past trailing whitespace).
+/// is `literal` (no backslash collapse needed — Tcl's `literal` flag), whether
+/// it was written `{brace}`-delimited, and the offset to resume scanning at
+/// (past trailing whitespace).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Element {
     /// Interior byte range (delimiters stripped).
     pub value: Range<usize>,
     /// `true` ⇒ take `s[value]` verbatim; `false` ⇒ collapse its backslashes.
     pub literal: bool,
+    /// `true` when the element was written as `{…}`.  A braced element's
+    /// value is its source text byte-for-byte at exactly `value`'s offsets —
+    /// no escape ever collapses inside braces — which is what a consumer
+    /// that re-parses the element *in place* (as script, as a nested list)
+    /// and reports source spans back needs.  A bare or double-quoted element
+    /// may be `literal` too (when it happens to contain no backslash), but
+    /// that is a property of the one value, not of the shape.
+    pub braced: bool,
     /// Resume offset for the next [`find_element`] call.
     pub next: usize,
 }
@@ -190,6 +199,7 @@ pub fn find_element(s: &str, start: usize) -> Result<Option<Element>, ListError>
     let mut open_braces: usize = 0;
     let mut in_quotes = false;
     let mut literal = true;
+    let braced = bytes[pos] == b'{';
     let elem_start;
     match bytes[pos] {
         b'{' => {
@@ -292,6 +302,7 @@ pub fn find_element(s: &str, start: usize) -> Result<Option<Element>, ListError>
     Ok(Some(Element {
         value: elem_start..elem_start + size,
         literal,
+        braced,
         next: pos,
     }))
 }

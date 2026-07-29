@@ -55,14 +55,24 @@
 //! [`incoming_calls_for_target`] over each other document to find
 //! sibling-file call sites.
 //!
-//! Scope: method edges are intra-class `my <method>` dispatch only. A
-//! `next` / `nextto` super-dispatch is not a call-hierarchy edge (it *is*
-//! a reference — see [`crate::references::method_next_dispatch_spans`] —
-//! but attributing it a call-graph direction is a distinct question this
-//! provider doesn't yet answer). An external `$obj method` site (a
-//! different class or document dispatching in) is likewise not an
-//! incoming edge here — that is [`crate::references::references`]'s
-//! concern, not this provider's.
+//! Scope: method edges are the two dispatch shapes that name the member
+//! without a receiver variable — intra-class `my <method>`, and a
+//! `classmethod`'s bare `ClassName <method>` on the class's own command
+//! (issue #995).  The latter comes from
+//! [`crate::references::find_obj_method_call_sites`], the same scanner
+//! Find-References / rename / the code lens use, and is attributed to
+//! whichever body it sits in: a classmethod body, an instance-method body,
+//! a proc, or the top level — a class command is an ordinary global
+//! command, so all four really do dispatch it (tclsh9.0-verified), and the
+//! `my`-scope rule ([`dispatch_reaches`]) does not gate this shape.
+//!
+//! Still out of scope: a `next` / `nextto` super-dispatch is not a
+//! call-hierarchy edge (it *is* a reference — see
+//! [`crate::references::method_next_dispatch_spans`] — but attributing it a
+//! call-graph direction is a distinct question this provider doesn't yet
+//! answer). An external `$obj method` site (dispatch through an instance
+//! variable) is likewise not an incoming edge here — that is
+//! [`crate::references::references`]'s concern, not this provider's.
 //!
 //! A `method` and a `classmethod` sharing a name (rare, but `TclOO` keeps
 //! them in independent tables, so it's legal) never collide: `my <word>`
@@ -131,6 +141,59 @@ pub fn prepare(
 fn method_item_name(class_def: &ClassDef, method: &MethodDef) -> String {
     format!("{}::{}", class_def.qualified_name, method.name)
 }
+
+/// Grouping identity for one end of a call-hierarchy edge — the caller
+/// bucket of an incoming list, the callee bucket of an outgoing one.
+///
+/// The display name alone is **not** an identity.  A `TclOO` class may
+/// define an instance `method make` and a `classmethod make` at the same
+/// time: the two live in independent method tables, and tclsh 9.0.4 sends
+/// `my make` to the instance copy and `C make` to the class copy.  Both
+/// render as `::C::make`, so keying the grouping on the name text merged
+/// them into a single item whose ranges spanned both call sites and whose
+/// declaration range was whichever entry happened to be inserted first
+/// (Codex review on #1047).  Pairing the name with the declaration's own
+/// name-token span separates them while keeping the emitted order
+/// name-first, hence reproducible.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct CallItemKey {
+    /// Qualified display name — the primary sort key.
+    name: String,
+    /// The declaration's name-token span, as `(start, end)`.  `(0, 0)` for
+    /// the synthetic top-level item, which declares nothing.
+    decl: (u32, u32),
+}
+
+impl CallItemKey {
+    fn for_method(class_def: &ClassDef, method: &MethodDef) -> Self {
+        Self {
+            name: method_item_name(class_def, method),
+            decl: (method.name_span.start(), method.name_span.end()),
+        }
+    }
+
+    fn for_proc(qname: &str, proc_def: &ProcDef) -> Self {
+        Self {
+            name: qname.to_owned(),
+            decl: (proc_def.name_span.start(), proc_def.name_span.end()),
+        }
+    }
+
+    fn top_level() -> Self {
+        Self {
+            name: TOP_LEVEL_NAME.to_owned(),
+            decl: (0, 0),
+        }
+    }
+}
+
+/// Display name of the synthetic item standing for a document's top-level
+/// command stream.
+const TOP_LEVEL_NAME: &str = "<top-level>";
+
+/// Per-edge accumulator: the far end's item plus every call-site range
+/// attributed to it, keyed by [`CallItemKey`].
+type EdgeBuckets = std::collections::BTreeMap<CallItemKey, (CallHierarchyItem, Vec<LspRange>)>;
 
 /// Find the proc a call-hierarchy item refers to.
 ///
@@ -644,25 +707,10 @@ pub fn incoming_calls_for_target(
         }
         let inv_range = span_to_range(source, &line_index, inv.range);
         let caller_key = enclosing_proc(analysis, inv.range)
-            .map_or_else(|| "<top-level>".to_owned(), |(qn, _)| qn.to_owned());
+            .map_or_else(|| TOP_LEVEL_NAME.to_owned(), |(qn, _)| qn.to_owned());
         let entry = by_caller.entry(caller_key.clone()).or_insert_with(|| {
-            let caller_item = if caller_key == "<top-level>" {
-                CallHierarchyItem {
-                    name: caller_key.clone(),
-                    detail: None,
-                    range: LspRange {
-                        start_line: 0,
-                        start_character: 0,
-                        end_line: 0,
-                        end_character: 0,
-                    },
-                    selection_range: LspRange {
-                        start_line: 0,
-                        start_character: 0,
-                        end_line: 0,
-                        end_character: 0,
-                    },
-                }
+            let caller_item = if caller_key == TOP_LEVEL_NAME {
+                top_level_item()
             } else {
                 let proc = &analysis.all_procs[&caller_key];
                 item_for_proc(source, proc, &caller_key, &line_index)
@@ -680,10 +728,17 @@ pub fn incoming_calls_for_target(
 /// Enumerate outgoing calls from the proc identified by
 /// `item.name`.  Walks every command invocation whose span
 /// sits inside the proc's body span, then resolves each to its
-/// target proc (when the invocation names a user proc).  Calls
+/// target proc (when the invocation names a user proc), and adds every bare
+/// `ClassName <classmethod>` dispatch in the same body.  Calls
 /// to built-in commands are dropped (they have no
 /// [`CallHierarchyItem`] to point to).  Multiple call sites to
 /// the same target group together.
+///
+/// The classmethod half matters for symmetry: a class command is an
+/// ordinary global command, so a proc body may dispatch one, and
+/// [`add_classmethod_incoming`] already lists that proc under the
+/// classmethod's Incoming Calls.  Without the matching collection here the
+/// edge existed in one direction only (Codex review on #1047).
 #[must_use]
 pub fn outgoing_calls(
     source: &str,
@@ -696,9 +751,7 @@ pub fn outgoing_calls(
         // Not a proc — try a class method.
         return method_outgoing_calls(source, dialect, item, analysis, &line_index);
     };
-    // Map target qname → (target item, list of ranges).
-    let mut by_target: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
-        std::collections::BTreeMap::new();
+    let mut by_target: EdgeBuckets = EdgeBuckets::new();
     for inv in &analysis.command_invocations {
         if !span_contains(source_proc.body_span, inv.range) {
             continue;
@@ -707,17 +760,27 @@ pub fn outgoing_calls(
         for (qname, proc_def) in &analysis.all_procs {
             if invocation_targets(analysis, inv, proc_def, qname) {
                 let inv_range = span_to_range(source, &line_index, inv.range);
-                let entry = by_target.entry(qname.clone()).or_insert_with(|| {
-                    (
-                        item_for_proc(source, proc_def, qname, &line_index),
-                        Vec::new(),
-                    )
-                });
+                let entry = by_target
+                    .entry(CallItemKey::for_proc(qname, proc_def))
+                    .or_insert_with(|| {
+                        (
+                            item_for_proc(source, proc_def, qname, &line_index),
+                            Vec::new(),
+                        )
+                    });
                 entry.1.push(inv_range);
                 break;
             }
         }
     }
+    add_classmethod_outgoing(
+        source,
+        dialect,
+        analysis,
+        source_proc.body_span,
+        &line_index,
+        &mut by_target,
+    );
     by_target
         .into_values()
         .map(|(to, from_ranges)| OutgoingCall { to, from_ranges })
@@ -725,7 +788,9 @@ pub fn outgoing_calls(
 }
 
 /// Incoming calls for a class method — every `my <method>` dispatch site
-/// inside any sibling method body, grouped by the enclosing method.
+/// inside any sibling method body, grouped by the enclosing method, plus
+/// (for a `classmethod`) every bare `ClassName <method>` dispatch anywhere
+/// in the document, grouped by whichever body it sits in.
 ///
 /// Intra-class dispatch of a `TclOO` method is `my <method>`, never a bare
 /// `<method>` call (a method is not a command in the body's namespace — a
@@ -744,8 +809,7 @@ fn method_incoming_calls(
     else {
         return Vec::new();
     };
-    let mut by_caller: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
-        std::collections::BTreeMap::new();
+    let mut by_caller: EdgeBuckets = EdgeBuckets::new();
     for caller in class_methods_iter(class_def) {
         if !dispatch_reaches(&caller.kind, &target_method.kind) {
             continue;
@@ -760,28 +824,159 @@ fn method_incoming_calls(
         if spans.is_empty() {
             continue;
         }
-        let key = method_item_name(class_def, caller);
-        let entry = by_caller.entry(key).or_insert_with(|| {
-            (
-                item_for_method(source, class_def, caller, line_index),
-                Vec::new(),
-            )
-        });
+        let entry = by_caller
+            .entry(CallItemKey::for_method(class_def, caller))
+            .or_insert_with(|| {
+                (
+                    item_for_method(source, class_def, caller, line_index),
+                    Vec::new(),
+                )
+            });
         entry.1.extend(
             spans
                 .into_iter()
                 .map(|s| span_to_range(source, line_index, s)),
         );
     }
+    add_classmethod_incoming(
+        source,
+        dialect,
+        analysis,
+        class_def,
+        target_method,
+        line_index,
+        &mut by_caller,
+    );
     by_caller
         .into_values()
         .map(|(from, from_ranges)| IncomingCall { from, from_ranges })
         .collect()
 }
 
+/// Add the bare `ClassName <classmethod>` dispatch sites of `target_method`
+/// to `by_caller`, each attributed to the innermost body it sits in (issue
+/// #995).  A no-op unless `target_method` really is a `classmethod`.
+///
+/// The sites come from [`crate::references::find_obj_method_call_sites`] —
+/// the same scanner Find-References / rename / the code lens use, which also
+/// carries the registry-driven definer-family rule that keeps [incr Tcl]'s
+/// `Factory::make` class-proc shape (and its unrelated two-word
+/// instance-creation syntax) out of this — rather than a head-word compare
+/// re-derived here.
+///
+/// No [`dispatch_reaches`] gate: that rule is about `my`, whose scope
+/// depends on the calling body.  A class command is an ordinary global
+/// command, so `Factory make` reaches the classmethod from a classmethod
+/// body, an instance-method body, a proc, or the top level alike
+/// (tclsh9.0-verified).
+fn add_classmethod_incoming(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_def: &ClassDef,
+    target_method: &MethodDef,
+    line_index: &LineIndex,
+    by_caller: &mut EdgeBuckets,
+) {
+    if target_method.kind != "classmethod" {
+        return;
+    }
+    for span in crate::references::find_obj_method_call_sites(
+        source,
+        dialect,
+        analysis,
+        &class_def.qualified_name,
+        &target_method.name,
+        true,
+    ) {
+        if span_contains(target_method.name_span, span) {
+            continue;
+        }
+        let (key, caller_item) = enclosing_dispatch_caller(source, analysis, span, line_index);
+        let entry = by_caller
+            .entry(key)
+            .or_insert_with(|| (caller_item, Vec::new()));
+        entry.1.push(span_to_range(source, line_index, span));
+    }
+}
+
+/// The caller a bare class-command dispatch site is attributed to: the
+/// innermost class-member body containing it, else the innermost proc body,
+/// else the top level.
+///
+/// This one list mixes both kinds of caller, and a method caller has no
+/// short name that could ever be unambiguous — `::C::make` is the only
+/// thing to call it.  So the proc callers alongside it are named by their
+/// qualified name too (`::util::helper`, not `helper`), rather than reading
+/// as a different kind of label in the same list (adversarial review of
+/// #1047, item 11).  Elsewhere a proc item keeps the short display name the
+/// editor's call-hierarchy UI expects.
+fn enclosing_dispatch_caller(
+    source: &str,
+    analysis: &AnalysisResult,
+    span: tcl_lexer::Span,
+    line_index: &LineIndex,
+) -> (CallItemKey, CallHierarchyItem) {
+    // Ranked by (body length, body start) so the innermost body wins and ties
+    // never depend on `all_classes`' hash iteration order.
+    let mut best: Option<((u32, u32), CallItemKey, CallHierarchyItem)> = None;
+    let mut consider = |body: tcl_lexer::Span, key: CallItemKey, item: CallHierarchyItem| {
+        if !span_contains(body, span) {
+            return;
+        }
+        let rank = (body.end() - body.start(), body.start());
+        if best
+            .as_ref()
+            .is_none_or(|(best_rank, _, _)| rank < *best_rank)
+        {
+            best = Some((rank, key, item));
+        }
+    };
+    for class_def in analysis.all_classes.values() {
+        for member in class_methods_iter(class_def) {
+            consider(
+                member.body_span,
+                CallItemKey::for_method(class_def, member),
+                item_for_method(source, class_def, member, line_index),
+            );
+        }
+    }
+    for (qname, proc_def) in &analysis.all_procs {
+        let mut item = item_for_proc(source, proc_def, qname, line_index);
+        item.name.clone_from(qname);
+        consider(
+            proc_def.body_span,
+            CallItemKey::for_proc(qname, proc_def),
+            item,
+        );
+    }
+    best.map_or_else(
+        || (CallItemKey::top_level(), top_level_item()),
+        |(_, key, item)| (key, item),
+    )
+}
+
+/// The synthetic item standing for the document's top-level command stream.
+fn top_level_item() -> CallHierarchyItem {
+    let origin = LspRange {
+        start_line: 0,
+        start_character: 0,
+        end_line: 0,
+        end_character: 0,
+    };
+    CallHierarchyItem {
+        name: TOP_LEVEL_NAME.to_owned(),
+        detail: None,
+        range: origin,
+        selection_range: origin,
+    }
+}
+
 /// Outgoing calls from a class method — every `my <method>` dispatch site
 /// inside the method's body that names a sibling method (→ method item),
-/// plus every bare-headed call to a top-level user proc (→ proc item).
+/// every bare `ClassName <classmethod>` dispatch in it (→ that
+/// classmethod's item, issue #995), and every bare-headed call to a
+/// top-level user proc (→ proc item).
 ///
 /// The sibling-method half matches through
 /// [`crate::references::scan_my_method_sites`] (the same matcher
@@ -803,8 +998,7 @@ fn method_outgoing_calls(
     else {
         return Vec::new();
     };
-    let mut by_target: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
-        std::collections::BTreeMap::new();
+    let mut by_target: EdgeBuckets = EdgeBuckets::new();
     for callee in class_methods_iter(class_def) {
         if !dispatch_reaches(&source_method.kind, &callee.kind) {
             continue;
@@ -819,19 +1013,28 @@ fn method_outgoing_calls(
         if spans.is_empty() {
             continue;
         }
-        let key = method_item_name(class_def, callee);
-        let entry = by_target.entry(key).or_insert_with(|| {
-            (
-                item_for_method(source, class_def, callee, line_index),
-                Vec::new(),
-            )
-        });
+        let entry = by_target
+            .entry(CallItemKey::for_method(class_def, callee))
+            .or_insert_with(|| {
+                (
+                    item_for_method(source, class_def, callee, line_index),
+                    Vec::new(),
+                )
+            });
         entry.1.extend(
             spans
                 .into_iter()
                 .map(|s| span_to_range(source, line_index, s)),
         );
     }
+    add_classmethod_outgoing(
+        source,
+        dialect,
+        analysis,
+        source_method.body_span,
+        line_index,
+        &mut by_target,
+    );
     let class_ns = tcl_syntax::naming::key_holder_and_tail(&class_def.qualified_name).0;
     for (head, span) in segment_body_calls(source, dialect, source_method.body_span) {
         if matches!(head.as_str(), "my" | "next" | "nextto") {
@@ -846,12 +1049,14 @@ fn method_outgoing_calls(
             crate::definition::resolve_called_proc(analysis, source, class_ns, &head, None)
         {
             let qname = &proc_def.qualified_name;
-            let entry = by_target.entry(qname.clone()).or_insert_with(|| {
-                (
-                    item_for_proc(source, proc_def, qname, line_index),
-                    Vec::new(),
-                )
-            });
+            let entry = by_target
+                .entry(CallItemKey::for_proc(qname, proc_def))
+                .or_insert_with(|| {
+                    (
+                        item_for_proc(source, proc_def, qname, line_index),
+                        Vec::new(),
+                    )
+                });
             entry.1.push(span_to_range(source, line_index, span));
         }
     }
@@ -859,6 +1064,58 @@ fn method_outgoing_calls(
         .into_values()
         .map(|(to, from_ranges)| OutgoingCall { to, from_ranges })
         .collect()
+}
+
+/// Add every bare `ClassName <classmethod>` dispatch inside `body` to
+/// `by_target`, keyed by the classmethod it names (issue #995).
+///
+/// Every class the document declares is a candidate, not just the calling
+/// method's own: a class command is global, so an instance method of one
+/// class may perfectly well dispatch another class's classmethod
+/// (tclsh9.0-verified).  Sites come from
+/// [`crate::references::find_obj_method_call_sites`], the shared scanner —
+/// so the [incr Tcl] definer-family exclusion and the inheriting-subclass
+/// dispatch heads it already knows about apply here too — filtered to the
+/// calling body's span.
+fn add_classmethod_outgoing(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    body: tcl_lexer::Span,
+    line_index: &LineIndex,
+    by_target: &mut EdgeBuckets,
+) {
+    for class_def in analysis.all_classes.values() {
+        for callee in class_def.class_methods.values() {
+            let spans: Vec<tcl_lexer::Span> = crate::references::find_obj_method_call_sites(
+                source,
+                dialect,
+                analysis,
+                &class_def.qualified_name,
+                &callee.name,
+                true,
+            )
+            .into_iter()
+            .filter(|span| span_contains(body, *span))
+            .collect();
+            if spans.is_empty() {
+                continue;
+            }
+            let entry = by_target
+                .entry(CallItemKey::for_method(class_def, callee))
+                .or_insert_with(|| {
+                    (
+                        item_for_method(source, class_def, callee, line_index),
+                        Vec::new(),
+                    )
+                });
+            entry.1.extend(
+                spans
+                    .into_iter()
+                    .map(|s| span_to_range(source, line_index, s)),
+            );
+        }
+    }
 }
 
 /// Iterate every method + classmethod of a class (the bodies
@@ -1303,5 +1560,194 @@ mod tests {
         let incoming_cd = incoming_calls(src, "tcl", &items_cd[0], &analysis);
         assert_eq!(incoming_cd.len(), 1, "{incoming_cd:?}");
         assert_eq!(incoming_cd[0].from.name, "caller");
+    }
+
+    // Bare `ClassName <classmethod>` dispatch (issue #995).  `classmethod`
+    // is Tcl 9.0+, so these analyse at 9.0.
+
+    fn analyse_tcl9(source: &str) -> AnalysisResult {
+        let mut a = Analyser::new();
+        a.analyse(source, "tcl9.0").clone()
+    }
+
+    /// FN→TP (issue #995's own repro): a `classmethod` dispatches on the
+    /// class's own command (`Factory make`), so its callers are the
+    /// top-level statement *and* the sibling classmethod's body — neither
+    /// of which has the member's own name as its head word, which is why
+    /// the head-word comparison found nothing.  tclsh9.0-verified: both
+    /// `Factory build` and the bare `Factory make` really do enter `make`.
+    #[test]
+    fn incoming_calls_for_classmethod_find_bare_class_dispatch() {
+        let src = "oo::class create Factory {\n    classmethod make {} { return 1 }\n    classmethod build {} { Factory make }\n}\nFactory make\n";
+        let analysis = analyse_tcl9(src);
+        // Cursor on `make`'s declaration name (line 1, col 16).
+        let items = prepare(src, 1, 16, &analysis);
+        assert_eq!(items[0].name, "::Factory::make", "{items:?}");
+        let incoming = incoming_calls(src, "tcl9.0", &items[0], &analysis);
+        let callers: Vec<&str> = incoming.iter().map(|c| c.from.name.as_str()).collect();
+        assert_eq!(
+            callers,
+            vec!["::Factory::build", "<top-level>"],
+            "{incoming:?}"
+        );
+        assert!(
+            incoming.iter().all(|c| c.from_ranges.len() == 1),
+            "one call site each: {incoming:?}"
+        );
+    }
+
+    /// FN→TP: the outgoing direction of the same repro — `build`'s body
+    /// dispatches `Factory make`, so `make` is its callee.
+    #[test]
+    fn outgoing_calls_from_classmethod_reach_bare_class_dispatch() {
+        let src = "oo::class create Factory {\n    classmethod make {} { return 1 }\n    classmethod build {} { Factory make }\n}\nFactory make\n";
+        let analysis = analyse_tcl9(src);
+        // Cursor on `build`'s declaration name (line 2, col 16).
+        let items = prepare(src, 2, 16, &analysis);
+        assert_eq!(items[0].name, "::Factory::build", "{items:?}");
+        let outgoing = outgoing_calls(src, "tcl9.0", &items[0], &analysis);
+        let callees: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
+        assert_eq!(callees, vec!["::Factory::make"], "{outgoing:?}");
+        assert_eq!(outgoing[0].from_ranges.len(), 1, "{outgoing:?}");
+    }
+
+    /// TP: a class command is an ordinary global command, so an *instance*
+    /// method's body dispatching `Factory make` is an incoming edge too
+    /// (tclsh9.0-verified) — the `my`-scope rule that keeps instance and
+    /// class method tables apart does not apply to this shape.
+    #[test]
+    fn incoming_calls_for_classmethod_include_an_instance_method_caller() {
+        let src = "oo::class create Factory {\n    classmethod make {} { return 1 }\n    method viaInstance {} { Factory make }\n}\n";
+        let analysis = analyse_tcl9(src);
+        let items = prepare(src, 1, 16, &analysis);
+        let incoming = incoming_calls(src, "tcl9.0", &items[0], &analysis);
+        let callers: Vec<&str> = incoming.iter().map(|c| c.from.name.as_str()).collect();
+        assert_eq!(callers, vec!["::Factory::viaInstance"], "{incoming:?}");
+    }
+
+    /// FN→TP (Codex review on #1047): a **proc** body dispatching a bare
+    /// class command must list the classmethod under its Outgoing Calls.
+    /// The classmethod's Incoming Calls already listed the proc, so the
+    /// edge used to exist in one direction only.
+    #[test]
+    fn outgoing_calls_from_proc_reach_bare_class_dispatch() {
+        let src = "oo::class create Factory {\n    classmethod make {} { return 1 }\n}\nproc build {} { Factory make }\n";
+        let analysis = analyse_tcl9(src);
+        // Cursor on `build`'s declaration name (line 3, col 6).
+        let items = prepare(src, 3, 6, &analysis);
+        assert_eq!(items[0].name, "build", "{items:?}");
+        let outgoing = outgoing_calls(src, "tcl9.0", &items[0], &analysis);
+        let callees: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
+        assert_eq!(callees, vec!["::Factory::make"], "{outgoing:?}");
+        assert_eq!(outgoing[0].from_ranges.len(), 1, "{outgoing:?}");
+        // Symmetric with the incoming direction from the same fixture.
+        let make = prepare(src, 1, 16, &analysis);
+        let incoming = incoming_calls(src, "tcl9.0", &make[0], &analysis);
+        let calling_procs: Vec<&str> = incoming.iter().map(|c| c.from.name.as_str()).collect();
+        assert_eq!(calling_procs, vec!["::build"], "{incoming:?}");
+    }
+
+    /// Codex review on #1047: an instance `method make` and a `classmethod
+    /// make` on the same class are two distinct declarations (tclsh 9.0.4:
+    /// `my make` returns `inst-make`, `C make` returns `class-make`), so a
+    /// caller that dispatches both must show two callee items with their own
+    /// declaration ranges — not one merged item keyed on the shared display
+    /// name `::C::make`.
+    #[test]
+    fn outgoing_calls_separate_same_named_instance_method_and_classmethod() {
+        let src = "oo::class create C {\n\
+                   \x20   classmethod make {} { return 1 }\n\
+                   \x20   method make {} { return 2 }\n\
+                   \x20   method caller {} { my make ; C make }\n\
+                   }\n";
+        let analysis = analyse_tcl9(src);
+        // Cursor on `caller`'s declaration name (line 3, col 11).
+        let items = prepare(src, 3, 11, &analysis);
+        assert_eq!(items[0].name, "::C::caller", "{items:?}");
+        let outgoing = outgoing_calls(src, "tcl9.0", &items[0], &analysis);
+        assert_eq!(outgoing.len(), 2, "{outgoing:?}");
+        for call in &outgoing {
+            assert_eq!(call.to.name, "::C::make", "{outgoing:?}");
+            assert_eq!(call.from_ranges.len(), 1, "{outgoing:?}");
+        }
+        // One item points at the classmethod's declaration (line 1), the
+        // other at the instance method's (line 2).
+        let mut decl_lines: Vec<u32> = outgoing
+            .iter()
+            .map(|c| c.to.selection_range.start_line)
+            .collect();
+        decl_lines.sort_unstable();
+        assert_eq!(decl_lines, vec![1, 2], "{outgoing:?}");
+    }
+
+    /// Adversarial review of #1047, item 11: a proc caller listed beside a
+    /// method caller is named the same way — qualified — rather than by its
+    /// short name.
+    #[test]
+    fn classmethod_incoming_names_proc_callers_qualified() {
+        let src = "oo::class create Factory {\n    classmethod make {} { return 1 }\n    method viaInstance {} { Factory make }\n}\nnamespace eval ::util {\n    proc helper {} { Factory make }\n}\n";
+        let analysis = analyse_tcl9(src);
+        let items = prepare(src, 1, 16, &analysis);
+        let incoming = incoming_calls(src, "tcl9.0", &items[0], &analysis);
+        let callers: Vec<&str> = incoming.iter().map(|c| c.from.name.as_str()).collect();
+        assert_eq!(
+            callers,
+            vec!["::Factory::viaInstance", "::util::helper"],
+            "{incoming:?}"
+        );
+    }
+
+    /// FN→TP (adversarial review of #1047, item 2): a bare class dispatch
+    /// inside an `apply` lambda body or a `namespace eval` body is a real
+    /// call site, so the call hierarchy must attribute it to the body it
+    /// sits in.  tclsh 9.0.4 runs all three of these dispatches.
+    #[test]
+    fn classmethod_incoming_covers_lambda_and_namespace_eval_bodies() {
+        let src = "oo::class create Factory {\n\
+                   \x20   classmethod make {} { return 1 }\n\
+                   \x20   method inst {} { apply {{} { Factory make }} }\n\
+                   \x20   method nsev {} { namespace eval ::zz { Factory make } }\n\
+                   }\n\
+                   namespace eval ::top2 { Factory make }\n";
+        let analysis = analyse_tcl9(src);
+        let items = prepare(src, 1, 16, &analysis);
+        let incoming = incoming_calls(src, "tcl9.0", &items[0], &analysis);
+        let callers: Vec<&str> = incoming.iter().map(|c| c.from.name.as_str()).collect();
+        assert_eq!(
+            callers,
+            vec!["::Factory::inst", "::Factory::nsev", "<top-level>"],
+            "{incoming:?}"
+        );
+    }
+
+    /// FP guard: `Factory make` where `Factory` is an ordinary proc calls
+    /// *that proc* with the literal argument `make` (tclsh8.6/9.0-verified:
+    /// it prints `proc Factory: make`), so it is no edge at all to an
+    /// unrelated class's same-named classmethod.
+    #[test]
+    fn bare_dispatch_on_a_same_named_proc_is_not_a_classmethod_edge() {
+        let src = "oo::class create Widget {\n    classmethod make {} { return 1 }\n}\nproc Factory {args} { return $args }\nFactory make\n";
+        let analysis = analyse_tcl9(src);
+        let items = prepare(src, 1, 16, &analysis);
+        assert_eq!(items[0].name, "::Widget::make", "{items:?}");
+        assert!(
+            incoming_calls(src, "tcl9.0", &items[0], &analysis).is_empty(),
+            "a proc call spelled `Factory make` is not a dispatch of Widget's classmethod"
+        );
+    }
+
+    /// FP guard: an instance `method` is *not* bare-dispatchable on the
+    /// class command (`Factory make` reaches only the class object's own
+    /// method table), so the classmethod leg must not fire for one.
+    #[test]
+    fn bare_class_dispatch_is_not_an_edge_to_a_same_named_instance_method() {
+        let src = "oo::class create Factory {\n    method make {} { return 1 }\n}\nFactory make\n";
+        let analysis = analyse_tcl9(src);
+        let items = prepare(src, 1, 11, &analysis);
+        assert_eq!(items[0].name, "::Factory::make", "{items:?}");
+        assert!(
+            incoming_calls(src, "tcl9.0", &items[0], &analysis).is_empty(),
+            "an instance method has no bare class-command dispatch"
+        );
     }
 }

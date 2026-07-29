@@ -883,22 +883,15 @@ async fn list_wrapped_namespace_unknown_installer_suppresses_w123_e2e() {
 /// bareword-callable; without it, the call errors "invalid command
 /// name" in real tclsh and go-to-definition/hover must abstain, not
 /// guess.
-// QUARANTINED (Codex review, PR #1020): this test is genuinely flaky
-// (~1/15 in CI and locally). The *un-linked* half asserts a bareword sibling
-// call `[foo 42]` (no `link foo`) abstains from go-to-definition. The
-// in-document provider correctly abstains (the idx-113 link gate in
-// `lookup_class_member`), but the server's cross-document fallback
-// (`cross_document_definition` → `resolve_workspace_symbols`) then
-// *non-deterministically* resolves the bareword `foo` (candidate `::foo`) to
-// the enclosing class's `::Widget::foo` method: `workspace_command_exists`
-// answers from `defined_command_names`, which folds in TclOO method names
-// even though a method is not bareword-callable without `link`, and the
-// downstream method→definition resolution is HashMap-iteration-order
-// dependent. The proper fix is to apply the idx-113 link gate in the
-// workspace resolver (and stop methods satisfying a bareword
-// `workspace_command_exists`); tracked as its own issue alongside the `link`
-// modelling follow-up. Ignored so it stops flaking CI green until then.
-#[ignore = "flaky: workspace def fallback non-deterministically resolves an un-linked bareword method call (idx-113 link gate not applied cross-document); tracked as a follow-up issue"]
+// Was quarantined as flaky (issue #1028, ~1/15 in CI and locally) and is now
+// deterministic again. The culprit was *not* `defined_command_names` folding
+// method names (it no longer does): it was `rename::method_target_with_access`'s
+// class-body fallback firing on **any** member-name-shaped word inside a class
+// body span — receiver-less, link-gate-less — so the un-linked bareword `foo`
+// was handed to `cross_file_method_definition`, whose answer then rode on hash
+// iteration order. That fallback now applies the same idx-113 gate the
+// in-document `definition::lookup_class_member` does: the cursor must be on the
+// member's own declaration name, or on a bareword `link` really made callable.
 #[tokio::test]
 async fn class_member_bareword_call_requires_link_e2e() {
     let (mut reader, mut writer, server) = start_session().await;

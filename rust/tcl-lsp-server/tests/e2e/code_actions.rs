@@ -1449,3 +1449,69 @@ fn test_w201_no_rewrite_for_mixed_segment() {
         "a mixed segment does not decompose cleanly: {actions:?}"
     );
 }
+
+/// Issue #1000: refactor code actions must reach control flow inside an
+/// `apply` lambda body.  `apply`'s literal is `ArgRole::LambdaLiteral`, so
+/// the refactor descent has to split it and walk element 1; re-segmenting
+/// the whole `{argList body}` blob read `{m}` as a command name and left
+/// every `body_words`-backed action (if-to-switch, switch-to-dict,
+/// brace-expr, inline-variable, extract-to-datagroup) silently unavailable
+/// in there.  tclsh8.6/9.0-verified that this lambda really does run the
+/// `if` it wraps.
+#[test]
+fn test_if_to_switch_offered_inside_an_apply_lambda_body() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc handler {} {\n    apply {{m} {\n        if {$m eq \"GET\"} {\n            puts get\n        } elseif {$m eq \"POST\"} {\n            puts post\n        }\n    }} $x\n}\n";
+    lsp.open_ready(&uri, src);
+    // Cursor on the `if` inside the lambda body.
+    let actions = lsp.code_actions(&uri, range((2, 8), (2, 8)), json!([]));
+    assert!(
+        titles(&actions)
+            .iter()
+            .any(|t| t.to_lowercase().contains("switch")),
+        "the if-to-switch refactor must be offered inside the lambda: {actions:?}"
+    );
+}
+
+/// TN (Codex review on #1047): a lambda body written as a **quoted** list
+/// element with escapes is backslash-decoded before `apply` evaluates it,
+/// so its source slice is not the script that runs — the source says `$m eq
+/// \"GET\"` where the real body says `$m eq "GET"` (tclsh 8.6 / 9.0.4 both
+/// run this lambda and answer `get` / `post`).  Re-parsing the slice in
+/// place offers a rewrite built from text that never executes, and lands
+/// its edits inside a string literal, so the descent must take only
+/// `{braced}` body elements.
+#[test]
+fn test_no_refactor_offered_inside_an_escaped_quoted_lambda_body() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "apply {{m} \"if {$m eq \\\"GET\\\"} {return get} elseif {$m eq \\\"POST\\\"} {return post}\"} GET\n";
+    lsp.open_ready(&uri, src);
+    // Cursor on the `if` word of the quoted body element.
+    let actions = lsp.code_actions(&uri, range((0, 12), (0, 12)), json!([]));
+    assert!(
+        kinds(&actions, "refactor").is_empty(),
+        "an escaped quoted body element is not script at these offsets: {:?}",
+        titles(&actions)
+    );
+}
+
+/// TN: the lambda's *argument list* is a plain word list, not code, so a
+/// cursor on it offers no control-flow refactor even when a parameter
+/// happens to be spelled like a command.
+#[test]
+fn test_no_refactor_offered_on_the_lambda_arg_list() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "apply {{if} {\n    puts $if\n}} 1\n";
+    lsp.open_ready(&uri, src);
+    // Cursor on the `if` parameter name in the argument list (line 0).
+    let actions = lsp.code_actions(&uri, range((0, 8), (0, 8)), json!([]));
+    assert!(
+        !titles(&actions)
+            .iter()
+            .any(|t| t.to_lowercase().contains("switch")),
+        "a parameter word named `if` is not an `if` command: {actions:?}"
+    );
+}

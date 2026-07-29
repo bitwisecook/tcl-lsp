@@ -151,6 +151,16 @@ impl WorkspaceClass {
             .iter()
             .find(|m| m.name == name && m.kind != "classmethod")
     }
+
+    /// The typed record for the *class-receiver* member `name` — a
+    /// `classmethod` / `self method` / snit `typemethod` — if this record
+    /// defines one.  The counterpart of [`Self::instance_method`].
+    #[must_use]
+    pub fn class_method(&self, name: &str) -> Option<&WorkspaceMethod> {
+        self.methods
+            .iter()
+            .find(|m| m.name == name && m.kind == "classmethod")
+    }
 }
 
 /// One method a class record directly defines, as indexed for cross-file
@@ -170,6 +180,18 @@ pub struct WorkspaceMethod {
     /// dispatch *and* to subclasses; callable only via `my` within the
     /// declaring class's own methods.
     pub private: bool,
+    /// `true` for a stock-`TclOO` `self method` (as opposed to `ooutil`'s
+    /// `classmethod` keyword).  Both land in the class-receiver bucket
+    /// (`kind == "classmethod"`), but a `self method` is visible **only**
+    /// on the exact class object that declared it: `Gadget make` on a
+    /// subclass of a class declaring `self method make` errors `unknown
+    /// method "make"` under tclsh 8.6 and 9.0.4, whereas `classmethod`
+    /// propagates to the subclass's own bound command through its
+    /// `Delegate`-mixin machinery.  The single-document scan reads
+    /// [`tcl_compiler::analyser::MethodDef::is_self_method`] for this;
+    /// carrying it here is what lets a *cross-file* consumer scan tell the
+    /// two apart (Codex review on #1047).
+    pub is_self_method: bool,
 }
 
 /// The access context of a method call site — `TclOO` dispatches an
@@ -339,6 +361,30 @@ pub struct WorkspaceNamespaceExport {
     pub pattern: String,
 }
 
+/// Collect `items` into source order by the span `key` reports, so a
+/// `HashMap`-valued analyser table lands in the index deterministically
+/// instead of in the process's random hash order (issue #1028).
+fn sorted_by_span<'a, T, I, F>(items: I, key: F) -> Vec<&'a T>
+where
+    I: IntoIterator<Item = &'a T>,
+    F: Fn(&T) -> Span,
+{
+    let mut out: Vec<&T> = items.into_iter().collect();
+    out.sort_by_key(|item| {
+        let span = key(item);
+        (span.start(), span.end())
+    });
+    out
+}
+
+/// The names of a `HashSet`-valued analyser table, in a stable order.  See
+/// [`sorted_by_span`] for why the source order matters.
+fn sorted_names(names: &std::collections::HashSet<String>) -> Vec<String> {
+    let mut out: Vec<String> = names.iter().cloned().collect();
+    out.sort();
+    out
+}
+
 /// Cross-document aggregate of proc / class definitions,
 /// command-invocation sites, `source` references, command
 /// name-links, and `package require` declarations.
@@ -380,7 +426,14 @@ impl WorkspaceIndex {
     /// Call [`Self::remove_document`] first when re-indexing a
     /// changed document to avoid stale duplicates.
     pub fn add_document(&mut self, uri: &str, analysis: &AnalysisResult) {
-        for proc_def in analysis.all_procs.values() {
+        // `all_procs` / `all_classes` / a class's `methods` are `HashMap`s, so
+        // iterating them directly would order this document's index entries by
+        // the process's random hash seed — and consumers that answer with the
+        // *first* matching record (go-to-definition's dispatch entry, most
+        // visibly) then answer differently run to run (issue #1028).  Source
+        // order is the stable, meaningful order: it is also the order the
+        // records take effect in when the file is sourced.
+        for proc_def in sorted_by_span(analysis.all_procs.values(), |p| p.name_span) {
             self.procs.push(WorkspaceProc {
                 uri: uri.to_owned(),
                 name: proc_def.name.clone(),
@@ -390,23 +443,29 @@ impl WorkspaceIndex {
                 nested: analysis.offset_is_inside_any_definition_body(proc_def.name_span.start()),
             });
         }
-        for class_def in analysis.all_classes.values() {
-            let methods: Vec<WorkspaceMethod> = class_def
-                .methods
-                .values()
-                .map(|m| WorkspaceMethod {
-                    name: m.name.clone(),
-                    kind: m.kind.clone(),
-                    exported: m.visibility == "public",
-                    private: m.visibility == "private",
-                })
-                .chain(class_def.class_methods.values().map(|m| WorkspaceMethod {
-                    name: m.name.clone(),
-                    kind: "classmethod".to_string(),
-                    exported: m.visibility == "public",
-                    private: m.visibility == "private",
-                }))
-                .collect();
+        for class_def in sorted_by_span(analysis.all_classes.values(), |c| c.name_span) {
+            let methods: Vec<WorkspaceMethod> =
+                sorted_by_span(class_def.methods.values(), |m| m.name_span)
+                    .into_iter()
+                    .map(|m| WorkspaceMethod {
+                        name: m.name.clone(),
+                        kind: m.kind.clone(),
+                        exported: m.visibility == "public",
+                        private: m.visibility == "private",
+                        is_self_method: m.is_self_method,
+                    })
+                    .chain(
+                        sorted_by_span(class_def.class_methods.values(), |m| m.name_span)
+                            .into_iter()
+                            .map(|m| WorkspaceMethod {
+                                name: m.name.clone(),
+                                kind: "classmethod".to_string(),
+                                exported: m.visibility == "public",
+                                private: m.visibility == "private",
+                                is_self_method: m.is_self_method,
+                            }),
+                    )
+                    .collect();
             self.classes.push(WorkspaceClass {
                 uri: uri.to_owned(),
                 name: class_def.name.clone(),
@@ -415,8 +474,8 @@ impl WorkspaceIndex {
                 superclasses: class_def.superclasses.clone(),
                 mixins: class_def.mixins.clone(),
                 methods,
-                exports: class_def.exports.iter().cloned().collect(),
-                unexports: class_def.unexports.iter().cloned().collect(),
+                exports: sorted_names(&class_def.exports),
+                unexports: sorted_names(&class_def.unexports),
                 via_define: class_def.via_define,
                 metaclass: class_def.metaclass.clone(),
             });
@@ -865,11 +924,18 @@ impl WorkspaceIndex {
     ) -> Vec<&'a WorkspaceClass> {
         let mut out: Vec<&WorkspaceClass> = Vec::new();
         for class_q in self.class_linearisation(receiver_class) {
-            let records: Vec<&WorkspaceClass> = self
+            // Several records of one class (its creation site plus every
+            // `oo::define` stub, possibly spread over files) are all kept, and
+            // the *first* is what go-to-definition answers with — so the order
+            // has to be a property of the workspace, not of when each document
+            // happened to be indexed.  Document URI then source position is
+            // that stable order (issue #1028).
+            let mut records: Vec<&WorkspaceClass> = self
                 .classes
                 .iter()
                 .filter(|c| c.qualified_name == class_q)
                 .collect();
+            records.sort_by_key(|c| (c.uri.as_str(), c.name_span.start(), c.name_span.end()));
             // The class-level effective export union: any record exporting
             // the name keeps it callable; explicit unexports matter only
             // when no record exports it.

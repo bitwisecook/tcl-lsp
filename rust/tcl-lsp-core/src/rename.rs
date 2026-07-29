@@ -539,19 +539,38 @@ pub fn method_target_with_access(
     if let Some(class_def) = crate::definition::enclosing_class_at(analysis, cursor)
         .and_then(|q| analysis.all_classes.get(q))
     {
-        let has_method = class_def.methods.contains_key(&word);
-        let has_classmethod = class_def.class_methods.contains_key(&word);
-        if has_method || has_classmethod {
+        let method_decl = class_def.methods.get(&word);
+        let classmethod_decl = class_def.class_methods.get(&word);
+        // A member-name-shaped word anywhere inside the class body is not by
+        // itself a reference to that member.  It only is when the cursor sits
+        // on the member's **own declaration name**, or on a bareword that
+        // `link` genuinely made bareword-callable and pointed back at this
+        // same member (`ClassDef::linked_members`, issue #923 idx 113 — an
+        // un-linked bareword errors "invalid command name" in real Tcl, so it
+        // names nothing).  This is the gate the in-document provider's
+        // `definition::lookup_class_member` already applies; without it here,
+        // any same-spelled word — a parameter, a literal, an un-linked
+        // sibling call — was read as the member and handed to the workspace
+        // resolver, which then answered non-deterministically (issue #1028).
+        let on_declaration = |m: &tcl_compiler::analyser::MethodDef| {
+            m.name_span.start() <= cursor && cursor < m.name_span.end()
+        };
+        let cursor_on_method_decl = method_decl.is_some_and(on_declaration);
+        let cursor_on_classmethod_decl = classmethod_decl.is_some_and(on_declaration);
+        let linked_to_self = class_def
+            .linked_members
+            .get(&word)
+            .is_some_and(|target| *target == word);
+        if (method_decl.is_some() || classmethod_decl.is_some())
+            && (cursor_on_method_decl || cursor_on_classmethod_decl || linked_to_self)
+        {
             // A `method` and a `classmethod` of the same name are distinct
             // members; unambiguous when only one exists, otherwise prefer
-            // whichever one's declaration the cursor is actually on (falls
-            // back to the method when the cursor is elsewhere in the body,
-            // e.g. a `my word` call site — the pre-existing preference).
-            let is_classmethod = has_classmethod
-                && (!has_method
-                    || class_def.class_methods.get(&word).is_some_and(|m| {
-                        m.name_span.start() <= cursor && cursor < m.name_span.end()
-                    }));
+            // whichever one's declaration the cursor is actually on (a linked
+            // bareword that could be either falls back to the method — the
+            // pre-existing preference).
+            let is_classmethod =
+                classmethod_decl.is_some() && (method_decl.is_none() || cursor_on_classmethod_decl);
             return Some((
                 class_def.qualified_name.clone(),
                 word,
@@ -2318,6 +2337,78 @@ mod tests {
              the unrelated instance method and must be untouched: {edits:?}"
         );
         assert_eq!(edits[0].range.start_line, 2, "{edits:?}");
+    }
+
+    // `method_target_with_access`'s class-body fallback — the idx-113 link
+    // gate (issue #1028).
+
+    /// TP: the cursor on a method's own declaration name is the member.
+    #[test]
+    fn method_target_fires_on_the_members_own_declaration_name() {
+        let src = "oo::class create Widget {\n    method foo {x} { return $x }\n    method bar {} { return [foo 42] }\n}\n";
+        let analysis = analyse(src);
+        let target = method_target_with_access(src, 1, 11, &analysis);
+        assert_eq!(
+            target,
+            Some((
+                "::Widget".to_owned(),
+                "foo".to_owned(),
+                false,
+                crate::workspace_index::MethodAccess::Internal
+            )),
+            "cursor on the `foo` declaration must resolve to Widget's `foo`"
+        );
+    }
+
+    /// TP: a bareword sibling call that `link` genuinely made callable is a
+    /// reference to the member — tclsh9.0-verified (`link foo` in the
+    /// constructor makes `[foo 42]` inside another method dispatch to
+    /// `Widget`'s `foo`; `link` does not exist in 8.6's `TclOO`).
+    #[test]
+    fn method_target_fires_on_a_linked_bareword_call() {
+        let src = "oo::class create Widget {\n    constructor {} { link foo }\n    method foo {x} { return $x }\n    method bar {} { return [foo 42] }\n}\n";
+        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
+        let target = method_target_with_access(src, 3, 28, &analysis);
+        assert_eq!(
+            target,
+            Some((
+                "::Widget".to_owned(),
+                "foo".to_owned(),
+                false,
+                crate::workspace_index::MethodAccess::Internal
+            )),
+            "a linked bareword sibling call must resolve to the member"
+        );
+    }
+
+    /// FP guard (issue #1028): an **un-linked** bareword sibling call names
+    /// nothing — real Tcl raises `invalid command name "foo"` there
+    /// (tclsh9.0-verified) — so the resolver must abstain rather than hand
+    /// the word to the workspace resolver, which used to answer it
+    /// non-deterministically.
+    #[test]
+    fn method_target_abstains_on_an_unlinked_bareword_sibling_call() {
+        let src = "oo::class create Widget {\n    method foo {x} { return $x }\n    method bar {} { return [foo 42] }\n}\n";
+        let analysis = analyse(src);
+        assert_eq!(
+            method_target_with_access(src, 2, 28, &analysis),
+            None,
+            "an un-linked bareword sibling call is not a reference to the method"
+        );
+    }
+
+    /// FP guard: a *parameter* that happens to share a sibling method's name
+    /// is not that method either — the old fallback fired on any
+    /// member-name-shaped word anywhere in the class body span.
+    #[test]
+    fn method_target_abstains_on_a_parameter_sharing_a_method_name() {
+        let src = "oo::class create Widget {\n    method foo {x} { return $x }\n    method bar {foo} { return $foo }\n}\n";
+        let analysis = analyse(src);
+        assert_eq!(
+            method_target_with_access(src, 2, 16, &analysis),
+            None,
+            "a parameter word must not resolve to the same-named method"
+        );
     }
 
     // property rename

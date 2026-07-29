@@ -33,19 +33,42 @@ proc-to-proc edge. External `$obj method` dispatch (a different class or
 document calling in) is not part of the method call graph — it is a Find
 References concern instead.
 
+A `classmethod` is different: it is dispatched on the class's own command,
+`ClassName <method>`, so that shape is a call edge too. A class command is
+an ordinary global command, so the edge fires wherever the call is written
+— inside another classmethod, inside an instance method, inside a plain
+proc, or at the top level (the caller is then shown as `<top-level>`) — and
+that includes bodies that shift frame, such as a `namespace eval` body or an
+`apply` lambda body, where a `$obj method` dispatch would *not* count. The
+edge is symmetric in both directions: the classmethod's Incoming Calls lists
+the calling proc, and the proc's Outgoing Calls lists the classmethod.
+Because it is a real command call, `Factory make` where `Factory` happens
+to be an ordinary proc is a call to *that proc*, not to any class's
+same-named classmethod, and no method edge is created for it.
+
 An instance `method` and a `classmethod` sharing a name (rare, but `TclOO`
 keeps them in independent tables, so it's legal) never cross-link: `my
 <word>` dispatch scope depends on which table the *caller's own body*
 belongs to (`self` is the class object inside a `classmethod`'s body, the
-instance everywhere else), so an edge only ever connects two members of the
-same kind.
+instance everywhere else), so a `my` edge only ever connects two members of
+the same kind. The `ClassName <method>` shape reaches only the class
+object's own table, so it never edges to a same-named instance method. A
+caller that dispatches both — `my make` and `C make` in one body — gets two
+separate callee entries, each pointing at its own declaration, because
+edges are grouped by declaration identity rather than by display name.
+
+The callers of a classmethod are listed by their qualified names —
+`::util::helper` for a proc, `::Factory::build` for a method — so the two
+kinds read consistently in the same list.
 
 ## File-path anchors
 
 - `rust/tcl-lsp-core/src/call_hierarchy.rs`
 - `rust/tcl-lsp-core/src/references.rs` (`scan_my_method_sites` — the
   shared `my`-dispatch matcher call hierarchy, Find References, rename,
-  and the code lens all resolve through)
+  and the code lens all resolve through — and
+  `find_obj_method_call_sites`, the shared bare `ClassName <method>`
+  classmethod-dispatch scanner)
 
 ## Failure modes
 
@@ -60,11 +83,17 @@ same kind.
 ## Test anchors
 
 - `rust/tcl-lsp-core/src/call_hierarchy.rs` (`mod tests`, including
-  `outgoing_calls_does_not_conflate_method_and_classmethod_sharing_a_name`
+  `outgoing_calls_does_not_conflate_method_and_classmethod_sharing_a_name`,
+  `outgoing_calls_separate_same_named_instance_method_and_classmethod`,
+  `outgoing_calls_from_proc_reach_bare_class_dispatch`,
+  `classmethod_incoming_covers_lambda_and_namespace_eval_bodies`,
+  `classmethod_incoming_names_proc_callers_qualified`,
   and `prepare_resolves_classmethod_over_same_named_method_by_cursor`)
 - `rust/tcl-lsp-server/tests/e2e/navigation_extras.rs`
   (`method_incoming_and_outgoing_calls_match_my_dispatch`,
-  `method_outgoing_calls_nested_in_control_flow`)
+  `method_outgoing_calls_nested_in_control_flow`,
+  `classmethod_incoming_and_outgoing_calls_match_bare_class_dispatch`,
+  `bare_dispatch_on_a_same_named_proc_is_not_a_classmethod_edge`)
 
 ## Example
 

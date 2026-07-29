@@ -354,4 +354,24 @@ mod tests {
         let r = run(source, cursor).expect("nested result");
         assert!(r.title.to_lowercase().contains("switch"));
     }
+
+    /// Issue #1000: the same conversion must fire inside an `apply` lambda
+    /// body.  `apply`'s literal is `ArgRole::LambdaLiteral`, so
+    /// `find_command_at` has to split it and descend into element 1 —
+    /// before that it read the `{m}` argument list as a command name and
+    /// found no `if` at all, silently disabling this and the four other
+    /// `body_words`-backed code actions there.
+    #[test]
+    fn inside_apply_lambda_body() {
+        let source = "proc handler {} {\n    apply {{m} {\n        if {$m eq \"GET\"} {\n            handle_get\n        } elseif {$m eq \"POST\"} {\n            handle_post\n        } elseif {$m eq \"PUT\"} {\n            handle_put\n        }\n    }} $x\n}\n";
+        let cursor = u32::try_from(source.find("if {$m").unwrap()).unwrap();
+        let r = run(source, cursor).expect("result inside the apply lambda");
+        assert!(r.title.to_lowercase().contains("switch"));
+        let applied = r.apply(source);
+        assert!(applied.contains("switch -exact -- $m"), "{applied:?}");
+        // The rewrite lands inside the lambda body, leaving `apply`'s own
+        // argument list and the enclosing proc intact.
+        assert!(applied.contains("apply {{m} {"), "{applied:?}");
+        assert!(applied.starts_with("proc handler {} {\n"), "{applied:?}");
+    }
 }

@@ -256,7 +256,9 @@ fn walk_commands_inner(
     for cmd in segment_commands_with_offset(slice, offset) {
         let pos = line_index.position_at_utf16(cmd.span.start(), full);
         out.push((cmd.texts.clone(), pos.line, pos.character.get()));
-        for body in body_words(&cmd, registry) {
+        // Spans here are absolute into `full` (the segmenter was given
+        // `offset`), so the lambda splitter reads from `full` too.
+        for body in body_words(full, &cmd, registry) {
             let Some(body_slice) = full.get(body.inner_start as usize..body.inner_end as usize)
             else {
                 continue;
@@ -297,7 +299,7 @@ fn find_command_at_inner(
             continue;
         }
         // Recurse into body arguments first — the innermost match wins.
-        for body in body_words(&cmd, registry) {
+        for body in body_words(source, &cmd, registry) {
             if let Some(inner) = find_command_at_inner(
                 &source[body.inner_start as usize..body.inner_end as usize],
                 cursor.saturating_sub(body.inner_start),
@@ -323,10 +325,28 @@ struct BodyWord {
     inner_end: u32,
 }
 
-/// Yield the registry-resolved `ArgRole::Body` words of `cmd` whose
-/// value is a non-empty braced (`STR`) word, with the interior byte
-/// range (one past the opening `{` to the closing `}`).
-fn body_words(cmd: &SegmentedCommand, registry: &CommandRegistry) -> Vec<BodyWord> {
+/// Yield the script-bearing words of `cmd` that [`find_command_at_inner`]
+/// may descend into, as interior byte ranges (delimiters excluded) in the
+/// outer source buffer.
+///
+/// Two registry roles qualify, both resolved from the spec — never from a
+/// command name:
+///
+/// * [`ArgRole::Body`] — a plain braced script; the whole interior is code.
+/// * [`ArgRole::LambdaLiteral`] — `apply`'s `{argList body ?ns?}` two- or
+///   three-element list, where only element 1 is code.  It is split with
+///   [`tcl_compiler::lambda_literal::split_lambda_literal`], the same
+///   splitter every other migrated consumer uses (issue #1000).  Treating
+///   the whole literal as one body instead reads `argList` as a command
+///   name and swallows the real body, which is why no refactor code action
+///   fired inside an `apply` lambda.  Only a `{braced}` body element is
+///   descended
+///   ([`LambdaLiteralElements::braced_body`](tcl_compiler::lambda_literal::LambdaLiteralElements::braced_body)):
+///   a bare / double-quoted one is backslash-decoded before `apply`
+///   evaluates it, so its source slice is not the script that runs and the
+///   spans a code action derived from it would edit the wrong bytes (Codex
+///   review on #1047).
+fn body_words(source: &str, cmd: &SegmentedCommand, registry: &CommandRegistry) -> Vec<BodyWord> {
     let name = cmd.name();
     if name.is_empty() {
         return Vec::new();
@@ -347,15 +367,36 @@ fn body_words(cmd: &SegmentedCommand, registry: &CommandRegistry) -> Vec<BodyWor
         // is one byte past the `{` up to the span end.
         let inner_start = tok.span.start() + u32::from(tok.content_offset);
         let inner_end = tok.span.end();
-        if inner_end <= inner_start {
-            continue; // empty body — nothing to descend
+        push_body_word(&mut out, inner_start, inner_end);
+    }
+    for idx in registry.arg_indices_for_role(name, &args, ArgRole::LambdaLiteral) {
+        let Some(&tok) = cmd.argv.get(idx + 1) else {
+            continue;
+        };
+        // A `$var` / `[cmd]`-computed lambda can't be split statically —
+        // the guard every `LambdaLiteral` consumer applies.
+        if tok.kind != TokenType::Str {
+            continue;
         }
+        let Some(body) = tcl_compiler::lambda_literal::split_lambda_literal(source, tok)
+            .and_then(|elems| elems.braced_body())
+        else {
+            continue;
+        };
+        push_body_word(&mut out, body.start(), body.end());
+    }
+    out
+}
+
+/// Record a descendable interior range, skipping an empty one (nothing to
+/// descend into).
+fn push_body_word(out: &mut Vec<BodyWord>, inner_start: u32, inner_end: u32) {
+    if inner_end > inner_start {
         out.push(BodyWord {
             inner_start,
             inner_end,
         });
     }
-    out
 }
 
 /// Parse a `switch` command's flags + subject + pattern/body pairs.
@@ -498,6 +539,46 @@ mod tests {
         // The returned span is in the outer buffer's offsets.
         let (s, _e) = command_span_offsets(src, &cmd);
         assert!(src[s as usize..].starts_with("if {$m"));
+    }
+
+    /// Parity with [`find_command_descends_into_proc_body`] for `apply`'s
+    /// lambda literal (issue #1000).  `apply`'s first argument is
+    /// `ArgRole::LambdaLiteral`, not `Body`: the whole `{argList body}`
+    /// blob is not a script, so descending into it verbatim reads
+    /// `argList` as a command name and swallows the real body.  Splitting
+    /// it reaches the body element, and the `if` inside is found exactly
+    /// as it is inside a `proc`.  tclsh8.6/9.0-verified that this lambda
+    /// really does run that `if` (`get` / `post` / `other`).
+    #[test]
+    fn find_command_descends_into_apply_lambda_body() {
+        let reg = test_registry();
+        let src = "proc handler {} {\n    apply {{m} {\n        if {$m eq \"GET\"} {\n            puts get\n        } elseif {$m eq \"POST\"} {\n            puts post\n        } else {\n            puts other\n        }\n    }} $x\n}\n";
+        // Cursor on the `if` inside the lambda body.
+        let cursor = u32::try_from(src.find("if {$m").unwrap()).unwrap() + 1;
+        let cmd = find_command_at(src, cursor, Some("if"), &reg).expect("if inside apply lambda");
+        assert_eq!(cmd.name(), "if");
+        // The returned span is in the outer buffer's offsets.
+        let (start, _end) = command_span_offsets(src, &cmd);
+        assert!(
+            src[start as usize..].starts_with("if {$m"),
+            "span must relocate back into the outer buffer: {:?}",
+            &src[start as usize..]
+        );
+    }
+
+    /// TN: the lambda's *argument-list* element is a plain word list, not
+    /// code.  A cursor on it must not produce a command match — descending
+    /// into it is exactly the mis-read the split avoids.
+    #[test]
+    fn find_command_does_not_match_inside_the_lambda_arg_list() {
+        let reg = test_registry();
+        let src = "apply {{if} {\n    puts $if\n}} 1\n";
+        // Cursor on the `if` *parameter name* in the argument list.
+        let cursor = u32::try_from(src.find("{if}").unwrap()).unwrap() + 1;
+        assert!(
+            find_command_at(src, cursor, Some("if"), &reg).is_none(),
+            "a parameter word named `if` is not an `if` command"
+        );
     }
 
     #[test]

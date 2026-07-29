@@ -2795,6 +2795,32 @@ mod tests {
         );
     }
 
+    /// Issue #1000: the refactor code actions reach control flow inside an
+    /// `apply` lambda body too.  `apply`'s literal is
+    /// `ArgRole::LambdaLiteral`, so the descent has to split it rather than
+    /// re-segment the whole `{argList body}` blob — which read `{m}` as a
+    /// command name and left every `body_words`-backed action silently
+    /// unavailable in there.
+    #[test]
+    fn if_to_switch_surfaces_inside_an_apply_lambda_body() {
+        let src = "proc handler {} {\n    apply {{m} {\n        if {$m eq \"GET\"} {\n            puts get\n        } elseif {$m eq \"POST\"} {\n            puts post\n        }\n    }} $x\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `if` inside the lambda body (line 2, col 8).
+        let cursor = LspRange {
+            start_line: 2,
+            start_character: 8,
+            end_line: 2,
+            end_character: 8,
+        };
+        let actions = code_actions(src, cursor, Some(&analysis));
+        assert!(
+            actions
+                .iter()
+                .any(|a| a.title.to_lowercase().contains("switch")),
+            "{actions:?}",
+        );
+    }
+
     #[test]
     fn extract_datagroup_surfaces_and_carries_definition() {
         let src = "if {$host eq \"a.com\"} {\n    pool web_pool\n} elseif {$host eq \"b.com\"} {\n    pool web_pool\n} elseif {$host eq \"c.com\"} {\n    pool web_pool\n}";
