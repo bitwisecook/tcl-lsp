@@ -405,6 +405,79 @@ fn tp_classmethod_lens_click_and_count_reach_a_consumer_document() {
     );
 }
 
+// Issue #990 — [incr Tcl]'s colon-qualified class-proc dispatch.
+
+/// TP: `Factory::make` is how [incr Tcl] dispatches a class-scoped `proc`
+/// (its equivalent of `TclOO`'s `classmethod`), and it is a *single*
+/// `::`-qualified command word rather than the two-word `Factory make` shape
+/// `TclOO` / snit use.  Definition, references, and rename must all follow it.
+///
+/// Oracle (tclsh 8.6.14 + Itcl 3.4): `Factory::make` and `::Factory::make`
+/// both dispatch the class proc, a bare `make` inside a sibling class body
+/// does too, and the two-word `Factory make` instead creates an *object*
+/// named `make`.
+#[test]
+fn tp_itcl_class_proc_colon_dispatch_navigates_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "itcl::class Factory {\n",
+            "    proc make {} { return 1 }\n",
+            "    proc other {} { return [make] }\n",
+            "}\n",
+            "Factory::make\n",
+            "::Factory::make\n",
+        ),
+    );
+
+    // Go-to-definition from the qualified call site reaches the `proc`.
+    let def = lsp.definition(&uri, 4, 11);
+    assert_eq!(
+        start_lines(&def),
+        [1].into_iter().collect(),
+        "`Factory::make` must reach the class proc: {def:?}"
+    );
+
+    // References from the declaration cover every dispatch spelling.
+    let refs = lsp.references(&uri, 1, 10, true);
+    assert_eq!(
+        start_lines(&refs),
+        [1, 2, 4, 5].into_iter().collect(),
+        "decl + bare sibling call + both qualified dispatches: {refs:?}"
+    );
+
+    // Rename rewrites the member name and preserves each qualifier.
+    let edits = rename_edits(&lsp.rename(&uri, 1, 10, "produce"));
+    assert_eq!(edit_lines(&edits, &uri), vec![1, 2, 4, 5], "{edits:?}");
+    assert!(
+        edits
+            .get(&uri)
+            .is_some_and(|e| e.iter().all(|e| e["newText"] == "produce")),
+        "each edit replaces only the member name: {edits:?}"
+    );
+}
+
+/// TN: itcl's two-word `Factory make` is object *creation*
+/// (`ClassName instanceName`) — never a class-proc dispatch — so the class
+/// proc keeps only its declaration.
+#[test]
+fn tn_itcl_two_word_object_creation_is_not_a_class_proc_dispatch() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "itcl::class Factory {\n    proc make {} { return 1 }\n}\nFactory make\n",
+    );
+    let refs = lsp.references(&uri, 1, 10, true);
+    assert_eq!(
+        start_lines(&refs),
+        [1].into_iter().collect(),
+        "declaration only: {refs:?}"
+    );
+}
+
 // Issue #1019 idx 16 — method names that are not identifiers.
 
 /// TP: a hyphenated method (`with-dash`) and a TIP 558 property accessor

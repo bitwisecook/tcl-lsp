@@ -66,6 +66,13 @@
 //! command, so all four really do dispatch it (tclsh9.0-verified), and the
 //! `my`-scope rule ([`dispatch_reaches`]) does not gate this shape.
 //!
+//! The same scanner also carries [incr Tcl]'s class-scoped `proc` shape — a
+//! single `::`-qualified `Factory::make` word rather than two words (issue
+//! #990) — so an itcl class proc gets the same edges from the same place.
+//! itcl's own two-word `Factory make` is object *creation*
+//! (`ClassName instanceName`) and never becomes an edge, which is the
+//! registry-driven definer-family rule the scanner already applies.
+//!
 //! Still out of scope: a `next` / `nextto` super-dispatch is not a
 //! call-hierarchy edge (it *is* a reference — see
 //! [`crate::references::method_next_dispatch_spans`] — but attributing it a
@@ -1609,6 +1616,53 @@ mod tests {
         let callees: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert_eq!(callees, vec!["::Factory::make"], "{outgoing:?}");
         assert_eq!(outgoing[0].from_ranges.len(), 1, "{outgoing:?}");
+    }
+
+    /// FN→TP (issue #990): [incr Tcl]'s class-scoped `proc` dispatches as a
+    /// single `::`-qualified word, so the two-word scan that finds a
+    /// `classmethod`'s edges never saw it and itcl call hierarchies were
+    /// empty.  Oracle (tclsh 8.6.14 + Itcl 3.4): a bare `make` inside a
+    /// sibling class `proc`, `Factory::make` inside a method body, and a
+    /// top-level `Factory::make` all enter `make`.
+    #[test]
+    fn incoming_calls_for_an_itcl_class_proc_find_colon_qualified_dispatch() {
+        let src = "itcl::class Factory {\n    proc make {} { return 1 }\n    proc build {} { return [make] }\n    method viaInstance {} { return [Factory::make] }\n}\nFactory::make\n";
+        let analysis = analyse(src);
+        // Cursor on `make`'s declaration name (line 1, col 10).
+        let items = prepare(src, 1, 10, &analysis);
+        assert_eq!(items[0].name, "::Factory::make", "{items:?}");
+        let incoming = incoming_calls(src, "tcl8.6", &items[0], &analysis);
+        let callers: Vec<&str> = incoming.iter().map(|c| c.from.name.as_str()).collect();
+        assert_eq!(
+            callers,
+            vec!["::Factory::build", "::Factory::viaInstance", "<top-level>"],
+            "{incoming:?}"
+        );
+    }
+
+    /// FN→TP: the outgoing direction of the same shape — `build`'s body
+    /// dispatches `make`, so `make` is its callee.
+    #[test]
+    fn outgoing_calls_from_an_itcl_class_proc_reach_the_sibling_class_proc() {
+        let src = "itcl::class Factory {\n    proc make {} { return 1 }\n    proc build {} { return [make] }\n}\nFactory::make\n";
+        let analysis = analyse(src);
+        let items = prepare(src, 2, 10, &analysis);
+        assert_eq!(items[0].name, "::Factory::build", "{items:?}");
+        let outgoing = outgoing_calls(src, "tcl8.6", &items[0], &analysis);
+        let callees: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
+        assert_eq!(callees, vec!["::Factory::make"], "{outgoing:?}");
+    }
+
+    /// TN: itcl's two-word `Factory make` is object *creation*
+    /// (`ClassName instanceName`), never a class-proc dispatch, so it adds
+    /// no call-hierarchy edge.
+    #[test]
+    fn itcl_two_word_object_creation_is_not_a_call_hierarchy_edge() {
+        let src = "itcl::class Factory {\n    proc make {} { return 1 }\n}\nFactory make\n";
+        let analysis = analyse(src);
+        let items = prepare(src, 1, 10, &analysis);
+        let incoming = incoming_calls(src, "tcl8.6", &items[0], &analysis);
+        assert!(incoming.is_empty(), "{incoming:?}");
     }
 
     /// TP: a class command is an ordinary global command, so an *instance*

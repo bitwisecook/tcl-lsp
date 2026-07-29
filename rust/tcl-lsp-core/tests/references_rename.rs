@@ -1943,3 +1943,71 @@ fn rename_rewrites_a_consumed_dispatch_table_literal_m7() {
         .expect("table edit");
     assert_eq!(table_edit.new_text, "sum");
 }
+
+// ---------------------------------------------------------------------------
+// rename — [incr Tcl] `Factory::make` class-proc dispatch (issue #990)
+// ---------------------------------------------------------------------------
+
+/// TP: renaming an itcl class-scoped `proc` rewrites its declaration, its
+/// bare sibling call, and the tail of every `::`-qualified dispatch — the
+/// as-written qualifier is preserved (`Factory::make` → `Factory::produce`),
+/// exactly as an ordinary qualified proc rename already does.
+#[test]
+fn rename_itcl_class_proc_rewrites_every_dispatch_spelling() {
+    let src = concat!(
+        "itcl::class Factory {\n",
+        "    proc make {} { return 1 }\n",
+        "    proc other {} { return [make] }\n",
+        "}\n",
+        "Factory::make\n",
+        "::Factory::make\n",
+    );
+    let analysis = analyse(src);
+    // Cursor on the declaration name.
+    let edits = rename(src, "tcl8.6", 1, 10, "produce", &analysis, None);
+    assert_eq!(edit_lines(&edits), vec![1, 2, 4, 5], "{edits:?}");
+    assert_eq!(
+        apply_edits(src, &edits),
+        concat!(
+            "itcl::class Factory {\n",
+            "    proc produce {} { return 1 }\n",
+            "    proc other {} { return [produce] }\n",
+            "}\n",
+            "Factory::produce\n",
+            "::Factory::produce\n",
+        ),
+        "the qualifier must survive; only the member name changes"
+    );
+}
+
+/// TP: the same rename triggered *from* a `::`-qualified call site reaches
+/// the same set.
+#[test]
+fn rename_itcl_class_proc_from_the_call_site_matches_the_declaration() {
+    let src = concat!(
+        "itcl::class Factory {\n",
+        "    proc make {} { return 1 }\n",
+        "}\n",
+        "Factory::make\n",
+    );
+    let analysis = analyse(src);
+    let from_site = rename(src, "tcl8.6", 3, 11, "produce", &analysis, None);
+    let from_decl = rename(src, "tcl8.6", 1, 10, "produce", &analysis, None);
+    assert_eq!(edit_lines(&from_site), vec![1, 3], "{from_site:?}");
+    assert_eq!(edit_lines(&from_site), edit_lines(&from_decl));
+}
+
+/// TN: an ordinary namespace-qualified proc of the same spelling is renamed
+/// by the plain proc path and is unaffected by the class-proc resolver —
+/// `Factory` here is a namespace, not a class.
+#[test]
+fn rename_plain_namespace_qualified_proc_is_unaffected() {
+    let src = "namespace eval ::Factory {\n    proc make {} { return 1 }\n}\nFactory::make\n";
+    let analysis = analyse(src);
+    let edits = rename(src, "tcl8.6", 3, 11, "produce", &analysis, None);
+    assert_eq!(edit_lines(&edits), vec![1, 3], "{edits:?}");
+    assert_eq!(
+        apply_edits(src, &edits),
+        "namespace eval ::Factory {\n    proc produce {} { return 1 }\n}\nFactory::produce\n"
+    );
+}

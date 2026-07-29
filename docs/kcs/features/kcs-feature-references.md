@@ -86,15 +86,16 @@ double-quoted string.
   `property`) are all part of the name. Operator-only names stay out because
   `expr {$a < $b}` would otherwise read as `$a` dispatching a method called
   `<`, and `expr` bodies are far more common than operator-named methods.
-- [incr Tcl] dispatches a class-scoped `proc` (itcl's own class-method form)
-  as a single `::`-qualified identifier — `Factory::make`, not `Factory make`
-  — which is a different call shape entirely from `classmethod` /
-  `typemethod`'s two-word dispatch. Find References does not yet follow this
-  form (it would need to be resolved through the ordinary proc-reference
-  path, not the object-method scanner). The reverse direction is guarded,
-  though: itcl's own two-word instance-creation syntax (`ClassName
-  instanceName`), which can coincidentally share text shape with a
-  same-named class-proc, is never mistaken for a dispatch of it.
+- [incr Tcl]'s class-scoped `proc` dispatch is followed **within one
+  document only**. itcl gives every class a real namespace and installs its
+  class-scoped `proc`s as commands inside it, so `Factory::make` is a genuine
+  command name; Find References, Go to Definition, Rename, and Call Hierarchy
+  all resolve it against the call's own namespace. A call written in a
+  *sibling file* is not found — the cross-file layer still looks only for the
+  two-word `Class method` shape. The two-word form in itcl source is
+  guarded in the other direction too: `Factory make` there is itcl's
+  instance-creation syntax (`ClassName instanceName`), never a class-proc
+  dispatch, and is never counted as one.
 - A classmethod's / typemethod's own-class-command dispatch (unlike an
   instance's `$obj method`) is matched by exact name-set membership (the
   class's as-written simple name plus its fully `::`-qualified name), so a
@@ -116,7 +117,8 @@ double-quoted string.
   classmethod/typemethod/itcl-proc TP/FP/TN/FN matrix, including issue #956's
   exact repro and call-site-cursor resolution;
   `non_identifier_method_names` — hyphenated / dotted / TIP 558
-  angle-bracketed method names)
+  angle-bracketed method names; `itcl_class_proc_dispatch` — the
+  colon-qualified [incr Tcl] class-proc TP/FP/TN matrix)
 - `rust/tcl-lsp-core/src/references.rs` (`mod tests`, including
   `references_for_property_includes_decl_and_my_dispatch_call_sites`,
   `references_disambiguates_property_and_method_sharing_a_name_by_cursor`,

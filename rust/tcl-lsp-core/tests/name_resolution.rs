@@ -300,24 +300,21 @@ mod classmethod_dispatch {
         );
     }
 
-    /// FP guard: [incr Tcl]'s class-scoped `proc` maps to the same
-    /// `class_methods` bucket as `classmethod`/`typemethod` (so the
-    /// declaration-side lookup reaches this fix's code path too), but itcl
+    /// FN→TP (issue #990): [incr Tcl]'s class-scoped `proc` maps to the same
+    /// `class_methods` bucket as `classmethod`/`typemethod`, but itcl
     /// dispatches it as a single `::`-qualified identifier
-    /// (`Factory::make`), never the two-word `Factory make` form this fix's
-    /// `cmd_set` scan matches. Widening `cmd_set` with `Factory`'s bare name
-    /// must not fabricate a phantom reference for an unrelated bare `Factory`
-    /// command elsewhere, and the real `Factory::make` call is simply out of
-    /// this scanner's shape (a distinct, pre-existing gap — namespace-style
-    /// dispatch is a job for the ordinary proc-reference path, not this
-    /// object-method scanner).
+    /// (`Factory::make`), never the two-word `Factory make` form the
+    /// `cmd_set` scan matches — so that call site used to be invisible.  It
+    /// is now resolved through the qualified-name path instead, keyed on the
+    /// definer family, and the two-word scan still never matches it.
     #[test]
-    fn fp_itcl_class_proc_colon_dispatch_not_confused_with_bare_dispatch() {
+    fn fn_to_tp_itcl_class_proc_colon_dispatch_is_a_reference() {
         let src = "itcl::class Factory {\n    proc make {} {\n        return 1\n    }\n}\nFactory::make\n";
-        // Only the declaration; the `::`-qualified call is not the
-        // two-word shape this scanner looks for, so it must not appear —
-        // and no bare `Factory make` exists here to spuriously match either.
-        assert_eq!(refs_at(src, 1, 9), vec![1], "declaration only");
+        assert_eq!(
+            refs_at(src, 1, 9),
+            vec![1, 5],
+            "decl + the `Factory::make` class-proc dispatch"
+        );
     }
 
     /// FP guard: a bare two-word `Factory make` must not be treated as a
@@ -335,6 +332,143 @@ mod classmethod_dispatch {
             refs_at(src, 1, 9),
             vec![1],
             "declaration only — `Factory make` is itcl instance creation, not a class-proc dispatch"
+        );
+    }
+}
+
+// ────────── #990 — [incr Tcl] `Factory::make` class-proc dispatch ──────────
+
+/// itcl gives every class a real namespace of the same name and installs its
+/// class-scoped `proc`s as ordinary commands inside it, so `Factory`'s `proc
+/// make` is genuinely the command `::app::Factory::make`.
+///
+/// Oracle (tclsh 8.6.14 + Itcl 3.4), for a class declared in `::app`:
+///
+/// | spelling | from | result |
+/// |---|---|---|
+/// | `::app::Factory::make` | anywhere | dispatches |
+/// | `app::Factory::make` | global / any namespace | dispatches |
+/// | `Factory::make` | inside `namespace eval ::app` | dispatches |
+/// | `Factory::make` | global or `::other` | `invalid command name` |
+/// | `Factory::make` | inside the class's own body | dispatches (itcl's own class-namespace resolver) |
+/// | `Other::omake` | inside `Factory`'s body | `invalid command name` |
+/// | bare `make` | inside any of the class's bodies | dispatches |
+/// | `::Factory::inst` (an *instance* method) | anywhere | `namespace "::" is not a class namespace` |
+mod itcl_class_proc_dispatch {
+    use super::*;
+
+    fn itcl_src() -> String {
+        concat!(
+            "namespace eval ::app {\n",
+            "    itcl::class Factory {\n",
+            "        proc make {} { return 1 }\n",
+            "        proc other {} { return [make] }\n",
+            "        method inst {} { return [Factory::make] }\n",
+            "    }\n",
+            "    proc caller {} { return [Factory::make] }\n",
+            "}\n",
+            "::app::Factory::make\n",
+            "app::Factory::make\n",
+        )
+        .to_owned()
+    }
+
+    /// FN→TP: every real dispatch spelling is a reference to the declaration.
+    #[test]
+    fn tp_every_dispatch_spelling_is_a_reference() {
+        assert_eq!(
+            refs_at(&itcl_src(), 2, 14),
+            vec![2, 3, 4, 6, 8, 9],
+            "decl + bare sibling + self-qualified + namespace-relative + absolute + global-relative"
+        );
+    }
+
+    /// FN→TP: the reverse direction — the cursor on a call site finds the
+    /// same set.
+    #[test]
+    fn tp_references_from_the_call_site_match_the_declaration() {
+        let src = itcl_src();
+        assert_eq!(refs_at(&src, 8, 18), refs_at(&src, 2, 14));
+    }
+
+    /// TN: the same text written where the class is *not* reachable resolves
+    /// to nothing — real Tcl answers `invalid command name` there.
+    #[test]
+    fn tn_unreachable_spelling_is_not_a_reference() {
+        let src = concat!(
+            "namespace eval ::app {\n",
+            "    itcl::class Factory {\n",
+            "        proc make {} { return 1 }\n",
+            "    }\n",
+            "}\n",
+            "Factory::make\n",
+        );
+        assert_eq!(refs_at(src, 2, 14), vec![2], "declaration only");
+    }
+
+    /// TN: an ordinary `::`-qualified proc call is untouched — `Factory` here
+    /// is a plain namespace, not a class, so this stays a proc reference and
+    /// never routes through the class-proc resolver.
+    #[test]
+    fn tn_plain_namespace_qualified_proc_call_is_still_a_proc_reference() {
+        let src = "namespace eval ::Factory {\n    proc make {} { return 1 }\n}\nFactory::make\n";
+        assert_eq!(refs_at(src, 1, 9), vec![1, 3], "decl + the proc call site");
+    }
+
+    /// FP guard: a *sibling* itcl class's simple name does not resolve from
+    /// inside another class's body — itcl's class-namespace resolver covers
+    /// the enclosing class only (`Other::omake` errors there).
+    #[test]
+    fn fp_sibling_class_simple_name_does_not_resolve_from_another_class_body() {
+        let src = concat!(
+            "namespace eval ::app {\n",
+            "    itcl::class Other {\n",
+            "        proc omake {} { return 1 }\n",
+            "    }\n",
+            "    itcl::class Factory {\n",
+            "        proc probe {} { return [Other::omake] }\n",
+            "    }\n",
+            "}\n",
+        );
+        assert_eq!(refs_at(src, 2, 14), vec![2], "declaration only");
+    }
+
+    /// FP guard: an itcl *instance* method is not addressable as
+    /// `Class::method` — only class-scoped `proc`s are — so that spelling
+    /// resolves to nothing.
+    #[test]
+    fn fp_instance_method_is_not_addressable_as_a_qualified_name() {
+        let src = concat!(
+            "itcl::class Factory {\n",
+            "    method inst {} { return 1 }\n",
+            "}\n",
+            "Factory::inst\n",
+        );
+        assert_eq!(refs_at(src, 1, 12), vec![1], "declaration only");
+    }
+
+    /// FP guard: a real proc at a higher-priority resolution candidate
+    /// shadows the class proc, exactly as it would at runtime — oracle
+    /// (tclsh 8.6.14 + Itcl 3.4): this exact script prints
+    /// `from ::app -> shadowing-proc` and `from global -> class-proc`.
+    #[test]
+    fn fp_a_shadowing_proc_wins_over_the_class_proc() {
+        let src = concat!(
+            "itcl::class Factory {\n",
+            "    proc make {} { return \"class-proc\" }\n",
+            "}\n",
+            "namespace eval ::app {\n",
+            "    namespace eval Factory {}\n",
+            "    proc Factory::make {} { return \"shadowing-proc\" }\n",
+            "    Factory::make\n",
+            "}\n",
+            "Factory::make\n",
+        );
+        assert_eq!(
+            refs_at(src, 6, 14),
+            vec![5, 6],
+            "the shadowing proc's declaration + the `::app` call — not the class proc, \
+             and not the global call that still reaches the class proc"
         );
     }
 }

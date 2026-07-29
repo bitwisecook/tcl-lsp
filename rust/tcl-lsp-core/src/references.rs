@@ -77,6 +77,14 @@
 //!   namespace (`ns::Factory make` where the class is `::ns::Factory`) is
 //!   not matched.  The same imprecision already applies to `CLASS create
 //!   NAME` object-command dispatch above.
+//! * [incr Tcl]'s class-scoped `proc` uses a different dispatch shape
+//!   entirely — a single `::`-qualified command word (`Factory::make`), not
+//!   two words — so it is matched by [`crate::definition::itcl_class_proc_target`]
+//!   against `analysis.command_invocations`, with Tcl's own
+//!   current-namespace-then-global resolution rather than by name-set
+//!   membership.  That path is single-document: a call in a sibling file is
+//!   not found, because the cross-file layer below still carries only the
+//!   two-word shape's name sets.
 //! * `uplevel`'s body is `BodyKind::Structural` (a different call frame in
 //!   the general case — level `0` and level `1`+ can't be told apart from
 //!   the static registry spec alone), so a `my`/`next`/`$obj method`
@@ -395,6 +403,15 @@ pub fn references(
 
     // Proc references.
     if let Some(out) = proc_references(&ctx, &word) {
+        return out;
+    }
+
+    // `Factory::make` — [incr Tcl]'s colon-qualified class-proc dispatch
+    // (issue #990). Tried *after* `proc_references` so an ordinary
+    // namespace-qualified proc call of the same spelling keeps priority:
+    // this only ever fires when nothing resolves as a proc and the written
+    // word's parent namespace really is an itcl class declaring that member.
+    if let Some(out) = itcl_class_proc_references(&ctx) {
         return out;
     }
 
@@ -745,6 +762,42 @@ fn classmethod_call_site_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     call_spans.extend(method_next_dispatch_spans(
         analysis, source, dialect, &class_q, &method, true,
     ));
+    Some(build_member_ranges(
+        source,
+        line_index,
+        decl_span,
+        call_spans,
+        include_declaration,
+    ))
+}
+
+/// Build references for a `Factory::make` call site — [incr Tcl]'s
+/// colon-qualified class-proc dispatch (issue #990).
+///
+/// itcl's class-scoped `proc` is its equivalent of `TclOO`'s `classmethod`,
+/// but it is invoked as a *single* `::`-qualified command word, not as a
+/// two-word `Factory make` dispatch (which in itcl is the unrelated
+/// `ClassName instanceName` object-creation syntax).  The word is resolved
+/// with Tcl's own current-namespace-then-global rule
+/// ([`crate::definition::itcl_class_proc_target`]), so it reaches the class
+/// the runtime would reach and nothing else.
+///
+/// Returns `None` for every other spelling, leaving ordinary qualified proc
+/// calls to [`proc_references`].
+fn itcl_class_proc_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
+    let RefCtx {
+        source,
+        dialect,
+        line_index,
+        line,
+        character,
+        analysis,
+        include_declaration,
+    } = *ctx;
+    let (class_q, member) =
+        crate::definition::itcl_class_proc_target_at(source, dialect, line, character, analysis)?;
+    let (decl_span, call_spans) =
+        method_references_for_class(source, dialect, analysis, &class_q, &member, true)?;
     Some(build_member_ranges(
         source,
         line_index,
@@ -1633,20 +1686,56 @@ pub(crate) fn find_obj_method_call_sites(
     )
 }
 
-/// Whether `cd`'s definer command dispatches its class-scoped members as a
-/// single `::`-qualified identifier (`Factory::make`) rather than the
-/// two-word `Factory make` shape — true for [incr Tcl] only.  Registry data
-/// (`DefinerFamily`), not a hardcoded command-name check: `cd.metaclass` is
-/// looked up in `dialect`'s registry and its attached
-/// [`tcl_registry::definer::DefinitionBodyGrammar::family`] compared.  A
-/// metaclass the registry doesn't recognise as a definer (shouldn't happen
-/// for a real `ClassDef`) is conservatively treated as *not* itcl, matching
-/// prior behaviour.
-fn is_itcl_class(cd: &tcl_compiler::analyser::types::ClassDef, dialect: &str) -> bool {
-    tcl_registry::registry_for_dialect(dialect)
-        .get(&cd.metaclass)
-        .and_then(|spec| spec.definition_body)
-        .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::Itcl)
+use crate::definition::is_itcl_class;
+
+/// Every call site in this document that dispatches `class_q`'s [incr Tcl]
+/// class-scoped `proc` named `member` — the single `::`-qualified
+/// `Factory::make` shape, which is a *different call shape entirely* from
+/// the two-word `Factory make` dispatch `classmethod` / `typemethod` use
+/// (issue #990).
+///
+/// Each returned span covers only the call's final `::`-segment (the `make`
+/// of `Factory::make`), so a rename rewrites the member name and leaves the
+/// as-written qualifier alone — `Factory::make` → `Factory::produce`.
+///
+/// Sites come from `analysis.command_invocations` rather than a text scan:
+/// an itcl class proc really is an ordinary command, so the analyser has
+/// already indexed every call to it, including those nested inside `[...]`
+/// substitutions and control-flow bodies.  Each candidate is then resolved
+/// with [`crate::definition::itcl_class_proc_target`], which applies Tcl's
+/// own current-namespace-then-global rule to the call's *lexical* namespace
+/// — so `Factory::make` written inside `namespace eval ::app` reaches
+/// `::app::Factory`, and the same text written at the top level (where only
+/// `::app::Factory` exists) reaches nothing at all.
+fn itcl_class_proc_call_sites(
+    analysis: &AnalysisResult,
+    dialect: &str,
+    class_q: &str,
+    member: &str,
+) -> Vec<tcl_lexer::Span> {
+    analysis
+        .command_invocations
+        .iter()
+        .filter_map(|inv| {
+            let namespace = crate::definition::namespace_context_at(
+                &analysis.global_scope,
+                inv.range.start(),
+                &analysis.namespace_overrides,
+            );
+            let (target_class, target_member) = crate::definition::itcl_class_proc_target(
+                analysis, dialect, &namespace, &inv.name,
+            )?;
+            if target_class != class_q || target_member != member {
+                return None;
+            }
+            let tail = tcl_syntax::naming::written_command_tail(inv.name.as_bytes());
+            let tail_len = u32::try_from(tail.len()).ok()?;
+            Some(tcl_lexer::Span::new(
+                inv.range.end().saturating_sub(tail_len),
+                inv.range.end(),
+            ))
+        })
+        .collect()
 }
 
 /// [`find_obj_method_call_sites`], plus `extra_cmd_names` — bare command
@@ -1675,6 +1764,23 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     is_classmethod: bool,
     extra_cmd_names: &[String],
 ) -> Vec<tcl_lexer::Span> {
+    // [incr Tcl] class-scoped `proc`s land in the same `class_methods`
+    // bucket as a `classmethod`, but dispatch as a single `::`-qualified
+    // identifier (`Factory::make`) — a shape the two-word scanner below
+    // cannot see, and whose two-word look-alike is unrelated
+    // instance-creation syntax.  Collected first so every consumer of this
+    // scanner (references, rename, the code lens, call hierarchy) gets itcl
+    // edges from one place.
+    let mut out: Vec<tcl_lexer::Span> = if is_classmethod
+        && analysis
+            .all_classes
+            .get(class_q)
+            .is_some_and(|cd| is_itcl_class(cd, dialect))
+    {
+        itcl_class_proc_call_sites(analysis, dialect, class_q, method)
+    } else {
+        Vec::new()
+    };
     let hierarchy = analysis.class_hierarchy();
     // A classmethod dispatches on the class's own command, never an
     // instance — instance-receiver matching only ever applies to a `method`.
@@ -1764,10 +1870,9 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
         cmd_set.extend(extra_cmd_names.iter().map(String::as_str));
     }
     if var_set.is_empty() && cmd_set.is_empty() {
-        return Vec::new();
+        return out;
     }
-    let mut out: Vec<tcl_lexer::Span> = Vec::new();
-    let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
+    let mut seen: FxHashSet<(u32, u32)> = out.iter().map(|s| (s.start(), s.end())).collect();
     let ctx = ObjMethodScan {
         source,
         dialect,
