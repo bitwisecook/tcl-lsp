@@ -42,7 +42,8 @@
 //!    A dispatch whose values cannot be enumerated, or a script a command
 //!    receives only as a value (`eval $script`, `apply $fn`), names a caller
 //!    of *something* — so it withdraws every seed in the unit
-//!    ([`CallSiteEvidence::enumerates_every_caller`]).
+//!    ([`CallSiteEvidence::record_unenumerable_caller`], bounded by
+//!    [`unenumerable_reach`]).
 //! 2. **Cross-unit evidence** — [`scan_source_call_sites`] runs the identical
 //!    registry-driven walk over *another* file's source text, resolving each
 //!    call against the whole project's proc names, so a host with a workspace
@@ -168,14 +169,6 @@ impl CalleeEvidence {
 #[derive(Debug, Clone, Default)]
 pub struct CallSiteEvidence {
     by_callee: BTreeMap<String, CalleeEvidence>,
-    /// A caller exists that this scan cannot attribute to *any* callee: a
-    /// dispatch word whose value set is not enumerable (`set cmd [gets
-    /// stdin]; $cmd …`), or a script a command receives only as a value
-    /// (`eval $script`, `apply $fn`), which may call anything with
-    /// anything.  Unlike [`CalleeEvidence::poison`] — which names the
-    /// callee whose arguments are unknown — this names no callee, so it
-    /// withdraws every seed the unit would otherwise take.
-    opaque_callee: bool,
     /// Whether this round consulted a parameter's value set, i.e. whether
     /// the evidence depends on the previous round and the fixpoint must
     /// iterate.  Not part of the evidence's meaning, so it is excluded from
@@ -185,7 +178,7 @@ pub struct CallSiteEvidence {
 
 impl PartialEq for CallSiteEvidence {
     fn eq(&self, other: &Self) -> bool {
-        self.by_callee == other.by_callee && self.opaque_callee == other.opaque_callee
+        self.by_callee == other.by_callee
     }
 }
 
@@ -218,25 +211,30 @@ impl CallSiteEvidence {
                 .or_default()
                 .merge_from(evidence);
         }
-        // An unenumerable caller in *either* file is unenumerable for the
-        // merged view: a cross-file `$cmd dev` can reach this unit's procs
-        // exactly as an in-unit one can.
-        self.opaque_callee |= other.opaque_callee;
     }
 
-    /// Whether the scan proved it saw every caller of this unit's
-    /// procedures.  False once any dispatch word or embedded script defeated
-    /// enumeration — at which point no seed derived from this evidence is
-    /// sound, whatever the per-callee slots say.
-    #[must_use]
-    pub fn enumerates_every_caller(&self) -> bool {
-        !self.opaque_callee
-    }
-
-    /// Record that a caller exists which names no callee this scan can
-    /// determine.  See [`Self::opaque_callee`].
-    pub fn record_unenumerable_caller(&mut self) {
-        self.opaque_callee = true;
+    /// Record a caller that names no callee this scan can determine — an
+    /// unenumerable dispatch word (`set cmd [gets stdin]; $cmd …`) or a
+    /// script a command receives only as a value (`eval $script`, `apply
+    /// $fn`), either of which may call anything with anything.
+    ///
+    /// Recorded by poisoning every procedure in `reach` rather than as one
+    /// module-wide flag.  The two are equivalent within a single unit, but
+    /// only the per-callee form survives [`Self::merge_from`] and
+    /// [`Self::slice_for`] correctly: a flag has no callee to narrow by, so
+    /// merging a project's evidence would spread one file's `eval $script`
+    /// to every other file's seed — the same disproportionate collateral
+    /// damage PR #970 reverted the module-wide dispatch wildcard for, at
+    /// project scope.
+    ///
+    /// `reach` is what bounds it: the value of an unenumerable word is
+    /// resolved against the command table *the scanning unit has loaded*, so
+    /// a file that pulls in no other unit can only dispatch to procedures it
+    /// declares itself.  See [`unenumerable_reach`].
+    pub fn record_unenumerable_caller(&mut self, reach: &[String]) {
+        for qname in reach {
+            self.record_opaque_caller(qname);
+        }
     }
 
     /// The sub-table covering just `callees` — what a host hands one file's
@@ -249,14 +247,7 @@ impl CallSiteEvidence {
     /// table, so the cost is the file's procedure count, not the project's.
     #[must_use]
     pub fn slice_for<'n>(&self, callees: impl Iterator<Item = &'n str>) -> Self {
-        // The flag is a property of the *scan*, not of any one callee, so it
-        // must survive narrowing — dropping it here would hand a file a
-        // slice that looks fully enumerated when the project's evidence
-        // proved otherwise.
-        let mut out = Self {
-            opaque_callee: self.opaque_callee,
-            ..Self::default()
-        };
+        let mut out = Self::default();
         for qname in callees {
             if let Some(evidence) = self.by_callee.get(qname) {
                 out.by_callee.insert(qname.to_owned(), evidence.clone());
@@ -313,6 +304,10 @@ struct CallSiteScanCtx<'a, S> {
     /// The unit's procedures, for the declared parameter list of a body the
     /// scan walks as a caller.
     procedures: &'a HashMap<String, crate::ir::Procedure>,
+    /// The procedures an unenumerable dispatch in this scan may reach — see
+    /// [`unenumerable_reach`] and
+    /// [`CallSiteEvidence::record_unenumerable_caller`].
+    unenumerable_reach: &'a [String],
 }
 
 /// One body the scan walks as a *caller*.
@@ -719,7 +714,7 @@ fn record_call_site_evidence(
         .arg_indices_for_role(command, &arg_strs, ArgRole::LambdaLiteral)
     {
         if args.get(idx).is_some_and(|w| word_is_whole_substitution(w)) {
-            out.record_unenumerable_caller();
+            out.record_unenumerable_caller(ctx.unenumerable_reach);
         }
     }
     for idx in ctx
@@ -735,7 +730,7 @@ fn record_call_site_evidence(
         // (`catch {puts $x}`) is still walked — the discriminator is "the
         // whole word is one substitution", not "contains a `$`".
         if word_is_whole_substitution(body_text) {
-            out.record_unenumerable_caller();
+            out.record_unenumerable_caller(ctx.unenumerable_reach);
             continue;
         }
         // A body whose resolution namespace differs from the caller's must not
@@ -814,7 +809,7 @@ fn record_invocation(
     let values = match word_values(ctx, caller, word) {
         WordValues::Literals(values) => values,
         WordValues::Unknown => {
-            out.record_unenumerable_caller();
+            out.record_unenumerable_caller(ctx.unenumerable_reach);
             return;
         }
     };
@@ -899,7 +894,7 @@ fn record_indirect_callers(
             Some(head) => record_invocation(out, ctx, caller, &head, IndirectArgs::Unknowable),
             // Some other substitution computed the prefix: a caller exists
             // naming a command this scan cannot identify.
-            None => out.record_unenumerable_caller(),
+            None => out.record_unenumerable_caller(ctx.unenumerable_reach),
         }
     }
     if ctx
@@ -1032,6 +1027,11 @@ pub(crate) fn collect_call_site_constants(
 ) -> CallSiteEvidence {
     let known: HashSet<String> = procedures.keys().cloned().collect();
     let var_facts = collect_module_scope_var_facts(cfg_module, extra_callers, registry);
+    // Within one unit the reach is simply its own procedures, so an
+    // unenumerable dispatch withdraws every seed the unit would have taken —
+    // identical to the module-wide rule it replaces, but expressed per callee
+    // so it merges and slices correctly across files.
+    let reach = unenumerable_reach(procedures, Traits::empty(), &known);
     // The top level has no qualified name of its own; `"::top"` (the same
     // pseudo-qname `FunctionUnit::build_full` uses for it) resolves to the
     // global namespace via `resolve_internal_call`'s "drop the last
@@ -1046,6 +1046,7 @@ pub(crate) fn collect_call_site_constants(
             var_facts: &var_facts,
             previous,
             procedures,
+            unenumerable_reach: &reach,
         };
         let funcs = std::iter::once(("::top", &cfg_module.top_level))
             .chain(cfg_module.procedures.iter().map(|(q, f)| (q.as_str(), f)))
@@ -1054,7 +1055,7 @@ pub(crate) fn collect_call_site_constants(
         scan_cfg_callers(&mut out, &ctx, funcs);
         out
     };
-    run_to_fixpoint(round)
+    run_to_fixpoint(&reach, round)
 }
 
 /// Iterate `round` until the evidence stops changing.
@@ -1072,7 +1073,10 @@ pub(crate) fn collect_call_site_constants(
 /// the first round reports it and the loop exits after exactly one walk —
 /// the overwhelmingly common case pays nothing.  [`MAX_FIXPOINT_ROUNDS`] is
 /// a backstop against a pathological module, not an expected exit.
-fn run_to_fixpoint(round: impl Fn(&CallSiteEvidence) -> CallSiteEvidence) -> CallSiteEvidence {
+fn run_to_fixpoint(
+    reach: &[String],
+    round: impl Fn(&CallSiteEvidence) -> CallSiteEvidence,
+) -> CallSiteEvidence {
     let mut evidence = CallSiteEvidence::default();
     for _ in 0..MAX_FIXPOINT_ROUNDS {
         let next = round(&evidence);
@@ -1084,8 +1088,37 @@ fn run_to_fixpoint(round: impl Fn(&CallSiteEvidence) -> CallSiteEvidence) -> Cal
     // Did not converge within the cap: report the honest thing rather than a
     // half-derived seed — every seed is withdrawn.
     let mut exhausted = evidence;
-    exhausted.record_unenumerable_caller();
+    exhausted.record_unenumerable_caller(reach);
     exhausted
+}
+
+/// The procedures an unenumerable dispatch in one unit may reach.
+///
+/// The value of `$cmd` in `set cmd [gets stdin]; $cmd dev` is resolved
+/// against the command table the *scanning unit* has loaded — not against
+/// every procedure that happens to exist in the host's workspace.  A file
+/// that pulls in no other unit (`declared_linkage` carries no
+/// [`Traits::LOADS_EXTERNAL_UNIT`]) therefore cannot dispatch outside its own
+/// declarations, however many files the project holds; one that does `source`
+/// / `package require` can reach whatever that brought in, which the host's
+/// project-wide `known` set over-approximates.
+///
+/// This is what keeps an unreadable dispatch's blast radius proportionate:
+/// without it, one `eval $script` anywhere in a workspace would withdraw
+/// every interprocedural seed in every file (issue #976's cross-file half).
+fn unenumerable_reach(
+    declared: &HashMap<String, crate::ir::Procedure>,
+    declared_linkage: Traits,
+    project_wide: &HashSet<String, impl std::hash::BuildHasher>,
+) -> Vec<String> {
+    if declared_linkage.intersects(Traits::LOADS_EXTERNAL_UNIT) {
+        let mut reach: Vec<String> = project_wide.iter().cloned().collect();
+        reach.sort();
+        return reach;
+    }
+    let mut reach: Vec<String> = declared.keys().cloned().collect();
+    reach.sort();
+    reach
 }
 
 /// Collect per-scope variable literal facts for every body the scan walks as
@@ -1185,7 +1218,15 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
     // just as an in-unit one would.  Without the same var facts and fixpoint
     // here, issue #976 would simply reopen across the file boundary.
     let var_facts = collect_module_scope_var_facts(&cfg_module, &extra, registry);
-    out = run_to_fixpoint(|previous| {
+    // What this file's own unreadable dispatches can reach: its declarations
+    // alone unless it pulls in another unit, in which case the project's
+    // names over-approximate the table it dispatches against.
+    let reach = unenumerable_reach(
+        &ir_module.procedures,
+        scan_unit_linkage(&ir_module, registry, dialect),
+        known,
+    );
+    out = run_to_fixpoint(&reach, |previous| {
         let ctx = CallSiteScanCtx {
             known,
             registry,
@@ -1194,6 +1235,7 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
             var_facts: &var_facts,
             previous,
             procedures: &ir_module.procedures,
+            unenumerable_reach: &reach,
         };
         let funcs = std::iter::once(("::top", &cfg_module.top_level))
             .chain(cfg_module.procedures.iter().map(|(q, f)| (q.as_str(), f)))
@@ -1411,7 +1453,7 @@ impl UnitCallerView<'_> {
 ///     it is a blind spot and the seed is declined.
 ///
 /// - **The scan enumerated every caller** ([`CallSiteEvidence::
-///   enumerates_every_caller`]). A dispatch word (`$cmd args`) is resolved by
+///   record_unenumerable_caller`]). A dispatch word (`$cmd args`) is resolved by
 ///   *value*, so an enumerable one is ordinary evidence attributed to each
 ///   name it may hold — deliberately not a module-wide wildcard, which is
 ///   what lets `$cmd prod` keep a sound seed while `$cmd dev` retracts only
@@ -1428,11 +1470,6 @@ pub(crate) fn params_constants_from_call_sites(
 ) -> Option<HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>> {
     use crate::analyses::{ConstValue, LatticeValue};
     if view.declines_seeding() {
-        return None;
-    }
-    // No per-callee slot means anything while a caller exists that names no
-    // callee at all — it may be a caller of *this* procedure.
-    if !evidence.enumerates_every_caller() {
         return None;
     }
     if !view.command_mutations.trusts_proc_binding(qname) {
@@ -1801,20 +1838,26 @@ mod tests {
     }
 
     #[test]
-    fn literal_call_sites_are_recorded_and_the_module_stays_enumerable() {
+    fn literal_call_sites_are_recorded_and_nothing_is_withdrawn() {
         let ev = evidence("proc helper {mode} { return $mode }\nhelper a\nhelper b\n");
         assert_eq!(
             slot(&ev, "::helper", 0),
             (vec!["a".into(), "b".into()], false)
         );
-        assert!(ev.enumerates_every_caller());
+        // Two disagreeing literals, so no uniform value — but the position is
+        // *bound* by every recorded call, which a withdrawal would undo.
+        assert!(ev.get("::helper").unwrap().binds_position(0));
     }
 
     #[test]
     fn a_dispatch_through_a_literal_variable_is_recorded_as_a_call_site() {
         let ev = evidence("proc helper {mode} { return $mode }\nset cmd helper\n$cmd dev\n");
         assert_eq!(slot(&ev, "::helper", 0), (vec!["dev".into()], false));
-        assert!(ev.enumerates_every_caller());
+        assert_eq!(
+            uniform(&ev, "::helper", 0).as_deref(),
+            Some("dev"),
+            "an enumerable dispatch is an ordinary call site, not a withdrawal",
+        );
     }
 
     /// A registry-declared user-proc invoker (`Traits::INVOKES_USER_PROC`,
@@ -1827,14 +1870,13 @@ mod tests {
             "proc helper {mode} { return $mode }\nwhen RULE_INIT { call helper dev }\n",
             "irules",
         );
-        assert_eq!(slot(&ev, "::helper", 0), (vec!["dev".into()], false));
-        assert!(ev.enumerates_every_caller());
+        assert_eq!(uniform(&ev, "::helper", 0).as_deref(), Some("dev"));
     }
 
     #[test]
     fn an_unenumerable_dispatch_marks_the_module_non_enumerable() {
         let ev = evidence("proc helper {mode} { return $mode }\nset cmd [gets stdin]\n$cmd dev\n");
-        assert!(!ev.enumerates_every_caller());
+        assert_eq!(uniform(&ev, "::helper", 0), None);
     }
 
     #[test]
@@ -1842,10 +1884,6 @@ mod tests {
         let ev = evidence("proc cmp {a b} { return 0 }\nlsort -command cmp {x y}\n");
         assert_eq!(uniform(&ev, "::cmp", 0), None);
         assert_eq!(uniform(&ev, "::cmp", 1), None);
-        assert!(
-            ev.enumerates_every_caller(),
-            "the callback's target is known by name — only its arguments are not",
-        );
     }
 
     /// Issue #978's reported shape: `trace add variable v write cb`. The
@@ -1864,8 +1902,59 @@ mod tests {
                 None,
                 "`trace … write {prefix}` invokes cb with runtime-supplied arguments",
             );
-            assert!(ev.enumerates_every_caller());
         }
+    }
+
+    /// An unenumerable dispatch withdraws every seed in the unit that
+    /// contains it — expressed per callee, so it survives a merge.
+    #[test]
+    fn an_unenumerable_dispatch_withdraws_this_units_seeds() {
+        let ev = evidence(
+            "proc helper {mode} { return $mode }\nhelper prod\nhelper prod\nset cmd [gets stdin]\n$cmd dev\n",
+        );
+        assert_eq!(uniform(&ev, "::helper", 0), None);
+    }
+
+    /// ...but only that unit's.  A file declaring no linkage cannot dispatch
+    /// against a command table it never loaded, so merging its evidence into
+    /// a project must not disturb an unrelated file's sound seed.  Without
+    /// the reach bound, one `eval $script` anywhere in a workspace withdrew
+    /// every interprocedural seed in every file.
+    #[test]
+    fn an_unenumerable_dispatch_does_not_reach_an_unlinked_file() {
+        let opaque = evidence("proc mine {x} { return $x }\nset cmd [gets stdin]\n$cmd dev\n");
+        let mut project =
+            evidence("proc theirs {mode} { return $mode }\ntheirs prod\ntheirs prod\n");
+        project.merge_from(&opaque);
+        assert_eq!(
+            uniform(&project, "::theirs", 0).as_deref(),
+            Some("prod"),
+            "the dispatching file declares no `source`/`package require`, so it \
+             cannot name `theirs` at all",
+        );
+        assert_eq!(
+            uniform(&project, "::mine", 0),
+            None,
+            "its own procedure is still withdrawn",
+        );
+    }
+
+    /// A file that *does* pull in another unit dispatches against whatever
+    /// that brought in, so the project's names bound it instead.
+    #[test]
+    fn an_unenumerable_dispatch_in_a_sourcing_file_reaches_the_project() {
+        let reg = registry();
+        let src = "source other.tcl\nset cmd [gets stdin]\n$cmd dev\n";
+        let known: HashSet<String> = ["::theirs".to_owned()].into_iter().collect();
+        let opaque = scan_source_call_sites(src, &reg, "tcl", &known);
+        let mut project =
+            evidence("proc theirs {mode} { return $mode }\ntheirs prod\ntheirs prod\n");
+        project.merge_from(&opaque);
+        assert_eq!(
+            uniform(&project, "::theirs", 0),
+            None,
+            "the sourcing file's dispatch can name anything it loaded",
+        );
     }
 
     #[test]
@@ -1887,7 +1976,7 @@ mod tests {
             "proc helper {mode} { return $mode }\napply $fn 1\n",
         ] {
             assert!(
-                !evidence(src).enumerates_every_caller(),
+                uniform(&evidence(src), "::helper", 0).is_none(),
                 "a script received as a value may call anything: {src}",
             );
         }
@@ -1897,8 +1986,17 @@ mod tests {
     fn a_literal_body_mentioning_a_variable_is_still_walked() {
         let ev = evidence("proc helper {mode} { return $mode }\ncatch {helper $x}\n");
         assert_eq!(slot(&ev, "::helper", 0), (Vec::new(), true));
-        assert!(
-            ev.enumerates_every_caller(),
+        // The distinction that matters: the body was *walked*, so the call
+        // was recorded at its real arity of one.  A withdrawal would have
+        // recorded a zero-argument opaque caller instead.
+        assert_eq!(
+            ev.get("::helper")
+                .unwrap()
+                .arg_counts
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![1],
             "`catch {{helper $x}}` carries readable script text",
         );
     }
