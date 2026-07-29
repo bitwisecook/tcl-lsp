@@ -233,14 +233,14 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 
 ## Functionality (commands, features, and tools)
 
-74 per-feature KCS notes live under [`features/`](features/README.md).
+81 per-feature KCS notes live under [`features/`](features/README.md).
 The `help` subcommand, the MCP `help` tool, and the VS Code `/help`
 chat command all read these files at runtime to build their feature
 catalogues.
 
 ## Diagnostics and optimisations (per-code pages)
 
-150 per-code KCS notes live under [`codes/`](codes/README.md) — 119
+156 per-code KCS notes live under [`codes/`](codes/README.md) — 125
 diagnostic pages (E, W, S, T, and IRULE families) and 31 optimisation
 pages (O family). Each page follows the diagnostic or optimisation
 template, tags the compiler pass that produces it, explains in plain
