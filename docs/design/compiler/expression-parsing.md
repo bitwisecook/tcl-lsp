@@ -75,6 +75,33 @@ These are registered in `binary_bp()` (`rust/tcl-syntax/src/expr/parser.rs`)
 alongside the standard operators, and recognised as operator tokens by
 `irules_ops()` in `rust/tcl-lexer/src/expr_lexer.rs`.
 
+### Who supplies the dialect
+
+`parse_expr(source, dialect)` takes the dialect because `irules_ops()` is
+gated on it: with `None` (or a non-iRules dialect) `contains` is an ordinary
+bareword, the parse fails, and the result is `ExprNode::Raw`. That fallback is
+silent — the expression still compiles, it simply stops being analysable — so a
+caller that forgets the dialect loses constant folding, type inference, and
+every diagnostic derived from them (I230, O101, O112) with no error anywhere.
+
+The dialect therefore has to be threaded from the document all the way down:
+
+| Layer | Carrier |
+|-------|---------|
+| Consumer (CLI verb, LSP document, analyser) | the dialect name (`f5-irules`) |
+| Compilation unit | `UnitBuildOptions::dialect`, set by `CompilationUnit::build_for_dialect` |
+| Lowering | `Lowerer::dialect`, set by `lower_to_ir_with_dialect` / `Lowerer::with_dialect` |
+| `if` / `while` / `for` conditions | `parse_expr(cond, self.dialect)` in `lowering/structured.rs` |
+| `expr` / `return [expr …]` / `set x [expr …]` | `LoweringCommand::dialect` in the lowering hooks |
+| Constant folding | `FoldPolicy::from_registry`, which reads the registry's stamped dialect profile |
+
+Two failure modes have been paid for once already (issue #1048): building a
+unit with `CompilationUnit::build_for` (or `build_for_with_config`, which
+fixes only the *lexer* config) while holding a real dialect, and handing the
+pipeline a registry with no profile stamped on it — `registry_for_dialect`
+stamps it, a hand-assembled `build_default` + `load_dialect` does not, and
+`FoldPolicy::from_registry` reads such a registry as plain Tcl.
+
 ## Decision rule
 
 - To add a new operator, add its binding power entry to `binary_bp()`, map its

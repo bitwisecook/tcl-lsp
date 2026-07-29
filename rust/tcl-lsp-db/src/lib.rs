@@ -34,7 +34,7 @@
 //! tracked query is sound and avoids requiring `CommandRegistry: PartialEq`.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use tcl_compiler::cfg_builder::build_cfg_function_with_upvars;
 use tcl_compiler::cfg_builder::global_write_info::GlobalWriteInfo;
@@ -61,7 +61,6 @@ use tcl_compiler::analyser::{
     build_class_hierarchy,
 };
 use tcl_compiler::signature_scan::types::ParamDef;
-use tcl_dialect::DialectSet;
 use tcl_lsp_core::document_symbols::DocumentSymbol;
 use tcl_lsp_core::folding::FoldingRange;
 use tcl_lsp_core::semantic_tokens::{SemanticTokens, VarNameArgRoles};
@@ -73,20 +72,19 @@ use tcl_registry::CommandRegistry;
 pub trait TclDb: salsa::Database {
     /// The dialect-loaded command registry (built once per canonical dialect
     /// key, then shared).  Immutable for the process lifetime.
-    fn registry(&self, dialect: &str) -> Arc<CommandRegistry>;
+    fn registry(&self, dialect: &str) -> &'static CommandRegistry;
 }
 
 /// The Tcl LSP query database.
 ///
 /// Cloneable so a worker thread can run queries against a handle while the
-/// main thread sets inputs (the rust-analyzer snapshot pattern).  The
-/// `registries` map is shared across clones (it is a process-wide static
-/// cache, not per-snapshot state).
+/// main thread sets inputs (the rust-analyzer snapshot pattern).  The command
+/// registry it hands out is the process-wide per-profile cache in
+/// `tcl-registry`, not per-snapshot state.
 #[salsa::db]
 #[derive(Default, Clone)]
 pub struct TclDatabase {
     storage: salsa::Storage<Self>,
-    registries: Arc<Mutex<HashMap<String, Arc<CommandRegistry>>>>,
 }
 
 #[salsa::db]
@@ -105,32 +103,23 @@ impl TclDatabase {
                 logger(format!("{database_key:?}"));
             }
         })));
-        Self {
-            storage,
-            registries: Arc::default(),
-        }
+        Self { storage }
     }
 }
 
 #[salsa::db]
 impl TclDb for TclDatabase {
-    fn registry(&self, dialect: &str) -> Arc<CommandRegistry> {
-        // Canonical key: parseable dialects keep their string; unparseable /
-        // plain-Tcl collapse to "" (one shared base registry).  Mirrors the
-        // server's former `registry_for_dialect`.
-        let parsed = DialectSet::parse(dialect);
-        let key = if parsed.is_some() { dialect } else { "" };
-        let mut map = self.registries.lock().expect("registry cache poisoned");
-        if let Some(r) = map.get(key) {
-            return Arc::clone(r);
-        }
-        let mut registry = CommandRegistry::build_default();
-        if let Some(d) = parsed {
-            registry.load_dialect(d);
-        }
-        let arc = Arc::new(registry);
-        map.insert(key.to_owned(), Arc::clone(&arc));
-        arc
+    fn registry(&self, dialect: &str) -> &'static CommandRegistry {
+        // The shared per-profile cache, not a locally-assembled registry: it
+        // resolves the name through the dialect catalogue (so an alias or a
+        // typo lands on the right entry), loads the profile's base layers and
+        // EDA packs, and — the part a hand-rolled `build_default +
+        // load_dialect` silently dropped — *stamps the profile* on the
+        // registry. Every registry-derived behaviour query keys off that
+        // stamp, so without it `FoldPolicy::from_registry` read the LSP's
+        // iRules documents as plain Tcl and declined every word-operator fold
+        // (issue #1048).
+        tcl_registry::registry_for_dialect(dialect)
     }
 }
 
@@ -342,7 +331,7 @@ pub fn file_link_targets(db: &dyn TclDb, file: SourceFile) -> Arc<BTreeSet<Strin
     };
     let dialect = file.dialect(db).clone();
     let registry = db.registry(&dialect);
-    let scanned = tcl_compiler::signature_scan::extract_signatures(file.text(db), &registry);
+    let scanned = tcl_compiler::signature_scan::extract_signatures(file.text(db), registry);
     let parent = std::path::Path::new(path);
     Arc::new(
         scanned
@@ -463,7 +452,7 @@ pub fn file_call_site_evidence(
         .collect();
     let scanned = tcl_compiler::unit_scope::scan_source_call_sites(
         file.text(db),
-        &registry,
+        registry,
         &dialect,
         &known,
         &reach,
@@ -1068,7 +1057,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         key.qname(db),
         cfg,
         key.params(db),
-        &registry,
+        registry,
         param_constants.as_ref(),
         &known_classes,
         trace_facts,
@@ -1119,7 +1108,7 @@ pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Sc
     Arc::new(tcl_compiler::lowering::lower_proc_body_isolated(
         key.body_text(db),
         key.namespace(db),
-        &registry,
+        registry,
         config,
         key.dialect(db),
     ))
@@ -1390,7 +1379,7 @@ pub fn taint_cascade<'db>(
         ia.procedures.insert(r.qname.clone(), s);
     }
 
-    Arc::new(baseline.interproc_taints(&registry, &ia, dialect_opt))
+    Arc::new(baseline.interproc_taints(registry, &ia, dialect_opt))
 }
 
 /// Interned identity of one procedure's *interprocedural summary-fixpoint*
@@ -1577,7 +1566,7 @@ pub fn proc_summary_cascade<'db>(
         qname,
         params,
         &fu,
-        &registry,
+        registry,
         Some(&ia),
         dialect_opt,
         &known,
@@ -1601,7 +1590,7 @@ pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<V
     // Per-procedure memo — procs have no implicit instance variables.
     Arc::new(tcl_compiler::compiler_checks::function_nontaint_checks(
         &fu,
-        &registry,
+        registry,
         dialect_opt,
         None::<&std::collections::HashSet<String>>,
     ))
@@ -1685,7 +1674,7 @@ pub fn proc_taint_solve<'db>(
         db,
         file.text(db),
         UnitBuildOptions {
-            registry: &registry,
+            registry,
             defer_top_level: false,
             config: cfg.to_config(db),
             dialect: &dialect,
@@ -1696,7 +1685,7 @@ pub fn proc_taint_solve<'db>(
 
     let taints = tcl_compiler::taint_interproc::solve_interprocedural_taints_with(
         &cu,
-        &registry,
+        registry,
         dialect_opt,
         &mut |qname, params, fu, known, summaries| match lattice_keys.get(qname) {
             // Memoised path: the proc has an offset-0 baseline key.
@@ -1724,7 +1713,7 @@ pub fn proc_taint_solve<'db>(
                 qname,
                 params,
                 fu,
-                &registry,
+                registry,
                 interproc,
                 dialect_opt,
                 known,
@@ -1761,7 +1750,7 @@ pub fn proc_taint_solve<'db>(
                 // per-function checks need no rebase.
                 for d in tcl_compiler::compiler_checks::function_nontaint_checks(
                     fu,
-                    &registry,
+                    registry,
                     dialect_opt,
                     None::<&std::collections::HashSet<String>>,
                 ) {
@@ -1785,7 +1774,7 @@ pub fn proc_taint_solve<'db>(
     for fu in cu.analysable_methods_and_body_units() {
         for d in tcl_compiler::compiler_checks::shimmer_family_checks(
             fu,
-            &registry,
+            registry,
             dialect_opt,
             cu.method_instance_vars(&fu.name),
         ) {
@@ -1793,7 +1782,7 @@ pub fn proc_taint_solve<'db>(
         }
     }
 
-    let optimisations = solve_optimisations(db, &cu, &lattice_keys, &registry, dialect_opt);
+    let optimisations = solve_optimisations(db, &cu, &lattice_keys, registry, dialect_opt);
     Arc::new(CheckSolve {
         taints,
         fn_checks,
@@ -2050,7 +2039,7 @@ pub fn function_optimisations<'db>(
         has_dynamic_variable_trace: false,
     };
     let empty_cfg = tcl_compiler::cfg::Function::new("::", "entry");
-    let top_fu = FunctionUnit::build("::", empty_cfg.clone(), &[], &registry);
+    let top_fu = FunctionUnit::build("::", empty_cfg.clone(), &[], registry);
     let mut cfg_procs = HashMap::new();
     cfg_procs.insert(qname.clone(), fu.cfg.clone());
     let mut fu_procs = HashMap::new();
@@ -2074,7 +2063,7 @@ pub fn function_optimisations<'db>(
     };
     Arc::new(tcl_compiler::optimiser::optimise_unit_raw(
         &cu,
-        &registry,
+        registry,
         dialect_opt,
     ))
 }
@@ -2313,7 +2302,7 @@ pub fn compilation_unit<'db>(
         db,
         file.text(db),
         UnitBuildOptions {
-            registry: &registry,
+            registry,
             defer_top_level: false,
             config: cfg.to_config(db),
             dialect: &dialect,
@@ -2450,7 +2439,7 @@ pub fn compiler_check_diagnostics(
     let generic_patterns = config.generic_variable_patterns(db).as_deref();
     tcl_compiler::compiler_checks::push_taint_and_module_checks(
         &cu,
-        &registry,
+        registry,
         dialect_opt,
         &solve.taints,
         generic_patterns,
@@ -2546,7 +2535,7 @@ pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig)
     tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
         file.text(db),
         file.dialect(db),
-        &registry,
+        registry,
         Some(&cu),
         Some(&analysis),
     )
@@ -2652,7 +2641,7 @@ pub fn semantic_tokens_project(
     tcl_lsp_core::semantic_tokens::full_with_cu_and_classes_and_roles(
         file.text(db),
         file.dialect(db),
-        &registry,
+        registry,
         Some(&cu),
         Some(&classes),
         Some(&proc_roles),
@@ -2663,12 +2652,13 @@ pub fn semantic_tokens_project(
 #[salsa::tracked]
 pub fn folding_ranges(db: &dyn TclDb, file: SourceFile) -> Vec<FoldingRange> {
     let registry = db.registry(file.dialect(db));
-    tcl_lsp_core::folding::folding_ranges(file.text(db), file.dialect(db), &registry)
+    tcl_lsp_core::folding::folding_ranges(file.text(db), file.dialect(db), registry)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
 
     fn cfg(db: &TclDatabase) -> AnalyserConfig {
         AnalyserConfig::new(
@@ -2715,7 +2705,7 @@ mod tests {
         let registry = db.registry(dialect);
         let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
         let got = compiler_check_diagnostics(&db, file, cfg(&db));
-        let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None, None);
+        let want = compiler_check_diagnostics_uncached(src, registry, dialect, None, None);
         assert!(
             got.optimisations.iter().any(|o| o.code == DiagCode::O122),
             "expected O122 to fire on the tail-recursive proc"
@@ -2753,7 +2743,7 @@ mod tests {
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
         let got = semantic_tokens(&db, file, cfg(&db));
         let reg = db.registry("tcl");
-        let expected = tcl_lsp_core::semantic_tokens::full(SRC, "tcl", &reg);
+        let expected = tcl_lsp_core::semantic_tokens::full(SRC, "tcl", reg);
         assert_eq!(got, expected);
         assert!(!got.data.is_empty());
     }
@@ -2776,7 +2766,7 @@ mod tests {
         let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
         let enriched = semantic_tokens(&db, file, cfg(&db));
         let reg = db.registry("tcl9.0");
-        let coarse = tcl_lsp_core::semantic_tokens::full(src, "tcl9.0", &reg);
+        let coarse = tcl_lsp_core::semantic_tokens::full(src, "tcl9.0", reg);
         assert_ne!(
             enriched, coarse,
             "the CompilationUnit-informed regex-source retag must change the \
@@ -2796,7 +2786,7 @@ mod tests {
         let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
         let enriched = semantic_tokens(&db, file, cfg(&db));
         let reg = db.registry("tcl9.0");
-        let coarse = tcl_lsp_core::semantic_tokens::full(src, "tcl9.0", &reg);
+        let coarse = tcl_lsp_core::semantic_tokens::full(src, "tcl9.0", reg);
         assert_eq!(
             enriched, coarse,
             "a non-constant pattern source must not be retagged by either tier"
@@ -2824,7 +2814,6 @@ mod tests {
         };
         let mut db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         let cfg = AnalyserConfig::new(
             &db,
@@ -3133,7 +3122,6 @@ mod tests {
         };
         let db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         let cfg = AnalyserConfig::new(
             &db,
@@ -3193,7 +3181,6 @@ mod tests {
         };
         let db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         let cfg = AnalyserConfig::new(
             &db,
@@ -3311,7 +3298,7 @@ mod tests {
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
         let got = folding_ranges(&db, file);
         let reg = db.registry("tcl");
-        let expected = tcl_lsp_core::folding::folding_ranges(SRC, "tcl", &reg);
+        let expected = tcl_lsp_core::folding::folding_ranges(SRC, "tcl", reg);
         assert_eq!(got, expected);
     }
 
@@ -3415,7 +3402,6 @@ mod tests {
         };
         let mut db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         let cfg = AnalyserConfig::new(
             &db,
@@ -3475,7 +3461,6 @@ mod tests {
         };
         let mut db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         let cfg = AnalyserConfig::new(
             &db,
@@ -3548,7 +3533,7 @@ mod tests {
                 ),
             );
             let registry = db.registry(dialect);
-            let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None, None);
+            let want = compiler_check_diagnostics_uncached(src, registry, dialect, None, None);
             assert_eq!(
                 got.checks, want.checks,
                 "checks differ for ({dialect}):\n{src}"
@@ -3612,7 +3597,7 @@ mod tests {
                     None,
                 ),
             );
-            let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None, None);
+            let want = compiler_check_diagnostics_uncached(src, registry, dialect, None, None);
             assert_eq!(
                 got.checks, want.checks,
                 "cascade checks diverge after edit to:\n{src}"
@@ -3705,7 +3690,7 @@ mod tests {
             file.set_text(&mut db).to(src.clone());
 
             let got = compiler_check_diagnostics(&db, file, cfg(&db));
-            let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None, None);
+            let want = compiler_check_diagnostics_uncached(&src, registry, dialect, None, None);
             assert_eq!(
                 got.checks, want.checks,
                 "iter {iter}: checks diverge from fresh build for state {state:?}:\n{src}"
@@ -3743,7 +3728,6 @@ mod tests {
         };
         let mut db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         // Three procedures with no taint-relevant call edges between them.
         let file = SourceFile::new(
@@ -3824,7 +3808,6 @@ mod tests {
         };
         let mut db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         // Three independent procs (no foldable cross-proc calls, no pure-non-const
         // proc → the memo path, not the whole-module fallback).
@@ -3885,7 +3868,6 @@ mod tests {
         };
         let mut db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         let file = SourceFile::new(
             &db,
@@ -3956,7 +3938,6 @@ mod tests {
         };
         let mut db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         let file = SourceFile::new(
             &db,
@@ -4036,7 +4017,6 @@ mod tests {
         };
         let mut db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         let a = SourceFile::new(
             &db,
@@ -4109,7 +4089,6 @@ mod tests {
         };
         let mut db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         let a = SourceFile::new(
             &db,
@@ -4194,7 +4173,6 @@ mod tests {
         };
         let mut db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         let cfg = AnalyserConfig::new(
             &db,
@@ -5365,7 +5343,6 @@ mod tests {
         };
         let mut db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         let src = "namespace eval ::a { proc x {p} { set q $p; return $q } }\n\
                    namespace eval ::b { proc x {p} { set q $p; return $q } }\n\
@@ -5413,7 +5390,6 @@ mod tests {
         };
         let mut db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         let cfg = AnalyserConfig::new(
             &db,
@@ -5475,7 +5451,6 @@ mod tests {
         };
         let mut db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         let cfg = AnalyserConfig::new(
             &db,
@@ -5561,7 +5536,6 @@ mod tests {
         };
         let mut db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         let cfg = AnalyserConfig::new(
             &db,
@@ -5638,7 +5612,6 @@ mod tests {
         };
         let mut db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
-            registries: Arc::default(),
         };
         let cfg = AnalyserConfig::new(
             &db,

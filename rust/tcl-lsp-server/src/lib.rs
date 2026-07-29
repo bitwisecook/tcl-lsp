@@ -377,7 +377,7 @@ struct RangeConvergenceInputs {
     uri: String,
     /// The coarse token stream already served, to diff the enriched recompute against.
     served: Vec<u32>,
-    registry: Arc<CommandRegistry>,
+    registry: &'static CommandRegistry,
     text: String,
     dialect: String,
     range: CoreLspRange,
@@ -508,7 +508,7 @@ struct DiagToggles {
 #[derive(Clone)]
 struct DiagInputs {
     client: Client,
-    registry: Arc<CommandRegistry>,
+    registry: &'static CommandRegistry,
     disabled: HashSet<String>,
     /// `tclLsp.diagnosticSeverity.<CODE>` per-code LSP severity overrides,
     /// resolved for this document's folder. Applied as a display-side re-label
@@ -1155,7 +1155,7 @@ async fn compute_project_diags(
 /// worker panic (settle) — matching [`compute_base_analysis`].
 async fn compute_compiler_diags(
     ctx: &SalsaAnalysisCtx<'_>,
-    registry: &Arc<CommandRegistry>,
+    registry: &'static CommandRegistry,
     generic_variable_patterns: Option<&[String]>,
 ) -> ControlFlow<bool, Arc<tcl_lsp_db::CompilerDiagnostics>> {
     let &SalsaAnalysisCtx {
@@ -1192,13 +1192,13 @@ async fn compute_compiler_diags(
         }
     } else {
         let (c_text, c_dialect) = (text.to_owned(), dialect.to_owned());
-        let c_registry = Arc::clone(registry);
+        let c_registry = registry;
         let c_generic = generic_variable_patterns.map(<[String]>::to_vec);
         ControlFlow::Continue(
             tokio::task::spawn_blocking(move || {
                 Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
                     &c_text,
-                    &c_registry,
+                    c_registry,
                     &c_dialect,
                     c_generic.as_deref(),
                     // The no-salsa-input fallback: this document is not in the
@@ -1608,7 +1608,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         &salsa_ctx,
         &lift_inputs,
         &AnalyserPathInputs {
-            registry: &registry,
+            registry,
             extra_commands: &extra_commands,
             generic_variable_patterns: generic_variable_patterns.as_deref(),
             non_ascii_mode,
@@ -1626,7 +1626,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
 
 /// The non-document-buffer handles the analyser/compiler/publish path needs.
 struct AnalyserPathInputs<'a> {
-    registry: &'a Arc<CommandRegistry>,
+    registry: &'static CommandRegistry,
     extra_commands: &'a HashSet<String>,
     generic_variable_patterns: Option<&'a [String]>,
     non_ascii_mode: NonAsciiMode,
@@ -1944,7 +1944,7 @@ async fn refine_and_lift_diagnostics(
     compiler_diags: &Arc<tcl_lsp_db::CompilerDiagnostics>,
     inherited_requires: &[String],
     package_resolver: &Arc<RwLock<PackageResolver>>,
-    registry: &Arc<CommandRegistry>,
+    registry: &'static CommandRegistry,
     inputs: &LiftInputs<'_>,
 ) -> Result<Vec<tower_lsp_server::ls_types::Diagnostic>, tokio::task::JoinError> {
     // #723 + #804: refine the analyser's single-file W120 against the workspace
@@ -3320,10 +3320,14 @@ impl Backend {
     /// 1. The LSP ``languageId`` field — when it names a known
     ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl9.0"``
     ///    / etc.), use it directly.
-    /// 2. The per-folder override map (`folder_dialects`) — when
+    /// 2. Detection over the document itself — for the bare ``"tcl"``
+    ///    id every editor sends for a `.tcl` buffer, the shared
+    ///    [`tcl_registry::dialects::detect_dialect`] (directive,
+    ///    shebang, version guard, content signatures, then extension).
+    /// 3. The per-folder override map (`folder_dialects`) — when
     ///    the document URI sits under one of the configured folder
     ///    URLs, use the deepest-matching folder's dialect.
-    /// 3. The session-wide ``default_dialect`` fallback.
+    /// 4. The session-wide ``default_dialect`` fallback.
     async fn dialect_for_open(&self, uri: &Uri, language_id: &str, text: &str) -> String {
         // An explicit BIG-IP language id (`tcl-bigip`, advertised by the VS
         // Code extension, or the canonical `f5-bigip`) selects the BIG-IP
@@ -3360,12 +3364,21 @@ impl Backend {
         // 8.6+-only commands like `try` in an 8.4/8.5 file.  An explicit
         // versioned or non-Tcl `languageId` still takes precedence (it is a
         // deliberate editor choice), so only the bare `"tcl"` id defers here.
-        // Delegates to `detect_dialect_from_source`
-        // (directive > shebang > `package require Tcl`).
-        if language_id == "tcl"
-            && let Some(d) = tcl_registry::detect_dialect_from_source(text)
-        {
-            return d.to_owned();
+        // Delegates to the shared `detect_dialect` (directive > shebang >
+        // `package require Tcl` > content signatures > file extension), the
+        // same detector `tcl diag` resolves a document with — so the editor
+        // and the CLI report the same set for the same file. The
+        // content-signature tier is what recognises an iRule saved as
+        // `.tcl` (or opened by an editor with no iRules language mode) from
+        // its `when EVENT {` handlers; the extension tier never fires for a
+        // plain `.tcl` name, so the folder override and session default below
+        // still decide an ordinary Tcl buffer (issue #805). An empty `default`
+        // is the "nothing detected" sentinel: it keeps that deferral intact.
+        if language_id == "tcl" {
+            let detected = tcl_registry::dialects::detect_dialect(text, Some(uri.as_str()), "");
+            if !detected.is_empty() {
+                return detected.to_owned();
+            }
         }
         // A *versioned* or non-Tcl language id (`tcl8.4`, `tcl9.0`,
         // `f5-irules`, …) is a deliberate, specific choice and wins over the
@@ -3681,12 +3694,12 @@ impl Backend {
     ) -> Option<core_semantic_tokens::SemanticTokens> {
         if is_apl_source(uri, &doc.language_id) {
             let registry = self.registry_for_dialect(IAPPS_DIALECT).await;
-            return Some(core_semantic_tokens::apl_range(&doc.text, range, &registry));
+            return Some(core_semantic_tokens::apl_range(&doc.text, range, registry));
         }
         if Self::is_bigip_dialect(&doc.dialect) {
             let registry = self.registry_for_dialect(IRULES_DIALECT).await;
             return Some(core_semantic_tokens::bigip_conf_range(
-                &doc.text, range, &registry,
+                &doc.text, range, registry,
             ));
         }
         None
@@ -3708,13 +3721,13 @@ impl Backend {
         if is_apl_source(uri, &doc.language_id) {
             // The iApps registry: an APL `[ … ]` bracket expression is iApp Tcl.
             let registry = self.registry_for_dialect(IAPPS_DIALECT).await;
-            return Ok(core_semantic_tokens::apl_full(&doc.text, &registry).data);
+            return Ok(core_semantic_tokens::apl_full(&doc.text, registry).data);
         }
         if Self::is_bigip_dialect(&doc.dialect) {
             // The iRules registry, not the BIG-IP one: a `ltm rule { … }` body is
             // iRules code embedded in the config, and is walked as such.
             let registry = self.registry_for_dialect(IRULES_DIALECT).await;
-            return Ok(core_semantic_tokens::bigip_conf_full(&doc.text, &registry).data);
+            return Ok(core_semantic_tokens::bigip_conf_full(&doc.text, registry).data);
         }
 
         let Some(mut enriched) = self.db_semantic_tokens(uri).await else {
@@ -3726,13 +3739,13 @@ impl Backend {
             // salsa path below.
             return tokio::task::spawn_blocking(move || {
                 let cu = tcl_compiler::compilation_unit::CompilationUnit::build_for_dialect(
-                    &text, &registry, false, &dialect,
+                    &text, registry, false, &dialect,
                 );
                 let analysis = tcl_compiler::analyser::Analyser::new().analyse(&text, &dialect);
                 core_semantic_tokens::full_with_cu_and_analysis(
                     &text,
                     &dialect,
-                    &registry,
+                    registry,
                     Some(&cu),
                     Some(&analysis),
                 )
@@ -3782,7 +3795,7 @@ impl Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
         tokio::task::spawn_blocking(move || {
-            core_semantic_tokens::full(&text, &dialect, &registry).data
+            core_semantic_tokens::full(&text, &dialect, registry).data
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -5883,7 +5896,7 @@ impl Backend {
         let dialect = doc.dialect.clone();
         let value = tokio::task::spawn_blocking(move || {
             if aggressive {
-                let res = core_minify::minify_tcl_aggressive(&text, &dialect, isolated, &registry);
+                let res = core_minify::minify_tcl_aggressive(&text, &dialect, isolated, registry);
                 serde_json::json!({
                     "source": res.source,
                     "originalLength": res.original_length,
@@ -5893,7 +5906,7 @@ impl Backend {
                 })
             } else if compact {
                 let (minified, symbol_map) =
-                    core_minify::minify_tcl_compact(&text, &dialect, isolated, &registry);
+                    core_minify::minify_tcl_compact(&text, &dialect, isolated, registry);
                 serde_json::json!({
                     "source": minified,
                     "originalLength": text.len(),
@@ -5901,7 +5914,7 @@ impl Backend {
                     "symbolMap": symbol_map.format(),
                 })
             } else {
-                let minified = core_minify::minify_tcl(&text, &dialect, &registry);
+                let minified = core_minify::minify_tcl(&text, &dialect, registry);
                 serde_json::json!({
                     "source": minified,
                     "originalLength": text.len(),
@@ -5950,10 +5963,10 @@ impl Backend {
         let value = tokio::task::spawn_blocking(move || {
             let dialect_opt = Some(dialect.as_str());
             let (source, opts) = if profile == "full" {
-                tcl_compiler::optimiser::optimise_source_multipass(&text, &registry, dialect_opt, 5)
+                tcl_compiler::optimiser::optimise_source_multipass(&text, registry, dialect_opt, 5)
             } else {
                 let opts =
-                    tcl_compiler::optimiser::optimise_with_dialect(&text, &registry, dialect_opt);
+                    tcl_compiler::optimiser::optimise_with_dialect(&text, registry, dialect_opt);
                 let applied = tcl_compiler::optimiser::apply_optimisations(&text, &opts);
                 (applied, opts)
             };
@@ -6810,7 +6823,7 @@ impl Backend {
         let profile = tcl_dialect::DialectProfile::by_name(&dialect);
         let mut subs: Vec<serde_json::Value> = {
             use tcl_registry::ProfileQueries;
-            profile.resolve_command(&registry, &name)
+            profile.resolve_command(registry, &name)
         }
         .map(|spec| {
             spec.subcommands
@@ -7134,21 +7147,17 @@ impl Backend {
             .with_extra_commands(extra_commands)
     }
 
-    /// Return an `Arc<CommandRegistry>` with `dialect` loaded on
-    /// top of the default Tcl + stdlib + tcllib specs.
+    /// Return the command registry with `dialect` loaded on top of the
+    /// default Tcl + stdlib + tcllib specs.
     ///
-    /// The result is cached per canonical dialect key. Concurrent
-    /// first-use requests may build the same registry more than once,
-    /// but only one `Arc` is inserted; keeping construction outside the
-    /// mutex avoids blocking unrelated cache hits on spec loading.
-    /// Unparseable dialect strings collapse to the empty-string key so
-    /// they share a single cached "plain Tcl" registry rather than
-    /// leaking a fresh allocation per typo.
-    async fn registry_for_dialect(&self, dialect: &str) -> Arc<CommandRegistry> {
-        // The dialect-loaded registry lives on the query database as a durable
-        // (non-salsa) value, built once per canonical dialect key and shared.
-        // Clone the db handle (cheap; shares the registry map) so the lookup /
-        // one-time build doesn't hold the db mutex.
+    /// The registry is the process-wide per-profile cache in `tcl-registry`,
+    /// built once per dialect profile and shared for the process lifetime —
+    /// an unknown or unparseable dialect string resolves to the plain-Tcl
+    /// profile rather than leaking a fresh registry per typo.
+    async fn registry_for_dialect(&self, dialect: &str) -> &'static CommandRegistry {
+        // Routed through the query database so every consumer (the salsa
+        // queries included) reads one registry per dialect.  Clone the db
+        // handle (cheap) so the lookup does not hold the db mutex.
         let db = self.db.lock().await.clone();
         db.registry(dialect)
     }
@@ -7286,10 +7295,9 @@ impl Backend {
         uri: &Uri,
         text: &str,
         dialect: &str,
-        registry: &Arc<CommandRegistry>,
+        registry: &'static CommandRegistry,
     ) -> tcl_lsp_db::CompilerDiagnostics {
-        let (c_text, c_dialect, c_registry) =
-            (text.to_owned(), dialect.to_owned(), Arc::clone(registry));
+        let (c_text, c_dialect, c_registry) = (text.to_owned(), dialect.to_owned(), registry);
         // URI-scoped (folder/project override aware), matching the push
         // path's `resolved_generic_variable_patterns(uri)` so IRULE4002
         // honours a folder's `diagnostics.genericVariablePatterns` override.
@@ -7301,7 +7309,7 @@ impl Backend {
         tokio::task::spawn_blocking(move || {
             tcl_lsp_db::compiler_check_diagnostics_uncached(
                 &c_text,
-                &c_registry,
+                c_registry,
                 &c_dialect,
                 c_generic.as_deref(),
                 c_evidence.as_deref(),
@@ -7357,7 +7365,7 @@ impl Backend {
         let cross_file_on = self.cross_file_resolution_enabled(uri).await;
         let project_arities = self.project_arities_if(cross_file_on).await;
         let compiler_diags = self
-            .compiler_diagnostics_for(uri, &text, &dialect, &registry)
+            .compiler_diagnostics_for(uri, &text, &dialect, registry)
             .await;
 
         // XC100-301 translatability lints — independent toggle, f5-irules only.
@@ -7398,7 +7406,7 @@ impl Backend {
             analysis.as_ref(),
             &inherited_requires,
             &self.package_resolver,
-            &registry,
+            registry,
         )
         .await;
         // #832: drop any W123 the package database can resolve (auto-loaded
@@ -8130,7 +8138,7 @@ impl Backend {
                         &text,
                         &dialect,
                         range,
-                        &registry,
+                        registry,
                         cu.as_deref(),
                         analysis.as_deref(),
                     )
@@ -8736,7 +8744,7 @@ impl LanguageServer for Backend {
         // handler.
         let text = doc.text.clone();
         let edits = tokio::task::spawn_blocking(move || {
-            core_formatting::formatting_with(&text, &config, &registry)
+            core_formatting::formatting_with(&text, &config, registry)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -8781,7 +8789,7 @@ impl LanguageServer for Backend {
         // is contained as a JSON-RPC error rather than unwinding the event
         // loop (defence in depth).
         let ranges = tokio::task::spawn_blocking(move || {
-            tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, &registry)
+            tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, registry)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -8892,7 +8900,7 @@ impl LanguageServer for Backend {
                 pos.line,
                 pos.character,
                 &analysis,
-                Some(&registry),
+                Some(registry),
                 Some(&*workspace),
                 &doc.dialect,
             )
@@ -8975,7 +8983,7 @@ impl LanguageServer for Backend {
                 pos.character,
                 &dialect,
                 &analysis,
-                &registry,
+                registry,
             )
         })
         .await
@@ -9827,13 +9835,13 @@ impl LanguageServer for Backend {
         // Pure-CPU tokenisation on a worker so a parser panic is contained
         // as a JSON-RPC error.
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
-        let serve_registry = Arc::clone(&registry);
+        let serve_registry = registry;
         let core_data = tokio::task::spawn_blocking(move || {
             core_semantic_tokens::range_with_cu_and_analysis(
                 &text,
                 &dialect,
                 core_range,
-                &serve_registry,
+                serve_registry,
                 cached_cu.as_deref(),
                 cached_analysis.as_deref(),
             )
@@ -9854,7 +9862,7 @@ impl LanguageServer for Backend {
                 RangeConvergenceInputs {
                     uri: uri.as_str().to_owned(),
                     served: core_data.clone(),
-                    registry: Arc::clone(&registry),
+                    registry,
                     text: doc.text.clone(),
                     dialect: doc.dialect.clone(),
                     range: core_range,
@@ -10067,7 +10075,7 @@ impl LanguageServer for Backend {
                 &doc.dialect,
                 range,
                 Some(&analysis),
-                Some(&registry),
+                Some(registry),
                 type_hints,
                 parameter_hints,
             )
@@ -10317,7 +10325,7 @@ impl LanguageServer for Backend {
         let actions = tokio::task::spawn_blocking(move || {
             let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
             actions.extend(core_code_actions::package_require_actions(
-                &doc.text, range, &registry,
+                &doc.text, range, registry,
             ));
             actions.extend(core_code_actions::context_diagnostic_actions(
                 &doc.text,
@@ -10335,7 +10343,7 @@ impl LanguageServer for Backend {
             }
             // iRules-only: the `# Profiles:` header source action.
             if dialect == "f5-irules"
-                && let Some(a) = core_code_actions::profiles_action(&doc.text, &analysis, &registry)
+                && let Some(a) = core_code_actions::profiles_action(&doc.text, &analysis, registry)
             {
                 actions.push(a);
             }
@@ -10346,7 +10354,7 @@ impl LanguageServer for Backend {
             // plain-Tcl document's checks simply carry no IRULE-family fixes.
             let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
                 &doc.text,
-                &registry,
+                registry,
                 &dialect,
                 generic_patterns.as_deref(),
                 evidence.as_deref(),
@@ -10425,7 +10433,7 @@ impl LanguageServer for Backend {
         // a JSON-RPC error.
         let text = doc.text.clone();
         let edits = tokio::task::spawn_blocking(move || {
-            core_formatting::formatting_with(&text, &config, &registry)
+            core_formatting::formatting_with(&text, &config, registry)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -10467,7 +10475,7 @@ impl LanguageServer for Backend {
         // a JSON-RPC error.
         let text = doc.text.clone();
         let edits = tokio::task::spawn_blocking(move || {
-            core_formatting::range_formatting(&text, range, &config, &registry)
+            core_formatting::range_formatting(&text, range, &config, registry)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -10655,7 +10663,7 @@ impl LanguageServer for Backend {
         let dialect = doc.dialect.clone();
         let analysis_for_worker = analysis.clone();
         let new_name_worker = new_name.clone();
-        let registry_worker = Arc::clone(&registry);
+        let registry_worker = registry;
         let edits = tokio::task::spawn_blocking(move || {
             core_rename::rename(
                 &text,
@@ -10664,7 +10672,7 @@ impl LanguageServer for Backend {
                 pos.character,
                 &new_name_worker,
                 &analysis_for_worker,
-                Some(&registry_worker),
+                Some(registry_worker),
             )
         })
         .await
@@ -10705,7 +10713,7 @@ impl LanguageServer for Backend {
                     analysis: &analysis,
                     pos,
                     new_name: &new_name,
-                    registry: &registry,
+                    registry,
                 },
                 local_rejected,
                 &mut changes,
@@ -10862,7 +10870,7 @@ impl LanguageServer for Backend {
                 pos.line,
                 pos.character,
                 &analysis,
-                Some(&registry),
+                Some(registry),
             )
         })
         .await
@@ -10908,7 +10916,7 @@ impl LanguageServer for Backend {
                 pos.line,
                 pos.character,
                 &analysis,
-                Some(&registry),
+                Some(registry),
                 hover_profile,
             )
         })
@@ -18665,14 +18673,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn registry_for_dialect_reuses_cached_arc() {
+    async fn registry_for_dialect_reuses_cached_registry() {
         let backend = test_backend();
         let first = backend.registry_for_dialect("f5-irules").await;
         let second = backend.registry_for_dialect("f5-irules").await;
 
         assert!(
-            Arc::ptr_eq(&first, &second),
+            std::ptr::eq(first, second),
             "repeated dialect lookups should return the cached registry",
+        );
+        assert!(
+            first
+                .profile()
+                .is_some_and(tcl_dialect::DialectProfile::is_irules),
+            "the shared cache stamps the dialect profile the fold policy reads",
         );
     }
 
@@ -21108,7 +21122,7 @@ mod tests {
             .expect("worker did not panic")
             .expect("not cancelled");
         let registry = backend.registry_for_dialect("tcl9.0").await;
-        let coarse = core_semantic_tokens::full(src, "tcl9.0", &registry);
+        let coarse = core_semantic_tokens::full(src, "tcl9.0", registry);
 
         assert!(!served.data.is_empty(), "must never serve an empty stream");
         assert!(

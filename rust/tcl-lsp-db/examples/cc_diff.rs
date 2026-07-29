@@ -49,7 +49,7 @@ fn main() {
     );
     let memo = compiler_check_diagnostics(&db, file, cfg);
     let reg = db.registry(&dialect);
-    let fresh = compiler_check_diagnostics_uncached(&src, &reg, &dialect, None, None);
+    let fresh = compiler_check_diagnostics_uncached(&src, reg, &dialect, None, None);
 
     let ck = |d: &tcl_compiler::compiler_checks::Diagnostic| (d.span.start(), d.span.end(), d.code);
     let ms: BTreeSet<_> = memo.checks.iter().map(ck).collect();

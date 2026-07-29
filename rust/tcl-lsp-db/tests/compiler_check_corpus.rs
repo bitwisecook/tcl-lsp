@@ -99,7 +99,7 @@ fn compiler_check_memo_matches_uncached_graphops() {
     let file = SourceFile::new(&db, src.clone(), dialect.to_owned(), None);
     let got = compiler_check_diagnostics(&db, file, default_config(&db));
     let registry = db.registry(dialect);
-    let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None, None);
+    let want = compiler_check_diagnostics_uncached(&src, registry, dialect, None, None);
     assert_eq!(
         got.checks, want.checks,
         "graphops checks diverge (memo vs uncached)"
@@ -129,7 +129,7 @@ fn compiler_check_memo_matches_uncached_init() {
     let file = SourceFile::new(&db, src.clone(), dialect.to_owned(), None);
     let got = compiler_check_diagnostics(&db, file, default_config(&db));
     let registry = db.registry(dialect);
-    let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None, None);
+    let want = compiler_check_diagnostics_uncached(&src, registry, dialect, None, None);
     assert_eq!(
         got.checks, want.checks,
         "init.tcl checks diverge (memo vs uncached)"
@@ -171,7 +171,7 @@ fn compiler_check_memo_matches_uncached_over_corpus() {
         let file = SourceFile::new(&db, src.clone(), dialect.to_owned(), None);
         let got = compiler_check_diagnostics(&db, file, default_config(&db));
         let registry = db.registry(dialect);
-        let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None, None);
+        let want = compiler_check_diagnostics_uncached(&src, registry, dialect, None, None);
         checked += 1;
         if got.checks != want.checks || got.optimisations != want.optimisations {
             let detail = format!(
@@ -270,7 +270,7 @@ fn compiler_check_memo_matches_uncached_under_corpus_edits() {
             file.set_text(&mut db).to(src.clone());
 
             let got = compiler_check_diagnostics(&db, file, default_config(&db));
-            let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None, None);
+            let want = compiler_check_diagnostics_uncached(&src, registry, dialect, None, None);
             checked += 1;
             if got.checks != want.checks || got.optimisations != want.optimisations {
                 let detail = format!(

@@ -1377,3 +1377,81 @@ fn when_body_is_analysed_under_irules() {
         irules_codes(&diags)
     );
 }
+
+// -- TestIrulesWordOperatorFold ------------------------------------------
+// Issue #1048: the dialect reaches the lowering, so a word-operator condition
+// on a known-constant subject folds and draws I230 on the wire.
+
+/// Open `source` as an iRule and poll the version-1 publish until `marker`
+/// lands, returning the final diagnostics. Mirrors [`deep_diags`], but for a
+/// caller-chosen marker.
+fn diags_until(lsp: &mut Lsp, source: &str, marker: &str) -> Vec<Value> {
+    let uri = unique_uri("irule");
+    lsp.open_ready_lang(&uri, source, "tcl-irule");
+    let deadline = std::time::Instant::now() + Duration::from_secs(25);
+    let mut diags = Vec::new();
+    while std::time::Instant::now() < deadline {
+        diags = lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(25));
+        if diags.iter().any(|d| code_str(d) == marker) {
+            return diags;
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    panic!("{marker} never published; saw {:?}", irules_codes(&diags));
+}
+
+/// `$x contains "cd"` with `$x` a known literal is a constant condition, so the
+/// alternate branch is unreachable and I230 fires.
+///
+/// Before issue #1048 the lowering parsed every condition with no dialect, so
+/// the word operator reached the IR as an opaque expression the fold could not
+/// evaluate — I230 could not fire here even with the iRules dialect selected.
+/// The plain-Tcl control (the same text must draw no I230, only W003) lives in
+/// `tcl-compiler`'s `dialect_threading` suite: this server is iRules-dedicated,
+/// so opening a plain Tcl document on it would switch its dialect.
+#[test]
+fn i230_fires_on_irules_word_operator_condition() {
+    let mut lsp = Lsp::irules();
+    let diags = diags_until(
+        &mut lsp,
+        "when HTTP_REQUEST {\n\
+        \x20   set x \"abcdef\"\n\
+        \x20   if {$x contains \"cd\"} { HTTP::respond 200 }\n\
+        }\n",
+        "I230",
+    );
+    let i230: Vec<&Value> = diags.iter().filter(|d| code_str(d) == "I230").collect();
+    assert!(!i230.is_empty(), "{:?}", irules_codes(&diags));
+    // The message names the condition it folded, not some other branch.
+    let message = i230[0]
+        .get("message")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    assert!(
+        message.contains("contains"),
+        "I230 must be reported for the word-operator condition; got {message:?}"
+    );
+}
+
+/// FP guard: neither operand of `$x contains $y` is knowable here, so the
+/// condition is not constant and I230 must stay silent — the fold is proven,
+/// not assumed from the operator. `IRULE1004` (the missing-priority hint on the
+/// `when` handler) is the settle marker.
+#[test]
+fn i230_silent_on_non_constant_irules_word_operator_condition() {
+    let mut lsp = Lsp::irules();
+    let diags = diags_until(
+        &mut lsp,
+        "when HTTP_REQUEST {\n\
+        \x20   set y [HTTP::uri]\n\
+        \x20   set x [HTTP::host]\n\
+        \x20   if {$x contains $y} { HTTP::respond 200 }\n\
+        }\n",
+        "IRULE1004",
+    );
+    assert!(
+        !irules_codes(&diags).contains("I230"),
+        "{:?}",
+        irules_codes(&diags)
+    );
+}

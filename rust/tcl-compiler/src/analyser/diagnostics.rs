@@ -163,11 +163,23 @@ impl Analyser {
             // lowering needs it to parse a dialect-only operator (an iRules
             // `contains` condition) as an operator, and the lattice pipeline
             // needs it to fold one.
-            let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            //
+            // The *lexer* config stays the default rather than
+            // `for_dialect(dialect)`: the hosts that supply this unit through
+            // the `cu_override` seam (`tcl diag`'s `collect_rows`,
+            // `tcl_lsp_db::file_analysis_incremental`) build it with the
+            // default config, and the supplied unit must be the one this
+            // branch would have built. Changing it here would make an iRules
+            // document's diagnostics depend on which path built the unit.
+            let cu = crate::compilation_unit::CompilationUnit::build_with_options(
                 source,
-                registry,
-                false,
-                dialect_opt.unwrap_or_default(),
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config: tcl_lexer::LexerConfig::default(),
+                    dialect: dialect_opt.unwrap_or_default(),
+                    external_call_sites: None,
+                },
             )
             .with_interprocedural(registry, dialect_opt);
             self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);

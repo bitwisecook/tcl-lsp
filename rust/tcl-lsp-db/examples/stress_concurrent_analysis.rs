@@ -364,7 +364,7 @@ fn final_correctness_check(
     let fresh_tokens = tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
         &final_text,
         &params.dialect,
-        &registry,
+        registry,
         None,
         Some(&fresh),
     );
