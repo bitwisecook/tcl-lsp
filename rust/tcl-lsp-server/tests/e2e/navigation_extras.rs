@@ -141,6 +141,61 @@ fn method_outgoing_calls_nested_in_control_flow() {
     assert!(callees.contains("::C::greet"), "{callees:?}");
 }
 
+/// FN→TP (issue #995): a `classmethod` dispatches on the class's own
+/// command (`Factory make`), so neither its callers nor its callees have
+/// its name as a head word.  Incoming on `make` must find the sibling
+/// classmethod *and* the top-level statement; outgoing on `build` must find
+/// `make`.  tclsh9.0-verified — `Factory build` and the bare `Factory make`
+/// both enter `make` (8.6's `TclOO` has no `classmethod` keyword at all).
+#[test]
+fn classmethod_incoming_and_outgoing_calls_match_bare_class_dispatch() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create Factory {\n    classmethod make {} { return 1 }\n    classmethod build {} { Factory make }\n}\nFactory make\n";
+    lsp.open_ready(&uri, src);
+    // `make`'s incoming calls: `build`'s body, plus the top-level statement.
+    let make_item = items(&lsp.prepare_call_hierarchy(&uri, 1, 16))[0].clone();
+    let incoming = calls(&lsp.incoming_calls(make_item));
+    let incoming_from: std::collections::BTreeSet<String> = incoming
+        .iter()
+        .map(|c| name_of(c.get("from").unwrap_or(&Value::Null)))
+        .collect();
+    assert!(
+        incoming_from.contains("::Factory::build"),
+        "the sibling classmethod's `Factory make` is a caller: {incoming_from:?}"
+    );
+    assert!(
+        incoming_from.contains("<top-level>"),
+        "the top-level `Factory make` is a caller: {incoming_from:?}"
+    );
+    // `build`'s outgoing calls: dispatches to `make`.
+    let build_item = items(&lsp.prepare_call_hierarchy(&uri, 2, 16))[0].clone();
+    let outgoing = calls(&lsp.outgoing_calls(build_item));
+    let outgoing_to: std::collections::BTreeSet<String> = outgoing
+        .iter()
+        .map(|c| name_of(c.get("to").unwrap_or(&Value::Null)))
+        .collect();
+    assert!(outgoing_to.contains("::Factory::make"), "{outgoing_to:?}");
+}
+
+/// FP guard (issue #995): `Factory make` where `Factory` is an ordinary
+/// proc calls *that proc* with the literal argument `make`
+/// (tclsh8.6/9.0-verified), so it is no edge at all to an unrelated class's
+/// same-named classmethod.
+#[test]
+fn bare_dispatch_on_a_same_named_proc_is_not_a_classmethod_edge() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create Widget {\n    classmethod make {} { return 1 }\n}\nproc Factory {args} { return $args }\nFactory make\n";
+    lsp.open_ready(&uri, src);
+    let make_item = items(&lsp.prepare_call_hierarchy(&uri, 1, 16))[0].clone();
+    let incoming = calls(&lsp.incoming_calls(make_item));
+    assert!(
+        incoming.is_empty(),
+        "a proc call spelled `Factory make` must not edge to Widget's classmethod: {incoming:?}"
+    );
+}
+
 // -- TestImplementation --------------------------------------------------
 
 #[test]

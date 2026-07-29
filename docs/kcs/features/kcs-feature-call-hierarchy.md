@@ -33,19 +33,31 @@ proc-to-proc edge. External `$obj method` dispatch (a different class or
 document calling in) is not part of the method call graph — it is a Find
 References concern instead.
 
+A `classmethod` is different: it is dispatched on the class's own command,
+`ClassName <method>`, so that shape is a call edge too. A class command is
+an ordinary global command, so the edge fires wherever the call is written
+— inside another classmethod, inside an instance method, inside a plain
+proc, or at the top level (the caller is then shown as `<top-level>`).
+Because it is a real command call, `Factory make` where `Factory` happens
+to be an ordinary proc is a call to *that proc*, not to any class's
+same-named classmethod, and no method edge is created for it.
+
 An instance `method` and a `classmethod` sharing a name (rare, but `TclOO`
 keeps them in independent tables, so it's legal) never cross-link: `my
 <word>` dispatch scope depends on which table the *caller's own body*
 belongs to (`self` is the class object inside a `classmethod`'s body, the
-instance everywhere else), so an edge only ever connects two members of the
-same kind.
+instance everywhere else), so a `my` edge only ever connects two members of
+the same kind. The `ClassName <method>` shape reaches only the class
+object's own table, so it never edges to a same-named instance method.
 
 ## File-path anchors
 
 - `rust/tcl-lsp-core/src/call_hierarchy.rs`
 - `rust/tcl-lsp-core/src/references.rs` (`scan_my_method_sites` — the
   shared `my`-dispatch matcher call hierarchy, Find References, rename,
-  and the code lens all resolve through)
+  and the code lens all resolve through — and
+  `find_obj_method_call_sites`, the shared bare `ClassName <method>`
+  classmethod-dispatch scanner)
 
 ## Failure modes
 
@@ -64,7 +76,9 @@ same kind.
   and `prepare_resolves_classmethod_over_same_named_method_by_cursor`)
 - `rust/tcl-lsp-server/tests/e2e/navigation_extras.rs`
   (`method_incoming_and_outgoing_calls_match_my_dispatch`,
-  `method_outgoing_calls_nested_in_control_flow`)
+  `method_outgoing_calls_nested_in_control_flow`,
+  `classmethod_incoming_and_outgoing_calls_match_bare_class_dispatch`,
+  `bare_dispatch_on_a_same_named_proc_is_not_a_classmethod_edge`)
 
 ## Example
 
