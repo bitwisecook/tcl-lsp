@@ -24,9 +24,15 @@ Code lenses appear automatically above every `proc` definition, every
 class body, every `property` declaration (`oo::configurable`'s `property
 name -get {...} -set {...}` form), and every explicit `constructor` /
 `destructor`, in a Tcl or iRules file. Each lens shows how many references
-exist to that symbol across the current file (and the workspace, for procs
-and classes, if indexing is enabled). Click the lens to open the Find
+exist to that symbol across the workspace. Click the lens to open the Find
 References panel.
+
+The number shown is exactly the number of locations the click opens, and
+both match **Find All References** on the same declaration. That holds for a
+TclOO method or classmethod whose callers live in other files — an override
+in a sibling document, an inheriting subclass's own dispatch, or a
+pure-consumer file that only calls `$obj method` / `Class method` — which
+earlier releases counted and opened from the current file alone.
 
 A property's count comes from a class-local scan of `my <property>` sites —
 properties have no `$obj property` dispatch shape and no inheritance model,

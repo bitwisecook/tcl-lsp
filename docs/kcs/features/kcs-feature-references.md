@@ -105,6 +105,8 @@ double-quoted string.
   `dispatch_scan_depth_guard_stops_runaway_nesting`,
   `tn_expect_clause_flags_not_decomposed`)
 - `rust/tcl-lsp-server/tests/e2e/issue923_class_refs.rs` (cross-file)
+- `rust/tcl-lsp-server/tests/e2e/tcloo_navigation.rs` (rename / references /
+  code-lens agreement on the same `TclOO` member — issues #991, #993)
 - `rust/tcl-lsp-server/tests/e2e/name_resolution.rs`
   (`my_method_dispatch::tp_my_dispatch_nested_in_control_flow_reference_and_lens`)
 - `rust/tcl-lsp-server/src/lib.rs` unit tests: `cross_file_consumer_finds_classmethod_bare_dispatch`,

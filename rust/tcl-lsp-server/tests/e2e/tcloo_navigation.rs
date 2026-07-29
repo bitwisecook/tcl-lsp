@@ -63,6 +63,53 @@ fn location_lines(result: &Value, uri: &str) -> std::collections::BTreeSet<i64> 
         .collect()
 }
 
+/// Every `(uri, start line)` pair in a references / lens-resolve payload.
+fn all_location_lines(result: &Value) -> std::collections::BTreeSet<(String, i64)> {
+    locations(result)
+        .iter()
+        .filter_map(|l| {
+            l.range
+                .get("start")
+                .and_then(|s| s.get("line"))
+                .and_then(Value::as_i64)
+                .map(|line| (l.uri.clone(), line))
+        })
+        .collect()
+}
+
+/// Resolve the code lens anchored at `line` in `uri`, returning its
+/// `command` object (`{title, command, arguments}`).
+fn resolve_lens_on_line(lsp: &mut Lsp, uri: &str, line: i64) -> Value {
+    let all = match lsp.code_lens(uri) {
+        Value::Array(a) => a,
+        _ => Vec::new(),
+    };
+    let lens = all
+        .iter()
+        .find(|l| l["range"]["start"]["line"].as_i64() == Some(line))
+        .unwrap_or_else(|| panic!("no lens anchored at line {line} of {uri}: {all:?}"))
+        .clone();
+    lsp.code_lens_resolve(lens)["command"].clone()
+}
+
+/// The lens label the server emits for `count` sites.
+fn expected_title(count: usize) -> Value {
+    Value::String(match count {
+        1 => "1 reference".to_owned(),
+        n => format!("{n} references"),
+    })
+}
+
+/// The `locations` argument a resolved lens hands `tcl-lsp.showReferences`.
+fn lens_locations(command: &Value) -> Value {
+    command
+        .get("arguments")
+        .and_then(Value::as_array)
+        .and_then(|a| a.get(2))
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
 // Issue #993 — rename must reach pure-consumer documents.
 
 /// TP: `consumer.tcl` only ever *calls* `Factory`'s `make`; it declares no
@@ -178,5 +225,115 @@ fn tp_consumer_rename_and_references_agree_on_the_same_sites() {
     assert!(
         renamed.contains(&1) && renamed.contains(&2),
         "both consumer call sites must be covered: {edits:?}"
+    );
+}
+
+// Issue #991 — code-lens click and count must match Find All References.
+
+/// TP: the lens above `Animal`'s `speak` must count — and, on click, open —
+/// the sibling document's override declaration and its `$d speak` dispatch,
+/// exactly as Find All References on the same declaration does.
+/// tclsh8.6/9.0-verified: `$d speak` on a `Dog` (superclass `Animal`) enters
+/// `Dog`'s override, which is a member of `Animal::speak`'s override family.
+#[test]
+fn tp_method_lens_click_and_count_match_find_all_references() {
+    let mut lsp = Lsp::tcl();
+    let animal = unique_uri("tcl");
+    lsp.open_ready(
+        &animal,
+        "oo::class create Animal {\n    method speak {} { return \"...\" }\n}\n",
+    );
+    let dog = unique_uri("tcl");
+    lsp.open_ready(
+        &dog,
+        "oo::class create Dog {\n    superclass Animal\n    method speak {} { return \"woof\" }\n}\nset d [Dog new]\n$d speak\n",
+    );
+
+    // Cursor on `speak`'s declaration in animal.tcl (line 1, col 11).
+    let refs = lsp.references(&animal, 1, 11, false);
+    let ref_sites = all_location_lines(&refs);
+    assert!(
+        !location_lines(&refs, &dog).is_empty(),
+        "Find All References must reach the sibling document: {refs:?}"
+    );
+
+    let command = resolve_lens_on_line(&mut lsp, &animal, 1);
+    let lens_sites = all_location_lines(&lens_locations(&command));
+    assert_eq!(
+        lens_sites, ref_sites,
+        "the lens click must open exactly what Find All References returns: {command:?}"
+    );
+    assert_eq!(
+        command["title"],
+        expected_title(ref_sites.len()),
+        "the lens count must be the number of sites its click opens: {command:?}"
+    );
+    assert!(
+        ref_sites.contains(&(dog.clone(), 5)),
+        "the sibling `$d speak` dispatch is one of them: {refs:?}"
+    );
+}
+
+/// TN: a method with genuinely no references anywhere still reads
+/// "0 references" and opens nothing — the cross-file layer must not invent
+/// sites for a member nobody calls.
+#[test]
+fn tn_method_with_no_cross_file_references_still_reads_zero() {
+    let mut lsp = Lsp::tcl();
+    let animal = unique_uri("tcl");
+    lsp.open_ready(
+        &animal,
+        "oo::class create Animal {\n    method speak {} { return \"...\" }\n    method quiet {} { return \"\" }\n}\n",
+    );
+    let dog = unique_uri("tcl");
+    lsp.open_ready(
+        &dog,
+        "oo::class create Dog {\n    superclass Animal\n    method speak {} { return \"woof\" }\n}\nset d [Dog new]\n$d speak\n",
+    );
+
+    // `quiet` (line 2) is declared once and never dispatched.
+    let command = resolve_lens_on_line(&mut lsp, &animal, 2);
+    assert_eq!(
+        command["title"],
+        Value::String("0 references".to_owned()),
+        "an uncalled method must not gain sites from the cross-file layer: {command:?}"
+    );
+    assert_eq!(
+        all_location_lines(&lens_locations(&command)),
+        std::collections::BTreeSet::new(),
+        "and its click must open nothing: {command:?}"
+    );
+}
+
+/// TP: the classmethod shape too — a bare `Factory make` dispatch in a
+/// consumer document counts towards, and opens from, the declaration's lens
+/// (tclsh9.0-verified dispatch).
+#[test]
+fn tp_classmethod_lens_click_and_count_reach_a_consumer_document() {
+    let mut lsp = Lsp::tcl();
+    let factory = unique_uri("tcl");
+    lsp.open_ready(
+        &factory,
+        "oo::class create Factory {\n    classmethod make {} { return [Factory new] }\n}\n",
+    );
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(&consumer, "Factory make\n");
+
+    let refs = lsp.references(&factory, 1, 16, false);
+    let ref_sites = all_location_lines(&refs);
+    assert!(
+        location_lines(&refs, &consumer).contains(&0),
+        "the consumer's bare dispatch must be a reference: {refs:?}"
+    );
+    let command = resolve_lens_on_line(&mut lsp, &factory, 1);
+    assert_eq!(
+        all_location_lines(&lens_locations(&command)),
+        ref_sites,
+        "the classmethod lens click must match Find All References: {command:?}"
+    );
+    assert_eq!(
+        command["title"],
+        expected_title(ref_sites.len()),
+        "and its count must be that same number: {command:?}"
     );
 }

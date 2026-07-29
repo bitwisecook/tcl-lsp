@@ -4600,29 +4600,51 @@ impl Backend {
 
     /// Resolve the call-site reference [`Location`]s for the symbol whose name
     /// starts at `position` — the locations the code-lens peek
-    /// (`tcl-lsp.showReferences`) opens.  Mirrors the [`Self::references`]
-    /// handler (local hits + cross-document call sites, deduped) but never
-    /// includes the declaration, matching the lens's "N references" call-site
-    /// count.
+    /// (`tcl-lsp.showReferences`) opens.  The declaration is never included,
+    /// matching the lens's "N references" call-site count; everything else is
+    /// literally [`Self::reference_locations`], the same path the
+    /// `textDocument/references` handler runs (issue #991 — the lens used to
+    /// skip the method/classmethod cross-file layer the handler applied, so a
+    /// lens click showed fewer sites than Find All References on the very
+    /// same declaration).
     async fn reference_locations_at(
         &self,
         uri: &Uri,
-        text: &str,
-        dialect: &str,
+        doc: &DocumentState,
         analysis: &AnalysisResult,
         position: Position,
     ) -> Vec<Location> {
-        let owned_text = text.to_owned();
-        let owned_dialect = dialect.to_owned();
+        self.reference_locations(uri, doc, analysis, position, false)
+            .await
+    }
+
+    /// Every reference [`Location`] for the symbol at `position`: the
+    /// single-document hits, the cross-document call sites (declarations too
+    /// when `include_declaration`), and the `TclOO` method / classmethod
+    /// cross-file layer — override family, inheritors, and pure consumers.
+    ///
+    /// The **one** path behind both `textDocument/references` and the code
+    /// lens's click target.  They must not re-derive it separately: the lens
+    /// listing fewer sites than the peek on the same symbol is issue #991.
+    async fn reference_locations(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        position: Position,
+        include_declaration: bool,
+    ) -> Vec<Location> {
+        let text = doc.text.clone();
+        let dialect = doc.dialect.clone();
         let analysis_for_worker = analysis.clone();
         let ranges = tokio::task::spawn_blocking(move || {
             core_references::references(
-                &owned_text,
-                &owned_dialect,
+                &text,
+                &dialect,
                 position.line,
                 position.character,
                 &analysis_for_worker,
-                false,
+                include_declaration,
             )
         })
         .await
@@ -4631,21 +4653,43 @@ impl Backend {
         // declaration to anchor the single-document pass on, so an empty
         // `ranges` here does not mean "genuinely zero" — see
         // `workspace_resolved_references`'s own doc.
+        let local_found_nothing = ranges.is_empty();
         let mut locations: Vec<Location> = ranges
-            .iter()
+            .into_iter()
             .map(|r| Location {
                 uri: uri.clone(),
-                range: lift_lsp_range(*r),
+                range: lift_lsp_range(r),
             })
             .collect();
-        let cross = if ranges.is_empty() {
-            self.workspace_resolved_references(uri, text, analysis, position, false)
-                .await
+        let cross = if local_found_nothing {
+            self.workspace_resolved_references(
+                uri,
+                &doc.text,
+                analysis,
+                position,
+                include_declaration,
+            )
+            .await
         } else {
-            self.cross_document_references(uri, text, analysis, position, false)
+            self.cross_document_references(uri, &doc.text, analysis, position, include_declaration)
                 .await
         };
         locations.extend(cross);
+        // Cross-document `TclOO` method sites: when the cursor names a method
+        // (its declaration inside a class body, or an `$obj method` / `my
+        // method` call), gather the method's sites across its override family
+        // in sibling documents, plus pure-consumer documents the family pass
+        // can't see — the single-document provider above only sees this file.
+        locations.extend(
+            self.cross_file_method_and_consumer_references(
+                uri,
+                doc,
+                analysis,
+                position,
+                include_declaration,
+            )
+            .await,
+        );
         dedup_locations(&mut locations);
         locations
     }
@@ -8992,69 +9036,9 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        let text = doc.text.clone();
-        let dialect = doc.dialect.clone();
-        let analysis_for_worker = analysis.clone();
-        let ranges = tokio::task::spawn_blocking(move || {
-            core_references::references(
-                &text,
-                &dialect,
-                pos.line,
-                pos.character,
-                &analysis_for_worker,
-                include_decl,
-            )
-        })
-        .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("references worker panicked: {err}").into(),
-            data: None,
-        })?;
-        // Current-document hits. Empty here does not necessarily mean
-        // genuinely zero: a pure-consumer document (issue #923 idx 71 —
-        // the cursor's proc/class has no local declaration, only a
-        // `source`d-in or workspace-sibling one) leaves the single-document
-        // pass with nothing to anchor on even though this very document's
-        // own call sites (including the one under the cursor) are real
-        // references — see `workspace_resolved_references`'s own doc.
-        let local_found_nothing = ranges.is_empty();
-        let mut locations: Vec<Location> = ranges
-            .into_iter()
-            .map(|r| Location {
-                uri: uri.clone(),
-                range: lift_lsp_range(r),
-            })
-            .collect();
-        // Cross-document call sites (and, when requested,
-        // sibling-document definition sites). A pure-consumer document
-        // (issue #923 idx 71) resolves through the workspace oracle without
-        // excluding the current document, so its own call sites aren't
-        // silently dropped alongside it.
-        let cross = if local_found_nothing {
-            self.workspace_resolved_references(&uri, &doc.text, &analysis, pos, include_decl)
-                .await
-        } else {
-            self.cross_document_references(&uri, &doc.text, &analysis, pos, include_decl)
-                .await
-        };
-        locations.extend(cross);
-        // Cross-document TclOO method sites: when the cursor names a method
-        // (its declaration inside a class body, or an `$obj method` / `my
-        // method` call), gather the method's sites across its override family in
-        // sibling documents, plus pure-consumer documents the family pass can't
-        // see — the single-document provider above only sees this file.
-        locations.extend(
-            self.cross_file_method_and_consumer_references(
-                &uri,
-                &doc,
-                &analysis,
-                pos,
-                include_decl,
-            )
-            .await,
-        );
-        dedup_locations(&mut locations);
+        let locations = self
+            .reference_locations(&uri, &doc, &analysis, pos, include_decl)
+            .await;
         if locations.is_empty() {
             return Ok(None);
         }
@@ -10137,7 +10121,7 @@ impl LanguageServer for Backend {
             data: None,
         })?;
         let mut lens = lens;
-        if let Some(matching) = lenses.into_iter().find(|l| l.qname == qname) {
+        if lenses.iter().any(|l| l.qname == qname) {
             // Resolve the actual reference locations so clicking the lens opens
             // a peek (the lens title alone is informational — a bare title with
             // no command is rendered but inert, the "reference is not active"
@@ -10146,7 +10130,7 @@ impl LanguageServer for Backend {
             // delegates to the built-in `editor.action.showReferences`.
             let position = lens.range.start;
             let locations = self
-                .reference_locations_at(&uri, &doc.text, &doc.dialect, &analysis, position)
+                .reference_locations_at(&uri, &doc, &analysis, position)
                 .await;
             let arguments = vec![
                 serde_json::Value::String(uri.to_string()),
@@ -10154,7 +10138,12 @@ impl LanguageServer for Backend {
                 serde_json::to_value(&locations).unwrap_or(serde_json::Value::Null),
             ];
             lens.command = Some(tower_lsp_server::ls_types::Command {
-                title: matching.command_title,
+                // The label counts exactly the sites the click opens — the
+                // core provider's own count is single-document for a class
+                // member (see `tcl_lsp_core::code_lens`'s module doc), so
+                // reusing it here would show a smaller number than the peek
+                // it hands the editor (issue #991).
+                title: core_code_lens::reference_count_title(locations.len()),
                 command: "tcl-lsp.showReferences".to_owned(),
                 arguments: Some(arguments),
             });

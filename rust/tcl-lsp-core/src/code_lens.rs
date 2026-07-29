@@ -74,17 +74,24 @@
 //! and the document's URI, the proc / class lens count
 //! includes call sites in sibling documents.
 //!
-//! Limitations:
+//! Scope of the counts this module computes:
 //!
-//! * Method lens counts are current-document only (matching the method
-//!   peek, which is also single-document): an `$obj method` site in a
-//!   *sibling* document is not counted, because resolving a cross-file
-//!   object's class needs whole-workspace instance-type flow the index
-//!   does not yet carry.  Proc / class lenses do fold in cross-document
-//!   command-head call sites via the workspace index.
-//! * Constructor / destructor next-chain counts are current-document only
-//!   too, for the same reason: a subclass declared in a sibling document
-//!   that `next`-chains to a superclass defined here is not counted.
+//! * Class-member counts (method / classmethod / property, and the
+//!   constructor / destructor next-chain) are **current-document only**.
+//!   Resolving a cross-file `$obj method` site needs each sibling
+//!   document's own analysis, which this pure, single-document provider
+//!   has no way to obtain.  Proc / class counts do fold in cross-document
+//!   command-head call sites, since the workspace index carries those
+//!   directly.
+//! * That is not what the editor ends up showing for a member lens.  Every
+//!   lens carrying a `qname` is returned to the client *without* a command,
+//!   so the client must call `codeLens/resolve` before rendering it — and
+//!   the server relabels it there from the workspace-wide site set it
+//!   resolves for the click, via [`reference_count_title`].  The number
+//!   shown and the locations the click opens are therefore one and the same
+//!   set, and both match Find All References on the declaration (issue
+//!   #991).  The counts here are the single-document floor under that, and
+//!   what a caller with no server gets.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -347,7 +354,15 @@ fn emit_class_member_lenses(
     }
 }
 
-fn reference_count_title(count: usize) -> String {
+/// The lens label for `count` call sites — `"0 references"` /
+/// `"1 reference"` / `"N references"`.
+///
+/// Public so the server can relabel a lens at `codeLens/resolve` time from
+/// the workspace-wide site set it resolves there (issue #991): the count
+/// shown and the locations the click opens are then one number by
+/// construction, not two independently-derived ones.
+#[must_use]
+pub fn reference_count_title(count: usize) -> String {
     match count {
         0 => "0 references".to_string(),
         1 => "1 reference".to_string(),
