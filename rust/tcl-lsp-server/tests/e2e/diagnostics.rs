@@ -1989,6 +1989,60 @@ fn command_prefix_callback_target_does_not_fire_i230() {
     );
 }
 
+// Issue #1044: Tcl dispatches every unresolved command word to the module's
+// own `unknown` handler, passing the word and that call's arguments — so the
+// handler's *direct* callers are never its complete caller set, and a
+// coincidentally-uniform set of them folded a condition that varies at
+// runtime. tclsh8.6/9.0-confirmed: with `proc unknown {cmd args}` in scope,
+// `bogus beta` runs the handler with `cmd` = `bogus`. The registry marks the
+// handler with `Traits::UNRESOLVED_COMMAND_HANDLER`, so no compiler code
+// spells the name.
+
+#[test]
+fn unresolved_word_reaching_the_unknown_handler_does_not_fire_i230() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc unknown {cmd args} {\n    if {$cmd eq \"alpha\"} { return 1 } else { return 2 }\n}\nunknown alpha\nunknown alpha\nbogus beta\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "I230"),
+        "`bogus beta` also reaches unknown, with cmd = \"bogus\": {:?}",
+        codes(&diags)
+    );
+}
+
+/// TP control: a module that defines a handler but has no unresolved word
+/// anywhere really does see every caller, so an agreeing set still folds —
+/// the fix must not blanket-disable seeding for any file containing an
+/// `unknown` proc.
+#[test]
+fn unknown_handler_with_no_unresolved_words_still_fires_i230() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc unknown {cmd args} {\n    if {$cmd eq \"alpha\"} { return 1 } else { return 2 }\n}\nunknown alpha\nunknown alpha\nputs hi\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        has_code(&diags, "I230"),
+        "no unresolved word exists, so the direct callers are all of them: {:?}",
+        codes(&diags)
+    );
+}
+
+/// TN control and the regression risk: a module with **no** handler is the
+/// common case and must be entirely unaffected by the unresolved-word path.
+#[test]
+fn unresolved_word_without_an_unknown_handler_still_fires_i230() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n}\nproc caller1 {} { helper prod }\nproc caller2 {} { helper prod }\nbogus beta\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        has_code(&diags, "I230"),
+        "with no handler defined, an unresolved word reaches nothing: {:?}",
+        codes(&diags)
+    );
+}
+
 // Issue #977: PR #970's `package provide` guard did not cover the more common
 // shape — a plain library file with NO `package provide`, `source`d by another
 // file that calls its procs with a different literal. `lib.tcl` analysed alone

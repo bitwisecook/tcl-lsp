@@ -308,6 +308,9 @@ struct CallSiteScanCtx<'a, S> {
     /// [`unenumerable_reach`] and
     /// [`CallSiteEvidence::record_unenumerable_caller`].
     unenumerable_reach: &'a [String],
+    /// The qualified name of the module's own unresolved-command handler,
+    /// when it defines one — see [`unresolved_command_handler`].
+    unresolved_handler: Option<&'a str>,
 }
 
 /// One body the scan walks as a *caller*.
@@ -832,12 +835,82 @@ fn record_invocation(
     };
     for name in &values {
         let Some(target) = resolve_target(ctx, caller.resolve_as, name) else {
+            record_unresolved_word_dispatch(out, ctx, name, args);
             continue;
         };
         match args {
             IndirectArgs::Words(words) => out.record_call(target, words),
             IndirectArgs::Unknowable => out.record_opaque_caller(&target),
         }
+    }
+}
+
+/// The qualified name of the unresolved-command handler this unit defines,
+/// or `None` when it defines none — the overwhelmingly common case.
+///
+/// Tcl routes every command word that resolves to nothing to a single
+/// global handler, passing the word itself followed by that call's own
+/// arguments (tclsh8.6/9.0-confirmed). A module that defines one therefore
+/// has callers no scan of its *direct* call sites can enumerate, and a
+/// coincidentally-uniform set of those direct calls would fold a parameter
+/// the unresolved words genuinely vary (issue #1044).
+///
+/// Which command is the handler comes from
+/// [`Traits::UNRESOLVED_COMMAND_HANDLER`], never a literal name here. The
+/// lookup is global-scope only: a namespace-local `proc unknown` is *not*
+/// consulted for unresolved words in that namespace — tclsh8.6/9.0 both
+/// dispatch to `::unknown` regardless of the calling namespace.
+fn unresolved_command_handler<'a, S: std::hash::BuildHasher>(
+    registry: &CommandRegistry,
+    known: &'a HashSet<String, S>,
+) -> Option<&'a str> {
+    registry
+        .commands_with_trait(Traits::UNRESOLVED_COMMAND_HANDLER)
+        .into_iter()
+        .find_map(|name| {
+            let qualified = crate::naming::qualify("::", name);
+            known.get(&qualified).map(String::as_str)
+        })
+}
+
+/// Record the unresolved-command handler's own invocation for a literal
+/// command word this scan could not resolve (issue #1044).
+///
+/// Only fires when the module defines a handler, and only for a word the
+/// registry does not know either — everything else either resolves or is a
+/// builtin. The word becomes the handler's first argument and the call's
+/// own arguments follow, exactly as Tcl passes them, so the evidence union
+/// is the precise set of values the handler's parameters really see.
+///
+/// Deliberately over-inclusive on the residue: a word bound by something
+/// this scan does not model (a class command, an ensemble, a coroutine)
+/// also reads as unresolved and contributes an extra value. That can only
+/// *retract* a fold, never manufacture one, and it costs nothing in a
+/// module with no handler.
+fn record_unresolved_word_dispatch(
+    out: &mut CallSiteEvidence,
+    ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
+    word: &str,
+    args: IndirectArgs<'_>,
+) {
+    let Some(handler) = ctx.unresolved_handler else {
+        return;
+    };
+    if ctx
+        .registry
+        .get(word.strip_prefix("::").unwrap_or(word))
+        .is_some()
+    {
+        return;
+    }
+    match args {
+        IndirectArgs::Words(words) => {
+            let mut dispatched = Vec::with_capacity(words.len() + 1);
+            dispatched.push(word.to_owned());
+            dispatched.extend_from_slice(words);
+            out.record_call(handler.to_owned(), &dispatched);
+        }
+        IndirectArgs::Unknowable => out.record_opaque_caller(handler),
     }
 }
 
@@ -1150,6 +1223,7 @@ pub(crate) fn collect_call_site_constants(
     // identical to the module-wide rule it replaces, but expressed per callee
     // so it merges and slices correctly across files.
     let reach = unenumerable_reach(procedures, Traits::empty(), &known);
+    let unresolved_handler = unresolved_command_handler(registry, &known);
     // The top level has no qualified name of its own; `"::top"` (the same
     // pseudo-qname `FunctionUnit::build_full` uses for it) resolves to the
     // global namespace via `resolve_internal_call`'s "drop the last
@@ -1165,6 +1239,7 @@ pub(crate) fn collect_call_site_constants(
             previous,
             procedures,
             unenumerable_reach: &reach,
+            unresolved_handler,
         };
         let funcs = std::iter::once(("::top", &cfg_module.top_level))
             .chain(cfg_module.procedures.iter().map(|(q, f)| (q.as_str(), f)))
@@ -1350,6 +1425,10 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
     } else {
         dispatch_reach.to_vec()
     };
+    // `known` here is the *project*-wide procedure set, so a handler defined
+    // in any scanned file is visible — matching Tcl, where `::unknown` is one
+    // command shared by the whole interpreter, not a per-file one.
+    let unresolved_handler = unresolved_command_handler(registry, known);
     out = run_to_fixpoint(&reach, |previous| {
         let ctx = CallSiteScanCtx {
             known,
@@ -1360,6 +1439,7 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
             previous,
             procedures: &ir_module.procedures,
             unenumerable_reach: &reach,
+            unresolved_handler,
         };
         let funcs = std::iter::once(("::top", &cfg_module.top_level))
             .chain(cfg_module.procedures.iter().map(|(q, f)| (q.as_str(), f)))
@@ -1998,6 +2078,97 @@ mod tests {
         // Two disagreeing literals, so no uniform value — but the position is
         // *bound* by every recorded call, which a withdrawal would undo.
         assert!(ev.get("::helper").unwrap().binds_position(0));
+    }
+
+    // Issue #1044 — a module's own `unknown` handler. Tcl dispatches every
+    // unresolved command word to it, so its direct callers are never its
+    // complete caller set. tclsh8.6/9.0-confirmed: with `proc unknown {cmd
+    // args}` in scope, `bogus beta gamma` runs the handler with
+    // `cmd` = `bogus`, `args` = `beta gamma`.
+
+    #[test]
+    fn an_unresolved_word_is_a_call_site_of_the_modules_unknown_handler_1044() {
+        // TP, the issue's repro: `bogus` names nothing, so real Tcl calls
+        // the handler with `bogus`. Seeing only the two `unknown alpha`
+        // calls, the scan bound `cmd` to the constant `"alpha"` and folded
+        // `$cmd eq "alpha"` on a genuinely runtime-varying condition.
+        let ev = evidence(
+            "proc unknown {cmd args} { if {$cmd eq \"alpha\"} { return 1 } else { return 2 } }\nunknown alpha\nunknown alpha\nbogus beta\n",
+        );
+        assert_eq!(
+            slot(&ev, "::unknown", 0),
+            (vec!["alpha".into(), "bogus".into()], false),
+            "the unresolved word itself is the handler's first argument",
+        );
+        assert_eq!(uniform(&ev, "::unknown", 0), None, "must not fold");
+    }
+
+    #[test]
+    fn the_unresolved_words_own_arguments_follow_it_into_the_handler_1044() {
+        // TP: Tcl passes the failed call's arguments after the word, so
+        // `args`' positions carry them — evidence the scan really can see,
+        // recorded in full rather than merely poisoned.
+        let ev = evidence("proc unknown {cmd args} { return $cmd }\nbogus beta gamma\n");
+        assert_eq!(slot(&ev, "::unknown", 0), (vec!["bogus".into()], false));
+        assert_eq!(slot(&ev, "::unknown", 1), (vec!["beta".into()], false));
+        assert_eq!(slot(&ev, "::unknown", 2), (vec!["gamma".into()], false));
+    }
+
+    #[test]
+    fn a_module_with_no_unknown_handler_is_unaffected_1044() {
+        // TN, the common case and the whole regression risk: an unresolved
+        // word in a module that defines no handler must change nothing.
+        let ev = evidence("proc helper {mode} { return $mode }\nhelper a\nbogus beta\n");
+        assert_eq!(slot(&ev, "::helper", 0), (vec!["a".into()], false));
+        assert_eq!(uniform(&ev, "::helper", 0).as_deref(), Some("a"));
+        assert!(
+            ev.get("::unknown").is_none(),
+            "no handler defined, so nothing may be attributed to one: {ev:?}",
+        );
+    }
+
+    #[test]
+    fn a_handler_with_agreeing_callers_and_no_unresolved_words_still_seeds_1044() {
+        // TN: the gate must not blanket-disable seeding for any module that
+        // happens to define a handler — with every caller agreeing and no
+        // unresolved word anywhere, the seed still stands.
+        let ev = evidence(
+            "proc unknown {cmd args} { return $cmd }\nunknown alpha\nunknown alpha\nputs hi\n",
+        );
+        assert_eq!(
+            uniform(&ev, "::unknown", 0).as_deref(),
+            Some("alpha"),
+            "no unresolved word exists, so the direct callers really are all of them",
+        );
+    }
+
+    #[test]
+    fn a_registry_builtin_is_not_an_unresolved_word_1044() {
+        // FP guard: a builtin resolves to no *user proc*, but it is not an
+        // unresolved word — Tcl never routes `puts`/`set` to the handler.
+        let ev = evidence(
+            "proc unknown {cmd args} { return $cmd }\nunknown alpha\nunknown alpha\nputs hi\nset x 1\nincr x\n",
+        );
+        assert_eq!(
+            slot(&ev, "::unknown", 0),
+            (vec!["alpha".into()], false),
+            "builtins must not appear as handler arguments: {ev:?}",
+        );
+    }
+
+    #[test]
+    fn an_unenumerable_dispatch_word_still_poisons_rather_than_naming_the_handler_1044() {
+        // FN guard: a dynamic word whose value set is unreadable is not an
+        // *unresolved* word — the scan cannot say it resolves to nothing —
+        // so it keeps withdrawing every seed, the handler's included.
+        let ev = evidence(
+            "proc unknown {cmd args} { return $cmd }\nunknown alpha\nunknown alpha\nset c [gets stdin]\n$c beta\n",
+        );
+        assert_eq!(
+            uniform(&ev, "::unknown", 0),
+            None,
+            "an unreadable dispatch may name anything, handler included: {ev:?}",
+        );
     }
 
     #[test]

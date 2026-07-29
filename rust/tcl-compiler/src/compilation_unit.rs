@@ -2135,6 +2135,49 @@ mod tests {
             }
         }
 
+        /// Pinning test for issue #979: a proc reached only through a
+        /// `namespace ensemble` `-map` redirection is a real caller the
+        /// call-site scan cannot resolve — it has no model of ensemble
+        /// dispatch. tclsh8.6/9.0-confirmed: with `namespace ensemble
+        /// create -command myens -map {go helper}`, `myens go dev` prints
+        /// `helper mode=dev`, so `mode` genuinely varies and must not fold.
+        ///
+        /// Nothing pinned that today. What makes it safe is *indirect*: the
+        /// registry marks `namespace ensemble` with `Traits::EXPORTS_COMMAND`,
+        /// which `params_constants_from_call_sites` treats as a boundary
+        /// publishing the file's commands to callers it cannot enumerate, so
+        /// the whole module declines seeding. Sound but blunt — and a future
+        /// registry edit narrowing that trait (or a precision follow-up that
+        /// starts resolving *some* ensemble maps) would silently reopen
+        /// issue #969's exact false-fold shape here. This test guards that
+        /// mechanism, whatever replaces it: the fold must stay off unless a
+        /// real ensemble-map resolution lands.
+        #[test]
+        fn ensemble_map_redirected_caller_does_not_fold_issue_979() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }
+                }
+                helper prod
+                helper prod
+                namespace ensemble create -command myens -map {go helper}
+                myens go dev
+            ";
+            for cu in [
+                CompilationUnit::build_for(src, &reg, false),
+                build_closed_world(src, &reg),
+            ] {
+                let f = cu.procedures.get("::helper").expect("helper analysed");
+                assert!(
+                    !folds_condition_mentioning(f, "mode"),
+                    "`myens go dev` reaches helper with \"dev\" (tclsh8.6/9.0-confirmed), \
+                     so mode is not caller-invariant: {:?}",
+                    f.sccp.constant_branches,
+                );
+            }
+        }
+
         /// FP guard (Codex review, PR #970): a `TclOO` method body resolves
         /// bare commands against the GLOBAL namespace, never the class's own
         /// namespace — tclsh8.6-confirmed live: `[::foo::Widget new] go`

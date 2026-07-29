@@ -623,6 +623,28 @@ declare_traits! {
     /// commands as an API surface whose callers the file does not contain
     /// and no enumeration bounds (issue #977).
     ExportsCommand => EXPORTS_COMMAND;
+
+    /// The interpreter's fallback for a command word that resolves to
+    /// nothing — `unknown`.  Tcl dispatches *every* unresolved command
+    /// word to it, passing the word itself followed by that call's
+    /// arguments (tclsh8.6/9.0-confirmed: `bogus beta gamma` with a
+    /// user-defined `proc unknown {cmd args}` in scope runs the handler
+    /// with `cmd` = `bogus`, `args` = `beta gamma`).
+    ///
+    /// The interprocedural call-site seed (`tcl_compiler::unit_scope`)
+    /// consults this trait so it can enumerate those dispatches as real
+    /// call sites of a module's own handler instead of seeing only its
+    /// direct callers — a coincidentally-uniform set of which would
+    /// otherwise fold a genuinely runtime-varying parameter (issue #1044).
+    /// Carried by the spec so no consumer spells the name `unknown`.
+    ///
+    /// Global only: a namespace-local `proc unknown` is *not* the handler
+    /// for unresolved words in that namespace — tclsh8.6/9.0 dispatch to
+    /// `::unknown` regardless of the calling namespace. (`namespace
+    /// unknown NAME` registers a per-namespace handler explicitly; that
+    /// path is already modelled by its handler argument's
+    /// [`crate::arg_role::ArgRole::CommandPrefix`] role.)
+    UnresolvedCommandHandler => UNRESOLVED_COMMAND_HANDLER;
 }
 
 /// Every trait that widens a file's caller set beyond the file itself — the
