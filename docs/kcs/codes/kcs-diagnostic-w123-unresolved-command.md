@@ -48,6 +48,62 @@ the deletion re-establishes it and clears the warning.
 
 ## What does not trigger it
 
+A call the file demonstrably makes *before* the deletion is not a
+problem, even when the call is written inside a proc body. The analyser
+follows the chain of enclosing definitions to decide this: if some
+top-level call reaches the proc before the deletion runs, the nested call
+resolved at the time it ran, and no warning is reported.
+
+```tcl
+proc helper {} { return hi }
+proc inner {} { helper }
+proc outer {} { inner }
+outer
+rename helper {}
+```
+
+Nothing is flagged here. `outer` runs on the fourth line, which runs
+`inner`, which runs `helper` — all before the rename.
+
+The chain only follows call sites that are guaranteed to run. A call
+written inside an `if`, a loop, or a `switch` arm proves nothing about
+whether the enclosing proc really reaches it, so it does not silence a
+warning on a later call:
+
+```tcl
+proc helper {} { return hi }
+proc b {} { helper }
+proc a {} { if {0} { b } }
+a
+rename helper {}
+b
+```
+
+The analyser reports **`W123`** on `helper` inside `b`, and it is right
+to: the last line really does fail with `invalid command name "helper"`.
+
+A `rename` or deletion written inside an `if`, a loop, or a `switch` arm
+is treated the same way, in the other direction. Because it might never
+run, it is not taken as proof that the command is gone:
+
+```tcl
+oo::class create Dog {
+    method bark {} { return woof }
+}
+if {0} { rename Dog {} }
+Dog new
+```
+
+Nothing is flagged on `Dog`. This is a deliberately simple rule about
+where the `rename` is written, not about whether the branch is taken —
+`if {1} { rename Dog {} }` is treated the same way, so a deletion the
+analyser could in principle prove does happen is still not reported.
+
+A command whose name is vacated by a `rename` is still flagged, even
+though the command itself survives under its new name. `rename Dog Cat`
+moves the class to `Cat`; `Dog new` afterwards fails with `invalid
+command name "Dog"`, so the old name is reported.
+
 A built-in `expr` math function (`sin`, `max`, `abs`, …) called with
 function-call syntax inside `expr` resolves to the command it dispatches to
 (`::tcl::mathfunc::<name>`) and never draws `W123`, whether or not it has

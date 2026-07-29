@@ -1989,6 +1989,73 @@ fn command_prefix_callback_target_does_not_fire_i230() {
     );
 }
 
+// Issue #1044: Tcl dispatches every unresolved command word to the module's
+// own `unknown` handler, passing the word and that call's arguments — so the
+// handler's *direct* callers are never its complete caller set, and a
+// coincidentally-uniform set of them folded a condition that varies at
+// runtime. tclsh8.6/9.0-confirmed: with `proc unknown {cmd args}` in scope,
+// `bogus beta` runs the handler with `cmd` = `bogus`. The registry marks the
+// handler with `Traits::UNRESOLVED_COMMAND_HANDLER`, so no compiler code
+// spells the name.
+
+#[test]
+fn unresolved_word_reaching_the_unknown_handler_does_not_fire_i230() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc unknown {cmd args} {\n    if {$cmd eq \"alpha\"} { return 1 } else { return 2 }\n}\nunknown alpha\nunknown alpha\nbogus beta\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "I230"),
+        "`bogus beta` also reaches unknown, with cmd = \"bogus\": {:?}",
+        codes(&diags)
+    );
+}
+
+/// End-to-end pair for the unit-level
+/// `a_handler_never_seeds_even_when_every_visible_caller_agrees_1044`:
+/// defining the handler is itself the unenumerable caller, so agreement
+/// among the callers the scan can see proves nothing and no fold happens.
+///
+/// This previously asserted the opposite, on the premise that with no
+/// unresolved word in the file "the direct callers are all of them". That
+/// premise is false — Tcl routes to the handler every word that resolves to
+/// nothing at the instant of the call, and most of those (an autoloaded
+/// name, a name another sourced file introduces, a name built by string
+/// arithmetic) appear nowhere in the source for any scan to find.
+///
+/// tclsh8.6 confirms the seeded words are wrong in both directions: `Dog
+/// new` after `oo::class create Dog` and `worker` after `coroutine worker
+/// body` are recorded as dispatches yet never reach the handler, while a
+/// `bogus beta` written before `proc unknown` is handled by the builtin
+/// `::unknown` and errors.
+#[test]
+fn unknown_handler_never_fires_i230_even_with_agreeing_callers() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc unknown {cmd args} {\n    if {$cmd eq \"alpha\"} { return 1 } else { return 2 }\n}\nunknown alpha\nunknown alpha\nputs hi\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "I230"),
+        "the handler's caller set is unenumerable, so it never seeds: {:?}",
+        codes(&diags)
+    );
+}
+
+/// TN control and the regression risk: a module with **no** handler is the
+/// common case and must be entirely unaffected by the unresolved-word path.
+#[test]
+fn unresolved_word_without_an_unknown_handler_still_fires_i230() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n}\nproc caller1 {} { helper prod }\nproc caller2 {} { helper prod }\nbogus beta\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        has_code(&diags, "I230"),
+        "with no handler defined, an unresolved word reaches nothing: {:?}",
+        codes(&diags)
+    );
+}
+
 // Issue #977: PR #970's `package provide` guard did not cover the more common
 // shape — a plain library file with NO `package provide`, `source`d by another
 // file that calls its procs with a different literal. `lib.tcl` analysed alone
@@ -2293,6 +2360,42 @@ fn defstyle_body_typo_still_w123() {
     assert!(
         diags.iter().any(|d| message(d).contains("toop")),
         "message names the typo: {diags:?}",
+    );
+}
+
+#[test]
+fn w123_call_chain_reaching_a_command_before_its_deletion_issue_1015() {
+    // Issue #1015, end-to-end: `inner` is never invoked at the top level —
+    // only `outer` is — but `outer` calls `inner`, which calls `helper`,
+    // all before the `rename helper {}`. tclsh8.6/9.0 both run this clean
+    // (exit 0, no error), so the analyser must not draw W123 on `helper`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc helper {} { return hi }\nproc inner {} { helper }\nproc outer {} { inner }\nouter\nrename helper {}\n",
+    );
+    assert!(
+        !has_code(&diags, "W123"),
+        "outer's top-level call reaches helper two bodies deep, before the rename: {diags:?}"
+    );
+}
+
+#[test]
+fn w123_unreached_mutual_recursion_cycle_still_flags_issue_1015() {
+    // TP control for the same fix: neither cycle member is ever called, so
+    // `helper` is genuinely unreachable before the rename and the call must
+    // still be flagged — the reachability query must terminate on the
+    // cycle, not treat it as proof of reachability.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc helper {} {}\nproc pingCaller {} { helper\n pongCaller }\nproc pongCaller {} { pingCaller }\nrename helper {}\n",
+    );
+    assert!(
+        has_code(&diags, "W123"),
+        "an unreached cycle proves nothing; helper is deleted: {diags:?}"
     );
 }
 

@@ -277,6 +277,23 @@ pub struct Analyser {
     /// `if` / `catch` / `try` arms, used to mark
     /// ``package require`` records as ``conditional=true``.
     pub conditional_depth: u32,
+    /// Nesting depth inside the body of a [`tcl_registry::Traits::CONTROL_FLOW`]
+    /// command — `if`, `while`, `for`, `foreach`, `lmap`, `switch`, `try`,
+    /// `catch` and their dialect siblings.
+    ///
+    /// A body at depth 0 is *straight-line*: it runs exactly once when its
+    /// enclosing script runs. Depth above 0 means the walker cannot say
+    /// whether the command runs at all, which is what
+    /// [`Self::handle_rename`] needs before recording a command deletion as
+    /// unconditional. Deliberately distinct from `conditional_depth`, which
+    /// covers only `if`/`try` and drives the `package require` conditional
+    /// flag.
+    ///
+    /// Registry-driven: the trait decides, so no command name appears in the
+    /// walker. `namespace eval`, `eval`, and `uplevel` bodies do *not* count
+    /// — they run unconditionally, so a deletion inside one is still
+    /// straight-line.
+    pub control_flow_body_depth: u32,
     /// Body-nesting depth — incremented on entry to a braced
     /// body. Used for top-level-only command checks.
     pub body_depth: u32,
@@ -335,20 +352,46 @@ pub struct Analyser {
     /// [`Self::rename_offsets`]), instead of still validating it against
     /// a definition that's no longer callable under that name.
     pub deleted_commands: HashMap<String, u32>,
-    /// Earliest source offset, among this file's recorded command
-    /// invocations, of a *top-level* (not inside any proc/class body) call
-    /// resolving to each qualified name — keyed by `resolved_qualified_name`.
+    /// Earliest source offset at which this file's own top-level execution
+    /// provably *reaches* each qualified name — keyed by
+    /// `resolved_qualified_name`. A top-level (not inside any proc/class
+    /// body) call contributes its own offset; a call inside definition
+    /// `E`'s body contributes `E`'s own reachable offset, transitively
+    /// through the whole call graph (issue #1015).
+    ///
     /// Populated once by [`Self::finalise_invocation_resolutions`] from the
     /// already-settled `command_invocations`, and consulted by
     /// [`Self::fact_live_for_call`] when the call site under test is itself
-    /// nested inside a body: a proven top-level invocation of the
-    /// *enclosing* definition that ran before a later unconditional
-    /// deletion means that invocation's own nested calls already resolved
-    /// (issue #1009 Codex review: `proc helper {}`, `proc caller {} {
-    /// helper }`, `caller`, `rename helper {}` resolves in real Tcl —
-    /// confirmed against tclsh 8.6.14 — because `caller`'s own top-level
-    /// invocation runs before the rename).
-    pub(super) top_level_call_offsets: HashMap<String, u32>,
+    /// nested inside a body: a proven invocation of the *enclosing*
+    /// definition that ran before a later unconditional deletion means that
+    /// invocation's own nested calls already resolved (issue #1009 Codex
+    /// review: `proc helper {}`, `proc caller {} { helper }`, `caller`,
+    /// `rename helper {}` resolves in real Tcl — confirmed against tclsh
+    /// 8.6.14 — because `caller`'s own top-level invocation runs before the
+    /// rename; issue #1015 extends that through an arbitrary chain of
+    /// enclosing definitions).
+    ///
+    /// A name with no entry is one this file never reaches — including
+    /// every member of a mutual-recursion cycle no top-level call enters.
+    ///
+    /// # Known false negative: only the *earliest* reach is recorded
+    ///
+    /// The map holds one offset per name — the earliest — so a definition
+    /// called both before and after a deletion looks reached-before, and the
+    /// deletion diagnostic on its body is withdrawn for *all* of its
+    /// invocations rather than just the early ones.
+    ///
+    /// Oracle (tclsh8.6, `review-probes-sound/r3.tcl`): `proc a {} {
+    /// helper }`, `a`, `rename helper {}`, `a` — the second `a` really does
+    /// fail with `invalid command name "helper"`, and no W123 is reported.
+    ///
+    /// This is unchanged by design: reporting it needs a per-invocation
+    /// reachability interval rather than a single floor, and the escape
+    /// hatch exists precisely to stop the far commoner call-before-deletion
+    /// shape being flagged. Issue #1015 widened the false negative — a
+    /// transitive chain now reaches through arbitrarily many bodies — but
+    /// did not introduce it.
+    pub(super) reachable_call_offsets: HashMap<String, u32>,
     /// Static `namespace path {…}` declarations: ``declaring namespace →
     /// raw path entries`` (each declaration replaces the whole path, as in
     /// C Tcl, so the lexically-last one wins). Entries are stored as
@@ -840,6 +883,7 @@ impl Analyser {
             builtin_names: None,
             builtin_dialect: None,
             conditional_depth: 0,
+            control_flow_body_depth: 0,
             body_depth: 0,
             e207_emitted: false,
             body_scope_stack: Vec::new(),
@@ -848,7 +892,7 @@ impl Analyser {
             alias_offsets: HashMap::new(),
             rename_offsets: HashMap::new(),
             deleted_commands: HashMap::new(),
-            top_level_call_offsets: HashMap::new(),
+            reachable_call_offsets: HashMap::new(),
             namespace_paths: HashMap::new(),
             var_command_sites: Vec::new(),
             pending_const_dispatches: Vec::new(),

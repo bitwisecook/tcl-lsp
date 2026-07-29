@@ -188,6 +188,18 @@ fn function_namespace(qname: &str) -> String {
 /// to a known class, else `OVERDEFINED`.  The relative head is resolved as-is,
 /// `::`-prefixed, and against the call-site `namespace` (so `[Foo new]` inside
 /// `namespace eval ns` types as `OBJECT(::ns::Foo)`).
+///
+/// `known_classes` carries **no deletion or lifetime information** — it is
+/// the raw signature-scan class set, and this module (a flow-insensitive
+/// per-symbol type inference reached from three internal sites, none of
+/// which has a call-site offset to hand) has nowhere to put one. A class
+/// this file later `rename`s away therefore still types its constructor
+/// result here. Consumers that turn an `OBJECT(class)` into a *diagnostic*
+/// must apply the liveness gate themselves — `var_command.rs`'s
+/// `aggregate_object_types` does, at file-end granularity, for W308 (issue
+/// #1013). Consumers that only use the type internally (SCCP shape
+/// selection, codegen hints) are unaffected: a dead class's constructor
+/// raises at runtime, so no correct program reaches them.
 fn constructor_object_type<S: std::hash::BuildHasher>(
     command: &str,
     args: &[&str],

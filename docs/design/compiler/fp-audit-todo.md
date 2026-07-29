@@ -360,8 +360,21 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   (non-`package provide`) file `source`d by another that calls its procs
   differently (issue #977); dynamic dispatch (`$cmd args`, issue #976);
   `CommandPrefix`-role indirection (`trace add variable … command cb`,
-  `-command` callback options, issue #978). Still open: `namespace ensemble
-  configure -map` redirection (issue #979).
+  `-command` callback options, issue #978); `uplevel #0` body namespace
+  context (issue #980).
+  **`namespace ensemble … -map` redirection (issue #979)** — investigated
+  and closed as *already sound, bluntly*: the scan has no model of ensemble
+  dispatch, but the registry marks `namespace ensemble` with
+  `Traits::EXPORTS_COMMAND`, which declines whole-module seeding, so a proc
+  reached only through a `-map` target never folds.  tclsh8.6/9.0-confirmed
+  that `namespace ensemble create -command myens -map {go helper}` +
+  `myens go dev` really does reach `helper` with `"dev"`.  Nothing pinned
+  that, so a registry edit narrowing the trait — or a precision follow-up
+  that starts resolving *some* ensemble maps — would silently reopen
+  FP-IPCP-01's exact shape; `ensemble_map_redirected_caller_does_not_fold_issue_979`
+  now guards the mechanism, whatever replaces it.  Resolving ensemble maps
+  precisely (so an *agreeing* mapped caller could still fold) remains an
+  optional precision follow-up, not a soundness gap.
   Traced end-to-end: the same `SccpResult` feeds I230, the optimiser's O101
   fold and O107 dead-code suggestions (all suggestion-only text rewrites,
   never applied to the compiled CFG/IR — confirmed codegen/`tcl-vm`/WASM
@@ -407,31 +420,41 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
     (top level, every proc/method/body-unit, and every nested control-flow
     body) checking for a resolved `Call`/`Barrier` statement whose command
     is `package` with a literal `provide` first argument.
-  **Newly confirmed (not merely theoretical) by the same review, deliberately
-  left open:** `uplevel #0 { … }` also resolves against global
-  (tclsh8.6-confirmed), and reproduces the identical misattribution +
-  phantom-fold pair as the `TclOO`/namespace-eval cases — but the scan never
-  reaches that body as an `UpFrame` statement at all. `Statement::UpFrame`
-  keeps its body as a nested `Script` that CFG construction does *not*
-  flatten into blocks (re-confirmed during the #976 work, correcting this
-  entry's original "is inlined into CFG blocks" reading), so the walk over
-  `block.statements` skips it and the call is seen only through the
-  enclosing `proc` statement's own `ArgRole::Body` argument, re-segmented in
-  the frame that `proc` statement sits in — the declaring namespace, not
-  global. Fixing it properly needs the registry to say *which* argument of a
-  frame-shifting command is its level (`uplevel`'s level detection is a
-  private spec helper today, and the body-text recursion sees only raw
-  words), so the scan can switch its resolution context to global for an
-  absolute `#0` — a registry extension, not the one-line namespace-context
-  overrides above, so left as a pinned, `#[ignore]`d regression
-  (`uplevel_zero_body_resolves_against_global_not_enclosing_namespace`) for
-  follow-up rather than a rushed fix. `uplevel N` for any relative
-  (non-`#0`) level remains a separate, permanent approximation: the target
-  frame's namespace depends on the live call stack, which is undecidable by
-  a single-file static analysis. Tests: 4 new cases in the same
-  `call_site_param_constants` module (19 passing + 1 pinned `#[ignore]`),
-  plus the `namespace_eval_body_unit_does_not_change_bytecode` regression
-  in `regex_source.rs` updated for the corrected qname format.
+  **Newly confirmed by the same review, since CLOSED (issue #980):**
+  `uplevel #0 { … }` also resolves against global (tclsh8.6/9.0-confirmed),
+  and reproduced the identical misattribution + phantom-fold pair as the
+  `TclOO`/namespace-eval cases, but through two distinct routes. The scan
+  never reached that body as an `UpFrame` statement at all —
+  `Statement::UpFrame` keeps its body as a nested `Script` that CFG
+  construction does *not* flatten into blocks, so the walk over
+  `block.statements` skips it — while the *enclosing* `proc` statement's own
+  `ArgRole::Body` argument was re-segmented in the frame that `proc`
+  statement sits in, inventing a call to a same-named proc in the declaring
+  namespace. Both halves are fixed:
+  - `build_extra_call_site_scan_contexts` now builds a bare CFG for every
+    static `uplevel` body (`upframe_scan_bodies`). `frame_shift == 0`
+    resolves as `"::top"` — the same global-resolving pseudo-qname a method
+    body is forced to — while a relative level keeps the enclosing unit's
+    namespace. Each gets a synthetic occurrence-unique CFG name so its
+    variable-scope facts never clobber another scope's.
+  - The `ArgRole::Body` recursion no longer re-walks a body the registry
+    marks `Traits::DEFINES_PROCEDURE`. A definition body does not run at the
+    definition site, and lowering already registers it as a procedure /
+    method / body unit the scan visits with the right context — the same
+    rule the `namespace eval ::abs { … }` guard beside it already applies,
+    generalised from "absolute `ArgRole::Name`" to the registry's own
+    "this command defines a procedure" fact.
+  `uplevel N` for any relative (non-`#0`) level remains a separate,
+  permanent approximation: the target frame's namespace depends on the live
+  call stack, which is undecidable by a single-file static analysis — now
+  pinned by `uplevel_relative_body_keeps_the_enclosing_units_namespace`
+  rather than left implicit. Tests: the pinned
+  `uplevel_zero_body_resolves_against_global_not_enclosing_namespace` is
+  un-ignored and passes; new
+  `conditionally_defined_proc_body_call_sites_are_still_counted` guards the
+  definition-body skip against losing a real call site; plus the
+  `namespace_eval_body_unit_does_not_change_bytecode` regression in
+  `regex_source.rs` updated for the corrected qname format.
 - [x] **FP-IPCP-02** I230 on a plain library file `source`d by a caller with
   a differing literal — CLOSED (issue #977). FP-IPCP-01's `package
   provide`-in-file guard covered a package file, but not the more common
@@ -666,6 +689,164 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   Tests: five in `unit_scope` (own-unit withdrawal; reaches a linked file in
   both directions; leaves an unlinked one alone) and two end-to-end in
   `tcl-lsp-db` over a real two-file project with paths.
+
+- [x] **FP-IPCP-05** I230 on a module's own `unknown` handler — CLOSED
+  (issue #1044).  The last caller class the scan structurally could not
+  enumerate: Tcl dispatches *every* command word that resolves to nothing to
+  the interpreter's unresolved-command handler, passing the word itself
+  followed by that call's own arguments.  A module defining `proc unknown
+  {cmd args}` was therefore seeded from its *direct* callers alone, so
+  `unknown alpha` twice plus a `bogus beta` anywhere in the file bound `cmd`
+  to the constant `"alpha"` and folded `$cmd eq "alpha"` on a condition that
+  genuinely varies.  tclsh8.6/9.0-confirmed before fixing: `bogus beta gamma`
+  runs the handler with `cmd` = `bogus`, `args` = `beta gamma`; and a
+  namespace-local `proc unknown` is *not* consulted for unresolved words in
+  that namespace — `::unknown` handles them regardless of calling namespace,
+  so the lookup is global-scope only.
+  Which command is the handler is registry data, never a literal in the
+  compiler: a new `Traits::UNRESOLVED_COMMAND_HANDLER` (`declare_traits!`
+  bit, room already available after #1031's `u128` widening) is carried by
+  the `unknown` spec, and `unit_scope::unresolved_command_handler` resolves
+  it against the unit's — or, cross-file, the project's — procedure set.
+  When `resolve_target` finds no callee for a literal word that the registry
+  also does not know, `record_unresolved_word_dispatch` records the handler's
+  invocation with `(word, args…)` through the same `record_invocation` path
+  everything else uses, so the evidence union is exactly the values the
+  handler's parameters really see rather than a blanket poison.
+  **Superseded in part — see MC-UNKNOWN-SEED below.** This entry originally
+  claimed the invented-dispatch residue "can only *retract* a fold, never
+  manufacture one". That was false while those dispatches were the handler's
+  *only* recorded call sites, and the adversarial review demonstrated the
+  miscompile. The handler is now poisoned unconditionally and the recorded
+  dispatches are extra evidence only, which is what finally makes the claim
+  true.
+  Tests: nine in `unit_scope` (the repro; the word's own arguments following
+  it; no-handler module unaffected; a registry builtin is not an unresolved
+  word; an unenumerable dispatch still poisons rather than naming the
+  handler; plus the four listed under MC-UNKNOWN-SEED) and one on the
+  registry's single-carrier invariant, plus three end-to-end in
+  `diagnostics::unresolved_word_reaching_the_unknown_handler_does_not_fire_i230`
+  and its TP/TN controls.
+
+## Adversarial review of the #1044/#1015/#1013 round — CLOSED
+
+Every item below was confirmed against tclsh8.6 and tclsh9.0 before being
+fixed; the probe scripts are named where they exist.
+
+- [x] **MC-UPLEVEL-ZERO** `uplevel 0` miscompiled as `uplevel #0`.
+  `parse_uplevel_level` folded the absolute `#N` form and the relative `N`
+  form into one `frame_shift`, so `#0` and `0` both reached
+  `Statement::UpFrame` as `0` and `upframe_scan_bodies` resolved both
+  against the global namespace. They are different frames: inside
+  `::foo::runIt`, `uplevel #0 { helper b }` calls `::helper` while `uplevel
+  0 { helper c }` calls `::foo::helper`. Every `uplevel 0` body was therefore
+  resolving its bare command words globally, sending evidence to a proc that
+  is never called and withholding it from the one that is. `UpFrame` now
+  carries an explicit `absolute: bool`; the scan resolves globally only for
+  an absolute shift of 0, and the relative form takes the enclosing-unit
+  branch — which for `uplevel 0` is exact, not an approximation.
+  `inline_uplevel`'s passthrough detector gained the matching guard so
+  `uplevel #1` is not confusable with `uplevel 1`.
+- [x] **MC-UNKNOWN-SEED** The unresolved-command handler's invented
+  dispatches manufactured folds. Naming some of an unenumerable set is not
+  enumerating it, and the recorded words are wrong in *both* directions:
+  `Dog new` after `oo::class create Dog` and `worker` after `coroutine
+  worker body` are recorded yet never reach the handler, while a `bogus
+  beta` written *before* `proc unknown` is handled by the builtin
+  `::unknown` and errors. `scan_cfg_callers` now poisons the handler
+  unconditionally the moment the module defines one, before reading a
+  statement — which, being shared, also closes the cross-file case where
+  one file's dispatch seeded a handler another file defines. The
+  concrete dispatches remain as retracting evidence.
+  `unresolved_command_handler`'s candidate list is sorted (it came off a
+  hash-map walk) and the single-carrier invariant is pinned.
+  Tests: `a_handler_never_seeds_even_when_every_visible_caller_agrees_1044`
+  (which previously asserted the manufactured fold, on the disproved premise
+  that the visible callers were all of them),
+  `a_class_command_never_seeds_the_handler_1044`,
+  `a_coroutine_command_never_seeds_the_handler_1044`,
+  `a_word_written_before_the_handler_never_seeds_it_1044`,
+  `a_cross_file_dispatch_never_seeds_another_files_handler_1044`.
+- [x] **MC-APPLY-NS** `apply {params body ns}` resolved its body globally.
+  `lower_apply` computed the pinned namespace and lowered the body against
+  it, then registered the body unit under the bare `apply` marker, whose
+  qname puts it in the global namespace. tclsh8.6/9.0: inside `::foo::runIt`,
+  `apply {{x} { helper $x } ::foo} b` calls `::foo::helper`, while the
+  two-element form calls `::helper`. Fixed by qualifying the marker exactly
+  as `lower_namespace_eval` does; `join_namespace` normalises the unpinned
+  case back, so the two-element form is untouched.
+- [x] **RE-DEAD-EDGE** `compute_reachable_call_offsets` accepted statically
+  dead proof edges. A call site's presence in a body is not proof the body
+  executes it, but a `proc a {} { if {0} { b } }` edge still handed `b` —
+  and transitively everything `b` calls — `a`'s early offset, which read as
+  "reached before the deletion" and withdrew a correct W123
+  (`review-probes-sound/r1.tcl` really does fail). The precise rule would
+  drop edges in SCCP-proved-unreachable regions, but SCCP runs later over
+  the IR this analyser's own result feeds, so consulting it here is
+  circular. Implemented instead: **a body edge may add a callee offset but
+  never lower a base top-level one**. A callee with its own top-level call
+  site has an offset that is already an observation of real execution; one
+  without keeps the old optimism, which is what #1015's chains need. Still
+  misses a dead edge to a callee never called at top level, and can raise
+  an offset for a live edge whose callee also has a later top-level call —
+  both documented at the function.
+  Also documents the pre-existing **earliest-offset false negative** on
+  `reachable_call_offsets` (`review-probes-sound/r3.tcl`): one offset per
+  name means a proc called both before and after a deletion reads as
+  reached-before for all of its invocations. Widened by #1015, not
+  introduced by it, and unchanged by design.
+- [x] **FP-OBJ-1013R** Class liveness gated at the wrong point, and on two
+  wrong facts.
+  1. `aggregate_object_types` dropped a class's type when the class was dead
+     at *file end*, so a class used before a *later* deletion lost its object
+     typing entirely — the dispatch lost its W308 and drew a spurious W307
+     instead (`review-probes-sound/w308d.tcl`, which really does fail with
+     `unknown method "fly"`). The map is now unfiltered and the gate moved
+     to the emit site, which knows the dispatch offset — the same
+     granularity #1010 used for the constructor sites.
+  2. `rename Dog Cat` was read as a pure deletion of the class. It removes
+     the command *name* but not the class, and objects already built from it
+     still answer their methods. Class liveness now treats a class named as
+     some rename's source as live; the command-name question is separate and
+     untouched, so `Dog new` still draws W123.
+  3. A `rename` inside a control-flow body counted as an unconditional
+     deletion, so `if {0} { rename Dog {} }` flagged `Dog new` with W123 —
+     while the analyser proved that very branch dead in the same run,
+     emitting I230 on it. Only straight-line renames are recorded now,
+     decided by a registry-driven `control_flow_body_depth`
+     (`Traits::CONTROL_FLOW` bodies may run zero times or many;
+     `namespace eval` / `eval` / `uplevel` bodies always run). This is the
+     narrow *syntactic* rule — `if {1} { rename Dog {} }` is equally not
+     recorded — matching the existing "a deletion inside a definition body
+     does not count" rule.
+- [x] **FP-INTERP-CREATE** `interp create`'s flag scan stopped at the path,
+  so `interp create x -safe` recorded `x` as unsafe. C Tcl examines every
+  word and treats a `-` word as a flag until `--`; tclsh8.6/9.0 confirm
+  `interp create n -bogus` errors `bad option`, proving flags are still
+  parsed after the path. The scan now mirrors that loop, and a second path
+  word — the `wrong # args` shape — records no path rather than an arbitrary
+  one. Separately, `interp_create_words_from_value` ended its element scan on
+  a parse error and kept the prefix, so `[interp create {child]` read as a
+  bare `interp create` and bound the variable to a phantom interpreter;
+  a parse error now rejects the whole substitution.
+- [x] **FP-UPFRAME-REWALK** A frame-shifting body nested inside another
+  `ArgRole::Body` was re-attributed. `proc runIt {} { catch { uplevel #0 {
+  helper b } } }` inside `::foo` walks the `catch` body correctly, then
+  walked the `uplevel` body again as `::foo`, inventing `::foo::helper`
+  alongside the correct `::helper` the upframe scan had already recorded.
+  Fixed by a new `Traits::EVALUATES_IN_SHIFTED_FRAME`, stamped on `uplevel`,
+  joining the existing `DEFINES_PROCEDURE` skip — so the walker still names
+  no commands.
+- [x] **VAR-ESCAPE-SCAN-MODE** The three `eval`/`catch` body pre-scans in
+  var_escape used `scan_script`, which honours Tcl's word-splitting and so
+  misses a name mentioned only inside a brace-quoted word. They now use
+  `scan_word`, the over-approximating mode the sites intend. **This is a
+  statement of intent, not a behaviour change:** `is_dynamic_token` already
+  sends any body containing `$` or `[` down the pessimistic path before the
+  scan runs, which is every body the scan could find a reference in, so the
+  mode is unobservable today and the guard carries the soundness. Written
+  the over-approximating way so narrowing that guard later cannot silently
+  reopen the hole.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 

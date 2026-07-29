@@ -1826,6 +1826,65 @@ mod interp_value_flow {
         assert!(codes(src, D).is_empty(), "{:?}", codes(src, D));
     }
 
+    /// The `@interp@<key>` synthetic namespaces a source's definitions
+    /// land in — the observable projection of the interpreter-domain key.
+    fn interp_domains(src: &str) -> Vec<String> {
+        let mut keys: Vec<String> = Analyser::new()
+            .analyse(src, D)
+            .all_procs
+            .keys()
+            .filter_map(|k| k.split("::").find(|s| s.starts_with("@interp@")))
+            .map(str::to_owned)
+            .collect();
+        keys.sort();
+        keys.dedup();
+        keys
+    }
+
+    #[test]
+    fn braced_path_value_flow_key_matches_the_direct_handler_issue_1025() {
+        // TP — `interp create {child}` names interpreter `child`
+        // (tclsh8.6/9.0: `interp exists child` → 1, `interp slaves` →
+        // `child`). The value-flow path used to `split_whitespace` the raw
+        // substitution text and bind `$i` to `"{child}"`, a domain the
+        // direct handler never records.
+        let via_value = "set i [interp create {child}]\n$i eval { proc helper {} {} }\n";
+        let direct = "interp create {child}\ninterp eval child { proc helper {} {} }\n";
+        assert_eq!(
+            interp_domains(via_value),
+            interp_domains(direct),
+            "value-flow and direct keys must agree"
+        );
+        assert_eq!(interp_domains(via_value), vec!["@interp@child".to_string()]);
+    }
+
+    #[test]
+    fn nested_path_value_flow_key_matches_the_direct_handler_issue_1025() {
+        // TP — `{parent child}` is one word: a descent path (tclsh8.6/9.0:
+        // `interp create {parent child}` returns `parent child` and
+        // `interp slaves parent` → `child`). `split_whitespace` used to
+        // split it into `"{parent"` + `"child}"` and bind the first
+        // fragment.
+        let via_value = "interp create parent\nset i [interp create {parent child}]\n$i eval { proc helper {} {} }\n";
+        let direct = "interp create parent\ninterp create {parent child}\ninterp eval {parent child} { proc helper {} {} }\n";
+        assert_eq!(interp_domains(via_value), interp_domains(direct));
+        assert!(
+            interp_domains(via_value).contains(&"@interp@parent child".to_string()),
+            "{:?}",
+            interp_domains(via_value)
+        );
+    }
+
+    #[test]
+    fn braced_path_binding_links_a_later_literal_eval_issue_1025() {
+        // TP — the linkage the diverging key broke: a proc defined through
+        // the tracked `$i eval` handle must resolve for a later literal
+        // `interp eval child` call, with no W123.
+        let src = "set i [interp create {child}]\n$i eval { proc helper {} { return 1 } }\ninterp eval child { helper }\n";
+        assert!(!fires(src, D, "W123"), "{:?}", codes(src, D));
+        assert!(!fires(src, D, "W140"), "{:?}", codes(src, D));
+    }
+
     #[test]
     fn synthetic_autoname_key_used_for_pathless_interp_create() {
         // TP — pins the synthetic per-call-site key convention (mirrors

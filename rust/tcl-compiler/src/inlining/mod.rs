@@ -1051,6 +1051,7 @@ fn rewrite_single_body_stmt(
         Statement::UpFrame {
             span,
             frame_shift,
+            absolute,
             body,
             tokens,
         } => {
@@ -1060,6 +1061,7 @@ fn rewrite_single_body_stmt(
                 vec![Statement::UpFrame {
                     span: *span,
                     frame_shift: *frame_shift,
+                    absolute: *absolute,
                     body: new_body,
                     tokens: tokens.clone(),
                 }]

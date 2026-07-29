@@ -1036,6 +1036,7 @@ mod tests {
         let upframe = Statement::UpFrame {
             span: tcl_lexer::Span::new(0, 0),
             frame_shift: 1,
+            absolute: false,
             body: crate::ir::Script::new(),
             tokens: None,
         };

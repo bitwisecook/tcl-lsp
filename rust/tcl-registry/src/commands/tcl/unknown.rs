@@ -165,7 +165,12 @@ pub fn spec() -> CommandSpec {
             // already covers for `eval`/`source`/`rename`, so the
             // minifier must not rewrite a call to it through a `$var`
             // alias.
-            | Traits::BYTE_COMPILED,
+            | Traits::BYTE_COMPILED
+            // The interpreter routes every unresolved command word here,
+            // so a module that defines its own `unknown` has callers the
+            // interprocedural seed must enumerate from those words rather
+            // than from direct calls alone (issue #1044).
+            | Traits::UNRESOLVED_COMMAND_HANDLER,
         // `cmdName ?arg arg ...?` — at least 1 argument, unbounded
         // above. Identical in every fetched manpage, Tcl 8.4 through
         // 9.1.

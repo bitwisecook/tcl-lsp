@@ -5355,13 +5355,12 @@ fn analyse_w308_emitted_for_unknown_method_on_known_class_constructor() {
 // real, primary diagnostic.
 //
 // `harvest_constructor_object_types` (the `set x [Cls new]` variable-
-// assignment sibling of this same check) is fixed the same way, but a
+// assignment sibling of this same check) is fixed the same way. The
 // deeper, independent source in `type_infer.rs`'s `constructor_object_type`
-// still separately types `x` as `Object(Cls)` for that shape via the SSA
-// type lattice, so `$x method` there still draws the same misleading
-// W308 — tracked as a follow-up (that fix needs a call-site offset
-// threaded into a foundational, flow-insensitive type-inference helper,
-// a larger and riskier change than this session's other gate-only fixes).
+// — which types `x` as `Object(Cls)` for that shape via the SSA type
+// lattice — is gated in `aggregate_object_types`, where both sources are
+// unioned and the analyser's own deletion facts are in scope (issue #1013;
+// see the `w308_*_issue_1013_*` cases below).
 
 #[test]
 fn w308_tp_issue_1010_deleted_class_constructor_falls_back_to_w307() {
@@ -5377,6 +5376,152 @@ fn w308_tp_issue_1010_deleted_class_constructor_falls_back_to_w307() {
     assert!(
         codes.contains("W123"),
         "the deleted class itself must draw W123 as the real diagnostic; got {codes:?}"
+    );
+}
+
+#[test]
+fn w308_tp_issue_1013_deleted_class_set_var_constructor_draws_no_w308() {
+    // Issue #1013 primary repro: `type_infer.rs`'s `constructor_object_type`
+    // is a second, independent source of `Object(Dog)` typing for the
+    // `set x [Dog new]` shape, reached through the SSA type lattice rather
+    // than #1010's `harvest_constructor_object_types`. It reads an
+    // unfiltered "known classes" set with no deletion awareness, so this
+    // still drew the misleading "unknown method" W308 after #1010's fix.
+    // tclsh8.6 and 9.0 both fail the constructor first: `invalid command
+    // name "Dog"` — `x` is never assigned an object at all.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog {}\nproc foo {} {\n    set x [Dog new]\n    $x fly\n}\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    let codes: HashSet<String> = r.diagnostics.iter().map(|d| d.code.to_string()).collect();
+    assert!(
+        !codes.contains("W308"),
+        "a deleted class must not draw the misleading 'unknown method' W308; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w308_fp_issue_1013_reestablished_class_set_var_constructor_still_flags() {
+    // FP guard for the same gate: a class deleted and then re-established
+    // under the same name is live again at file end (the fresh definition
+    // postdates the deletion), so `x` must still type as `Object(Dog)` and
+    // the unknown method must still be flagged.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog {}\noo::class create Dog { method bark {} { return woof } }\nproc foo {} {\n    set x [Dog new]\n    $x fly\n}\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "a re-established class must still type its constructor result; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w308_tn_issue_1013_live_class_set_var_constructor_still_flags() {
+    // TN control: with no deletion anywhere, the ordinary `set x [Dog new]`
+    // shape must be entirely unaffected by the gate.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nproc foo {} {\n    set x [Dog new]\n    $x fly\n}\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "a live class must still validate its methods; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w308_tp_copy_propagated_handle_with_a_trailing_rename_still_flags() {
+    // TP restored by moving the class-liveness gate from file end to the
+    // dispatch site. `foo` runs while `Dog` is alive; the rename is the last
+    // line of the file and cannot affect a call that already happened.
+    //
+    // The file-end gate dropped `x`'s `Object(::Dog)` type outright, so the
+    // dispatch lost its W308 *and* picked up a spurious W307 in its place.
+    //
+    // Oracle (tclsh8.6, `review-probes-sound/w308d.tcl`): exits 1 with
+    // `unknown method "fly": must be bark or destroy`.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nproc foo {} {\n    set y [Dog new]\n    set x $y\n    $x fly\n}\nfoo\nrename Dog {}\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "the class is alive at the dispatch, so the unknown method must flag; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w308_tp_class_renamed_to_a_name_keeps_typing_its_existing_objects() {
+    // `rename Dog Cat` deletes the command *name* `Dog` but not the class —
+    // the object in `d` is still a Dog and still rejects `fly`.
+    //
+    // Oracle (tclsh8.6 and tclsh9.0): after `set d [Dog new]` and `rename
+    // Dog Cat`, `$d bark` returns `woof` while `$d fly` fails with `unknown
+    // method "fly": must be bark or destroy`.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nset d [Dog new]\nrename Dog Cat\n$d fly\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "a class renamed to a name is re-established, not deleted; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_tp_a_class_renamed_away_still_flags_its_old_name() {
+    // The paired guard: making the *class* survive a rename must not make
+    // the vacated *command name* resolve. Oracle (tclsh8.6,
+    // `review-probes/cls1_run.tcl`): after `rename Dog Cat`, `Dog new`
+    // fails with `invalid command name "Dog"`.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\nDog new\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    let codes: HashSet<String> = r.diagnostics.iter().map(|d| d.code.to_string()).collect();
+    assert!(
+        codes.contains("W123"),
+        "the vacated name must still be unknown; got {codes:?}",
+    );
+}
+
+#[test]
+fn w123_tp_a_rename_in_a_dead_branch_is_not_an_unconditional_deletion() {
+    // A `rename` nested in a control-flow body may never run, so it is not
+    // evidence the command is gone. The analyser proves this very branch
+    // dead in the same run (it emits I230 on it) yet honoured the deletion,
+    // flagging a command that is demonstrably still callable and — through
+    // the shared liveness facts — withdrawing the W308 as well.
+    //
+    // Oracle (tclsh8.6, `review-probes/cls5.tcl`): `Dog new` succeeds and
+    // `$d fly` fails with `unknown method "fly": must be bark or destroy`.
+    let src = "oo::class create Dog {\n    method bark {} { return woof }\n}\nif {0} { rename Dog {} }\nset d [Dog new]\n$d fly\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    let codes: HashSet<String> = r.diagnostics.iter().map(|d| d.code.to_string()).collect();
+    assert!(
+        !codes.contains("W123"),
+        "the branch never runs, so `Dog` is still bound; got {:?}",
+        r.diagnostics,
+    );
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "and the live class must still validate its methods; got {:?}",
+        r.diagnostics,
+    );
+    assert!(
+        codes.contains("I230"),
+        "the dead branch itself is still reported; got {codes:?}",
     );
 }
 
@@ -10879,4 +11024,86 @@ fn w123_tp_issue_1009_codex_review_escape_hatch_requires_specific_enclosing_call
     // covers when there is no competing top-level call at all).
     let src = "proc helper {} {}\nproc caller {} { helper }\nproc unrelated {} { return 1 }\nunrelated\nrename helper {}\n";
     assert_eq!(w123_codes(src), vec!["W123".to_string()]);
+}
+
+#[test]
+fn w123_fp_issue_1015_two_level_call_chain_before_later_deletion_resolves() {
+    // FP guard (issue #1015): the escape hatch must follow a *chain* of
+    // enclosing definitions, not one level. `inner` is never invoked at
+    // the top level — only `outer` is — but `outer` calls `inner`, which
+    // calls `helper`, all before the rename. tclsh8.6/9.0 both run this
+    // clean (exit 0, no error).
+    let src = "proc helper {} { return hi }\nproc inner {} { helper }\nproc outer {} { inner }\nouter\nrename helper {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_fp_issue_1015_three_level_call_chain_before_later_deletion_resolves() {
+    // FP guard, one level deeper still — the reachability query is a
+    // fixpoint, so depth is not bounded by the number of hops.
+    let src = "proc helper {} { return hi }\nproc l1 {} { helper }\nproc l2 {} { l1 }\nproc l3 {} { l2 }\nl3\nrename helper {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_tp_issue_1015_mutual_recursion_cycle_never_entered_still_flags() {
+    // TP guard (issue #1015): `pingCaller`/`pongCaller` call each other and
+    // nothing calls either at the top level, so neither is ever reached —
+    // the cycle must terminate as "unreachable" rather than looping, and
+    // the `helper` call inside must still draw W123. tclsh8.6 loads the
+    // file fine precisely *because* the cycle is never entered; calling
+    // into it after the rename fails `invalid command name "helper"`.
+    let src = "proc helper {} {}\nproc pingCaller {} { helper\n pongCaller }\nproc pongCaller {} { pingCaller }\nrename helper {}\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_string()]);
+}
+
+#[test]
+fn w123_tp_a_dead_body_edge_does_not_lower_a_later_top_level_offset() {
+    // TP guard (Codex review of PR #1045, adversarial soundness review):
+    // `a` runs before the rename, but its only call to `b` sits inside `if
+    // {0} { … }` and never executes. `b`'s real first invocation is the
+    // top-level one *after* the rename, so `b`'s `helper` call fails.
+    //
+    // The unrestricted fixpoint let the dead `a` -> `b` edge lower `b`'s
+    // offset to `a`'s, which read as "reached before the deletion" and
+    // withdrew the warning. A body edge may no longer undercut a callee's
+    // own top-level offset.
+    //
+    // Oracle (tclsh8.6, `review-probes-sound/r1.tcl`): exits 1 with
+    // `invalid command name "helper"` from `b`, invoked at line 6.
+    let src = "proc helper {} { return hi }\nproc b {} { helper }\nproc a {} { if {0} { b } }\na\nrename helper {}\nb\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_string()]);
+}
+
+#[test]
+fn w123_tp_an_empty_enclosing_body_leaves_the_later_top_level_offset() {
+    // The paired FP guard for the test above: same shape with `a`'s body
+    // empty, so there is no `a` -> `b` edge to drop in the first place.
+    // Both must warn, or the fix would be indistinguishable from "the edge
+    // never mattered".
+    //
+    // Oracle (tclsh8.6, `review-probes-sound/r2.tcl`): exits 1, same error.
+    let src = "proc helper {} { return hi }\nproc b {} { helper }\nproc a {} { }\na\nrename helper {}\nb\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_string()]);
+}
+
+#[test]
+fn w123_fp_a_live_body_edge_still_reaches_a_callee_with_no_top_level_call() {
+    // FP guard for the restriction: `b` has no top-level call site of its
+    // own, so the `a` -> `b` edge is the only evidence there is and must
+    // still resolve. This is issue #1015's shape, and the restriction is
+    // written to leave it alone — without it, every #1015 chain would
+    // regress to a false positive.
+    let src = "proc helper {} { return hi }\nproc b {} { helper }\nproc a {} { b }\na\nrename helper {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_fp_issue_1015_mutual_recursion_cycle_entered_at_top_level_resolves() {
+    // FP guard: the same cycle, but entered by a real top-level call
+    // before the deletion — every member is then reachable, so the nested
+    // `helper` call resolves. Confirms the cycle handling short-circuits
+    // without also poisoning the reachable case.
+    let src = "proc helper {} { return hi }\nproc pingCaller {} { helper }\nproc pongCaller {} { pingCaller }\nproc entry {} { pongCaller }\nentry\nrename helper {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
 }

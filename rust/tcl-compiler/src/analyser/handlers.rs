@@ -87,28 +87,53 @@ pub(super) fn interp_path_key(path: &str) -> String {
     path.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Parse `interp create`'s `?-safe? ?--? ?path?` leading words (issue
-/// #923 idx 9): returns `(safe, path)`, where `path` is the first
-/// non-flag word (or `None` for a bare, uncaptured `interp create
-/// -safe`). Shared by `Analyser::handle_interp_create_command` and the
-/// `set VAR [interp create ...]` value-flow detector in
-/// `Analyser::handle_set_command`, so both parse the flag/path shape
-/// identically.
+/// Parse `interp create`'s `?-safe? ?--? ?path?` words (issue #923 idx 9):
+/// returns `(safe, path)`, where `path` is the sole non-flag word (or
+/// `None` for a bare, uncaptured `interp create -safe`). Shared by
+/// `Analyser::handle_interp_create_command` and the `set VAR [interp
+/// create ...]` value-flow detector in `Analyser::handle_set_command`, so
+/// both parse the flag/path shape identically.
+///
+/// Mirrors C Tcl's own loop (`Tcl_InterpObjCmd`, the `create` arm): every
+/// word is examined, and a `-`-prefixed word is a *flag* until `--` is
+/// seen, whether or not the path has already been read. The scan does not
+/// stop at the path.
+///
+/// Oracle (tclsh8.6 and tclsh9.0):
+///
+/// * `interp create x -safe` — path `x`, and it **is** safe.
+/// * `interp create -safe -- z` — path `z`, safe.
+/// * `interp create -- -safe` — path is the literal `-safe`, not safe.
+/// * `interp create n -bogus` — `bad option "-bogus"`, so flags really are
+///   still being parsed after the path.
+/// * `interp create a b` — `wrong # args`; a second path word is an error
+///   shape, not a rebinding, so no path is reported rather than the wrong
+///   one.
 fn parse_interp_create_words<'a>(words: &[&'a str]) -> (bool, Option<&'a str>) {
     let mut safe = false;
     let mut path: Option<&str> = None;
     let mut past_flags = false;
+    let mut too_many_paths = false;
     for &word in words {
-        if !past_flags && word == "-safe" {
-            safe = true;
+        if !past_flags && word.starts_with('-') {
+            if word == "--" {
+                past_flags = true;
+            } else if word == "-safe" {
+                safe = true;
+            }
+            // Any other `-` word is a bad option in real Tcl. Skipping it
+            // keeps the path reading unaffected, which is the conservative
+            // choice for a command that will fail anyway.
             continue;
         }
-        if !past_flags && word == "--" {
-            past_flags = true;
-            continue;
+        if path.is_none() {
+            path = Some(word);
+        } else {
+            too_many_paths = true;
         }
-        path = Some(word);
-        break;
+    }
+    if too_many_paths {
+        return (safe, None);
     }
     (safe, path)
 }
@@ -120,7 +145,33 @@ fn parse_interp_create_words<'a>(words: &[&'a str]) -> (bool, Option<&'a str>) {
 /// [`parse_interp_create_words`] (issue #923 idx 9).
 fn interp_create_words_from_value(text: &str) -> Option<Vec<&str>> {
     let inner = text.strip_prefix('[')?.strip_suffix(']')?;
-    let mut words = inner.split_whitespace();
+    // Tcl-list parse, not `split_whitespace` (issue #1025): the direct
+    // `interp create` handler sees segmenter-decoded words, so a braced
+    // path word (`{child}`, `{parent child}`) reaches it already stripped.
+    // Whitespace-splitting the raw substitution text instead keeps the
+    // braces and can even split one word in two (`{parent child}` →
+    // `"{parent"`, `"child}"`), binding the variable to a key the direct
+    // handler never records — later `$i eval` / `interp alias $i …` then
+    // resolve against a phantom interpreter.
+    // A parse error means `inner` is not a well-formed Tcl list at all
+    // (`interp create {child]`), so there is no interpreter here to record.
+    // Keeping the words parsed so far would bind the variable to a path
+    // real Tcl never creates — a phantom interpreter that later `$i eval` /
+    // `interp alias $i …` sites then resolve against, which is exactly what
+    // an incomplete edit looks like mid-keystroke.
+    let mut words = Vec::new();
+    let mut pos = 0usize;
+    loop {
+        match find_element(inner, pos) {
+            Ok(Some(el)) => {
+                words.push(inner.get(el.value.clone())?);
+                pos = el.next;
+            }
+            Ok(None) => break,
+            Err(_) => return None,
+        }
+    }
+    let mut words = words.into_iter();
     if words.next()? != "interp" || words.next()? != "create" {
         return None;
     }
@@ -3422,6 +3473,33 @@ impl Analyser {
                 self.interpreters.insert(new_interp_key, state);
             }
         }
+        // A rename nested inside a control-flow body may not run at all, so it
+        // is not evidence that `OLD` is gone. Recording it anyway produced a
+        // W123 on a command that is demonstrably still callable, and — once
+        // class liveness started consulting the same facts — withdrew the
+        // W308 on objects of that class too.
+        //
+        // Oracle (tclsh8.6, `review-probes/cls5.tcl`): with `if {0} { rename
+        // Dog {} }`, `Dog new` succeeds and `$d fly` fails with `unknown
+        // method "fly"`. The analyser proves the same branch dead in the same
+        // run — it emits I230 on it — yet honoured the deletion.
+        //
+        // Only straight-line deletions count. This is the *syntactic* rule:
+        // `if {1} { rename Dog {} }` is equally not recorded, even though it
+        // does run. Reading the branch's real value needs SCCP, which runs
+        // later over the IR this walk feeds, so it is not available here. The
+        // narrower rule errs towards treating commands as live, matching the
+        // existing "a deletion inside a definition body does not count"
+        // rule in `fact_live_for_call` (issue #973).
+        if self.control_flow_body_depth > 0 {
+            if !new.is_empty() {
+                self.renamed_commands.insert(new.clone(), old.clone());
+                self.rename_offsets.insert(new.clone(), offset);
+                self.result.rename_offsets.insert(new.clone(), offset);
+                self.result.renamed_commands.insert(new, old);
+            }
+            return false;
+        }
         if new.is_empty() {
             self.deleted_commands.insert(old, deletion_offset);
             return false;
@@ -4533,6 +4611,129 @@ mod tests {
 
     fn span(start: u32, end: u32) -> Span {
         Span::new(start, end)
+    }
+
+    // interp_create_words_from_value — issue #1025
+
+    #[test]
+    fn interp_create_value_words_strip_a_single_braced_path_issue_1025() {
+        // TP — `{child}` is one Tcl word naming interpreter `child`; the
+        // direct handler sees it segmenter-decoded, so the value-flow path
+        // must strip the braces too rather than binding to `"{child}"`.
+        assert_eq!(
+            interp_create_words_from_value("[interp create {child}]"),
+            Some(vec!["child"])
+        );
+    }
+
+    #[test]
+    fn interp_create_value_words_keep_a_nested_path_as_one_word_issue_1025() {
+        // TP — `{parent child}` is one word (a descent path), not two.
+        // `split_whitespace` used to yield `["{parent", "child}"]`, whose
+        // first fragment became the bound key.
+        assert_eq!(
+            interp_create_words_from_value("[interp create {parent child}]"),
+            Some(vec!["parent child"])
+        );
+    }
+
+    #[test]
+    fn interp_create_value_words_unchanged_for_bare_and_flagged_forms_issue_1025() {
+        // TN — the shapes that already worked must be byte-for-byte
+        // unchanged by the switch to list parsing.
+        assert_eq!(
+            interp_create_words_from_value("[interp create -safe]"),
+            Some(vec!["-safe"])
+        );
+        assert_eq!(
+            interp_create_words_from_value("[interp create -safe -- name]"),
+            Some(vec!["-safe", "--", "name"])
+        );
+        assert_eq!(
+            interp_create_words_from_value("[interp create]"),
+            Some(vec![])
+        );
+        assert_eq!(interp_create_words_from_value("[set x 1]"), None);
+        assert_eq!(interp_create_words_from_value("interp create child"), None);
+    }
+
+    #[test]
+    fn interp_create_value_words_reject_an_unmatched_brace_issue_1025() {
+        // A malformed (mid-edit) path is not a list at all, so the whole
+        // substitution is rejected. Returning the prefix parsed before the
+        // error instead — `Some(vec![])` here — read as a bare `interp
+        // create`, binding the variable to an auto-named interpreter real
+        // Tcl never creates. Later `$i eval` / `interp alias $i …` sites
+        // then resolved against that phantom (Codex review, PR #1045).
+        assert_eq!(
+            interp_create_words_from_value("[interp create {child]"),
+            None
+        );
+        assert_eq!(
+            interp_create_words_from_value("[interp create good {child]"),
+            None,
+            "a valid prefix does not rescue a malformed tail",
+        );
+    }
+
+    // parse_interp_create_words — full flag scan, mirroring tclInterp.c
+
+    #[test]
+    fn interp_create_flags_are_still_scanned_after_the_path() {
+        // C Tcl examines every word and treats a `-` word as a flag until
+        // `--`, whether or not the path has been read. tclsh8.6/9.0:
+        // `interp create x -safe` yields `interp issafe x` == 1, and
+        // `interp create n -bogus` errors `bad option "-bogus"` — proof the
+        // scan does not stop at the path. Stopping at the path recorded `x`
+        // as an *unsafe* interpreter.
+        assert_eq!(
+            parse_interp_create_words(&["x", "-safe"]),
+            (true, Some("x"))
+        );
+        assert_eq!(
+            parse_interp_create_words(&["-safe", "y"]),
+            (true, Some("y"))
+        );
+    }
+
+    #[test]
+    fn interp_create_double_dash_ends_flag_parsing() {
+        // tclsh8.6/9.0: `interp create -safe -- z` creates a safe `z`, and
+        // `interp create -- -safe` creates an *unsafe* interpreter whose
+        // path is the literal `-safe`.
+        assert_eq!(
+            parse_interp_create_words(&["-safe", "--", "z"]),
+            (true, Some("z"))
+        );
+        assert_eq!(
+            parse_interp_create_words(&["--", "-safe"]),
+            (false, Some("-safe"))
+        );
+    }
+
+    #[test]
+    fn interp_create_two_path_words_record_no_path() {
+        // tclsh8.6/9.0: `interp create a b` is `wrong # args`. No
+        // interpreter is created, so recording either word would bind a
+        // name that does not exist. A `-safe` seen alongside is still
+        // reported — it costs nothing and the command creates nothing.
+        assert_eq!(parse_interp_create_words(&["a", "b"]), (false, None));
+        assert_eq!(
+            parse_interp_create_words(&["--", "x", "-safe"]),
+            (false, None),
+            "after `--` a second `-` word is a path word, so this is the error shape too",
+        );
+    }
+
+    #[test]
+    fn interp_create_bare_and_flag_only_forms_are_unchanged() {
+        // TN control for the rewritten scan.
+        assert_eq!(parse_interp_create_words(&[]), (false, None));
+        assert_eq!(parse_interp_create_words(&["-safe"]), (true, None));
+        assert_eq!(
+            parse_interp_create_words(&["child"]),
+            (false, Some("child"))
+        );
     }
 
     // handle_set_command

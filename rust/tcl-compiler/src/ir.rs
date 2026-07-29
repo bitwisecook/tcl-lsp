@@ -459,11 +459,26 @@ pub enum Statement {
     UpFrame {
         /// Source span of the original `uplevel` call.
         span: Span,
-        /// Frame shift in caller-relative levels — `1` for `uplevel
-        /// 1 {body}` (the canonical form), `0` for the rare `uplevel
-        /// #0 {body}` global form. Sign matches the C Tcl level
-        /// argument: positive = move up the stack, `0` = absolute.
+        /// The level argument's magnitude — `1` for `uplevel 1
+        /// {body}` (the canonical form) and for a bare `uplevel
+        /// {body}`, `0` for `uplevel #0 {body}` or `uplevel 0
+        /// {body}`. Read it together with [`Self::UpFrame::absolute`]:
+        /// the same magnitude means two different frames depending on
+        /// that flag.
         frame_shift: i32,
+        /// `true` when the level was written in the `#N` *absolute*
+        /// form, counting down from the global frame (`uplevel #0`
+        /// evaluates the body in the global frame). `false` for the
+        /// *relative* form, counting up from the current frame
+        /// (`uplevel 0` evaluates the body in the current frame,
+        /// `uplevel 1` in the caller's).
+        ///
+        /// The distinction is load-bearing, not cosmetic: `uplevel #0`
+        /// and `uplevel 0` are different frames whenever the current
+        /// frame is not the global one, so bare command words in the
+        /// body resolve against different namespaces
+        /// (tclsh8.6/9.0-confirmed).
+        absolute: bool,
         /// The pre-lowered body, evaluated at the shifted frame.
         body: Script,
         /// Original command tokens for downstream analysis.
@@ -1073,6 +1088,7 @@ mod tests {
         let upframe = Statement::UpFrame {
             span: Span::new(0, 0),
             frame_shift: 0,
+            absolute: true,
             body: Script::from_statements(vec![inner]),
             tokens: None,
         };

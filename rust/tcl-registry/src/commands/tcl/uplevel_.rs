@@ -175,7 +175,8 @@ pub fn spec() -> CommandSpec {
             | Traits::TAINT_SINK
             | Traits::UNSAFE
             | Traits::CREATES_DYNAMIC_BARRIER
-            | Traits::DYNAMIC_EVAL_BODY,
+            | Traits::DYNAMIC_EVAL_BODY
+            | Traits::EVALUATES_IN_SHIFTED_FRAME,
         arity: Arity::at_least(1),
         // The body runs in another stack frame (the `level`), not the
         // caller's, so its variable references belong to that frame — mark
