@@ -921,37 +921,37 @@ for name in q(".ltm.virtual[] | .name", "bigip.conf"):
     print(name)
 
 # Progressive — chain queries on top of each other (typed wrapper, immutable).
-filtered = (
-    q(".ltm.virtual[]", "bigip.conf")
-    .q('.[] | select(.pool != null)')
-    .q('.[] | .name')
-)
+filtered = q(".ltm.virtual[]", "bigip.conf").q(".[] | select(.pool != null)").q(".[] | .name")
 
 # Render via a registered plugin OR an inline callable.
 filtered.render("ascii-blocks")
 filtered.render(lambda values, **opts: ", ".join(map(str, values)) + "\n")
 
 # Coerce to plain JSON-friendly Python.
-data = filtered.out()                            # [{"kind": ..., "fields": {...}}, ...]
+data = filtered.out()  # [{"kind": ..., "fields": {...}}, ...]
 
 # Pre-stage once, query many times. Custom file formats? Pass an inline parser.
 corpus = load("ltm.conf", "gtm.conf")
 routes = load("routes.xml", parser=my_xml_parser)
+
 
 # Ship a custom renderer the f5 CLI can dispatch via --render NAME.
 @renderer("md-table", summary="Markdown table of results.", accepts="any")
 def _render(values, **opts):
     return "| name |\n| ---- |\n" + "\n".join(f"| {v} |" for v in values)
 
+
 # Ship a custom DSL function the query language can call.
 @builtin("uppercase", summary="ASCII uppercase.", min_args=1, max_args=1)
 def _u(s):
     return str(s).upper()
 
+
 # Ship a custom side-input format `--input KIND NAME=PATH` can load.
 @input_format("yaml", summary="YAML side-input.")
 def _parse_yaml(source, *, uri, options=()):
     import yaml
+
     return yaml.safe_load(source)
 ```
 

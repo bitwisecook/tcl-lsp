@@ -61,9 +61,11 @@ from dialects.f5 import query as f5q
 print(f5q.q(".ltm.virtual[]", "bigip.conf").render("mermaid", direction="TB"))
 
 # Inline callable — same shape, no XDG plugin needed.
-print(f5q.q(".ltm.virtual[] | .name", "bigip.conf").render(
-    lambda values, **opts: ", ".join(values) + "\n"
-))
+print(
+    f5q.q(".ltm.virtual[] | .name", "bigip.conf").render(
+        lambda values, **opts: ", ".join(values) + "\n"
+    )
+)
 
 # Plain JSON-friendly Python out of any QueryRun.
 data = f5q.q(".ltm.virtual[]", "bigip.conf").out()
@@ -77,16 +79,20 @@ loader picks it up automatically):
 ```python
 from dialects.f5.query import renderer, builtin, input_format
 
+
 @renderer("md-table", summary="Markdown table.", accepts="list of dicts")
 def _render(values, **opts): ...
+
 
 @builtin("uppercase", summary="ASCII uppercase.", min_args=1, max_args=1)
 def _u(s):
     return str(s).upper()
 
+
 @input_format("yaml", summary="YAML side-input.")
 def _yaml(source, *, uri, options=()):
     import yaml
+
     return yaml.safe_load(source)
 ```
 
@@ -158,13 +164,16 @@ Three decorators cover the surface; each ships from the public
 # ~/.config/dialects/f5/query/plugins/my_extensions.py
 from dialects.f5.query import builtin, renderer, input_format
 
+
 @builtin("uppercase", summary="ASCII uppercase.", min_args=1, max_args=1)
 def _u(s):
     return str(s).upper()
 
+
 @renderer("count-only", summary="Print just the row count.", accepts="any")
 def _c(values, **opts):
     return f"{len(values)} rows\n"
+
 
 @input_format("simple-list", summary="Newline-separated string list.")
 def _l(source, *, uri, options=()):

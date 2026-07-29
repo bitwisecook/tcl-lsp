@@ -122,16 +122,16 @@ and ownership is exactly +1 in the slot at all times.
           return
       if source is Ownership.OWNED:
           # Stack: [v]; v has +1 we transfer to the slot.
-          self._emit_local_get(idx)             # push prior
-          self._emit_call(self._release_idx)    # release prior
-          self._emit_local_set_raw(idx)         # transfer +1 to slot
-      else:                                     # BORROWED
+          self._emit_local_get(idx)  # push prior
+          self._emit_call(self._release_idx)  # release prior
+          self._emit_local_set_raw(idx)  # transfer +1 to slot
+      else:  # BORROWED
           # Slot must claim its own +1.
           tmp = self._rc_set_scratch_lazy()
-          self._emit_local_tee_raw(tmp)         # tmp := v, leave on stack
-          self._emit_call(self._retain_idx)     # retain
-          self._emit_local_get(idx)             # push prior
-          self._emit_call(self._release_idx)    # release prior
+          self._emit_local_tee_raw(tmp)  # tmp := v, leave on stack
+          self._emit_call(self._retain_idx)  # retain
+          self._emit_local_get(idx)  # push prior
+          self._emit_call(self._release_idx)  # release prior
           self._emit_local_get(tmp)
           self._emit_local_set_raw(idx)
   ```

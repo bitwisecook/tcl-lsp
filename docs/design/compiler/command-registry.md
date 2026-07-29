@@ -343,7 +343,7 @@ For version-dependent behaviour, use `dialects_since()` from
 from ..dialects import dialects_since
 
 # incr: safe in Tcl 8.5+ but errors in 8.4 and iRules (Tcl 8.4.6)
-safe_on_uninit=dialects_since("tcl8.5")
+safe_on_uninit = dialects_since("tcl8.5")
 ```
 
 `dialects_since()` resolves against `DIALECT_BASE_VERSION`, a centralised

@@ -187,6 +187,7 @@ Every module that catches exceptions needs a logger:
 
 ```python
 import logging
+
 log = logging.getLogger(__name__)
 ```
 

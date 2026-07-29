@@ -76,25 +76,27 @@ All types live under `compiler/`, `analyser/`, or `shared/` and are frozen datac
 ### Stage 1 — Lexer types ([`shared/tokens.py`](../../shared/tokens.py))
 
 ```python
-class TokenType(Enum):              # tokens.py:9
-    ESC     # plain string / word fragment (possibly with escape sequences)
-    STR     # braced string {…}
-    CMD     # command substitution [… ]
-    VAR     # variable substitution $name
-    SEP     # whitespace separator
-    EOL     # end-of-line / semicolon
-    EOF     # end-of-input
-    COMMENT # comment (# to end of line)
+class TokenType(Enum):  # tokens.py:9
+    ESC  # plain string / word fragment (possibly with escape sequences)
+    STR  # braced string {…}
+    CMD  # command substitution [… ]
+    VAR  # variable substitution $name
+    SEP  # whitespace separator
+    EOL  # end-of-line / semicolon
+    EOF  # end-of-input
+    COMMENT  # comment (# to end of line)
     EXPAND  # {*} expansion prefix
 
-@dataclass(frozen=True, slots=True)
-class SourcePosition:               # tokens.py:24
-    line: int       # 0-based line number
-    character: int  # 0-based column (UTF-16 code units per LSP spec)
-    offset: int     # byte offset into the source string
 
 @dataclass(frozen=True, slots=True)
-class Token:                        # tokens.py:33
+class SourcePosition:  # tokens.py:24
+    line: int  # 0-based line number
+    character: int  # 0-based column (UTF-16 code units per LSP spec)
+    offset: int  # byte offset into the source string
+
+
+@dataclass(frozen=True, slots=True)
+class Token:  # tokens.py:33
     type: TokenType
     text: str
     start: SourcePosition
@@ -119,14 +121,14 @@ class Token:                        # tokens.py:33
 
 ```python
 @dataclass(slots=True)
-class SegmentedCommand:              # command_segmenter.py:62
-    range: Range                         # source span of the entire command
-    argv: list[Token]                    # first token of each word
-    texts: list[str]                     # concatenated text per word
-    single_token_word: list[bool]        # True when a word is a single token
-    all_tokens: list[Token]              # every token in the command
+class SegmentedCommand:  # command_segmenter.py:62
+    range: Range  # source span of the entire command
+    argv: list[Token]  # first token of each word
+    texts: list[str]  # concatenated text per word
+    single_token_word: list[bool]  # True when a word is a single token
+    all_tokens: list[Token]  # every token in the command
     preceding_comment: str | None = None
-    is_partial: bool = False             # True when unclosed delimiter detected
+    is_partial: bool = False  # True when unclosed delimiter detected
     partial_delimiter: UnclosedDelimiter | None = None
     expand_word: list[bool] | None = None  # {*} expansion per word
 ```
@@ -141,109 +143,135 @@ class SegmentedCommand:              # command_segmenter.py:62
 
 ```python
 @dataclass(frozen=True, slots=True)
-class IRAssignConst:                     # ir.py:65 — set a 1
+class IRAssignConst:  # ir.py:65 — set a 1
     range: Range
-    name: str                            # variable name
-    value: str                           # constant string value
+    name: str  # variable name
+    value: str  # constant string value
+
 
 @dataclass(frozen=True, slots=True)
-class IRAssignExpr:                      # ir.py:72 — set x [expr {$a + 1}]
+class IRAssignExpr:  # ir.py:72 — set x [expr {$a + 1}]
     range: Range
     name: str
-    expr: ExprNode                       # parsed expression AST
+    expr: ExprNode  # parsed expression AST
+
 
 @dataclass(frozen=True, slots=True)
-class IRAssignValue:                     # ir.py:79 — set x $y, set x "hello $name"
+class IRAssignValue:  # ir.py:79 — set x $y, set x "hello $name"
     range: Range
     name: str
-    value: str                           # interpolated value text
+    value: str  # interpolated value text
     value_needs_backsubst: bool = False
 
-@dataclass(frozen=True, slots=True)
-class IRIncr:                            # ir.py:88 — incr i, incr i 5
-    range: Range
-    name: str
-    amount: str | None = None            # None means +1
 
 @dataclass(frozen=True, slots=True)
-class IRCall:                            # ir.py:108 — generic command invocation (puts, append, etc.)
+class IRIncr:  # ir.py:88 — incr i, incr i 5
+    range: Range
+    name: str
+    amount: str | None = None  # None means +1
+
+
+@dataclass(frozen=True, slots=True)
+class IRCall:  # ir.py:108 — generic command invocation (puts, append, etc.)
     range: Range
     command: str
     args: tuple[str, ...] = ()
-    defs: tuple[str, ...] = ()           # variables this command defines
-    reads: tuple[str, ...] = ()          # variables this command reads by name
-    reads_own_defs: bool = False         # True for read-modify-write (append, lappend)
+    defs: tuple[str, ...] = ()  # variables this command defines
+    reads: tuple[str, ...] = ()  # variables this command reads by name
+    reads_own_defs: bool = False  # True for read-modify-write (append, lappend)
     tokens: CommandTokens | None = None
 
+
 @dataclass(frozen=True, slots=True)
-class IRReturn:                          # ir.py:143
+class IRReturn:  # ir.py:143
     range: Range
     value: str | None = None
 
+
 @dataclass(frozen=True, slots=True)
-class IRBarrier:                         # ir.py:151 — eval, uplevel, upvar — defeats static analysis
+class IRBarrier:  # ir.py:151 — eval, uplevel, upvar — defeats static analysis
     range: Range
     reason: str
     command: str = ""
     args: tuple[str, ...] = ()
     tokens: CommandTokens | None = None
 
-@dataclass(frozen=True, slots=True)
-class IRIf:                              # ir.py:292
-    range: Range
-    clauses: tuple[IRIfClause, ...]      # one per if/elseif branch
-    else_body: IRScript | None = None
 
 @dataclass(frozen=True, slots=True)
-class IRIfClause:                        # ir.py:284
-    condition: ExprNode                  # parsed condition expression
+class IRIf:  # ir.py:292
+    range: Range
+    clauses: tuple[IRIfClause, ...]  # one per if/elseif branch
+    else_body: IRScript | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class IRIfClause:  # ir.py:284
+    condition: ExprNode  # parsed condition expression
     condition_range: Range
     body: IRScript
     body_range: Range
 
+
 @dataclass(frozen=True, slots=True)
-class IRFor:                             # ir.py:300
+class IRFor:  # ir.py:300
     range: Range
-    init: IRScript                       # {set i 0}
+    init: IRScript  # {set i 0}
     init_range: Range
-    condition: ExprNode                  # {$i < 10}
+    condition: ExprNode  # {$i < 10}
     condition_range: Range
-    next: IRScript                       # {incr i}
+    next: IRScript  # {incr i}
     next_range: Range
     body: IRScript
     body_range: Range
 
+
 @dataclass(frozen=True, slots=True)
-class IRWhile:                           # ir.py:314
+class IRWhile:  # ir.py:314
     range: Range
     condition: ExprNode
     condition_range: Range
     body: IRScript
     body_range: Range
 
+
 @dataclass(frozen=True, slots=True)
-class IRForeach:                         # ir.py:326
+class IRForeach:  # ir.py:326
     range: Range
     iterators: tuple[tuple[tuple[str, ...], str], ...]  # ((var_names, list_arg), ...)
     body: IRScript
     body_range: Range
     is_lmap: bool = False
 
+
 @dataclass(frozen=True, slots=True)
-class IRScript:                          # ir.py:207
+class IRScript:  # ir.py:207
     statements: tuple[IRStatement, ...] = ()
 
+
 @dataclass
-class IRModule:                          # ir.py:504
-    top_level: IRScript                  # statements outside any proc
-    procedures: dict[str, IRProcedure]   # qualified_name → proc definition
+class IRModule:  # ir.py:504
+    top_level: IRScript  # statements outside any proc
+    procedures: dict[str, IRProcedure]  # qualified_name → proc definition
     redefined_procedures: set[str]
+
 
 # IRStatement is a union type (ir.py:609):
 IRStatement = (
-    IRAssignConst | IRAssignExpr | IRAssignValue | IRExprEval
-    | IRIncr | IRCall | IRReturn | IRBarrier
-    | IRIf | IRFor | IRWhile | IRForeach | IRCatch | IRTry | IRSwitch
+    IRAssignConst
+    | IRAssignExpr
+    | IRAssignValue
+    | IRExprEval
+    | IRIncr
+    | IRCall
+    | IRReturn
+    | IRBarrier
+    | IRIf
+    | IRFor
+    | IRWhile
+    | IRForeach
+    | IRCatch
+    | IRTry
+    | IRSwitch
 )
 ```
 
@@ -258,32 +286,52 @@ IRStatement = (
 
 ```python
 @dataclass(frozen=True)
-class ExprLiteral:     # expr_ast.py:90 — 42, 3.14, true
-    text: str; start: int; end: int
-
-@dataclass(frozen=True)
-class ExprVar:         # expr_ast.py:108 — $x, ${arr(idx)}
-    text: str; name: str; start: int; end: int
-
-@dataclass(frozen=True)
-class ExprBinary:      # expr_ast.py:127 — $a + $b, $x < 10
-    op: BinOp; left: ExprNode; right: ExprNode
-
-@dataclass(frozen=True)
-class ExprUnary:       # expr_ast.py:136 — -$x, !$flag
-    op: UnaryOp; operand: ExprNode
-
-@dataclass(frozen=True)
-class ExprCall:        # expr_ast.py:153 — sin($x), int($y)
-    function: str; args: tuple[ExprNode, ...]; start: int; end: int
-
-@dataclass(frozen=True)
-class ExprCommand:     # expr_ast.py:118 — [clock seconds]
-    text: str; start: int; end: int
-
-@dataclass(frozen=True)
-class ExprRaw:         # expr_ast.py:163 — fallback for unparseable expressions
+class ExprLiteral:  # expr_ast.py:90 — 42, 3.14, true
     text: str
+    start: int
+    end: int
+
+
+@dataclass(frozen=True)
+class ExprVar:  # expr_ast.py:108 — $x, ${arr(idx)}
+    text: str
+    name: str
+    start: int
+    end: int
+
+
+@dataclass(frozen=True)
+class ExprBinary:  # expr_ast.py:127 — $a + $b, $x < 10
+    op: BinOp
+    left: ExprNode
+    right: ExprNode
+
+
+@dataclass(frozen=True)
+class ExprUnary:  # expr_ast.py:136 — -$x, !$flag
+    op: UnaryOp
+    operand: ExprNode
+
+
+@dataclass(frozen=True)
+class ExprCall:  # expr_ast.py:153 — sin($x), int($y)
+    function: str
+    args: tuple[ExprNode, ...]
+    start: int
+    end: int
+
+
+@dataclass(frozen=True)
+class ExprCommand:  # expr_ast.py:118 — [clock seconds]
+    text: str
+    start: int
+    end: int
+
+
+@dataclass(frozen=True)
+class ExprRaw:  # expr_ast.py:163 — fallback for unparseable expressions
+    text: str
+
 
 # BinOp (expr_ast.py:27): ADD, SUB, MUL, DIV, MOD, POW, LT, LE, GT, GE, EQ, NE,
 #                          STR_EQ, STR_NE, AND, OR, LSHIFT, RSHIFT, BIT_AND, ...
@@ -294,36 +342,42 @@ class ExprRaw:         # expr_ast.py:163 — fallback for unparseable expression
 
 ```python
 @dataclass(frozen=True, slots=True)
-class CFGGoto:         # cfg.py:438 — unconditional jump
-    target: str                          # target block name
+class CFGGoto:  # cfg.py:438 — unconditional jump
+    target: str  # target block name
+
 
 @dataclass(frozen=True, slots=True)
-class CFGBranch:       # cfg.py:444 — conditional jump
-    condition: ExprNode                  # condition expression
+class CFGBranch:  # cfg.py:444 — conditional jump
+    condition: ExprNode  # condition expression
     true_target: str
     false_target: str
 
+
 @dataclass(frozen=True, slots=True)
-class CFGReturn:       # cfg.py:452 — procedure exit
+class CFGReturn:  # cfg.py:452 — procedure exit
     value: str | None = None
+
 
 CFGTerminator = CFGGoto | CFGBranch | CFGReturn  # cfg.py:459
 
+
 @dataclass(frozen=True, slots=True)
-class CFGBlock:        # cfg.py:473
+class CFGBlock:  # cfg.py:473
     name: str
     statements: tuple[IRStatement, ...]  # straight-line IR statements
-    terminator: CFGTerminator | None     # exactly one per block
+    terminator: CFGTerminator | None  # exactly one per block
+
 
 @dataclass(frozen=True, slots=True)
-class CFGFunction:     # cfg.py:480
+class CFGFunction:  # cfg.py:480
     name: str
-    entry: str                           # entry block name
-    blocks: dict[str, CFGBlock]          # name → block
+    entry: str  # entry block name
+    blocks: dict[str, CFGBlock]  # name → block
     loop_nodes: dict[str, tuple[str, IRFor]]  # for-loop metadata
 
+
 @dataclass(frozen=True, slots=True)
-class CFGModule:       # cfg.py:543
+class CFGModule:  # cfg.py:543
     top_level: CFGFunction
     procedures: dict[str, CFGFunction]
 ```
@@ -331,35 +385,39 @@ class CFGModule:       # cfg.py:543
 ### Stage 5 — SSA types ([`compiler/ssa.py`](../../compiler/ssa.py))
 
 ```python
-SSAVersion = int               # ssa.py:70 — each definition gets a unique version
+SSAVersion = int  # ssa.py:70 — each definition gets a unique version
 SSAValueKey = tuple[str, int]  # ssa.py:76 — (variable_name, version) — unique SSA value
 
-@dataclass(frozen=True, slots=True)
-class SSAPhi:                  # ssa.py:606 — phi node (see Glossary)
-    name: str                            # variable name
-    version: SSAVersion                  # version produced by this phi
-    incoming: dict[str, SSAVersion]      # predecessor_block → version
 
 @dataclass(frozen=True, slots=True)
-class SSAStatement:            # ssa.py:619
-    statement: IRStatement               # the original IR statement
-    uses: dict[str, SSAVersion]          # variables read → their versions
-    defs: dict[str, SSAVersion]          # variables written → new versions
+class SSAPhi:  # ssa.py:606 — phi node (see Glossary)
+    name: str  # variable name
+    version: SSAVersion  # version produced by this phi
+    incoming: dict[str, SSAVersion]  # predecessor_block → version
+
 
 @dataclass(frozen=True, slots=True)
-class SSABlock:                # ssa.py:633
+class SSAStatement:  # ssa.py:619
+    statement: IRStatement  # the original IR statement
+    uses: dict[str, SSAVersion]  # variables read → their versions
+    defs: dict[str, SSAVersion]  # variables written → new versions
+
+
+@dataclass(frozen=True, slots=True)
+class SSABlock:  # ssa.py:633
     name: str
-    phis: tuple[SSAPhi, ...]             # phi nodes at merge points
+    phis: tuple[SSAPhi, ...]  # phi nodes at merge points
     statements: tuple[SSAStatement, ...]
     entry_versions: dict[str, SSAVersion]
     exit_versions: dict[str, SSAVersion]
 
+
 @dataclass(frozen=True, slots=True)
-class SSAFunction:             # ssa.py:648
+class SSAFunction:  # ssa.py:648
     name: str
     entry: str
     blocks: dict[str, SSABlock]
-    idom: dict[str, str | None]          # immediate dominator tree (see Glossary)
+    idom: dict[str, str | None]  # immediate dominator tree (see Glossary)
     dominance_frontier: dict[str, tuple[str, ...]]  # (see Glossary)
     dominator_tree: dict[str, tuple[str, ...]]
 ```
@@ -367,33 +425,35 @@ class SSAFunction:             # ssa.py:648
 ### Stage 6 — Analysis types ([`compiler/core_analyses.py`](../../compiler/core_analyses.py))
 
 ```python
-class LatticeKind(Enum):       # core_analyses.py:316 (see Glossary → Lattice)
-    UNKNOWN      # not yet analysed (bottom)
-    CONST        # provably constant
+class LatticeKind(Enum):  # core_analyses.py:316 (see Glossary → Lattice)
+    UNKNOWN  # not yet analysed (bottom)
+    CONST  # provably constant
     OVERDEFINED  # multiple possible values (top)
 
+
 @dataclass(frozen=True, slots=True)
-class LatticeValue:            # core_analyses.py:328
+class LatticeValue:  # core_analyses.py:328
     kind: LatticeKind
     value: int | float | bool | str | None = None
 
+
 @dataclass(frozen=True, slots=True)
-class FunctionAnalysis:        # core_analyses.py:426 — produced by analyse_function() (line 3964)
-    live_in: dict[str, set[SSAValueKey]]     # (see Glossary → Liveness)
+class FunctionAnalysis:  # core_analyses.py:426 — produced by analyse_function() (line 3964)
+    live_in: dict[str, set[SSAValueKey]]  # (see Glossary → Liveness)
     live_out: dict[str, set[SSAValueKey]]
-    dead_stores: tuple[DeadStore, ...]       # DeadStore at line 404
+    dead_stores: tuple[DeadStore, ...]  # DeadStore at line 404
     unreachable_blocks: set[str]
     constant_branches: tuple[ConstantBranch, ...]  # ConstantBranch at line 395
-    values: dict[SSAValueKey, LatticeValue]     # SCCP results (see Glossary → SCCP)
-    types: dict[SSAValueKey, TypeLattice]        # type inference results
-    read_before_set: tuple[ReadBeforeSet, ...]   # ReadBeforeSet at line 412
+    values: dict[SSAValueKey, LatticeValue]  # SCCP results (see Glossary → SCCP)
+    types: dict[SSAValueKey, TypeLattice]  # type inference results
+    read_before_set: tuple[ReadBeforeSet, ...]  # ReadBeforeSet at line 412
     unused_variables: tuple[UnusedVariable, ...]  # UnusedVariable at line 419
 ```
 
 #### Type lattice ([`compiler/types.py`](../../compiler/types.py))
 
 ```python
-class TclType(Enum):           # types.py:30
+class TclType(Enum):  # types.py:30
     STRING = auto()
     INT = auto()
     DOUBLE = auto()
@@ -401,19 +461,22 @@ class TclType(Enum):           # types.py:30
     LIST = auto()
     DICT = auto()
     BYTEARRAY = auto()
-    NUMERIC = auto()   # abstract join of INT and DOUBLE
+    NUMERIC = auto()  # abstract join of INT and DOUBLE
 
-class TypeKind(Enum):          # types.py:45
-    UNKNOWN      # not yet analysed (bottom)
-    KNOWN        # concrete type determined
-    SHIMMERED    # forced type change detected (see Glossary → Shimmer)
+
+class TypeKind(Enum):  # types.py:45
+    UNKNOWN  # not yet analysed (bottom)
+    KNOWN  # concrete type determined
+    SHIMMERED  # forced type change detected (see Glossary → Shimmer)
     OVERDEFINED  # multiple incompatible types (top)
 
+
 @dataclass(frozen=True, slots=True)
-class TypeLattice:             # types.py:55
+class TypeLattice:  # types.py:55
     kind: TypeKind
     tcl_type: TclType | None = None
     from_type: TclType | None = None  # only for SHIMMERED
+
 
 # Lattice order:  UNKNOWN < KNOWN(t) < SHIMMERED(a,b) < OVERDEFINED
 ```
@@ -457,20 +520,21 @@ class ModuleAsm:       # codegen/bytecode/_types.py:105
 
 ```python
 @dataclass(frozen=True, slots=True)
-class FunctionUnit:                # compilation_unit.py:27
+class FunctionUnit:  # compilation_unit.py:27
     cfg: CFGFunction
     ssa: SSAFunction
     analysis: FunctionAnalysis
     execution_intent: FunctionExecutionIntent
 
+
 @dataclass(frozen=True, slots=True)
-class CompilationUnit:             # compilation_unit.py:37 — produced by compile_source() (line 89)
+class CompilationUnit:  # compilation_unit.py:37 — produced by compile_source() (line 89)
     source: str
     ir_module: IRModule
     cfg_module: CFGModule
     top_level: FunctionUnit
     procedures: dict[str, FunctionUnit]
-    interproc: InterproceduralAnalysis            # interprocedural.py:121
+    interproc: InterproceduralAnalysis  # interprocedural.py:121
     connection_scope: ConnectionScope | None = None  # connection_scope.py:40
 ```
 
@@ -517,8 +581,8 @@ merges all dialect lists into a unified lookup table.
 ### CommandDef — defining a command
 
 ```python
-class CommandDef:                      # _base.py:48
-    name: str                          # command name (e.g. "string", "HTTP::host")
+class CommandDef:  # _base.py:48
+    name: str  # command name (e.g. "string", "HTTP::host")
 
     @classmethod
     def spec(cls) -> CommandSpec: ...  # returns the full metadata
@@ -558,13 +622,13 @@ form is a `FormSpec` (`models.py:249`):
 
 ```python
 @dataclass(frozen=True, slots=True)
-class FormSpec:                        # models.py:249
-    kind: FormKind                     # DEFAULT, GETTER, or SETTER
-    synopsis: str                      # human-readable signature
-    arity: Arity | None = None         # per-form arg count (None → inherit)
+class FormSpec:  # models.py:249
+    kind: FormKind  # DEFAULT, GETTER, or SETTER
+    synopsis: str  # human-readable signature
+    arity: Arity | None = None  # per-form arg count (None → inherit)
     options: tuple[OptionSpec, ...] = ()  # valid switch options
-    pure: bool = False                 # no side effects
-    mutator: bool = False              # modifies external state
+    pure: bool = False  # no side effects
+    mutator: bool = False  # modifies external state
     side_effect_hints: tuple[SideEffect, ...] = ()  # structured effects
     arg_values: dict[int, tuple[ArgumentValueSpec, ...]] = {}  # completable values
 ```
@@ -607,22 +671,22 @@ subcommand is a `SubCommand` (`models.py:319`):
 
 ```python
 @dataclass(slots=True)
-class SubCommand:                      # models.py:319
-    name: str                          # "length", "match", "replace", ...
-    arity: Arity                       # arg count for this subcommand
-    pure: bool = False                 # no side effects
-    mutator: bool = False              # modifies state
-    return_type: TclType | None        # return value type
-    options: tuple[OptionSpec, ...] = ()      # per-subcommand options
+class SubCommand:  # models.py:319
+    name: str  # "length", "match", "replace", ...
+    arity: Arity  # arg count for this subcommand
+    pure: bool = False  # no side effects
+    mutator: bool = False  # modifies state
+    return_type: TclType | None  # return value type
+    options: tuple[OptionSpec, ...] = ()  # per-subcommand options
     option_terminator: OptionTerminatorSpec | None = None
     arg_values: dict[int, tuple[ArgumentValueSpec, ...]] = {}  # completions
     deprecated_replacement: str | None = None  # replacement command name
-    dialects: frozenset[str] | None = None     # None = inherit from parent
-    forms: tuple[FormSpec, ...] = ()   # per-subcommand getter/setter forms
+    dialects: frozenset[str] | None = None  # None = inherit from parent
+    forms: tuple[FormSpec, ...] = ()  # per-subcommand getter/setter forms
     handler: SubcommandHandler | None  # VM execution hook
-    codegen: CodegenHook | None        # bytecode specialisation
-    lowering: LoweringHook | None      # IR lowering specialisation
-    taint_transform: TaintTransformHook | None   # taint colour transform
+    codegen: CodegenHook | None  # bytecode specialisation
+    lowering: LoweringHook | None  # IR lowering specialisation
+    taint_transform: TaintTransformHook | None  # taint colour transform
     side_effect_hints: tuple[SideEffect, ...] | None = None
     validation_hook: ValidationHook | None = None
 ```
@@ -642,10 +706,10 @@ Commands that accept `-flag` switches declare them via `OptionSpec`
 
 ```python
 @dataclass(frozen=True, slots=True)
-class OptionSpec:                      # models.py:230
-    name: str                          # e.g. "-nocase", "-length"
-    takes_value: bool = False          # True if the option consumes the next arg
-    detail: str = ""                   # completion description
+class OptionSpec:  # models.py:230
+    name: str  # e.g. "-nocase", "-length"
+    takes_value: bool = False  # True if the option consumes the next arg
+    detail: str = ""  # completion description
 ```
 
 **Option terminators** (`--`) prevent a dynamic argument from being
@@ -654,11 +718,11 @@ configures the `W304` diagnostic:
 
 ```python
 @dataclass(frozen=True, slots=True)
-class OptionTerminatorSpec:            # models.py:298
-    scan_start: int = 0                # arg index where option scanning begins
+class OptionTerminatorSpec:  # models.py:298
+    scan_start: int = 0  # arg index where option scanning begins
     options_with_values: frozenset[str] = frozenset()  # options that eat next arg
     warn_without_terminator: bool = False  # warn even for static values
-    subcommand: str | None = None      # restrict to a specific subcommand
+    subcommand: str | None = None  # restrict to a specific subcommand
 ```
 
 When a command like `string match` receives a dynamic pattern (`$pat`)
@@ -701,20 +765,20 @@ command expects, and what hover/completion information to present.
 treat each argument position:
 
 ```python
-class ArgRole(Enum):                   # signatures.py:16
-    BODY            # Tcl script body — recursively lowered into IR
-    EXPR            # Expression — parsed into ExprNode AST
-    VAR_NAME        # Variable name written by the command (set, incr)
-    VAR_READ        # Variable name read without modification (info exists)
-    PARAM_LIST      # Procedure parameter list (proc)
-    NAME            # Symbolic name (proc name, namespace name)
-    PATTERN         # Pattern or regex argument
-    OPTION          # A switch/flag argument
-    VALUE           # Generic value (default for unlisted positions)
-    SUBCOMMAND      # The subcommand word ("length" in "string length")
+class ArgRole(Enum):  # signatures.py:16
+    BODY  # Tcl script body — recursively lowered into IR
+    EXPR  # Expression — parsed into ExprNode AST
+    VAR_NAME  # Variable name written by the command (set, incr)
+    VAR_READ  # Variable name read without modification (info exists)
+    PARAM_LIST  # Procedure parameter list (proc)
+    NAME  # Symbolic name (proc name, namespace name)
+    PATTERN  # Pattern or regex argument
+    OPTION  # A switch/flag argument
+    VALUE  # Generic value (default for unlisted positions)
+    SUBCOMMAND  # The subcommand word ("length" in "string length")
     OPTION_TERMINATOR  # The "--" terminator
-    CHANNEL         # Channel identifier (stdout, channelId)
-    INDEX           # List/string index expression
+    CHANNEL  # Channel identifier (stdout, channelId)
+    INDEX  # List/string index expression
 ```
 
 Roles are declared via `CommandSpec.arg_roles` or
@@ -743,9 +807,9 @@ documentation:
 
 ```python
 @dataclass(frozen=True, slots=True)
-class ArgumentValueSpec:               # models.py:221
-    value: str                         # completion text (e.g. "length", "alnum")
-    detail: str = ""                   # short description in completion list
+class ArgumentValueSpec:  # models.py:221
+    value: str  # completion text (e.g. "length", "alnum")
+    detail: str = ""  # short description in completion list
     hover: HoverSnippet | None = None  # full hover documentation
 ```
 
@@ -759,11 +823,13 @@ Argument values are declared in three places:
    FormSpec(
        kind=FormKind.DEFAULT,
        synopsis="string option arg ?arg ...?",
-       arg_values={0: (
-           ArgumentValueSpec("length", "Return number of characters."),
-           ArgumentValueSpec("match", "Test glob-style pattern match."),
-           ...
-       )},
+       arg_values={
+           0: (
+               ArgumentValueSpec("length", "Return number of characters."),
+               ArgumentValueSpec("match", "Test glob-style pattern match."),
+               ...,
+           )
+       },
    )
    ```
 
@@ -794,13 +860,13 @@ content derived from man pages or vendor documentation:
 
 ```python
 @dataclass(frozen=True, slots=True)
-class HoverSnippet:                    # models.py:170
-    summary: str                       # one-line description
-    synopsis: tuple[str, ...] = ()     # invocation signatures
-    snippet: str = ""                  # extended description (for signature help)
-    source: str = ""                   # attribution (e.g. "Tcl man page string.n")
-    examples: str = ""                 # code example
-    return_value: str = ""             # return value description
+class HoverSnippet:  # models.py:170
+    summary: str  # one-line description
+    synopsis: tuple[str, ...] = ()  # invocation signatures
+    snippet: str = ""  # extended description (for signature help)
+    source: str = ""  # attribution (e.g. "Tcl man page string.n")
+    examples: str = ""  # code example
+    return_value: str = ""  # return value description
 ```
 
 `HoverSnippet` appears on `CommandSpec.hover`, `SubCommand.hover`,
@@ -815,9 +881,9 @@ representation (intrep) a command expects for a given argument:
 
 ```python
 @dataclass(frozen=True, slots=True)
-class ArgTypeHint:                     # type_hints.py:17
-    expected: TclType | None = None    # expected type (None = any)
-    shimmers: bool = False             # True if the command forces conversion
+class ArgTypeHint:  # type_hints.py:17
+    expected: TclType | None = None  # expected type (None = any)
+    shimmers: bool = False  # True if the command forces conversion
 ```
 
 Type hints are declared via `SubCommand.arg_types` or
@@ -838,10 +904,10 @@ for these structural keywords:
 
 ```python
 @dataclass(frozen=True, slots=True)
-class KeywordCompletion:               # models.py:90
-    keyword: str                       # e.g. "elseif", "else", "on", "finally"
-    detail: str = ""                   # completion list description
-    snippet: str | None = None         # LSP snippet with placeholders
+class KeywordCompletion:  # models.py:90
+    keyword: str  # e.g. "elseif", "else", "on", "finally"
+    detail: str = ""  # completion list description
+    snippet: str | None = None  # LSP snippet with placeholders
 ```
 
 A `KeywordCompletionProvider` callback on `CommandSpec` generates
@@ -866,19 +932,38 @@ classifies what each command invocation reads and writes.
 **Enums** describe the vocabulary:
 
 ```python
-class SideEffectTarget(Enum):          # side_effects.py:154
-    VARIABLE, SESSION_TABLE, HTTP_HEADER, HTTP_BODY, HTTP_URI,
+class SideEffectTarget(Enum):  # side_effects.py:154
+    (
+        VARIABLE,
+        SESSION_TABLE,
+        HTTP_HEADER,
+        HTTP_BODY,
+        HTTP_URI,
+    )
     RESPONSE_COMMIT, POOL_SELECTION, FILE_IO, LOG_IO, ...
 
-class StorageScope(Enum):              # side_effects.py:67
-    PROC_LOCAL, NAMESPACE, GLOBAL, UPVAR,       # Tcl-universal
-    EVENT, CONNECTION, STATIC, SESSION_TABLE,    # F5 iRules-specific
+
+class StorageScope(Enum):  # side_effects.py:67
+    (
+        PROC_LOCAL,
+        NAMESPACE,
+        GLOBAL,
+        UPVAR,
+    )  # Tcl-universal
+    (
+        EVENT,
+        CONNECTION,
+        STATIC,
+        SESSION_TABLE,
+    )  # F5 iRules-specific
     DATA_GROUP, FILE_SYSTEM, NETWORK_SOCKET, ...
 
-class ConnectionSide(Enum):            # side_effects.py:135
+
+class ConnectionSide(Enum):  # side_effects.py:135
     CLIENT, SERVER, BOTH, GLOBAL, NONE
 
-class StorageType(Enum):               # side_effects.py:48
+
+class StorageType(Enum):  # side_effects.py:48
     SCALAR, LIST, DICT, ARRAY, UNKNOWN
 ```
 
@@ -887,21 +972,22 @@ class StorageType(Enum):               # side_effects.py:48
 
 ```python
 @dataclass(frozen=True, slots=True)
-class SideEffect:                      # side_effects.py:359
-    target: SideEffectTarget           # what resource
-    reads: bool = False                # does it read?
-    writes: bool = False               # does it write?
-    storage_type: StorageType          # data shape
-    scope: StorageScope                # where it lives
-    connection_side: ConnectionSide    # F5 proxy context
-    key: str | None = None             # literal variable/header name
+class SideEffect:  # side_effects.py:359
+    target: SideEffectTarget  # what resource
+    reads: bool = False  # does it read?
+    writes: bool = False  # does it write?
+    storage_type: StorageType  # data shape
+    scope: StorageScope  # where it lives
+    connection_side: ConnectionSide  # F5 proxy context
+    key: str | None = None  # literal variable/header name
+
 
 @dataclass(frozen=True, slots=True)
-class CommandSideEffects:              # side_effects.py:413
-    effects: tuple[SideEffect, ...]    # individual effects
-    pure: bool = False                 # no observable side effects
-    deterministic: bool = False        # same inputs → same outputs
-    dynamic_barrier: bool = False      # eval/uplevel — unknowable
+class CommandSideEffects:  # side_effects.py:413
+    effects: tuple[SideEffect, ...]  # individual effects
+    pure: bool = False  # no observable side effects
+    deterministic: bool = False  # same inputs → same outputs
+    dynamic_barrier: bool = False  # eval/uplevel — unknowable
 ```
 
 **Classification** — `classify_side_effects(command, args, ...)`
@@ -938,16 +1024,16 @@ Taint tracking determines whether values originate from untrusted input
 with `|` and the lattice join is their intersection (`&`):
 
 ```python
-class TaintColour(Flag):               # taint_hints.py:17
-    TAINTED         # base: value comes from untrusted input
-    PATH_PREFIXED   # starts with "/" (HTTP::uri, HTTP::path)
-    CRLF_FREE       # no CR/LF characters (header-injection safe)
-    IP_ADDRESS      # IPv4/IPv6 digits-dots-colons
-    PORT            # integer 0-65535
-    FQDN            # fully qualified domain name
+class TaintColour(Flag):  # taint_hints.py:17
+    TAINTED  # base: value comes from untrusted input
+    PATH_PREFIXED  # starts with "/" (HTTP::uri, HTTP::path)
+    CRLF_FREE  # no CR/LF characters (header-injection safe)
+    IP_ADDRESS  # IPv4/IPv6 digits-dots-colons
+    PORT  # integer 0-65535
+    FQDN  # fully qualified domain name
     LIST_CANONICAL  # canonical Tcl list (safe for list operations)
-    HTML_ESCAPED    # HTML-escaped text context
-    URL_ENCODED     # URL-encoded text context
+    HTML_ESCAPED  # HTML-escaped text context
+    URL_ENCODED  # URL-encoded text context
     ...
 ```
 
@@ -960,10 +1046,10 @@ and sinks:
 
 ```python
 @dataclass(frozen=True, slots=True)
-class TaintHint:                       # taint_hints.py:63
+class TaintHint:  # taint_hints.py:63
     source: dict[Arity | None, TaintColour] | None  # return value is tainted
-    source_subcommands: frozenset[str] | None        # restrict to specific subcmds
-    sinks: tuple[TaintSinkSpec, ...]                  # dangerous arg positions
+    source_subcommands: frozenset[str] | None  # restrict to specific subcmds
+    sinks: tuple[TaintSinkSpec, ...]  # dangerous arg positions
     setter_constraints: tuple[SetterConstraint, ...]  # e.g. must start with "/"
 ```
 
@@ -980,9 +1066,9 @@ def taint_hints(cls) -> TaintHint:
 
 ```python
 @dataclass(frozen=True, slots=True)
-class TaintSinkSpec:                   # taint_hints.py:45
-    code: str                          # diagnostic code (e.g. "IRULE3001")
-    subcommands: frozenset[str] | None # None = all invocations
+class TaintSinkSpec:  # taint_hints.py:45
+    code: str  # diagnostic code (e.g. "IRULE3001")
+    subcommands: frozenset[str] | None  # None = all invocations
 ```
 
 The taint engine (`compiler/taint/`) propagates colours through the
@@ -996,18 +1082,24 @@ Dialects partition command availability across Tcl versions and tool
 contexts.  Known dialects (`dialects.py:5`):
 
 ```python
-KNOWN_DIALECTS = frozenset({
-    "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1",  # Tcl version dialects
-    "f5-irules",                                 # F5 iRules
-    "f5-iapps",                                  # F5 iApps
-    "f5-bigip",                                  # F5 BIG-IP config
-    "synopsys-eda-tcl",                          # Synopsys EDA
-    "cadence-eda-tcl",                           # Cadence EDA
-    "xilinx-eda-tcl",                            # Xilinx/AMD EDA
-    "intel-quartus-eda-tcl",                     # Intel Quartus
-    "mentor-eda-tcl",                            # Mentor/Siemens EDA
-    "expect",                                    # Expect
-})
+KNOWN_DIALECTS = frozenset(
+    {
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1",  # Tcl version dialects
+        "f5-irules",  # F5 iRules
+        "f5-iapps",  # F5 iApps
+        "f5-bigip",  # F5 BIG-IP config
+        "synopsys-eda-tcl",  # Synopsys EDA
+        "cadence-eda-tcl",  # Cadence EDA
+        "xilinx-eda-tcl",  # Xilinx/AMD EDA
+        "intel-quartus-eda-tcl",  # Intel Quartus
+        "mentor-eda-tcl",  # Mentor/Siemens EDA
+        "expect",  # Expect
+    }
+)
 ```
 
 Every `CommandSpec` has an optional `dialects` field:
@@ -1023,11 +1115,11 @@ set first, falling back to the parent.
 **DialectStatus** (`models.py:25`) is the result of a dialect lookup:
 
 ```python
-class DialectStatus(Enum):             # models.py:25
-    EXISTS       # available in this dialect
-    DEPRECATED   # available but has a replacement
-    DISALLOWED   # exists in some dialect, but not this one
-    NOT_EXISTS   # not known anywhere
+class DialectStatus(Enum):  # models.py:25
+    EXISTS  # available in this dialect
+    DEPRECATED  # available but has a replacement
+    DISALLOWED  # exists in some dialect, but not this one
+    NOT_EXISTS  # not known anywhere
 ```
 
 ### Events (iRules only)
@@ -1038,22 +1130,22 @@ modelled by `EventRequires` (`namespace_models.py:146`):
 
 ```python
 @dataclass(frozen=True, slots=True)
-class EventRequires:                   # namespace_models.py:146
-    client_side: bool = False          # needs client-side connection
-    server_side: bool = False          # needs server-side connection
-    transport: str | None = None       # "tcp" or "udp"
+class EventRequires:  # namespace_models.py:146
+    client_side: bool = False  # needs client-side connection
+    server_side: bool = False  # needs server-side connection
+    transport: str | None = None  # "tcp" or "udp"
     profiles: frozenset[str] = frozenset()  # needs one of these profiles
-    also_in: frozenset[str] = frozenset()   # always valid in these events
-    init_only: bool = False            # only valid in RULE_INIT
-    flow: bool = False                 # needs an active traffic flow
-    capability: str | None = None      # profile capability (e.g. "sni")
+    also_in: frozenset[str] = frozenset()  # always valid in these events
+    init_only: bool = False  # only valid in RULE_INIT
+    flow: bool = False  # needs an active traffic flow
+    capability: str | None = None  # profile capability (e.g. "sni")
 ```
 
 **Example** — `HTTP::host` requires TCP transport and an HTTP or FASTHTTP
 profile:
 
 ```python
-event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"}))
+event_requires = EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"}))
 ```
 
 The validator matches `event_requires` against the event's `EventProps`
@@ -1154,13 +1246,15 @@ is a single-token constant:
 
 ```python
 IRModule(
-    top_level=IRScript(statements=(
-        IRAssignConst(
-            range=Range(Pos(0,0,0), Pos(0,8,8)),
-            name="x",
-            value="42",
-        ),
-    )),
+    top_level=IRScript(
+        statements=(
+            IRAssignConst(
+                range=Range(Pos(0, 0, 0), Pos(0, 8, 8)),
+                name="x",
+                value="42",
+            ),
+        )
+    ),
     procedures={},
 )
 ```
@@ -1276,13 +1370,13 @@ Two `SegmentedCommand` objects:
 # Command 1: set x 42
 SegmentedCommand(
     texts=["set", "x", "42"],
-    single_token_word=[True, True, True],   # all constant
+    single_token_word=[True, True, True],  # all constant
 )
 
 # Command 2: set y $x
 SegmentedCommand(
-    texts=["set", "y", "${x}"],             # VAR token → "${x}" text
-    single_token_word=[True, True, True],   # single token, but it's a VAR
+    texts=["set", "y", "${x}"],  # VAR token → "${x}" text
+    single_token_word=[True, True, True],  # single token, but it's a VAR
 )
 ```
 
@@ -1292,10 +1386,12 @@ In command 2, `texts[2]` is `"${x}"` — the segmenter wraps `VAR` tokens in
 ### Stage 3 — IR Lowering
 
 ```python
-IRScript(statements=(
-    IRAssignConst(name="x", value="42"),
-    IRAssignValue(name="y", value="${x}"),     # has variable reference
-))
+IRScript(
+    statements=(
+        IRAssignConst(name="x", value="42"),
+        IRAssignValue(name="y", value="${x}"),  # has variable reference
+    )
+)
 ```
 
 The second `set` produces `IRAssignValue` (not `IRAssignConst`) because the
@@ -1351,16 +1447,18 @@ expr {2 + 3}
 The `expr` command with a braced body triggers expression parsing:
 
 ```python
-IRScript(statements=(
-    IRExprEval(
-        range=Range(...),
-        expr=ExprBinary(
-            op=BinOp.ADD,
-            left=ExprLiteral(text="2", start=0, end=1),
-            right=ExprLiteral(text="3", start=4, end=5),
+IRScript(
+    statements=(
+        IRExprEval(
+            range=Range(...),
+            expr=ExprBinary(
+                op=BinOp.ADD,
+                left=ExprLiteral(text="2", start=0, end=1),
+                right=ExprLiteral(text="3", start=4, end=5),
+            ),
         ),
-    ),
-))
+    )
+)
 ```
 
 The expression parser produces a structured `ExprBinary` node, not a raw
@@ -1401,17 +1499,19 @@ expr {$a + $b}
 ### Stage 3 — IR Lowering
 
 ```python
-IRScript(statements=(
-    IRAssignConst(name="a", value="10"),
-    IRAssignConst(name="b", value="20"),
-    IRExprEval(
-        expr=ExprBinary(
-            op=BinOp.ADD,
-            left=ExprVar(text="$a", name="a", start=0, end=2),
-            right=ExprVar(text="$b", name="b", start=5, end=7),
+IRScript(
+    statements=(
+        IRAssignConst(name="a", value="10"),
+        IRAssignConst(name="b", value="20"),
+        IRExprEval(
+            expr=ExprBinary(
+                op=BinOp.ADD,
+                left=ExprVar(text="$a", name="a", start=0, end=2),
+                right=ExprVar(text="$b", name="b", start=5, end=7),
+            ),
         ),
-    ),
-))
+    )
+)
 ```
 
 ### Stage 5 — SSA
@@ -1473,23 +1573,23 @@ if {$x} {
 ### Stage 3 — IR Lowering
 
 ```python
-IRScript(statements=(
-    IRAssignConst(name="x", value="1"),
-    IRIf(
-        range=Range(...),
-        clauses=(
-            IRIfClause(
-                condition=ExprVar(text="$x", name="x", start=0, end=2),
-                condition_range=Range(...),
-                body=IRScript(statements=(
-                    IRAssignConst(name="y", value="10"),
-                )),
-                body_range=Range(...),
+IRScript(
+    statements=(
+        IRAssignConst(name="x", value="1"),
+        IRIf(
+            range=Range(...),
+            clauses=(
+                IRIfClause(
+                    condition=ExprVar(text="$x", name="x", start=0, end=2),
+                    condition_range=Range(...),
+                    body=IRScript(statements=(IRAssignConst(name="y", value="10"),)),
+                    body_range=Range(...),
+                ),
             ),
+            else_body=None,
         ),
-        else_body=None,
-    ),
-))
+    )
+)
 ```
 
 - `IRIf` holds a tuple of `IRIfClause` objects (one per `if`/`elseif`).
@@ -1677,15 +1777,15 @@ if {$x < 0} {
 IRIf(
     clauses=(
         IRIfClause(
-            condition=ExprBinary(op=BinOp.LT,
-                left=ExprVar(text="$x", name="x"),
-                right=ExprLiteral(text="0")),
+            condition=ExprBinary(
+                op=BinOp.LT, left=ExprVar(text="$x", name="x"), right=ExprLiteral(text="0")
+            ),
             body=IRScript((IRAssignConst(name="sign", value="-1"),)),
         ),
         IRIfClause(
-            condition=ExprBinary(op=BinOp.GT,
-                left=ExprVar(text="$x", name="x"),
-                right=ExprLiteral(text="0")),
+            condition=ExprBinary(
+                op=BinOp.GT, left=ExprVar(text="$x", name="x"), right=ExprLiteral(text="0")
+            ),
             body=IRScript((IRAssignConst(name="sign", value="1"),)),
         ),
     ),
@@ -1788,15 +1888,17 @@ while {$i < 5} {
 ### Stage 3 — IR Lowering
 
 ```python
-IRScript(statements=(
-    IRAssignConst(name="i", value="0"),
-    IRWhile(
-        condition=ExprBinary(op=BinOp.LT,
-            left=ExprVar(text="$i", name="i"),
-            right=ExprLiteral(text="5")),
-        body=IRScript((IRIncr(name="i"),)),
-    ),
-))
+IRScript(
+    statements=(
+        IRAssignConst(name="i", value="0"),
+        IRWhile(
+            condition=ExprBinary(
+                op=BinOp.LT, left=ExprVar(text="$i", name="i"), right=ExprLiteral(text="5")
+            ),
+            body=IRScript((IRIncr(name="i"),)),
+        ),
+    )
+)
 ```
 
 - `IRWhile` has a structured `ExprBinary` condition and an `IRScript` body.
@@ -1893,9 +1995,9 @@ for {set i 0} {$i < 10} {incr i} {
 ```python
 IRFor(
     init=IRScript((IRAssignConst(name="i", value="0"),)),
-    condition=ExprBinary(op=BinOp.LT,
-        left=ExprVar(text="$i", name="i"),
-        right=ExprLiteral(text="10")),
+    condition=ExprBinary(
+        op=BinOp.LT, left=ExprVar(text="$i", name="i"), right=ExprLiteral(text="10")
+    ),
     next=IRScript((IRIncr(name="i"),)),
     body=IRScript((IRAssignValue(name="x", value="${i}"),)),
 )
@@ -1988,8 +2090,7 @@ emitted as an opaque `IRCall`:
 ```python
 CFGBlock(
     statements=[
-        IRCall(command="foreach", args=("item", "{a b c}", "\n    set x $item\n"),
-               defs=("item",)),
+        IRCall(command="foreach", args=("item", "{a b c}", "\n    set x $item\n"), defs=("item",)),
     ],
 )
 ```
@@ -2032,19 +2133,23 @@ proc add {a b} {
 
 ```python
 IRModule(
-    top_level=IRScript(statements=()),   # proc def is extracted
+    top_level=IRScript(statements=()),  # proc def is extracted
     procedures={
         "::add": IRProcedure(
             name="add",
             qualified_name="::add",
             params=("a", "b"),
-            body=IRScript(statements=(
-                IRExprEval(
-                    expr=ExprBinary(op=BinOp.ADD,
-                        left=ExprVar(text="$a", name="a"),
-                        right=ExprVar(text="$b", name="b")),
-                ),
-            )),
+            body=IRScript(
+                statements=(
+                    IRExprEval(
+                        expr=ExprBinary(
+                            op=BinOp.ADD,
+                            left=ExprVar(text="$a", name="a"),
+                            right=ExprVar(text="$b", name="b"),
+                        ),
+                    ),
+                )
+            ),
         ),
     },
 )
@@ -2143,8 +2248,8 @@ TaintHint(
 ```python
 # TaintSinkSpec for HTTP::respond body content:
 TaintSinkSpec(
-    code="IRULE3001",               # XSS diagnostic code
-    subcommands=None,               # all invocations
+    code="IRULE3001",  # XSS diagnostic code
+    subcommands=None,  # all invocations
 )
 ```
 
@@ -2156,7 +2261,7 @@ SubCommand(
     arity=Arity(1, 3),
     pure=True,
     return_type=TclType.STRING,
-    taint_transform=None,           # does NOT strip taint
+    taint_transform=None,  # does NOT strip taint
 )
 ```
 
@@ -2167,14 +2272,18 @@ IRModule(
     top_level=IRScript(statements=()),
     procedures={
         "::when::HTTP_REQUEST": IRProcedure(
-            body=IRScript(statements=(
-                IRAssignValue(name="host", value="[HTTP::header value Host]"),
-                IRAssignValue(name="lower", value="[string tolower ${host}]"),
-                IRCall(command="HTTP::respond",
-                       args=("200", "content",
-                             "<h1>Welcome to ${lower}</h1>"),
-                       defs=(), reads=("lower",)),
-            )),
+            body=IRScript(
+                statements=(
+                    IRAssignValue(name="host", value="[HTTP::header value Host]"),
+                    IRAssignValue(name="lower", value="[string tolower ${host}]"),
+                    IRCall(
+                        command="HTTP::respond",
+                        args=("200", "content", "<h1>Welcome to ${lower}</h1>"),
+                        defs=(),
+                        reads=("lower",),
+                    ),
+                )
+            ),
         ),
     },
 )
@@ -2236,12 +2345,12 @@ walks the SSA graph and computes a `TaintLattice` for each SSA value key:
 
 ```python
 TaintWarning(
-    range=Range(Pos(3,4,...), Pos(3,55,...)),   # HTTP::respond line
+    range=Range(Pos(3, 4, ...), Pos(3, 55, ...)),  # HTTP::respond line
     variable="lower",
     sink_command="HTTP::respond",
     code="IRULE3001",
     message="Tainted variable $lower in HTTP response body (HTTP::respond); "
-            "risk of XSS or content injection",
+    "risk of XSS or content injection",
 )
 ```
 
@@ -2317,22 +2426,28 @@ puts $result
 
 ```python
 IRModule(
-    top_level=IRScript(statements=(
-        IRAssignValue(name="result", value="[double 21]"),
-        IRCall(command="puts", args=("${result}",)),
-    )),
+    top_level=IRScript(
+        statements=(
+            IRAssignValue(name="result", value="[double 21]"),
+            IRCall(command="puts", args=("${result}",)),
+        )
+    ),
     procedures={
         "::double": IRProcedure(
             name="double",
             qualified_name="::double",
             params=("n",),
-            body=IRScript(statements=(
-                IRExprEval(
-                    expr=ExprBinary(op=BinOp.MUL,
-                        left=ExprVar(text="$n", name="n"),
-                        right=ExprLiteral(text="2")),
-                ),
-            )),
+            body=IRScript(
+                statements=(
+                    IRExprEval(
+                        expr=ExprBinary(
+                            op=BinOp.MUL,
+                            left=ExprVar(text="$n", name="n"),
+                            right=ExprLiteral(text="2"),
+                        ),
+                    ),
+                )
+            ),
         ),
     },
 )
@@ -2367,7 +2482,7 @@ for each procedure.  For `::double`:
 Optimisation(
     code="O103",
     message="Fold static procedure call",
-    range=Range(Pos(4,13,...), Pos(4,23,...)),  # [double 21]
+    range=Range(Pos(4, 13, ...), Pos(4, 23, ...)),  # [double 21]
     replacement="42",
 )
 ```
@@ -2431,8 +2546,8 @@ immediately overwritten.
 # Part 1: Comment out the original statement
 Optimisation(
     code="O125",
-    message="Sink set msg \"Request denied\" into else body",
-    range=Range(Pos(0,0,...), Pos(0,24,...)),   # set msg "Request denied"
+    message='Sink set msg "Request denied" into else body',
+    range=Range(Pos(0, 0, ...), Pos(0, 24, ...)),  # set msg "Request denied"
     replacement="",
     group=0,
 )
@@ -2440,9 +2555,9 @@ Optimisation(
 # Part 2: Insert at the start of the else body
 Optimisation(
     code="O125",
-    message="Insert sunk set msg \"Request denied\"",
-    range=Range(Pos(6,0,...), Pos(6,0,...)),     # start of else body
-    replacement="    set msg \"Request denied\"\n",
+    message='Insert sunk set msg "Request denied"',
+    range=Range(Pos(6, 0, ...), Pos(6, 0, ...)),  # start of else body
+    replacement='    set msg "Request denied"\n',
     group=0,
 )
 ```
@@ -2509,12 +2624,11 @@ single event), so the second call is redundant.
 
 ```python
 RedundantComputation(
-    range=Range(Pos(4,28,...), Pos(4,40,...)),    # second [HTTP::uri]
-    first_range=Range(Pos(1,8,...), Pos(1,20,...)),  # first [HTTP::uri]
+    range=Range(Pos(4, 28, ...), Pos(4, 40, ...)),  # second [HTTP::uri]
+    first_range=Range(Pos(1, 8, ...), Pos(1, 20, ...)),  # first [HTTP::uri]
     expression_text="HTTP::uri",
     code="O105",
-    message="Redundant computation of [HTTP::uri]; result already "
-            "available from line 2",
+    message="Redundant computation of [HTTP::uri]; result already available from line 2",
 )
 ```
 
@@ -2576,7 +2690,7 @@ a dead store:
 Optimisation(
     code="O109",
     message="Dead store: unused is set but never read",
-    range=Range(...),   # set unused 99
+    range=Range(...),  # set unused 99
     replacement="",
 )
 ```
@@ -2909,7 +3023,7 @@ This produces:
 IRCall(
     command="regexp",
     args=(r"(\d+)", "${input}", "match", "submatch"),
-    defs=("match", "submatch"),   # SSA tracks these as definitions
+    defs=("match", "submatch"),  # SSA tracks these as definitions
 )
 ```
 
@@ -2969,9 +3083,9 @@ CommandSubstitutionIntent(
     command="llength",
     args=("$items",),
     arg_categories=(SubstitutionCategory.SCALAR_VAR,),
-    side_effect=SideEffectClass.PURE,      # llength is pure
-    escape=EscapeClass.NO_ESCAPE,          # no dynamic barriers
-    shimmer_pressure=1,                     # one var arg
+    side_effect=SideEffectClass.PURE,  # llength is pure
+    escape=EscapeClass.NO_ESCAPE,  # no dynamic barriers
+    shimmer_pressure=1,  # one var arg
 )
 ```
 
@@ -2996,7 +3110,7 @@ CommandSubstitutionIntent(
     args=("$url",),
     arg_categories=(SubstitutionCategory.SCALAR_VAR,),
     side_effect=SideEffectClass.MAY_SIDE_EFFECT,  # network I/O
-    escape=EscapeClass.MAY_ESCAPE,                 # may throw
+    escape=EscapeClass.MAY_ESCAPE,  # may throw
     shimmer_pressure=1,
 )
 ```
@@ -3043,15 +3157,15 @@ ProcLocalSummary(
     qualified_name="::helper",
     params=("x",),
     arity=Arity(1, 1),
-    calls=(),                        # no internal proc calls
-    has_barrier=False,               # no eval/uplevel
+    calls=(),  # no internal proc calls
+    has_barrier=False,  # no eval/uplevel
     has_unknown_calls=False,
     writes_global=False,
-    local_effect_reads=EffectRegion(0),   # reads only local params
+    local_effect_reads=EffectRegion(0),  # reads only local params
     local_effect_writes=EffectRegion(0),  # writes only local var
-    returns_constant=False,               # depends on param
+    returns_constant=False,  # depends on param
     constant_return=None,
-    return_depends_on_params=("x",),      # return value depends on x
+    return_depends_on_params=("x",),  # return value depends on x
     return_passthrough_param=None,
 )
 ```
@@ -3063,7 +3177,7 @@ ProcLocalSummary(
     qualified_name="::main",
     params=("a", "b"),
     arity=Arity(2, 2),
-    calls=("::helper",),            # calls helper
+    calls=("::helper",),  # calls helper
     has_barrier=False,
     has_unknown_calls=False,
     writes_global=False,
@@ -3161,7 +3275,7 @@ each event's SSA blocks:
 EventVarSummary(
     event="CLIENT_ACCEPTED",
     defs=frozenset({"conn_start", "request_count"}),
-    uses_before_def=frozenset(),    # no version-0 reads
+    uses_before_def=frozenset(),  # no version-0 reads
     unsets=frozenset(),
 )
 ```
@@ -3171,7 +3285,7 @@ EventVarSummary(
 ```python
 EventVarSummary(
     event="HTTP_REQUEST",
-    defs=frozenset({"request_count"}),      # incr defines it
+    defs=frozenset({"request_count"}),  # incr defines it
     uses_before_def=frozenset({"request_count", "conn_start"}),  # version 0
     unsets=frozenset(),
 )
@@ -3456,8 +3570,8 @@ CommandSideEffects(
             connection_side=ConnectionSide.CLIENT,
         ),
     ),
-    pure=True,             # reading is side-effect-free
-    deterministic=True,    # same result within one event
+    pure=True,  # reading is side-effect-free
+    deterministic=True,  # same result within one event
     dynamic_barrier=False,
 )
 ```
@@ -3470,14 +3584,14 @@ CommandSideEffects(
         SideEffect(
             target=SideEffectTarget.HTTP_HEADER,
             reads=False,
-            writes=True,                     # modifying a header
+            writes=True,  # modifying a header
             storage_type=StorageType.SCALAR,
             scope=StorageScope.EVENT,
             connection_side=ConnectionSide.CLIENT,
-            key="Host",                      # literal header name
+            key="Host",  # literal header name
         ),
     ),
-    pure=False,            # writing is a side effect
+    pure=False,  # writing is a side effect
     deterministic=False,
     dynamic_barrier=False,
 )

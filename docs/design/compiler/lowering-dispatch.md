@@ -72,7 +72,7 @@ var_indices = arg_indices_for_role("regexp", args, ArgRole.VAR_NAME)
 IRCall(
     command="regexp",
     args=(r"(\d+)", "${input}", "match", "submatch"),
-    defs=("match", "submatch"),   # SSA tracks these as definitions
+    defs=("match", "submatch"),  # SSA tracks these as definitions
 )
 ```
 

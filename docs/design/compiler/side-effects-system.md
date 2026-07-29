@@ -36,15 +36,15 @@ Four enums describe the dimensions of a side effect:
 ```python
 SideEffect(
     target=SideEffectTarget.HTTP_HEADER,  # what
-    reads=True,                            # reads from it?
-    writes=True,                           # writes to it?
-    scope=StorageScope.CONNECTION,         # where it lives
+    reads=True,  # reads from it?
+    writes=True,  # writes to it?
+    scope=StorageScope.CONNECTION,  # where it lives
     connection_side=ConnectionSide.CLIENT,  # F5 proxy context
-    storage_type=StorageType.SCALAR,       # data shape
-    namespace="HTTP",                      # protocol namespace
-    key="Host",                            # specific key (if literal)
-    dialect="irules",                      # dialect context
-    subtable=None,                         # F5 subtable name
+    storage_type=StorageType.SCALAR,  # data shape
+    namespace="HTTP",  # protocol namespace
+    key="Host",  # specific key (if literal)
+    dialect="irules",  # dialect context
+    subtable=None,  # F5 subtable name
 )
 ```
 
@@ -55,10 +55,10 @@ Only `target` is required. All other fields have sensible defaults (`reads=False
 ```python
 CommandSideEffects(
     effects=(effect1, effect2, ...),  # tuple of SideEffect
-    pure=False,                        # no observable side effects?
-    deterministic=False,               # same inputs → same outputs?
-    dynamic_barrier=False,             # contains eval/uplevel?
-    dialect="irules",                  # dialect context
+    pure=False,  # no observable side effects?
+    deterministic=False,  # same inputs → same outputs?
+    dynamic_barrier=False,  # contains eval/uplevel?
+    dialect="irules",  # dialect context
 )
 ```
 
@@ -122,7 +122,7 @@ CommandSpec(
 For commands with subcommands that have different effect profiles, declare hints on each `SubCommand`. Subcommand hints take precedence over command-level hints:
 
 ```python
-subcommands={
+subcommands = {
     "add": SubCommand(
         name="add",
         arity=Arity(),

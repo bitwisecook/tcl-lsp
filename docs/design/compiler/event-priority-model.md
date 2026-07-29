@@ -30,7 +30,7 @@ offset — a single `IRProcedure` does not know about sibling handlers.
 class EventOrderEntry:
     event: str
     base_priority: int
-    priority_offset: int   # 0 for first handler at this priority, +1 per tie
+    priority_offset: int  # 0 for first handler at this priority, +1 per tie
     multiplicity: str
     range: Range
 ```

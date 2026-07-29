@@ -98,6 +98,7 @@ class StubArgDef:
     role: str = "value"
     optional: bool = False
 
+
 @dataclass(frozen=True, slots=True)
 class StubCommandDef:
     name: str
@@ -110,10 +111,11 @@ class StubCommandDef:
     unsafe: bool = False
     scope_alias: bool = False
 
+
 @dataclass(frozen=True, slots=True)
 class StubExprDef:
     name: str
-    kind: str       # "function" or "operator"
+    kind: str  # "function" or "operator"
     arity: int = 1
     pure: bool = True
     range: Range

@@ -297,7 +297,7 @@ def _check_results(
     back to False is the signal we've fixed whatever was crashing."""
     failed_tests = results["failed_tests"]
     assert isinstance(failed_tests, list)
-    failed_set = set(failed_tests)
+    failed_set: set[str] = {str(name) for name in failed_tests}
     total = results["Total"]
     passed = results["Passed"]
     skipped = results["Skipped"]

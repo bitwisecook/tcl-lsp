@@ -210,6 +210,7 @@ scripts use:
 ```python
 def render(self, renderer, **opts):
     from .renderers import bind_render_sources, render as _render
+
     with bind_render_sources(self._sources):
         if isinstance(renderer, str):
             return _render(renderer, self.values(), **opts)
@@ -321,6 +322,7 @@ surface cleanly.
 ```python
 def xdg_plugin_dir() -> Path:
     """$XDG_CONFIG_HOME/dialects/f5/query/plugins/, falling back to ~/.config/dialects/f5/query/plugins/."""
+
 
 def load_user_plugins(*, force: bool = False) -> list[Path]:
     """Auto-import *.py under xdg_plugin_dir().  Idempotent."""

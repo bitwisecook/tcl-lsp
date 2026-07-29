@@ -52,12 +52,12 @@ bodies are dropped, empty fields omitted entirely.
 ```python
 explain_flow(
     pcap_path="/path/to/flow.pcap",
-    config_paths=["/path/to/bigip.conf"],   # or config_text=...
-    use_tshark=True,                         # add tshark enrichment
-    keylog_path="/path/to/sslkeys.log",      # optional, for HTTPS
+    config_paths=["/path/to/bigip.conf"],  # or config_text=...
+    use_tshark=True,  # add tshark enrichment
+    keylog_path="/path/to/sslkeys.log",  # optional, for HTTPS
     tshark_filter="host 10.0.0.5 and port 443",  # scope to one flow
-    max_event_body_lines=8,                  # tighten to keep context small
-    simulate=False,                          # set True to run iRule under c-tcl
+    max_event_body_lines=8,  # tighten to keep context small
+    simulate=False,  # set True to run iRule under c-tcl
 )
 ```
 

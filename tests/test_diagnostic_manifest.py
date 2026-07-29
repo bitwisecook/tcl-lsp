@@ -344,11 +344,11 @@ def test_typescript_catalog_importable_by_node():
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
-        # Transpile to JS for Node ``require()`` consumption.  Need
-        # ``--module commonjs`` paired with the classic resolver so the
-        # output is a plain CJS module; ``--ignoreDeprecations 6.0``
-        # silences TS 6.0's deprecation warning on the classic resolver
-        # (which is still supported, just not the default).
+        # Transpile to JS for Node ``require()`` consumption.  Mirrors
+        # editors/vscode/tsconfig.json's ``module``/``moduleResolution``
+        # (Node16): with no ``package.json`` in ``outDir`` to declare
+        # ``"type": "module"``, tsc's Node16 emit defaults the output to
+        # a plain CJS module, same as the project's own build.
         result = subprocess.run(
             [
                 _TSC,
@@ -357,11 +357,9 @@ def test_typescript_catalog_importable_by_node():
                 "--target",
                 "ES2020",
                 "--module",
-                "commonjs",
+                "node16",
                 "--moduleResolution",
-                "node10",
-                "--ignoreDeprecations",
-                "6.0",
+                "node16",
                 str(ts_path),
             ],
             capture_output=True,
