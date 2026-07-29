@@ -153,6 +153,10 @@ const ALL_TRAITS: &[Traits] = &[
     Traits::ESTABLISHES_VARIABLE_TRACE,
     Traits::TRANSFERS_CONTROL,
     Traits::FIRE_AND_FORGET_TEARDOWN,
+    Traits::SCRIPT_CONCATENATES_ARGS,
+    Traits::SCRIPT_APPENDS_LIST_ARGS,
+    Traits::TCLOO_SELF_DISPATCH,
+    Traits::TCLOO_INTROSPECTION,
 ];
 
 /// Assert the basic arity invariant shared by every `Arity` (command or

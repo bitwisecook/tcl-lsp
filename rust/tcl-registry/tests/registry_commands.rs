@@ -50,7 +50,8 @@ use tcl_registry::arity::Arity;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::{
-    ArgRole, CommandRegistry, KNOWN_DIALECTS, Traits, available_dialects, registry_for_dialect,
+    ArgRole, CommandRegistry, KNOWN_DIALECTS, MethodDispatchKind, Traits, available_dialects,
+    registry_for_dialect,
 };
 
 // ---------------------------------------------------------------------------
@@ -1879,4 +1880,175 @@ fn interp_create_defines_command_at_its_name_argument() {
     // The other interp subcommands bind no command name.
     let eval = spec.subcommand("eval").expect("interp eval modelled");
     assert_eq!(eval.defines_command_at, None);
+}
+
+// ===========================================================================
+// TclOO method-context keywords + the `Tcl_ConcatObj` eval family (#1050, #1051)
+// ===========================================================================
+
+/// The `TclOO` method-context keyword set is exactly `my` / `next` / `nextto`
+/// / `self`, and `CommandRegistry::method_dispatch_keyword` answers with the
+/// right kind for each.
+///
+/// This is the guard for issue #1050: the consumer-visible keyword set must
+/// equal the trait-carrying specs, so a consumer can never drift from the
+/// registry by re-adding a `head == "my"` literal.  `link` is deliberately
+/// out — it *creates* per-class bareword commands rather than dispatching one
+/// (issue #1026).
+///
+/// registry-metadata: which keyword is dispatch and which is introspection is
+/// our classification.  (`my`, `next`, `nextto`, `self`, and `link` are all
+/// real tclsh 8.6/9.0 `TclOO` commands.)
+#[test]
+fn tcloo_dispatch_keyword_membership() {
+    let reg = registry_for_dialect("tcl8.6");
+    assert_eq!(
+        reg.method_dispatch_keyword("my"),
+        Some(MethodDispatchKind::SelfDispatch)
+    );
+    assert_eq!(
+        reg.method_dispatch_keyword("next"),
+        Some(MethodDispatchKind::NextChain)
+    );
+    assert_eq!(
+        reg.method_dispatch_keyword("nextto"),
+        Some(MethodDispatchKind::NextChain)
+    );
+    assert_eq!(
+        reg.method_dispatch_keyword("self"),
+        Some(MethodDispatchKind::Introspection)
+    );
+    // A leading `::` resolves to the bare name — consumers used to match
+    // `"my" | "::my"` by hand.
+    assert_eq!(
+        reg.method_dispatch_keyword("::my"),
+        Some(MethodDispatchKind::SelfDispatch)
+    );
+    for negative in ["puts", "set", "link", "proc", "oo::define"] {
+        assert_eq!(
+            reg.method_dispatch_keyword(negative),
+            None,
+            "{negative} is not a method-dispatch keyword"
+        );
+    }
+    // The trait-carrying spec set and the query agree, in both directions.
+    let mut carriers: Vec<&str> = reg
+        .commands_with_trait(Traits::TCLOO_SELF_DISPATCH)
+        .into_iter()
+        .chain(reg.commands_with_trait(Traits::TCLOO_NEXT_CHAIN))
+        .chain(reg.commands_with_trait(Traits::TCLOO_INTROSPECTION))
+        .collect();
+    carriers.sort_unstable();
+    assert_eq!(carriers, ["my", "next", "nextto", "self"]);
+    for name in carriers {
+        assert!(
+            reg.method_dispatch_keyword(name).is_some(),
+            "{name} carries a dispatch trait so the query must answer for it"
+        );
+    }
+}
+
+/// All four keywords are `TCL86_PLUS`, so a pre-8.6 dialect registry answers
+/// `None` — dialect-awareness comes from the registry instance, never from a
+/// per-consumer version check.
+///
+/// tclsh: `TclOO` shipped with 8.6; `my` / `next` / `self` do not exist in
+/// 8.4 or 8.5.
+#[test]
+fn tcloo_dispatch_keywords_are_absent_before_86() {
+    for dialect in ["tcl8.4", "tcl8.5"] {
+        let reg = registry_for_dialect(dialect);
+        for keyword in ["my", "next", "nextto", "self"] {
+            assert_eq!(
+                reg.method_dispatch_keyword(keyword),
+                None,
+                "{keyword} must not resolve under {dialect}"
+            );
+        }
+    }
+    // …and still resolves under 9.0.
+    let reg = registry_for_dialect("tcl9.0");
+    assert_eq!(
+        reg.method_dispatch_keyword("my"),
+        Some(MethodDispatchKind::SelfDispatch)
+    );
+}
+
+/// The `Tcl_ConcatObj` eval family: every command whose trailing words after
+/// the first `ArgRole::Body` argument are part of the script it evaluates.
+///
+/// tclsh8.6.14 / tclsh9.0.4: `eval set l2 hello` sets `l2` to `hello`;
+/// `namespace eval ::n set l2 hello` sets `::n::l2`; `interp eval i {set y} 7`
+/// sets `y` to `7` in the child.  `catch` and `apply` take a single bounded
+/// script/lambda argument (`apply {{} {set q 1}} extra` errors "wrong # args"),
+/// so both stay out.
+#[test]
+fn script_concat_family_membership() {
+    let (reg, ds) = reg_and_set("tcl8.6");
+    for name in ["eval", "uplevel"] {
+        assert!(
+            reg.get_for_dialect(name, ds)
+                .expect("registered")
+                .traits
+                .contains(Traits::SCRIPT_CONCATENATES_ARGS),
+            "{name} concatenates its script words"
+        );
+    }
+    let ns = reg.get_for_dialect("namespace", ds).expect("namespace");
+    for sub in ["eval", "inscope"] {
+        assert!(
+            ns.subcommand(sub)
+                .expect("modelled")
+                .traits
+                .contains(Traits::SCRIPT_CONCATENATES_ARGS),
+            "namespace {sub} concatenates its script words"
+        );
+    }
+    assert!(
+        reg.get_for_dialect("interp", ds)
+            .expect("interp")
+            .subcommand("eval")
+            .expect("interp eval modelled")
+            .traits
+            .contains(Traits::SCRIPT_CONCATENATES_ARGS)
+    );
+    for negative in ["catch", "apply", "subst", "if"] {
+        assert!(
+            !reg.get_for_dialect(negative, ds)
+                .expect("registered")
+                .traits
+                .contains(Traits::SCRIPT_CONCATENATES_ARGS),
+            "{negative} takes a bounded script argument, not a concatenated tail"
+        );
+    }
+}
+
+/// `namespace inscope` is the one family member whose trailing words are
+/// appended as **list elements** rather than space-joined, so it carries the
+/// refinement trait and nothing else does.
+///
+/// tclsh8.6.14 / tclsh9.0.4: `namespace inscope :: {puts} {a b}` prints
+/// `a b` (one argument), while `namespace eval :: {puts} {a b}` errors
+/// "can not find channel named "a"".
+#[test]
+fn script_append_list_refinement_is_inscope_only() {
+    let (reg, ds) = reg_and_set("tcl8.6");
+    let ns = reg.get_for_dialect("namespace", ds).expect("namespace");
+    let refined = reg.subcommands_with_trait("namespace", Traits::SCRIPT_APPENDS_LIST_ARGS);
+    assert_eq!(refined, ["inscope"]);
+    assert!(
+        !ns.subcommand("eval")
+            .expect("modelled")
+            .traits
+            .contains(Traits::SCRIPT_APPENDS_LIST_ARGS),
+        "namespace eval space-joins its tail"
+    );
+    for name in ["eval", "uplevel"] {
+        assert!(
+            !reg.get_for_dialect(name, ds)
+                .expect("registered")
+                .traits
+                .contains(Traits::SCRIPT_APPENDS_LIST_ARGS)
+        );
+    }
 }
