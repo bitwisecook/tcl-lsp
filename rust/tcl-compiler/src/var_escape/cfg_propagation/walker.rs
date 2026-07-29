@@ -179,10 +179,15 @@ fn handle_eval(args: &[String], state: &mut CfgState, defs: &HashMap<String, Ver
         state.mark_pessimistic();
         return;
     }
+    // [`scan_word`], not `scan_script`: this scan over-approximates on
+    // purpose — every name the body text mentions escapes, whether or not
+    // Tcl substitutes it at *this* level. A brace-quoted word (`eval {if
+    // {$x > 1} {...}}`) is re-parsed and substituted when the inner command
+    // runs, so its names escape too. See `var_escape::walker::handle_eval`.
     let registry = tcl_registry::CommandRegistry::build_default();
     let mut scanner =
         crate::var_refs::VarReferenceScanner::new(crate::var_refs::VarScanOptions::default());
-    for ref_ in scanner.scan_script(&body, &registry) {
+    for ref_ in scanner.scan_word(&body, &registry) {
         state.escape(&ref_, defs);
     }
     let sub_module = crate::lowering::lower_to_ir(&body, &registry);
@@ -203,10 +208,12 @@ fn handle_catch(args: &[String], state: &mut CfgState, defs: &HashMap<String, Ve
     if is_dynamic_token(body) {
         return;
     }
+    // [`scan_word`] for the same over-approximation reason as `handle_eval`:
+    // a brace-quoted word inside the caught body still escapes its names.
     let registry = tcl_registry::CommandRegistry::build_default();
     let mut scanner =
         crate::var_refs::VarReferenceScanner::new(crate::var_refs::VarScanOptions::default());
-    for ref_ in scanner.scan_script(body, &registry) {
+    for ref_ in scanner.scan_word(body, &registry) {
         state.escape(&ref_, defs);
     }
     let sub_module = crate::lowering::lower_to_ir(body, &registry);
@@ -772,6 +779,43 @@ mod tests {
         let r = analyse("set x 1");
         assert!(!r.dynamic_barrier());
         assert!(r.name_tags.is_empty());
+    }
+
+    /// An `eval` body that mentions any variable takes the pessimistic
+    /// path, which is what accounts for names Tcl does not substitute at
+    /// this level — a brace-quoted `if` condition among them.
+    ///
+    /// Driven through the handler directly because lowering relaxes a
+    /// static-body `eval` into structured IR, so no opaque call reaches it
+    /// from [`analyse`]. This is the fallback for every body lowering
+    /// declines to relax.
+    ///
+    /// The pre-scan below the guard uses the over-approximating `scan_word`
+    /// mode, but `is_dynamic_token` fires on any `$` or `[` — which is every
+    /// body the scan could find a reference in — so the mode is unobservable
+    /// here today and the guard carries the soundness. It is written the
+    /// over-approximating way so that narrowing the guard cannot silently
+    /// open a hole; the mode contract itself is pinned by `var_refs`'
+    /// `scan_word_finds_a_var_inside_braces_within_a_value_body`.
+    ///
+    /// `handle_catch`'s dynamic branch deliberately records nothing here —
+    /// its doc states the caller's own call-fallback covers a non-literal
+    /// body — so its contract does not hold at this level and is not
+    /// asserted.
+    #[test]
+    fn an_eval_body_mentioning_a_variable_is_pessimistic() {
+        let mut state = CfgState::new(std::iter::empty::<String>());
+        handle_eval(
+            &["if {$x > 1} { set y 2 }".to_string()],
+            &mut state,
+            &HashMap::new(),
+        );
+        assert!(
+            state
+                .flags
+                .contains(crate::var_escape::types::EscapeFlags::DYNAMIC_BARRIER),
+            "a substitution-bearing eval body is pessimistic, which covers every name",
+        );
     }
 
     #[test]

@@ -197,10 +197,25 @@ fn handle_eval(args: &[String], state: &mut EscapeState) {
         return;
     }
     // Cheap scan first — any ``$var`` reference escapes that name.
+    //
+    // Deliberately ``scan_word``, not ``scan_script``: escape analysis wants
+    // *every name the text mentions*, not the names Tcl's own word-splitting
+    // says are substituted at this level. A brace-quoted word inside the body
+    // (`eval {if {$x > 1} {...}}` — the expression is braced) suppresses
+    // substitution here but is re-parsed and substituted when the inner
+    // command runs, so the name really does escape. Missing it would be
+    // unsound in the direction that matters: a variable wrongly believed
+    // frame-local is one the optimiser may keep in a register.
+    //
+    // Note the ``is_dynamic_token`` guard above already takes the pessimistic
+    // path for *any* body containing ``$`` or ``[``, which is every body this
+    // scan could find a reference in — so today the mode is unobservable and
+    // the guard is what carries the soundness. It is written as ``scan_word``
+    // so that narrowing that guard cannot silently reintroduce the hole.
     let registry = tcl_registry::CommandRegistry::build_default();
     let mut scanner =
         crate::var_refs::VarReferenceScanner::new(crate::var_refs::VarScanOptions::default());
-    for ref_ in scanner.scan_script(&body, &registry) {
+    for ref_ in scanner.scan_word(&body, &registry) {
         state.escape_with_reason(
             &ref_,
             EscapeReason::with_detail(
@@ -826,6 +841,36 @@ mod tests {
     fn descends_into_if_body() {
         let s = analyse("if {1} { upvar 1 caller_x x }");
         assert!(s.is_frame("x"));
+    }
+
+    /// A name mentioned only inside a *brace-quoted* word of an `eval` body
+    /// must still escape.
+    ///
+    /// `if`'s condition is brace-quoted, so Tcl's own word-splitting
+    /// suppresses substitution at this level — but the expression is
+    /// re-parsed and `$x` substituted when the inner `if` runs, so `x` is
+    /// genuinely reachable from another frame. Believing it frame-local is
+    /// unsound in the direction that matters: the optimiser may keep such a
+    /// variable in a register.
+    ///
+    /// Today this holds because `is_dynamic_token` sends *any* body
+    /// containing `$` or `[` down the pessimistic barrier path before the
+    /// pre-scan runs — which is why the assertion below is on the barrier as
+    /// well as the name. The pre-scan's own mode (`scan_word`, the
+    /// over-approximating one) is the second line of defence should that
+    /// guard ever be narrowed; the mode contract itself is pinned by
+    /// `var_refs`' `scan_word_finds_a_var_inside_braces_within_a_value_body`.
+    #[test]
+    fn eval_body_escapes_a_name_inside_a_brace_quoted_word() {
+        let s = analyse("eval {if {$x > 1} { set y 2 }}");
+        assert!(
+            s.is_frame("x"),
+            "a brace-quoted expression inside an eval body still escapes its names",
+        );
+        assert!(
+            s.dynamic_barrier(),
+            "and the substitution-bearing body is what makes it pessimistic today",
+        );
     }
 
     #[test]
