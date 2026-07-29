@@ -58,7 +58,7 @@ use crate::compilation_unit::CompilationUnit;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 use crate::tcl_expr_eval::{
-    Env, eval_tcl_expr_with_octal, format_tcl_value, leading_zero_is_octal,
+    Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value, leading_zero_is_octal,
 };
 use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
@@ -220,7 +220,7 @@ fn try_rewrite_assign_expr(
     let env = Env::new();
     let octal = ctx.dialect.and_then(leading_zero_is_octal);
     if !expr_uses_shadowed_mathfunc(expr, procedures)
-        && let Some(val) = eval_tcl_expr_with_octal(expr, &env, octal)
+        && let Some(val) = eval_tcl_expr_with_octal_and_dialect(expr, &env, octal, ctx.dialect)
     {
         let folded = format_tcl_value(&val);
         let original = crate::expr_ast::render_expr(expr);
@@ -334,7 +334,7 @@ fn try_rewrite_expr(
     }
     let octal = ctx.dialect.and_then(leading_zero_is_octal);
     if !super::helpers::expr_simplify::expr_uses_shadowed_mathfunc(expr, procedures)
-        && let Some(val) = eval_tcl_expr_with_octal(expr, &env, octal)
+        && let Some(val) = eval_tcl_expr_with_octal_and_dialect(expr, &env, octal, ctx.dialect)
     {
         let folded = format_tcl_value(&val);
         // Compare against the original body text slice when it is

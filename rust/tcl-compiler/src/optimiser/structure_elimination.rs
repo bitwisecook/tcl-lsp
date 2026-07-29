@@ -49,7 +49,9 @@ use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Script, Statement, SwitchArm, SwitchMode};
 use crate::naming::normalise_var_name;
-use crate::tcl_expr_eval::{Env, EnvValue, eval_tcl_expr_with_octal, leading_zero_is_octal};
+use crate::tcl_expr_eval::{
+    Env, EnvValue, eval_tcl_expr_with_octal_and_dialect, leading_zero_is_octal,
+};
 
 use super::helpers::literals::is_plain_literal;
 use super::helpers::spans::full_rewrite_span;
@@ -186,9 +188,12 @@ fn visit_while(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u3
     else {
         return;
     };
-    if let Some(val) =
-        eval_tcl_expr_with_octal(condition, env, ctx.dialect.and_then(leading_zero_is_octal))
-        && !val.is_truthy()
+    if let Some(val) = eval_tcl_expr_with_octal_and_dialect(
+        condition,
+        env,
+        ctx.dialect.and_then(leading_zero_is_octal),
+        ctx.dialect,
+    ) && !val.is_truthy()
     {
         ctx.report(Optimisation::new(
             DiagCode::O112,
@@ -213,9 +218,12 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32)
     else {
         return;
     };
-    if let Some(val) =
-        eval_tcl_expr_with_octal(condition, env, ctx.dialect.and_then(leading_zero_is_octal))
-        && !val.is_truthy()
+    if let Some(val) = eval_tcl_expr_with_octal_and_dialect(
+        condition,
+        env,
+        ctx.dialect.and_then(leading_zero_is_octal),
+        ctx.dialect,
+    ) && !val.is_truthy()
     {
         if init.statements.is_empty() {
             ctx.report(Optimisation::new(
@@ -286,7 +294,9 @@ fn try_eliminate_if(
 ) {
     let octal = ctx.dialect.and_then(leading_zero_is_octal);
     for clause in clauses {
-        let Some(val) = eval_tcl_expr_with_octal(&clause.condition, env, octal) else {
+        let Some(val) =
+            eval_tcl_expr_with_octal_and_dialect(&clause.condition, env, octal, ctx.dialect)
+        else {
             return;
         };
         if val.is_truthy() {
