@@ -2675,6 +2675,44 @@ struct RenameContext<'a> {
     registry: &'a CommandRegistry,
 }
 
+/// The workspace facts one pure-consumer method scan needs, resolved under a
+/// single index read by [`Backend::consumer_scan_plan`].
+struct ConsumerScan {
+    /// Qualified names of every class whose instances dispatch the method to
+    /// the family — the override-family definers plus the pure inheritors.
+    family: Vec<String>,
+    /// Candidate consumer documents: those invoking a family constructor.
+    consumer_uris: Vec<String>,
+    /// Class names valid as a bare classmethod-dispatch head; empty for an
+    /// instance method.  See [`Backend::classmethod_dispatch_names`].
+    classmethod_cmd_names: Vec<String>,
+}
+
+/// The family classes one document declares: the **definers** that (re)define
+/// the method and the pure **inheritors** that only inherit it.
+#[derive(Default)]
+struct FamilyClasses {
+    definers: Vec<String>,
+    inheritors: Vec<String>,
+}
+
+/// A method's override family grouped by declaring document, plus the class
+/// names valid as a bare classmethod-dispatch head.  See
+/// [`Backend::method_family_by_document`].
+struct MethodFamily {
+    by_uri: Vec<(String, FamilyClasses)>,
+    classmethod_cmd_names: Vec<String>,
+}
+
+/// One document a consumer scan visits, with the text and index needed to
+/// lift its spans to LSP ranges.
+struct ConsumerDoc {
+    uri: Uri,
+    text: String,
+    dialect: String,
+    line_index: tcl_lexer::LineIndex,
+}
+
 impl Backend {
     /// Build a fresh backend wrapping the given client.
     ///
@@ -4717,112 +4755,257 @@ impl Backend {
         method: &str,
         is_classmethod: bool,
     ) -> Vec<Location> {
-        // The family + inheritor classes whose instances dispatch `method` to
-        // the family, the workspace class oracle, and the candidate consumer
-        // documents — collected under one index read.
-        //
-        // `classmethod_cmd_names` carries the workspace-wide answer to "given
-        // `is_classmethod` is true, which class names bare-dispatch it" — a
-        // pure-consumer document (e.g. one that only calls `Factory make`)
-        // has no local `ClassDef` for `Factory`, so
-        // `core_references::obj_method_call_sites` cannot derive this itself
-        // the way the same-document path does.
-        let (family, consumer_uris, classmethod_cmd_names) = {
-            let index = self.workspace_index.read().await;
-            let definers = index.method_override_family(seed_class, method);
-            let inheritors = index.method_inheritor_classes(seed_class, method);
-            let classmethod_cmd_names = Self::classmethod_dispatch_names(
-                &definers,
-                &inheritors,
-                is_classmethod,
-                current_dialect,
-            );
-            let mut family: Vec<String> = definers
-                .iter()
-                .map(|wc| wc.qualified_name.clone())
-                .collect();
-            family.extend(inheritors.iter().map(|wc| wc.qualified_name.clone()));
-            if family.is_empty() {
-                return Vec::new();
-            }
-            let family_norm: std::collections::HashSet<&str> =
-                family.iter().map(|s| s.trim_start_matches("::")).collect();
-            let consumer_uris = index.documents_invoking_classes(&family_norm);
-            (family, consumer_uris, classmethod_cmd_names)
+        self.consumer_method_site_ranges(
+            current_uri,
+            current_source,
+            current_dialect,
+            seed_class,
+            method,
+            is_classmethod,
+        )
+        .await
+        .into_iter()
+        .flat_map(|(uri, ranges)| {
+            ranges.into_iter().map(move |range| Location {
+                uri: uri.clone(),
+                range,
+            })
+        })
+        .collect()
+    }
+
+    /// The pure-consumer `$obj method` / bare classmethod-dispatch sites of
+    /// `(seed_class, method)`, grouped per document as LSP ranges.
+    ///
+    /// The one resolver behind **both** the consumer leg of Find All
+    /// References ([`Self::cross_file_consumer_method_references`]) and the
+    /// consumer leg of rename ([`Self::cross_file_method_rename`]).  They
+    /// must agree site-for-site: a site references sees but rename misses is
+    /// a call left bound to a name that no longer exists (issue #993), so
+    /// the two never re-derive the set independently.
+    async fn consumer_method_site_ranges(
+        &self,
+        current_uri: &Uri,
+        current_source: &str,
+        current_dialect: &str,
+        seed_class: &str,
+        method: &str,
+        is_classmethod: bool,
+    ) -> Vec<(Uri, Vec<Range>)> {
+        let Some(plan) = self
+            .consumer_scan_plan(current_dialect, seed_class, method, is_classmethod)
+            .await
+        else {
+            return Vec::new();
         };
-        let mut out = Vec::new();
+        let mut out: Vec<(Uri, Vec<Range>)> = Vec::new();
         let mut scanned: std::collections::HashSet<String> = std::collections::HashSet::new();
-        for u in consumer_uris
-            .into_iter()
+        for u in plan
+            .consumer_uris
+            .iter()
+            .cloned()
             .chain(std::iter::once(current_uri.as_str().to_owned()))
         {
             if !scanned.insert(u.clone()) {
                 continue;
             }
-            let (parsed, source, dialect, line_index, text) = if u == current_uri.as_str() {
-                let li = tcl_lexer::LineIndex::new(current_source);
-                (
-                    current_uri.clone(),
-                    current_source.to_owned(),
-                    current_dialect.to_owned(),
-                    li,
-                    current_source.to_owned(),
-                )
+            let doc = if u == current_uri.as_str() {
+                ConsumerDoc {
+                    uri: current_uri.clone(),
+                    text: current_source.to_owned(),
+                    dialect: current_dialect.to_owned(),
+                    line_index: tcl_lexer::LineIndex::new(current_source),
+                }
             } else {
                 let Ok(parsed) = Uri::from_str(&u) else {
                     continue;
                 };
-                let Some(doc) = self.read_document(&parsed).await else {
+                let Some(state) = self.read_document(&parsed).await else {
                     continue;
                 };
-                (
-                    parsed,
-                    doc.text.clone(),
-                    doc.dialect.clone(),
-                    doc.line_index.clone(),
-                    doc.text.clone(),
-                )
-            };
-            let analysis = self.analyse_with_workspace_classes(&source, &dialect).await;
-            let family_cl = family.clone();
-            let method_owned = method.to_owned();
-            let classmethod_cmd_names_cl = classmethod_cmd_names.clone();
-            let spans: Vec<tcl_lexer::Span> = tokio::task::spawn_blocking(move || {
-                let mut all: Vec<tcl_lexer::Span> = Vec::new();
-                for cq in &family_cl {
-                    all.extend(core_references::obj_method_call_sites(
-                        &source,
-                        &dialect,
-                        &analysis,
-                        cq,
-                        &method_owned,
-                        is_classmethod,
-                        &classmethod_cmd_names_cl,
-                    ));
+                ConsumerDoc {
+                    uri: parsed,
+                    text: state.text.clone(),
+                    dialect: state.dialect.clone(),
+                    line_index: state.line_index.clone(),
                 }
-                all
-            })
-            .await
-            .unwrap_or_default();
-            for span in spans {
-                let start = line_index.position_at_utf16(span.start(), &text);
-                let end = line_index.position_at_utf16(span.end(), &text);
-                out.push(Location {
-                    uri: parsed.clone(),
-                    range: Range {
-                        start: Position {
-                            line: start.line,
-                            character: start.character.get(),
-                        },
-                        end: Position {
-                            line: end.line,
-                            character: end.character.get(),
-                        },
-                    },
-                });
+            };
+            let ranges = self
+                .consumer_ranges_in_document(&doc, &plan, method, is_classmethod)
+                .await;
+            if !ranges.is_empty() {
+                out.push((doc.uri, ranges));
             }
         }
         out
+    }
+
+    /// The family classes, candidate consumer documents, and classmethod
+    /// dispatch heads for `(seed_class, method)` — one index read.  `None`
+    /// when the family is empty (the class isn't indexed yet), which means
+    /// there is nothing for a consumer scan to match against.
+    ///
+    /// `classmethod_cmd_names` carries the workspace-wide answer to "given
+    /// `is_classmethod` is true, which class names bare-dispatch it" — a
+    /// pure-consumer document (e.g. one that only calls `Factory make`) has
+    /// no local `ClassDef` for `Factory`, so
+    /// `core_references::obj_method_call_sites` cannot derive this itself the
+    /// way the same-document path does.
+    async fn consumer_scan_plan(
+        &self,
+        dialect: &str,
+        seed_class: &str,
+        method: &str,
+        is_classmethod: bool,
+    ) -> Option<ConsumerScan> {
+        let index = self.workspace_index.read().await;
+        let definers = index.method_override_family(seed_class, method);
+        let inheritors = index.method_inheritor_classes(seed_class, method);
+        let classmethod_cmd_names =
+            Self::classmethod_dispatch_names(&definers, &inheritors, is_classmethod, dialect);
+        let mut family: Vec<String> = definers
+            .iter()
+            .map(|wc| wc.qualified_name.clone())
+            .collect();
+        family.extend(inheritors.iter().map(|wc| wc.qualified_name.clone()));
+        if family.is_empty() {
+            return None;
+        }
+        family.sort();
+        family.dedup();
+        let family_norm: std::collections::HashSet<&str> =
+            family.iter().map(|s| s.trim_start_matches("::")).collect();
+        // The index answers with a `HashSet`; sort so the per-document scan
+        // order (and so the emitted edit / location order) does not ride on
+        // hash iteration order.
+        let mut consumer_uris: Vec<String> = index
+            .documents_invoking_classes(&family_norm)
+            .into_iter()
+            .collect();
+        consumer_uris.sort();
+        drop(index);
+        Some(ConsumerScan {
+            family,
+            consumer_uris,
+            classmethod_cmd_names,
+        })
+    }
+
+    /// The consumer call-site ranges of `method` within one document, scanned
+    /// against an analysis carrying the workspace class oracle so a
+    /// constructor whose class lives in another file still types `$obj`.
+    async fn consumer_ranges_in_document(
+        &self,
+        doc: &ConsumerDoc,
+        plan: &ConsumerScan,
+        method: &str,
+        is_classmethod: bool,
+    ) -> Vec<Range> {
+        let analysis = self
+            .analyse_with_workspace_classes(&doc.text, &doc.dialect)
+            .await;
+        let source = doc.text.clone();
+        let dialect = doc.dialect.clone();
+        let family = plan.family.clone();
+        let method_owned = method.to_owned();
+        let classmethod_cmd_names = plan.classmethod_cmd_names.clone();
+        let spans: Vec<tcl_lexer::Span> = tokio::task::spawn_blocking(move || {
+            let mut all: Vec<tcl_lexer::Span> = Vec::new();
+            for cq in &family {
+                all.extend(core_references::obj_method_call_sites(
+                    &source,
+                    &dialect,
+                    &analysis,
+                    cq,
+                    &method_owned,
+                    is_classmethod,
+                    &classmethod_cmd_names,
+                ));
+            }
+            all
+        })
+        .await
+        .unwrap_or_default();
+        let mut ranges: Vec<Range> = spans
+            .into_iter()
+            .map(|span| {
+                let start = doc.line_index.position_at_utf16(span.start(), &doc.text);
+                let end = doc.line_index.position_at_utf16(span.end(), &doc.text);
+                Range {
+                    start: Position {
+                        line: start.line,
+                        character: start.character.get(),
+                    },
+                    end: Position {
+                        line: end.line,
+                        character: end.character.get(),
+                    },
+                }
+            })
+            .collect();
+        // Stable order regardless of which family class matched a site first,
+        // so a rename's edit list and the reference peek's location list are
+        // reproducible across runs.
+        ranges.sort_by_key(|r| (r.start.line, r.start.character, r.end.line, r.end.character));
+        ranges.dedup();
+        ranges
+    }
+
+    /// The override-family classes of `(seed_class, method)` grouped by the
+    /// document that declares them: per URI, the **definers** (whose
+    /// declaration + call sites participate) and the pure **inheritors**
+    /// (whose `my method` / `$obj method` sites participate, but which
+    /// declare no copy of the method).  A document may contribute either or
+    /// both.  Sorted by URI so the visit order — and so the order sites are
+    /// emitted in — never rides on hash iteration order.
+    ///
+    /// `classmethod_cmd_names`: see [`Self::classmethod_dispatch_names`] — a
+    /// pure-inheritor document's own `all_classes` never lists the definer's
+    /// `class_methods`, so it cannot tell a classmethod's bare dispatch heads
+    /// apart from any other bare word without this.
+    ///
+    /// Shared by rename ([`Self::cross_file_method_rename`]) and references
+    /// ([`Self::cross_file_method_references`]) so the two resolve the same
+    /// family from the same index read.
+    async fn method_family_by_document(
+        &self,
+        dialect: &str,
+        seed_class: &str,
+        method: &str,
+        is_classmethod: bool,
+    ) -> MethodFamily {
+        let index = self.workspace_index.read().await;
+        let definers = index.method_override_family(seed_class, method);
+        let inheritors = index.method_inheritor_classes(seed_class, method);
+        let classmethod_cmd_names =
+            Self::classmethod_dispatch_names(&definers, &inheritors, is_classmethod, dialect);
+        let mut by_uri: std::collections::BTreeMap<String, FamilyClasses> =
+            std::collections::BTreeMap::new();
+        for wc in definers {
+            by_uri
+                .entry(wc.uri.clone())
+                .or_default()
+                .definers
+                .push(wc.qualified_name.clone());
+        }
+        for wc in inheritors {
+            by_uri
+                .entry(wc.uri.clone())
+                .or_default()
+                .inheritors
+                .push(wc.qualified_name.clone());
+        }
+        for classes in by_uri.values_mut() {
+            classes.definers.sort();
+            classes.definers.dedup();
+            classes.inheritors.sort();
+            classes.inheritors.dedup();
+        }
+        drop(index);
+        MethodFamily {
+            by_uri: by_uri.into_iter().collect(),
+            classmethod_cmd_names,
+        }
     }
 
     /// Cross-file rename of a `TclOO` method across its override family.
@@ -4836,57 +5019,39 @@ impl Backend {
     /// indexed yet, so the caller can fall back to the single-document
     /// path).
     ///
-    /// Coverage is bounded by the analyser's single-document instance
-    /// tracking: a `$obj method` site is only rewritten in a document the
-    /// index knows defines or inherits the family class (the same constraint
-    /// under which the site is resolvable at all), so no unresolved site is
-    /// silently left pointing at the old name that the analysis could have
-    /// caught.  Documents holding a purely-inheriting subclass (a family
-    /// member's descendant that doesn't override the method) are visited too,
-    /// so their `my method` / `$obj method` sites are not missed just because
-    /// the subclass lives in a different file from the definer.
+    /// Documents holding a purely-inheriting subclass (a family member's
+    /// descendant that doesn't override the method) are visited too, so their
+    /// `my method` / `$obj method` sites are not missed just because the
+    /// subclass lives in a different file from the definer.  **Pure-consumer**
+    /// documents — ones that neither define nor extend any family class and
+    /// only call `$obj method` / `Class method` — are covered by the same
+    /// resolver Find All References uses ([`Self::consumer_method_site_ranges`],
+    /// issue #993); leaving them out rewrote the declaration while the consumer
+    /// kept calling a name that no longer existed.
     async fn cross_file_method_rename(
         &self,
+        current_uri: &Uri,
+        current_doc: &DocumentState,
         seed_class: &str,
         method: &str,
         new_name: &str,
         is_classmethod: bool,
-        dialect: &str,
     ) -> std::collections::HashMap<Uri, Vec<TextEdit>> {
+        let dialect = current_doc.dialect.as_str();
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
-        // Classes grouped by document: the override-family definers (whose
-        // declaration + call sites rename) and the pure inheritors (whose
-        // `my method` / `$obj method` sites rename, but which declare no copy
-        // of the method).  A document may contribute either or both.
-        //
-        // `classmethod_cmd_names`: see [`Self::classmethod_dispatch_names`] —
-        // a pure-inheritor document's own `all_classes` never lists the
-        // definer's `class_methods`, so it cannot tell a classmethod's bare
-        // dispatch heads apart from any other bare word without this.
-        let (by_uri, classmethod_cmd_names) = {
-            let index = self.workspace_index.read().await;
-            let definers = index.method_override_family(seed_class, method);
-            let inheritors = index.method_inheritor_classes(seed_class, method);
-            let classmethod_cmd_names =
-                Self::classmethod_dispatch_names(&definers, &inheritors, is_classmethod, dialect);
-            let mut m: std::collections::HashMap<String, (Vec<String>, Vec<String>)> =
-                std::collections::HashMap::new();
-            for wc in definers {
-                m.entry(wc.uri.clone())
-                    .or_default()
-                    .0
-                    .push(wc.qualified_name.clone());
-            }
-            for wc in inheritors {
-                m.entry(wc.uri.clone())
-                    .or_default()
-                    .1
-                    .push(wc.qualified_name.clone());
-            }
-            (m, classmethod_cmd_names)
-        };
-        for (u, (definers, inheritors)) in by_uri {
+        let family = self
+            .method_family_by_document(dialect, seed_class, method, is_classmethod)
+            .await;
+        let classmethod_cmd_names = family.classmethod_cmd_names;
+        for (
+            u,
+            FamilyClasses {
+                definers,
+                inheritors,
+            },
+        ) in family.by_uri
+        {
             let Ok(parsed) = Uri::from_str(&u) else {
                 continue;
             };
@@ -4930,26 +5095,38 @@ impl Backend {
             if spans.is_empty() {
                 continue;
             }
-            let line_index = target_doc.line_index.clone();
-            let bucket = changes.entry(parsed).or_default();
-            for span in spans {
-                let start = line_index.position_at_utf16(span.start(), &target_doc.text);
-                let end = line_index.position_at_utf16(span.end(), &target_doc.text);
-                let edit = TextEdit {
-                    range: Range {
-                        start: Position {
-                            line: start.line,
-                            character: start.character.get(),
-                        },
-                        end: Position {
-                            line: end.line,
-                            character: end.character.get(),
-                        },
-                    },
-                    new_text: new_name.to_owned(),
-                };
-                if !bucket.iter().any(|e| e.range == edit.range) {
-                    bucket.push(edit);
+            merge_span_edits(
+                changes.entry(parsed).or_default(),
+                spans,
+                &target_doc.line_index,
+                &target_doc.text,
+                new_name,
+            );
+        }
+        // The consumer leg (issue #993): documents that only *call* the
+        // method.  Same resolver as the references path, so what Find All
+        // References reports as a call site is exactly what rename rewrites.
+        // A document already visited above contributes here too (its own
+        // `$obj method` sites may resolve only through the workspace class
+        // oracle); the per-range guard keeps the edit set duplicate-free.
+        let consumer = self
+            .consumer_method_site_ranges(
+                current_uri,
+                &current_doc.text,
+                dialect,
+                seed_class,
+                method,
+                is_classmethod,
+            )
+            .await;
+        for (uri, ranges) in consumer {
+            let bucket = changes.entry(uri).or_default();
+            for range in ranges {
+                if !bucket.iter().any(|e| e.range == range) {
+                    bucket.push(TextEdit {
+                        range,
+                        new_text: new_name.to_owned(),
+                    });
                 }
             }
         }
@@ -4977,30 +5154,19 @@ impl Backend {
         is_classmethod: bool,
         dialect: &str,
     ) -> Vec<Location> {
-        let (by_uri, classmethod_cmd_names) = {
-            let index = self.workspace_index.read().await;
-            let definers = index.method_override_family(seed_class, method);
-            let inheritors = index.method_inheritor_classes(seed_class, method);
-            let classmethod_cmd_names =
-                Self::classmethod_dispatch_names(&definers, &inheritors, is_classmethod, dialect);
-            let mut m: std::collections::HashMap<String, (Vec<String>, Vec<String>)> =
-                std::collections::HashMap::new();
-            for wc in definers {
-                m.entry(wc.uri.clone())
-                    .or_default()
-                    .0
-                    .push(wc.qualified_name.clone());
-            }
-            for wc in inheritors {
-                m.entry(wc.uri.clone())
-                    .or_default()
-                    .1
-                    .push(wc.qualified_name.clone());
-            }
-            (m, classmethod_cmd_names)
-        };
+        let family = self
+            .method_family_by_document(dialect, seed_class, method, is_classmethod)
+            .await;
+        let classmethod_cmd_names = family.classmethod_cmd_names;
         let mut out = Vec::new();
-        for (u, (definers, inheritors)) in by_uri {
+        for (
+            u,
+            FamilyClasses {
+                definers,
+                inheritors,
+            },
+        ) in family.by_uri
+        {
             if u == current_uri.as_str() {
                 continue;
             }
@@ -10363,11 +10529,12 @@ impl LanguageServer for Backend {
         {
             let changes = self
                 .cross_file_method_rename(
+                    &uri,
+                    &doc,
                     &seed_class,
                     &method,
                     &new_name,
                     is_classmethod,
-                    &doc.dialect,
                 )
                 .await;
             if !changes.is_empty() {
@@ -10756,6 +10923,38 @@ fn lift_lsp_range(r: CoreLspRange) -> Range {
             line: r.end_line,
             character: r.end_character,
         },
+    }
+}
+
+/// Lift `spans` (byte offsets into `text`) to LSP ranges and append each as a
+/// `new_name` rename edit to `bucket`, skipping any range already there — two
+/// family classes in one document can report the same site.
+fn merge_span_edits(
+    bucket: &mut Vec<TextEdit>,
+    spans: Vec<tcl_lexer::Span>,
+    line_index: &tcl_lexer::LineIndex,
+    text: &str,
+    new_name: &str,
+) {
+    for span in spans {
+        let start = line_index.position_at_utf16(span.start(), text);
+        let end = line_index.position_at_utf16(span.end(), text);
+        let range = Range {
+            start: Position {
+                line: start.line,
+                character: start.character.get(),
+            },
+            end: Position {
+                line: end.line,
+                character: end.character.get(),
+            },
+        };
+        if !bucket.iter().any(|e| e.range == range) {
+            bucket.push(TextEdit {
+                range,
+                new_text: new_name.to_owned(),
+            });
+        }
     }
 }
 

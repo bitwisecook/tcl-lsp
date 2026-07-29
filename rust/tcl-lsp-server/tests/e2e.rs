@@ -91,6 +91,8 @@ mod signature_help;
 mod structure;
 #[path = "e2e/tcl91.rs"]
 mod tcl91;
+#[path = "e2e/tcloo_navigation.rs"]
+mod tcloo_navigation;
 #[path = "e2e/tk_dialect.rs"]
 mod tk_dialect;
 #[path = "e2e/unicode_positions.rs"]
