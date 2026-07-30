@@ -87,7 +87,10 @@ pub fn spec() -> CommandSpec {
         // deletes the command outright) and errors when `oldName` doesn't
         // exist — the property the W302 fire-and-forget suppression
         // (`catch {rename foo ""}`) keys off.
-        traits: Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD | Traits::FIRE_AND_FORGET_TEARDOWN,
+        traits: Traits::BYTE_COMPILED
+            | Traits::LANGUAGE_KEYWORD
+            | Traits::INSTALLS_NAMED_DEFINITION
+            | Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::exact(2),
         arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Name)],
         return_type: Some(TclType::String),
