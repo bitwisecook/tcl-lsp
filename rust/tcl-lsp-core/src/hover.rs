@@ -453,7 +453,7 @@ pub fn hover_with_profile(
         crate::definition::instance_method_at_cursor(source, line, character)
         && let Some(class_q) =
             crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
-        && let Some(text) = obj_method_hover_text(analysis, class_q, &method, registry)
+        && let Some(text) = obj_method_hover_text(analysis, class_q, &method, true, registry)
     {
         return Some(Hover::markdown(text));
     }
@@ -475,7 +475,7 @@ pub fn hover_with_profile(
         crate::definition::instance_method_at_cursor(source, line, character)
         && crate::definition::is_self_dispatch_keyword(&inst)
         && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor_offset)
-        && let Some(text) = obj_method_hover_text(analysis, class_q, &method, registry)
+        && let Some(text) = obj_method_hover_text(analysis, class_q, &method, false, registry)
     {
         return Some(Hover::markdown(text));
     }
@@ -623,6 +623,18 @@ fn builtin_command_hover_text(
         (Cow::Owned(qual), spec)
     };
     let name = name.as_ref();
+    // A command whose *bare* spelling only resolves inside a `TclOO` method
+    // context (`link` / `my` / `next` / `nextto` / `self` / `classvariable`
+    // — issue #1026) has no hover anywhere else: at the top level real Tcl
+    // answers `invalid command name`, so there is nothing to describe.
+    // Registry data decides which commands those are; the scope walk
+    // decides where the cursor is. The separately-registered qualified
+    // spelling (`::oo::Helpers::link`) is not scoped and still hovers.
+    if registry.resolves_only_in_method_context(name)
+        && !crate::oo_dispatch::in_oo_method_context(analysis, cursor_offset)
+    {
+        return None;
+    }
     let hover = spec.hover.as_ref()?;
     let mut out = format!("**`{name}`** — built-in command\n");
     if !hover.summary.is_empty() {
@@ -3098,11 +3110,21 @@ fn class_member_hover_text(
     None
 }
 
-/// Hover text for a `$obj method` call — `method` resolved
-/// against the class identified by `class_q`.  Searches
-/// `methods` then `class_methods`, rendering a one-line
-/// summary that names the receiver class plus an MRO note
-/// (inherited-from / overrides).
+/// Hover text for a `$obj method` / `my method` call — `method` resolved
+/// against the class identified by `class_q`, rendering a one-line summary
+/// that names the *providing* class plus an MRO note (inherited-from /
+/// overrides).
+///
+/// Resolution is the shared `TclOO` linearisation walk
+/// ([`crate::oo_dispatch::method_dispatch_provider`]), the same one
+/// go-to-definition and find-references use. It used to be a direct-only
+/// `class_def.methods.get(method)` on the receiver's own class, so a method
+/// reached purely through a `mixin` or a `superclass` — with no local
+/// override — hovered as nothing at all even though go-to-definition
+/// resolved it one line of code away in the same request path (issue #923
+/// idx 34 / 35, and the second half of idx 28). The MRO-aware provider was
+/// already computed in this file, but only to *annotate* a hit the direct
+/// lookup had already found.
 ///
 /// `class_q` may name either a *user*-defined class (`analysis.all_classes`
 /// — `oo::class`/`oo::define`/snit/itcl bodies the analyser parsed) or a
@@ -3111,25 +3133,32 @@ fn class_member_hover_text(
 /// User classes are tried first (richer: params, MRO note); the registry is
 /// the fallback so e.g. `.t instate` still hovers even though `ttk::treeview`
 /// is never a user-defined class.
+///
+/// `external` distinguishes the two dispatch spellings the way
+/// `definition.rs` already does: a `$obj m` / `CLASS m` call sees exported
+/// implementations only, while an internal `my m` also reaches unexported
+/// ones.
 fn obj_method_hover_text(
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
+    external: bool,
     registry: Option<&CommandRegistry>,
 ) -> Option<String> {
-    if let Some(class_def) = analysis.all_classes.get(class_q) {
-        let note = oo_method_resolution_note(analysis, class_q, method);
-        let suffix = note.map_or(String::new(), |n| format!("  \n{n}"));
-        if let Some(m) = class_def.methods.get(method) {
+    if analysis.all_classes.contains_key(class_q) {
+        for (bucket, label) in [
+            (crate::definition::MethodBucket::Instance, "method"),
+            (crate::definition::MethodBucket::Class, "classmethod"),
+        ] {
+            let Some((provider_q, m)) = crate::oo_dispatch::method_dispatch_provider(
+                analysis, class_q, method, external, bucket,
+            ) else {
+                continue;
+            };
+            let suffix = oo_resolution_note_for_provider(analysis, class_q, provider_q, method)
+                .map_or(String::new(), |n| format!("  \n{n}"));
             return Some(format!(
-                "**method** `{class_q}::{name}` ({nparam} param(s)){suffix}",
-                name = m.name,
-                nparam = m.params.len(),
-            ));
-        }
-        if let Some(m) = class_def.class_methods.get(method) {
-            return Some(format!(
-                "**classmethod** `{class_q}::{name}` ({nparam} param(s)){suffix}",
+                "**{label}** `{provider_q}::{name}` ({nparam} param(s)){suffix}",
                 name = m.name,
                 nparam = m.params.len(),
             ));
@@ -3153,12 +3182,30 @@ fn oo_method_resolution_note(
     class_q: &str,
     method: &str,
 ) -> Option<String> {
-    let hierarchy = analysis.class_hierarchy();
-    let provider = hierarchy.method_target(class_q, method)?;
+    let provider = analysis.class_hierarchy().method_target(class_q, method)?;
+    oo_resolution_note_for_provider(analysis, class_q, provider, method)
+}
+
+/// [`oo_method_resolution_note`] for a provider the caller has **already**
+/// resolved — the shared dispatch walk's own answer
+/// ([`crate::oo_dispatch::method_dispatch_provider`]).
+///
+/// Split out so the `$obj m` / `my m` hover renders its note from the very
+/// provider it names in the heading rather than re-deriving one through a
+/// second, differently-filtered lookup (`method_target` applies neither the
+/// visibility rule nor the instance/class-side bucket split). The two can
+/// then never disagree about whether a method is inherited.
+fn oo_resolution_note_for_provider(
+    analysis: &AnalysisResult,
+    class_q: &str,
+    provider: &str,
+    method: &str,
+) -> Option<String> {
     if provider == class_q {
         // Defined here — does a superclass further down the MRO also
         // provide it (i.e. this is an override)?
-        hierarchy
+        analysis
+            .class_hierarchy()
             .next_provider(class_q, method, class_q, None)
             .map(|sup| format!("_overrides `{sup}::{method}`_"))
     } else {

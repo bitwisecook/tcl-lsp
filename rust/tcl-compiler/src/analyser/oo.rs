@@ -406,9 +406,9 @@ impl Analyser {
         // `property -get`/`-set` accessor bodies — walked in a method scope
         // seeded with the class variables.
         let mut accessor_bodies: Vec<CollectedMethodBody> = Vec::new();
-        // `initialise`/`initialize { body }` — a class-level script walked in
-        // the *enclosing* scope (not a method scope).
-        let mut init_bodies: Vec<(String, Token)> = Vec::new();
+        // `initialise`/`initialize { body }` — a class-level script, walked
+        // in a per-class scope of its own (see the walk below).
+        let mut init_bodies: Vec<CollectedMethodBody> = Vec::new();
         for cmd in &cmds {
             if cmd.is_partial || cmd.argv.is_empty() {
                 continue;
@@ -454,10 +454,10 @@ impl Analyser {
                     collect_property_accessor_bodies(texts, argv, &mut accessor_bodies);
                 }
                 Some(kw @ ("initialise" | "initialize")) => {
-                    // A class-level init script: unlike a method, its body (the
-                    // member's grammar `Body` word) is walked in the *enclosing*
-                    // scope, so it is collected here rather than by
-                    // `collect_method_body`.
+                    // A class-level init script. It is *not* collected by
+                    // `collect_method_body` (which is restricted to the four
+                    // real method-bearing members) but it does need its own
+                    // per-class scope — see the `init_bodies` walk below.
                     if let Some(body_idx) = grammar
                         .member(kw)
                         .and_then(|m| m.indices_for(ArgRole::Body).next())
@@ -466,7 +466,13 @@ impl Analyser {
                             (texts.get(body_idx), argv.get(body_idx).copied())
                         && tok.kind == TokenType::Str
                     {
-                        init_bodies.push((body.clone(), tok));
+                        init_bodies.push(CollectedMethodBody {
+                            name: format!("<{kw}>"),
+                            params: Vec::new(),
+                            body_text: body.clone(),
+                            body_tok: tok,
+                            params_tok: None,
+                        });
                     }
                 }
                 _ => {}
@@ -478,9 +484,9 @@ impl Analyser {
         // regardless of *which* method body called `link`).
         self.collect_oo_links(&method_bodies, class_def);
 
-        // Phase 2: walk each method / accessor body in its own `Method` scope
-        // with the formal parameters and the class's instance variables
-        // pre-bound; the `initialise` body walks in the enclosing scope.
+        // Phase 2: walk each method / accessor / class-init body in its own
+        // `Method` scope with the formal parameters and the class's instance
+        // variables pre-bound.
         let class_variables = class_def.variables.clone();
         // Map each declared instance-variable name to its `variable v`
         // declaration name-token span, so the per-method seeding below anchors
@@ -491,6 +497,22 @@ impl Analyser {
         // semantics — see `Scope::oo_global_resolution`); snit / itcl
         // members resolve in the type / class namespace.
         let oo_global = matches!(grammar.family, tcl_registry::definer::DefinerFamily::TclOo);
+        // The class-level `initialise` body runs first and in a scope of its
+        // own, so the class-scoped variables it declares are visible to this
+        // class's own method / accessor bodies below — and to no other
+        // class's (issue #923 idx 36).
+        let mut class_variables = class_variables;
+        let mut var_decl_spans = var_decl_spans;
+        for mb in &init_bodies {
+            for (name, span) in
+                self.walk_class_init_body(&class_variables, &class_qualified, scope_path, mb)
+            {
+                if !class_variables.contains(&name) {
+                    class_variables.push(name.clone());
+                }
+                var_decl_spans.entry(name).or_insert(span);
+            }
+        }
         for mb in method_bodies.iter().chain(accessor_bodies.iter()) {
             self.walk_method_body(
                 &class_variables,
@@ -501,9 +523,102 @@ impl Analyser {
                 oo_global,
             );
         }
-        for (body, tok) in init_bodies {
-            self.analyse_body(&body, tok, scope_path);
+    }
+
+    /// Walk one class-level `initialise` / `initialize` body in a scope
+    /// **keyed on the class**, and report the variables it declared there.
+    ///
+    /// The body is not a method — calling `self` / `classvariable` / `link`
+    /// inside it is a runtime error ("`self` may only be called from inside
+    /// a method", tclsh 9.0.4) — but it does run in a *per-class* frame:
+    /// `namespace current` there is that class object's own namespace
+    /// (`::oo::Obj20` for one class, `::oo::Obj22` for the next), with
+    /// `namespace path` = `::oo::Helpers ::oo`. Walking every sibling
+    /// class's init body in the one shared enclosing scope collided their
+    /// declarations: a `classvariable NAME` read in *any* class's property
+    /// setter then resolved to whichever class came first in the file, and
+    /// find-references merged both classes' declarations into a single
+    /// symbol — a definitive wrong answer on a statically decidable case,
+    /// and one a rename would act on (issue #923 idx 36). tclsh 9.0.4 keeps
+    /// the two independent: two `oo::configurable` classes whose setters
+    /// each check their own `initialize`-declared list correctly reject the
+    /// other's values.
+    ///
+    /// Returned names are seeded into this class's method bodies by the
+    /// caller, which is what makes a setter's `classvariable NAME` read
+    /// reach its own class's declaration. Deliberately unconditional, the
+    /// same approximation the instance-`variable` seeding beside it already
+    /// makes: the analyser does not track which methods actually issued the
+    /// `classvariable` link, so a name declared in the init body is treated
+    /// as visible (defined, never unused-warned) throughout the class.
+    ///
+    /// Walked inline rather than through `deferred_bodies` — a class-level
+    /// init script is not one of the per-item-rebuildable method bodies,
+    /// and this is the same inline walk it always had.
+    fn walk_class_init_body(
+        &mut self,
+        class_variables: &[String],
+        class_qualified: &str,
+        scope_path: &[usize],
+        mb: &CollectedMethodBody,
+    ) -> Vec<(String, Span)> {
+        if mb.body_tok.kind != TokenType::Str {
+            return Vec::new();
         }
+        let init_qn = if class_qualified.is_empty() {
+            mb.name.clone()
+        } else {
+            format!("{class_qualified}::{}", mb.name)
+        };
+        let Some(init_idx) =
+            scope_at_mut(&mut self.result.global_scope, scope_path).map(|parent| {
+                let mut child = Scope::new(ScopeKind::Method, init_qn);
+                child.body_span = Some(mb.body_tok.span);
+                // The object frame resolves bare commands globally, exactly as a
+                // method body's does — `namespace path` is `::oo::Helpers ::oo`
+                // and the class's *defining* namespace is not searched.
+                child.oo_global_resolution = true;
+                parent.children.push(child);
+                parent.children.len() - 1
+            })
+        else {
+            return Vec::new();
+        };
+        let mut init_path = scope_path.to_vec();
+        init_path.push(init_idx);
+        let body_start = mb.body_tok.span.start();
+        for var in class_variables {
+            let base = crate::naming::normalise_var_name(var);
+            if base.is_empty() {
+                continue;
+            }
+            self.define_var(
+                base,
+                mb.body_tok,
+                &init_path,
+                false,
+                Some(Span::new(body_start, body_start)),
+            );
+        }
+        let seeded: std::collections::HashSet<String> = class_variables
+            .iter()
+            .map(|v| crate::naming::normalise_var_name(v).to_string())
+            .collect();
+        self.analyse_body(&mb.body_text, mb.body_tok, &init_path);
+        // Whatever the walk itself recorded in this scope — no second,
+        // name-matching parser here; the registry-driven walk already knows
+        // which words a `variable` / `const` statement declares.
+        super::scope::scope_at(&self.result.global_scope, &init_path).map_or_else(
+            Vec::new,
+            |scope| {
+                scope
+                    .variables
+                    .iter()
+                    .filter(|(name, _)| !seeded.contains(name.as_str()))
+                    .map(|(name, def)| (name.clone(), def.definition_span))
+                    .collect()
+            },
+        )
     }
 
     /// Scan every collected method/constructor/destructor body's own
@@ -539,15 +654,20 @@ impl Analyser {
                 self.lexer_config(),
             );
             for cmd in &cmds {
-                // `link` is deliberately *not* a method-dispatch keyword and
-                // carries none of the `TCLOO_*` traits (issue #1050): it
-                // *creates* per-object bareword commands rather than
-                // dispatching one, so the barewords it installs are per-class
-                // data, not language keywords. Recognising the `link` call
-                // itself is a spec-name match with no behavioural fact behind
-                // it to query — the migration to a registry-modelled member
-                // grammar for `oo::Helpers` is tracked by issue #1026.
-                if cmd.is_partial || cmd.texts.first().map(String::as_str) != Some("link") {
+                // `link` is deliberately *not* a method-dispatch keyword
+                // (issue #1050): it *creates* per-object bareword commands
+                // rather than dispatching one, so the barewords it installs
+                // are per-class data, not language keywords. That creation
+                // is itself a declared behavioural fact —
+                // `Traits::TCLOO_BINDS_METHOD_ALIAS` — so the head is
+                // recognised through the registry rather than by its
+                // spelling (issue #1026); a dialect without `link` (8.5, or
+                // 8.6 with no `ooutil`) therefore records no aliases here.
+                if cmd.is_partial
+                    || !cmd.texts.first().is_some_and(|head| {
+                        self.registry.is_some_and(|r| r.binds_method_alias(head))
+                    })
+                {
                     continue;
                 }
                 for word in cmd.texts.iter().skip(1) {

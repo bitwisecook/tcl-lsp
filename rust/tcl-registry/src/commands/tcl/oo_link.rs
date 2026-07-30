@@ -31,6 +31,21 @@
 //! `ooutil` — a single `TCL86_PLUS`-wide spec would wrongly treat a
 //! bare 8.6 `link` (with no `package require ooutil` anywhere in the
 //! file) as a known, resolvable command.
+//!
+//! Both entries are **method-context-scoped** (issue #1026,
+//! [`Traits::TCLOO_METHOD_CONTEXT`]): `link` lives in `::oo::Helpers`, which
+//! only a method body's namespace path reaches, so a top-level `link foo`
+//! is `invalid command name "link"` and `info commands ::link` is empty
+//! (tclsh 9.0.4). That holds under 8.6-with-`ooutil` too — installing
+//! `::oo::Helpers::link` does not make the bare word callable outside a
+//! method (verified against tclsh 8.6.14 with the package's own
+//! `proc ::oo::Helpers::link` shape in place). The qualified spelling
+//! itself is registered separately by [`super::oo_helpers`].
+//!
+//! [`Traits::TCLOO_BINDS_METHOD_ALIAS`] declares what the call *does* — each
+//! argument word binds a bareword alias for a method of the current object —
+//! so the analyser's class-body walk finds `link` calls through the registry
+//! rather than by spelling.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
@@ -54,7 +69,9 @@ const HOVER: HoverSnippet = HoverSnippet {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "link",
-        traits: Traits::LANGUAGE_KEYWORD,
+        traits: Traits::LANGUAGE_KEYWORD
+            .union(Traits::TCLOO_METHOD_CONTEXT)
+            .union(Traits::TCLOO_BINDS_METHOD_ALIAS),
         dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
@@ -71,7 +88,9 @@ pub fn spec() -> CommandSpec {
 pub fn spec_ooutil_86() -> CommandSpec {
     CommandSpec {
         name: "link",
-        traits: Traits::LANGUAGE_KEYWORD,
+        traits: Traits::LANGUAGE_KEYWORD
+            .union(Traits::TCLOO_METHOD_CONTEXT)
+            .union(Traits::TCLOO_BINDS_METHOD_ALIAS),
         dialects: Some(DialectSet::TCL86),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),

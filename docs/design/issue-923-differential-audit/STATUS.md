@@ -494,6 +494,16 @@ here instead. idx 5, idx 21, idx 45, idx 89, and idx 92 are **PR B1**, the
 command-table-mutation cluster — see the "tier-2 findings fixed by PR B1"
 subsection after the tier-2 table. That makes **44 fixed, 41 remaining**.
 
+**2026-07-30 update — PR B2
+(`claude/commandregistry-compiler-fixes-tshu8d-oo-scoping`) fixed six more,
+all tier 2 — the "MRO / mixin parity across features" cluster (audit C2)
+plus issue #1026's `oo::Helpers` scoping:** idx 28, idx 34, idx 35, idx 36,
+and idx 37 are newly fixed; idx 15 was **re-verified as already fixed** by
+the `self`-wrapper unwrap that landed with PR B3 (#1074) and is pinned with
+a regression test rather than re-fixed. See the "tier-2 findings fixed by
+PR B2" subsection after the tier-2 table. That makes **50 fixed, 35
+remaining**.
+
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
 strings in the raw data — same corpus), tomato 7, pix 8.
@@ -706,7 +716,7 @@ users, a worse failure mode than the narrower, but fully oracle-grounded,
 `CONFIGURE`-tracking fix actually shipped. Left as a documented, low-risk
 follow-up for a session with Tk oracle access.
 
-#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 22 now fixed — 39 remaining), grouped by feature for clustering
+#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 28 now fixed — 33 remaining), grouped by feature for clustering
 
 Group findings sharing a feature/root-cause together in one fix pass the
 way idx 107+115 and idx 118+119 were — many of these look like they share
@@ -716,11 +726,11 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 
 | feature | count | idx (severity) |
 |---|---|---|
-| tclOO | 10 | 15, 16, 34, 35, 36, ~~53~~ **FIXED**, ~~54~~ **FIXED**, ~~55~~ **FIXED**, ~~96~~ **FIXED**, ~~97~~ **FIXED** (all medium) |
+| tclOO | 10 | ~~15~~ **ALREADY FIXED** (pinned, PR B2), 16, ~~34~~ **FIXED** (PR B2), ~~35~~ **FIXED** (PR B2), ~~36~~ **FIXED** (PR B2), ~~53~~ **FIXED**, ~~54~~ **FIXED**, ~~55~~ **FIXED**, ~~96~~ **FIXED**, ~~97~~ **FIXED** (all medium) |
 | namespaces | 8 | ~~3~~ **FIXED** (#1071), 19, ~~43~~ **ALREADY FIXED**, ~~44~~ **FIXED**, 64, 65, 75, 85 (all medium) |
 | tricky_indirection | 7 | 0 (medium, **FIXED** — see below), 1, 2, 14, 49, 50, 51 (all medium) |
 | upvar | 7 | 7, 22, 57, 58, 59, 98, 99 (all medium) |
-| proc_args | 7 | ~~11~~ **FIXED** (#1071), 28, 37, 62, 67, 78, ~~104~~ **FIXED** (all medium) |
+| proc_args | 7 | ~~11~~ **FIXED** (#1071), ~~28~~ **FIXED** (PR B2), ~~37~~ **FIXED** (PR B2), 62, 67, 78, ~~104~~ **FIXED** (all medium) |
 | tcl_mathop | 4 | ~~30~~ **FIXED**, 80, ~~81~~ **ALREADY FIXED**, ~~103~~ **FIXED** (all medium) |
 | package_loading | 3 | ~~4~~ **FIXED** (#1071), 42, 72 (all medium) |
 | source | 3 | 27, 41, 102 (all medium) |
@@ -856,6 +866,71 @@ on all of them.
 | 53 (tclOO) | `constructor {*}[…]` / `method {*}{…}` members were dropped entirely — `extract_method_def` saw one word where the grammar wanted two or three — so `chart3D`'s whole reflected method surface was missing from the outline with no diagnostic. | `{*}` is applied by the *parser*, so a `{*}`-marked **braced literal** word is not one word but the elements of the list it holds. `splice_static_member_expansions` normalises those words before the member grammar's layout is read off them, with each spliced word carrying its own real source span. A `{*}` over a substitution has no statically-knowable element list and is left verbatim, so the member still abstains — verified against both interpreters, which run `method {*}{foo {} {…}}` and `constructor {*}[info class constructor ::Base]` alike. |
 | 55 (tclOO) | `foreach class {…} { oo::define $class {…} }` bucketed every injected member under a synthetic `@dynclass@<offset>` key, so a real, tclsh-proven method drew a false `W308 Unknown method` and resolved nowhere. | `handle_oo_define_command` now folds its target word through `resolve_dynamic_word` (falling back to the synthetic key only when the target is genuinely unresolvable), and the `foreach`-literal simulation was generalised from a hardcoded `rename`/`proc` name match to the new registry trait `Traits::INSTALLS_NAMED_DEFINITION`, carried by `proc`, `rename`, `oo::define`, and `oo::objdefine`. Cost stays `O(elements × body-commands)` with no fixpoint. |
 | 96, 97 (tclOO) | A class created through a **user-defined metaclass** — Tk's own `::tk::Megawidget` idiom — never entered `all_classes` at all: no document symbols, no find-references, and `next` inside an override resolved nowhere. `is_class_definer` could only ever match the registry's own four metaclass commands. | Metaclass-ness now propagates down the recorded superclass chain: a class whose chain reaches an `IS_OO_METACLASS` command with a `TclOo` grammar is itself a class factory (`user_metaclass_of_command`). The registry stays the seed; only the inheritance step is TclOO language semantics. The manufacturer's **word layout** is read off its own `create` override rather than assumed — Tk's `{name superclasses body}` puts the body at argument 3 — and the members that override splices into every body it makes (`[list superclass ::tk::MegawidgetClass {*}$superclasses]`) are resolved against the call's own arguments and applied through the same registry-grammar routing a written-out member uses. When the override cannot be read the class is still recorded but marked `ClassDef::inheritance_unknown`, which makes W308 abstain exactly as an out-of-index superclass already does. Superclass lists now match `info class superclasses` on both interpreters exactly. |
+
+#### Tier-2 findings fixed by PR B2 (2026-07-30)
+
+Landed together on
+`claude/commandregistry-compiler-fixes-tshu8d-oo-scoping` alongside issue
+**#1026**, because all of them are one theme: **`TclOO` scope and dispatch
+must be answered once, and every feature must read that one answer.** Two
+centralisations carry the cluster:
+
+- `tcl-lsp-core/src/oo_dispatch.rs` — the **single** method-resolution-order
+  walk (`method_dispatch_provider`), factored out of `definition.rs`'s
+  already-correct implementation and now the only one. Hover and
+  find-references were each doing a direct-only lookup on the receiver's
+  own class and abstaining on a miss, so a method reached through a `mixin`
+  or a `superclass` had working go-to-definition, no hover, and no
+  references *at the same cursor*. Cost is one pass over the precomputed
+  linearisation — `O(chain length)`, no fixpoint.
+- `class_hierarchy::member_next_provider` + `class_member_def` — the single
+  routing point for `next` / `nextto`, which now covers the two nameless
+  member slots (`<constructor>` / `<destructor>`, the labels C Tcl's own
+  `info object call` reports) as well as named methods.
+
+Regression coverage is the new
+`rust/tcl-lsp-core/tests/oo_mro_parity.rs` (10 cases, each driving
+definition + hover + references at **one** cursor so the three cannot drift
+apart again), the `oo_helpers_scoping` module in
+`rust/tcl-compiler/tests/analyser.rs` (13 TP/TN/FP cases), and new
+`rust/tcl-lsp-server/tests/e2e/{tcl91,diagnostics}.rs` cases. Every TclOO
+semantic claim below is pinned against tclsh 9.0.4, and the 8.6 halves
+against tclsh 8.6.14.
+
+| idx | what was wrong | what changed |
+|---|---|---|
+| 15 (tclOO) | find-references at a class declaration missed every `self mixin -append X` usage, because `apply_oo_subcommand` had no `self` arm and `ClassDef.mixin_refs` never saw them. | **Already fixed** on `rust` by PR B3 (#1074): the `mixin_refs`/`superclass_refs` fields are gone entirely — those usages are ordinary `command_invocations` now, and `record_member_command_references` unwraps the `self` wrapper through `unwrap_wrapper_member` before reading the member grammar's `all_args_ref`. Verified (oracle: `info object mixins ViaSelf` → `::Marker`) and pinned by `self_wrapped_mixin_is_a_class_reference_in_all_three_providers`; not re-fixed. |
+| 28 (proc_args) | Hover returned nothing at a `my ArgsPreprocess` call site whose target is two MRO hops away (`mixin Utility` on a superclass), even though definition and references resolved it correctly. | Two halves, both now closed. The missing `inst == "my"` branch in hover landed earlier for idx 76; the remainder — `obj_method_hover_text` computing the MRO provider and then *discarding* it, returning `None` whenever the direct lookup was what failed — is fixed by routing hover through `oo_dispatch::method_dispatch_provider`. Hover now names the **providing** class in its heading, and its "inherited from" note is derived from that same provider (`oo_resolution_note_for_provider`) rather than a second, differently-filtered `method_target` lookup. |
+| 34, 35 (tclOO) | `my duplListCheck` — reached only through `mixin DuplChecker` then `superclass Optimization` — resolved under go-to-definition but returned nothing under hover *or* find-references at the identical cursor. | Hover: as for idx 28. References: `instance_method_references` now recognises the `my` receiver (`receiver_instance_class` never has an entry named `my`, so it bailed immediately) and re-anchors its scan on the **provider** class the shared walk names, instead of requiring the method to be declared directly on the receiver. The finding's own headline worry — that definition needed a mixin walk — stays REFUTED; it already had one, which is exactly why the three disagreed. |
+| 36 (tclOO) | A `variable` declared in one `oo::configurable` class's `initialize {}` block leaked into every sibling class in the file: `classvariable NAME` reads resolved to the *first* class's declaration, and find-references merged both classes' declarations into one symbol — which a rename would then act on. | Each class's init body is now walked in a scope **keyed on the class** (`walk_class_init_body`) rather than in the shared enclosing scope, and the names it declares are seeded into that class's own method / accessor bodies. Oracle: `namespace current` inside `initialize` is the class object's own namespace (`::oo::Obj20` vs `::oo::Obj22`), with `namespace path` `::oo::Helpers ::oo`, and two classes' same-named variables are fully independent — each setter correctly rejects the other's values. |
+| 37 (proc_args) | `next` inside a `constructor` resolved to nothing, and a genuine `wrong # args` crash into a superclass constructor went undiagnosed, while the identical shape via a `method` worked. Four parallel code paths keyed off `ClassDef.methods` / `.class_methods` and never `.constructors`. | `ClassHierarchy::constructor_next_provider` / `destructor_next_provider` already existed (issue #992) but had no consumers. All the `next`-resolution paths now go through the one router `member_next_provider`, and `definition.rs::enclosing_method` reports the `<constructor>` / `<destructor>` slot so a cursor in one of those bodies is recognised at all. The `next`-arity check (`flush_next_arity_diagnostics`) reads the provider's member through the shared `class_member_def`, so E002/E003 fire for constructors exactly as for methods. |
+
+Issue **#1026** rides along, because it is the same question asked of the
+registry rather than of the class index: *where does this word resolve?*
+`Traits::TCLOO_METHOD_CONTEXT` marks the six bare spellings (`link`, `my`,
+`next`, `nextto`, `self`, `classvariable`) that only resolve inside a
+`TclOO` method context; `CommandRegistry::resolves_only_in_method_context`
+answers which, and the analyser's existing
+`innermost_scope_reaches_oo_helpers` walk answers where — W123, hover, and
+completion all gate on that one pair, with no command name in any consumer.
+The qualified `oo::Helpers::*` spellings are registered separately
+(`commands/tcl/oo_helpers.rs`, derived from the bare specs) because they
+are real global commands. `Traits::TCLOO_BINDS_METHOD_ALIAS` removes the
+last `texts[0] == "link"` literal from the analyser and, in passing, makes
+a `link`-installed bareword stop drawing a false W123 inside its own
+object's method bodies. Full contract in
+[command-registry.md](../compiler/command-registry.md#tcloo_method_context--where-a-bare-spelling-resolves);
+user-facing note in
+[the method-context KCS answer](../../kcs/kcs-qa-where-can-i-call-my-next-self-and-link.md).
+
+One incidental correctness fix fell out of the same scope walk:
+`innermost_scope_reaches_oo_helpers` and `command_resolution_namespace_at`
+now descend the **narrowest** containing scope rather than the first one,
+because an `apply` lambda inside a method body is recorded as a *sibling*
+of the method's scope, not a child. Without that, an `apply` lambda
+appeared to inherit the method's object context — which tclsh 9.0.4 says
+it does not (`apply {{} { link Helper }}` inside a method raises `invalid
+command name "link"`, since `apply` runs its body in the global namespace).
 
 ### 6c. Broader mandate coverage check
 

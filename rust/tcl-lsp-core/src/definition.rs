@@ -715,58 +715,13 @@ fn method_dispatch_definition(
     external: bool,
     bucket: MethodBucket,
 ) -> Vec<LspRange> {
-    let hierarchy = tcl_compiler::analyser::class_hierarchy::build_class_hierarchy(
-        analysis.all_classes.clone(),
-    );
-    let Some(mro) = hierarchy.mro_map.get(class_q) else {
-        return Vec::new();
-    };
-    for provider_q in mro {
-        let Some(cd) = analysis.all_classes.get(provider_q) else {
-            continue;
-        };
-        let md = match bucket {
-            // A class-side method is never itself instance-callable (real
-            // tclsh: `unknown method` when an instance calls a
-            // classmethod) — no `class_methods` fallback here, matching
-            // `completion.rs`'s `method_items`, which already excludes it
-            // for the identical reason.
-            MethodBucket::Instance => cd.methods.get(method),
-            MethodBucket::Class => cd
-                .class_methods
-                .get(method)
-                .filter(|md| provider_q == class_q || !md.is_self_method),
-        };
-        let Some(md) = md else {
-            continue;
-        };
-        let visible = if external {
-            md.visibility == "public"
-        } else {
-            md.visibility != "private" || provider_q == class_q
-        };
-        if visible {
-            return vec![span_to_range(source, line_index, md.name_span)];
-        }
-    }
-    Vec::new()
-}
-
-/// Look up `method` against the class identified by qualified
-/// name `class_q` — searches `methods`, `class_methods`, then
-/// `properties`.  Returns the member's `name_span`.
-fn lookup_method_in_class(
-    analysis: &AnalysisResult,
-    class_q: &str,
-    method: &str,
-) -> Option<tcl_lexer::Span> {
-    let class_def = analysis.all_classes.get(class_q)?;
-    class_def
-        .methods
-        .get(method)
-        .map(|m| m.name_span)
-        .or_else(|| class_def.class_methods.get(method).map(|m| m.name_span))
-        .or_else(|| class_def.properties.get(method).map(|p| p.name_span))
+    // The walk itself lives in `crate::oo_dispatch` so hover and
+    // find-references answer from the same linearisation (issue #923 idx
+    // 28/34/35 — they each used to do a direct-only lookup on the
+    // receiver's own class and silently disagree with this function).
+    crate::oo_dispatch::method_dispatch_provider(analysis, class_q, method, external, bucket)
+        .map(|(_, md)| vec![span_to_range(source, line_index, md.name_span)])
+        .unwrap_or_default()
 }
 
 /// Resolve `TclOO` `next` / `nextto` at the cursor to the super-method's
@@ -851,22 +806,47 @@ fn next_dispatch_target(
         None
     };
     let hierarchy = analysis.class_hierarchy();
-    let next_class = hierarchy.next_provider(&class_q, &method, &class_q, start_from.as_deref())?;
-    lookup_method_in_class(analysis, next_class, &method)
+    let next_class = hierarchy.member_next_provider(
+        &class_q,
+        &method,
+        &class_q,
+        start_from.as_deref(),
+        source,
+    )?;
+    let cd = analysis.all_classes.get(next_class)?;
+    tcl_compiler::analyser::class_hierarchy::class_member_def(cd, &method).map(|md| md.name_span)
 }
 
-/// The `(qualified_class, method_name)` whose method body contains the
-/// cursor offset, or `None` when the cursor is not inside a method body.
+/// The `(qualified_class, member_name)` whose member body contains the
+/// cursor offset, or `None` when the cursor is not inside one.
+///
+/// Covers all four member slots, not just the named ones: a `constructor`
+/// / `destructor` body reports the synthetic
+/// `<constructor>` / `<destructor>` label
+/// (`tcl_compiler::analyser::class_hierarchy::CONSTRUCTOR_MEMBER`), which
+/// `member_next_provider` routes to the matching provider. Before that a
+/// cursor inside a constructor matched nothing here, so `next` — the
+/// ordinary way a subclass forwards to its superclass's constructor —
+/// resolved to no location at all (issue #923 idx 37).
 fn enclosing_method(analysis: &AnalysisResult, cursor: u32) -> Option<(String, String)> {
+    use tcl_compiler::analyser::class_hierarchy::{CONSTRUCTOR_MEMBER, DESTRUCTOR_MEMBER};
     let cd = analysis
         .all_classes
         .get(enclosing_class_at(analysis, cursor)?)?;
-    for (mname, m) in cd.methods.iter().chain(cd.class_methods.iter()) {
-        if m.body_span.start() <= cursor && cursor <= m.body_span.end() {
-            return Some((cd.qualified_name.clone(), mname.clone()));
-        }
-    }
-    None
+    let named = cd
+        .methods
+        .iter()
+        .chain(cd.class_methods.iter())
+        .map(|(mname, m)| (mname.as_str(), m));
+    let ctors = cd
+        .constructors
+        .iter()
+        .map(|c| (CONSTRUCTOR_MEMBER, c))
+        .chain(cd.destructor.iter().map(|d| (DESTRUCTOR_MEMBER, d)));
+    named
+        .chain(ctors)
+        .find(|(_, m)| m.body_span.start() <= cursor && cursor <= m.body_span.end())
+        .map(|(mname, _)| (cd.qualified_name.clone(), mname.to_owned()))
 }
 
 /// The whitespace-delimited word that follows `keyword` on the cursor's

@@ -470,6 +470,68 @@ A future dialect variant of any of these keywords propagates through its
 `registry_commands.rs` assert the consumer-visible keyword set equals the
 trait-carrying specs, per dialect.
 
+### `TCLOO_METHOD_CONTEXT` — where a bare spelling resolves
+
+The three traits above say what a word *does* once it has resolved.
+`TCLOO_METHOD_CONTEXT` says *where* it resolves at all, and is orthogonal
+to them (issue #1026).
+
+A `TclOO` method body runs with the **object's** namespace current and
+`::oo::Helpers` on that namespace's `namespace path`, so the family's bare
+spellings are reachable there and nowhere else. Pinned against tclsh 9.0.4:
+
+```text
+% link foo                              -> invalid command name "link"
+% info commands ::link                  -> {}
+% oo::class create C { method m {} {
+      namespace current                 ;# ::oo::Obj22
+      namespace path                    ;# ::oo::Helpers
+      namespace which -command link     ;# ::oo::Helpers::link
+      namespace which -command my       ;# ::oo::Obj22::my   <- not a helper
+  } }
+```
+
+`my` / `myclass` live in the object's *own* namespace rather than
+`::oo::Helpers`, which is why the trait — not a namespace name — is what
+the registry records. The scoped set is `link`, `my`, `next`, `nextto`,
+`self`, and `classvariable`; every one raises `invalid command name` at
+the top level, inside an ordinary `proc`, and inside an `apply` lambda
+written within a method body (`apply` runs its body in the global
+namespace). tclsh 8.6.14 agrees for the four members it ships.
+
+Consumers pair one registry query with one call-site fact, and neither
+side carries a command name:
+
+- `CommandRegistry::resolves_only_in_method_context(head) -> bool` — which
+  commands are scoped, dialect-aware exactly like
+  `method_dispatch_keyword`;
+- `analyser::scope::innermost_scope_reaches_oo_helpers(root, offset)` —
+  whether a byte offset sits in a method / constructor / destructor /
+  class-side / `oo::objdefine method` body, exposed to the LSP as
+  `tcl_lsp_core::oo_dispatch::in_oo_method_context`.
+
+W123, hover, and completion all gate on that pair, so a top-level `link`
+is an unknown command with no hover and no completion entry, while the
+same word inside a method body resolves normally.
+
+The **qualified** spellings (`oo::Helpers::link`, `…::next`, `…::nextto`,
+`…::self`, `…::classvariable`) are registered as separate specs by
+`commands/tcl/oo_helpers.rs`, derived from their bare twins so arity,
+hover, and dialect gating cannot drift. They do **not** carry
+`TCLOO_METHOD_CONTEXT` or the dispatch traits: `info commands
+::oo::Helpers::link` answers under tclsh 9.0.4, and calling it outside a
+method fails with the *runtime* error `::oo::Helpers::link may only be
+called from inside a method`, not `invalid command name`. The pattern
+matches `dict::qualified_specs` (issue #923 idx 105).
+
+`TCLOO_BINDS_METHOD_ALIAS` completes the `link` model: it declares that
+each argument word binds a bareword alias for a method of the current
+object (`NAME`, or `{NAME TARGET}`). The analyser's class-body walk finds
+those calls through `CommandRegistry::binds_method_alias(head)` rather
+than a `texts[0] == "link"` literal, populating `ClassDef::linked_members`
+— which in turn makes the installed bareword resolve for W123, hover, and
+go-to-definition inside that object's method bodies.
+
 ### Branch-selected bodies
 
 `BRANCH_SELECTED_BODY` marks a command whose body arguments run only when

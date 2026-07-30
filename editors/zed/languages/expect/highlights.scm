@@ -62,10 +62,11 @@
   (#any-of? @keyword
     "apply" "break" "classvariable" "const" "continue" "coroutine"
     "error" "eval" "global" "interp" "my" "next"
-    "nextto" "oo::abstract" "oo::class" "oo::configurable" "oo::define" "oo::objdefine"
-    "oo::object" "oo::singleton" "package" "rename" "return" "self"
-    "source" "tailcall" "throw" "uplevel" "upvar" "variable"
-    "yield" "yieldto"))
+    "nextto" "oo::Helpers::classvariable" "oo::Helpers::link" "oo::Helpers::next" "oo::Helpers::nextto" "oo::Helpers::self"
+    "oo::abstract" "oo::class" "oo::configurable" "oo::define" "oo::objdefine" "oo::object"
+    "oo::singleton" "package" "rename" "return" "self" "source"
+    "tailcall" "throw" "uplevel" "upvar" "variable" "yield"
+    "yieldto"))
 
 ; --- generated from tcl-registry: built-in commands ---
 (command

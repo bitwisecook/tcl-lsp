@@ -16,9 +16,9 @@ or an explicit *not required* classification.
 | handler (native) | 177 |
 | stdlib | 11 |
 | not-required | 54 |
-| known-gap (`RUST_ISSUE_007`) | 32 |
+| known-gap (`RUST_ISSUE_007`) | 37 |
 | **UNCLASSIFIED** | 0 |
-| **total** | 379 |
+| **total** | 384 |
 
 | command | backing | note |
 | --- | --- | --- |
@@ -242,6 +242,11 @@ or an explicit *not required* classification.
 | `next` | handler |  |
 | `nextto` | handler |  |
 | `ni` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `oo::Helpers::classvariable` | known-gap | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
+| `oo::Helpers::link` | known-gap | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
+| `oo::Helpers::next` | known-gap | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
+| `oo::Helpers::nextto` | known-gap | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
+| `oo::Helpers::self` | known-gap | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
 | `oo::abstract` | handler (native) | TclOO metaclass bootstrapped as an object in cmd_oo.rs |
 | `oo::class` | handler (native) | TclOO metaclass bootstrapped as an object in cmd_oo.rs |
 | `oo::configurable` | handler (native) | TclOO metaclass bootstrapped as an object in cmd_oo.rs |

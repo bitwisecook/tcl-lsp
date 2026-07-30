@@ -6727,6 +6727,27 @@
       "summary": "This procedure will use the settings made with ::oauth::config to create the basic authentication and then send."
     },
     {
+      "name": "oo::Helpers::classvariable",
+      "summary": "Link local variables to variables shared by every instance of a class."
+    },
+    {
+      "name": "oo::Helpers::link",
+      "summary": "expose a method as a bareword command in the object's own namespace"
+    },
+    {
+      "name": "oo::Helpers::next",
+      "summary": "Invoke the next implementation of the currently executing method."
+    },
+    {
+      "name": "oo::Helpers::nextto",
+      "summary": "Invoke a specific class's implementation of the currently executing method."
+    },
+    {
+      "name": "oo::Helpers::self",
+      "summary": "query information about the current method invocation",
+      "pure": true
+    },
+    {
       "name": "oo::abstract",
       "summary": "metaclass for abstract classes"
     },

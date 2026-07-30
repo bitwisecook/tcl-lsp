@@ -144,6 +144,129 @@ fn link_stays_silent_in_86_once_ooutil_is_required() {
     );
 }
 
+// The whole `oo::Helpers` family is method-context-scoped (issue #1026).
+//
+// tclsh 9.0.4 at the top level answers `invalid command name` for every one
+// of `link` / `my` / `next` / `nextto` / `self` / `classvariable`, and
+// `info commands ::link` is empty — while inside a method body
+// `namespace which -command link` answers `::oo::Helpers::link` (and
+// `… my` answers `::oo::ObjN::my`, an object-namespace command rather than
+// a helper). tclsh 8.6.14 agrees for the four members it ships.
+
+/// The `# tcl-dialect: tcl9.0` document the repro in issue #1026 uses.
+fn scoped_family_doc(body: &str) -> String {
+    format!("# tcl-dialect: tcl9.0\n{body}")
+}
+
+#[test]
+fn top_level_link_draws_w123() {
+    // Issue #1026's own repro: `link foo` at the top level under tcl9.0.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, &scoped_family_doc("link foo\n"));
+    assert!(
+        codes(&diags).contains("W123"),
+        "top-level `link foo` is `invalid command name \"link\"` in real Tcl 9.0: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn method_body_link_stays_clean() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        &scoped_family_doc(
+            "oo::class create Widget {\n    method foo {x} { return $x }\n    method bar {} {\n        link foo\n        return [foo 1]\n    }\n}\n",
+        ),
+    );
+    assert!(
+        !codes(&diags).contains("W123"),
+        "`link` resolves inside a method body: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn top_level_family_members_all_draw_w123() {
+    let mut lsp = Lsp::tcl();
+    for word in ["my", "next", "nextto", "self", "classvariable"] {
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(&uri, &scoped_family_doc(&format!("{word} foo\n")));
+        assert!(
+            codes(&diags).contains("W123"),
+            "top-level `{word}` is `invalid command name`: {:?}",
+            codes(&diags)
+        );
+    }
+}
+
+#[test]
+fn link_is_not_offered_in_top_level_completion() {
+    // Completion follows the same scoping: offering `link` at the top level
+    // would insert a call real Tcl rejects.
+    let mut lsp = Lsp::tcl();
+    assert!(
+        !complete_cmd(&mut lsp, "tcl9.0", "lin").contains("link"),
+        "no top-level completion of a method-context-only command",
+    );
+}
+
+/// Byte-for-byte the VS Code fixture `editors/vscode/testFixture/
+/// ooMethodContext.tcl`, so the extension test's cursor positions are
+/// pinned here against the same server.
+const OO_METHOD_CONTEXT_FIXTURE: &str = "# tcl-dialect: tcl9.0\nlin\noo::class create Widget {\n    method foo {x} { return $x }\n    method bar {} {\n        lin\n    }\n}\n";
+
+#[test]
+fn link_is_offered_inside_a_method_body() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, OO_METHOD_CONTEXT_FIXTURE);
+    // Line 1 is the top-level `lin`; line 5 is the `lin` inside `method bar`.
+    let top = labels(&lsp.completion(&uri, 1, 3));
+    assert!(!top.contains("link"), "top level offered `link`: {top:?}");
+    let inner = labels(&lsp.completion(&uri, 5, 11));
+    assert!(inner.contains("link"), "expected `link` among {inner:?}");
+}
+
+#[test]
+fn top_level_link_has_no_hover_but_a_method_body_one_does() {
+    let mut lsp = Lsp::tcl();
+    let top = unique_uri("tcl");
+    lsp.open_ready(&top, &scoped_family_doc("link foo\n"));
+    assert!(
+        hover_text(&lsp.hover(&top, 1, 1)).is_empty(),
+        "an unresolvable top-level `link` must not hover as a builtin",
+    );
+    let inner = unique_uri("tcl");
+    lsp.open_ready(
+        &inner,
+        &scoped_family_doc(
+            "oo::class create Widget {\n    method foo {x} { return $x }\n    method bar {} {\n        link foo\n    }\n}\n",
+        ),
+    );
+    assert!(
+        hover_text(&lsp.hover(&inner, 4, 9)).contains("link"),
+        "the same word hovers inside a method body",
+    );
+}
+
+#[test]
+fn the_qualified_oo_helpers_spelling_resolves_at_the_top_level() {
+    // `info commands ::oo::Helpers::link` answers `::oo::Helpers::link`
+    // under tclsh 9.0.4 — calling it outside a method is a *runtime* error
+    // ("may only be called from inside a method"), not an unknown command.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, &scoped_family_doc("::oo::Helpers::link foo\n"));
+    assert!(
+        !codes(&diags).contains("W123"),
+        "the qualified spelling is a real global command: {:?}",
+        codes(&diags)
+    );
+}
+
 // -- TestTcl91Operators --------------------------------------------------
 // doc/expr.n — the `lt`/`le`/`gt`/`ge` string operators (TIP 461) are 9.0+.
 

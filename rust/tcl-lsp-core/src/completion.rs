@@ -604,8 +604,9 @@ pub fn completions(
         // that, a plain `.tcl` script must not be offered `button`/`pack`/… .
         let tk_loaded =
             dialect == "tk" || analysis.package_requires.iter().any(|req| req.name == "Tk");
+        let in_method = in_oo_method_context_at(analysis, source, line, character);
         items.extend(builtin_completions(
-            registry, dialect, &partial, &usage, tk_loaded, analysis,
+            registry, dialect, &partial, &usage, tk_loaded, analysis, in_method,
         ));
     }
     // Inside a scoped command environment (a `report::defstyle` style script),
@@ -1723,6 +1724,24 @@ fn document_usage_counts(analysis: &AnalysisResult) -> FxHashMap<String, usize> 
     counts
 }
 
+/// Whether the completion cursor sits in a `TclOO` method context — the
+/// only place the `oo::Helpers` family's bare spellings resolve (issue
+/// #1026).
+///
+/// Thin position-to-offset wrapper over the crate's single method-context
+/// predicate, so completion, hover, and the analyser's W123 emitter all
+/// answer from the same scope walk.
+fn in_oo_method_context_at(
+    analysis: &AnalysisResult,
+    source: &str,
+    line: u32,
+    character: u32,
+) -> bool {
+    let line_index = tcl_lexer::LineIndex::new(source);
+    let offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    crate::oo_dispatch::in_oo_method_context(analysis, offset)
+}
+
 fn builtin_sort_text(name: &str, usage: usize) -> String {
     // `B<usage>_<name>` — built-ins sort after user procs (`A…`)
     // but before any item with no `sort_text`.  The two-digit
@@ -1738,6 +1757,7 @@ fn builtin_completions(
     usage: &FxHashMap<String, usize>,
     tk_loaded: bool,
     analysis: &AnalysisResult,
+    in_oo_method_context: bool,
 ) -> Vec<CompletionItem> {
     // Availability-gate the command list through the dialect profile: a
     // command whose spec restricts itself to later dialects (`try` is Tcl
@@ -1761,6 +1781,15 @@ fn builtin_completions(
             })
         })
         .filter(|n| profile.resolve_command(registry, n).is_some())
+        // A command whose *bare* spelling only resolves inside a `TclOO`
+        // method context (`link` / `my` / `next` / `nextto` / `self` /
+        // `classvariable` — issue #1026) is offered only there: completing
+        // `link` at the top level would insert a call real Tcl rejects with
+        // `invalid command name`. Which commands those are is registry data
+        // (`Traits::TCLOO_METHOD_CONTEXT`), never a name list here; the
+        // separately-registered `oo::Helpers::link` spelling is unscoped and
+        // stays offered everywhere.
+        .filter(|n| in_oo_method_context || !registry.resolves_only_in_method_context(n))
         // Tk commands (`required_package == "Tk"`) are only offered once Tk
         // is loaded — see the `tk_loaded` computation in `completions` — and
         // never inside a vendor shell: an F5 / EDA / bpf profile is a closed
@@ -2026,8 +2055,9 @@ fn fuzzy_command_fallback(
     if let Some(registry) = registry {
         let tk_loaded =
             dialect == "tk" || analysis.package_requires.iter().any(|req| req.name == "Tk");
+        let in_method = in_oo_method_context_at(analysis, source, line, character);
         universe.extend(builtin_completions(
-            registry, dialect, "", &usage, tk_loaded, analysis,
+            registry, dialect, "", &usage, tk_loaded, analysis, in_method,
         ));
     }
     if let Some(env) = scoped_env_at(analysis, source, line, character) {

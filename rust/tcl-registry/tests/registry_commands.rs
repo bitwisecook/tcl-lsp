@@ -1948,6 +1948,106 @@ fn tcloo_dispatch_keyword_membership() {
     }
 }
 
+/// The method-context-scoped set (issue #1026) — which bare spellings only
+/// resolve inside a `TclOO` method body — is exactly `link` / `my` / `next`
+/// / `nextto` / `self` / `classvariable`, and never the qualified
+/// `oo::Helpers::…` spellings.
+///
+/// Pinned against tclsh 9.0.4: each bare word at the top level raises
+/// `invalid command name`, `info commands ::link` is empty, and inside
+/// `oo::class create C { method m {} { … } }` `namespace which -command
+/// link` answers `::oo::Helpers::link` while `… my` answers
+/// `::oo::ObjN::my`. tclsh 8.6.14 agrees for the four members it ships.
+/// The qualified spelling is a real global command — calling it outside a
+/// method fails with `::oo::Helpers::link may only be called from inside a
+/// method`, a *runtime* error rather than an unknown command — so it must
+/// answer `false`.
+///
+/// The guard against a consumer re-deriving the set from a name list: W123,
+/// hover, and completion all ask
+/// `CommandRegistry::resolves_only_in_method_context`.
+#[test]
+fn tcloo_method_context_membership() {
+    let reg = registry_for_dialect("tcl9.0");
+    let mut carriers = reg.commands_with_trait(Traits::TCLOO_METHOD_CONTEXT);
+    carriers.sort_unstable();
+    carriers.dedup();
+    assert_eq!(
+        carriers,
+        ["classvariable", "link", "my", "next", "nextto", "self"]
+    );
+    for name in carriers {
+        assert!(
+            reg.resolves_only_in_method_context(name),
+            "{name} carries the trait so the query must answer for it"
+        );
+    }
+    for qualified in [
+        "oo::Helpers::link",
+        "::oo::Helpers::link",
+        "oo::Helpers::self",
+        "oo::Helpers::classvariable",
+    ] {
+        assert!(
+            reg.get(qualified).is_some(),
+            "{qualified} is a real global command in Tcl 9.0"
+        );
+        assert!(
+            !reg.resolves_only_in_method_context(qualified),
+            "{qualified} resolves from anywhere"
+        );
+    }
+    for negative in ["puts", "set", "proc", "oo::define", "oo::class"] {
+        assert!(
+            !reg.resolves_only_in_method_context(negative),
+            "{negative} is an ordinary global command"
+        );
+    }
+    // `commands_with_trait` enumerates the whole spec table, so the dialect
+    // gate lives in the query itself: under 8.6 `classvariable` (9.0+) is
+    // not method-context-scoped because it does not exist, while `link`
+    // still is — its 8.6 spelling is the `ooutil`-gated twin.
+    let reg86 = registry_for_dialect("tcl8.6");
+    assert!(!reg86.resolves_only_in_method_context("classvariable"));
+    for name in ["link", "my", "next", "nextto", "self"] {
+        assert!(
+            reg86.resolves_only_in_method_context(name),
+            "{name}: 8.6 has it (link via ooutil)"
+        );
+    }
+    // 8.5 has no TclOO at all, so the whole query answers `false` there.
+    let reg85 = registry_for_dialect("tcl8.5");
+    for name in ["link", "my", "next", "nextto", "self", "classvariable"] {
+        assert!(
+            !reg85.resolves_only_in_method_context(name),
+            "{name}: tcl8.5 has no TclOO"
+        );
+    }
+}
+
+/// `link` — and only `link` — declares that it binds bareword aliases for
+/// the current object's methods, so the analyser's class-body walk finds
+/// those calls through the registry instead of a `texts[0] == "link"`
+/// literal (issue #1026).
+#[test]
+fn tcloo_method_alias_binding_membership() {
+    let reg = registry_for_dialect("tcl9.0");
+    let mut carriers = reg.commands_with_trait(Traits::TCLOO_BINDS_METHOD_ALIAS);
+    carriers.sort_unstable();
+    carriers.dedup();
+    assert_eq!(carriers, ["link"]);
+    assert!(reg.binds_method_alias("link"));
+    assert!(reg.binds_method_alias("::link"));
+    for negative in ["my", "next", "self", "oo::Helpers::link", "proc"] {
+        assert!(
+            !reg.binds_method_alias(negative),
+            "{negative} binds no method alias"
+        );
+    }
+    // 8.5 has no `link` at all.
+    assert!(!registry_for_dialect("tcl8.5").binds_method_alias("link"));
+}
+
 /// The consumer-visible keyword set equals the trait-carrying specs across
 /// every dialect a `TclOO` consumer may run under, including the F5 ones.
 ///

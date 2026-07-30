@@ -119,7 +119,9 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "my",
-        traits: Traits::LANGUAGE_KEYWORD | Traits::TCLOO_SELF_DISPATCH,
+        traits: Traits::LANGUAGE_KEYWORD
+            | Traits::TCLOO_SELF_DISPATCH
+            | Traits::TCLOO_METHOD_CONTEXT,
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),

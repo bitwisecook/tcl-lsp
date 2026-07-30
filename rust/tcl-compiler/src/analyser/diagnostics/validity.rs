@@ -1672,19 +1672,27 @@ impl Analyser {
                     }
                     None => None,
                 };
-                let Some(provider) = hierarchy.next_provider(
+                // `member_next_provider` routes the two nameless slots to
+                // their own providers, so a `next` inside a `constructor`
+                // (or `destructor`) is arity-checked exactly like one
+                // inside a plain `method` — it used to be dropped
+                // silently, letting a real `wrong # args` crash into a
+                // superclass constructor go undiagnosed (issue #923 idx
+                // 37).
+                let Some(provider) = hierarchy.member_next_provider(
                     &cand.class_qualified,
                     &cand.method_name,
                     &cand.class_qualified,
                     start_from.as_deref(),
+                    &self.source,
                 ) else {
                     continue;
                 };
-                let Some(method_def) = self.result.all_classes.get(provider).and_then(|cd| {
-                    cd.methods
-                        .get(&cand.method_name)
-                        .or_else(|| cd.class_methods.get(&cand.method_name))
-                }) else {
+                let Some(method_def) =
+                    self.result.all_classes.get(provider).and_then(|cd| {
+                        super::class_hierarchy::class_member_def(cd, &cand.method_name)
+                    })
+                else {
                     continue;
                 };
                 if method_def.kind == "forward" {

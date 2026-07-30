@@ -137,4 +137,42 @@ suite("Completion", () => {
       assert.ok(labels.includes(expected), `missing ${expected} in [${labels.join(", ")}]`);
     }
   });
+
+  test("offers `link` only inside a TclOO method body", async () => {
+    // `link` is `oo::Helpers::link`: real Tcl 9.0 resolves it only from
+    // inside a method body, and `link foo` at the top level raises
+    // `invalid command name "link"` (`info commands ::link` is empty).
+    // Completion follows the same scoping, so the same partial word offers
+    // it in one place and not the other (issue #1026).
+    const ooUri = getDocUri("ooMethodContext.tcl");
+    await activate(ooUri);
+
+    const labelsAt = async (position: vscode.Position, label: string) => {
+      const result = (await pollUntil(
+        () =>
+          vscode.commands.executeCommand("vscode.executeCompletionItemProvider", ooUri, position),
+        (r) => {
+          const list = r as vscode.CompletionList | undefined;
+          return !!list && list.items.length > 0;
+        },
+        { timeout: 10_000, label },
+      )) as vscode.CompletionList;
+      return result.items.map((item) =>
+        typeof item.label === "string" ? item.label : item.label.label,
+      );
+    };
+
+    // Line 1 is the top-level `lin`; line 5 is the `lin` inside `method bar`.
+    const topLevel = await labelsAt(new vscode.Position(1, 3), "top-level completions");
+    assert.ok(
+      !topLevel.includes("link"),
+      `link must not be offered at the top level: ${topLevel.slice(0, 20).join(", ")}`,
+    );
+
+    const inMethod = await labelsAt(new vscode.Position(5, 11), "method-body completions");
+    assert.ok(
+      inMethod.includes("link"),
+      `link must be offered inside a method body: ${inMethod.slice(0, 20).join(", ")}`,
+    );
+  });
 });

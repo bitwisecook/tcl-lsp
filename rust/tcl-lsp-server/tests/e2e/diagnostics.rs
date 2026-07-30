@@ -1072,6 +1072,40 @@ fn same_file_tcloo_next_call_arity_is_checked() {
 }
 
 #[test]
+fn same_file_tcloo_next_in_a_constructor_has_its_arity_checked() {
+    // A `next` inside a `constructor` chains to the superclass
+    // constructor — pinned against tclsh 9.0.4, where
+    // `oo::class create Base { constructor {n} {…} }` /
+    // `oo::class create Derived { superclass Base; constructor {} { next 1 2 3 } }`
+    // then `Derived new` crashes `wrong # args: should be "next n"`.
+    // Every `next`-resolution path keyed off `ClassDef.methods` only, so
+    // the whole check was silently dropped for constructors while the
+    // byte-for-byte-analogous shape via a `method` was correctly flagged
+    // (issue #923 idx 37).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Base { constructor {n} { set x $n } }\n\
+         oo::class create Derived { superclass Base\n constructor {} { next too many args here } }\n\
+         Derived new\n",
+    );
+    assert!(
+        has_code(&diags, "E003"),
+        "expected E003 for a 4-arg `next` against a 1-param superclass constructor; got {diags:?}"
+    );
+    let uri2 = unique_uri("tcl");
+    let diags_ok = lsp.open_ready(
+        &uri2,
+        "oo::class create Base { constructor {n} { set x $n } }\n\
+         oo::class create Derived { superclass Base\n constructor {n} { next $n } }\n\
+         Derived new 1\n",
+    );
+    assert!(!has_code(&diags_ok, "E002"), "{diags_ok:?}");
+    assert!(!has_code(&diags_ok, "E003"), "{diags_ok:?}");
+}
+
+#[test]
 fn same_file_tcloo_nextto_call_arity_checks_named_target() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");

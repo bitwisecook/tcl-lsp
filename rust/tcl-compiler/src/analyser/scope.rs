@@ -56,7 +56,7 @@ fn ancestor_paths(start: &[usize]) -> impl Iterator<Item = Vec<usize>> + '_ {
 ///
 /// Walks `path` index-by-index. Returns the root for an empty
 /// path; returns `None` if any index is out of bounds.
-fn scope_at<'a>(root: &'a Scope, path: &[usize]) -> Option<&'a Scope> {
+pub(super) fn scope_at<'a>(root: &'a Scope, path: &[usize]) -> Option<&'a Scope> {
     let mut cursor = root;
     for &idx in path {
         cursor = cursor.children.get(idx)?;
@@ -156,6 +156,34 @@ fn advance_command_resolution_namespace(ns: &str, child: &Scope) -> String {
     }
 }
 
+/// The innermost child scope of `cursor` whose `body_span` contains
+/// `byte_offset` — the one step both byte-offset scope walks below take.
+///
+/// "Innermost" is by **span width**, not by first match: the scope tree is
+/// not strictly nested in one case that matters here. An `apply` lambda
+/// written inside a `TclOO` method body opens its `ScopeKind::Proc` scope
+/// as a *sibling* of the method's own scope (both hang off the enclosing
+/// scope, since the method body is walked in its own pass) while its span
+/// lies strictly inside the method's. Taking the first container would stop
+/// at the method and miss the lambda — which is exactly the frame that
+/// matters, because `apply` runs its body in the global namespace and so
+/// loses the object context (tclsh 9.0.4: `apply {{} { link Helper }}`
+/// inside a method raises `invalid command name "link"`; issue #1026).
+/// Where the tree *is* properly nested, no two children of one node
+/// contain the same offset, so this is the plain first-match walk.
+fn innermost_containing_child(cursor: &Scope, byte_offset: u32) -> Option<&Scope> {
+    cursor
+        .children
+        .iter()
+        .filter_map(|c| {
+            c.body_span
+                .filter(|s| s.start() <= byte_offset && byte_offset < s.end())
+                .map(|s| (c, s.end() - s.start()))
+        })
+        .min_by_key(|&(_, width)| width)
+        .map(|(c, _)| c)
+}
+
 /// Namespace an unqualified command invoked at `byte_offset` resolves
 /// against, per Tcl's command-resolution rule.
 ///
@@ -177,12 +205,7 @@ fn advance_command_resolution_namespace(ns: &str, child: &Scope) -> String {
 pub fn command_resolution_namespace_at(root: &Scope, byte_offset: u32) -> String {
     let mut ns = "::".to_string();
     let mut cursor = root;
-    loop {
-        let next = cursor.children.iter().find(|c| {
-            c.body_span
-                .is_some_and(|s| s.start() <= byte_offset && byte_offset < s.end())
-        });
-        let Some(child) = next else { break };
+    while let Some(child) = innermost_containing_child(cursor, byte_offset) {
         ns = advance_command_resolution_namespace(&ns, child);
         cursor = child;
     }
@@ -214,16 +237,21 @@ pub fn command_resolution_namespace_at(root: &Scope, byte_offset: u32) -> String
 /// object-context resolution behind, exactly like [`ScopeKind::Namespace`]
 /// resets nothing in `advance_command_resolution_namespace` but a
 /// `Proc`/`Method`/`Uplevel` scope does.
+///
+/// Because a `TclOO` method context is exactly where `::oo::Helpers` sits on
+/// the path, this doubles as the "am I in a method context?" predicate the
+/// W123 / hover / completion scoping rule for the whole `oo::Helpers` family
+/// needs (issue #1026) — including the per-object `my`, which is not an
+/// `::oo::Helpers` member at all (`namespace which -command my` answers
+/// `::oo::ObjN::my` under tclsh 9.0.4) yet is reachable in exactly the same
+/// bodies and nowhere else. The `Proc` reset is what makes an `apply` lambda
+/// written *inside* a method correctly not count: tclsh 9.0.4 raises `invalid
+/// command name "link"` / `"my"` / `"self"` there.
 #[must_use]
 pub fn innermost_scope_reaches_oo_helpers(root: &Scope, byte_offset: u32) -> bool {
     let mut reaches = false;
     let mut cursor = root;
-    loop {
-        let next = cursor.children.iter().find(|c| {
-            c.body_span
-                .is_some_and(|s| s.start() <= byte_offset && byte_offset < s.end())
-        });
-        let Some(child) = next else { break };
+    while let Some(child) = innermost_containing_child(cursor, byte_offset) {
         reaches = match child.kind {
             ScopeKind::Namespace | ScopeKind::Global => reaches,
             ScopeKind::Method => child.oo_global_resolution,

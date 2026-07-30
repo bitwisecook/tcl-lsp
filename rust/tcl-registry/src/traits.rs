@@ -849,6 +849,57 @@ declare_traits! {
     /// (`namespace eval`, `coroutine`): re-running those would re-walk a
     /// body, which is what the narrowness above rules out.
     InstallsNamedDefinition => INSTALLS_NAMED_DEFINITION;
+
+    /// This spec's **bare** spelling resolves only from inside a `TclOO`
+    /// *method context* — a `method`, `constructor`, `destructor`,
+    /// class-side (`self method` / `classmethod`) or `oo::objdefine method`
+    /// body — and nowhere else.
+    ///
+    /// The `oo::Helpers` family (`link`, `next`, `nextto`, `self`,
+    /// `classvariable`) plus the per-object `my` are all bare-callable
+    /// *only* there, because a method body runs with the object's own
+    /// namespace current and `::oo::Helpers` on that namespace's
+    /// `namespace path` — neither of which is reachable from anywhere
+    /// else. tclsh 9.0.4 at the top level: `link foo` / `my foo` /
+    /// `next` / `nextto` / `self` / `classvariable v` every one raises
+    /// `invalid command name`, and `info commands ::link` is empty
+    /// (issue #1026). tclsh 8.6.14 agrees for the four it has, and an
+    /// `apply` lambda written *inside* a method body loses the context
+    /// too (`invalid command name "link"`), because `apply` runs its body
+    /// in the global namespace.
+    ///
+    /// Orthogonal to [`Traits::TCLOO_SELF_DISPATCH`] /
+    /// [`Traits::TCLOO_NEXT_CHAIN`] / [`Traits::TCLOO_INTROSPECTION`],
+    /// which say what a word *does* once it has resolved
+    /// ([`crate::registry::CommandRegistry::method_dispatch_keyword`]
+    /// keeps answering for the bare word regardless of where it is
+    /// written); this one says *where* the word resolves at all. A
+    /// consumer answering "is this an unknown command / may I offer it in
+    /// completion / does it hover" asks
+    /// [`crate::registry::CommandRegistry::resolves_only_in_method_context`].
+    ///
+    /// Never carried by the separately-registered **qualified** spelling
+    /// (`oo::Helpers::link`): that name is an ordinary global command
+    /// reachable from anywhere — calling it outside a method is a
+    /// *runtime* error (`::oo::Helpers::link may only be called from
+    /// inside a method`, tclsh 9.0.4), not an unknown command.
+    TclooMethodContext => TCLOO_METHOD_CONTEXT;
+
+    /// Binds each of its argument words as a **bareword alias for a method
+    /// of the current object**, in that object's own namespace — `TclOO`'s
+    /// `link` (`TclOOLinkObjCmd`, `generic/tclOOBasic.c`).
+    ///
+    /// Each word is either a plain `NAME` (aliasing the same-named method)
+    /// or a two-element list `{NAME TARGET}` (aliasing `NAME` to method
+    /// `TARGET`). The analyser's class-body walk consults this trait to
+    /// find the calls that populate `ClassDef::linked_members`, so the
+    /// keyword is registry data rather than a `texts[0] == "link"` literal
+    /// in the walker (issue #1026).
+    ///
+    /// Deliberately *not* one of the three `TclOO` dispatch traits: `link`
+    /// creates dispatching barewords, it does not dispatch — see
+    /// [`Traits::TCLOO_SELF_DISPATCH`].
+    TclooBindsMethodAlias => TCLOO_BINDS_METHOD_ALIAS;
 }
 
 /// Every trait that widens a file's caller set beyond the file itself — the

@@ -3374,6 +3374,206 @@ mod oo_link {
         );
         assert!(cd.linked_members.is_empty(), "{:?}", cd.linked_members);
     }
+
+    #[test]
+    fn link_is_not_recorded_under_a_dialect_without_it() {
+        // The head is recognised through the registry's
+        // `TCLOO_BINDS_METHOD_ALIAS` trait, not by its spelling, so an 8.5
+        // dialect — which has no TclOO at all, let alone `oo::Helpers::link`
+        // — records nothing. (tclsh 8.6.14 without `ooutil` likewise:
+        // `invalid command name "link"` even inside a method.)
+        let cd = class(
+            "oo::class create C {\n    constructor {} { link foo }\n    method foo {x} { return $x }\n}\n",
+            "::C",
+        );
+        assert!(cd.linked_members.contains_key("foo"));
+        let cd85 = Analyser::new()
+            .analyse(
+                "oo::class create C {\n    constructor {} { link foo }\n    method foo {x} { return $x }\n}\n",
+                "tcl8.5",
+            )
+            .all_classes
+            .get("::C")
+            .cloned();
+        assert!(
+            cd85.is_none_or(|c| c.linked_members.is_empty()),
+            "no `link` in the 8.5 registry, so no aliases",
+        );
+    }
+}
+
+// ===========================================================================
+// The `oo::Helpers` family is method-context-scoped (issue #1026).
+//
+// tclsh 9.0.4, at the top level:
+//     link foo          -> invalid command name "link"
+//     my foo            -> invalid command name "my"
+//     next / nextto     -> invalid command name "next" / "nextto"
+//     self              -> invalid command name "self"
+//     classvariable v   -> invalid command name "classvariable"
+//     info commands ::link  -> {}   (empty)
+// and inside `oo::class create C { method m {} { … } }`:
+//     namespace current -> ::oo::Obj22       namespace path -> ::oo::Helpers
+//     namespace which -command link -> ::oo::Helpers::link
+//     namespace which -command my   -> ::oo::Obj22::my   (NOT a helper)
+// while an `apply` lambda written inside that same method body loses the
+// context entirely (`invalid command name "link"` / `"my"` / `"self"`).
+//
+// tclsh 8.6.14 agrees for the four members it has (`next`/`nextto`/`self`
+// are `::oo::Helpers::*`, `my` is `::oo::ObjN::my`), and adding
+// `::oo::Helpers::link` the way Tcllib's `ooutil` does still leaves the
+// top-level bare `link` an `invalid command name`.
+// ===========================================================================
+mod oo_helpers_scoping {
+    use super::*;
+
+    /// Every family member, with the dialect that has it.
+    const FAMILY: &[(&str, &str)] = &[
+        ("link", "tcl9.0"),
+        ("my", "tcl8.6"),
+        ("next", "tcl8.6"),
+        ("nextto", "tcl8.6"),
+        ("self", "tcl8.6"),
+        ("classvariable", "tcl9.0"),
+    ];
+
+    #[test]
+    fn top_level_use_draws_w123() {
+        for (word, dialect) in FAMILY {
+            let src = format!("{word} foo\n");
+            assert!(
+                fires(&src, dialect, "W123"),
+                "top-level `{word}` is `invalid command name` in real Tcl",
+            );
+        }
+    }
+
+    #[test]
+    fn method_body_use_is_clean() {
+        for (word, dialect) in FAMILY {
+            let src = format!(
+                "oo::class create C {{\n    method foo {{}} {{ return 1 }}\n    method m {{}} {{ {word} foo }}\n}}\n"
+            );
+            assert!(
+                !fires(&src, dialect, "W123"),
+                "`{word}` resolves inside a method body: {:?}",
+                codes(&src, dialect),
+            );
+        }
+    }
+
+    #[test]
+    fn constructor_destructor_and_class_side_bodies_are_clean() {
+        // tclsh 9.0.4: `link`/`self`/`my` all work in a constructor, a
+        // destructor, a `self method` body, and an `oo::objdefine method`
+        // body.
+        for (word, dialect) in FAMILY {
+            for body in [
+                format!(
+                    "oo::class create C {{\n    method foo {{}} {{ return 1 }}\n    constructor {{}} {{ {word} foo }}\n}}\n"
+                ),
+                format!(
+                    "oo::class create C {{\n    method foo {{}} {{ return 1 }}\n    destructor {{ {word} foo }}\n}}\n"
+                ),
+                format!(
+                    "oo::class create C {{\n    method foo {{}} {{ return 1 }}\n    self method cm {{}} {{ {word} foo }}\n}}\n"
+                ),
+                format!(
+                    "oo::class create C {{}}\nC create c1\noo::objdefine c1 {{\n    method om {{}} {{ {word} foo }}\n}}\n"
+                ),
+            ] {
+                assert!(
+                    !fires(&body, dialect, "W123"),
+                    "`{word}` resolves in every method context: {:?}\n{body}",
+                    codes(&body, dialect),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn apply_lambda_inside_a_method_body_draws_w123() {
+        // TP — `apply` runs its body in the global namespace, so the object
+        // context is gone (tclsh 9.0.4, inside a method:
+        // `apply {{} { link Helper }}` -> `invalid command name "link"`).
+        for (word, dialect) in FAMILY {
+            let src = format!(
+                "oo::class create C {{\n    method foo {{}} {{ return 1 }}\n    method m {{}} {{ apply {{{{}} {{ {word} foo }}}} }}\n}}\n"
+            );
+            assert!(
+                fires(&src, dialect, "W123"),
+                "an apply lambda loses the method context: {:?}",
+                codes(&src, dialect),
+            );
+        }
+    }
+
+    #[test]
+    fn a_linked_bareword_resolves_inside_the_objects_method_bodies() {
+        // TN — `link foo` installs a real command `foo` in the object's own
+        // namespace that dispatches `my foo` (tclsh 9.0.4: after `link
+        // Helper` in a constructor, `namespace which -command Helper`
+        // answers `::oo::ObjN::Helper` from every method body), so a later
+        // bare `foo 1` is not an unknown command.
+        let src = "oo::class create Widget {\n    method foo {x} { return $x }\n    method bar {} {\n        link foo\n        return [foo 1]\n    }\n}\n";
+        assert!(!fires(src, "tcl9.0", "W123"), "{:?}", codes(src, "tcl9.0"));
+    }
+
+    #[test]
+    fn an_unlinked_sibling_method_bareword_still_draws_w123() {
+        // TP — `link` for one name must not blanket-legitimise every
+        // bareword in the class: tclsh 9.0.4 raises `invalid command name
+        // "other"` for an un-linked sibling method called bare.
+        let src = "oo::class create Widget {\n    method foo {x} { return $x }\n    method other {} { return 2 }\n    method bar {} {\n        link foo\n        return [other]\n    }\n}\n";
+        assert!(fires(src, "tcl9.0", "W123"), "{:?}", codes(src, "tcl9.0"));
+    }
+
+    #[test]
+    fn a_linked_bareword_still_draws_w123_at_the_top_level() {
+        // TP — the alias lives in the object's namespace, so it is not
+        // callable from outside a method body.
+        let src = "oo::class create Widget {\n    method foo {x} { return $x }\n    method bar {} { link foo }\n}\nfoo 1\n";
+        assert!(fires(src, "tcl9.0", "W123"), "{:?}", codes(src, "tcl9.0"));
+    }
+
+    #[test]
+    fn proc_body_draws_w123() {
+        // TP — an ordinary proc is not a method context, however it is
+        // nested.
+        for (word, dialect) in FAMILY {
+            let src = format!("proc helper {{}} {{ {word} foo }}\n");
+            assert!(fires(&src, dialect, "W123"), "`{word}` in a plain proc");
+        }
+    }
+
+    #[test]
+    fn qualified_spelling_resolves_anywhere() {
+        // TN — `::oo::Helpers::link` is a genuine global command
+        // (`info commands ::oo::Helpers::link` answers it under tclsh
+        // 9.0.4); calling it outside a method is a *runtime* error, not an
+        // unknown command.
+        for spelling in [
+            "::oo::Helpers::link foo",
+            "oo::Helpers::link foo",
+            "::oo::Helpers::self",
+            "::oo::Helpers::classvariable v",
+        ] {
+            let src = format!("{spelling}\n");
+            assert!(
+                !fires(&src, "tcl9.0", "W123"),
+                "{spelling}: {:?}",
+                codes(&src, "tcl9.0"),
+            );
+        }
+    }
+
+    #[test]
+    fn a_user_proc_of_the_same_name_still_resolves_at_the_top_level() {
+        // FP guard — the scope rule must not swallow a real, user-defined
+        // global command that happens to share the name.
+        let src = "proc link {args} { return $args }\nlink foo\n";
+        assert!(!fires(src, "tcl9.0", "W123"), "{:?}", codes(src, "tcl9.0"));
+    }
 }
 
 // ===========================================================================
