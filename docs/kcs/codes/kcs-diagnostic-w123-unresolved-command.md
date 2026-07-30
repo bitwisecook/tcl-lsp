@@ -133,6 +133,39 @@ Tcl consults `::unknown` for a bare unresolved word regardless of the calling
 namespace. To register a per-namespace handler, use `namespace unknown NAME`,
 which the analyser models separately.
 
+## Commands that only resolve inside a TclOO method
+
+`link`, `my`, `next`, `nextto`, `self`, and `classvariable` are not global
+commands. They are reachable only from inside a method body — a `method`,
+`constructor`, `destructor`, class-side method, or `oo::objdefine method`.
+Written anywhere else they really are unresolved:
+
+```tcl
+# tcl-dialect: tcl9.0
+link foo
+```
+
+The analyser reports **`W123`** on `link`, and running this fails with
+`invalid command name "link"`. The same call inside a method body is
+fine, and so is the fully qualified spelling `::oo::Helpers::link`, which
+is a real command everywhere (calling it outside a method fails for a
+different reason — it reports that it may only be called from inside a
+method).
+
+An `apply` lambda written inside a method body does **not** count: `apply`
+runs its body in the global namespace, so the object context is gone and
+these words are unresolved there too.
+
+A Tcl 9 class `initialise` / `initialize` body is **not** flagged, even
+though only `my` actually works there. That body runs in the class
+object's own namespace, so the words really are found — calling one fails
+with `self may only be called from inside a method`, which is a different
+error from an unknown command, and `W123` is only about the latter.
+Completion and hover still decline to offer them there.
+
+For the full rule, see
+[Where can I call `my`, `next`, `self`, and `link`?](../kcs-qa-where-can-i-call-my-next-self-and-link.md).
+
 A built-in `expr` math function (`sin`, `max`, `abs`, …) called with
 function-call syntax inside `expr` resolves to the command it dispatches to
 (`::tcl::mathfunc::<name>`) and never draws `W123`, whether or not it has

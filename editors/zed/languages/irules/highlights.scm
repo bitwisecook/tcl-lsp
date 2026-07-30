@@ -231,15 +231,15 @@
     "llength" "llookup" "local_addr" "local_port" "log" "lrange"
     "lreplace" "lsearch" "lset" "lsort" "matchclass" "md4"
     "md5" "members" "nexthop" "node" "nodes" "ntohl"
-    "ntohs" "peer" "pem_dtos" "persist" "pool" "priority"
-    "radius_authenticate" "rateclass" "recv" "redirect" "regexp" "regsub"
-    "reject" "relate_client" "relate_server" "remote_addr" "remote_port" "rmd160"
-    "scan" "send" "server_addr" "server_port" "serverside" "session"
-    "sha1" "sha256" "sha384" "sha512" "sharedvar" "snat"
-    "snatpool" "split" "string" "subst" "substr" "table"
-    "tcpdump" "timing" "trace" "traffic_group" "translate" "uniq_ordered_ip_list"
-    "uniq_sorted_ip_list" "unset" "urlcatblindquery" "urlcatquery" "use" "virtual"
-    "vlan_id" "whereis" "xff_list" "xff_uniq_ordered_ip_list" "xff_uniq_sorted_ip_list"))
+    "ntohs" "peer" "pem_dtos" "persist" "pkg::create" "pool"
+    "priority" "radius_authenticate" "rateclass" "recv" "redirect" "regexp"
+    "regsub" "reject" "relate_client" "relate_server" "remote_addr" "remote_port"
+    "rmd160" "scan" "send" "server_addr" "server_port" "serverside"
+    "session" "sha1" "sha256" "sha384" "sha512" "sharedvar"
+    "snat" "snatpool" "split" "string" "subst" "substr"
+    "table" "tcpdump" "timing" "trace" "traffic_group" "translate"
+    "uniq_ordered_ip_list" "uniq_sorted_ip_list" "unset" "urlcatblindquery" "urlcatquery" "use"
+    "virtual" "vlan_id" "whereis" "xff_list" "xff_uniq_ordered_ip_list" "xff_uniq_sorted_ip_list"))
 
 ; Highlight unset / variable arguments as variables
 (command

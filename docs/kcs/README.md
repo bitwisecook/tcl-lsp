@@ -123,6 +123,11 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-qa-how-are-command-names-resolved.md](kcs-qa-how-are-command-names-resolved.md)
   — which definition a bare, relative, or absolute command name
   dispatches to, and the one shared algorithm every backend conforms to.
+- [kcs-qa-where-can-i-call-my-next-self-and-link.md](kcs-qa-where-can-i-call-my-next-self-and-link.md)
+  — why `link`, `my`, `next`, `nextto`, `self`, and `classvariable` are
+  unknown commands outside a `TclOO` method body, which bodies count
+  (including why an `apply` lambda does not), and how the fully qualified
+  `::oo::Helpers::…` spellings differ.
 - [kcs-qa-tcltest-package-support.md](kcs-qa-tcltest-package-support.md) —
   how the server models the `tcltest` package, its `test` / `configure`
   options, and their per-version availability across Tcl 8.4-9.0.

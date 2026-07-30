@@ -64,6 +64,17 @@ struct W123KnownNames {
     /// `::acme::render_*`) or an exact name (`render_box`).  An unqualified
     /// call matching one of these resolves to the imported command.
     import_pattern_tails: Vec<String>,
+    /// Registry names whose *bare* spelling only resolves from inside a
+    /// `TclOO` method context — `link` / `my` / `next` / `nextto` / `self`
+    /// / `classvariable` (issue #1026). Membership of
+    /// [`Self::registry_names`] alone is not enough for these: the call
+    /// site has to be in a method body too, or real Tcl raises `invalid
+    /// command name` (tclsh 9.0.4).
+    ///
+    /// Registry data throughout — the set is whichever specs carry
+    /// [`tcl_registry::Traits::TCLOO_METHOD_CONTEXT`], never a name list
+    /// here.
+    method_context_names: HashSet<String>,
     candidates: Vec<String>,
 }
 
@@ -463,6 +474,16 @@ impl Analyser {
             }
         }
 
+        // The method-context-scoped subset of the registry names, asked of
+        // the registry itself so no command name appears here (issue
+        // #1026). Built from `registry_names` so the dialect gate already
+        // applied above carries over.
+        let method_context_names: HashSet<String> = registry_names
+            .iter()
+            .filter(|name| registry.resolves_only_in_method_context(name))
+            .cloned()
+            .collect();
+
         W123KnownNames {
             registry_names,
             proc_defs_by_tail,
@@ -472,6 +493,7 @@ impl Analyser {
             ensemble_cmds,
             stub_names,
             import_pattern_tails,
+            method_context_names,
             candidates,
         }
     }
@@ -555,6 +577,50 @@ impl Analyser {
         self.result.offset_is_inside_any_definition_body(off)
     }
 
+    /// Whether byte offset `off` sits in a `TclOO` **method context** — a
+    /// `method` / `constructor` / `destructor` / class-side method /
+    /// `oo::objdefine method` body — the only place the `oo::Helpers`
+    /// family and the per-object `my` resolve by bare name (issue #1026).
+    ///
+    /// The same scope walk the `::oo::Helpers` reference gate already uses
+    /// ([`crate::analyser::scope::innermost_scope_reaches_oo_helpers`]), so
+    /// the two cannot disagree about which bodies count — including the
+    /// negative case both need: an `apply` lambda written inside a method
+    /// body opens a `Proc` scope and therefore does *not* count (tclsh
+    /// 9.0.4, inside a method: `apply {{} { link Helper }}` → `invalid
+    /// command name "link"`).
+    fn offset_in_oo_method_context(&self, off: u32) -> bool {
+        crate::analyser::scope::innermost_scope_reaches_oo_helpers(&self.result.global_scope, off)
+    }
+
+    /// Whether `name` is a bareword some `link` call installed in the
+    /// object namespace of the class whose body encloses `off`.
+    ///
+    /// `link NAME` / `link {NAME TARGET}` creates a real command `NAME` in
+    /// the current object's namespace that dispatches `my NAME` /
+    /// `my TARGET` (`TclOOLinkObjCmd`), so a later bare `NAME` call from
+    /// any of that object's method bodies resolves — confirmed against
+    /// tclsh 9.0.4, where `link Helper` inside a constructor makes bare
+    /// `Helper` callable from every method and `namespace which -command
+    /// Helper` answers `::oo::ObjN::Helper`. `ClassDef::linked_members`
+    /// already records exactly those aliases for go-to-definition and
+    /// hover; W123 needs the same fact or every linked bareword reads as
+    /// an unknown command.
+    ///
+    /// Gated on the method context for the same reason the rest of the
+    /// `oo::Helpers` family is: the aliases live in the object namespace,
+    /// so the class body's own top level cannot see them.
+    fn linked_member_resolves(&self, name: &str, off: u32) -> bool {
+        if !self.offset_in_oo_method_context(off) {
+            return false;
+        }
+        self.result
+            .all_classes
+            .values()
+            .filter(|cd| cd.body_span.start() <= off && off < cd.body_span.end())
+            .any(|cd| cd.linked_members.contains_key(name))
+    }
+
     /// Whether the command head `name`, invoked at `range`, resolves through
     /// any W123 resolution path — first match wins (see
     /// [`Self::emit_unresolved_command_diagnostics`] for the ordered list).
@@ -576,6 +642,8 @@ impl Analyser {
         // deletion stay resolved by the registry name.
         if known.registry_names.contains(name)
             && !self.registry_name_deleted_before(name, range.start())
+            && (!known.method_context_names.contains(name)
+                || self.offset_in_oo_method_context(range.start()))
         {
             return true;
         }
@@ -710,6 +778,10 @@ impl Analyser {
         }) || self.result.all_classes.get(&absolute).is_some_and(|def| {
             self.fact_live_for_call(&absolute, def.name_span.start(), range.start())
         }) {
+            return true;
+        }
+        // A bareword `link` installed in the enclosing object's namespace.
+        if self.linked_member_resolves(name, range.start()) {
             return true;
         }
         // A command bound by `CLASS create NAME` (or a registry

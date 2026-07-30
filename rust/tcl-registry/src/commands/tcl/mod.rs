@@ -112,6 +112,7 @@ mod oo_classvariable;
 mod oo_configurable;
 mod oo_copy;
 mod oo_define;
+mod oo_helpers;
 mod oo_link;
 mod oo_my;
 mod oo_next;
@@ -197,6 +198,10 @@ pub fn tcl_command_specs() -> Vec<CommandSpec> {
     // Standalone specs for `dict` subcommands that are also genuine,
     // separately-callable `::tcl::dict::<name>` commands (issue #923 idx 105).
     specs.extend(dict::qualified_specs());
+    // Standalone specs for the `oo::Helpers` members under their qualified
+    // spelling — real, separately-callable commands whose *bare* twins are
+    // method-context-only (issue #1026).
+    specs.extend(oo_helpers::qualified_specs());
     // Simple named commands not yet implemented. (`vec!` — the spec
     // table is past clippy's stack-array size threshold.)
     specs.extend(vec![

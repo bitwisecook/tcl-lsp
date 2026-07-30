@@ -56,7 +56,7 @@ fn ancestor_paths(start: &[usize]) -> impl Iterator<Item = Vec<usize>> + '_ {
 ///
 /// Walks `path` index-by-index. Returns the root for an empty
 /// path; returns `None` if any index is out of bounds.
-fn scope_at<'a>(root: &'a Scope, path: &[usize]) -> Option<&'a Scope> {
+pub(super) fn scope_at<'a>(root: &'a Scope, path: &[usize]) -> Option<&'a Scope> {
     let mut cursor = root;
     for &idx in path {
         cursor = cursor.children.get(idx)?;
@@ -156,6 +156,34 @@ fn advance_command_resolution_namespace(ns: &str, child: &Scope) -> String {
     }
 }
 
+/// The innermost child scope of `cursor` whose `body_span` contains
+/// `byte_offset` — the one step both byte-offset scope walks below take.
+///
+/// "Innermost" is by **span width**, not by first match: the scope tree is
+/// not strictly nested in one case that matters here. An `apply` lambda
+/// written inside a `TclOO` method body opens its `ScopeKind::Proc` scope
+/// as a *sibling* of the method's own scope (both hang off the enclosing
+/// scope, since the method body is walked in its own pass) while its span
+/// lies strictly inside the method's. Taking the first container would stop
+/// at the method and miss the lambda — which is exactly the frame that
+/// matters, because `apply` runs its body in the global namespace and so
+/// loses the object context (tclsh 9.0.4: `apply {{} { link Helper }}`
+/// inside a method raises `invalid command name "link"`; issue #1026).
+/// Where the tree *is* properly nested, no two children of one node
+/// contain the same offset, so this is the plain first-match walk.
+fn innermost_containing_child(cursor: &Scope, byte_offset: u32) -> Option<&Scope> {
+    cursor
+        .children
+        .iter()
+        .filter_map(|c| {
+            c.body_span
+                .filter(|s| s.start() <= byte_offset && byte_offset < s.end())
+                .map(|s| (c, s.end() - s.start()))
+        })
+        .min_by_key(|&(_, width)| width)
+        .map(|(c, _)| c)
+}
+
 /// Namespace an unqualified command invoked at `byte_offset` resolves
 /// against, per Tcl's command-resolution rule.
 ///
@@ -177,12 +205,7 @@ fn advance_command_resolution_namespace(ns: &str, child: &Scope) -> String {
 pub fn command_resolution_namespace_at(root: &Scope, byte_offset: u32) -> String {
     let mut ns = "::".to_string();
     let mut cursor = root;
-    loop {
-        let next = cursor.children.iter().find(|c| {
-            c.body_span
-                .is_some_and(|s| s.start() <= byte_offset && byte_offset < s.end())
-        });
-        let Some(child) = next else { break };
+    while let Some(child) = innermost_containing_child(cursor, byte_offset) {
         ns = advance_command_resolution_namespace(&ns, child);
         cursor = child;
     }
@@ -214,19 +237,74 @@ pub fn command_resolution_namespace_at(root: &Scope, byte_offset: u32) -> String
 /// object-context resolution behind, exactly like [`ScopeKind::Namespace`]
 /// resets nothing in `advance_command_resolution_namespace` but a
 /// `Proc`/`Method`/`Uplevel` scope does.
+///
+/// Because a `TclOO` object frame is exactly where `::oo::Helpers` sits on
+/// the path, this is also the **resolution** half of the `oo::Helpers`
+/// scoping rule (issue #1026) — including the per-object `my`, which is not
+/// an `::oo::Helpers` member at all (`namespace which -command my` answers
+/// `::oo::ObjN::my` under tclsh 9.0.4) yet is reachable in exactly the same
+/// frames and nowhere else. The `Proc` reset is what makes an `apply` lambda
+/// written *inside* a method correctly not count: tclsh 9.0.4 raises `invalid
+/// command name "link"` / `"my"` / `"self"` there.
+///
+/// **"Resolves here" and "is callable here" are different facts, and this
+/// answers only the first** (Codex review of PR #1084). `W123` — "is this an
+/// unknown command" — keys on resolution and therefore on this predicate.
+/// Completion and hover ask "may the user write this word here", which is
+/// callability, and must use [`innermost_scope_is_oo_method_frame`] instead:
+/// a Tcl 9 class `initialise` body sets `oo_global_resolution` (so this
+/// answers `true`, correctly suppressing `W123`) while every family member
+/// but `my` raises `… may only be called from inside a method` when actually
+/// called there.
 #[must_use]
 pub fn innermost_scope_reaches_oo_helpers(root: &Scope, byte_offset: u32) -> bool {
+    innermost_oo_frame(root, byte_offset, |child| child.oo_global_resolution)
+}
+
+/// Whether the innermost scope containing `byte_offset` is a real `TclOO`
+/// **method invocation** — the *callability* half of the `oo::Helpers`
+/// scoping rule, and the counterpart to
+/// [`innermost_scope_reaches_oo_helpers`]'s *resolution* half.
+///
+/// Identical traversal, reading [`Scope::oo_method_frame`] instead of
+/// [`Scope::oo_global_resolution`], so the two can never disagree about
+/// which scope is innermost. They differ in exactly one place: a Tcl 9
+/// class-level `initialise` / `initialize` body. Pinned against tclsh
+/// 9.0.4, inside `oo::class create ::P { initialize { … } }`:
+///
+/// ```text
+/// ns=::oo::Obj20  path=::oo::Helpers ::oo
+/// link:  which='::oo::Helpers::link'  call -> link may only be called from inside a method
+/// self:  which='::oo::Helpers::self'  call -> self may only be called from inside a method
+/// my:    which='::oo::Obj20::my'      call -> OK  (`my new` returns ::oo::Obj22)
+/// ```
+///
+/// Consumers pair this with
+/// [`tcl_registry::CommandRegistry::requires_oo_method_frame`], which says
+/// *which* words need the stronger frame — the five `::oo::Helpers` members
+/// do, `my` does not, because it is the object's own dispatch command and a
+/// class is an object.
+#[must_use]
+pub fn innermost_scope_is_oo_method_frame(root: &Scope, byte_offset: u32) -> bool {
+    innermost_oo_frame(root, byte_offset, |child| child.oo_method_frame)
+}
+
+/// Shared descent for the two `TclOO` frame predicates above: walk to the
+/// innermost containing scope, remembering what the *last*
+/// namespace-resolution-affecting scope kind on the way down said.
+///
+/// A `namespace eval` (or any other scope kind) nested inside a method body
+/// leaves the method's object-context resolution behind, exactly like
+/// [`ScopeKind::Namespace`] resets nothing in
+/// [`advance_command_resolution_namespace`] but a `Proc` / `Method` /
+/// `Uplevel` scope does.
+fn innermost_oo_frame(root: &Scope, byte_offset: u32, method_says: fn(&Scope) -> bool) -> bool {
     let mut reaches = false;
     let mut cursor = root;
-    loop {
-        let next = cursor.children.iter().find(|c| {
-            c.body_span
-                .is_some_and(|s| s.start() <= byte_offset && byte_offset < s.end())
-        });
-        let Some(child) = next else { break };
+    while let Some(child) = innermost_containing_child(cursor, byte_offset) {
         reaches = match child.kind {
             ScopeKind::Namespace | ScopeKind::Global => reaches,
-            ScopeKind::Method => child.oo_global_resolution,
+            ScopeKind::Method => method_says(child),
             ScopeKind::Proc | ScopeKind::Uplevel => false,
         };
         cursor = child;

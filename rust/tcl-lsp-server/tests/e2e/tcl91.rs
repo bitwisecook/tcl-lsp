@@ -144,6 +144,129 @@ fn link_stays_silent_in_86_once_ooutil_is_required() {
     );
 }
 
+// The whole `oo::Helpers` family is method-context-scoped (issue #1026).
+//
+// tclsh 9.0.4 at the top level answers `invalid command name` for every one
+// of `link` / `my` / `next` / `nextto` / `self` / `classvariable`, and
+// `info commands ::link` is empty — while inside a method body
+// `namespace which -command link` answers `::oo::Helpers::link` (and
+// `… my` answers `::oo::ObjN::my`, an object-namespace command rather than
+// a helper). tclsh 8.6.14 agrees for the four members it ships.
+
+/// The `# tcl-dialect: tcl9.0` document the repro in issue #1026 uses.
+fn scoped_family_doc(body: &str) -> String {
+    format!("# tcl-dialect: tcl9.0\n{body}")
+}
+
+#[test]
+fn top_level_link_draws_w123() {
+    // Issue #1026's own repro: `link foo` at the top level under tcl9.0.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, &scoped_family_doc("link foo\n"));
+    assert!(
+        codes(&diags).contains("W123"),
+        "top-level `link foo` is `invalid command name \"link\"` in real Tcl 9.0: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn method_body_link_stays_clean() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        &scoped_family_doc(
+            "oo::class create Widget {\n    method foo {x} { return $x }\n    method bar {} {\n        link foo\n        return [foo 1]\n    }\n}\n",
+        ),
+    );
+    assert!(
+        !codes(&diags).contains("W123"),
+        "`link` resolves inside a method body: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn top_level_family_members_all_draw_w123() {
+    let mut lsp = Lsp::tcl();
+    for word in ["my", "next", "nextto", "self", "classvariable"] {
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(&uri, &scoped_family_doc(&format!("{word} foo\n")));
+        assert!(
+            codes(&diags).contains("W123"),
+            "top-level `{word}` is `invalid command name`: {:?}",
+            codes(&diags)
+        );
+    }
+}
+
+#[test]
+fn link_is_not_offered_in_top_level_completion() {
+    // Completion follows the same scoping: offering `link` at the top level
+    // would insert a call real Tcl rejects.
+    let mut lsp = Lsp::tcl();
+    assert!(
+        !complete_cmd(&mut lsp, "tcl9.0", "lin").contains("link"),
+        "no top-level completion of a method-context-only command",
+    );
+}
+
+/// Byte-for-byte the VS Code fixture `editors/vscode/testFixture/
+/// ooMethodContext.tcl`, so the extension test's cursor positions are
+/// pinned here against the same server.
+const OO_METHOD_CONTEXT_FIXTURE: &str = "# tcl-dialect: tcl9.0\nlin\noo::class create Widget {\n    method foo {x} { return $x }\n    method bar {} {\n        lin\n    }\n}\n";
+
+#[test]
+fn link_is_offered_inside_a_method_body() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, OO_METHOD_CONTEXT_FIXTURE);
+    // Line 1 is the top-level `lin`; line 5 is the `lin` inside `method bar`.
+    let top = labels(&lsp.completion(&uri, 1, 3));
+    assert!(!top.contains("link"), "top level offered `link`: {top:?}");
+    let inner = labels(&lsp.completion(&uri, 5, 11));
+    assert!(inner.contains("link"), "expected `link` among {inner:?}");
+}
+
+#[test]
+fn top_level_link_has_no_hover_but_a_method_body_one_does() {
+    let mut lsp = Lsp::tcl();
+    let top = unique_uri("tcl");
+    lsp.open_ready(&top, &scoped_family_doc("link foo\n"));
+    assert!(
+        hover_text(&lsp.hover(&top, 1, 1)).is_empty(),
+        "an unresolvable top-level `link` must not hover as a builtin",
+    );
+    let inner = unique_uri("tcl");
+    lsp.open_ready(
+        &inner,
+        &scoped_family_doc(
+            "oo::class create Widget {\n    method foo {x} { return $x }\n    method bar {} {\n        link foo\n    }\n}\n",
+        ),
+    );
+    assert!(
+        hover_text(&lsp.hover(&inner, 4, 9)).contains("link"),
+        "the same word hovers inside a method body",
+    );
+}
+
+#[test]
+fn the_qualified_oo_helpers_spelling_resolves_at_the_top_level() {
+    // `info commands ::oo::Helpers::link` answers `::oo::Helpers::link`
+    // under tclsh 9.0.4 — calling it outside a method is a *runtime* error
+    // ("may only be called from inside a method"), not an unknown command.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, &scoped_family_doc("::oo::Helpers::link foo\n"));
+    assert!(
+        !codes(&diags).contains("W123"),
+        "the qualified spelling is a real global command: {:?}",
+        codes(&diags)
+    );
+}
+
 // -- TestTcl91Operators --------------------------------------------------
 // doc/expr.n — the `lt`/`le`/`gt`/`ge` string operators (TIP 461) are 9.0+.
 
@@ -177,4 +300,226 @@ fn ge_operator_flags_w003_in_86() {
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl8.6\nexpr {$a ge $b}\n");
     assert!(codes(&diags).contains("W003"));
+}
+
+// -- Codex review of PR #1084 ------------------------------------------------
+
+/// Whether any completion item labelled `label` is a **built-in** — i.e. came
+/// from the registry rather than from a user `proc` of the same name.
+///
+/// The label alone cannot answer that. A workspace may legitimately define
+/// `proc link {arr} {…}` (the VS Code fixture folder does, in
+/// `nameVsValuePositions.tcl`), and such a proc is a real global command that
+/// completion must offer everywhere — so a label-only assertion about `link`
+/// says nothing about the `oo::Helpers` scoping rule. A registry item carries
+/// the spec's hover summary as `documentation`; a user proc carries none and
+/// its `detail` is the parameter list.
+fn has_builtin(result: &Value, label: &str) -> bool {
+    completion_items(result).iter().any(|item| {
+        item.get("label").and_then(Value::as_str) == Some(label)
+            && item
+                .get("documentation")
+                .and_then(Value::as_str)
+                .is_some_and(|d| !d.is_empty())
+    })
+}
+
+/// Whether any completion item labelled `label` is a **user proc**.
+fn has_user_proc(result: &Value, label: &str) -> bool {
+    completion_items(result).iter().any(|item| {
+        item.get("label").and_then(Value::as_str) == Some(label)
+            && item.get("documentation").is_none()
+    })
+}
+
+/// A workspace `proc link` must not mask the scoping rule — the regression
+/// CI's `test-ext` caught, where the extension harness opens the whole
+/// `testFixture` folder (which defines `proc link {arr}`) and my label-only
+/// assertion read that proc as the builtin.
+///
+/// Both facts hold at once and neither is about the other: the user proc is a
+/// real global command offered in **both** positions, while the built-in
+/// `link` is offered only in the method body. Real Tcl agrees on both halves
+/// — `proc link {arr} {…}` then `link foo` runs at the top level, and bare
+/// `link` there is otherwise `invalid command name "link"`.
+#[test]
+fn a_user_proc_named_link_does_not_mask_the_builtin_scoping() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl9.0\nproc link {arr} { return $arr }\noo::class create W {\n    method m {} {\n        lin\n    }\n}\nlin\n",
+    );
+    let top = lsp.completion(&uri, 7, 3);
+    let inner = lsp.completion(&uri, 4, 11);
+    assert!(
+        has_user_proc(&top, "link"),
+        "a real global `proc link` is callable at the top level and must be offered",
+    );
+    assert!(
+        !has_builtin(&top, "link"),
+        "the *built-in* `link` must stay gated at the top level",
+    );
+    assert!(
+        has_user_proc(&inner, "link"),
+        "the user proc is in scope inside a method body too",
+    );
+    assert!(
+        has_builtin(&inner, "link"),
+        "the built-in `link` is offered inside a method body",
+    );
+}
+
+/// A Tcl 9 class-level `initialise` body **resolves** the family but cannot
+/// **call** it, and the two facts drive different features.
+///
+/// tclsh 9.0.4, inside `oo::class create ::P { initialize { … } }`:
+///
+/// ```text
+/// ns=::oo::Obj20  path=::oo::Helpers ::oo
+/// link:  which='::oo::Helpers::link'  call -> link may only be called from inside a method
+/// self:  which='::oo::Helpers::self'  call -> self may only be called from inside a method
+/// my:    which='::oo::Obj20::my'      call -> OK  (`my new` returns ::oo::Obj22)
+/// ```
+///
+/// So W123 stays silent (the command is not unknown), completion offers only
+/// `my`, and hover describes only `my`.
+#[test]
+fn class_init_body_resolves_the_family_but_only_my_is_callable() {
+    let mut lsp = Lsp::tcl();
+    // A *complete* call, to observe W123: the command is not unknown here.
+    let resolved = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &resolved,
+        "# tcl-dialect: tcl9.0\noo::class create C {\n    initialize { link m }\n    method m {} { return 1 }\n}\n",
+    );
+    assert!(
+        !codes(&diags).contains("W123"),
+        "the family resolves in an `initialize` body: {:?}",
+        codes(&diags)
+    );
+    // A *partial* word, to observe completion. Line 2 is the init-body
+    // probe, line 4 the method-body one.
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl9.0\noo::class create C {\n    initialize { lin }\n    method m {} {\n        lin\n    }\n}\n",
+    );
+    let init = lsp.completion(&uri, 2, 20);
+    assert!(
+        !has_builtin(&init, "link"),
+        "`link` raises `may only be called from inside a method` in an init body",
+    );
+    let method = lsp.completion(&uri, 4, 11);
+    assert!(
+        has_builtin(&method, "link"),
+        "a real method body still offers it",
+    );
+}
+
+#[test]
+fn class_init_body_still_offers_and_hovers_my() {
+    // `my` is not an `::oo::Helpers` member — it is `::oo::ObjN::my`, the
+    // object's own dispatch command, and a class *is* an object, so `my new`
+    // in an `initialize` body genuinely makes an instance (tclsh 9.0.4).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "# tcl-dialect: tcl9.0\noo::class create C {\n    initialize { m }\n    method m {} { return 1 }\n}\n";
+    lsp.open_ready(&uri, src);
+    let init = lsp.completion(&uri, 2, 18);
+    assert!(
+        has_builtin(&init, "my"),
+        "`my` is callable in a class-level init body",
+    );
+    let hovered = unique_uri("tcl");
+    lsp.open_ready(
+        &hovered,
+        "# tcl-dialect: tcl9.0\noo::class create C {\n    initialize { my new }\n    method m {} { return 1 }\n}\n",
+    );
+    assert!(
+        !hover_text(&lsp.hover(&hovered, 2, 18)).is_empty(),
+        "`my` hovers in a class-level init body",
+    );
+}
+
+#[test]
+fn class_init_body_does_not_hover_a_method_only_helper() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl9.0\noo::class create C {\n    initialize { self }\n    method m {} { return 1 }\n}\n",
+    );
+    assert!(
+        hover_text(&lsp.hover(&uri, 2, 18)).is_empty(),
+        "`self` raises `may only be called from inside a method` in an init body",
+    );
+}
+
+/// Tcllib's `ooutil` installs a real `::oo::Helpers::link` under 8.6/8.7, so
+/// the **qualified** spelling needs the same package gating its bare twin has
+/// (Codex review of PR #1084). Without the second spec the fully qualified
+/// call was unknown on exactly the dialect where a user must reach for it.
+#[test]
+fn qualified_link_resolves_in_86_once_ooutil_is_required() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl8.6\npackage require ooutil\noo::class create W {\n    method foo {} { return 1 }\n    method m {} { ::oo::Helpers::link foo }\n}\n",
+    );
+    let seen = codes(&diags);
+    assert!(
+        !seen.contains("W123") && !seen.contains("W120"),
+        "8.6 + ooutil provides ::oo::Helpers::link: {seen:?}",
+    );
+    assert!(
+        !hover_text(&lsp.hover(&uri, 4, 22)).is_empty(),
+        "the qualified spelling hovers once the package is required",
+    );
+}
+
+#[test]
+fn qualified_link_needs_the_ooutil_require_in_86() {
+    // Same convention as the bare twin (`link_requires_ooutil_package_require_in_86`):
+    // 8.6 core has no `::oo::Helpers::link` at all.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl8.6\noo::class create W {\n    method foo {} { return 1 }\n    method m {} { ::oo::Helpers::link foo }\n}\n",
+    );
+    assert!(
+        codes(&diags).contains("W120"),
+        "8.6 without `package require ooutil` has no ::oo::Helpers::link: {:?}",
+        codes(&diags)
+    );
+}
+
+/// A Tcl 9 buffer must describe the **core** `link`, not the Tcllib one.
+///
+/// `link` has two specs under one name; the completion item used to take its
+/// `detail` / `documentation` from whichever the by-name lookup returned
+/// first, so a `tcl9.0` document showed `tcllib (ooutil)` for a core command.
+#[test]
+fn a_tcl90_buffer_describes_the_core_link_not_the_tcllib_one() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl9.0\noo::class create W {\n    method m {} {\n        lin\n    }\n}\n",
+    );
+    let detail = completion_items(&lsp.completion(&uri, 3, 11))
+        .iter()
+        .find(|item| {
+            item.get("label").and_then(Value::as_str) == Some("link")
+                && item.get("documentation").is_some()
+        })
+        .and_then(|item| item.get("detail").and_then(Value::as_str))
+        .map(str::to_owned)
+        .expect("the built-in `link` is offered in a method body");
+    assert!(
+        !detail.contains("ooutil"),
+        "a tcl9.0 buffer must not describe core `link` as tcllib: {detail:?}",
+    );
 }

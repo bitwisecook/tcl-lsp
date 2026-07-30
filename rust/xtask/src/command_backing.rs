@@ -403,6 +403,28 @@ fn is_tcl_dict_qualified(c: &str) -> bool {
 const TCL_DICT_QUALIFIED_REASON: &str = "standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): \
      runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name`";
 
+/// Whether `c` is a qualified `::oo::Helpers::*` spelling (issue #1026).
+///
+/// These are real commands in C Tcl — `info commands ::oo::Helpers::link`
+/// answers under tclsh 9.0.4 — which is why the registry carries them
+/// alongside their method-context-only bare twins. `runtime/rust` registers
+/// only the bare names its method dispatch installs, so calling the
+/// qualified spelling there is `invalid command name`: the same genuine,
+/// visible gap [`is_tcl_dict_qualified`] records for `::tcl::dict::*`,
+/// rather than hiding it under [`HANDLER_EXTRA`] as if the bare handler
+/// backed it.
+fn is_oo_helpers_qualified(c: &str) -> bool {
+    c.strip_prefix("::")
+        .unwrap_or(c)
+        .strip_prefix("oo::Helpers::")
+        .is_some_and(|sub| !sub.is_empty())
+}
+
+/// The reason attached to every [`is_oo_helpers_qualified`] command in the
+/// report.
+const OO_HELPERS_QUALIFIED_REASON: &str = "qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, \
+     method-context name its dispatch installs, so a direct qualified call is `invalid command name`";
+
 /// One core command's backing status.
 enum Status {
     /// A real `register_builtin` handler in the runtime.
@@ -495,6 +517,9 @@ fn classify(name: &str, backed: &BTreeSet<String>) -> Status {
     }
     if is_tcl_dict_qualified(c) {
         return Status::KnownGap(TCL_DICT_QUALIFIED_REASON);
+    }
+    if is_oo_helpers_qualified(c) {
+        return Status::KnownGap(OO_HELPERS_QUALIFIED_REASON);
     }
     if is_expr_operator(c) {
         return Status::NotRequired(EXPR_OPERATOR_REASON);

@@ -490,6 +490,18 @@ pub const TRAITS: &[Variant] = &[
         "INSTALLS_NAMED_DEFINITION",
         "installs, moves, or extends a definition named by an argument",
     ),
+    v(
+        "TCLOO_METHOD_CONTEXT",
+        "resolves only inside a TclOO method body",
+    ),
+    v(
+        "TCLOO_BINDS_METHOD_ALIAS",
+        "binds bareword aliases for methods of the current object",
+    ),
+    v(
+        "TCLOO_REQUIRES_METHOD_FRAME",
+        "calling it needs a real method invocation, not just an object frame",
+    ),
 ];
 
 /// [`TaintColour`] bits.

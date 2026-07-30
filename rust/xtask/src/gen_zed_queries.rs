@@ -186,19 +186,28 @@ fn classify(reg: &CommandRegistry, dialects: DialectSet) -> Buckets {
         if !util::is_safe_command_name(name) || util::is_internal_or_test_harness_noise(name) {
             continue;
         }
-        let Some(spec) = reg.get(name) else { continue };
-        if !reg.spec_visible(spec, dialects) {
-            continue;
-        }
-        // Library commands (Tk / tcllib / stdlib packages) load dynamically via
-        // `package require`; the LSP handles those. Keep only ambient
+        // A name may carry several specs (`link` and `oo::Helpers::link`
+        // are each a 9.0 core entry *plus* an 8.6 Tcllib `ooutil` one), and
+        // this projection spans the profile's whole grammar union rather
+        // than one version — so the question is "is this word a keyword in
+        // any dialect the grammar covers", which no single-spec lookup can
+        // answer. `get`/`get_for_dialect` return one spec (the last
+        // registered / the tightest-gated), which for those two names is the
+        // `ooutil` twin — and the package rule below then dropped an ambient
+        // core keyword from the highlight set entirely.
+        //
+        // Library commands (Tk / tcllib / stdlib packages) load dynamically
+        // via `package require`; the LSP handles those. Keep only ambient
         // commands — including packages the profile ships ambiently (§7.1:
         // the F5 surfaces are the profile's own runtime, not a require).
-        if let Some(pkg) = spec.required_package
-            && !reg.profile().is_some_and(|p| p.is_ambient_package(pkg))
-        {
+        let Some(spec) = reg.specs(name).iter().find(|spec| {
+            reg.spec_visible(spec, dialects)
+                && spec
+                    .required_package
+                    .is_none_or(|pkg| reg.profile().is_some_and(|p| p.is_ambient_package(pkg)))
+        }) else {
             continue;
-        }
+        };
 
         if spec.traits.contains(Traits::CONTROL_FLOW) {
             b.control.insert(name.to_owned());

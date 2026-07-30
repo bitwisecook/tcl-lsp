@@ -528,6 +528,69 @@ impl CommandRegistry {
         }
     }
 
+    /// Whether `head`'s **bare** spelling resolves only from inside a
+    /// `TclOO` method context — the registry-side half of issue #1026's
+    /// scoping rule; see [`Traits::TCLOO_METHOD_CONTEXT`] for the oracle
+    /// transcripts.
+    ///
+    /// Consumers pair this with their own "is this call site inside a
+    /// `TclOO` method body?" fact
+    /// (`tcl_compiler::analyser::scope::innermost_scope_reaches_oo_helpers`)
+    /// — the registry knows *which* commands are scoped, the call site
+    /// knows *where* it is, and neither needs the other's command names.
+    ///
+    /// Dialect-aware exactly like [`Self::method_dispatch_keyword`]: a
+    /// registry built for a profile answers under that profile's
+    /// availability mask, so a `tcl8.4` registry — which has no `TclOO` at
+    /// all — answers `false` for every one of them.
+    ///
+    /// A qualified spelling (`oo::Helpers::link`, `::oo::Helpers::link`) is
+    /// a separate, unscoped spec, so it answers `false`: the command really
+    /// does exist globally, and calling it outside a method is a runtime
+    /// error rather than an unknown command.
+    #[must_use]
+    pub fn resolves_only_in_method_context(&self, head: &str) -> bool {
+        self.spec_for_this_registry(head)
+            .is_some_and(|spec| spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT))
+    }
+
+    /// Whether **calling** `head` needs a real `TclOO` method invocation,
+    /// not merely a frame that can resolve it — see
+    /// [`Traits::TCLOO_REQUIRES_METHOD_FRAME`] for the oracle transcript.
+    ///
+    /// The narrower companion to [`Self::resolves_only_in_method_context`],
+    /// and the two answer differently in exactly one place: a Tcl 9 class
+    /// `initialise` / `initialize` body, where the whole family resolves
+    /// (so `W123` must stay silent) but only `my` actually runs (so
+    /// completion and hover must offer only `my`).
+    ///
+    /// A consumer deciding "may I offer this word here / does it hover"
+    /// wants **both**: the word must resolve at the call site *and*, when
+    /// this answers `true`, the call site must be a method frame rather
+    /// than a bare object frame. `tcl_lsp_core::oo_dispatch` pairs them
+    /// once so no consumer re-derives the rule.
+    ///
+    /// Dialect-aware exactly like [`Self::resolves_only_in_method_context`].
+    #[must_use]
+    pub fn requires_oo_method_frame(&self, head: &str) -> bool {
+        self.spec_for_this_registry(head)
+            .is_some_and(|spec| spec.traits.contains(Traits::TCLOO_REQUIRES_METHOD_FRAME))
+    }
+
+    /// Whether `head` binds bareword aliases for methods of the current
+    /// object — `TclOO`'s `link`; see [`Traits::TCLOO_BINDS_METHOD_ALIAS`].
+    ///
+    /// The registry-first replacement for the `texts[0] == "link"` literal
+    /// the analyser's class-body walk used to carry (issue #1026), and
+    /// dialect-aware for the same reason [`Self::method_dispatch_keyword`]
+    /// is: `link` is 9.0-core / 8.6-via-`ooutil`, so an 8.5 registry answers
+    /// `false`.
+    #[must_use]
+    pub fn binds_method_alias(&self, head: &str) -> bool {
+        self.spec_for_this_registry(head)
+            .is_some_and(|spec| spec.traits.contains(Traits::TCLOO_BINDS_METHOD_ALIAS))
+    }
+
     /// The single spec-selection rule (§5.3, D6): among the specs of one
     /// name visible under `dialect`, pick the **most specific** — a
     /// dialect-scoped spec beats a catch-all (`dialects: None`), a tighter

@@ -824,14 +824,54 @@ fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     } = *ctx;
     let (inst, method, is_dollar) =
         crate::definition::instance_method_at_cursor(source, line, character)?;
-    let class_q = crate::definition::receiver_instance_class(analysis, &inst, is_dollar)?;
+    // Two receiver spellings reach an instance method, and both must be
+    // recognised here — `definition.rs` and `hover.rs` already handle the
+    // pair. `$obj m` names an instance *variable* whose class is known;
+    // `my m` is an internal dispatch whose receiver is the class whose body
+    // lexically encloses the call, and it also reaches unexported methods
+    // (issue #923 idx 34: find-references at a `my duplListCheck` call site
+    // returned nothing at all, because `analysis.instance_classes` has no
+    // entry named `my`).
+    let (class_q, external) =
+        match crate::definition::receiver_instance_class(analysis, &inst, is_dollar) {
+            Some(class_q) => (class_q.clone(), true),
+            None if crate::definition::is_self_dispatch_keyword(&inst) => {
+                let line_index_local = tcl_lexer::LineIndex::new(source);
+                let cursor =
+                    crate::definition::byte_offset_at(&line_index_local, source, line, character);
+                (
+                    crate::definition::enclosing_class_at(analysis, cursor)?.to_owned(),
+                    false,
+                )
+            }
+            None => return None,
+        };
+    // The class that actually *declares* the implementation this call
+    // reaches — which is not the receiver's own class when the method comes
+    // from a `mixin` or a `superclass` (issue #923 idx 34/35: the reference
+    // scan keyed off the receiver class alone and gave up whenever the
+    // method was purely inherited, while go-to-definition resolved it).
+    // One shared linearisation walk with definition and hover.
+    let provider_q = crate::oo_dispatch::method_dispatch_provider(
+        analysis,
+        &class_q,
+        &method,
+        external,
+        crate::definition::MethodBucket::Instance,
+    )
+    .map_or(class_q, |(provider, _)| provider.to_owned());
     // `$obj method` dispatch is always an instance-method receiver — a
     // `classmethod` is never reached this way.
     let (decl_span, mut call_spans) =
-        method_references_for_class(source, dialect, analysis, class_q, &method, false)?;
+        method_references_for_class(source, dialect, analysis, &provider_q, &method, false)?;
     // `next` / `nextto` super-dispatch is a reference (but never a rename site).
     call_spans.extend(method_next_dispatch_spans(
-        analysis, source, dialect, class_q, &method, false,
+        analysis,
+        source,
+        dialect,
+        &provider_q,
+        &method,
+        false,
     ));
     Some(build_member_ranges(
         source,
@@ -1193,10 +1233,18 @@ pub fn method_next_dispatch_spans(
     let Some(class_def) = analysis.all_classes.get(class_q) else {
         return Vec::new();
     };
-    let member = if is_classmethod {
-        class_def.class_methods.get(method)
-    } else {
-        class_def.methods.get(method)
+    // `<constructor>` / `<destructor>` name the two slots that have no
+    // method-table entry of their own; every other name is looked up in the
+    // bucket the caller selected. Without the synthetic labels, references
+    // to a constructor never surfaced an inheriting subclass's `next` call
+    // (issue #923 idx 37).
+    let member = match method {
+        tcl_compiler::analyser::class_hierarchy::CONSTRUCTOR_MEMBER => {
+            class_def.constructors.last()
+        }
+        tcl_compiler::analyser::class_hierarchy::DESTRUCTOR_MEMBER => class_def.destructor.as_ref(),
+        _ if is_classmethod => class_def.class_methods.get(method),
+        _ => class_def.methods.get(method),
     };
     let Some(m) = member else {
         return Vec::new();

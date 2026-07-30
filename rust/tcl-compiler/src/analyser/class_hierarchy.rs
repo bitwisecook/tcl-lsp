@@ -30,7 +30,40 @@
 use std::collections::{HashMap, HashSet};
 
 use super::mro::{build_mro_map, tcloo_linearise};
-use super::types::ClassDef;
+use super::types::{ClassDef, MethodDef};
+
+/// The name a `constructor` body carries wherever a member is identified by
+/// name — `ClassDef::constructors`' own `MethodDef::name`, the tail of the
+/// `Method` scope `walk_method_body` opens for it, and the label C Tcl's
+/// `info object call` / `self method` report for that frame (tclsh 9.0.4).
+pub const CONSTRUCTOR_MEMBER: &str = "<constructor>";
+
+/// [`CONSTRUCTOR_MEMBER`]'s twin for a `destructor` body.
+pub const DESTRUCTOR_MEMBER: &str = "<destructor>";
+
+/// The member of `class_def` named `member`, treating the two nameless
+/// slots by their synthetic labels ([`CONSTRUCTOR_MEMBER`] /
+/// [`DESTRUCTOR_MEMBER`]) and an ordinary name as an instance method,
+/// then a class-side one.
+///
+/// The lookup every `next`-resolution consumer needs once
+/// [`ClassHierarchy::member_next_provider`] has named the providing class:
+/// keeping it here means a constructor's `MethodDef` is fetched the same
+/// way in go-to-definition, find-references, and the arity check (issue
+/// #923 idx 37). The *effective* constructor is the last declared one, the
+/// same "most recent declaration wins" rule
+/// [`ClassHierarchy::constructor_provider`] applies.
+#[must_use]
+pub fn class_member_def<'a>(class_def: &'a ClassDef, member: &str) -> Option<&'a MethodDef> {
+    match member {
+        CONSTRUCTOR_MEMBER => class_def.constructors.last(),
+        DESTRUCTOR_MEMBER => class_def.destructor.as_ref(),
+        _ => class_def
+            .methods
+            .get(member)
+            .or_else(|| class_def.class_methods.get(member)),
+    }
+}
 
 /// Immutable snapshot of the complete class hierarchy.
 ///
@@ -217,6 +250,46 @@ impl ClassHierarchy {
                 .filter(|cd| cd.destructor.is_some())
                 .map(|_| c.as_str())
         })
+    }
+
+    /// Resolve `TclOO` `next` / `nextto` from inside **any** member body,
+    /// routing the two nameless slots to their own providers.
+    ///
+    /// `member` is the enclosing member as the analyser names it — a
+    /// method's own name, or the synthetic [`CONSTRUCTOR_MEMBER`] /
+    /// [`DESTRUCTOR_MEMBER`] label a nameless body carries (the same
+    /// `<constructor>` / `<destructor>` spelling C Tcl's own `info object
+    /// call` reports, and the one `walk_method_body` builds a constructor
+    /// scope's name from).
+    ///
+    /// The single entry point for `next` resolution, so go-to-definition,
+    /// find-references, and the `next`-arity check cannot disagree about
+    /// which slot a `next` chains through. Before it existed all three went
+    /// straight to [`Self::next_provider`], whose per-ancestor filter only
+    /// consults `methods`/`class_methods`, so a `next` inside a
+    /// `constructor` — the ordinary way a subclass forwards to its
+    /// superclass's constructor — resolved to nothing at all and its arity
+    /// went unchecked, while the identical `next` inside a plain `method`
+    /// worked (issue #923 idx 37; a real `next` there does dispatch, pinned
+    /// against tclsh 9.0.4).
+    ///
+    /// `source` is the document text `body_span`s index into, needed only
+    /// for the constructor slot's empty-body rule — see
+    /// [`Self::constructor_provider`].
+    #[must_use]
+    pub fn member_next_provider(
+        &self,
+        class: &str,
+        member: &str,
+        current: &str,
+        start_from: Option<&str>,
+        source: &str,
+    ) -> Option<&str> {
+        match member {
+            CONSTRUCTOR_MEMBER => self.constructor_next_provider(class, start_from, source),
+            DESTRUCTOR_MEMBER => self.destructor_next_provider(class, start_from),
+            _ => self.next_provider(class, member, current, start_from),
+        }
     }
 
     /// Return all `(class, defining_class)` pairs that

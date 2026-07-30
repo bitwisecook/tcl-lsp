@@ -787,6 +787,10 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         && let Some(scope) = super::scope::scope_at_mut(&mut a.result.global_scope, &proc_path)
     {
         scope.oo_global_resolution = true;
+        // Every `DeferredBody` is a real method body — `walk_class_init_body`
+        // walks the class-level `initialise` frame inline and never defers —
+        // so the isolated scope is a method frame too (`Scope::oo_method_frame`).
+        scope.oo_method_frame = true;
     }
     let placeholder = tcl_lexer::Span::new(0, 0);
     let dummy = Token::new(tcl_lexer::TokenType::Str, placeholder);
