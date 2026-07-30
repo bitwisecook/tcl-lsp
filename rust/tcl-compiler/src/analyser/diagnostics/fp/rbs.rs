@@ -1663,3 +1663,36 @@ emitted: {:?}",
         codes(src, D)
     );
 }
+
+#[test]
+fn fp_rbs_20_substituted_command_head_harvests_nothing() {
+    // TN control (PR #1076 review, P2): the head word's *content* spelling
+    // drops the `$`, so `[$set length foo]` used to resolve as the builtin
+    // `set` and harvest `length` as a definition — silencing a genuine
+    // warning.  Which command runs is run-time data, so nothing may be
+    // claimed about what it writes.
+    //
+    // tclsh 9.0.4 / 8.6.14 (identical): calling `f string` executes
+    // `string length foo`, which defines nothing —
+    //   catch {f string} err → 1, err → `can't read "length": no such variable`
+    let src = "proc f {set} { if {[$set length foo]} { puts $length } }\n";
+    assert!(
+        fires(src, D, "W210"),
+        "FP-RBS-20 TN: a substituted head must not harvest its lookalike \
+builtin's out-vars; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_20_literal_head_named_like_the_variable_still_harvests() {
+    // TP control for the pair above: a *literal* `set` head keeps the
+    // recognition — the guard must key on substitution, not on the spelling.
+    let src = "proc f {} { if {[set length foo]} { puts $length } }\n";
+    assert!(
+        !fires(src, D, "W210"),
+        "FP-RBS-20: a literal `set` head still defines its target; \
+emitted: {:?}",
+        codes(src, D)
+    );
+}

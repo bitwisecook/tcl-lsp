@@ -866,3 +866,53 @@ emitted: {:?}",
         codes(src, D)
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-DS-14 — a brace-quoted variable name does not blind the function
+// (PR #1076 review, P2)
+// ---------------------------------------------------------------------------
+//
+// `{$n}` is Tcl's literal spelling for a variable *called* `$n`; nothing is
+// computed, so the dynamic-name barrier must stay clear and every diagnostic
+// in the function must stay live.
+//
+// Oracle (tclsh 9.0.4 and 8.6.14, identical):
+//   set {$n} v; info exists {$n} → 1 ; info exists n → 0
+//   set i 5; set {arr($i)} 1; array names arr → {$i} ; info exists arr(5) → 0
+
+#[test]
+fn fp_ds_14_brace_quoted_name_keeps_unrelated_diagnostics_live() {
+    for (label, src) in [
+        (
+            "write",
+            "proc f {} { set {$n} 1\n set a 1\n set a 2\n return $a }\n",
+        ),
+        (
+            "read",
+            "proc f {} { set b [set {$n}]\n set a 1\n set a 2\n return \"$a$b\" }\n",
+        ),
+        (
+            "destroy",
+            "proc f {} { unset -nocomplain {$n}\n set a 1\n set a 2\n return $a }\n",
+        ),
+    ] {
+        assert!(
+            fires(src, D, "W220"),
+            "FP-DS-14 ({label}): a brace-quoted name is literal and must not \
+blind the dead-store pass; emitted: {:?}",
+            codes(src, D)
+        );
+    }
+}
+
+#[test]
+fn fp_ds_14_unbraced_computed_name_still_blinds_the_pass() {
+    // TN control: dropping the braces makes the name genuinely computed, so
+    // the read barrier applies and W220 correctly goes silent.
+    let src = "proc f {n} { set b [set $n]\n set a 1\n set a 2\n return \"$a$b\" }\n";
+    assert!(
+        !fires(src, D, "W220"),
+        "FP-DS-14 TN: `[set $n]` may observe the first store; emitted: {:?}",
+        codes(src, D)
+    );
+}

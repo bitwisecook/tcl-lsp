@@ -378,8 +378,19 @@ fn push_out_var(word: &CommandWord, out: &mut Vec<String>) {
 /// `unset` in a condition removes a variable rather than defining one, and
 /// claiming it as a def would mask a genuine W213.
 ///
+/// A **substituted command head** (`[$cmd length foo]`) is skipped for the
+/// same reason: which command runs is run-time data, so nothing can be
+/// claimed about what it writes.  The word's *content* spelling drops the
+/// `$`, so without this check the head of `[$set length foo]` resolves as the
+/// builtin `set` and the harvest invents a definition of `length` — enough to
+/// swallow a genuine warning.  tclsh 9.0.4 / 8.6.14: `proc f {set} {if
+/// {[$set length foo]} {puts $length}}; f string` errors `can't read
+/// "length": no such variable`, so the read really is unsafe.
+///
 /// Suppress-only: over-collection avoids false warnings, under-collection
-/// leaves the status quo.
+/// leaves the status quo — but a name harvested from the *wrong* command is
+/// not over-collection, it is a wrong fact, so the skip is a correctness
+/// requirement rather than a precision nicety.
 fn cmd_substitution_out_vars(
     words: &[CommandWord],
     registry: &CommandRegistry,
@@ -395,6 +406,9 @@ fn cmd_substitution_out_vars(
     let Some((cmd_word, arg_words)) = words.split_first() else {
         return;
     };
+    if cmd_word.substituted {
+        return;
+    }
     let cmd = &cmd_word.text;
     if registry
         .get(cmd)
@@ -939,5 +953,42 @@ mod tests {
     fn condition_out_vars_ignores_a_dynamic_target() {
         let got = cond_out_vars("set $n 1");
         assert!(got.is_empty(), "got {got:?}");
+    }
+
+    /// PR #1076 review, P2: a command word that is itself a substitution names
+    /// an unknown command, so nothing may be harvested from it — not even when
+    /// its *content* spelling collides with a builtin.
+    ///
+    /// tclsh 9.0.4 / 8.6.14: `proc f {set} {if {[$set length foo]} {puts
+    /// $length}}; f string` runs `string length foo` and then errors
+    /// `can't read "length": no such variable`.
+    #[test]
+    fn condition_out_vars_ignores_a_substituted_command_head() {
+        for cmd_text in ["$set length foo", "$catch {error x} msg", "[pick] $fp line"] {
+            let got = cond_out_vars(cmd_text);
+            assert!(
+                got.is_empty(),
+                "`{cmd_text}` has a computed head; nothing is knowable about \
+what it writes, got {got:?}"
+            );
+        }
+    }
+
+    /// TP control for the pair above: the same words under a *literal* head
+    /// keep harvesting, so the guard keys on substitution rather than on the
+    /// spelling.
+    #[test]
+    fn condition_out_vars_still_harvests_a_literal_head() {
+        assert!(
+            cond_out_vars("set length foo")
+                .iter()
+                .any(|v| v == "length")
+        );
+        assert!(
+            cond_out_vars("catch {error x} msg")
+                .iter()
+                .any(|v| v == "msg")
+        );
+        assert!(cond_out_vars("gets $fp line").iter().any(|v| v == "line"));
     }
 }

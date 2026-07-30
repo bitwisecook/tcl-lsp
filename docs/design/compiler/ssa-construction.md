@@ -164,9 +164,23 @@ Three points of design matter:
   module names no command.
 - **What is *not* a dynamic name.**  `a($k)` is a run-time element of the
   statically named array `a` (the [place model](../compiler/memory-ssa.md)
-  already tracks that), and `${ns}::tail` binds its static tail whatever the
-  namespace resolves to.  Treating either as a whole-name clobber would
-  silence array and namespace diagnostics wholesale.
+  already tracks that); `${ns}::tail` binds its static tail whatever the
+  namespace resolves to; and a **brace-quoted** word is a literal name however
+  many `$`s it holds — `set {$n} v` creates a variable *called* `$n` and
+  leaves `n` alone (tclsh 9.0.4 / 8.6.14: `info exists {$n}` → 1 while
+  `info exists n` → 0).  Treating any of them as a whole-name clobber would
+  silence array, namespace, and ordinary diagnostics wholesale.  The
+  brace-quoted case cannot be told from a substitution on the word's text
+  alone, so the scan reads the per-word `braced_literal` / `argv_kinds` +
+  `single_token_word` quoting facts rather than looking for a `$`.
+- **A computed command *head* is not a computed name.**  `$cmd length foo`
+  names an unknown command, so no argument of it has a knowable role — the
+  walk skips such a call and raises no flag.  Skipping is load-bearing: a head
+  word's text is its lexical content, so `$set` reads back as `set`, and
+  resolving that would answer for a command that never runs.  Raising a flag
+  instead would be wildly over-broad (`$obj method` and every TclOO dispatch
+  would blind their whole function); unknown-command blindness is already
+  `Statement::Barrier`'s job.
 
 Consumers and the direction each abstains in:
 
@@ -180,6 +194,27 @@ Consumers and the direction each abstains in:
 `eval $body` / `uplevel 1 $body` are deliberately **out of scope**: they run
 arbitrary code, a strictly larger blindness than a computed name, and lower to
 `Statement::Barrier` where the per-consumer barrier rules already apply.
+
+### Known limitation — a brace-quoted `$`-bearing name is mis-keyed
+
+A variable whose literal name contains a `$` (`set {$n} 1`) is recognised as
+*not dynamic* by the barrier, but the SSA naming layer below still mis-keys
+it. `is_dynamic_write_target` reads the name text without consulting the IR's
+`name_braced` flag, so it calls `$n` a dynamic target: the assignment produces
+no def, and `uses_of` records a read of `n` instead — surfacing as
+`W210 Variable 'n' is read before it is set` on code that never touches `n`.
+
+This is pre-existing and independent of the barrier. Making the target
+braced-aware is *not* a local fix: `element_var_name_braced` normalises a
+braced `$n` down to `n`, so the def would be recorded against the wrong
+variable — measured, that trades the false positive for a *missed* one
+(`set {$n} 1; puts $n` stops warning, though tclsh errors `can't read "n"`)
+plus two fresh false `W220`s. A correct fix has to teach the shared naming
+helper that a braced literal keeps its `$`, which reaches defs, reads, rename,
+and highlighting together.
+
+The shape is rare and the current verdict is a false positive rather than a
+missed error, so it is recorded here rather than half-fixed.
 
 ## Related docs
 

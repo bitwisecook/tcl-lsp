@@ -60,6 +60,34 @@
 //! this walk never sees a role for.  Those lower to
 //! [`Statement::Barrier`](crate::ir::Statement::Barrier) and are handled (or
 //! not) by the per-consumer barrier rules, not here.
+//!
+//! A **computed command head** (`$cmd length foo`, `[pick] $n 1`) is the same
+//! case one level up: the *command* is run-time data, so no argument of it has
+//! a knowable role, and the walk skips the call entirely.
+//!
+//! Skipping is load-bearing, not just imprecise-but-harmless.  A head word's
+//! text is its lexical *content*, so `$set` reads back as `set` and `[pick]`
+//! as `pick`; resolving that against the registry answers for a command that
+//! never runs.  `proc f {set} {if {[$set length foo]} {puts $length}}` really
+//! executes `string length foo` when called as `f string`, defining nothing
+//! (tclsh 9.0.4 / 8.6.14 both error `can't read "length": no such variable`).
+//!
+//! Such a call deliberately raises **no** flag either, rather than all three:
+//!
+//! - This module answers one question — *was a **known** command handed a
+//!   computed name?*  "Could an unknown command do anything?" is a different,
+//!   much larger question — the same one that puts `eval` / `uplevel` out of
+//!   scope above.
+//! - Unknown-command blindness already has an owner.  A `$cmd …` statement
+//!   lowers to [`Statement::Barrier`], and
+//!   [`existence_constant_branches`](crate::sccp::existence_constant_branches)
+//!   bails on a function containing any barrier before it consults these flags
+//!   at all.
+//! - Raising a flag would be wildly over-broad: `$obj method`, `$cmd arg`, and
+//!   every `TclOO` dispatch would silence `W210` / `W211` / `W220` / `I230`
+//!   and switch off `O101` / `O109` / `O126` for the whole function.  An
+//!   over-broad fact kills real diagnostics just as surely as a wrong one
+//!   invents false positives.
 
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
@@ -107,6 +135,10 @@ impl DynamicNameBarrier {
 /// `${name}` really is a substitution in Tcl, not a literal name (tclsh
 /// 9.0.4 / 8.6.14: `set x foo; set ${x} bar; info exists foo` → `1`) — so any
 /// `$` or `[` in the *name position* means the name comes from run-time data.
+///
+/// The caller must first rule out a **brace-quoted** word: `{$n}` carries the
+/// same `$` but substitutes nothing, and this function cannot tell the two
+/// spellings apart on text alone.  [`scan_command`] applies that check.
 ///
 /// Three shapes are deliberately **not** dynamic:
 ///
@@ -196,7 +228,19 @@ fn scan_statement(stmt: &Statement, registry: &CommandRegistry, barrier: &mut Dy
                     .map(|(kind, &single)| single && *kind == tcl_lexer::TokenType::Str)
                     .collect()
             });
-            scan_command(command, args, braced.as_deref(), registry, barrier);
+            // `command` likewise reports the head word's *content*, so a
+            // substituted head (`$cmd length foo`) arrives spelled as whatever
+            // variable it reads — resolving that against the registry would
+            // answer for a command that never runs (see the module docs).
+            let head_dynamic = tokens
+                .as_ref()
+                .and_then(|t| t.argv_kinds.first())
+                .is_some_and(|kind| {
+                    matches!(kind, tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd)
+                });
+            if !head_dynamic {
+                scan_command(command, args, braced.as_deref(), registry, barrier);
+            }
             for arg in args {
                 scan_text(arg, registry, barrier, 0);
             }
@@ -268,6 +312,10 @@ fn scan_script_text(
         let Some((command, args)) = words.split_first() else {
             continue;
         };
+        // A substituted head names an unknown command (see the module docs).
+        if command.substituted {
+            continue;
+        }
         // The *raw* spelling is what carries the name-position `$` / `[`; the
         // content spelling has already dropped it.
         let arg_texts: Vec<String> = args.iter().map(|w| w.raw.clone()).collect();
@@ -297,8 +345,9 @@ fn template_word_is_substituted(word: &str, braced_literal: bool) -> bool {
 ///
 /// `arg_braced`, when present, says for each argument whether it is a single
 /// brace-quoted word — a distinction the segmenter's reconstructed `args`
-/// text has already erased, and the one thing that separates a literal
-/// `subst {$a}` template from a substituted `subst $a` one.
+/// text has already erased, and the one thing that separates a literal name
+/// or template (`set {$n} 1`, `subst {$a}`) from a substituted one
+/// (`set $n 1`, `subst $a`).
 fn scan_command(
     command: &str,
     args: &[String],
@@ -311,12 +360,24 @@ fn scan_command(
     };
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
     let destroys = spec.traits.contains(Traits::DESTROYS_VARIABLE);
+    // A brace-quoted word is Tcl's literal spelling for a name that contains
+    // `$` or `[`: `set {$n} v` creates a variable *called* `$n`, unrelated to
+    // `n` (tclsh 9.0.4 / 8.6.14: `set {$n} v; info exists {$n}` → 1 while
+    // `info exists n` → 0). Such a name is statically known, so it is not a
+    // barrier — reading the word's text alone would see the `$` and blind the
+    // whole function for code that only ever names variables statically.
+    let dynamic_name_at = |idx: usize| {
+        !arg_braced
+            .and_then(|b| b.get(idx))
+            .copied()
+            .unwrap_or(false)
+            && arg_strs
+                .get(idx)
+                .is_some_and(|w| names_a_dynamic_variable(w))
+    };
 
     for idx in registry.arg_indices_for_role(command, &arg_strs, ArgRole::VarWrite) {
-        if arg_strs
-            .get(idx)
-            .is_some_and(|w| names_a_dynamic_variable(w))
-        {
+        if dynamic_name_at(idx) {
             if destroys {
                 barrier.destroys = true;
             } else {
@@ -325,10 +386,7 @@ fn scan_command(
         }
     }
     for idx in registry.arg_indices_for_role(command, &arg_strs, ArgRole::VarRead) {
-        if arg_strs
-            .get(idx)
-            .is_some_and(|w| names_a_dynamic_variable(w))
-        {
+        if dynamic_name_at(idx) {
             barrier.reads = true;
         }
     }
@@ -449,5 +507,64 @@ mod tests {
     fn dynamic_name_in_a_branch_condition_is_seen() {
         let b = barrier_for("proc f {n} { if {[set $n] eq {}} { return empty }; return full }\n");
         assert!(b.reads);
+    }
+
+    // PR #1076 review, P2 — a brace-quoted name is a *literal* name.
+    //
+    // tclsh 9.0.4 / 8.6.14 (identical):
+    //   set {$n} v; info exists {$n} → 1 ; info exists n → 0
+    //   set i 5; set {arr($i)} 1; array names arr → {$i} ; info exists arr(5) → 0
+
+    #[test]
+    fn brace_quoted_write_target_is_not_a_barrier() {
+        let b = barrier_for("proc f {} { set {$n} 1; return ok }\n");
+        assert!(
+            b.is_clear(),
+            "`set {{$n}} 1` names the literal variable `$n`, so nothing is \
+computed; got {b:?}"
+        );
+    }
+
+    #[test]
+    fn brace_quoted_read_target_is_not_a_barrier() {
+        let b = barrier_for("proc f {} { return [set {$n}] }\n");
+        assert!(b.is_clear(), "got {b:?}");
+    }
+
+    #[test]
+    fn brace_quoted_destroy_target_is_not_a_barrier() {
+        let b = barrier_for("proc f {} { unset {$n}; return ok }\n");
+        assert!(b.is_clear(), "got {b:?}");
+    }
+
+    #[test]
+    fn unbraced_substituted_target_still_raises_the_write_flag() {
+        // TN control for the three above: dropping the braces restores the
+        // barrier, so the brace check cannot be over-applied.
+        let b = barrier_for("proc f {n} { set $n 1; return ok }\n");
+        assert!(b.writes, "`set $n 1` is still a dynamic write; got {b:?}");
+    }
+
+    // PR #1076 review, P2 — a computed command head is an unknown command.
+
+    #[test]
+    fn substituted_command_head_raises_no_flag() {
+        // The head's content spelling is `set`, but `string length foo` is
+        // what runs. Resolving the lookalike would answer for a command that
+        // never executes, so the call contributes nothing — see the module
+        // docs for why it raises no flag either.
+        let b = barrier_for("proc f {set n} { $set $n 1; return ok }\n");
+        assert!(
+            b.is_clear(),
+            "a computed head is an unknown command, not a computed name; got {b:?}"
+        );
+    }
+
+    #[test]
+    fn literal_head_with_a_computed_name_still_raises_the_write_flag() {
+        // TN control: the same argument shape under a *literal* head is the
+        // genuine dynamic write.
+        let b = barrier_for("proc f {n} { set $n 1; return ok }\n");
+        assert!(b.writes, "got {b:?}");
     }
 }
