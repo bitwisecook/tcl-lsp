@@ -636,6 +636,68 @@ fn rename_rewrites_the_renames_own_old_word_too() {
     assert!(for_uri.iter().all(|e| e["newText"] == "newName"));
 }
 
+/// FP guard for issue #923 idx 21: find-references now attributes an alias's
+/// call sites to the target proc, but **rename must not rewrite them**. A
+/// `[sayHi]` call names the *alias*, which keeps its own spelling when the
+/// target is renamed — tclsh 9.0.4/8.6.16 confirm `interp alias {} sayHi {}
+/// greet` followed by `rename greet hi2` leaves `sayHi` bound (it re-resolves
+/// `greet`, which is now gone, and fails) — so rewriting the call site would
+/// change a different command's name.
+#[test]
+fn rename_does_not_rewrite_call_sites_that_go_through_an_alias() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc greet {} { return hi }\ninterp alias {} sayHi {} greet\nputs [sayHi]\n",
+    );
+    // Line 0: cursor on the `greet` declaration.
+    let result = lsp.rename(&uri, 0, 6, "welcome");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    let lines: Vec<i64> = for_uri
+        .iter()
+        .filter_map(|e| e["range"]["start"]["line"].as_i64())
+        .collect();
+    assert!(lines.contains(&0), "decl missing: {for_uri:?}");
+    assert!(
+        lines.contains(&1),
+        "the alias's own TARGET word names `greet` and must be rewritten: {for_uri:?}"
+    );
+    assert!(
+        !lines.contains(&2),
+        "the `[sayHi]` call names the alias, not `greet`, and must be left alone: {for_uri:?}"
+    );
+}
+
+/// idx 45 (differential-audit main audit wave): rename issued from the
+/// declaration a later same-named `proc` displaced must still reach every
+/// call site — the displaced header declares the same command, so a partial
+/// edit would leave callers bound to a name that no longer exists.
+#[test]
+fn rename_from_a_superseded_declaration_rewrites_every_site() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc p {} { return first }\np\nproc p {a} { return $a }\np x\n",
+    );
+    // Line 0: cursor on the *first* (later displaced) `p` declaration.
+    let result = lsp.rename(&uri, 0, 5, "q");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    let lines: Vec<i64> = for_uri
+        .iter()
+        .filter_map(|e| e["range"]["start"]["line"].as_i64())
+        .collect();
+    for expected in [1_i64, 2, 3] {
+        assert!(
+            lines.contains(&expected),
+            "line {expected} must be rewritten: {for_uri:?}"
+        );
+    }
+}
+
 /// idx 56 (differential-audit main audit wave, high severity): a proc
 /// installed directly into `::oo::Helpers` (the documented "`TclOO` Tricks"
 /// idiom — real corpus usage: nico-robert/ticklecharts installs `classvar`/

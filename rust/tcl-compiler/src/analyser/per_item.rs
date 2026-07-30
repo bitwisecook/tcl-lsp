@@ -506,6 +506,19 @@ impl Analyser {
         }
         let r = frag.result;
         self.result.all_procs.extend(r.all_procs);
+        // Per qualified name, not a flat `extend`: a body that redefines a
+        // proc it defines itself carries its own displaced definitions, and a
+        // flat extend would replace rather than append to whatever the shell
+        // already recorded for that name. (A body redefining a proc defined
+        // *outside* it forces a full re-analyse above, so the shell and the
+        // body never contend for the same key here.)
+        for (qualified, defs) in r.superseded_procs {
+            self.result
+                .superseded_procs
+                .entry(qualified)
+                .or_default()
+                .extend(defs);
+        }
         self.result.all_classes.extend(r.all_classes);
         self.merge_body_variables(r.all_variables, shell_var_keys);
         self.result.command_aliases.extend(r.command_aliases);
@@ -956,6 +969,11 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     let r = &mut frag.result;
     for p in r.all_procs.values_mut() {
         rebase_proc(p, d);
+    }
+    for defs in r.superseded_procs.values_mut() {
+        for p in defs.iter_mut() {
+            rebase_proc(p, d);
+        }
     }
     for c in r.all_classes.values_mut() {
         rebase_class(c, d);

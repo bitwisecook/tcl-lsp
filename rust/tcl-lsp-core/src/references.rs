@@ -165,6 +165,7 @@ pub(crate) fn proc_reference_spans(
     qname: &str,
     proc_def: &tcl_compiler::analyser::ProcDef,
 ) -> Vec<tcl_lexer::Span> {
+    let indirect = indirect_names_reaching(analysis, &proc_def.qualified_name);
     analysis
         .command_invocations
         .iter()
@@ -176,9 +177,95 @@ pub(crate) fn proc_reference_spans(
                     &proc_def.name,
                     &proc_def.qualified_name,
                 )
+                || invocation_references_via_indirection(analysis, inv, &indirect, Some(proc_def))
         })
         .map(|inv| inv.range)
         .collect()
+}
+
+/// Every command name whose in-document `rename` / `interp alias` chain
+/// terminates on `qualified`, with how it gets there — the reverse of
+/// go-to-definition's forward hop ([`crate::definition::command_indirection`]),
+/// so both directions of navigation read one table.
+///
+/// Built once per reference query by walking the two (normally tiny) command
+/// -mutation maps, never by rescanning the tree, so the per-invocation test
+/// below stays a single hash lookup.
+fn indirect_names_reaching(
+    analysis: &AnalysisResult,
+    qualified: &str,
+) -> std::collections::HashMap<String, tcl_compiler::analyser::indirection::Reaching> {
+    tcl_compiler::analyser::indirection::names_reaching(
+        analysis,
+        qualified,
+        &tcl_syntax::naming::normalise_qualified_name,
+    )
+}
+
+/// Whether call site `inv` reaches this definition **only** through a live
+/// command-table mutation — `interp alias {} sayHi {} greet` makes every
+/// `[sayHi]` a real call site of `greet` (tclsh 8.6.16/9.0.4: both calls
+/// execute `greet`'s body), and `rename greet hello` makes every later
+/// `hello` one (issue #923 idx 21).
+///
+/// Order-gated against the offset that established the chain, so a call
+/// written *before* the alias — which tclsh answers with `invalid command
+/// name` — is not attributed to the target.
+///
+/// `target` additionally pins the chain's *identity* when the terminal name
+/// has more than one declaration.  A `rename` hands over the command object,
+/// so `proc p {} {return first}; rename p oldp; proc p {} {return second}`
+/// leaves `oldp` and `p` naming two genuinely different commands (oracle,
+/// tclsh 8.6.14/9.0.4: `oldp` → `first`, `p` → `second`).  Attributing the
+/// `oldp` call sites to whichever declaration currently wins the name `p`
+/// would merge two distinct commands' reference sets and double the winner's
+/// code-lens count (PR #1075 review, P2).  Classes pass `None`: a class name
+/// has exactly one declaration, so there is no identity to disambiguate.
+///
+/// Additive to the shared matching rule and deliberately **not** wired into
+/// [`invocation_references_proc`] / [`invocation_references_class`], for
+/// exactly the reason the wildcard-import fallback above isn't: the call
+/// spells the *alias's* name, which a rename of the target must not rewrite
+/// (`rename::rename_proc` calls those two directly and so never sees this),
+/// while Find All References and the code-lens count legitimately want it.
+#[must_use]
+fn invocation_references_via_indirection(
+    analysis: &AnalysisResult,
+    inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    indirect: &std::collections::HashMap<String, tcl_compiler::analyser::indirection::Reaching>,
+    target: Option<&tcl_compiler::analyser::ProcDef>,
+) -> bool {
+    if indirect.is_empty() {
+        return false;
+    }
+    let call_off = inv.range.start();
+    let captures_target = |reaching: &tcl_compiler::analyser::indirection::Reaching| {
+        let Some(def) = target else {
+            return true;
+        };
+        // An alias re-resolves by name at every invocation, so its as-of time
+        // is this call site's own offset; a rename froze one.
+        let as_of = reaching.resolve_at.unwrap_or(call_off);
+        analysis
+            .proc_def_in_effect_at(&def.qualified_name, as_of)
+            .is_some_and(|captured| captured.name_span == def.name_span)
+    };
+    let candidates = inv
+        .resolution_candidates
+        .iter()
+        .map(String::as_str)
+        .chain(std::iter::once(inv.name.as_str()));
+    candidates.into_iter().any(|cand| {
+        indirect
+            .get(&tcl_syntax::naming::normalise_qualified_name(cand))
+            .is_some_and(|reaching| {
+                tcl_compiler::analyser::indirection::in_effect(
+                    analysis,
+                    reaching.established,
+                    call_off,
+                ) && captures_target(reaching)
+            })
+    })
 }
 
 /// Whether a single call site `inv` references a named proc/class
@@ -588,6 +675,7 @@ pub(crate) fn class_reference_spans(
     qname: &str,
     class_def: &tcl_compiler::analyser::ClassDef,
 ) -> Vec<tcl_lexer::Span> {
+    let indirect = indirect_names_reaching(analysis, &class_def.qualified_name);
     analysis
         .command_invocations
         .iter()
@@ -599,6 +687,7 @@ pub(crate) fn class_reference_spans(
                     &class_def.name,
                     &class_def.qualified_name,
                 )
+                || invocation_references_via_indirection(analysis, inv, &indirect, None)
         })
         .map(|inv| inv.range)
         .collect()

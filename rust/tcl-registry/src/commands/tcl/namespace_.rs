@@ -218,6 +218,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // callback fires, so analyse it in this scope — a `Body` — for its
         // references / definitions.
         arg_roles: &[(0, ArgRole::Body)],
+        // …and the value it returns is itself a command prefix
+        // (`::namespace inscope NS script`), so a consumer sitting in a
+        // command-prefix position — `trace add variable v w [namespace code
+        // [list Tracer]]`, Tk's own `fontchooser.tcl` idiom — unwraps this
+        // one level and extracts the head from the script. See
+        // `Traits::WRAPS_COMMAND_PREFIX`.
+        traits: Traits::WRAPS_COMMAND_PREFIX,
         ..SubCommand::DEFAULT
     },
     SubCommand {

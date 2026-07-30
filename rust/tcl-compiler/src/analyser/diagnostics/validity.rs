@@ -373,7 +373,11 @@ struct UserResolutionFacts {
     /// convention (a genuinely order-violating call is rare enough that
     /// abstaining from a real builtin-mismatch report is the safer trade).
     non_proc_qnames: FxHashSet<String>,
-    /// Qualified proc name → its definition token offset.
+    /// Qualified proc name → the offset of its *earliest* declaration —
+    /// the point from which the name denotes a user command at all. A name
+    /// declared twice keeps the first offset here (`all_procs` alone only
+    /// remembers the second), so a call between the two still suppresses the
+    /// builtin-mismatch diagnostic it shadows (issue #923 idx 45).
     proc_offsets: FxHashMap<String, u32>,
     /// Qualified *new* name (a static `rename OLD NEW`) → the `rename`
     /// statement's token offset. `rename` moves an existing command's
@@ -393,8 +397,16 @@ impl UserResolutionFacts {
         let proc_offsets: FxHashMap<String, u32> = a
             .result
             .all_procs
-            .iter()
-            .map(|(qname, def)| (qname.clone(), def.name_span.start()))
+            .keys()
+            .map(|qname| {
+                let earliest = a
+                    .result
+                    .proc_declarations(qname)
+                    .map(|def| def.name_span.start())
+                    .min()
+                    .unwrap_or(u32::MAX);
+                (qname.clone(), earliest)
+            })
             .collect();
         let rename_offsets: FxHashMap<String, u32> = a
             .result
@@ -1434,7 +1446,7 @@ impl Analyser {
             if facts.stub_names.contains(bare) {
                 continue;
             }
-            let Some(arity) = self.resolve_indirect_call_target(&cand, &facts.proc_offsets) else {
+            let Some(arity) = self.resolve_indirect_call_target(&cand) else {
                 continue;
             };
             // The surplus-run anchor: only computable now that the resolved
@@ -1980,11 +1992,32 @@ impl Analyser {
     /// builtin only counts once at least one hop has happened — a
     /// *direct* hit on a builtin name is [`Self::check_simple_arity`]'s
     /// job, not this one's.
-    fn resolve_indirect_call_target(
-        &self,
+    /// The declaration of `qualified` that `cand`'s call actually dispatches
+    /// — the latest one written before it under the top-level order gate,
+    /// the last in the file inside a body.
+    ///
+    /// A qualified name declared twice is two definitions with two parameter
+    /// lists, and `all_procs` only ever keeps the second; asking it alone made
+    /// a call *between* the two unresolvable (the sole surviving definition
+    /// fails the order gate), so a genuine `wrong # args` against the first
+    /// definition went unreported. Oracle (tclsh 8.6.16 and 9.0.4): with
+    /// `proc p {} {…}`, `p a b` between the declarations fails `wrong # args:
+    /// should be "p"` — against the *first* signature, whatever the later one
+    /// says (issue #923 idx 45).
+    fn proc_definition_reached_by<'a>(
+        &'a self,
+        qualified: &str,
         cand: &PendingUserCallArity,
-        proc_offsets: &FxHashMap<String, u32>,
-    ) -> Option<Arity> {
+    ) -> Option<&'a super::super::types::ProcDef> {
+        if !cand.enforce_order {
+            return self.result.all_procs.get(qualified);
+        }
+        self.result
+            .proc_declarations(qualified)
+            .rfind(|def| Self::fact_in_effect(cand, def.name_span.start()))
+    }
+
+    fn resolve_indirect_call_target(&self, cand: &PendingUserCallArity) -> Option<Arity> {
         const MAX_HOPS: u8 = 8;
         let mut cur = cand.cmd_name.clone();
         let mut prepended_total: u16 = 0;
@@ -2006,15 +2039,10 @@ impl Analyser {
         for _ in 0..MAX_HOPS {
             let candidates = qualify_candidates(&cand.ns, &cur);
             for c in &candidates {
-                let Some(def) = self.result.all_procs.get(c) else {
+                let Some(def) = self.proc_definition_reached_by(c, cand) else {
                     continue;
                 };
-                let Some(&proc_off) = proc_offsets.get(c.as_str()) else {
-                    continue;
-                };
-                if cand.enforce_order && proc_off >= cand.call_off {
-                    continue;
-                }
+                let proc_off = def.name_span.start();
                 // A deletion recorded for `c` only shadows *this* proc
                 // definition when it postdates `proc_off` — a re-`proc`
                 // after a `rename c {}` supersedes the deletion (see
