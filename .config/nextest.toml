@@ -29,17 +29,21 @@
 #     of incremental edits and then wait for the server's (guaranteed) final
 #     diagnostics publish.
 #
-# When one of these is scheduled alongside another the loser is starved of CPU
-# and its diagnostics/token barrier can be delayed past the harness's give-up,
-# producing a spurious timeout even though the server is behaving correctly.
-# Rather than paper over that with a bigger wall-clock timeout, put these few
-# heavy tests in a single-slot group so they never run concurrently with each
-# other; the hundreds of light tests still parallelise fully, so the suite
-# stays fast. (This still doesn't fully isolate them from the rest of the
-# workspace's tests when run inside `rust-tests` — the dedicated `lsp-e2e`
-# job in rust-lsp-e2e.yml, which runs only this crate, is the reliable signal
-# for this test class; an occasional timeout here alongside a green `lsp-e2e`
-# is the known CPU-starvation flake, not a regression.)
+# Running these concurrently makes the whole suite slower for no benefit — each
+# pins the CPU for tens of seconds — so they get a single-slot group and never
+# run alongside each other; the hundreds of light tests still parallelise fully.
+#
+# This is a *scheduling* optimisation only. It is deliberately no longer load
+# bearing for correctness: issue #1082 removed the tests' dependence on winning
+# a wall-clock race, so they pass at default parallelism on a contended machine
+# with or without this grouping (and with plain `cargo test`, which does not
+# read this file at all). Their barriers now wait on explicit progress signals
+# from the server and scale with measured machine capacity, and their genuine
+# latency guarantees are asserted relative to that capacity rather than against
+# an absolute — see the module docs in
+# `rust/tcl-lsp-server/tests/e2e/semantic_tokens_reference_client.rs` and
+# `rust/tcl-lsp-server/tests/e2e/common/mod.rs`. A timeout here is therefore a
+# real signal again, not "the known CPU-starvation flake".
 [test-groups]
 heavy-lsp-e2e = { max-threads = 1 }
 
