@@ -344,6 +344,113 @@ fn literal_list_words(text: &str, tok: Token) -> Option<Vec<(String, Token)>> {
     Some(words)
 }
 
+/// One piece of a manufacturer prologue word, as
+/// [`Analyser::manufacturer_injected_members`] accounts for it.
+#[derive(Debug, PartialEq, Eq)]
+enum ProloguePiece<'a> {
+    /// A `[…]` command substitution — one prologue member to read.
+    Substitution,
+    /// A `$name` / `${name}` variable read.
+    VarRead(&'a str),
+    /// Whitespace, a statement separator, or an escaped separator — text
+    /// that joins pieces without contributing any member of its own.
+    Separator,
+    /// Anything else: literal prologue text, or a fragment the scanner
+    /// cannot classify.  Its presence means the prologue is *not* fully
+    /// read.
+    Opaque,
+}
+
+/// Split a manufacturer prologue word into the pieces its reader must
+/// account for.
+///
+/// Operates on the word's round-tripped source text (the segmenter's own
+/// per-word reconstruction), which preserves every substitution verbatim.
+/// A single `Opaque` piece is enough for the caller to abstain, so the scan
+/// stops at the first one.
+fn prologue_pieces(word: &str) -> Vec<ProloguePiece<'_>> {
+    let mut pieces = Vec::new();
+    let mut rest = word;
+    while !rest.is_empty() {
+        let first = rest.as_bytes()[0];
+        if first.is_ascii_whitespace() || first == b';' {
+            rest = &rest[1..];
+            if !matches!(pieces.last(), Some(ProloguePiece::Separator)) {
+                pieces.push(ProloguePiece::Separator);
+            }
+            continue;
+        }
+        // A backslash escape of a separator (`\;` — the idiomatic way to
+        // end the injected statement inside one word) joins, like the
+        // separator it escapes.
+        if first == b'\\' {
+            let escaped = rest.as_bytes().get(1).copied();
+            if escaped.is_some_and(|c| c.is_ascii_whitespace() || c == b';' || c == b'n') {
+                rest = &rest[2..];
+                if !matches!(pieces.last(), Some(ProloguePiece::Separator)) {
+                    pieces.push(ProloguePiece::Separator);
+                }
+                continue;
+            }
+            pieces.push(ProloguePiece::Opaque);
+            break;
+        }
+        if first == b'[' {
+            let Some(end) = matching_bracket(rest) else {
+                pieces.push(ProloguePiece::Opaque);
+                break;
+            };
+            pieces.push(ProloguePiece::Substitution);
+            rest = &rest[end + 1..];
+            continue;
+        }
+        if first == b'$' {
+            let after = &rest[1..];
+            if let Some(braced) = after.strip_prefix('{') {
+                let Some(close) = braced.find('}') else {
+                    pieces.push(ProloguePiece::Opaque);
+                    break;
+                };
+                pieces.push(ProloguePiece::VarRead(&braced[..close]));
+                rest = &braced[close + 1..];
+                continue;
+            }
+            let len = after
+                .find(|c: char| !(c.is_alphanumeric() || c == '_' || c == ':'))
+                .unwrap_or(after.len());
+            if len == 0 {
+                pieces.push(ProloguePiece::Opaque);
+                break;
+            }
+            pieces.push(ProloguePiece::VarRead(&after[..len]));
+            rest = &after[len..];
+            continue;
+        }
+        pieces.push(ProloguePiece::Opaque);
+        break;
+    }
+    pieces
+}
+
+/// Byte offset of the `]` closing the `[` at the start of `text`, honouring
+/// nesting.  `None` when it is unbalanced.
+fn matching_bracket(text: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    for (offset, ch) in text.char_indices() {
+        match ch {
+            '[' => depth += 1,
+            ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(offset);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 /// Resolve one prologue member statement from a manufacturer override into
 /// the member the creation call actually installs.
 ///
@@ -3137,6 +3244,14 @@ impl Analyser {
                             scope_path,
                         );
                     }
+                    Hook::OoObjdefine => {
+                        self.handle_oo_objdefine(args, arg_tokens, arg_single, scope_path);
+                    }
+                    // Unreachable for a spec carrying the trait —
+                    // `installer_hook_is_redispatched` pins that every one
+                    // of them lands on an arm above, so a newly-stamped
+                    // spec cannot silently promise a re-dispatch this match
+                    // never delivers (Codex review of PR #1074).
                     _ => {}
                 }
             }
@@ -4038,12 +4153,22 @@ impl Analyser {
     /// name is present), mirroring [`Self::handle_oo_define_command`],
     /// so the generic body recursion does not also descend the body.
     ///
+    /// A receiver written as a substitution keeps its **variable** name as
+    /// the `objdefined_vars` / `object_methods` key — that is what a
+    /// `$obj method` dispatch site is keyed by — but when the word also
+    /// folds to a dominating constant (`foreach o {::a ::b} { oo::objdefine
+    /// $o { … } }`) the per-object facts are recorded under the *object's*
+    /// own name as well, so a bare `::a probe` call sees them too.  tclsh
+    /// 9.0.4 / 8.6.16 both confirm every literal element really gains the
+    /// method.
+    ///
     /// Dispatched via
     /// [`tcl_registry::hooks::AnalyserHookId::OoObjdefine`].
     pub fn handle_oo_objdefine(
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
+        arg_single: &[bool],
         scope_path: &[usize],
     ) -> bool {
         if args.is_empty() {
@@ -4056,6 +4181,19 @@ impl Analyser {
         if !obj_name.is_empty() {
             self.objdefined_vars.insert(obj_name.clone());
         }
+        // The object the receiver word actually names this time round, when
+        // it is statically determined.
+        let resolved_obj = self
+            .resolve_dynamic_word(
+                &args[0],
+                arg_tokens.first().copied(),
+                arg_single.first().copied().unwrap_or(false),
+                scope_path,
+            )
+            .map(|name| name.trim().to_string())
+            .filter(|name| {
+                !name.is_empty() && *name != obj_name && !crate::naming::is_dynamic_word(name)
+            });
 
         // `oo::objdefine $obj` with no definition script — the object variable
         // is recorded above; there is nothing more to walk.
@@ -4125,18 +4263,19 @@ impl Analyser {
         // Each record carries the objdefine site's receiver offset, so
         // consumers key it by the receiver's *binding identity* — never by
         // the textual tail alone (issue #945 fault 5).
-        if !obj_name.is_empty() && !object_class.methods.is_empty() {
+        if !object_class.methods.is_empty() {
             let objdefine_offset = arg_tokens.first().map_or(0, |t| t.span.start());
-            self.result
-                .object_methods
-                .entry(obj_name)
-                .or_default()
-                .extend(object_class.methods.into_values().map(|def| {
-                    super::types::ObjectMethodDef {
-                        def,
-                        objdefine_offset,
-                    }
-                }));
+            // Source-ordered, so the recorded sequence is the same on every
+            // run (and the same under each key) rather than the hash map's
+            // iteration order.
+            let mut methods: Vec<super::types::MethodDef> =
+                object_class.methods.into_values().collect();
+            methods.sort_by_key(|def| def.name_span.start());
+            for key in [Some(obj_name), resolved_obj].into_iter().flatten() {
+                if !key.is_empty() {
+                    self.record_object_methods(key, &methods, objdefine_offset);
+                }
+            }
         }
 
         true
@@ -4399,9 +4538,22 @@ impl Analyser {
     /// are injected: they name existing entities, so every injected word
     /// keeps a real source span, either in the manufacturer's own body
     /// (a literal it always splices) or in this call's arguments (a
-    /// `{*}$param` splice).  A prologue built any other way yields `None`
-    /// and the class is recorded with its inheritance marked unknown, so no
-    /// method check fires against a superclass list that was guessed.
+    /// `{*}$param` splice).
+    ///
+    /// **Reading the whole prologue is a precondition, not a best effort.**
+    /// The definition word `next` receives is scanned piece by piece, and
+    /// every piece must be one the analyser can account for: a `[list
+    /// <member> …]` group it parsed, the manufacturer's own `$param` read
+    /// (the caller's body, spliced in verbatim), or list/statement
+    /// separator text.  Anything else — most importantly a **string-built**
+    /// prologue such as `next $name "superclass Base\n$body"`, which
+    /// injects a superclass with no nested command at all (tclsh 9.0.4 /
+    /// 8.6.16: `info class superclasses` really reports `::Base`, and its
+    /// methods really are inherited) — yields `None`, and the class is
+    /// recorded with its inheritance marked unknown.  Returning a
+    /// *known-empty* injection for a prologue that was merely unreadable
+    /// would claim the class has no superclass and let W308 fire on
+    /// perfectly good inherited methods.
     fn manufacturer_injected_members(
         &self,
         meta: &UserMetaclass,
@@ -4409,43 +4561,89 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
     ) -> Option<Vec<InjectedMember>> {
-        let registry = self.registry.as_ref()?;
         let params: Vec<&str> = override_def
             .params
             .iter()
             .map(|p| p.name.as_str())
             .collect();
         let next_seg = self.manufacturer_next_call(override_def)?;
-        let config = self.lexer_config();
-        let sm = SourceMap::new(&self.source);
+        // The definition word is `next`'s last argument that reads one of
+        // the override's parameters — the builtin `create Name Body`
+        // layout's `Body` position, which is what the prologue is composed
+        // into.
+        let (word_index, prologue) =
+            next_seg.args().iter().enumerate().rev().find(|(_, word)| {
+                interpolated_var_names(word)
+                    .iter()
+                    .any(|name| params.contains(name))
+            })?;
+        // `Cmd` sub-tokens of that word, in source order — the word is
+        // `next`'s last argument, so every command substitution at or after
+        // its first token belongs to it.
+        let word_start = next_seg.argv.get(word_index + 1)?.span.start();
+        let mut groups = next_seg
+            .all_tokens
+            .iter()
+            .filter(|tok| tok.kind == TokenType::Cmd && tok.span.start() >= word_start);
         let mut injected: Vec<InjectedMember> = Vec::new();
-        for tok in &next_seg.all_tokens {
-            if tok.kind != TokenType::Cmd {
-                continue;
-            }
-            let descended = descend_token(&sm, *tok, config);
-            for seg in segments_from_tree(descended.tree(), &sm) {
-                // The prologue is built by a command that quotes its
-                // arguments into a canonical list — registry data
-                // (`PRODUCES_CANONICAL_LIST`), never a command name here.
-                if !registry.get(seg.name()).is_some_and(|spec| {
-                    spec.traits
-                        .contains(tcl_registry::Traits::PRODUCES_CANONICAL_LIST)
-                }) {
-                    continue;
+        for piece in prologue_pieces(prologue) {
+            match piece {
+                ProloguePiece::Separator => {}
+                ProloguePiece::VarRead(name) if params.contains(&name) => {}
+                ProloguePiece::Substitution => {
+                    injected.push(self.injected_member_from_group(
+                        meta,
+                        *groups.next()?,
+                        &params,
+                        args,
+                        arg_tokens,
+                    )?);
                 }
-                let Some(member) = seg
-                    .args()
-                    .first()
-                    .and_then(|keyword| meta.grammar.member(keyword))
-                else {
-                    continue;
-                };
-                member.all_args_ref?;
-                injected.push(resolve_injected_member(&seg, &params, args, arg_tokens)?);
+                // Literal prologue text, a read of something that is not a
+                // manufacturer parameter, or an unreadable fragment: the
+                // prologue is not fully accounted for.
+                ProloguePiece::VarRead(_) | ProloguePiece::Opaque => return None,
             }
         }
         Some(injected)
+    }
+
+    /// The definition-body member one `[…]` group of a manufacturer
+    /// prologue installs, or `None` when the group is not a
+    /// reference-only member built by a canonical-list command.
+    fn injected_member_from_group(
+        &self,
+        meta: &UserMetaclass,
+        group: Token,
+        params: &[&str],
+        args: &[String],
+        arg_tokens: &[Token],
+    ) -> Option<InjectedMember> {
+        let registry = self.registry.as_ref()?;
+        let sm = SourceMap::new(&self.source);
+        let descended = descend_token(&sm, group, self.lexer_config());
+        let mut segs = segments_from_tree(descended.tree(), &sm).into_iter();
+        let seg = segs.next()?;
+        // One group builds one member; a `[a; b]` compound is not a shape
+        // the prologue reader accounts for.
+        if segs.next().is_some() {
+            return None;
+        }
+        // The prologue is built by a command that quotes its arguments into
+        // a canonical list — registry data (`PRODUCES_CANONICAL_LIST`),
+        // never a command name here.
+        if !registry.get(seg.name()).is_some_and(|spec| {
+            spec.traits
+                .contains(tcl_registry::Traits::PRODUCES_CANONICAL_LIST)
+        }) {
+            return None;
+        }
+        let member = seg
+            .args()
+            .first()
+            .and_then(|keyword| meta.grammar.member(keyword))?;
+        member.all_args_ref?;
+        resolve_injected_member(&seg, params, args, arg_tokens)
     }
 
     /// The recorded class `cmd_name` names when that class is **itself a
@@ -4464,6 +4662,16 @@ impl Analyser {
     /// by exactly the grammar the language gives them without the walker
     /// naming a metaclass command.
     ///
+    /// A `superclass` word is written as the *declaring* class sees it, so
+    /// a relative name (`superclass Meta` inside `::n::DerivedMeta`) is
+    /// resolved through the shared owner-aware class-name resolution
+    /// ([`super::class_hierarchy::resolve_class_name`]) — the same
+    /// current-namespace-then-global rule the class lattice and the MRO
+    /// builder already implement, never a re-derivation of it here.  That
+    /// keeps this chain walk sound-by-abstention in the same places they
+    /// are: an ambiguous simple name resolves to nothing rather than
+    /// cross-linking a same-named class in an unrelated namespace.
+    ///
     /// Chain walking is depth-bounded and visited-checked, so a cyclic
     /// `superclass` declaration (rejected by real Tcl, but writable in a
     /// half-edited buffer) terminates.
@@ -4474,15 +4682,23 @@ impl Analyser {
     ) -> Option<UserMetaclass> {
         let registry = self.registry.as_ref()?;
         let qualified = self.resolve_command_qualified_name(cmd_name, scope_path);
-        let start = self.result.all_classes.get(&qualified)?;
+        if !self.result.all_classes.contains_key(&qualified) {
+            return None;
+        }
+        let tail_index = super::class_hierarchy::build_tail_index(self.result.all_classes.keys());
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-        let mut queue: Vec<&super::types::ClassDef> = vec![start];
+        let mut queue: Vec<String> = vec![qualified.clone()];
         // Bounded by the recorded class count — every class is visited once.
-        while let Some(class) = queue.pop() {
-            if !seen.insert(class.qualified_name.clone()) {
+        while let Some(class_qname) = queue.pop() {
+            if !seen.insert(class_qname.clone()) {
                 continue;
             }
+            let Some(class) = self.result.all_classes.get(&class_qname) else {
+                continue;
+            };
             for parent in &class.superclasses {
+                // The registry seed: `oo::class` and its siblings are named
+                // as commands, so a leading `::` is the same command.
                 let bare = parent.strip_prefix("::").unwrap_or(parent);
                 if let Some(spec) = registry.get(bare)
                     && spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS)
@@ -4491,19 +4707,49 @@ impl Analyser {
                 {
                     return Some(UserMetaclass { qualified, grammar });
                 }
-                // A superclass recorded relative to the file's own namespace
-                // is stored as written, so try both spellings.
-                let next = self
-                    .result
-                    .all_classes
-                    .get(parent)
-                    .or_else(|| self.result.all_classes.get(&format!("::{bare}")));
-                if let Some(next) = next {
+                if let Some(next) = super::class_hierarchy::resolve_class_name(
+                    parent,
+                    &class_qname,
+                    |candidate| self.result.all_classes.contains_key(candidate),
+                    &tail_index,
+                ) {
                     queue.push(next);
                 }
             }
         }
         None
+    }
+
+    /// Add one `oo::objdefine` site's per-object methods under `key`,
+    /// skipping any the same site already contributed.
+    ///
+    /// The `foreach`-literal simulation re-dispatches an installer once per
+    /// remaining element, and the ordinary walk already covered the first
+    /// one, so the first element's site is visited twice under the
+    /// *variable*'s key.  A single source site can never legitimately
+    /// declare the same member twice, so `(objdefine_offset, name)` is an
+    /// exact identity for "already recorded" — no iteration count is
+    /// needed, and a genuinely separate `oo::objdefine` block on the same
+    /// object (a different offset) still accumulates.
+    fn record_object_methods(
+        &mut self,
+        key: String,
+        methods: &[super::types::MethodDef],
+        objdefine_offset: u32,
+    ) {
+        let recorded = self.result.object_methods.entry(key).or_default();
+        for def in methods {
+            if recorded
+                .iter()
+                .any(|m| m.objdefine_offset == objdefine_offset && m.def.name == def.name)
+            {
+                continue;
+            }
+            recorded.push(super::types::ObjectMethodDef {
+                def: def.clone(),
+                objdefine_offset,
+            });
+        }
     }
 
     /// Handle `oo::class create NAME ?BODY?` — record the class.
@@ -9014,26 +9260,164 @@ mod tests {
         assert!(!r.source_targets[0].is_literal, "{:?}", r.source_targets[0]);
     }
 
+    // The `INSTALLS_NAMED_DEFINITION` re-dispatch contract.
+
+    #[test]
+    fn every_installer_spec_lands_on_a_live_redispatch_arm() {
+        // Drift gate — the trait is a *promise* that
+        // `simulate_remaining_foreach_iterations` re-runs the command once
+        // per literal `foreach` element.  A spec that carries it but whose
+        // analyser hook has no arm in that match silently promises nothing
+        // (Codex review of PR #1074: `oo::objdefine` was exactly that).
+        // Registry-driven, so a newly-stamped spec fails here rather than
+        // in a corpus months later.
+        use tcl_registry::hooks::AnalyserHookId as Hook;
+        let redispatched = [Hook::Proc, Hook::Rename, Hook::OoDefine, Hook::OoObjdefine];
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let mut checked = 0usize;
+        for name in registry.command_names() {
+            for spec in registry.specs(name) {
+                if !spec
+                    .traits
+                    .contains(tcl_registry::Traits::INSTALLS_NAMED_DEFINITION)
+                {
+                    continue;
+                }
+                checked += 1;
+                let hook = spec.analyser_hook.unwrap_or_else(|| {
+                    panic!("{name} carries INSTALLS_NAMED_DEFINITION but has no analyser hook")
+                });
+                assert!(
+                    redispatched.contains(&hook),
+                    "{name} carries INSTALLS_NAMED_DEFINITION but its hook {hook:?} has no \
+                     arm in the foreach re-dispatch — the trait promises a re-dispatch \
+                     the match does not deliver",
+                );
+            }
+        }
+        assert!(
+            checked >= 4,
+            "expected proc/rename/oo::define/oo::objdefine, saw {checked}"
+        );
+    }
+
+    #[test]
+    fn foreach_objdefine_records_per_object_facts_for_every_literal_element() {
+        // TP — issue #923 idx 55's sibling shape.  tclsh 9.0.4 and 8.6.16
+        // both run `foreach o {::a ::b} { oo::objdefine $o { method probe
+        // {} {…} } }` and report `probe` in `info object methods` for
+        // *both* objects, so both must carry the per-object method fact.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Base { method hello {} { return hi } }\n\
+             Base create ::a\n\
+             Base create ::b\n\
+             foreach o {::a ::b} {\n    oo::objdefine $o {\n        method probe {} { return probed }\n    }\n}\n",
+            "tcl9.0",
+        );
+        for obj in ["::a", "::b"] {
+            let methods = r
+                .object_methods
+                .get(obj)
+                .unwrap_or_else(|| panic!("{obj} has per-object methods: {:?}", r.object_methods));
+            assert!(
+                methods.iter().any(|m| m.def.name == "probe"),
+                "{obj} gained probe: {methods:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn foreach_objdefine_does_not_double_record_the_first_element() {
+        // FP guard — the ordinary body walk covers the first element and
+        // the simulation covers the rest, so the first element's site is
+        // visited twice under the loop variable's own key.  One source site
+        // can never declare the same member twice, so it must appear once.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Base { method hello {} { return hi } }\n\
+             Base create ::a\n\
+             Base create ::b\n\
+             foreach o {::a ::b} {\n    oo::objdefine $o {\n        method probe {} { return probed }\n    }\n}\n",
+            "tcl9.0",
+        );
+        for (key, methods) in &r.object_methods {
+            let probes = methods.iter().filter(|m| m.def.name == "probe").count();
+            assert!(
+                probes <= 1,
+                "{key} recorded probe {probes} times: {methods:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn foreach_objdefine_does_not_duplicate_body_diagnostics() {
+        // FP guard — re-running the installer per element re-walks the
+        // per-object method bodies, so a diagnostic raised inside one must
+        // still be reported once per site, never once per iteration.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Base { method hello {} { return hi } }\n\
+             Base create ::a\n\
+             Base create ::b\n\
+             foreach o {::a ::b} {\n    oo::objdefine $o {\n        method probe {} { return $undefinedVar }\n    }\n}\n",
+            "tcl9.0",
+        );
+        let mut seen = std::collections::HashSet::new();
+        for diag in &r.diagnostics {
+            assert!(
+                seen.insert((diag.code.to_string(), diag.span)),
+                "duplicate diagnostic {:?} at {:?}",
+                diag.code,
+                diag.span,
+            );
+        }
+    }
+
+    #[test]
+    fn foreach_objdefine_over_a_dynamic_list_abstains() {
+        // TN — a runtime element list names no object the walk can know, so
+        // the per-object facts stay under the loop variable's own key and
+        // are never attributed to a literal object.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Base { method hello {} { return hi } }\n\
+             Base create ::a\n\
+             foreach o $objects {\n    oo::objdefine $o {\n        method probe {} { return probed }\n    }\n}\n",
+            "tcl9.0",
+        );
+        assert!(
+            !r.object_methods.contains_key("::a"),
+            "a runtime receiver must not be attributed to a literal object: {:?}",
+            r.object_methods,
+        );
+        assert!(
+            r.object_methods.contains_key("o"),
+            "the facts stay under the receiver variable: {:?}",
+            r.object_methods,
+        );
+    }
+
     // handle_oo_objdefine
 
     #[test]
     fn handle_oo_objdefine_records_dollar_var() {
         let mut a = Analyser::new();
-        a.handle_oo_objdefine(&["$obj".to_string()], &[], &[]);
+        a.handle_oo_objdefine(&["$obj".to_string()], &[], &[], &[]);
         assert!(a.objdefined_vars.contains("obj"));
     }
 
     #[test]
     fn handle_oo_objdefine_records_braced_dollar_var() {
         let mut a = Analyser::new();
-        a.handle_oo_objdefine(&["${obj}".to_string()], &[], &[]);
+        a.handle_oo_objdefine(&["${obj}".to_string()], &[], &[], &[]);
         assert!(a.objdefined_vars.contains("obj"));
     }
 
     #[test]
     fn handle_oo_objdefine_records_bare_name() {
         let mut a = Analyser::new();
-        a.handle_oo_objdefine(&["obj".to_string()], &[], &[]);
+        a.handle_oo_objdefine(&["obj".to_string()], &[], &[], &[]);
         assert!(a.objdefined_vars.contains("obj"));
     }
 

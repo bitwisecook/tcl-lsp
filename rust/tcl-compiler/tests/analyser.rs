@@ -4003,6 +4003,210 @@ mod class_factories {
         assert!(cd.methods.contains_key("m"), "{cd:?}");
     }
 
+    /// A factory whose `create` override composes the definition body as a
+    /// **string** — no nested command anywhere — yet really does inject a
+    /// superclass.  tclsh 9.0.4 and 8.6.16 both report `StrWidget supers:
+    /// ::StrBase` for this and run `[[StrWidget new] inherited]`.
+    const STRING_PROLOGUE_META: &str = concat!(
+        "oo::class create StrBase {\n",
+        "    method inherited {} { return inherited-ran }\n",
+        "}\n",
+        "oo::class create StrMeta {\n",
+        "    superclass oo::class\n",
+        "    self method create {name body} {\n",
+        "        next $name \"superclass StrBase\\n$body\"\n",
+        "    }\n",
+        "}\n",
+        "StrMeta create StrWidget {\n",
+        "    method own {} { return own-ran }\n",
+        "}\n",
+    );
+
+    /// The same shape with the override passing `$body` straight through —
+    /// nothing composed, nothing injected.  tclsh 9.0.4 / 8.6.16 report
+    /// only the implicit `::oo::object` for it, i.e. a genuinely empty
+    /// injection.
+    const DIRECT_BODY_META: &str = concat!(
+        "oo::class create PlainMeta {\n",
+        "    superclass oo::class\n",
+        "    self method create {name body} {\n",
+        "        next $name $body\n",
+        "    }\n",
+        "}\n",
+        "PlainMeta create PlainWidget {\n",
+        "    method own {} { return plain-own }\n",
+        "}\n",
+    );
+
+    #[test]
+    fn a_string_built_prologue_is_opaque_not_empty() {
+        // TP — the prologue injects `superclass StrBase` with no command
+        // substitution at all, so the scan finds nothing to read.  Claiming
+        // a *known-empty* injection would assert the class has no
+        // superclass and let W308 fire on every inherited method; the only
+        // sound answer is opaque.
+        let cd = class(STRING_PROLOGUE_META, "::StrWidget");
+        assert!(cd.inheritance_unknown, "{cd:?}");
+        assert!(
+            cd.methods.contains_key("own"),
+            "the class is still real: {cd:?}"
+        );
+    }
+
+    #[test]
+    fn an_opaque_prologue_suppresses_w308_on_inherited_methods() {
+        // TP (consumer) — `inherited` really runs on both interpreters, so
+        // no unknown-method warning may fire for it.
+        let src = concat!(
+            "oo::class create StrBase {\n",
+            "    method inherited {} { return inherited-ran }\n",
+            "}\n",
+            "oo::class create StrMeta {\n",
+            "    superclass oo::class\n",
+            "    self method create {name body} {\n",
+            "        next $name \"superclass StrBase\\n$body\"\n",
+            "    }\n",
+            "}\n",
+            "StrMeta create StrWidget {\n",
+            "    method own {} { return own-ran }\n",
+            "}\n",
+            "set w [StrWidget new]\n",
+            "$w inherited\n",
+        );
+        assert!(
+            !fires(src, "tcl9.0", "W308"),
+            "an unreadable prologue must abstain: {:?}",
+            codes(src, "tcl9.0")
+        );
+    }
+
+    #[test]
+    fn a_provably_direct_body_still_yields_a_known_empty_injection() {
+        // TN — `next $name $body` composes nothing, so the injection is
+        // known-empty and the class's inheritance is fully known.  This is
+        // the half that must *not* become opaque, or the abstention above
+        // would cost every precise diagnostic on a factory-made class.
+        let cd = class(DIRECT_BODY_META, "::PlainWidget");
+        assert!(!cd.inheritance_unknown, "{cd:?}");
+        assert!(cd.superclasses.is_empty(), "{cd:?}");
+        assert!(cd.methods.contains_key("own"), "{cd:?}");
+    }
+
+    #[test]
+    fn a_provably_direct_body_keeps_method_checks_live() {
+        // FN guard — the known-empty case must stay precise: a method that
+        // exists nowhere on the class still warns.
+        let src = concat!(
+            "oo::class create PlainMeta {\n",
+            "    superclass oo::class\n",
+            "    self method create {name body} {\n",
+            "        next $name $body\n",
+            "    }\n",
+            "}\n",
+            "PlainMeta create PlainWidget {\n",
+            "    method own {} { return plain-own }\n",
+            "}\n",
+            "set w [PlainWidget new]\n",
+            "$w nosuchmethod\n",
+        );
+        assert!(
+            fires(src, "tcl9.0", "W308"),
+            "a known-empty injection keeps method checks live: {:?}",
+            codes(src, "tcl9.0")
+        );
+    }
+
+    #[test]
+    fn a_relative_superclass_reaches_the_metaclass_in_its_own_namespace() {
+        // TP — `::n::DerivedMeta` declares `superclass Meta`, which Tcl
+        // resolves in the declaring class's own namespace: tclsh 9.0.4 /
+        // 8.6.16 both report `info class superclasses ::n::DerivedMeta` =
+        // `::n::Meta`, and `::n::DerivedMeta create ::NsWidget {…}` really
+        // makes a class.  Looking only at `Meta` / `::Meta` missed it.
+        let src = concat!(
+            "namespace eval ::n {\n",
+            "    oo::class create Meta {\n",
+            "        superclass oo::class\n",
+            "        self method create {name body} { next $name $body }\n",
+            "    }\n",
+            "    oo::class create DerivedMeta {\n",
+            "        superclass Meta\n",
+            "    }\n",
+            "}\n",
+            "::n::DerivedMeta create ::NsWidget {\n",
+            "    method nsown {} { return ns-own }\n",
+            "}\n",
+        );
+        let cd = class(src, "::NsWidget");
+        assert!(cd.methods.contains_key("nsown"), "{cd:?}");
+    }
+
+    #[test]
+    fn a_relative_superclass_prefers_its_own_namespace_over_a_decoy() {
+        // TN (cross-link guard, the #1063 precedent) — a same-tailed class
+        // in an unrelated namespace must not be picked when the declaring
+        // namespace has its own.  Here `::other::Meta` is a plain class and
+        // `::n::Meta` is the real metaclass; picking the decoy would leave
+        // `::NsWidget` unrecorded.
+        let src = concat!(
+            "namespace eval ::other {\n",
+            "    oo::class create Meta {\n",
+            "        method notafactory {} { return 1 }\n",
+            "    }\n",
+            "}\n",
+            "namespace eval ::n {\n",
+            "    oo::class create Meta {\n",
+            "        superclass oo::class\n",
+            "        self method create {name body} { next $name $body }\n",
+            "    }\n",
+            "    oo::class create DerivedMeta {\n",
+            "        superclass Meta\n",
+            "    }\n",
+            "}\n",
+            "::n::DerivedMeta create ::NsWidget {\n",
+            "    method nsown {} { return ns-own }\n",
+            "}\n",
+        );
+        assert!(class(src, "::NsWidget").methods.contains_key("nsown"));
+    }
+
+    #[test]
+    fn a_relative_superclass_does_not_cross_link_to_another_namespace() {
+        // TN — the declaring namespace's own `Meta` is an ordinary class,
+        // so the chain ends there.  Reaching sideways into `::other::Meta`
+        // (which *is* a metaclass) would manufacture a class creation real
+        // Tcl never performs — `::n::Meta` shadows it from `::n`.
+        let src = concat!(
+            "namespace eval ::other {\n",
+            "    oo::class create Meta {\n",
+            "        superclass oo::class\n",
+            "        self method create {name body} { next $name $body }\n",
+            "    }\n",
+            "}\n",
+            "namespace eval ::n {\n",
+            "    oo::class create Meta {\n",
+            "        method notafactory {} { return 1 }\n",
+            "    }\n",
+            "    oo::class create DerivedMeta {\n",
+            "        superclass Meta\n",
+            "    }\n",
+            "}\n",
+            "::n::DerivedMeta create ::NsWidget {\n",
+            "    method nsown {} { return ns-own }\n",
+            "}\n",
+        );
+        assert!(
+            !analysis(src, "tcl9.0")
+                .all_classes
+                .contains_key("::NsWidget"),
+            "a non-factory chain must not manufacture a class: {:?}",
+            analysis(src, "tcl9.0")
+                .all_classes
+                .keys()
+                .collect::<Vec<_>>(),
+        );
+    }
+
     #[test]
     fn an_ordinary_class_is_not_treated_as_a_factory() {
         // TN — `Dog` is a plain class, so `Dog create rex` makes an
