@@ -9809,7 +9809,8 @@
     },
     {
       "name": "textutil::string::longestCommonPrefix",
-      "summary": "Returns the longest common prefix of the given strings."
+      "summary": "Returns the longest common prefix of the given strings.",
+      "pure": true
     },
     {
       "name": "textutil::string::longestCommonPrefixList",
@@ -9835,19 +9836,23 @@
     },
     {
       "name": "textutil::tabify::tabify",
-      "summary": "Replaces all appropriate occurrences of num spaces with a tab character in string."
+      "summary": "Replaces all appropriate occurrences of num spaces with a tab character in string.",
+      "pure": true
     },
     {
       "name": "textutil::tabify::tabify2",
-      "summary": "Like tabify, but works line by line and only replaces spaces at true tab-stop-aligned positions."
+      "summary": "Like tabify, but works line by line and only replaces spaces at true tab-stop-aligned positions.",
+      "pure": true
     },
     {
       "name": "textutil::tabify::untabify",
-      "summary": "Replaces all tabs in string with the appropriate number of spaces, assuming a tab size of num."
+      "summary": "Replaces all tabs in string with the appropriate number of spaces, assuming a tab size of num.",
+      "pure": true
     },
     {
       "name": "textutil::tabify::untabify2",
-      "summary": "Like untabify, but works line by line."
+      "summary": "Like untabify, but works line by line.",
+      "pure": true
     },
     {
       "name": "textutil::tail",
@@ -9872,11 +9877,13 @@
     },
     {
       "name": "textutil::trim::trimleft",
-      "summary": "Removes any leading occurrences of the characters in trim (a regular expression, default whitespace) from string."
+      "summary": "Removes any leading occurrences of the characters in trim (a regular expression, default whitespace) from string.",
+      "pure": true
     },
     {
       "name": "textutil::trim::trimright",
-      "summary": "Removes any trailing occurrences of the characters in trim (a regular expression, default whitespace) from string."
+      "summary": "Removes any trailing occurrences of the characters in trim (a regular expression, default whitespace) from string.",
+      "pure": true
     },
     {
       "name": "textutil::trimEmptyHeading",

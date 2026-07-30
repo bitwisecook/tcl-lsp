@@ -20,6 +20,11 @@
 //!
 //! Remaining flat commands across many packages (html, ip, sha1/sha2/md5 incremental APIs, grammar, simulation, nettool, cron, zipfile, …), each attributed to its namespace package.
 
+use super::{
+    textutil__adjust, textutil__indent, textutil__longestcommonprefix, textutil__tabify,
+    textutil__tabify2, textutil__trim, textutil__trimleft, textutil__trimright, textutil__undent,
+    textutil__untabify, textutil__untabify2,
+};
 use crate::prelude::*;
 
 /// A row in a package command table: name, arity, synopsis, and summary.
@@ -2941,9 +2946,58 @@ fn processman_onexit_spec() -> CommandSpec {
     }
 }
 
+/// `(submodule-qualified name, that command's canonical spec)` pairs: every
+/// `Row`-declared submodule command above that is *also* re-exported,
+/// unmodified, as a flattened `textutil::NAME` umbrella alias by one of the
+/// individual `textutil__*.rs` files elsewhere in this crate (`adjust` /
+/// `indent` / `undent` from the `textutil::adjust` package; `trim` /
+/// `trimleft` / `trimright` from `textutil::trim`; `tabify` / `untabify` /
+/// `tabify2` / `untabify2` from `textutil::tabify`; `longestCommonPrefix`
+/// from `textutil::string`).
+///
+/// The umbrella alias file is the sole source of truth for that command's
+/// trait descriptors (`Traits::PURE`, …) — [`sync_textutil_submodule_traits`]
+/// copies them onto the `Row`-built submodule spec below rather than a
+/// second, independent `Traits::PURE` declaration, so the two spellings of
+/// the same real tcllib command can never drift apart (issue #923 idx 3/4
+/// review follow-up: the submodule spec was built via the generic `Row` →
+/// `CommandSpec::DEFAULT` path and so silently lacked the `Traits::PURE` its
+/// umbrella sibling already carried, blocking purity-based GVN/DCE on the
+/// canonical three-segment spelling only).
+fn textutil_submodule_trait_sources() -> Vec<(&'static str, CommandSpec)> {
+    vec![
+        ("textutil::adjust::adjust", textutil__adjust::spec()),
+        ("textutil::adjust::indent", textutil__indent::spec()),
+        ("textutil::adjust::undent", textutil__undent::spec()),
+        ("textutil::trim::trim", textutil__trim::spec()),
+        ("textutil::trim::trimleft", textutil__trimleft::spec()),
+        ("textutil::trim::trimright", textutil__trimright::spec()),
+        ("textutil::tabify::tabify", textutil__tabify::spec()),
+        ("textutil::tabify::untabify", textutil__untabify::spec()),
+        ("textutil::tabify::tabify2", textutil__tabify2::spec()),
+        ("textutil::tabify::untabify2", textutil__untabify2::spec()),
+        (
+            "textutil::string::longestCommonPrefix",
+            textutil__longestcommonprefix::spec(),
+        ),
+    ]
+}
+
+/// Apply [`textutil_submodule_trait_sources`]'s canonical traits onto their
+/// matching `specs` entries in place. A missing name is a silent no-op — the
+/// pairing is exhaustively checked by the `registry_commands.rs` contract
+/// test instead of panicking here.
+fn sync_textutil_submodule_traits(specs: &mut [CommandSpec]) {
+    for (name, canonical) in textutil_submodule_trait_sources() {
+        if let Some(spec) = specs.iter_mut().find(|s| s.name == name) {
+            spec.traits = canonical.traits;
+        }
+    }
+}
+
 /// All command specs in this group.
 pub fn specs() -> Vec<CommandSpec> {
-    GROUPS
+    let mut specs: Vec<CommandSpec> = GROUPS
         .iter()
         .flat_map(|&(pkg, table)| rows(pkg, table))
         // The `html` package uses the richer [`HtmlRow`] table (per-command
@@ -2951,5 +3005,7 @@ pub fn specs() -> Vec<CommandSpec> {
         // 4-tuple [`Row`], so it is appended separately (issue #811).
         .chain(html_rows(HTML_CMDS))
         .chain(std::iter::once(processman_onexit_spec()))
-        .collect()
+        .collect();
+    sync_textutil_submodule_traits(&mut specs);
+    specs
 }

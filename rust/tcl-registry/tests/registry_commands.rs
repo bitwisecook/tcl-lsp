@@ -2260,4 +2260,58 @@ mod textutil_submodule_vs_umbrella {
             assert_eq!(spec.required_package, Some("textutil"));
         }
     }
+
+    /// Contract test (code-review follow-up on this PR): the umbrella alias
+    /// and the submodule-qualified canonical name are the *same real tcllib
+    /// command* under two different call spellings, so every trait
+    /// descriptor (`Traits::PURE` and any future one) must agree between
+    /// them — a consumer doing purity-based GVN/DCE must not see a different
+    /// answer purely because of which spelling a call site happens to use.
+    /// `rust/tcl-registry/src/commands/tcllib/misc_ext.rs`'s
+    /// `sync_textutil_submodule_traits` is what keeps this true (it derives
+    /// the submodule spec's traits from the umbrella alias file rather than
+    /// declaring them a second time); this test is the general guard that
+    /// catches the *next* drift — a newly added re-exported command whose
+    /// submodule row is never wired into that sync list — not just today's.
+    #[test]
+    fn umbrella_alias_and_submodule_canonical_name_agree_on_traits() {
+        let (reg, ds) = reg_and_set("tcl8.6");
+        for (umbrella, submodule) in [
+            ("textutil::adjust", "textutil::adjust::adjust"),
+            ("textutil::indent", "textutil::adjust::indent"),
+            ("textutil::undent", "textutil::adjust::undent"),
+            ("textutil::trim", "textutil::trim::trim"),
+            ("textutil::trimleft", "textutil::trim::trimleft"),
+            ("textutil::trimright", "textutil::trim::trimright"),
+            ("textutil::tabify", "textutil::tabify::tabify"),
+            ("textutil::untabify", "textutil::tabify::untabify"),
+            ("textutil::tabify2", "textutil::tabify::tabify2"),
+            ("textutil::untabify2", "textutil::tabify::untabify2"),
+        ] {
+            let umbrella_spec = reg
+                .get_for_dialect(umbrella, ds)
+                .unwrap_or_else(|| panic!("{umbrella} (umbrella alias) must be registered"));
+            let submodule_spec = reg.get_for_dialect(submodule, ds).unwrap_or_else(|| {
+                panic!("{submodule} (submodule canonical name) must be registered")
+            });
+            assert_eq!(
+                umbrella_spec.traits, submodule_spec.traits,
+                "{umbrella} and {submodule} are the same real tcllib command \
+                 and must carry identical traits (got {:?} vs {:?})",
+                umbrella_spec.traits, submodule_spec.traits
+            );
+        }
+        // The `textutil::string` package has no bare `longestCommonPrefix`
+        // 2-segment umbrella alias file of its own name (the umbrella only
+        // re-exports it as `textutil::longestCommonPrefix`), covered above
+        // by `textutil_umbrella_aliases_registered_distinctly`'s sibling
+        // tests; check it here too for the same trait-parity property.
+        let umbrella_spec = reg
+            .get_for_dialect("textutil::longestCommonPrefix", ds)
+            .expect("textutil::longestCommonPrefix (umbrella alias) must be registered");
+        let submodule_spec = reg
+            .get_for_dialect("textutil::string::longestCommonPrefix", ds)
+            .expect("textutil::string::longestCommonPrefix must be registered");
+        assert_eq!(umbrella_spec.traits, submodule_spec.traits);
+    }
 }

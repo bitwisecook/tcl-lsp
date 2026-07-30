@@ -43,6 +43,27 @@ proc my_set {name value} {
 
 Choose a name that does not collide with a built-in command.
 
+## Package-gated commands are excluded
+
+This warning only fires for a genuine core built-in. A proc named after
+a command that is gated behind `package require` — a tcllib package,
+`argparse`, an `itcl`/TclOO helper, … — is not flagged: that command
+does not exist until its package is loaded, and even then a proc of the
+same name is that package's own implementation, not a shadow of a core
+built-in.
+
+```tcl
+package require argparse
+proc ::argparse {args} {
+    # ... this is argparse's own definition, not a redefinition
+}
+```
+
+The one exception is a package a dialect profile ships **ambiently** —
+an F5 command pack or an EDA vendor tool surface, part of that profile's
+genuine, always-present command surface (not something the file ever
+`package require`s) — so redefining one of those still warns.
+
 ## How to suppress
 
 Add `# noqa: W113` at the end of the offending line.
