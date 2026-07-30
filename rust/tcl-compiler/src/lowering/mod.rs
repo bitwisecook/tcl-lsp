@@ -2810,8 +2810,25 @@ pub fn lower_to_ir_with_dialect(
 /// [`lower_to_ir`].
 #[must_use]
 pub fn lower_to_ir_for_bytecode(source: &str, registry: &CommandRegistry) -> Module {
+    lower_to_ir_for_bytecode_with_dialect(source, registry, tcl_lexer::LexerConfig::default(), "")
+}
+
+/// Like [`lower_to_ir_for_bytecode`] but also naming the document's `dialect`
+/// (`""` for plain Tcl) — the bytecode-path counterpart of
+/// [`lower_to_ir_with_dialect`], so a dialect expression such as an iRules
+/// word-operator condition compiles to its dedicated opcode rather than the
+/// generic runtime-`expr` fallback.
+#[must_use]
+pub fn lower_to_ir_for_bytecode_with_dialect(
+    source: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: &str,
+) -> Module {
     lower_with(
-        Lowerer::with_config(registry, tcl_lexer::LexerConfig::default()).for_bytecode_backend(),
+        Lowerer::with_config(registry, config)
+            .with_dialect(dialect)
+            .for_bytecode_backend(),
         source,
     )
 }
