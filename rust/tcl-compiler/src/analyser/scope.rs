@@ -357,6 +357,80 @@ pub fn lookup_var_in_namespace<'a>(
     walk("::", root, target_ns, base_name)
 }
 
+/// One recursive step of [`Analyser::attach_qualified_var_references`]:
+/// append the occurrence spans `by_cell` holds for each namespace cell in
+/// `node`'s subtree to that cell's [`VarDef`].  `ns` is `node`'s accumulated
+/// resolution namespace; `by_cell` is keyed by `::`-stripped cell name.
+fn attach_qualified_var_refs_to_scope(
+    ns: &str,
+    node: &mut Scope,
+    by_cell: &HashMap<&str, Vec<Span>>,
+) {
+    if matches!(node.kind, ScopeKind::Namespace | ScopeKind::Global) {
+        for var in node.variables.values_mut() {
+            let qualified = crate::naming::qualify(ns, &var.name);
+            let Some(spans) = by_cell.get(qualified.trim_start_matches("::")) else {
+                continue;
+            };
+            for &span in spans {
+                if span != var.definition_span && !var.references.contains(&span) {
+                    var.references.push(span);
+                }
+            }
+            var.references.sort_by_key(|s| (s.start(), s.end()));
+        }
+    }
+    let child_namespaces: Vec<String> = node
+        .children
+        .iter()
+        .map(|child| advance_command_resolution_namespace(ns, child))
+        .collect();
+    for (child, child_ns) in node.children.iter_mut().zip(child_namespaces) {
+        attach_qualified_var_refs_to_scope(&child_ns, child, by_cell);
+    }
+}
+
+/// Every namespace-scoped variable declaration in `root`, each paired with the
+/// `::`-rooted qualified name it is reachable under.
+///
+/// The enumerating twin of [`lookup_var_in_namespace`] — same traversal,
+/// same rule about which frames count ([`ScopeKind::Namespace`] /
+/// [`ScopeKind::Global`] only, never a proc's or method's locals), so a
+/// consumer that indexes these and one that looks a single name up can
+/// never disagree about what a namespace's variable table holds.
+///
+/// Used by the cross-document workspace index: a namespace variable is the
+/// one kind of variable that has a name every document can spell, so it is
+/// the one kind worth lifting out of a single document's scope tree.
+#[must_use]
+pub fn namespace_variables(root: &Scope) -> Vec<(String, &VarDef)> {
+    fn walk<'a>(ns: &str, node: &'a Scope, out: &mut Vec<(String, &'a VarDef)>) {
+        if matches!(node.kind, ScopeKind::Namespace | ScopeKind::Global) {
+            for var in node.variables.values() {
+                out.push((crate::naming::qualify(ns, &var.name), var));
+            }
+        }
+        for child in &node.children {
+            let child_ns = advance_command_resolution_namespace(ns, child);
+            walk(&child_ns, child, out);
+        }
+    }
+    let mut out = Vec::new();
+    walk("::", root, &mut out);
+    // `Scope::variables` is a `HashMap`, so the walk's per-node order is the
+    // process hash seed's; sort by declaration span (then name) for a stable,
+    // meaningful index order — the same reasoning as `sorted_by_span` on the
+    // proc/class side (issue #1028).
+    out.sort_by(|(qa, a), (qb, b)| {
+        a.definition_span
+            .start()
+            .cmp(&b.definition_span.start())
+            .then(a.definition_span.end().cmp(&b.definition_span.end()))
+            .then_with(|| qa.cmp(qb))
+    });
+    out
+}
+
 /// Bundles the field-disjoint borrows [`Analyser::finalise_invocation_resolutions`]'s
 /// call-site "is `qualified` known, for a call at `call_off`?" predicate
 /// needs, and the small body/enclosing-definition/liveness helpers it's
@@ -1381,6 +1455,7 @@ impl Analyser {
         if base_name.is_empty() {
             return;
         }
+        self.record_qualified_var_ref(base_name, read_span, scope_path);
         // An `$arr(idx)` read records the element index on the array var.
         let element = split_array_name(name)
             .1
@@ -1447,6 +1522,79 @@ impl Analyser {
             .unwrap_or_default()
     }
 
+    /// Record a **namespace-qualified** variable occurrence (see
+    /// [`super::types::QualifiedVarRef`]) so the workspace index can build a
+    /// cross-document variable reference set.
+    ///
+    /// `base_name` is the already-normalised name as written (array index
+    /// stripped).  Only a name carrying a `::` qualifier is recorded: it names
+    /// one cell in one namespace wherever it is written, so a sibling document
+    /// can match it without knowing this document's scope chain.  A relative
+    /// qualifier (`app::colors::palette`) is rooted against the occurrence's own
+    /// command-resolution namespace — the same rule
+    /// `tcl_lsp_core::definition::lookup_var_in_scope_chain` applies to the
+    /// cursor's side of the same question, so the two can't disagree.
+    ///
+    /// Recorded whether or not the cell resolves in *this* document: the
+    /// cross-file case is precisely the one where it does not.  Repeated calls
+    /// for one token (a write bound by both its dedicated handler and the
+    /// registry `VarWrite`-role walk) collapse on the trailing duplicate check.
+    fn record_qualified_var_ref(&mut self, base_name: &str, span: Span, scope_path: &[usize]) {
+        if !base_name.contains("::") {
+            return;
+        }
+        let ns = self.command_resolution_namespace(scope_path);
+        let qualified = crate::naming::qualify(&ns, base_name);
+        if self
+            .result
+            .qualified_var_refs
+            .last()
+            .is_some_and(|last| last.span == span && last.qualified_name == qualified)
+        {
+            return;
+        }
+        self.result
+            .qualified_var_refs
+            .push(super::types::QualifiedVarRef {
+                qualified_name: qualified,
+                span,
+            });
+    }
+
+    /// Post-walk pass: attach each recorded [`super::types::QualifiedVarRef`]
+    /// to the [`VarDef`] of the cell it names, when this document declares
+    /// that cell.
+    ///
+    /// The walk itself cannot do this.  `record_var_read`'s own lookup is
+    /// scope-table-local, so a *relative*-qualified occurrence
+    /// (`$app::colors::palette` written at global scope, naming
+    /// `::app::colors::palette`) finds nothing and is dropped — even when the
+    /// declaring `namespace eval` sits in the same file.  And it could not be
+    /// fixed by resolving at record time either: a qualified read may precede
+    /// its declaring `namespace eval` textually and still resolve at run time
+    /// (tclsh 9.0.4 / 8.6.16: `proc p {} { return $::n::v }; namespace eval n
+    /// { variable v 1 }; puts [p]` prints `1`), so the namespace tables are
+    /// only complete once the walk is.
+    ///
+    /// Cost is one pass over this document's namespace-variable set plus one
+    /// over its qualified occurrences — both already collected, neither
+    /// per-request.
+    pub(super) fn attach_qualified_var_references(&mut self) {
+        if self.result.qualified_var_refs.is_empty() {
+            return;
+        }
+        let mut by_cell: HashMap<&str, Vec<Span>> = HashMap::new();
+        for vref in &self.result.qualified_var_refs {
+            by_cell
+                .entry(vref.qualified_name.trim_start_matches("::"))
+                .or_default()
+                .push(vref.span);
+        }
+        let mut root = std::mem::take(&mut self.result.global_scope);
+        attach_qualified_var_refs_to_scope("::", &mut root, &by_cell);
+        self.result.global_scope = root;
+    }
+
     /// Record a variable definition in the scope at `scope_path`.
     ///
     /// New definitions are inserted into the scope's `variables` map
@@ -1468,6 +1616,7 @@ impl Analyser {
         }
         let base_owned = base_name.to_string();
         let span = definition_span.unwrap_or(tok.span);
+        self.record_qualified_var_ref(base_name, span, scope_path);
         // A `set arr(idx) …` definition records the element index on the array.
         let element = split_array_name(name)
             .1
@@ -2347,6 +2496,87 @@ mod tests {
             array_indices: std::collections::BTreeSet::new(),
             link_target: None,
         }
+    }
+
+    /// TP (issue #923 idx 65 / 75 / 78) — a namespace-qualified occurrence is
+    /// recorded with the `::`-rooted cell it names, whether it is written
+    /// absolutely or relative to the enclosing namespace, so the workspace
+    /// index can match it against a declaration in another document.
+    #[test]
+    fn qualified_var_occurrences_are_recorded_with_their_rooted_cell() {
+        let src = "namespace eval app::colors {\n    variable palette red\n}\n\
+                   puts $app::colors::palette\n\
+                   puts $::app::colors::palette\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let cells: Vec<&str> = r
+            .qualified_var_refs
+            .iter()
+            .map(|v| v.qualified_name.as_str())
+            .collect();
+        assert_eq!(
+            cells,
+            vec!["::app::colors::palette", "::app::colors::palette"],
+            "both spellings name one cell",
+        );
+    }
+
+    /// TN — an **unqualified** occurrence is never recorded: it names whatever
+    /// the local scope chain supplies, which no other document can resolve.
+    #[test]
+    fn unqualified_var_occurrences_are_not_recorded_as_qualified_refs() {
+        let src = "set counter 0\nincr counter\nputs $counter\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        assert!(
+            r.qualified_var_refs.is_empty(),
+            "bare names carry no cross-document identity: {:?}",
+            r.qualified_var_refs,
+        );
+    }
+
+    /// TP — the post-walk attach pass links a *relative*-qualified read to the
+    /// declaring namespace cell in the same document, including when the read
+    /// is written **before** the `namespace eval` that declares it.
+    ///
+    /// Oracle (tclsh 9.0.4 / 8.6.16): `proc p {} { return $::n::v }; namespace
+    /// eval n { variable v 1 }; puts [p]` prints `1`.
+    #[test]
+    fn qualified_reads_attach_to_the_namespace_cell_regardless_of_order() {
+        let src = "proc p {} { return $::n::v }\n\
+                   namespace eval n {\n    variable v 1\n}\n\
+                   puts $n::v\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let (_, var) = namespace_variables(&r.global_scope)
+            .into_iter()
+            .find(|(q, _)| q == "::n::v")
+            .expect("::n::v declared");
+        assert_eq!(
+            var.references.len(),
+            2,
+            "both the earlier `$::n::v` and the later `$n::v` are references: {:?}",
+            var.references,
+        );
+    }
+
+    /// TP — `namespace_variables` enumerates exactly the cells
+    /// `lookup_var_in_namespace` can find, and never a proc local.
+    #[test]
+    fn namespace_variables_enumerates_namespace_cells_only() {
+        let src = "namespace eval a::b {\n    variable v 1\n}\n\
+                   proc a::b::f {} {\n    set localOnly 2\n}\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let names: Vec<String> = namespace_variables(&r.global_scope)
+            .into_iter()
+            .map(|(q, _)| q)
+            .collect();
+        assert!(names.contains(&"::a::b::v".to_owned()), "{names:?}");
+        assert!(
+            !names.iter().any(|n| n.ends_with("::localOnly")),
+            "a proc local is not a namespace cell: {names:?}",
+        );
     }
 
     #[test]

@@ -23,8 +23,13 @@ use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 
 /// Source file extensions the CLI accepts.
+///
+/// `test` is the standard `tcltest` suite-file extension — `tcl check
+/// path/to/tests/` skipped a project's whole test suite without it, the CLI
+/// twin of the workspace-scan gap in issue #923 differential-audit findings
+/// idx 10 / idx 27.
 const SOURCE_SUFFIXES: &[&str] = &[
-    "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl",
+    "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "test",
 ];
 
 /// Directory names skipped during recursive discovery.

@@ -547,6 +547,39 @@ a regression test rather than re-fixed. See the "tier-2 findings fixed by
 PR B2" subsection after the tier-2 table. That makes **58 fixed, 27
 remaining**.
 
+**2026-07-30 update — PR C2
+(`claude/commandregistry-compiler-fixes-tshu8d-crossdoc`) fixed eight more,
+all tier 2 — the "cross-document resolution tiers" cluster (audit C5 + C13):**
+idx 27, idx 65, idx 72, idx 73, idx 75, idx 78, and idx 80 are newly fixed;
+idx 19 was **re-verified as already fixed** by the definition-body
+command-reference recording that landed with PR B3 (#1074)
+(`record_member_command_references`, driven by the definer grammar's
+`all_args_ref`) and is pinned with regression tests rather than re-fixed.
+
+The cluster's one new fact is a **bounded variable tier in the workspace
+index**: a namespace- or global-scope `variable` declaration, and every
+occurrence written with a `::` qualifier, now carry across documents, so
+`$::ns::v` resolves to the `namespace eval ns { variable v }` that declares
+it wherever that block lives (idx 65 / 75 / 78 — definition, hover, and
+find-references in both directions). Proc locals and bare `$v` occurrences
+are deliberately *not* indexed: an unqualified name means whatever the local
+scope chain supplies, which no sibling document can know.
+
+The rest are the cross-document tiers that already existed being given the
+inputs they were missing: the file-watch and rename globs now come from the
+same extension list the background scan uses, so a `.test` file the scan
+indexes no longer goes stale on an external edit (idx 27, completing idx
+10's allowlist fix); a `load`-only `pkgIndex.tcl` is recorded as a
+declared-but-opaque package instead of being dropped, so requiring a binary
+extension no longer erases every other W120 in the file (idx 72); a file's
+own statically-resolvable `lappend auto_path …` feeds the package
+database's search path, and a new package tier merges a required package's
+implementation files into the index on a definition/hover miss (idx 73); and
+the unknown-command refinement consults the workspace index's own
+definitions when `crossFileResolution` is on, so the diagnostic stops
+contradicting go-to-definition on the very same span (idx 80). That makes
+**66 fixed, 19 remaining**.
+
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
 strings in the raw data — same corpus), tomato 7, pix 8.
@@ -759,7 +792,7 @@ users, a worse failure mode than the narrower, but fully oracle-grounded,
 `CONFIGURE`-tracking fix actually shipped. Left as a documented, low-risk
 follow-up for a session with Tk oracle access.
 
-#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 36 now fixed — 25 remaining), grouped by feature for clustering
+#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 44 now fixed — 17 remaining), grouped by feature for clustering
 
 Group findings sharing a feature/root-cause together in one fix pass the
 way idx 107+115 and idx 118+119 were — many of these look like they share
@@ -770,19 +803,19 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 | feature | count | idx (severity) |
 |---|---|---|
 | tclOO | 10 | ~~15~~ **ALREADY FIXED** (pinned, PR B2), 16, ~~34~~ **FIXED** (PR B2), ~~35~~ **FIXED** (PR B2), ~~36~~ **FIXED** (PR B2), ~~53~~ **FIXED**, ~~54~~ **FIXED**, ~~55~~ **FIXED**, ~~96~~ **FIXED**, ~~97~~ **FIXED** (all medium) |
-| namespaces | 8 | ~~3~~ **FIXED** (#1071), 19, ~~43~~ **ALREADY FIXED**, ~~44~~ **FIXED**, ~~64~~ **FIXED**, 65, 75, 85 (all medium) |
+| namespaces | 8 | ~~3~~ **FIXED** (#1071), ~~19~~ **ALREADY FIXED** (pinned, PR C2), ~~43~~ **ALREADY FIXED**, ~~44~~ **FIXED**, ~~64~~ **FIXED**, ~~65~~ **FIXED** (PR C2), ~~75~~ **FIXED** (PR C2), 85 (all medium) |
 | tricky_indirection | 7 | 0 (medium, **FIXED** — see below), ~~1~~ **FIXED**, ~~2~~ **FIXED**, 14, ~~49~~ **FIXED**, 50, 51 (all medium) |
 | upvar | 7 | ~~7~~ **FIXED** (PR C1a), 22 (**PARTIAL** — model landed, navigation in C1b), ~~57~~ **FIXED** (PR C1a), 58, ~~59~~ **FIXED** (PR C1a, single-document; cross-file open), 98 (**PARTIAL** — same), 99 (all medium) |
-| proc_args | 7 | ~~11~~ **FIXED** (#1071), ~~28~~ **FIXED** (PR B2), ~~37~~ **FIXED** (PR B2), 62, 67, 78, ~~104~~ **FIXED** (all medium) |
-| tcl_mathop | 4 | ~~30~~ **FIXED**, 80, ~~81~~ **ALREADY FIXED**, ~~103~~ **FIXED** (all medium) |
-| package_loading | 3 | ~~4~~ **FIXED** (#1071), 42, 72 (all medium) |
-| source | 3 | 27, 41, 102 (all medium) |
+| proc_args | 7 | ~~11~~ **FIXED** (#1071), ~~28~~ **FIXED** (PR B2), ~~37~~ **FIXED** (PR B2), 62, 67, ~~78~~ **FIXED** (PR C2), ~~104~~ **FIXED** (all medium) |
+| tcl_mathop | 4 | ~~30~~ **FIXED**, ~~80~~ **FIXED** (PR C2), ~~81~~ **ALREADY FIXED**, ~~103~~ **FIXED** (all medium) |
+| package_loading | 3 | ~~4~~ **FIXED** (#1071), 42, ~~72~~ **FIXED** (PR C2) (all medium) |
+| source | 3 | ~~27~~ **FIXED** (PR C2), 41, 102 (all medium) |
 | tracing | 3 | 47, ~~48~~ **FIXED**, ~~92~~ **FIXED** (PR B1) (all medium) |
 | rename | 2 | ~~5~~ **ALREADY FIXED** (pinned, PR B1), ~~45~~ **FIXED** (PR B1) (all medium) |
 | aliasing | 2 | ~~21~~ **FIXED** (PR B1), ~~89~~ **FIXED** (PR B1) (all medium) |
 | uplevel | 2 | ~~38~~ **FIXED** (PR C1a) (medium), 100 (low) |
 | eval | 1 | ~~24~~ **FIXED** (medium) |
-| autoindex | 1 | 73 (medium) |
+| autoindex | 1 | ~~73~~ **FIXED** (PR C2) (medium) |
 | safe_interp | 1 | 91 (medium) |
 
 **idx 0 — FIXED** (PR #1068, branch

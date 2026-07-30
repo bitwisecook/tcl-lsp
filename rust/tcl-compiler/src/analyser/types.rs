@@ -995,6 +995,10 @@ pub struct AnalysisResult {
     pub namespace_paths: HashMap<String, Vec<String>>,
     /// `auto_path` mutations (``lappend auto_path …`` / ``set auto_path …``).
     pub auto_path_entries: Vec<AutoPathEntry>,
+    /// Namespace-qualified variable occurrences, in source order — see
+    /// [`QualifiedVarRef`].  The cross-document variable reference set is
+    /// built from these; an unqualified occurrence is never recorded.
+    pub qualified_var_refs: Vec<QualifiedVarRef>,
     /// Byte spans where command resolution is pinned to a namespace by
     /// runtime context rather than lexical nesting (issue #923 idx 116):
     /// `apply {{params} body ns}` runs `body` in `ns`, not the namespace
@@ -1270,6 +1274,33 @@ pub struct PackageProvide {
     pub version: Option<String>,
     /// Span of the originating ``package`` token.
     pub range: Span,
+}
+
+/// One **namespace-qualified** variable occurrence — a read or a write whose
+/// *written* name carries a `::` qualifier (`$::tomato::helper::TolEquals`,
+/// `set app::colors::palette …`).
+///
+/// Recorded regardless of whether the named cell is declared in this document,
+/// which is exactly what makes it useful: the declaring `namespace eval NS {
+/// variable v }` routinely lives in a sibling file, so the occurrence resolves
+/// to nothing locally and leaves no trace in the scope tree
+/// ([`Scope::variables`] / [`VarDef::references`] only ever record a *resolved*
+/// use).  The workspace index lifts these into the cross-document variable
+/// reference set (issue #923 differential-audit findings idx 65 / 75 / 78).
+///
+/// Deliberately **qualified-only**: an unqualified `$v` names whichever cell
+/// the local scope chain supplies, which is a per-document question, so
+/// indexing those would be whole-program variable indexing with no
+/// statically-sound cross-file meaning.  A qualified name, by contrast, names
+/// one cell in one namespace no matter where it is written.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QualifiedVarRef {
+    /// The `::`-rooted cell the occurrence names (`::tomato::helper::TolEquals`),
+    /// resolved against the occurrence's own namespace for a relative
+    /// qualifier (`app::colors::palette` at global scope → `::app::colors::palette`).
+    pub qualified_name: String,
+    /// Byte span of the name token as written.
+    pub span: Span,
 }
 
 /// `auto_path` mutation record.

@@ -62,13 +62,36 @@ actually made callable. An un-linked bare sibling call raises `invalid
 command name` in real Tcl, so Go to Definition abstains on it — in the
 current file and across the workspace alike.
 
+A **namespace-qualified variable** jumps across files. `$::tomato::version`
+lands on the `variable version` token of the `namespace eval tomato { … }`
+that declares it, wherever that block lives, and so does the relative
+spelling `$tomato::version` written at the global level. A **bare** `$v`
+does not: it names whatever the surrounding scope chain supplies, which no
+other file can know, so it stays a within-file question. A `$name`-shaped
+run of characters inside a comment or a data brace substitutes nothing in
+real Tcl and is likewise never a jump target.
+
+A command a `package require`d package provides also jumps: the package's
+`pkgIndex.tcl` is resolved through the search path, including the one the
+file builds for itself with `lappend auto_path [file dirname [file dirname
+[info script]]]` and friends. Only statically resolvable path expressions
+count — literals, `~`, `[info script]`, `[file dirname …]`, `[file join …]`.
+A path built from a variable resolves to nothing rather than to a guess.
+
 ## Failure modes
 
 - Definition not found after proc lookup or namespace resolution changes.
+- A cross-file namespace variable stops resolving when the declaring file is
+  no longer in the workspace index (it was closed *and* is outside every
+  workspace folder).
 
 ## Test anchors
 
-- `tests/test_definition.py`
+- `rust/tcl-lsp-core/src/definition.rs` (`mod tests`)
+- `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs` (cross-file namespace
+  variables, cross-file class-reference arguments)
+- `rust/tcl-lsp-server/src/lib.rs` unit tests
+  (`definition_resolves_through_a_document_auto_path_package`)
 
 ## Screenshots
 

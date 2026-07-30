@@ -71,6 +71,25 @@ does **not** flag them, for two reasons:
    inheritance is turned off. See
    [what config sections are valid](../kcs-qa-what-config-sections-are-valid.md).
 
+## Packages that are only a binary extension
+
+Some packages ship no Tcl at all — their `pkgIndex.tcl` just `load`s a
+shared object, and the directory holds nothing else:
+
+```tcl
+package ifneeded pix 0.8 [list apply {dir { load [file join $dir libpix.so] Pix }} $dir]
+```
+
+The server treats such a package as **known but opaque**: it exists, so
+requiring it is fine and nothing complains about the package itself, but
+which commands it installs cannot be worked out without running it, so no
+claim is made about them either way.
+
+The practical consequence is that requiring one of these no longer silences
+W120 for *other* packages in the same file. Before, a file containing
+`package require pix` lost every W120 it had, including one about a
+completely unrelated missing `package require http`.
+
 ## A W120 that clears itself a moment after a workspace opens
 
 If an editor restores several tabs on startup, a module that inherits its

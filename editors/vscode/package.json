@@ -42,7 +42,7 @@
     "onChatParticipant:tcl-lsp.irule",
     "onChatParticipant:tcl-lsp.tcl",
     "onChatParticipant:tcl-lsp.tk",
-    "workspaceContains:**/*.{tcl,tk,itcl,tm,irul,irule,iapp,iappimpl}"
+    "workspaceContains:**/*.{tcl,tk,itcl,tm,test,irul,irule,iapp,iappimpl}"
   ],
   "main": "./out/extension.js",
   "contributes": {

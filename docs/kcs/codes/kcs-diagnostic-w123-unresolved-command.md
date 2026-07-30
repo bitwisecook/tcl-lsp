@@ -104,6 +104,39 @@ though the command itself survives under its new name. `rename Dog Cat`
 moves the class to `Cat`; `Dog new` afterwards fails with `invalid
 command name "Dog"`, so the old name is reported.
 
+## Commands defined in another file
+
+The check reads one file at a time, so a `proc` that lives in a sibling
+file is not something it can see on its own. Two things make it visible.
+
+Always on, needing no setting: a command an installed library auto-loads
+(`tclIndex`), and a command defined by a package the file `package
+require`s. The package's `pkgIndex.tcl` is found on the search path,
+including the one the file builds for itself with `lappend auto_path [file
+dirname [file dirname [info script]]]`.
+
+Off by default, opt in with `tclLsp.features.crossFileResolution`: every
+`proc` and class the **workspace** defines, whether or not anything links
+the two files. Turn it on and this stops firing:
+
+```tcl
+# helper.tcl
+namespace eval tcl::mathfunc {
+    proc Pi {} { return 3.141592653589793 }
+}
+
+# vector.tcl — no source, no package require
+proc angle {dp} { return [expr {Pi()}] }
+```
+
+With the setting off, `Pi` is reported as unresolved even though Go to
+Definition and Find All References both resolve it to `helper.tcl` — the
+two disagree, and the offered quick fix ("did you mean `ni`?") would break
+working code if accepted. With it on, they agree.
+
+A name nothing in the workspace defines is still reported, so turning the
+setting on removes false alarms without hiding real ones.
+
 ## What a `proc unknown` changes
 
 Defining your own `unknown` handler at **global** scope switches this check

@@ -46,9 +46,22 @@
 //! workspace folders on `initialized`, so unopened `.tcl` / `.tm`
 //! files are covered too.
 //!
-//! Only procs, classes, and command invocations are indexed
-//! today (the cross-document features that need them); variables
-//! and namespaces are not.
+//! Procs, classes, and command invocations are indexed in full.
+//! Variables are indexed **only in their namespace-qualified form**
+//! ([`WorkspaceVariable`] / [`WorkspaceVariableRef`]): a namespace- or
+//! global-scope `variable` / `set` declaration, and every occurrence
+//! written with a `::` qualifier.  That is the same bound proc / class
+//! indexing already has — one cell, one namespace, one name, whatever
+//! file it is written in — and it is what makes `$::ns::v` resolve to a
+//! `namespace eval ns { variable v }` in a sibling document (issue #923
+//! differential-audit findings idx 65 / 75 / 78).  An **unqualified**
+//! `$v` names whichever cell the local scope chain supplies, which is a
+//! per-document question with no statically-sound cross-file answer, so
+//! proc locals and bare occurrences are still not indexed.  Namespaces
+//! themselves are not indexed.
+
+use std::collections::HashSet;
+use std::sync::Arc;
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::analyser::class_hierarchy::{build_tail_index, resolve_class_name};
@@ -238,6 +251,38 @@ pub struct WorkspaceInvocation {
     pub rename_safe: bool,
 }
 
+/// One **namespace-qualified** variable declaration recorded in the index —
+/// a `variable v` / `set v …` sitting directly in a `namespace eval` body or
+/// at global scope, i.e. a cell a sibling document can name as `$::ns::v`.
+///
+/// Proc locals are deliberately absent: an unqualified name is resolved by
+/// the local scope chain, which is a per-document question.  See the module
+/// doc for the bound this table keeps.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceVariable {
+    /// Document the declaration is in.
+    pub uri: String,
+    /// Simple (tail) name, e.g. `version`.
+    pub name: String,
+    /// `::`-rooted qualified name, e.g. `::tomato::version`.
+    pub qualified_name: String,
+    /// Byte span of the declaring name token in `uri`'s source.
+    pub name_span: Span,
+}
+
+/// One **namespace-qualified** variable occurrence (read or write) recorded
+/// in the index — the reference-side companion to [`WorkspaceVariable`],
+/// lifted from [`tcl_compiler::analyser::QualifiedVarRef`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceVariableRef {
+    /// Document the occurrence is in.
+    pub uri: String,
+    /// `::`-rooted cell the occurrence names.
+    pub qualified_name: String,
+    /// Byte span of the name token as written.
+    pub span: Span,
+}
+
 /// One `source FILE` reference recorded in the index.
 ///
 /// Tracks where a document loads another file so a file rename can
@@ -392,12 +437,32 @@ fn sorted_names(names: &std::collections::HashSet<String>) -> Vec<String> {
 pub struct WorkspaceIndex {
     procs: Vec<WorkspaceProc>,
     classes: Vec<WorkspaceClass>,
+    variables: Vec<WorkspaceVariable>,
+    variable_refs: Vec<WorkspaceVariableRef>,
     invocations: Vec<WorkspaceInvocation>,
     sources: Vec<WorkspaceSource>,
     package_requires: Vec<WorkspacePackageRequire>,
     command_links: Vec<WorkspaceCommandLink>,
     glob_imports: Vec<WorkspaceGlobImport>,
     namespace_exports: Vec<WorkspaceNamespaceExport>,
+    generation: u64,
+    command_names: CommandNameCache,
+}
+
+/// Lazily-built cache of [`WorkspaceIndex::command_names`], reset by every
+/// index mutation.
+///
+/// The set is a pure function of the index's procs and classes, so it is
+/// excluded from equality and dropped on clone (rebuilt on demand) — the same
+/// discipline `tcl_compiler::analyser::HierarchyCache` uses for the class
+/// hierarchy it derives from `all_classes`.
+#[derive(Debug, Default)]
+struct CommandNameCache(std::sync::OnceLock<Arc<HashSet<String>>>);
+
+impl Clone for CommandNameCache {
+    fn clone(&self) -> Self {
+        Self(std::sync::OnceLock::new())
+    }
 }
 
 impl WorkspaceIndex {
@@ -421,11 +486,56 @@ impl WorkspaceIndex {
         index
     }
 
+    /// A counter bumped by every mutation ([`Self::add_document`] /
+    /// [`Self::remove_document`]).  Lets a consumer tell whether the index has
+    /// changed since it last looked without diffing its contents.
+    #[must_use]
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// Every command name the workspace defines — each indexed proc and class
+    /// in the three forms a call site may spell (`::ns::name`, `ns::name`,
+    /// `name`).
+    ///
+    /// This is the cross-file "does this command exist anywhere in the
+    /// project?" set the unknown-command (W123) refinement consults.  It is
+    /// **derived**, so it is built once and cached until the next index
+    /// mutation rather than walked per request: on a 400-file / 10 000-proc
+    /// workspace it is ~20 000 names and ~7 ms to build, against ~120 ns to
+    /// serve from the cache.
+    #[must_use]
+    pub fn command_names(&self) -> Arc<HashSet<String>> {
+        Arc::clone(self.command_names.0.get_or_init(|| {
+            let mut names: HashSet<String> = HashSet::new();
+            for p in &self.procs {
+                tcl_compiler::analyser::utils::insert_qualified_and_tail(
+                    &mut names,
+                    &p.qualified_name,
+                );
+            }
+            for c in &self.classes {
+                tcl_compiler::analyser::utils::insert_qualified_and_tail(
+                    &mut names,
+                    &c.qualified_name,
+                );
+            }
+            Arc::new(names)
+        }))
+    }
+
+    /// Note a mutation: bump the generation and drop every derived cache.
+    fn invalidate(&mut self) {
+        self.generation = self.generation.wrapping_add(1);
+        self.command_names = CommandNameCache::default();
+    }
+
     /// Add (or refresh) one document's proc / class definitions.
     ///
     /// Call [`Self::remove_document`] first when re-indexing a
     /// changed document to avoid stale duplicates.
     pub fn add_document(&mut self, uri: &str, analysis: &AnalysisResult) {
+        self.invalidate();
         // `all_procs` / `all_classes` / a class's `methods` are `HashMap`s, so
         // iterating them directly would order this document's index entries by
         // the process's random hash seed — and consumers that answer with the
@@ -478,6 +588,27 @@ impl WorkspaceIndex {
                 unexports: sorted_names(&class_def.unexports),
                 via_define: class_def.via_define,
                 metaclass: class_def.metaclass.clone(),
+            });
+        }
+        // Namespace-scoped variable declarations only — the compiler owns the
+        // "which frames hold a namespace's variable table" rule
+        // (`namespace_variables`, the enumerating twin of the single-name
+        // `lookup_var_in_namespace` the in-document providers use), so the
+        // index cannot drift from it.
+        for (qualified, var) in tcl_compiler::analyser::namespace_variables(&analysis.global_scope)
+        {
+            self.variables.push(WorkspaceVariable {
+                uri: uri.to_owned(),
+                name: var.name.clone(),
+                qualified_name: qualified,
+                name_span: var.definition_span,
+            });
+        }
+        for vref in &analysis.qualified_var_refs {
+            self.variable_refs.push(WorkspaceVariableRef {
+                uri: uri.to_owned(),
+                qualified_name: tcl_syntax::naming::normalise_qualified_name(&vref.qualified_name),
+                span: vref.span,
             });
         }
         for inv in &analysis.command_invocations {
@@ -598,8 +729,11 @@ impl WorkspaceIndex {
     /// Drop every entry that came from `uri` (used before
     /// re-indexing a changed document, or on `did_close`).
     pub fn remove_document(&mut self, uri: &str) {
+        self.invalidate();
         self.procs.retain(|p| p.uri != uri);
         self.classes.retain(|c| c.uri != uri);
+        self.variables.retain(|v| v.uri != uri);
+        self.variable_refs.retain(|v| v.uri != uri);
         self.invocations.retain(|i| i.uri != uri);
         self.sources.retain(|s| s.uri != uri);
         self.package_requires.retain(|pr| pr.uri != uri);
@@ -1240,6 +1374,54 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn invocations(&self) -> &[WorkspaceInvocation] {
         &self.invocations
+    }
+
+    /// Every indexed namespace-qualified variable declaration.
+    #[must_use]
+    pub fn variables(&self) -> &[WorkspaceVariable] {
+        &self.variables
+    }
+
+    /// Declaration sites of the namespace variable whose `::`-rooted
+    /// qualified name is `qualified_name`, excluding any in `exclude_uri`
+    /// (pass `""` to exclude nothing).
+    ///
+    /// Exact-name matching only — a namespace variable's qualified name
+    /// names exactly one cell in real Tcl (`$other::v` never searches
+    /// enclosing namespaces or falls back to global), so there is no
+    /// candidate list to walk and no simple-name fallback to get wrong.
+    /// One reopened namespace can be declared across several files, so the
+    /// result is a set, not an `Option`.
+    #[must_use]
+    pub fn variable_definitions_qualified<'a>(
+        &'a self,
+        qualified_name: &str,
+        exclude_uri: &str,
+    ) -> Vec<&'a WorkspaceVariable> {
+        let target = qualified_name.trim_start_matches("::");
+        self.variables
+            .iter()
+            .filter(|v| v.uri != exclude_uri)
+            .filter(|v| v.qualified_name.trim_start_matches("::") == target)
+            .collect()
+    }
+
+    /// Occurrence (read / write) sites naming the namespace variable
+    /// `qualified_name`, excluding any in `exclude_uri`.  The reference-side
+    /// twin of [`Self::variable_definitions_qualified`], matched the same
+    /// exact way.
+    #[must_use]
+    pub fn variable_refs_of<'a>(
+        &'a self,
+        qualified_name: &str,
+        exclude_uri: &str,
+    ) -> Vec<&'a WorkspaceVariableRef> {
+        let target = qualified_name.trim_start_matches("::");
+        self.variable_refs
+            .iter()
+            .filter(|v| v.uri != exclude_uri)
+            .filter(|v| v.qualified_name.trim_start_matches("::") == target)
+            .collect()
     }
 
     /// The distinct set of document URIs the index currently holds
@@ -2502,6 +2684,105 @@ mod tests {
             index.workspace_command_exists_for_call("::set", false),
             "with no colliding builtin, the nested alias still counts",
         );
+    }
+
+    /// TP (issue #923 idx 65 / 75 / 78) — a namespace variable declared in one
+    /// document and read, qualified, from another is matched across the two by
+    /// its one `::`-rooted cell name.
+    #[test]
+    fn indexes_namespace_variables_and_their_qualified_occurrences() {
+        let decl = analyse("namespace eval app::colors {\n    variable palette red\n}\n");
+        let user = analyse("puts $app::colors::palette\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///decl.tcl", &decl);
+        index.add_document("file:///user.tcl", &user);
+
+        let defs = index.variable_definitions_qualified("::app::colors::palette", "");
+        assert_eq!(defs.len(), 1, "one declaration: {defs:?}");
+        assert_eq!(defs[0].uri, "file:///decl.tcl");
+        assert_eq!(defs[0].name, "palette");
+
+        let refs = index.variable_refs_of("::app::colors::palette", "file:///decl.tcl");
+        assert_eq!(
+            refs.iter().map(|r| r.uri.as_str()).collect::<Vec<_>>(),
+            vec!["file:///user.tcl"],
+            "the sibling document's qualified read is a reference: {refs:?}",
+        );
+
+        // TN: an unrelated cell name matches nothing.
+        assert!(
+            index
+                .variable_definitions_qualified("::app::colors::other", "")
+                .is_empty(),
+        );
+        index.remove_document("file:///decl.tcl");
+        assert!(
+            index
+                .variable_definitions_qualified("::app::colors::palette", "")
+                .is_empty(),
+            "removing the declaring document drops its variables",
+        );
+    }
+
+    /// TN — a proc **local** never enters the variable table: it has no
+    /// qualified name a sibling document could spell.
+    #[test]
+    fn proc_locals_are_not_indexed_as_namespace_variables() {
+        let a = analyse("proc ns::f {} {\n    set localOnly 1\n}\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        assert!(
+            !index.variables().iter().any(|v| v.name == "localOnly"),
+            "indexed variables: {:?}",
+            index.variables(),
+        );
+    }
+
+    /// The generation counter must advance on every mutation, so a consumer
+    /// can tell the index changed without diffing it.
+    #[test]
+    fn generation_advances_on_every_mutation() {
+        let a = analyse("proc helper {} {}\n");
+        let mut index = WorkspaceIndex::new();
+        let start = index.generation();
+        index.add_document("file:///a.tcl", &a);
+        let after_add = index.generation();
+        assert_ne!(start, after_add, "add_document must bump the generation");
+        index.remove_document("file:///a.tcl");
+        assert_ne!(
+            after_add,
+            index.generation(),
+            "remove_document must bump the generation",
+        );
+    }
+
+    /// The derived command-name set is cached between mutations and rebuilt
+    /// after one — the bound that keeps the cross-file unknown-command check
+    /// off the per-request cost curve.
+    #[test]
+    fn command_names_are_cached_until_the_index_changes() {
+        let a = analyse("proc ::alpha {} {}\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        let first = index.command_names();
+        assert!(first.contains("alpha"), "{first:?}");
+        assert!(
+            Arc::ptr_eq(&first, &index.command_names()),
+            "an unchanged index must serve the cache, not rebuild it",
+        );
+
+        let b = analyse("oo::class create ::Beta {}\n");
+        index.add_document("file:///b.tcl", &b);
+        let third = index.command_names();
+        assert!(
+            !Arc::ptr_eq(&first, &third),
+            "indexing a document must drop the cache",
+        );
+        assert!(third.contains("Beta"), "{third:?}");
+
+        // A clone starts with a fresh (empty) cache and rebuilds identically.
+        let cloned = index.clone();
+        assert_eq!(*cloned.command_names(), *third);
     }
 
     #[test]

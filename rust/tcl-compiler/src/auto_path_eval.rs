@@ -410,4 +410,28 @@ mod tests {
         assert_eq!(normpath("/a/b/../c"), "/a/c");
         assert_eq!(normpath("/a/./b"), "/a/b");
     }
+
+    /// TP (issue #923 idx 73) — the raw text the analyser records for a
+    /// `lappend auto_path …` argument is exactly what this evaluator folds, so
+    /// the package database can consume `AnalysisResult::auto_path_entries`
+    /// directly.  Pins the *contract between the two*, which is what the
+    /// workspace scan's `extend_resolver_with_document_auto_paths` relies on.
+    #[test]
+    fn recorded_auto_path_entries_round_trip_through_the_evaluator() {
+        let src = "lappend auto_path [file dirname [file dirname [info script]]]\n\
+                   lappend auto_path $someVar\n";
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let folded: Vec<Option<String>> = r
+            .auto_path_entries
+            .iter()
+            .map(|e| evaluate_auto_path_expr(&e.raw_path, Some("/a/b/c/user.tcl")))
+            .collect();
+        assert_eq!(
+            folded,
+            vec![Some("/a/b".to_owned()), None],
+            "the computed idiom folds; a `$var` entry abstains: {:?}",
+            r.auto_path_entries,
+        );
+    }
 }

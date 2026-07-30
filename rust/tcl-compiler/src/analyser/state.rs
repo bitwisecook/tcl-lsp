@@ -1785,6 +1785,11 @@ impl Analyser {
         // every definition in the file (a local candidate defined later in
         // the file still wins; an absent one falls back to global).
         self.finalise_invocation_resolutions();
+        // Attach every namespace-qualified occurrence to the cell it names,
+        // now that the whole file's `namespace eval` bodies have been walked
+        // — a qualified read can precede its declaring `namespace eval`
+        // textually and still resolve at run time.
+        self.attach_qualified_var_references();
         let diag_registry = tcl_registry::cache::registry_for_profile(self.profile);
         self.emit_unresolved_command_diagnostics(diag_registry);
         self.flush_disabled_command_diagnostics();
@@ -1846,6 +1851,9 @@ impl Analyser {
         self.result
             .auto_path_entries
             .sort_by_key(|r| (r.range.start(), r.range.end()));
+        self.result
+            .qualified_var_refs
+            .sort_by_key(|r| (r.span.start(), r.span.end()));
         self.result
             .regex_patterns
             .sort_by_key(|r| (r.range.start(), r.range.end()));

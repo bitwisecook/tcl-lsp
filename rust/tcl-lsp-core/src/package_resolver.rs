@@ -69,8 +69,16 @@ pub struct PackageInfo {
     pub name: String,
     /// Declared version.
     pub version: String,
-    /// Absolute paths to the implementation files the `ifneeded` script
-    /// would `source` / `load`.
+    /// Absolute paths to the Tcl implementation files the `ifneeded` script
+    /// would `source`.
+    ///
+    /// **Empty** means "declared, but its command set is not statically
+    /// enumerable" — a binary-only C extension whose `ifneeded` body just
+    /// `load`s a shared object, with no companion `.tcl` in its directory.
+    /// The package genuinely exists ([`PackageResolver::provides`] answers
+    /// `true`, so a `package require` of it is not an unknown package), but
+    /// nothing can be said about which commands it installs, so a consumer
+    /// must neither claim its commands are missing nor claim they exist.
     pub source_files: Vec<PathBuf>,
     /// The `pkgIndex.tcl` that declared this entry.
     pub pkg_index_path: PathBuf,
@@ -326,8 +334,8 @@ fn is_version_word(word: &str) -> bool {
 // Public parsers.
 // ---------------------------------------------------------------------------
 
-/// Parse a `pkgIndex.tcl`'s `content`, returning a [`PackageInfo`] per
-/// `package ifneeded` declaration whose script names (existing) source files.
+/// Parse a `pkgIndex.tcl`'s `content`, returning a [`PackageInfo`] per literal
+/// `package ifneeded NAME VERSION …` declaration.
 ///
 /// `pkg_dir` is the directory the index lives in (`$dir` in the script);
 /// `exists` decides whether a candidate implementation file is real (pass
@@ -335,7 +343,10 @@ fn is_version_word(word: &str) -> bool {
 /// `ifneeded` body names no source file, this falls back to every `*.tcl`
 /// (other than `pkgIndex.tcl`) reported by `list_tcl_files` — matching C
 /// Tcl-era `pkg_mkIndex` output, where the index always sources concrete
-/// files but hand-written indices sometimes don't.
+/// files but hand-written indices sometimes don't.  When *that* finds nothing
+/// either the declaration is still returned, with an empty `source_files` —
+/// see [`PackageInfo::source_files`] for what that state means and why
+/// dropping it was issue #923 differential-audit finding idx 72.
 ///
 /// Declarations are found through the [`reachability`] scan, so a declaration
 /// nested inside an `if` branch is found (the TEA "pick a Tcl 8 or Tcl 9
@@ -388,15 +399,28 @@ pub fn parse_pkg_index(
                 }
             }
         }
-        if !source_files.is_empty() {
-            out.push(PackageInfo {
-                name: name.to_owned(),
-                version: version.to_owned(),
-                source_files,
-                pkg_index_path: pkg_index_path.to_owned(),
-                conditions,
-            });
-        }
+        // A declaration with no implementation *file* is still a declaration.
+        // The `load`-only C extension (`package ifneeded pix 0.8 [list apply
+        // {dir {… load [file join $dir $os $lib] Pix}} $dir]`, whose directory
+        // holds nothing but `pkgIndex.tcl` and the shared object) is the real
+        // shape this used to drop on the floor — name and version parsed
+        // successfully, then thrown away, so `provides("pix")` was false for a
+        // package plainly declared in the workspace and every W120 in any
+        // document requiring it was suppressed as "unknowable" (issue #923
+        // differential-audit finding idx 72).
+        //
+        // Recording it with an empty `source_files` is the honest state: the
+        // package **exists**, its command set is **not statically
+        // enumerable**.  Consumers already distinguish the two — `resolve`
+        // answers an empty file list, so nothing tries to read a shared object
+        // as Tcl, while `provides` answers `true`.
+        out.push(PackageInfo {
+            name: name.to_owned(),
+            version: version.to_owned(),
+            source_files,
+            pkg_index_path: pkg_index_path.to_owned(),
+            conditions,
+        });
     });
     out
 }
