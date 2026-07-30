@@ -68,6 +68,7 @@ mod event_descriptions;
 pub mod event_facts;
 pub mod events;
 pub mod forms;
+pub mod frame_effect;
 pub mod hooks;
 pub mod hover;
 pub mod mathfunc;
@@ -106,6 +107,7 @@ pub mod prelude {
     pub use crate::dialects::DialectSet;
     pub use crate::events::EventRequires;
     pub use crate::forms::{CommandForm, SubCommandForm};
+    pub use crate::frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevel, FrameLevelWord};
     pub use crate::hooks::{
         AnalyserHookId, ArgTypeHint, CodegenHookId, LoweringHookId, TclVersion,
         VersionedConstFoldFn, WasmCodegenHookId,
@@ -140,6 +142,7 @@ pub use dialects::{
     DETECT_SCAN_BYTES, KNOWN_DIALECTS, available_dialects, detect_dialect,
     detect_dialect_directive, detect_dialect_from_source, dialect_from_extension,
 };
+pub use frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevel, FrameLevelWord};
 pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
 pub use profile_queries::{ProfileQueries, VendorSurface};

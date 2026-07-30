@@ -122,6 +122,44 @@ unset, so `W210` goes silent for the whole proc. That is deliberate: a warning
 that cannot be proved is worse than a missing one. Spell the name out to get
 the check back.
 
+## A procedure you call can set your variables
+
+Tcl lets a procedure write its **caller's** variables, so a variable nothing in
+your own code assigns can still be set by the time you read it:
+
+```tcl
+proc setdef {dictVar key value} {
+    upvar 1 $dictVar d       ;# `d` is an alias for the caller's variable
+    dict set d $key $value
+}
+proc build {} {
+    setdef options name blue ;# creates `options` in `build`
+    return [dict get $options name]
+}
+```
+
+The analyser works out, once per procedure, which of your variables a call to
+it writes, and treats the call as the assignment. That covers `upvar` with a
+literal name or a by-name parameter, `uplevel 1 {…}`, and
+`uplevel 1 [list set …]`. It also follows one hop of `uplevel 1 [list helper
+…]`, where `helper`'s own `upvar` reaches one frame further out than a plain
+call would.
+
+Which frame the write lands in matters, and only a write to *your* frame
+counts. `upvar #0` writes a global, `upvar 0` writes the callee's own local,
+and `upvar 2` writes your caller's caller — none of them is an assignment to
+your variable.
+
+When the name cannot be worked out — `uplevel 1 $script`, a computed
+`upvar` target, or `argparse`, which names its variables from its own
+definition list — the procedure could write *any* of your variables, so
+`W210` goes silent for the whole calling procedure, exactly as it does for a
+computed name.
+
+Note the difference between `eval` and `uplevel`: `eval $script` runs in the
+procedure that writes it, so it can set that procedure's own locals;
+`uplevel 1 $script` runs one frame up, so it cannot.
+
 ## How to suppress
 
 Add `# noqa: W210` at the end of the offending line.

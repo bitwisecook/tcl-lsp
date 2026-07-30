@@ -600,6 +600,10 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         lost.expr("arg_role_resolver", spec.arg_role_resolver.is_some()),
     );
     d.insert(
+        "frame_effect".into(),
+        lost.expr("frame_effect", spec.frame_effect.is_some()),
+    );
+    d.insert(
         "clause_shape_check".into(),
         lost.expr("clause_shape_check", spec.clause_shape_check.is_some()),
     );

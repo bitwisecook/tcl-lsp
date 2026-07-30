@@ -122,7 +122,7 @@ impl Gen {
             // proc / namespace definitions are top-level only (matching the
             // oracle): nesting them changes scope semantics in ways the
             // generator doesn't model.
-            let arms = if depth == 0 { 11 } else { 7 };
+            let arms = if depth == 0 { 12 } else { 7 };
             match self.rng.below(arms) {
                 0 => self.if_stmt(depth),
                 1 => self.while_stmt(depth),
@@ -135,6 +135,7 @@ impl Gen {
                 8 => self.namespace_stmt(depth),
                 9 => self.inscope_stmt(),
                 10 => self.dynamic_name_stmt(),
+                11 => self.caller_frame_stmt(),
                 _ => self.leaf_statement(depth),
             }
         }
@@ -495,6 +496,64 @@ impl Gen {
             _ => self.out.push_str(
                 "set _dnn _dnu\nset $_dnn gone\nputs [info exists _dnu]\n\
                  unset $_dnn\nputs [info exists _dnu]\n",
+            ),
+        }
+    }
+
+    /// A procedure that writes its **caller's** frame — `upvar`'s three
+    /// resolvable shapes, `uplevel`'s literal / constructed / opaque bodies,
+    /// and the one-frame forward `uplevel 1 [list callee …]`.
+    ///
+    /// The compiler summarises these per procedure (issue #923 audit cluster
+    /// C1, `tcl_compiler::cfg_builder::upvar_info`) and applies the summary
+    /// at every call site, widening the caller's `defs` or raising a
+    /// caller-frame barrier.  Both gate the constant-branch fold and
+    /// dead-store elimination that feed this backend's input IR, so the
+    /// differential needs the shapes present to catch a VM whose frame
+    /// targeting differs from C Tcl's.
+    ///
+    /// Every arm keeps to a private `_cf*` name space the other productions
+    /// never touch, and every proc is defined and called inside the same
+    /// emitted run, so the lines stay deterministic wherever they land in the
+    /// script.  Output is the injected value plus an `info exists` probe, so
+    /// a write landing in the wrong frame is a stdout mismatch rather than a
+    /// silent pass.  tclsh 9.0.4 / 8.6.14 agree on all six arms.
+    fn caller_frame_stmt(&mut self) {
+        match self.rng.below(6) {
+            // `upvar 1 $param local` — the by-reference out-parameter.
+            0 => self.out.push_str(
+                "proc _cfa {n} {upvar 1 $n v; set v made}\n\
+                 proc _cfa0 {} {_cfa _cfx; puts $_cfx; puts [info exists _cfx]}\n_cfa0\n",
+            ),
+            // `upvar 1 literal local` — a fixed caller-side name.
+            1 => self.out.push_str(
+                "proc _cfb {} {upvar 1 _cfy v; set v lit}\n\
+                 proc _cfb0 {} {_cfb; puts $_cfy}\n_cfb0\n",
+            ),
+            // `upvar #0` reaches the global frame from any depth.
+            2 => self.out.push_str(
+                "proc _cfc {} {upvar #0 _cfg g; set g glob}\n\
+                 proc _cfc0 {} {_cfc}\n_cfc0\nputs $::_cfg\n",
+            ),
+            // `uplevel 1 {literal}` — the body runs one frame up.
+            3 => self.out.push_str(
+                "proc _cfd {} {uplevel 1 {set _cfz up}}\n\
+                 proc _cfd0 {} {_cfd; puts $_cfz}\n_cfd0\n",
+            ),
+            // `uplevel 1 [list set $name …]` — a constructed body naming its
+            // command statically.
+            4 => self.out.push_str(
+                "proc _cfe {n} {uplevel 1 [list set $n cons]}\n\
+                 proc _cfe0 {} {_cfe _cfw; puts $_cfw}\n_cfe0\n",
+            ),
+            // `uplevel 1 [list callee …]` forwards the callee's own `upvar 1`
+            // one frame further out; the plain-call spelling does not.
+            _ => self.out.push_str(
+                "proc _cff {n} {upvar 1 $n v; set v fwd}\n\
+                 proc _cff1 {n} {uplevel 1 [list _cff $n]}\n\
+                 proc _cff2 {n} {_cff $n}\n\
+                 proc _cff0 {} {_cff1 _cfv; puts $_cfv; \
+_cff2 _cfu; puts [info exists _cfu]}\n_cff0\n",
             ),
         }
     }
@@ -1184,6 +1243,49 @@ mod tests {
                 assert!(
                     !line.contains(&format!("${v} ")) && !line.ends_with(&format!("${v}")),
                     "dynamic-name line touches shared variable {v:?}: {line:?}"
+                );
+            }
+        }
+    }
+
+    /// Issue #923 audit cluster C1's coverage seed. A procedure writing its
+    /// **caller's** frame was never generated, so the whole caller-frame
+    /// path — which the compiler now summarises per procedure and applies at
+    /// every call site, gating the constant-branch fold and dead-store
+    /// elimination that feed this backend's input IR — went differentially
+    /// untested. Proves every arm reaches a generated script.
+    #[test]
+    fn caller_frame_shapes_are_exercised() {
+        let cfg = GenConfig {
+            max_depth: 4,
+            max_stmts: 16,
+            ..GenConfig::default()
+        };
+        let corpus: Vec<String> = (0..600u64).map(|s| generate(s, &cfg)).collect();
+        for needle in [
+            "upvar 1 $n v",
+            "upvar 1 _cfy v",
+            "upvar #0 _cfg g",
+            "uplevel 1 {set _cfz up}",
+            "uplevel 1 [list set $n cons]",
+            "uplevel 1 [list _cff $n]",
+        ] {
+            assert!(
+                corpus.iter().any(|s| s.contains(needle)),
+                "caller-frame production never generated: {needle:?}"
+            );
+        }
+        // The shapes must stay inside their private `_cf*` name space, so
+        // wherever they land they cannot perturb the rest of a script.
+        for line in corpus
+            .iter()
+            .flat_map(|s| s.lines())
+            .filter(|l| l.contains("_cf"))
+        {
+            for v in VARS {
+                assert!(
+                    !line.contains(&format!("${v} ")) && !line.ends_with(&format!("${v}")),
+                    "caller-frame line touches shared variable {v:?}: {line:?}"
                 );
             }
         }
