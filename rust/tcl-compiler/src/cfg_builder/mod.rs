@@ -514,9 +514,9 @@ impl CfgBuilder {
     }
 
     /// Condition-position command-substitution out-vars (issue #923 idx
-    /// 122): unions the hardcoded-builtin scan
-    /// ([`crate::ir_helpers::condition_command_out_vars`] — `catch` /
-    /// `scan` / `gets` / `regexp`) with the same known-upvar-proc /
+    /// 122): unions the registry's `ArgRole::VarWrite` scan
+    /// ([`crate::ir_helpers::condition_command_out_vars`]) with the same
+    /// known-upvar-proc /
     /// known-global-writer resolution every *other* embedded-substitution
     /// site already gets ([`Self::upvar_defs_from_text`] /
     /// [`Self::global_write_defs_from_text`]).  Without this, a user
@@ -529,7 +529,11 @@ impl CfgBuilder {
     /// upvar write) completes before the body ever runs
     /// (tclsh9.0/8.6-verified).
     fn condition_out_vars(&self, condition: &ExprNode) -> Vec<String> {
-        let mut out = crate::ir_helpers::condition_command_out_vars(condition);
+        // The CFG builder carries no registry handle (see the module note at
+        // `registry_derived_cfg_classes`); the write-role answer is core Tcl in
+        // every dialect, so the cached default registry is the right source.
+        let registry = tcl_registry::cache::registry_for_dialect("tcl8.6");
+        let mut out = crate::ir_helpers::condition_command_out_vars(condition, registry);
         let mut cmds = Vec::new();
         crate::ir_helpers::collect_expr_commands(condition, &mut cmds);
         for cmd_text in &cmds {

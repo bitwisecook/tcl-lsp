@@ -494,6 +494,23 @@ here instead. idx 5, idx 21, idx 45, idx 89, and idx 92 are **PR B1**, the
 command-table-mutation cluster — see the "tier-2 findings fixed by PR B1"
 subsection after the tier-2 table. That makes **44 fixed, 41 remaining**.
 
+**2026-07-30 update — PR B4 (`claude/commandregistry-compiler-fixes-tshu8d-ssa-dynamic`)
+fixed four more, all tier 2 — the "dynamic-name blindness in SSA/dataflow"
+cluster:** idx 1, idx 2, idx 49, and idx 64. idx 1/2 are two halves of one
+new fact, the [dynamic-name barrier](../../../rust/tcl-compiler/src/dynamic_names.rs)
+(`tcl_compiler::dynamic_names`): after a `set $var value` any name may be
+defined, so the `[info exists X]` existence fold and read-before-set must
+abstain; after a `[set $name]` / `subst $tmpl` any store may be observed, so
+"never read" / "set but never used" must abstain. idx 49 deleted
+`cmd_substitution_out_vars`'s hardcoded `catch`/`scan`/`gets`/`regexp` list
+in favour of the registry's `ArgRole::VarWrite` query, which also covers
+`set`/`incr`/`append`/`lappend`/`lset`/`lassign`/`binary scan`/`regsub`/…
+idx 64's own re-lex root cause was **already fixed** on `rust` by the
+value-body scan mode (issue #923 idx 125's `quoted_body` work); it is
+counted here because its repros are now pinned as regression tests
+(FP-DS-13) rather than left unguarded. That makes **48 fixed, 37
+remaining**.
+
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
 strings in the raw data — same corpus), tomato 7, pix 8.
@@ -706,7 +723,7 @@ users, a worse failure mode than the narrower, but fully oracle-grounded,
 `CONFIGURE`-tracking fix actually shipped. Left as a documented, low-risk
 follow-up for a session with Tk oracle access.
 
-#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 22 now fixed — 39 remaining), grouped by feature for clustering
+#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 26 now fixed — 35 remaining), grouped by feature for clustering
 
 Group findings sharing a feature/root-cause together in one fix pass the
 way idx 107+115 and idx 118+119 were — many of these look like they share
@@ -717,8 +734,8 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 | feature | count | idx (severity) |
 |---|---|---|
 | tclOO | 10 | 15, 16, 34, 35, 36, ~~53~~ **FIXED**, ~~54~~ **FIXED**, ~~55~~ **FIXED**, ~~96~~ **FIXED**, ~~97~~ **FIXED** (all medium) |
-| namespaces | 8 | ~~3~~ **FIXED** (#1071), 19, ~~43~~ **ALREADY FIXED**, ~~44~~ **FIXED**, 64, 65, 75, 85 (all medium) |
-| tricky_indirection | 7 | 0 (medium, **FIXED** — see below), 1, 2, 14, 49, 50, 51 (all medium) |
+| namespaces | 8 | ~~3~~ **FIXED** (#1071), 19, ~~43~~ **ALREADY FIXED**, ~~44~~ **FIXED**, ~~64~~ **FIXED**, 65, 75, 85 (all medium) |
+| tricky_indirection | 7 | 0 (medium, **FIXED** — see below), ~~1~~ **FIXED**, ~~2~~ **FIXED**, 14, ~~49~~ **FIXED**, 50, 51 (all medium) |
 | upvar | 7 | 7, 22, 57, 58, 59, 98, 99 (all medium) |
 | proc_args | 7 | ~~11~~ **FIXED** (#1071), 28, 37, 62, 67, 78, ~~104~~ **FIXED** (all medium) |
 | tcl_mathop | 4 | ~~30~~ **FIXED**, 80, ~~81~~ **ALREADY FIXED**, ~~103~~ **FIXED** (all medium) |

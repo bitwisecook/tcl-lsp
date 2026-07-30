@@ -273,6 +273,12 @@ file; this call falls through to the 'unknown' handler."
         use crate::ir::Statement;
         use crate::ir_helpers::expr_has_command;
         use std::fmt::Write as _;
+        // A dynamic read (`[set $name]`, `subst $tmpl`) can observe *any*
+        // store, so "this assignment is never read" is unprovable anywhere in
+        // the function (issue #923 audit idx 2/64).  Abstain toward silence.
+        if fu.dynamic_names.reads {
+            return;
+        }
         let hidden_reads = self.substitution_hidden_reads(fu);
         // Array-element / dict-path writes the
         // name-level SSA mis-folds but that a read actually observes.
@@ -545,6 +551,13 @@ file; this call falls through to the 'unknown' handler."
     ) {
         use crate::def_use::DefKind;
         use std::fmt::Write as _;
+        // A dynamic read (`foreach v [info locals] {… [set $v] …}`) reaches
+        // every local by a name no literal `$x` token spells, so "set but
+        // never used" is unprovable (issue #923 audit idx 2).  Abstain toward
+        // silence.
+        if fu.dynamic_names.reads {
+            return;
+        }
         // W211 is a per-variable verdict ("the variable is set but never
         // used"), not per-assignment: a variable set several times and never
         // read fires once, at its earliest definition. Collect the earliest
@@ -1013,6 +1026,15 @@ file; this call falls through to the 'unknown' handler."
     ) {
         use crate::def_use::DefKind;
         use std::fmt::Write as _;
+
+        // A dynamic write (`set $name value`) defines a variable this pass
+        // cannot name, so *no* local can still be proved unset (issue #923
+        // audit idx 1 — tclsh 9.0.4 / 8.6.14: `proc g {n} {set $n 1; puts
+        // $foo}; g foo` prints `1`).  Abstain toward silence for the whole
+        // function.
+        if fu.dynamic_names.writes {
+            return;
+        }
 
         // Top-level RBS uses the ``extra_known_defined`` set
         // (computed from ``globals_written_by_procs``) to suppress
@@ -1790,7 +1812,7 @@ file; this call falls through to the 'unknown' handler."
                 || tcl_registry::cache::registry_for_dialect("tcl8.6"),
                 |r| r,
             );
-            crate::sccp::existence_constant_branches(&fu.cfg, &params, registry)
+            crate::sccp::existence_constant_branches(&fu.cfg, &params, registry, fu.dynamic_names)
         };
         for cb in branches {
             let Some(span) = cb.span.map(|s| fu.abs_span(s)) else {
