@@ -716,13 +716,23 @@ impl Analyser {
     ///   encodes this by treating a rename *source* class as unconditionally
     ///   live.
     /// - An `interp alias` is re-resolved by name on every invocation, so its
-    ///   target must be a live class in its own right. A `-prependedargs`
-    ///   alias (`interp alias {} Cat {} Dog extra`) is declined outright: the
-    ///   bound words shift the constructor's arguments, so `Cat new` is not
-    ///   the call `Dog new` would be.
+    ///   target must resolve to a live command at the call site — but "live"
+    ///   is judged where the chain *terminates*, not at the alias hop itself:
+    ///   the target may be another alias or a rename destination (`rename Dog
+    ///   Cat; interp alias {} Pup {} Cat` — `Pup new` builds a Dog,
+    ///   tclsh8.6.14/9.0.4-confirmed), and demanding a directly-live class at
+    ///   the hop breaks exactly those chains. A chain that ends *on* an alias
+    ///   target requires the strict direct-class check there — a rename
+    ///   *source* name is vacated, so an alias pointing at it fails `invalid
+    ///   command name` at run time (tclsh8.6.14/9.0.4-confirmed) and the
+    ///   lenient rename-source rule below must not resurrect it. A
+    ///   `-prependedargs` alias (`interp alias {} Cat {} Dog extra`) is
+    ///   declined outright: the bound words shift the constructor's
+    ///   arguments, so `Cat new` is not the call `Dog new` would be.
     fn class_reachable_by_indirection(&self, written: &str, call_off: u32) -> Option<String> {
         let mut cur = self.canonicalise_class_name(written);
         let mut hopped = false;
+        let mut via_alias = false;
         for _ in 0..Self::MAX_CLASS_NAME_HOPS {
             // `renamed_commands` / `command_aliases` are keyed by the
             // qualified name the scanner resolved; `cur` starts as written.
@@ -733,6 +743,10 @@ impl Analyser {
                     return None;
                 }
                 cur = self.canonicalise_class_name(old);
+                // A rename destination is a live command name in its own
+                // right — the class data just stays keyed by the source —
+                // so the chain is back on the rename-chase rule.
+                via_alias = false;
             } else if let Some(alias) = self.result.command_aliases.get(&key) {
                 if !alias.extras.is_empty() {
                     return None;
@@ -745,15 +759,20 @@ impl Analyser {
                 if target == cur {
                     return None;
                 }
-                // An alias re-resolves by name each call, so its target must
-                // be live at the call site in its own right.
-                if !self.class_live_for_call(&target, call_off) {
-                    return None;
-                }
                 cur = target;
+                via_alias = true;
             } else {
-                return (hopped && self.class_live_by_name_for_call(&cur, call_off))
-                    .then(|| self.canonicalise_class_name(&cur));
+                // Terminal name. Reached through a rename chase, the class
+                // survives its source name being vacated
+                // (`class_live_by_name_for_call`); reached straight from an
+                // alias, the name itself must resolve, so only a directly
+                // live class will do.
+                let live = if via_alias {
+                    self.class_live_for_call(&cur, call_off)
+                } else {
+                    self.class_live_by_name_for_call(&cur, call_off)
+                };
+                return (hopped && live).then(|| self.canonicalise_class_name(&cur));
             }
             hopped = true;
         }
