@@ -18,7 +18,14 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics, pollUntil } from "./helper";
+import {
+  getDocUri,
+  activate,
+  waitForDiagnostics,
+  waitForDeepDiagnostics,
+  getServerLogSize,
+  pollUntil,
+} from "./helper";
 
 function labelOf(item: vscode.CompletionItem): string {
   return typeof item.label === "string" ? item.label : item.label.label;
@@ -68,6 +75,32 @@ async function completionItemsAt(
 }
 
 /**
+ * Insert *insertion* at the end of the line containing *marker* (so the
+ * probe sits on the line after the marker, matching the fixture's
+ * indentation), and return the position right after the inserted text —
+ * the spot completion should be requested at. Shared by ``probeAt`` (one
+ * probe, revert immediately) and the "command contexts" suite below
+ * (all ten probes inserted up front, reverted once at the end).
+ */
+async function insertProbe(
+  uri: vscode.Uri,
+  doc: vscode.TextDocument,
+  marker: string,
+  insertion: string,
+): Promise<vscode.Position> {
+  const text = doc.getText();
+  const idx = text.indexOf(marker);
+  assert.ok(idx >= 0, `Marker '${marker}' not found in fixture`);
+  const markerLine = doc.positionAt(idx).line;
+  const eolPos = doc.lineAt(markerLine).range.end;
+  const eolOffset = doc.offsetAt(eolPos);
+  const edit = new vscode.WorkspaceEdit();
+  edit.insert(uri, eolPos, insertion);
+  await vscode.workspace.applyEdit(edit);
+  return doc.positionAt(eolOffset + insertion.length);
+}
+
+/**
  * Marker-based completion probing: find ``# PROBE_X`` in the fixture,
  * insert the supplied probe text on the line after the marker, position
  * the cursor at the end of the inserted text, request completion (waiting
@@ -85,23 +118,28 @@ async function probeAt(
   expect: string[],
 ): Promise<vscode.CompletionItem[]> {
   const doc = await activate(uri);
-  const text = doc.getText();
-  const idx = text.indexOf(marker);
-  assert.ok(idx >= 0, `Marker '${marker}' not found in fixture`);
-  // Insert at the end of the marker line so the probe sits on the
-  // following line (matching the comment indentation).
-  const markerLine = doc.positionAt(idx).line;
-  const eolPos = doc.lineAt(markerLine).range.end;
-  const eolOffset = doc.offsetAt(eolPos);
-  const edit = new vscode.WorkspaceEdit();
-  edit.insert(uri, eolPos, insertion);
-  await vscode.workspace.applyEdit(edit);
-  const completionPos = doc.positionAt(eolOffset + insertion.length);
+  const completionPos = await insertProbe(uri, doc, marker, insertion);
   try {
     return await completionItemsAt(uri, completionPos, expect);
   } finally {
     await vscode.commands.executeCommand("workbench.action.files.revert", doc);
   }
+}
+
+/** One completion request at *position*, no polling. Only safe to call
+ * against an already-settled document — see the "command contexts" suite's
+ * ``suiteSetup``, which waits for the deep-diagnostics signal before any
+ * test calls this. */
+async function completionAt(
+  uri: vscode.Uri,
+  position: vscode.Position,
+): Promise<vscode.CompletionItem[]> {
+  const result = (await vscode.commands.executeCommand(
+    "vscode.executeCompletionItemProvider",
+    uri,
+    position,
+  )) as vscode.CompletionList;
+  return result.items;
 }
 
 function insertedText(item: vscode.CompletionItem): string | undefined {
@@ -122,12 +160,75 @@ function textEditOf(item: vscode.CompletionItem): vscode.TextEdit | undefined {
 suite("Variable Completion: command contexts", () => {
   const docUri = getDocUri("variableContexts.tcl");
 
-  // Each command-form probe inserts ``\n        puts $`` after the
-  // marker line so the cursor lands right after a fresh ``$`` inside
-  // the surrounding proc body.
+  // Each command-form probe inserts ``\n        puts $`` (or, for the three
+  // forms whose marker sits one indent level deeper, ``\n            puts
+  // $``) after the marker line so the cursor lands right after a fresh
+  // ``$`` inside the surrounding proc body.
+  //
+  // These ten probes used to each insert their own probe text and
+  // independently poll ``completionItemsAt`` on a fresh 10s budget before
+  // reverting — ten such polls stacked on top of Electron startup produced
+  // the intermittent cumulative timeout under constrained containers
+  // (issue #1059), even though any single probe settles in well under a
+  // second once the server has caught up. Every probe marker sits in its
+  // own, syntactically independent proc (see
+  // ``testFixture/variableContexts.tcl``), so all ten insertions can
+  // coexist in one edit batch: ``suiteSetup`` applies them all up front and
+  // waits ONCE for the server's ``[timing] deep diagnostics`` marker for
+  // this document (``waitForDeepDiagnostics``) — a real "the server
+  // finished re-analysing the edited document" signal (the same one
+  // ``helper.ts`` uses elsewhere), not a sleep. Every test below then
+  // requests completion exactly once against that already-settled state,
+  // so a genuine regression in any one probe still fails loudly on its own
+  // assertion — the batching only removes the redundant repeated waiting,
+  // it does not merge the ten checks into one.
+  const PROBES = [
+    { key: "variable", marker: "# PROBE_VARIABLE", insertion: "\n        puts $" },
+    { key: "nsUpvar", marker: "# PROBE_NS_UPVAR", insertion: "\n        puts $" },
+    { key: "lassign", marker: "# PROBE_LASSIGN", insertion: "\n        puts $" },
+    { key: "regexp", marker: "# PROBE_REGEXP", insertion: "\n        puts $" },
+    { key: "regsub", marker: "# PROBE_REGSUB", insertion: "\n        puts $" },
+    { key: "scan", marker: "# PROBE_SCAN", insertion: "\n        puts $" },
+    { key: "catch", marker: "# PROBE_CATCH", insertion: "\n        puts $" },
+    { key: "tryOnError", marker: "# PROBE_TRY", insertion: "\n            puts $" },
+    { key: "dictUpdate", marker: "# PROBE_DICT_UPDATE", insertion: "\n            puts $" },
+    { key: "uplevelOne", marker: "# PROBE_UPLEVEL_ONE", insertion: "\n            puts $" },
+  ] as const;
+  const positions = new Map<string, vscode.Position>();
+  let doc: vscode.TextDocument;
+
+  function positionFor(key: (typeof PROBES)[number]["key"]): vscode.Position {
+    const pos = positions.get(key);
+    assert.ok(pos, `no probe position recorded for '${key}' — did suiteSetup run?`);
+    return pos as vscode.Position;
+  }
+
+  suiteSetup(async function () {
+    this.timeout(30_000);
+    doc = await activate(docUri);
+    for (let i = 0; i < PROBES.length; i++) {
+      const p = PROBES[i];
+      const isLast = i === PROBES.length - 1;
+      // Capture the log-size baseline right before the LAST edit only: it
+      // must be taken after every earlier edit (so an intermediate deep
+      // pass that happens to land between two of our edits does not
+      // satisfy the wait prematurely) but before this edit is applied (so
+      // the wait cannot miss a publish that lands between capturing the
+      // baseline and awaiting it).
+      const since = isLast ? getServerLogSize() : undefined;
+      positions.set(p.key, await insertProbe(docUri, doc, p.marker, p.insertion));
+      if (isLast) {
+        await waitForDeepDiagnostics(docUri, { since, timeout: 20_000 });
+      }
+    }
+  });
+
+  suiteTeardown(async () => {
+    await vscode.commands.executeCommand("workbench.action.files.revert", doc);
+  });
 
   test("variable: namespace var alias is in scope inside the proc", async () => {
-    const items = await probeAt(docUri, "# PROBE_VARIABLE", "\n        puts $", ["$namespace_var"]);
+    const items = await completionAt(docUri, positionFor("variable"));
     const labels = items.map(labelOf);
     assert.ok(
       labels.includes("$namespace_var"),
@@ -136,7 +237,7 @@ suite("Variable Completion: command contexts", () => {
   });
 
   test("namespace upvar: local alias is in scope", async () => {
-    const items = await probeAt(docUri, "# PROBE_NS_UPVAR", "\n        puts $", ["$local_ns_var"]);
+    const items = await completionAt(docUri, positionFor("nsUpvar"));
     const labels = items.map(labelOf);
     assert.ok(
       labels.includes("$local_ns_var"),
@@ -145,11 +246,7 @@ suite("Variable Completion: command contexts", () => {
   });
 
   test("lassign: each destructured var is in scope", async () => {
-    const items = await probeAt(docUri, "# PROBE_LASSIGN", "\n        puts $", [
-      "$la",
-      "$lb",
-      "$lc",
-    ]);
+    const items = await completionAt(docUri, positionFor("lassign"));
     const labels = items.map(labelOf);
     for (const v of ["$la", "$lb", "$lc"]) {
       assert.ok(
@@ -160,11 +257,7 @@ suite("Variable Completion: command contexts", () => {
   });
 
   test("regexp: capture-group vars are in scope", async () => {
-    const items = await probeAt(docUri, "# PROBE_REGEXP", "\n        puts $", [
-      "$rx_full",
-      "$rx_key",
-      "$rx_value",
-    ]);
+    const items = await completionAt(docUri, positionFor("regexp"));
     const labels = items.map(labelOf);
     for (const v of ["$rx_full", "$rx_key", "$rx_value"]) {
       assert.ok(
@@ -175,13 +268,13 @@ suite("Variable Completion: command contexts", () => {
   });
 
   test("regsub: output var is in scope", async () => {
-    const items = await probeAt(docUri, "# PROBE_REGSUB", "\n        puts $", ["$rs_out"]);
+    const items = await completionAt(docUri, positionFor("regsub"));
     const labels = items.map(labelOf);
     assert.ok(labels.includes("$rs_out"), `Expected $rs_out: ${labels.slice(0, 30).join(", ")}`);
   });
 
   test("scan: each output var is in scope", async () => {
-    const items = await probeAt(docUri, "# PROBE_SCAN", "\n        puts $", ["$sx", "$sy", "$sz"]);
+    const items = await completionAt(docUri, positionFor("scan"));
     const labels = items.map(labelOf);
     for (const v of ["$sx", "$sy", "$sz"]) {
       assert.ok(labels.includes(v), `Expected ${v} after scan: ${labels.slice(0, 30).join(", ")}`);
@@ -189,10 +282,7 @@ suite("Variable Completion: command contexts", () => {
   });
 
   test("catch: resultVar and optionsVar are in scope", async () => {
-    const items = await probeAt(docUri, "# PROBE_CATCH", "\n        puts $", [
-      "$catch_result",
-      "$catch_opts",
-    ]);
+    const items = await completionAt(docUri, positionFor("catch"));
     const labels = items.map(labelOf);
     assert.ok(
       labels.includes("$catch_result"),
@@ -205,10 +295,7 @@ suite("Variable Completion: command contexts", () => {
   });
 
   test("try on error: handler binding-list vars are in scope inside body", async () => {
-    const items = await probeAt(docUri, "# PROBE_TRY", "\n            puts $", [
-      "$try_msg",
-      "$try_opts",
-    ]);
+    const items = await completionAt(docUri, positionFor("tryOnError"));
     const labels = items.map(labelOf);
     for (const v of ["$try_msg", "$try_opts"]) {
       assert.ok(
@@ -219,10 +306,7 @@ suite("Variable Completion: command contexts", () => {
   });
 
   test("dict update: alias vars are in scope inside body", async () => {
-    const items = await probeAt(docUri, "# PROBE_DICT_UPDATE", "\n            puts $", [
-      "$alias_a",
-      "$alias_b",
-    ]);
+    const items = await completionAt(docUri, positionFor("dictUpdate"));
     const labels = items.map(labelOf);
     for (const v of ["$alias_a", "$alias_b"]) {
       assert.ok(
@@ -238,11 +322,8 @@ suite("Variable Completion: command contexts", () => {
     // suggest a variable that does not exist at runtime. Completion abstains on
     // the proc's locals (matching the server-side
     // ``dollar_completion_uplevel_one_abstains_from_proc_scope``) while still
-    // offering the body's own declarations. Poll for the body-local so the
-    // request has settled, then assert the proc-local is absent.
-    const items = await probeAt(docUri, "# PROBE_UPLEVEL_ONE", "\n            puts $", [
-      "$body_var",
-    ]);
+    // offering the body's own declarations.
+    const items = await completionAt(docUri, positionFor("uplevelOne"));
     const labels = items.map(labelOf);
     assert.ok(
       labels.includes("$body_var"),
