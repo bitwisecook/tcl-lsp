@@ -42,7 +42,7 @@
 //! insert/delete/replace/newline/astral edits is.
 
 use crate::common::helpers::*;
-use crate::common::{Lsp, Rng, unique_uri};
+use crate::common::{Lsp, Rng, scaled_timeout, unique_uri};
 
 use serde_json::{Value, json};
 use std::time::{Duration, Instant};
@@ -383,8 +383,16 @@ fn assert_buffer_equiv(
 /// If the enriched stream is starved past the deadline the last response is
 /// returned unchanged, so a genuine divergence is reported by the caller's
 /// assertion rather than the test hanging.
+///
+/// The deadline is load-scaled for the same reason as
+/// `semantic_tokens_reference_client::converge_via_refresh` (review of #1089):
+/// the per-round `try_await_server_request` below multiplies its argument by
+/// `load_factor` internally, so an unscaled outer deadline would be
+/// inconsistent with the rounds it bounds — one legitimate round could exhaust
+/// it, and this loop's expiry is silent (it returns the coarse stream), turning
+/// a busy machine into a *content* assertion failure at the caller.
 fn settled_tokens(lsp: &mut Lsp, uri: &str) -> Vec<SemToken> {
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let deadline = Instant::now() + scaled_timeout(Duration::from_secs(20));
     loop {
         let since = lsp.server_request_cursor();
         let current = decode_semantic_tokens(&lsp.semantic_tokens(uri));
