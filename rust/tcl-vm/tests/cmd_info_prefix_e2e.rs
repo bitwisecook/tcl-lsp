@@ -705,6 +705,253 @@ fn namespace_inscope() {
     );
 }
 
+/// A namespace holding a `shape` proc that reports its argument *count* and
+/// each argument's exact text — the probe every `namespace inscope` tail test
+/// below calls, so a wrongly-split argument shows up as a different count.
+const SHAPE_NS: &str = "namespace eval foo \
+     {proc shape {args} {return [llength $args]:[join $args ,]}}; ";
+
+/// Issue #1056 — the differential pair that separates `namespace inscope` from
+/// the rest of the `Tcl_ConcatObj` eval family. `inscope` appends its trailing
+/// words as **list elements** (`NamespaceInscopeCmd` builds a list object and
+/// concatenates its string rep), so `{a b}` reaches `puts` as one argument;
+/// `namespace eval` space-joins, so the same words become two and `puts`
+/// reports a bad channel. The VM used to space-join in both.
+#[test]
+fn namespace_inscope_appends_list_args_where_eval_concatenates() {
+    // tclsh (both): prints "a b" — a single argument.
+    let (ok, res, out) = run("namespace inscope :: {puts} {a b}");
+    assert!(ok, "must not error: {res}");
+    assert_eq!(out, "a b\n");
+    // tclsh (both): `namespace eval` splits the same words -> bad channel "a".
+    let (ok, msg, _) = run("namespace eval :: {puts} {a b}");
+    assert!(!ok);
+    assert_eq!(msg, r#"can not find channel named "a""#);
+}
+
+/// Trailing words survive as one argument each, whatever whitespace or list
+/// punctuation they hold — the list quoting (`Tcl_ScanElement` /
+/// `Tcl_ConvertElement`) round-trips them.
+#[test]
+fn namespace_inscope_tail_args_are_list_elements() {
+    // tclsh (both): -> "1:x y"
+    assert_eq!(
+        run(&format!("{SHAPE_NS}namespace inscope foo shape {{x y}}")).1,
+        "1:x y"
+    );
+    // tclsh (both): two whitespace-bearing words stay two arguments -> "2:x y,p q"
+    assert_eq!(
+        run(&format!(
+            "{SHAPE_NS}namespace inscope foo shape {{x y}} {{p q}}"
+        ))
+        .1,
+        "2:x y,p q"
+    );
+    // tclsh (both): a leading/trailing-space word keeps its spaces -> "1:  sp  "
+    assert_eq!(
+        run(&format!("{SHAPE_NS}namespace inscope foo shape \"  sp  \"")).1,
+        "1:  sp  "
+    );
+    // tclsh (both): the script may itself be several words -> "2:one,two three"
+    assert_eq!(
+        run(&format!(
+            "{SHAPE_NS}namespace inscope foo {{shape one}} {{two three}}"
+        ))
+        .1,
+        "2:one,two three"
+    );
+}
+
+/// The list quoting must be canonical, so a word that is not brace-safe still
+/// round-trips: an unbalanced brace and a lone backslash take the backslash
+/// form, an empty word becomes `{}`, and `$`/`[`/`;` are braced so no
+/// substitution or command termination happens inside the built script.
+#[test]
+fn namespace_inscope_tail_args_special_characters() {
+    // tclsh (both): empty word -> "{}" -> one empty argument.
+    assert_eq!(
+        run(&format!("{SHAPE_NS}namespace inscope foo shape {{}}")).1,
+        "1:"
+    );
+    // tclsh (both): unbalanced open brace -> `a\{b`.
+    assert_eq!(
+        run(&format!("{SHAPE_NS}namespace inscope foo shape a\\{{b")).1,
+        "1:a{b"
+    );
+    // tclsh (both): a lone backslash -> `\\`.
+    assert_eq!(
+        run(&format!("{SHAPE_NS}namespace inscope foo shape \\\\")).1,
+        "1:\\"
+    );
+    // tclsh (both): an unbalanced double quote.
+    assert_eq!(
+        run(&format!("{SHAPE_NS}namespace inscope foo shape \"a\\\"b\"")).1,
+        "1:a\"b"
+    );
+    // tclsh (both): `$`/`[`/`;` are braced, so nothing substitutes and the
+    // command does not terminate early.
+    assert_eq!(
+        run(&format!("{SHAPE_NS}namespace inscope foo shape {{$nope}}")).1,
+        "1:$nope"
+    );
+    assert_eq!(
+        run(&format!("{SHAPE_NS}namespace inscope foo shape {{[nope]}}")).1,
+        "1:[nope]"
+    );
+    assert_eq!(
+        run(&format!("{SHAPE_NS}namespace inscope foo shape {{a;b}}")).1,
+        "1:a;b"
+    );
+    // tclsh (both): a mixed tail -> 4 arguments, the empty one preserved.
+    assert_eq!(
+        run(&format!(
+            "{SHAPE_NS}namespace inscope foo shape {{a b}} {{}} c\\{{d \\\\"
+        ))
+        .1,
+        "4:a b,,c{d,\\"
+    );
+}
+
+/// Zero trailing words: C takes the `objc == 3` arm and evaluates the script
+/// verbatim — no list is appended and no trailing space is added, so a list
+/// *inside* the script stays one argument and a plain script is untouched.
+#[test]
+fn namespace_inscope_zero_tail_args_leaves_script_verbatim() {
+    // tclsh (both): -> "1:x y"
+    assert_eq!(
+        run(&format!(
+            "{SHAPE_NS}namespace inscope foo {{shape {{x y}}}}"
+        ))
+        .1,
+        "1:x y"
+    );
+    // tclsh (both): the body still sees foo's variable -> "hi"
+    assert_eq!(
+        run("namespace eval foo {variable v hi}; namespace inscope foo {set v}").1,
+        "hi"
+    );
+}
+
+/// `Tcl_ConcatObj` trims each part and drops one that is empty after trimming:
+/// a padded script loses its padding, and an all-whitespace script contributes
+/// no leading separator at all (the tail alone becomes the script).
+#[test]
+fn namespace_inscope_script_is_concat_trimmed() {
+    // tclsh (both): -> "1:tail"
+    assert_eq!(
+        run(&format!(
+            "{SHAPE_NS}namespace inscope foo {{  shape  }} tail"
+        ))
+        .1,
+        "1:tail"
+    );
+    // tclsh (both): whitespace-only script -> the tail is the whole command.
+    assert_eq!(
+        run(&format!("{SHAPE_NS}namespace inscope foo {{   }} shape hi")).1,
+        "1:hi"
+    );
+}
+
+/// Namespace resolution is unchanged by the list-args fix: the target name is
+/// still resolved relative to the current namespace, and the body still sees
+/// the target's variables.
+#[test]
+fn namespace_inscope_relative_resolution_unchanged() {
+    // tclsh (both): `bar` resolves against `foo` -> "1:x y"
+    assert_eq!(
+        run("namespace eval foo {namespace eval bar \
+             {proc shape {args} {return [llength $args]:[join $args ,]}}}; \
+             namespace eval foo {namespace inscope bar shape {x y}}")
+        .1,
+        "1:x y"
+    );
+    // tclsh (both): the invoked proc sees its own namespace variable -> "hi/1/x y"
+    assert_eq!(
+        run("namespace eval foo {variable v hi; \
+             proc shape {args} {variable v; return $v/[llength $args]/[lindex $args 0]}}; \
+             namespace inscope foo shape {x y}")
+        .1,
+        "hi/1/x y"
+    );
+}
+
+/// The exact tail shapes the differential fuzzer's `namespace inscope`
+/// production emits (`rust/tcl-fuzz/src/generator.rs`, `inscope_arg`), pinned
+/// here so the VM side of the campaign's regression seed is asserted without
+/// having to run a campaign. Each expectation is the reference `tclsh` output
+/// for the identical generated line.
+#[test]
+fn namespace_inscope_fuzz_generator_tail_shapes() {
+    let ns = "namespace eval n1 {proc _shape {args} \
+              {return [llength $args]:[join $args ,]}}; ";
+    // tclsh (both): -> "0:" (zero-word tail, script evaluated verbatim).
+    assert_eq!(run(&format!("{ns}namespace inscope n1 {{_shape}}")).1, "0:");
+    // tclsh (both): -> "3:[nosub],a b c,x y"
+    assert_eq!(
+        run(&format!(
+            "{ns}namespace inscope n1 {{_shape}} {{[nosub]}} {{a b c}} {{x y}}"
+        ))
+        .1,
+        "3:[nosub],a b c,x y"
+    );
+    // tclsh (both): -> "3:  padded  ,a;b,[nosub]"
+    assert_eq!(
+        run(&format!(
+            "{ns}namespace inscope n1 {{_shape}} {{  padded  }} {{a;b}} {{[nosub]}}"
+        ))
+        .1,
+        "3:  padded  ,a;b,[nosub]"
+    );
+    // tclsh (both): -> "3:a\"b,a b c,plain"
+    assert_eq!(
+        run(&format!(
+            "{ns}namespace inscope n1 {{_shape}} {{a\"b}} {{a b c}} plain"
+        ))
+        .1,
+        "3:a\"b,a b c,plain"
+    );
+    // tclsh (both): -> "3:,$nosub,[nosub]" (leading empty element preserved).
+    assert_eq!(
+        run(&format!(
+            "{ns}namespace inscope n1 {{_shape}} {{}} {{$nosub}} {{[nosub]}}"
+        ))
+        .1,
+        "3:,$nosub,[nosub]"
+    );
+    // tclsh (both): -> "3:plain,  padded  ,[nosub]"
+    assert_eq!(
+        run(&format!(
+            "{ns}namespace inscope n1 {{_shape}} plain {{  padded  }} {{[nosub]}}"
+        ))
+        .1,
+        "3:plain,  padded  ,[nosub]"
+    );
+}
+
+/// A `namespace code` capture invoked with an extra argument is the real-world
+/// path through the list-args rule (Tk-style callbacks): the appended word
+/// arrives at the captured command as one argument.
+#[test]
+fn namespace_code_capture_invoked_with_extra_arg() {
+    // tclsh (both): -> "cb:1:x y"
+    assert_eq!(
+        run(
+            "proc cb {args} {return cb:[llength $args]:[join $args ,]}; \
+             set cap [namespace code cb]; eval $cap [list {x y}]"
+        )
+        .1,
+        "cb:1:x y"
+    );
+    assert_eq!(
+        run(
+            "proc cb {args} {return cb:[llength $args]:[join $args ,]}; \
+             ::namespace inscope :: cb {x y}"
+        )
+        .1,
+        "cb:1:x y"
+    );
+}
+
 /// `namespace export` + `namespace import` — an exported proc becomes callable
 /// unqualified after import.
 #[test]

@@ -122,7 +122,7 @@ impl Gen {
             // proc / namespace definitions are top-level only (matching the
             // oracle): nesting them changes scope semantics in ways the
             // generator doesn't model.
-            let arms = if depth == 0 { 9 } else { 7 };
+            let arms = if depth == 0 { 10 } else { 7 };
             match self.rng.below(arms) {
                 0 => self.if_stmt(depth),
                 1 => self.while_stmt(depth),
@@ -133,6 +133,7 @@ impl Gen {
                 6 => self.try_stmt(depth),
                 7 => self.proc_stmt(depth),
                 8 => self.namespace_stmt(depth),
+                9 => self.inscope_stmt(),
                 _ => self.leaf_statement(depth),
             }
         }
@@ -424,6 +425,58 @@ impl Gen {
         let _ = writeln!(self.out, "namespace eval {ns} {{");
         self.block(depth + 1);
         self.out.push_str("}\n");
+    }
+
+    /// `namespace inscope ns script ?arg ...?` — the one member of the
+    /// `Tcl_ConcatObj` eval family whose trailing words are appended as **list
+    /// elements** rather than space-joined (`NamespaceInscopeCmd`,
+    /// `generic/tclNamesp.c`), so a word holding whitespace or list punctuation
+    /// must reach the invoked command as exactly one argument.
+    ///
+    /// The differential regression seed for issue #1056: the VM space-joined
+    /// the tail, so `namespace inscope ns {p} {x y}` called `p` with two
+    /// arguments instead of one. The probe proc reports both the argument
+    /// *count* and each argument's text, so a wrong split is a stdout mismatch
+    /// against the reference `tclsh` rather than a silent pass. A zero-word
+    /// tail is drawn too, covering C's `objc == 3` arm (script evaluated
+    /// verbatim, nothing appended).
+    fn inscope_stmt(&mut self) {
+        let ns = *self.rng.pick(NS_NAMES);
+        let _ = writeln!(
+            self.out,
+            "namespace eval {ns} {{proc _shape {{args}} \
+             {{return [llength $args]:[join $args ,]}}}}"
+        );
+        let mut call = format!("namespace inscope {ns} {{_shape}}");
+        for _ in 0..self.rng.below(4) {
+            let arg = self.inscope_arg();
+            let _ = write!(call, " {arg}");
+        }
+        let _ = writeln!(self.out, "puts [{call}]");
+    }
+
+    /// One trailing word for [`Gen::inscope_stmt`], chosen to exercise the
+    /// list-element quoting on the way back out: whitespace (inner and
+    /// padding), an empty element, and `$`/`[`/`;`/`"` — each of which forces
+    /// quoting, so the word must not substitute, split, or terminate the
+    /// command inside the built script.
+    ///
+    /// Every shape keeps `{}`/`[]` **byte-balanced**. An unbalanced-brace
+    /// element (`a\{b`, the backslash-quoting path) is valid Tcl but trips the
+    /// generator's balanced-delimiter invariant, which is a raw byte count —
+    /// that path is pinned by the VM's own unit tests instead.
+    fn inscope_arg(&mut self) -> &'static str {
+        self.rng.pick(&[
+            "{x y}",
+            "{}",
+            "{a b c}",
+            "{  padded  }",
+            "{a;b}",
+            "{$nosub}",
+            "{[nosub]}",
+            "{a\"b}",
+            "plain",
+        ])
     }
 
     /// Mutate a dict-valued variable in place. An unset target is created by
@@ -932,6 +985,61 @@ mod tests {
                 .any(|p| s.contains(&format!("puts [{p}")))
         });
         assert!(proc_called, "no generated proc was ever called");
+    }
+
+    /// Issue #1056's regression seed. `namespace inscope` was never generated
+    /// at all, so the whole list-element tail rule went differentially
+    /// untested and the VM's space-join (which turned `{x y}` into two
+    /// arguments) could not be caught by a campaign. Proves the production is
+    /// live and that every interesting tail shape — the whitespace-bearing
+    /// word that is the minimal reproducer, an empty element, and the
+    /// substitution/terminator characters that force list quoting — actually
+    /// reaches a generated script.
+    #[test]
+    fn namespace_inscope_list_args_are_exercised() {
+        let cfg = GenConfig {
+            max_depth: 4,
+            max_stmts: 16,
+            ..GenConfig::default()
+        };
+        let corpus: Vec<String> = (0..600u64).map(|s| generate(s, &cfg)).collect();
+        let inscope_lines: Vec<&str> = corpus
+            .iter()
+            .flat_map(|s| s.lines())
+            .filter(|l| l.contains("namespace inscope "))
+            .collect();
+        assert!(
+            !inscope_lines.is_empty(),
+            "`namespace inscope` is never generated"
+        );
+        // The probe proc must accompany every call, else the differential has
+        // nothing to compare.
+        assert!(
+            corpus
+                .iter()
+                .any(|s| s.contains("proc _shape {args}") && s.contains("namespace inscope ")),
+            "the inscope probe proc is not emitted alongside the call"
+        );
+        for arg in [
+            "{x y}",
+            "{  padded  }",
+            "{}",
+            "{a;b}",
+            "{$nosub}",
+            "{[nosub]}",
+        ] {
+            assert!(
+                inscope_lines.iter().any(|l| l.contains(arg)),
+                "inscope tail shape never generated: {arg:?}"
+            );
+        }
+        // The bug's shape specifically: a trailing word containing whitespace.
+        assert!(
+            inscope_lines
+                .iter()
+                .any(|l| l.contains("{_shape} {x y}") || l.contains("{_shape} {a b c}")),
+            "no whitespace-bearing first tail word — the #1056 reproducer is not covered"
+        );
     }
 
     /// Issue #983's plan: `expr()`'s operator menu used to omit the TIP 461

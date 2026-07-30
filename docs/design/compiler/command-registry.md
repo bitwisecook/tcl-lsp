@@ -418,6 +418,14 @@ plain text join.
 Reconstructing that needs list quoting the analyser does not model, so any
 trailing word means the call is consumed without walking.
 
+The **VM** does model it, because it has to run the command:
+`tcl-vm/src/cmd_namespace.rs`'s `inscope_script` builds the tail as a
+`Value::list` (whose string rep is the canonical `tcl_syntax::list::join_list`
+quoting) and concatenates it onto the script through the shared
+`tcl_cmd_core::list::concat`, so neither the quoting nor the `Tcl_ConcatObj`
+trim rule is re-derived there. With no trailing word it evaluates the script
+verbatim, matching C's `objc == 3` arm (issue #1056).
+
 `catch` is deliberately outside the family: it takes a single bounded script
 argument, so its remaining words are result / options variable names.
 
