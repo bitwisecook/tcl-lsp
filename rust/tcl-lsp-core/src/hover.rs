@@ -214,6 +214,49 @@ fn ensemble_subcommand_hover(
     Some(Hover::markdown(text))
 }
 
+/// `expr` math-function hover — the **bare** in-expression spelling
+/// `sin(1.0)` / `max($a, $b)`, which renders from the same registry spec the
+/// qualified `::tcl::mathfunc::sin` spelling already did (issue #974 defect
+/// 1: only the qualified spellings were registered, so a bare call drew
+/// nothing at any column).
+///
+/// Definitive: once the cursor is on a recorded math-function call, this is
+/// what the call reaches — a user override, the built-in, or (when the
+/// function does not exist in this dialect) nothing at all. The caller must
+/// not fall through to ordinary command resolution, which would let a
+/// coincidentally same-named proc in an unrelated namespace hijack the hover.
+///
+/// See [`crate::expr_context`] for the resolution rule and its C Tcl oracle.
+fn math_function_hover(
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    profile: &'static tcl_dialect::DialectProfile,
+    cursor_offset: u32,
+) -> Option<Hover> {
+    use crate::expr_context::MathFuncTarget;
+    match crate::expr_context::math_function_target_at(analysis, registry, profile, cursor_offset)?
+    {
+        MathFuncTarget::UserProc(proc_def) => Some(Hover::markdown(proc_hover_text(proc_def))),
+        MathFuncTarget::Builtin {
+            bare,
+            qualified,
+            spec,
+        } => {
+            use std::fmt::Write;
+            let hover = spec.hover.as_ref()?;
+            let mut out = format!("**`{bare}`** — `expr` math function\n");
+            if !hover.summary.is_empty() {
+                let _ = write!(out, "\n{}\n", hover.summary);
+            }
+            if let Some(synopsis) = hover.synopsis.first() {
+                let _ = write!(out, "\n```tcl\n{synopsis}\n```\n");
+            }
+            let _ = write!(out, "\nDispatches to `{qualified}`.\n");
+            Some(Hover::markdown(out))
+        }
+    }
+}
+
 /// Proc hover at `cursor_offset`: namespace-aware, following C Tcl's
 /// command resolution (`Tcl_FindCommand`, `tclNamesp.c`) — the cursor's
 /// namespace first (consulting `analysis.namespace_overrides` ahead of the
@@ -245,6 +288,13 @@ fn proc_hover_at(
 /// function's own doc for why it can't reuse the ordinary scope-chain walk
 /// (issue #923 differential-audit finding idx 9, main audit wave).
 /// Extracted from [`hover_with_profile`] to keep it within the line budget.
+///
+/// `profile` carries the document's dialect through to the type/taint
+/// inference below: the intrep lattice is read off a freshly-built
+/// [`CompilationUnit`], and building that with the default (plain-Tcl) lexer
+/// config mis-tokenises a dialect-specific construct — an iRules word
+/// operator, `{*}` under 8.4 — which skews or drops the inferred type
+/// (issue #1054).
 fn variable_hover(
     source: &str,
     line: u32,
@@ -252,8 +302,9 @@ fn variable_hover(
     line_index: &tcl_lexer::LineIndex,
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
-    dialect: tcl_dialect::DialectSet,
+    profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Hover> {
+    let dialect = profile.availability_mask;
     // `$var` resolution sits at a position where `find_word_span_at_position`
     // would also match the unqualified name, but a `$`-led ref should
     // surface the `VarDef` not the (typically absent) proc of the same name.
@@ -261,9 +312,13 @@ fn variable_hover(
         let var_byte_offset =
             crate::definition::byte_offset_at(line_index, source, line, character);
         // Use the byte-offset scope-chain lookup (the local line-based helper
-        // mis-resolves namespace/proc-scoped vars).
-        if let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
+        // mis-resolves namespace/proc-scoped vars), gated on the occurrence
+        // actually being one Tcl substitutes — see `lookup_var_read_at`
+        // (issue #923 idx 24).
+        if let Some(var_def) = crate::definition::lookup_var_read_at(
             &analysis.global_scope,
+            source,
+            profile.name,
             var_byte_offset,
             &var_name,
             analysis.ns_var_global_fallback(),
@@ -273,7 +328,7 @@ fn variable_hover(
             // registry; without one we surface just the reference
             // count.
             let (type_info, taint_info) =
-                var_type_annotations(source, line, character, &var_name, registry);
+                var_type_annotations(source, line, character, &var_name, registry, profile);
             return Some(Hover::markdown(var_hover_text(
                 var_def,
                 type_info.as_deref(),
@@ -294,10 +349,19 @@ fn variable_hover(
     }
 
     let decl_byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    // A *computed* parameter list (`proc p [makeargs] …`) is live code, not a
+    // declaration site: the analyser records a stub `VarDef` named after the
+    // whole word (`"[makeargs]"`), so trusting it here would render a bogus
+    // variable hover over what is really a call (Codex review of PR #1073).
+    if crate::definition::parameter_list_position_at(analysis, source, decl_byte_offset)
+        == crate::definition::ParamListPosition::Computed
+    {
+        return None;
+    }
     let var_def =
         crate::definition::var_def_at_declaration_offset(&analysis.global_scope, decl_byte_offset)?;
     let (type_info, taint_info) =
-        var_type_annotations(source, line, character, &var_def.name, registry);
+        var_type_annotations(source, line, character, &var_def.name, registry, profile);
     Some(Hover::markdown(var_hover_text(
         var_def,
         type_info.as_deref(),
@@ -328,9 +392,30 @@ pub fn hover_with_profile(
         &line_index,
         analysis,
         registry,
-        dialect,
+        profile,
     ) {
         return Some(hover);
+    }
+
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+
+    // `expr` math-function hover (issue #974 defect 1) — asked before every
+    // remaining path: inside an expression a `NAME(` word is a function-call
+    // production, not a command lookup, so nothing else may claim it.  See
+    // `math_function_hover`.
+    if let Some(hover) = math_function_hover(analysis, registry, profile, cursor_offset) {
+        return Some(hover);
+    }
+
+    // A word inside an enclosing proc/method's own *literal* parameter list is
+    // pure data — a parameter name (already answered by `variable_hover`) or a
+    // default value — never a command reference (issue #923 idx 104: both the
+    // parameter name `destroy` and the default-value literal `destroy` in
+    // `proc ::tk::RestoreFocusGrab {grab focus {destroy destroy}}` rendered
+    // Tk's `destroy` *command* documentation).  A *computed* parameter list
+    // (`proc p [makeargs] {…}`) holds live code and stays navigable.
+    if crate::definition::offset_is_in_parameter_list(analysis, source, cursor_offset) {
+        return None;
     }
 
     // Format-string hover: when the cursor
@@ -358,7 +443,6 @@ pub fn hover_with_profile(
     }
 
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
-    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
 
     // `$obj method` dispatch — when the cursor sits on the
     // method-name token of an instance-method call and the
@@ -2261,11 +2345,38 @@ fn clock_format_string_at_position(source: &str, line: u32, character: u32) -> O
 ///
 /// Returns `None` when the cursor sits on a delimiter run (empty word).
 ///
+/// A single `:` is *not* a delimiter, and must not become one: in Tcl only
+/// `::` is a namespace separator and a lone colon is an ordinary name
+/// character, so `a:b`, `p:q`, `arr(k:1)`, and a dict key `x:y` are each one
+/// name (verified against tclsh 8.6 and 9.0 — `set a:b 42`, `proc p:q {x} …`,
+/// `namespace eval ns { proc c:d {} … }` all work).  What *is* handled is the
+/// residual-`::` case: when the left scan stops on a substitution closer
+/// (`}` / `]`), a leading `::` in the word is the tail of a **computed** name
+/// (`${ns}::setdef`), not an absolute one — see [`word_char_bounds`]'s return
+/// value.
+///
 /// Deliberately *not* handled: a word split across lines by a
 /// backslash-newline continuation, and the interior structure of a word
 /// that mixes literal text with substitutions (`pre[cmd]post`) — the
 /// caller sees the literal slice only.
 pub(crate) fn word_char_bounds(chars: &[char], col: usize) -> Option<(usize, usize)> {
+    word_char_bounds_kinded(chars, col).map(|(start, end, _)| (start, end))
+}
+
+/// [`word_char_bounds`] also reporting whether the word is the **residual
+/// tail of a computed name** — the literal fragment that follows a `${var}` /
+/// `[cmd]` substitution inside the same word (`${ns}::setdef` → `::setdef`,
+/// issue #923 idx 54).
+///
+/// The scan cannot see the substitution (it stops at its closer, which is a
+/// delimiter), so without this flag `::setdef` is indistinguishable from a
+/// genuinely absolute `::setdef` and resolution looks for a global proc of
+/// that literal name — finding nothing, and reporting no definition for a
+/// call that statically resolves fine (`${ns}::setdef` with `ns ==
+/// "::ticklecharts"`).  Reporting the fact here, in the one shared
+/// word-bounding rule, keeps every consumer (hover, definition, references,
+/// rename) on the same answer.
+pub(crate) fn word_char_bounds_kinded(chars: &[char], col: usize) -> Option<(usize, usize, bool)> {
     let mut start = col.min(chars.len());
     while start > 0 && !WORD_DELIMS.contains(&chars[start - 1]) {
         start -= 1;
@@ -2274,7 +2385,15 @@ pub(crate) fn word_char_bounds(chars: &[char], col: usize) -> Option<(usize, usi
     while end < chars.len() && !WORD_DELIMS.contains(&chars[end]) {
         end += 1;
     }
-    (start != end).then_some((start, end))
+    if start == end {
+        return None;
+    }
+    // A `}` / `]` immediately left of the word closes a `${…}` / `[…]`
+    // substitution that is part of this same word: whatever follows is a
+    // *fragment*, not a standalone name.
+    let after_substitution = start > 0 && matches!(chars[start - 1], '}' | ']');
+    let residual = after_substitution && chars[start..end].starts_with(&[':', ':']);
+    Some((start, end, residual))
 }
 
 /// Find the word and its `[start, end)` columns at the given
@@ -2283,6 +2402,15 @@ pub(crate) fn word_char_bounds(chars: &[char], col: usize) -> Option<(usize, usi
 /// Returns `None` when
 /// `line` / `character` is out of bounds or the cursor sits on a
 /// delimiter run.
+///
+/// A word that is the residual tail of a computed name — the literal
+/// fragment after a `${var}` / `[cmd]` substitution in the same word, as in
+/// `${ns}::setdef` — is reported as the *name* it spells (`setdef`), with the
+/// span narrowed past the `::` accordingly (issue #923 idx 54).  Keeping the
+/// leading `::` made it indistinguishable from an absolute name, so
+/// resolution looked for a global proc literally called `::setdef` and every
+/// consumer reported nothing; narrowing the span as well is what keeps rename
+/// from eating the namespace separator it must preserve.
 #[must_use]
 pub fn find_word_span_at_position(
     source: &str,
@@ -2295,7 +2423,13 @@ pub fn find_word_span_at_position(
     if col >= chars.len() {
         return None;
     }
-    let (start, end) = word_char_bounds(&chars, col)?;
+    let (mut start, end, residual) = word_char_bounds_kinded(&chars, col)?;
+    if residual && col >= start + 2 {
+        start += 2;
+        if start >= end {
+            return None;
+        }
+    }
     let word: String = chars[start..end].iter().collect();
     let prefix: String = chars[..start].iter().collect();
     let start_u32 = crate::definition::utf16_len(&prefix);
@@ -2355,11 +2489,12 @@ fn var_type_annotations(
     character: u32,
     var_name: &str,
     registry: Option<&CommandRegistry>,
+    profile: &'static tcl_dialect::DialectProfile,
 ) -> (Option<String>, Option<String>) {
     let type_var = find_var_element_at_position(source, line, character)
         .unwrap_or_else(|| var_name.to_owned());
     match registry {
-        Some(reg) => infer_var_type_and_taint(source, reg, &type_var),
+        Some(reg) => infer_var_type_and_taint(source, reg, &type_var, profile),
         None => (None, None),
     }
 }
@@ -2719,12 +2854,32 @@ fn tcl_type_label(t: TclType) -> String {
 /// Build the compiler [`CompilationUnit`] and extract the
 /// inferred-intrep and taint annotations for `var_name`.  Returns
 /// `(type_label, taint_label)`; either may be `None`.
+///
+/// Built **for the document's dialect** (issue #1054): the unit is lowered
+/// with `LexerConfig::for_dialect` and the dialect is recorded on the build
+/// options, so word tokenisation, the expression grammar the lowering parses
+/// conditions with, and the lattice pipeline's fold policy all agree with the
+/// rest of the analysis.  Building with the plain-Tcl default instead
+/// mis-tokenises dialect-specific words (an iRules `contains` / `starts_with`
+/// word operator, `{*}` under 8.4) and the inferred intrep the hover shows
+/// silently skews or disappears.  Same pattern as
+/// [`crate::inlay_hints`]'s own dialect-aware segmentation.
 fn infer_var_type_and_taint(
     source: &str,
     registry: &CommandRegistry,
     var_name: &str,
+    profile: &'static tcl_dialect::DialectProfile,
 ) -> (Option<String>, Option<String>) {
-    let unit = CompilationUnit::build_for(source, registry, false);
+    let unit = CompilationUnit::build_with_options(
+        source,
+        tcl_compiler::compilation_unit::UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::for_dialect(profile.name),
+            dialect: profile.name,
+            external_call_sites: None,
+        },
+    );
     let first_use = tcl_compiler::shimmer::first_use_commitments_for_cu(&unit, registry);
     (
         infer_var_type(&unit, var_name, &first_use),

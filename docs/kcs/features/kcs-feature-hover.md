@@ -40,10 +40,66 @@ Hover only looks further afield for a **command being called**. An ordinary
 argument word that happens to share a name with a proc in another file shows
 nothing, so a `puts widget` never pops up an unrelated `widget` procedure.
 
+### `expr` math functions
+
+Inside an `expr` expression, hovering a function call shows that function's
+documentation under its bare name:
+
+```tcl
+set a [expr {sin(1.0)}]
+#            ^ hover here
+```
+
+Both spellings now read the same, because both come from the same command
+registry entry: the bare `sin(…)` inside an expression, and the
+`::tcl::mathfunc::sin` command spelling.
+
+Your own override wins, exactly as it does when the code runs. A `proc` in a
+`tcl::mathfunc` namespace is a real command, so hovering the call shows the
+procedure:
+
+```tcl
+namespace eval tcl::mathfunc {
+    proc li {list index args} { lindex $list $index }
+}
+if {li({0 1 0}, 1)} { … }
+#    ^ hover shows `proc ::tcl::mathfunc::li`
+```
+
+A function your chosen Tcl version does not have shows nothing — `isnan(…)` is
+Tcl 9.0 and later, `gamma(…)` is Tcl 9.1 and later.
+
+### Positions that are not references
+
+Hover stays silent where the text under the cursor is not a reference at all,
+even when it looks like one:
+
+- A `$name` inside a comment, or inside a brace-quoted value Tcl passes
+  through unchanged (`set t {plain $level here}` really does print
+  `plain $level here`).
+- A word in a procedure's own **literal** parameter list — a parameter name
+  shows the parameter, and a default value shows nothing, rather than a
+  command that happens to share the name.
+
+Both of those are decided narrowly, so a real reference is never hidden:
+
+- Only a `#` that genuinely starts a command is a comment. A brace in the
+  middle of a word is an ordinary character, so `puts a{# $v` still shows
+  `$v` — that line really does substitute it.
+- Only a *literal* parameter list is data. A computed one is live code and
+  stays clickable, so `proc p [makeargs] {…}` still shows and jumps to
+  `makeargs`, which really is called when the procedure is defined.
+
 ## File-path anchors
 
 - `rust/tcl-lsp-core/src/hover.rs` — the provider and its renderers, including
   `qualified_symbol_hover` for a symbol defined in another document
+- `rust/tcl-lsp-core/src/expr_context.rs` — the shared "is the cursor on an
+  `expr` math-function call, and what does it resolve to" helper
+- `rust/tcl-lsp-core/src/inert_text.rs` — the comment / data-brace tests that
+  keep hover silent on text Tcl never substitutes
+- `rust/tcl-registry/src/mathfunc.rs` — the registry's math-function query
+  (bare name to command name, plus the two version axes)
 - `rust/tcl-lsp-server/src/lib.rs` — `cross_document_hover`, the workspace and
   library-index fallback
 
@@ -58,6 +114,8 @@ nothing, so a `puts widget` never pops up an unrelated `widget` procedure.
 
 - `rust/tcl-lsp-server/tests/e2e/hover.rs`
 - `rust/tcl-lsp-core/src/hover.rs` — renderer unit tests
+- `rust/tcl-lsp-core/tests/mathfunc_and_word_recognition.rs` — the `expr`
+  math-function and not-a-reference cases
 
 ## Screenshots
 

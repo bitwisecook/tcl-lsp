@@ -146,32 +146,22 @@ pub fn definition(
 ) -> Vec<LspRange> {
     let line_index = LineIndex::new(source);
 
-    // 1. Variable reference — walk the scope chain inward
-    //    from the global scope toward the innermost scope
-    //    whose body span contains the cursor's byte offset,
-    //    then walk back outward looking for the var.
-    if let Some(var_name) = find_var_at_position(source, line, character) {
-        let cursor_offset = byte_offset_at(&line_index, source, line, character);
-        if let Some(var_def) = lookup_var_in_scope_chain(
-            &analysis.global_scope,
-            cursor_offset,
-            &var_name,
-            analysis.ns_var_global_fallback(),
-        ) {
-            return vec![span_to_range(source, &line_index, var_def.definition_span)];
-        }
-        return Vec::new();
-    }
-
-    // 1b. Variable *declaration* / same-cell write site — the cursor sits
-    //     on a plain name token (a `set x`/`variable x` target, a
-    //     proc/method parameter, a `catch` result-var), not a
-    //     `$`-prefixed read. See `var_def_at_declaration_offset`'s own doc
-    //     for why this can't reuse the ordinary scope-chain walk (issue
-    //     #923 differential-audit finding idx 9, main audit wave).
     let decl_byte_offset = byte_offset_at(&line_index, source, line, character);
-    if let Some(var_def) = var_def_at_declaration_offset(&analysis.global_scope, decl_byte_offset) {
-        return vec![span_to_range(source, &line_index, var_def.definition_span)];
+    // Steps 1a-1d: everything decided by the cursor's *position* rather than
+    // by resolving a bareword — a `$var` read, a bareword declaration, an
+    // `expr` math-function call, and the two positions that are pure data.
+    // `Some` is definitive (including `Some(vec![])`).
+    if let Some(result) = position_definition(
+        source,
+        &line_index,
+        decl_byte_offset,
+        DefCtx {
+            line,
+            character,
+            analysis,
+        },
+    ) {
+        return result;
     }
 
     // 2. Bare word — proc, class, class-member, or alias.
@@ -297,6 +287,87 @@ pub fn definition(
         return vec![span_to_range(source, &line_index, proc_def.name_span)];
     }
     Vec::new()
+}
+
+/// The cursor context [`position_definition`] needs beyond the offset.
+#[derive(Clone, Copy)]
+struct DefCtx<'a> {
+    line: u32,
+    character: u32,
+    analysis: &'a AnalysisResult,
+}
+
+/// The go-to-definition answers decided by the cursor's *position* alone,
+/// before any bareword command resolution.  `Some` is definitive — including
+/// `Some(vec![])`, which means "this position is not a reference to anything,
+/// stop looking".
+///
+/// In order:
+///
+/// 1. **A `$var` read** — the scope chain inward from the global scope to the
+///    innermost scope whose body span contains the offset, then outward
+///    looking for the name; gated on the occurrence being one Tcl actually
+///    substitutes ([`lookup_var_read_at`], issue #923 idx 24).
+/// 2. **A bareword variable declaration / same-cell write site** — a `set x` /
+///    `variable x` target, a proc/method parameter, a `catch` result-var. See
+///    [`var_def_at_declaration_offset`] for why this can't reuse the ordinary
+///    scope-chain walk (issue #923 idx 9).
+/// 3. **An `expr` math-function call** — inside an expression a `NAME(` word is
+///    a function-call production resolved through `{ns}::tcl::mathfunc::NAME`
+///    then `::tcl::mathfunc::NAME`, not an ordinary command lookup (issue #923
+///    idx 30 / issue #974). Asked before the bareword paths because the
+///    word-span scan would hand them `sin(1.0)` / `li(` — the function-call
+///    syntax glued on — and because a coincidentally same-named proc elsewhere
+///    must never win. A built-in resolves to no Tcl source, so an empty result
+///    is the right answer there.
+/// 4. **A word inside an enclosing proc/method's own parameter list** — a
+///    parameter name (answered at 2) or a default value, never a command
+///    reference (issue #923 idx 104).
+fn position_definition(
+    source: &str,
+    line_index: &LineIndex,
+    cursor_off: u32,
+    ctx: DefCtx<'_>,
+) -> Option<Vec<LspRange>> {
+    let DefCtx {
+        line,
+        character,
+        analysis,
+    } = ctx;
+    if let Some(var_name) = find_var_at_position(source, line, character) {
+        return Some(
+            lookup_var_read_at(
+                &analysis.global_scope,
+                source,
+                "",
+                cursor_off,
+                &var_name,
+                analysis.ns_var_global_fallback(),
+            )
+            .map(|var_def| vec![span_to_range(source, line_index, var_def.definition_span)])
+            .unwrap_or_default(),
+        );
+    }
+    let param_position = parameter_list_position_at(analysis, source, cursor_off);
+    if param_position != ParamListPosition::Computed
+        && let Some(var_def) = var_def_at_declaration_offset(&analysis.global_scope, cursor_off)
+    {
+        return Some(vec![span_to_range(
+            source,
+            line_index,
+            var_def.definition_span,
+        )]);
+    }
+    if let Some(inv) = crate::expr_context::mathfunc_call_at(analysis, cursor_off) {
+        return Some(
+            inv.resolved_qualified_name
+                .as_deref()
+                .and_then(|resolved| analysis.all_procs.get(resolved))
+                .map(|proc_def| vec![span_to_range(source, line_index, proc_def.name_span)])
+                .unwrap_or_default(),
+        );
+    }
+    (param_position == ParamListPosition::LiteralData).then(Vec::new)
 }
 
 /// Go-to-definition for an instance-method call site (`$obj method` /
@@ -1310,6 +1381,182 @@ pub(crate) fn var_def_at_declaration_offset(
         .find_map(|child| var_def_at_declaration_offset(child, byte_offset))
 }
 
+/// The [`VarDef`](tcl_compiler::analyser::VarDef) a `$name` **read** at
+/// `cursor_off` resolves to — [`lookup_var_in_scope_chain`] gated on the
+/// occurrence being one Tcl actually substitutes.
+///
+/// The cursor-word scan ([`crate::hover::find_var_at_position`]) is a
+/// delimiter-based character scan with no idea whether the `$name` text it
+/// matched is in a substituting position.  It therefore matches a
+/// `$level`-shaped substring inside an inert Tcl comment, or inside a
+/// brace-quoted word Tcl emits byte-for-byte unsubstituted (`set t {plain
+/// $level here}` prints `$level` verbatim on tclsh 8.6 and 9.0) — and hover /
+/// go-to-definition / find-references / rename then confidently resolved it to
+/// a real declaration, contradicting the LSP's own semantic tokens (one opaque
+/// comment / string token, no nested variable) and its own W220
+/// "assignment is never read" (which correctly treats those as non-reads).
+/// Issue #923 differential-audit finding idx 24.
+///
+/// [`crate::inert_text`] holds both proofs, and both are conservative — they
+/// answer "inert" only when the position provably is, so abstaining on them
+/// can never drop a genuine reference.  The scope-chain lookup runs first
+/// because it is the cheap half: the data-brace proof re-segments the source,
+/// and there is nothing to suppress when no `VarDef` resolved anyway.
+pub(crate) fn lookup_var_read_at<'a>(
+    global: &'a tcl_compiler::analyser::Scope,
+    source: &str,
+    dialect: &str,
+    cursor_off: u32,
+    name: &str,
+    ns_global_fallback: bool,
+) -> Option<&'a tcl_compiler::analyser::VarDef> {
+    let var_def = lookup_var_in_scope_chain(global, cursor_off, name, ns_global_fallback)?;
+    let inert = crate::inert_text::offset_in_comment(source, cursor_off)
+        || crate::inert_text::offset_in_data_brace(
+            source,
+            cursor_off,
+            tcl_registry::registry_for_dialect(dialect),
+            dialect,
+        );
+    (!inert).then_some(var_def)
+}
+
+/// Whether `off` sits inside a **literal** parameter-list word of a proc or
+/// method — the word between its name token and its body.
+///
+/// Every word inside a literal parameter list is pure data: a parameter's own
+/// name, or a default value.  Neither is a command reference, so bareword
+/// command resolution must not run on it: `proc ::tk::RestoreFocusGrab {grab
+/// focus {destroy destroy}}` had both the parameter name `destroy` and the
+/// default-value literal `destroy` resolving to Tk's `destroy` **command**
+/// (issue #923 differential-audit finding idx 104 — tclsh proves the bare word
+/// in a parameter list never invokes anything).  A cursor on the parameter
+/// *name* is answered earlier, by [`var_def_at_declaration_offset`]; this
+/// guard is what stops the remaining data words falling through.
+///
+/// **Literal** is the load-bearing word.  `proc`'s parameter-list argument is
+/// an ordinary Tcl word, so it may be *computed*, and then it holds live code
+/// that must stay navigable.  Verified on tclsh 9.0.4 and 8.6.16:
+///
+/// ```tcl
+/// proc makeargs {} { return {a b} }
+/// proc p [makeargs] { return "p got $a $b" }
+/// puts [p 1 2]          ;# p got 1 2
+/// puts [info args p]    ;# a b
+/// set params {x y}
+/// proc q $params { … }  ;# works the same way
+/// proc r "m n" { … }    ;# and so does a quoted one
+/// ```
+///
+/// `[makeargs]` really is a call, made at definition time, so go-to-definition
+/// and hover on it must work.  Only a braced word (`{a {b 1} args}` —
+/// substitution suppressed outright) or a plain bareword with no substitution
+/// syntax is treated as data; anything containing `$`, `[`, `"`, or a
+/// backslash escape stays navigable.
+pub(crate) fn offset_is_in_parameter_list(
+    analysis: &AnalysisResult,
+    source: &str,
+    off: u32,
+) -> bool {
+    parameter_list_position_at(analysis, source, off) == ParamListPosition::LiteralData
+}
+
+/// What a cursor offset is, with respect to the parameter-list word of the
+/// routine that encloses it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ParamListPosition {
+    /// Not inside any routine's parameter-list word.
+    Outside,
+    /// Inside a **literal** parameter list — pure data, no references.
+    LiteralData,
+    /// Inside a **computed** one (`proc p [makeargs] …`, `proc q $params …`,
+    /// `proc r "m n" …`): live code that must stay navigable, and *not* a
+    /// place a parameter declaration can be trusted either — the analyser
+    /// records a stub `VarDef` named after the whole word (`"[makeargs]"`),
+    /// which would otherwise make go-to-definition point at the cursor's own
+    /// token instead of resolving the call.
+    Computed,
+}
+
+/// Classify `off` against the parameter-list word of whichever proc or method
+/// encloses it — see [`ParamListPosition`] and
+/// [`offset_is_in_parameter_list`].
+pub(crate) fn parameter_list_position_at(
+    analysis: &AnalysisResult,
+    source: &str,
+    off: u32,
+) -> ParamListPosition {
+    let classify = |name_span: tcl_lexer::Span, body_span: tcl_lexer::Span| {
+        param_word_position(source, name_span.end(), body_span.start(), off)
+    };
+    let routines = analysis
+        .all_procs
+        .values()
+        .map(|p| (p.name_span, p.body_span));
+    let members = analysis.all_classes.values().flat_map(|c| {
+        c.methods
+            .values()
+            .chain(c.class_methods.values())
+            .map(|m| (m.name_span, m.body_span))
+    });
+    routines
+        .chain(members)
+        .map(|(name_span, body_span)| classify(name_span, body_span))
+        .find(|p| *p != ParamListPosition::Outside)
+        .unwrap_or(ParamListPosition::Outside)
+}
+
+/// Classify `off` against the parameter-list word sitting in
+/// `[region_start, region_end)` — a routine's name-token end to its body
+/// start.  See [`offset_is_in_parameter_list`] for the oracle behind the
+/// literal test.
+fn param_word_position(
+    source: &str,
+    region_start: u32,
+    region_end: u32,
+    off: u32,
+) -> ParamListPosition {
+    let (start, end, off) = (region_start as usize, region_end as usize, off as usize);
+    if start > end || off < start || off >= end || end > source.len() {
+        return ParamListPosition::Outside;
+    }
+    // The parameter list is the first word of the region; skip the whitespace
+    // the segmenter left between the name token and it.
+    let bytes = source.as_bytes();
+    let mut word_start = start;
+    while word_start < end && matches!(bytes[word_start], b' ' | b'\t' | b'\r' | b'\n') {
+        word_start += 1;
+    }
+    if word_start >= end {
+        return ParamListPosition::Outside;
+    }
+    let word_end = crate::expr_context::word_end(source, word_start, end);
+    if off < word_start || off >= word_end {
+        return ParamListPosition::Outside;
+    }
+    let Some(word) = source.get(word_start..word_end) else {
+        return ParamListPosition::Outside;
+    };
+    if param_word_is_literal(word) {
+        ParamListPosition::LiteralData
+    } else {
+        ParamListPosition::Computed
+    }
+}
+
+/// Whether a parameter-list word is a literal — data Tcl passes through
+/// without substitution.
+///
+/// A braced word suppresses substitution outright.  A bare word substitutes,
+/// so it only counts as literal when it contains no substitution syntax at
+/// all; a quoted word never counts (its `$` / `[` are live).
+fn param_word_is_literal(word: &str) -> bool {
+    if word.starts_with('{') {
+        return true;
+    }
+    !word.contains(['$', '[', '"', '\\'])
+}
+
 /// Collect every variable name visible at `byte_offset` — the union
 /// of `variables` across the scope chain (innermost first, then
 /// enclosing scopes up to the global root).  Used by variable
@@ -1944,6 +2191,19 @@ pub(crate) fn resolve_proc_target_at<'a>(
     {
         return Some(hit);
     }
+    // An `expr` math-function call site resolves through the analyser's own
+    // two-candidate mathfunc rule, not the ordinary bareword one — so
+    // find-references / rename / call-hierarchy / linked-editing triggered
+    // *at a call site* reach the same `proc ::tcl::mathfunc::NAME` a query
+    // from the declaration already did (issue #923 idx 30: the asymmetry was
+    // this resolution being missing here). `word` is unusable at such a
+    // cursor anyway — the word-span scan hands back `li(`.
+    if let Some(inv) = crate::expr_context::mathfunc_call_at(analysis, cursor_off) {
+        return inv
+            .resolved_qualified_name
+            .as_deref()
+            .and_then(|resolved| analysis.all_procs.get_key_value(resolved));
+    }
     let ns = namespace_context_at(
         &analysis.global_scope,
         cursor_off,
@@ -1998,6 +2258,15 @@ pub(crate) fn resolve_class_target_at<'a>(
 /// document ([`name_token_in_document`]), then the lexicographically
 /// smallest qualified name.  `HashMap` iteration order never decides the
 /// result.
+///
+/// A proc living in a `tcl::mathfunc` namespace is excluded: real Tcl reaches
+/// it only through `expr`'s function-call production or its own fully-
+/// qualified name, never as a bare command word (`li {10 20 30} 1` →
+/// `invalid command name "li"` on tclsh 8.6 and 9.0 — issue #923 idx 30's
+/// secondary false positive, where this lenient tail match resolved a
+/// guaranteed-to-crash bare call to the mathfunc proc).  The namespace fact
+/// is the registry's ([`tcl_registry::mathfunc::is_in_mathfunc_namespace`]),
+/// not a name test written here.
 pub(crate) fn fallback_proc_by_simple_name<'a>(
     analysis: &'a AnalysisResult,
     source: &str,
@@ -2006,6 +2275,7 @@ pub(crate) fn fallback_proc_by_simple_name<'a>(
     analysis
         .all_procs
         .iter()
+        .filter(|(qname, _)| !tcl_registry::mathfunc::is_in_mathfunc_namespace(qname))
         .filter(|(_, proc_def)| proc_def.name == word)
         .min_by(|(qname_a, proc_a), (qname_b, proc_b)| {
             let a_foreign = !name_token_in_document(source, proc_a);

@@ -893,6 +893,46 @@ fn uplevel_with_level_word_does_not_corrupt_sibling_scopes() {
     assert!(ls.contains(&"$sx".to_owned()), "scan write missing: {ls:?}");
 }
 
+// -- expr math functions (issue #974 defect 2) ---------------------------
+
+/// Inside an `expr` expression argument the bare math functions are offered —
+/// before this the position surfaced only same-prefixed procs.
+#[test]
+fn math_functions_complete_inside_expr_974() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc sizzler {} {}\nset a [expr {si\n");
+    let ls = labels(&mut lsp, &uri, 1, 15);
+    assert!(ls.contains(&"sin".to_owned()), "sin missing: {ls:?}");
+    assert!(ls.contains(&"sinh".to_owned()), "sinh missing: {ls:?}");
+    assert!(
+        ls.contains(&"sizzler".to_owned()),
+        "the proc still surfaces: {ls:?}"
+    );
+}
+
+/// An `if` condition is an expression argument too — the role map is the
+/// registry's, so no command name is special-cased.
+#[test]
+fn math_functions_complete_in_an_if_condition_974() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "if {ma\n");
+    let ls = labels(&mut lsp, &uri, 0, 6);
+    assert!(ls.contains(&"max".to_owned()), "max missing: {ls:?}");
+}
+
+/// TN: the same prefix outside an expression keeps its previous behaviour.
+#[test]
+fn math_functions_do_not_complete_outside_expr_974() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc sizzler {} {}\nsi\n");
+    let ls = labels(&mut lsp, &uri, 1, 2);
+    assert!(!ls.contains(&"sin".to_owned()), "sin leaked: {ls:?}");
+    assert!(ls.contains(&"sizzler".to_owned()), "{ls:?}");
+}
+
 #[test]
 fn weird_set_names_do_not_break_scan_completion() {
     for (name, weird) in [

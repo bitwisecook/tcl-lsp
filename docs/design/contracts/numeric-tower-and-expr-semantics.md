@@ -60,6 +60,35 @@ A separate lexer/parser/evaluator with its own:
   `::tcl::mathfunc::*`. Users can **define or override** them, so function
   dispatch is the namespace command table, not a builtin switch. `tcl::mathop`
   exposes the operators as commands (`+ - * ...`) for `{*}`-style use.
+
+  The dispatch is **caller-namespace-relative, then global**, and the two
+  spellings are *not* interchangeable — both verified against tclsh 8.6.16 and
+  9.0.4:
+
+  ```tcl
+  namespace eval ::tcl::mathfunc { proc g {x} { expr {$x + 1000} } }
+  namespace eval ::foo {
+      namespace eval tcl::mathfunc { proc f {x} { expr {$x * 100} } }
+      proc use  {} { expr {f(2)} }   ;# 200  -> ::foo::tcl::mathfunc::f
+      proc useg {} { expr {g(2)} }   ;# 1002 -> ::tcl::mathfunc::g (global)
+  }
+  proc f {x} { return GLOBAL-PROC-f } ;# never reached from expr
+  li {10 20 30} 1                     ;# invalid command name "li"
+  ```
+
+  So an ordinary global `proc` of the same bare name never enters the
+  resolution, and conversely a proc living in a `tcl::mathfunc` namespace is
+  **not** reachable as a bare command — only through `expr`'s function-call
+  production or its own fully-qualified name.
+
+  Two availability axes follow from that and must be kept apart: the *`expr`
+  grammar* axis (is `NAME(…)` a built-in function here — `abs(…)` is 8.4) and
+  the *command table* axis (does the command `::tcl::mathfunc::NAME` exist here
+  — the table itself is TIP 232, so 8.5+, even for `abs`). Both live in
+  `rust/tcl-registry/src/mathfunc.rs`, with
+  `rust/tcl-syntax/src/expr/mathfunc.rs` as the layer-1 fact table it reads;
+  no consumer re-derives the `tcl::mathfunc` prefix or a version ceiling for
+  itself.
 * **Literals:** `0x`/`0o`/`0b` radices, `_` digit separators (`1_000`),
   decimal/scientific floats, `Inf`/`NaN` (case-insensitive, with the
   `NaN(hex)` payload form for `binary`/round-trip), booleans `true/false/

@@ -286,25 +286,18 @@ pub fn leading_zero_is_octal(dialect: &str) -> Option<bool> {
 }
 
 /// The newest `expr` math-function release available in `dialect`, or `None`
-/// when the dialect has no expr-grammar base (don't restrict).  Functions
-/// gate on the profile's *expr grammar* base version — the axis the
-/// relational operators use — so a vendor shell on an 8.5 core has the 8.5
-/// set; 8.6 adds none over 8.5.  The single mapping the const-folder and
-/// the availability diagnostic share.
+/// when the dialect has no expr-grammar base (don't restrict).
+///
+/// The dialect-name-keyed form of
+/// [`tcl_registry::mathfunc::expr_grammar_ceiling`], which owns the mapping —
+/// the registry is where mathfunc facts live, so the const-folder, the
+/// availability diagnostic, and the LSP's hover/completion all read one
+/// table.
 #[must_use]
 pub fn math_func_ceiling_for_dialect(
     dialect: &str,
 ) -> Option<tcl_syntax::expr::mathfunc::MathFuncSince> {
-    use tcl_dialect::TclVersion;
-    use tcl_syntax::expr::mathfunc::MathFuncSince;
-    let base = tcl_dialect::DialectProfile::by_name(dialect).expr_grammar_base?;
-    Some(match base {
-        TclVersion::V8_4 => MathFuncSince::Tcl84,
-        // TIP 232 landed in 8.5; 8.6 added no math functions over 8.5.
-        TclVersion::V8_5 | TclVersion::V8_6 => MathFuncSince::Tcl85,
-        TclVersion::V9_0 => MathFuncSince::Tcl90,
-        TclVersion::V9_1 => MathFuncSince::Tcl91,
-    })
+    tcl_registry::mathfunc::expr_grammar_ceiling(tcl_dialect::DialectProfile::by_name(dialect))
 }
 
 /// Whether `name` is a genuine built-in `expr` math function (`sin`, `max`,
@@ -315,13 +308,11 @@ pub fn math_func_ceiling_for_dialect(
 /// unresolved-command check and the cross-namespace invocation resettlement
 /// (`finalise_invocation_resolutions`, which runs after `self.result` is
 /// borrowed mutably and so cannot call back through `&self`) share one
-/// answer without either duplicating the other's logic.
+/// answer without either duplicating the other's logic.  Delegates to
+/// [`tcl_registry::mathfunc::available_in_expr`].
 #[must_use]
 pub fn is_known_mathfunc_in_dialect(name: &str, dialect: &str) -> bool {
-    let Some(since) = tcl_syntax::expr::mathfunc::added_in(name) else {
-        return false;
-    };
-    math_func_ceiling_for_dialect(dialect).is_none_or(|ceiling| since <= ceiling)
+    tcl_registry::mathfunc::available_in_expr(name, tcl_dialect::DialectProfile::by_name(dialect))
 }
 
 /// Whether `dialect` exposes math functions as literal `::tcl::mathfunc::*`
@@ -338,10 +329,12 @@ pub fn is_known_mathfunc_in_dialect(name: &str, dialect: &str) -> bool {
 /// keep an *ordinary* call that happens to resolve to a `tcl::mathfunc`-
 /// shaped qualified name from being waved through by the `expr`
 /// function-call shortcut, which only reflects the first, narrower fact.
+/// Delegates to [`tcl_registry::mathfunc::command_wrappers_available`].
 #[must_use]
 pub fn mathfunc_command_wrappers_available_in_dialect(dialect: &str) -> bool {
-    use tcl_syntax::expr::mathfunc::MathFuncSince;
-    math_func_ceiling_for_dialect(dialect).is_none_or(|ceiling| ceiling >= MathFuncSince::Tcl85)
+    tcl_registry::mathfunc::command_wrappers_available(tcl_dialect::DialectProfile::by_name(
+        dialect,
+    ))
 }
 
 fn eval_with_config(

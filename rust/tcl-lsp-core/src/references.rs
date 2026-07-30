@@ -531,17 +531,22 @@ struct RefCtx<'a> {
 fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     let RefCtx {
         source,
+        dialect,
         line_index,
         line,
         character,
         analysis,
         include_declaration,
-        ..
     } = *ctx;
     let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     let var_def = if let Some(var_name) = find_var_at_position(source, line, character) {
-        crate::definition::lookup_var_in_scope_chain(
+        // Gated on the occurrence being one Tcl actually substitutes — a
+        // `$name`-shaped substring in a comment or a data brace is not a
+        // reference (issue #923 idx 24; see `lookup_var_read_at`).
+        crate::definition::lookup_var_read_at(
             &analysis.global_scope,
+            source,
+            dialect,
             byte_offset,
             &var_name,
             analysis.ns_var_global_fallback(),
@@ -2629,8 +2634,10 @@ pub fn document_highlights(
 
     if let Some(var_name) = find_var_at_position(source, line, character) {
         let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-        let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
+        let Some(var_def) = crate::definition::lookup_var_read_at(
             &analysis.global_scope,
+            source,
+            dialect,
             byte_offset,
             &var_name,
             analysis.ns_var_global_fallback(),
