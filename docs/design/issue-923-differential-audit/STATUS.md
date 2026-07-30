@@ -547,6 +547,35 @@ a regression test rather than re-fixed. See the "tier-2 findings fixed by
 PR B2" subsection after the tier-2 table. That makes **58 fixed, 27
 remaining**.
 
+**2026-07-30 update — PR C1b
+(`claude/commandregistry-compiler-fixes-tshu8d-upvar-nav`) fixed idx 58, all
+tier 2, and narrowed idx 22/98:** the navigation half of the caller-frame
+model. idx 58's CONFIRMED claim was a **wrong-kind conflation** — hover and
+find-references answered a `$dataset` read with a coincidentally same-named
+TclOO accessor **method**, because both fell through to bareword resolution
+when the scope-chain lookup found nothing. Tcl keeps variables and commands
+in disjoint namespaces, so a `$`-led token can never denote a method; the
+`$`-led read is now definitive in all three providers (go-to-definition
+already abstained). On top of that abstention, `tcl-lsp-core`'s new
+[`caller_frame`](../../../rust/tcl-lsp-core/src/caller_frame.rs) module
+*resolves* the read: it finds the call sites in the enclosing frame whose
+callee parameter carries `ProcArgTrait::VarWrite` / `VarRead` (the analyser's
+own inference from the callee's `upvar ?level? $param local`, the same fact
+the frame-effect summary's `param_targets` bucket holds), so hover names the
+creating call, go-to-definition reaches the call-site word, and
+find-references links that word with every `$name` read it feeds.
+
+**idx 22 and idx 98 stay PARTIAL, now for a narrower reason.** Their shape is
+`upvar 1 name name` — a *literal* caller-side name the call site never
+spells, so there is no argument word to key navigation on. Resolving them
+needs the summary's `literal_targets` bucket recorded per procedure on
+`ProcDef`, which the analyser does not yet do; until then those reads take
+the abstaining answer rather than a wrong one. **idx 99** (`::tcl::OptProc`)
+and **idx 100** (`uplevel #0 [list upvar #0 …]` semantic tokens) are
+untouched by this PR — see their notes below. idx 59's **cross-file** half is
+also still open: `detect_upvar_procs` remains single-`Module`. That makes
+**59 fixed, 26 remaining** (tier 2: 37 fixed, 24 remaining).
+
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
 strings in the raw data — same corpus), tomato 7, pix 8.
@@ -759,7 +788,7 @@ users, a worse failure mode than the narrower, but fully oracle-grounded,
 `CONFIGURE`-tracking fix actually shipped. Left as a documented, low-risk
 follow-up for a session with Tk oracle access.
 
-#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 36 now fixed — 25 remaining), grouped by feature for clustering
+#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 37 now fixed — 24 remaining), grouped by feature for clustering
 
 Group findings sharing a feature/root-cause together in one fix pass the
 way idx 107+115 and idx 118+119 were — many of these look like they share
@@ -772,7 +801,7 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 | tclOO | 10 | ~~15~~ **ALREADY FIXED** (pinned, PR B2), 16, ~~34~~ **FIXED** (PR B2), ~~35~~ **FIXED** (PR B2), ~~36~~ **FIXED** (PR B2), ~~53~~ **FIXED**, ~~54~~ **FIXED**, ~~55~~ **FIXED**, ~~96~~ **FIXED**, ~~97~~ **FIXED** (all medium) |
 | namespaces | 8 | ~~3~~ **FIXED** (#1071), 19, ~~43~~ **ALREADY FIXED**, ~~44~~ **FIXED**, ~~64~~ **FIXED**, 65, 75, 85 (all medium) |
 | tricky_indirection | 7 | 0 (medium, **FIXED** — see below), ~~1~~ **FIXED**, ~~2~~ **FIXED**, 14, ~~49~~ **FIXED**, 50, 51 (all medium) |
-| upvar | 7 | ~~7~~ **FIXED** (PR C1a), 22 (**PARTIAL** — model landed, navigation in C1b), ~~57~~ **FIXED** (PR C1a), 58, ~~59~~ **FIXED** (PR C1a, single-document; cross-file open), 98 (**PARTIAL** — same), 99 (all medium) |
+| upvar | 7 | ~~7~~ **FIXED** (PR C1a), 22 (**PARTIAL** — model landed C1a, `$param` navigation C1b; the literal `upvar 1 name name` shape stays open), ~~57~~ **FIXED** (PR C1a), ~~58~~ **FIXED** (PR C1b), ~~59~~ **FIXED** (PR C1a, single-document; cross-file open), 98 (**PARTIAL** — same as 22), 99 (all medium) |
 | proc_args | 7 | ~~11~~ **FIXED** (#1071), ~~28~~ **FIXED** (PR B2), ~~37~~ **FIXED** (PR B2), 62, 67, 78, ~~104~~ **FIXED** (all medium) |
 | tcl_mathop | 4 | ~~30~~ **FIXED**, 80, ~~81~~ **ALREADY FIXED**, ~~103~~ **FIXED** (all medium) |
 | package_loading | 3 | ~~4~~ **FIXED** (#1071), 42, 72 (all medium) |
@@ -780,7 +809,7 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 | tracing | 3 | 47, ~~48~~ **FIXED**, ~~92~~ **FIXED** (PR B1) (all medium) |
 | rename | 2 | ~~5~~ **ALREADY FIXED** (pinned, PR B1), ~~45~~ **FIXED** (PR B1) (all medium) |
 | aliasing | 2 | ~~21~~ **FIXED** (PR B1), ~~89~~ **FIXED** (PR B1) (all medium) |
-| uplevel | 2 | ~~38~~ **FIXED** (PR C1a) (medium), 100 (low) |
+| uplevel | 2 | ~~38~~ **FIXED** (PR C1a) (medium), 100 (low — **open**: `uplevel #0 [list upvar #0 …]`'s statically-literal destination is tagged `namespace` instead of `variable [declaration]` by the semantic-token pass; the audit itself measured no navigation differential, so the impact stays highlighting-only) |
 | eval | 1 | ~~24~~ **FIXED** (medium) |
 | autoindex | 1 | 73 (medium) |
 | safe_interp | 1 | 91 (medium) |

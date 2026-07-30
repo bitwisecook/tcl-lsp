@@ -302,6 +302,22 @@ providers need the same map plus the call site's scope, which the analyser's
 caller-frame injection model above.  They still lower to
 `Statement::Barrier`, so the per-consumer barrier rules apply as well.
 
+**What PR C1b took, and what is left.**  The *navigation* half landed in
+[`tcl-lsp-core/src/caller_frame.rs`](../../../rust/tcl-lsp-core/src/caller_frame.rs),
+but it consumes the analyser's per-parameter `ProcArgTrait::VarWrite` /
+`VarRead` rather than this summary: those traits are the same fact as the
+`param_targets` bucket, and they are already on `ProcDef`, where a navigation
+provider can reach them without lowering the document to IR on every hover.
+Two gaps remain, both needing a fact the analyser does not record yet:
+
+* `literal_targets` (`upvar 1 name name`, audit idx 22/98) has no call-site
+  word to key on, so navigation abstains.  It needs a per-proc *literal
+  caller-frame target* list on `ProcDef`, computed by the same body walk
+  `infer_param_traits` already makes.
+* Cross-document (idx 59) still needs the interning described above.  Nothing
+  in the model changed; the workspace layer still has to merge the maps
+  before `prepare_cfg_context` runs.
+
 ### Known limitation — a brace-quoted `$`-bearing name is mis-keyed
 
 A variable whose literal name contains a `$` (`set {$n} 1`) is recognised as

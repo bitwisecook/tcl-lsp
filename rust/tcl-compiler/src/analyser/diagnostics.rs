@@ -375,8 +375,7 @@ impl Analyser {
             }
         }
 
-        self.emit_method_body_diagnostics(cu, registry, &cbn_proc_index, &traced_globals);
-        self.emit_lambda_body_diagnostics(cu, registry, &cbn_proc_index, &traced_globals);
+        self.emit_fresh_frame_body_diagnostics(cu, registry, &cbn_proc_index, &traced_globals);
 
         // Cross-function post-pass: resolve $var-as-command sites
         // collected during the walk.
@@ -471,6 +470,21 @@ impl Analyser {
             );
             self.emit_channel_diagnostics(fu, registry);
         }
+    }
+
+    /// The CFG/SSA dataflow family over every body that runs in a **fresh
+    /// frame** but is not a named procedure — a `TclOO`/snit method body and
+    /// an `apply` lambda body.  Both have a closed set of names bound at
+    /// entry, which is what the read-before-set family needs to be sound.
+    fn emit_fresh_frame_body_diagnostics(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+        cbn_proc_index: &crate::interprocedural::ProcIndex,
+        traced_globals: &HashSet<String>,
+    ) {
+        self.emit_method_body_diagnostics(cu, registry, cbn_proc_index, traced_globals);
+        self.emit_lambda_body_diagnostics(cu, registry, cbn_proc_index, traced_globals);
     }
 
     /// The same CFG/SSA dataflow family over an `apply` **lambda body**.
