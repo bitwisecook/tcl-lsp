@@ -251,6 +251,44 @@ A publish secret stored any other way — a plain repo secret, an org secret,
 or one reachable by a job with no protected `environment:` — violates the
 contract.
 
+### Parallel worktrees and agent build isolation
+
+**Never share one `CARGO_TARGET_DIR` across concurrently-building git
+worktrees of this workspace.**  Cargo's unit hashing does not reliably
+disambiguate workspace-member crates built from different worktree paths of
+the same workspace (same package name/version/features), so concurrent
+builds race on the same `deps/` outputs.  Observed failure modes (all real,
+from the 2026-07-29 multi-agent session — issue #1052): an xtask binary
+linking a **sibling branch's** `libtcl_registry` rlib and failing the drift
+gate on a diagnostic that branch doesn't have; phantom `E0603` privacy
+errors naming line numbers from a different checkout; alternating
+cannot-find/no-variant errors on symbols plainly present in the tree;
+a full-suite run reporting failures from a pre-fix `libtcl_compiler` that
+had already been fixed.  A green or red produced this way is
+**untrustworthy** — the test ran against code that is not in the tree
+being tested.
+
+Rules:
+
+- Give each worktree its **own** `CARGO_TARGET_DIR` — the per-worktree
+  default (`<worktree-root>/target`) is already correct; the hazard only
+  appears when a shared dir is exported to save disk.
+- To keep per-worktree dirs affordable, build with `CARGO_INCREMENTAL=0`
+  and `CARGO_PROFILE_DEV_DEBUG=0` (~3-4 GB per dir instead of ~15 GB).
+- Sharing **`CARGO_HOME`** (the registry/git dependency cache) across
+  worktrees is safe — external-crate artefacts do not exhibit the
+  collision, only workspace members do.
+- Treat any build or test result produced **after an ENOSPC event** as
+  untrustworthy until a clean rebuild — disk-full aggravates the
+  fingerprint corruption.  `cargo clean -p <crate>` (or `touch`ing the
+  crate's `lib.rs`) recovers a wedged crate; neither prevents recurrence
+  while a target dir stays shared.
+
+`source scripts/dev/agent-build-env.sh` pins all of this for the current
+worktree (`--check` shows what it would set and warns if the current
+`CARGO_TARGET_DIR` points elsewhere).  Agent instructions should reference
+that helper rather than repeating the env-var incantations.
+
 **Stable vs pre-release channels (odd/even-minor).**  Two lines run in
 parallel and the tag alone decides which:
 

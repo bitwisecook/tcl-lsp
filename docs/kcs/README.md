@@ -35,6 +35,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   you want to know whether the Tcl Language Server started at all.
 - [kcs-issue-stale-compiler-cache.md](kcs-issue-stale-compiler-cache.md)
   — stale incremental cache produces wrong diagnostics.
+- [kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md](kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md)
+  — builds in one git worktree fail or pass with artefacts from a
+  sibling checkout because the worktrees share one cargo target
+  directory.
 - [kcs-issue-memory-grows-while-editing.md](kcs-issue-memory-grows-while-editing.md)
   — the language server's memory use climbs with every keystroke and never
   comes back down.
