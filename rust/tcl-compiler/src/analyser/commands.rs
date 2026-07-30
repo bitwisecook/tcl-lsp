@@ -1610,22 +1610,20 @@ impl Analyser {
     ///
     /// Two outcomes, both sound:
     ///
-    /// - **Every trailing word is a static literal** — join them per
-    ///   [`super::utils::concat_script_words`] and walk the result as one
-    ///   script, anchored across the whole word range so its diagnostics land
-    ///   inside the call rather than on the first word alone. `eval set l2
-    ///   hello` is analysed as `set l2 hello`, so `l2` is recorded as written
-    ///   and no arity error is invented.
-    /// - **Any word is dynamic** — consume the command without walking, the
-    ///   same answer `handle_interp_eval_command` gives a multi-word
-    ///   `interp eval`: substitution happens before concatenation, so the real
-    ///   script is unknowable and every definedness or arity fact derived from
-    ///   the written words would be a guess.
-    ///
-    /// The join can only ever be shorter than the source region it stands for
-    /// (word delimiters and inter-word whitespace collapse), so a mapped
-    /// offset always lands within the call. The length check below keeps that
-    /// an enforced invariant rather than an assumption.
+    /// - **Every trailing word is static script text** — walk the tail as
+    ///   one script via [`super::utils::concat_script_window`], which
+    ///   rebuilds it *in place* (content bytes at their true source offsets,
+    ///   delimiters and gaps blanked to spaces) so every span the walk
+    ///   records — command references, variable reads and writes,
+    ///   diagnostics — lands on the exact bytes it describes, rename-safe.
+    ///   `eval set l2 hello` is analysed as `set l2 hello`, so `l2` is
+    ///   recorded as written and no arity error is invented.
+    /// - **Any word is dynamic** (or its bytes cannot be mapped) — consume
+    ///   the command without walking, the same answer
+    ///   `handle_interp_eval_command` gives a multi-word `interp eval`:
+    ///   substitution happens before concatenation, so the real script is
+    ///   unknowable and every definedness or arity fact derived from the
+    ///   written words would be a guess.
     fn dispatch_concatenated_script(
         &mut self,
         cmd_name: &str,
@@ -1638,7 +1636,7 @@ impl Analyser {
         let (Some(words), Some(tokens)) = (args.get(first..), arg_tokens.get(first..)) else {
             return;
         };
-        let (Some(first_tok), Some(last_tok)) = (tokens.first(), tokens.last()) else {
+        let Some(first_tok) = tokens.first() else {
             return;
         };
         // W105 still belongs to the written first word (`eval set …` is an
@@ -1651,8 +1649,9 @@ impl Analyser {
             *first_tok,
             arg_single.get(first).copied().unwrap_or(false),
         );
-        let Some(script) = super::utils::concat_script_words(words, tokens) else {
-            // The tail cannot be joined (a dynamic word). A braced first word
+        let Some((script, span)) = super::utils::concat_script_window(words, tokens, &self.source)
+        else {
+            // The tail cannot be walked (a dynamic word). A braced first word
             // is still a literal script prefix — concatenation appends after
             // it, so its own commands run as written — and walking it keeps
             // every scope/definition it declares visible to the editor. The
@@ -1669,15 +1668,10 @@ impl Analyser {
             self.record_var_body_const_dispatch(*first_tok, scope_path);
             return;
         };
-        let start = first_tok.span.start() + u32::from(first_tok.content_offset);
-        let end = last_tok.span.end();
-        if script.is_empty() || u32::try_from(script.len()).is_ok_and(|len| start + len > end) {
-            return;
-        }
         // `analyse_body` walks only a `Str` (braced) body and anchors at
-        // `span.start() + content_offset`, so the synthetic token carries the
-        // joined script's own base offset with no delimiter to skip.
-        let anchor = Token::new(TokenType::Str, tcl_lexer::Span::new(start, end));
+        // `span.start() + content_offset`; the window's text starts at its
+        // span's own first byte, so the anchor carries no delimiter to skip.
+        let anchor = Token::new(TokenType::Str, span);
         self.analyse_body(&script, anchor, scope_path);
     }
 

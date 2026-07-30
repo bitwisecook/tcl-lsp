@@ -3176,4 +3176,69 @@ mod script_concatenation {
     fn catch_tn_is_not_in_the_concat_family_1051() {
         assert!(fires("catch {set} m\n", D, "E002"));
     }
+
+    /// FP — a brace-quoted word is static *script text* even when it carries
+    /// `$`: the braces blocked the outer substitution, so the concatenated
+    /// script is knowable and `eval` resolves `$value` when it runs. Scanning
+    /// the text for `$` alone wrongly declined the walk and kept the false
+    /// read-before-set this family fix exists to remove.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: `set value 5; eval {set l2} {$value};
+    /// puts $l2` → `5`.
+    #[test]
+    fn eval_fp_braced_word_with_substitution_text_is_static_1051() {
+        let src = "set value 5\neval {set l2} {$value}\nputs $l2\n";
+        assert!(!fires(src, D, "E002"), "{:?}", codes(src, D));
+        assert!(!fires(src, D, "W210"), "{:?}", codes(src, D));
+    }
+
+    /// FP — a quoted word without substitutions joins like any other; a
+    /// space inside it separates words when the script re-parses, exactly as
+    /// `Tcl_ConcatObj`'s join does.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: `eval "set q" 7; puts $q` → `7`.
+    #[test]
+    fn eval_fp_quoted_word_joins_like_concat_1051() {
+        let src = "eval \"set q\" 7\nputs $q\n";
+        assert!(!fires(src, D, "E002"), "{:?}", codes(src, D));
+        assert!(!fires(src, D, "W210"), "{:?}", codes(src, D));
+    }
+
+    /// The walked script is anchored at its *real source bytes*: dropped
+    /// empty words and stripped delimiters shift a naive join left, so its
+    /// spans would edit delimiters on rename. `eval {} foo` is the smallest
+    /// such shape — the reconstructed `foo` must span exactly the written
+    /// `foo`, not start one byte early on the empty word's closing brace.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: `proc foo {} {}; eval {} foo` runs `foo`.
+    #[test]
+    fn eval_offsets_of_the_walked_script_land_on_real_source_bytes_1051() {
+        let src = "proc foo {} {}\neval {} foo\n";
+        let mut analyser = tcl_compiler::analyser::Analyser::new();
+        let result = analyser.analyse(src, D);
+        let expected = u32::try_from(src.rfind("foo").expect("fixture")).unwrap();
+        let inv = result
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "foo")
+            .expect("the eval'd call is recorded");
+        assert_eq!(
+            (inv.range.start(), inv.range.end()),
+            (expected, expected + 3),
+            "the walked call must span the written `foo`"
+        );
+    }
+
+    /// TN — a backslash in a bare word decodes *before* the join, so the
+    /// written bytes are not the script text and the walk declines without
+    /// claiming anything (no invented arity error on what really runs).
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: `eval set\ x 5; puts $x` → `5` (the decoded
+    /// `set x` re-splits when the joined script is parsed).
+    #[test]
+    fn eval_tn_a_backslash_word_declines_without_claiming_anything_1051() {
+        let src = "eval set\\ x 5\n";
+        assert!(!fires(src, D, "E002"), "{:?}", codes(src, D));
+        assert!(!fires(src, D, "E003"), "{:?}", codes(src, D));
+    }
 }

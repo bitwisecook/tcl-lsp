@@ -391,11 +391,25 @@ eval {set l2} hello     == set l2 hello
 
 The consumer contract is that no pass may treat the first `BODY`-role word as
 the whole script when the trait is present and further words follow. Either
-join them per the rule above — sound only when every trailing word is a
-static literal, since substitution runs *before* concatenation — or consume
-the command without walking it. Analysing `eval set l2 hello` as the
-one-word script `set` invents a wrong-#-args error and loses the write to
-`l2` (issue #1051).
+walk the tail as one script — sound only when every word is statically-known
+script text, since substitution runs *before* concatenation; a braced word
+qualifies even when its contents carry `$`/`[`, because the braces blocked
+the outer substitution and the eval-family command itself resolves them when
+the script runs — or consume the command without walking it. Analysing
+`eval set l2 hello` as the one-word script `set` invents a wrong-#-args
+error and loses the write to `l2` (issue #1051).
+
+A consumer that records *spans* while walking (the analyser's
+`dispatch_concatenated_script`) must not walk a freshly-joined string
+against a linear anchor: stripped delimiters, dropped words, and collapsed
+whitespace shift every offset after the first divergence, so recorded
+references become rename hazards. `analyser::utils::concat_script_window`
+is the shared answer — it rebuilds the equivalent script *in place* over
+the words' source window (content bytes at their true offsets, structural
+bytes blanked to spaces, whitespace runs being separator-equivalent), so
+every recorded span maps to the exact source bytes it describes. Consumers
+that harvest names only (the CFG barrier-write harvest) may still use a
+plain text join.
 
 `namespace inscope` is the one member that does not space-join:
 `namespace inscope ns script ?arg ...?` is `namespace eval ns [concat script

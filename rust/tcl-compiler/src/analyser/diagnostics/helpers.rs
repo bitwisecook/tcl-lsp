@@ -145,6 +145,37 @@ pub(in crate::analyser) fn has_substitution_of_kind(
         || matches!(kind, tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd)
 }
 
+/// Whether one word of a [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`]
+/// tail contributes *statically-known script text* to the `Tcl_ConcatObj`
+/// join — the one predicate every eval-family static-tail check shares
+/// (`utils::concat_script_window`, `concat_barrier_words`), so what counts
+/// as static moves everywhere at once.
+///
+/// A braced (`Str`) word always does: the braces blocked every outer
+/// substitution, so its contents reach the join byte-for-byte — a `$` or
+/// `[` inside is script *text* that the eval-family command itself
+/// resolves when the joined script runs, not a value consumed before it
+/// (tclsh8.6.14 / tclsh9.0.4: `set value 5; eval {set l2} {$value};
+/// puts $l2` → `5`).
+///
+/// Any other word is static only when nothing runs before the join: no
+/// `$`/`[` substitution ([`has_substitution_of_kind`], which also rejects
+/// whole-word `Var`/`Cmd` tokens), no backslash (the outer parse decodes
+/// it, so the joined text is not the written text), and no quote byte
+/// (quoting is consumed by the outer parse, never carried into the join).
+/// A `{*}` expansion prefix restructures the words entirely and is never
+/// static.
+pub(in crate::analyser) fn word_is_static_script_text(
+    text: &str,
+    kind: tcl_lexer::TokenType,
+) -> bool {
+    match kind {
+        tcl_lexer::TokenType::Str => true,
+        tcl_lexer::TokenType::Expand => false,
+        _ => !has_substitution_of_kind(text, kind) && !text.contains(['\\', '"']),
+    }
+}
+
 /// An identifier-continuation byte: ASCII alphanumeric, `_`, or `:` (the
 /// namespace-separator byte).
 pub(super) fn is_ident_continue(b: u8) -> bool {
@@ -601,9 +632,11 @@ fn collect_script_concat_writes(
 }
 
 /// The `Tcl_ConcatObj` join of a barrier call's words from `first` onwards,
-/// or `None` when any of them carries a substitution (the real script is then
-/// unknowable — see `crate::analyser::utils::concat_script_words`, which
-/// applies the same rule to the analyser's own token slices).
+/// or `None` when any of them is not statically-known script text (the real
+/// script is then unknowable — see [`word_is_static_script_text`], the same
+/// predicate `crate::analyser::utils::concat_script_window` applies to the
+/// analyser's own token slices). This join is consumed for write-name
+/// harvesting only, never for spans, so a plain text join suffices here.
 fn concat_barrier_words(tokens: &crate::ir::CommandTokens, first: usize) -> Option<String> {
     let texts = tokens.argv_texts.get(first..)?;
     let kinds = tokens.argv_kinds.get(first..)?;
@@ -612,7 +645,7 @@ fn concat_barrier_words(tokens: &crate::ir::CommandTokens, first: usize) -> Opti
     }
     let mut joined = String::new();
     for (text, &kind) in texts.iter().zip(kinds) {
-        if has_substitution_of_kind(text, kind) {
+        if !word_is_static_script_text(text, kind) {
             return None;
         }
         let trimmed = text.trim_matches(|c: char| c.is_ascii_whitespace());

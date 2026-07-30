@@ -1683,11 +1683,12 @@ impl Analyser {
         let (Some(words), Some(tokens)) = (args.get(2..), arg_tokens.get(2..)) else {
             return;
         };
-        let (Some(first_tok), Some(last_tok)) = (tokens.first(), tokens.last()) else {
+        let Some(first_tok) = tokens.first() else {
             return;
         };
-        let Some(script) = super::utils::concat_script_words(words, tokens) else {
-            // The tail cannot be joined (a dynamic word). A braced first word
+        let Some((script, span)) = super::utils::concat_script_window(words, tokens, &self.source)
+        else {
+            // The tail cannot be walked (a dynamic word). A braced first word
             // is still a literal script prefix — concatenation appends after
             // it — and it is the namespace's whole visible body in the common
             // mangled-document case (an unbalanced brace inside the body word
@@ -1698,12 +1699,7 @@ impl Analyser {
             }
             return;
         };
-        let start = first_tok.span.start() + u32::from(first_tok.content_offset);
-        let end = last_tok.span.end();
-        if script.is_empty() || u32::try_from(script.len()).is_ok_and(|len| start + len > end) {
-            return;
-        }
-        let anchor = Token::new(TokenType::Str, tcl_lexer::Span::new(start, end));
+        let anchor = Token::new(TokenType::Str, span);
         self.analyse_body(&script, anchor, child_path);
     }
 
