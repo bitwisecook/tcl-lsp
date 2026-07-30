@@ -216,7 +216,7 @@ pub fn definition(
     // `next` / `nextto` inside a method body — jump to the super-method in
     // the MRO chain that the enclosing method overrides (`next`), or to the
     // named class's copy of it (`nextto Cls`).
-    if (word == "next" || word == "nextto")
+    if is_next_chain_keyword(&word)
         && let Some(span) =
             next_dispatch_target(analysis, source, &line_index, line, character, &word)
     {
@@ -327,7 +327,7 @@ fn instance_method_definition(
     }
     // `my m` — an internal call: dispatch starts at the *enclosing*
     // class and reaches unexported methods too (issue #945 fault 4).
-    if inst == "my" {
+    if is_self_dispatch_keyword(&inst) {
         let cursor = byte_offset_at(line_index, source, line, character);
         if let Some(class_q) = enclosing_class_at(analysis, cursor) {
             return Some(method_dispatch_definition(
@@ -644,6 +644,60 @@ fn lookup_method_in_class(
 /// down the object's MRO — statically we resolve it in `C`'s own MRO (the
 /// sound single-dispatch approximation): the next class after `C` that
 /// provides `m`.  `nextto Base` restarts the search at `Base`.  The
+/// The `TclOO` method-context keyword `word` is under `dialect`, or `None`.
+///
+/// The crate's single entry to
+/// [`tcl_registry::CommandRegistry::method_dispatch_keyword`], so every
+/// provider that used to carry a `head == "my"` /
+/// `matches!(head, "my" | "next" | "nextto")` literal now asks the registry
+/// through one place (issue #1050). A dialect that gains or loses one of
+/// these keywords propagates through its `CommandSpec`, never through a
+/// walker edit.
+///
+/// The dialect-less callers below pass `""`, which resolves to the
+/// permissive plain-Tcl profile — availability mask `ALL_TCL`, so every 8.6+
+/// `TclOO` keyword resolves. `definition` reaches its providers without a
+/// dialect string in scope (as its three pre-existing
+/// `registry_for_dialect("")` call sites already show); threading a real
+/// dialect through every `go-to-definition` entry point is worth doing, but
+/// as its own change.
+pub(crate) fn method_dispatch_keyword_in(
+    dialect: &str,
+    word: &str,
+) -> Option<tcl_registry::MethodDispatchKind> {
+    tcl_registry::registry_for_dialect(dialect).method_dispatch_keyword(word)
+}
+
+/// Whether `word` is the `TclOO` self-dispatch keyword (`my`) — the word
+/// after it names a method on the *enclosing* class, reaching non-exported
+/// methods a `$obj` dispatch cannot.
+pub(crate) fn is_self_dispatch_keyword(word: &str) -> bool {
+    method_dispatch_keyword_in("", word) == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+}
+
+/// Whether `word` is a `TclOO` next-chain keyword (`next` / `nextto`).
+fn is_next_chain_keyword(word: &str) -> bool {
+    method_dispatch_keyword_in("", word) == Some(tcl_registry::MethodDispatchKind::NextChain)
+}
+
+/// Whether a next-chain keyword names an explicit resume-from class in its
+/// first argument — `nextto`'s structural marker, an
+/// [`tcl_registry::ArgRole::Name`] at index 0 on the spec, which `next` does
+/// not declare. Distinguishing the two structurally rather than by name is
+/// what `TCLOO_NEXT_CHAIN`'s own documentation asks consumers to do.
+pub(crate) fn next_chain_names_a_target_in(dialect: &str, word: &str) -> bool {
+    method_dispatch_keyword_in(dialect, word) == Some(tcl_registry::MethodDispatchKind::NextChain)
+        && tcl_registry::registry_for_dialect(dialect)
+            .get(word)
+            .is_some_and(|spec| spec.arg_role_at(0) == Some(tcl_registry::ArgRole::Name))
+}
+
+/// [`next_chain_names_a_target_in`] against the dialect-less plain-Tcl
+/// profile.
+fn next_chain_names_a_target(word: &str) -> bool {
+    next_chain_names_a_target_in("", word)
+}
+
 /// enclosing class + method are found from the cursor's byte offset.
 fn next_dispatch_target(
     analysis: &AnalysisResult,
@@ -655,12 +709,12 @@ fn next_dispatch_target(
 ) -> Option<tcl_lexer::Span> {
     let cursor = byte_offset_at(line_index, source, line, character);
     let (class_q, method) = enclosing_method(analysis, cursor)?;
-    let start_from: Option<String> = if keyword == "nextto" {
+    let start_from: Option<String> = if next_chain_names_a_target(keyword) {
         // Byte offset of the cursor within its line, so `word_after` can pick
-        // the `nextto` occurrence the cursor is on (not merely the first).
+        // the occurrence the cursor is on (not merely the first).
         let line_start = byte_offset_at(line_index, source, line, 0);
         let cursor_in_line = cursor.saturating_sub(line_start) as usize;
-        let target = word_after(source, line, cursor_in_line, "nextto")?;
+        let target = word_after(source, line, cursor_in_line, keyword)?;
         Some(canonicalise_class(analysis, &class_q, &target))
     } else {
         None

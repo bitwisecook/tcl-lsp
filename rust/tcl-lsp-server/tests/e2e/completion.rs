@@ -832,3 +832,83 @@ fn subcommand_completion_version_gates_end_to_end() {
         "dict getwithdefault (9.0+) must be hidden in an 8.6 buffer: {got:?}"
     );
 }
+
+#[test]
+fn command_form_locals_complete_inside_a_namespaced_proc() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval ::ns1 {\n    proc p1 {pp} {\n        lassign {1 2} la lb\n        catch {error boom} cres copts\n        puts $\n    }\n}\n";
+    lsp.open_ready(&uri, src);
+    let ls = labels(&mut lsp, &uri, 4, 14);
+    assert!(ls.contains(&"$pp".to_owned()), "param missing: {ls:?}");
+    assert!(
+        ls.contains(&"$la".to_owned()),
+        "lassign write missing: {ls:?}"
+    );
+    assert!(
+        ls.contains(&"$cres".to_owned()),
+        "catch write missing: {ls:?}"
+    );
+}
+
+#[test]
+fn command_form_locals_complete_inside_a_plain_proc() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc p1 {pp} {\n    lassign {1 2} la lb\n    puts $\n}\n";
+    lsp.open_ready(&uri, src);
+    let ls = labels(&mut lsp, &uri, 2, 10);
+    assert!(ls.contains(&"$pp".to_owned()), "param missing: {ls:?}");
+    assert!(
+        ls.contains(&"$la".to_owned()),
+        "lassign write missing: {ls:?}"
+    );
+}
+
+#[test]
+fn command_form_locals_complete_in_the_vscode_fixture() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let fixture = include_str!("../../../../editors/vscode/testFixture/variableContexts.tcl");
+    let mut lines: Vec<&str> = fixture.lines().collect();
+    let probe = lines
+        .iter()
+        .position(|l| l.contains("# PROBE_SCAN"))
+        .expect("PROBE_SCAN marker");
+    lines.insert(probe + 1, "        puts $");
+    let src = lines.join("\n");
+    lsp.open_ready(&uri, &src);
+    let at = u32::try_from(probe + 1).expect("line fits");
+    let ls = labels(&mut lsp, &uri, at, 14);
+    assert!(ls.contains(&"$sx".to_owned()), "scan write missing: {ls:?}");
+}
+
+#[test]
+fn uplevel_with_level_word_does_not_corrupt_sibling_scopes() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval ::ns1 {\n    proc p1 {} {\n        scan \"1 2\" \"%d %d\" sx sy\n        puts $\n    }\n    proc p2 {} {\n        uplevel 1 {\n            set body_var 5\n        }\n    }\n}\n";
+    lsp.open_ready(&uri, src);
+    let ls = labels(&mut lsp, &uri, 3, 14);
+    assert!(ls.contains(&"$sx".to_owned()), "scan write missing: {ls:?}");
+}
+
+#[test]
+fn weird_set_names_do_not_break_scan_completion() {
+    for (name, weird) in [
+        ("brace", "set \"weird}name\" 1"),
+        ("paren", "set \"arr(weird)stuff)\" 2"),
+    ] {
+        let mut lsp = Lsp::tcl();
+        let uri = unique_uri("tcl");
+        let src = format!(
+            "namespace eval ::ns1 {{\n    proc p1 {{}} {{\n        scan \"1 2\" \"%d %d\" sx sy\n        puts $\n    }}\n}}\n{weird}\n"
+        );
+        lsp.open_ready(&uri, &src);
+        let ls = labels(&mut lsp, &uri, 3, 14);
+        assert!(
+            ls.contains(&"$sx".to_owned()),
+            "{name}: scan write missing: {ls:?}"
+        );
+    }
+}

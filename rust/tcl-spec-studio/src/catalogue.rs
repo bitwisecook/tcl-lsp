@@ -435,11 +435,31 @@ pub const TRAITS: &[Variant] = &[
         "EXPR_CONCATENATES_ARGS",
         "concatenates its arguments into one expression",
     ),
+    v(
+        "SCRIPT_CONCATENATES_ARGS",
+        "concatenates its trailing words into one script",
+    ),
+    v(
+        "SCRIPT_APPENDS_LIST_ARGS",
+        "appends its trailing words to the script as list elements",
+    ),
     v("ESTABLISHES_VARIABLE_TRACE", "establishes a variable trace"),
     v("TRANSFERS_CONTROL", "transfers control elsewhere"),
     v("FIRE_AND_FORGET_TEARDOWN", "fire-and-forget teardown"),
     v("OPERATOR_COMMAND", "an operator in command form"),
     v("TCLOO_NEXT_CHAIN", "participates in the TclOO next chain"),
+    v(
+        "TCLOO_SELF_DISPATCH",
+        "dispatches on the current TclOO object",
+    ),
+    v(
+        "TCLOO_INTROSPECTION",
+        "introspects the current TclOO method context",
+    ),
+    v(
+        "BRANCH_SELECTED_BODY",
+        "its bodies run at most once, chosen by a branch",
+    ),
     v("CATCHABLE_THROW", "throws a catchable error"),
     v("BREAKS_LOOP", "breaks out of a loop"),
     v("CONTINUES_LOOP", "continues a loop"),

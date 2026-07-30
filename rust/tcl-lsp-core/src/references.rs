@@ -1394,7 +1394,17 @@ fn scan_my_method_region(
         if let (Some(head), Some(name_tok)) = (cmd.argv.first(), cmd.argv.get(1)) {
             let h_start = head.span.start() as usize;
             let h_end = head.span.end() as usize;
-            if h_start < source.len() && h_end <= source.len() && &source[h_start..h_end] == "my" {
+            // Registry query, not a `== "my"` literal: the self-dispatch
+            // keyword is spec data, so a dialect that gains or loses it
+            // propagates through `tcl-registry` rather than through this
+            // walker (issue #1050).
+            let head_is_self_dispatch = h_start < source.len()
+                && h_end <= source.len()
+                && crate::definition::method_dispatch_keyword_in(
+                    ctx.dialect,
+                    &source[h_start..h_end],
+                ) == Some(tcl_registry::MethodDispatchKind::SelfDispatch);
+            if head_is_self_dispatch {
                 let n_start = name_tok.span.start() as usize;
                 let n_end = name_tok.span.end() as usize;
                 if n_start < source.len()
@@ -1514,7 +1524,11 @@ fn scan_next_dispatch_region_with_target(
             let (h_start, h_end) = (head.span.start() as usize, head.span.end() as usize);
             if h_end <= source.len() && h_start < h_end {
                 let h = &source[h_start..h_end];
-                if h == "next" || h == "nextto" {
+                // The next-chain keywords come from the registry
+                // (`TCLOO_NEXT_CHAIN`), not a name list (issue #1050).
+                if crate::definition::method_dispatch_keyword_in(dialect, h)
+                    == Some(tcl_registry::MethodDispatchKind::NextChain)
+                {
                     // `texts` is the segmenter's already-*decoded* per-word
                     // reconstruction — unlike `argv`'s token span (which
                     // covers a braced/quoted word's raw delimiters per this
@@ -1526,7 +1540,12 @@ fn scan_next_dispatch_region_with_target(
                     // `{`/`"` in the target text, which
                     // `canonicalise_class_name` could never resolve to a
                     // real class (Codex review on #1011, P2).
-                    let target = (h == "nextto").then(|| cmd.texts.get(1).cloned()).flatten();
+                    // Only the spelling that declares an `ArgRole::Name` at
+                    // argument 0 names an explicit resume-from class —
+                    // `nextto`'s structural marker, per `TCLOO_NEXT_CHAIN`'s
+                    // own doc. `next` declares none, so it captures no target.
+                    let names_target = crate::definition::next_chain_names_a_target_in(dialect, h);
+                    let target = names_target.then(|| cmd.texts.get(1).cloned()).flatten();
                     out.push((head.span, target));
                 }
             }

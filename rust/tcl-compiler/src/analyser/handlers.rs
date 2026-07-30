@@ -851,13 +851,12 @@ impl Analyser {
             doc = super::utils::extract_body_docstring(&args[2]);
         }
 
-        // When a user defines ``proc unknown ...`` (or
-        // ``::tcl::unknown``), inspect the body to determine which
-        // commands the handler can resolve.  The result gates
-        // W123 (unresolved command) — if the user provided their
-        // own ``unknown`` we can't statically prove a command is
-        // truly unresolved.
-        if matches!(simple.as_str(), "unknown") || qualified == "::tcl::unknown" {
+        // When a user defines the *global* unresolved-command handler,
+        // inspect the body to determine which commands it can resolve. The
+        // result gates W123 (unresolved command) file-wide — with a
+        // user-supplied handler in place we cannot statically prove a
+        // command is truly unresolved.
+        if self.defines_global_unresolved_handler(&qualified) {
             let info = self.extract_unknown_proc_info(&args[2], &params);
             self.result.unknown_proc_info = Some(info);
         }
@@ -1513,6 +1512,44 @@ impl Analyser {
         true
     }
 
+    /// Whether a `proc` defined as `qualified` is the interpreter's *global*
+    /// unresolved-command handler — the one whose presence gates W123 for the
+    /// whole file.
+    ///
+    /// Which command is the handler comes from
+    /// [`tcl_registry::Traits::UNRESOLVED_COMMAND_HANDLER`], never a literal
+    /// name here — the same registry query `tcl_compiler::unit_scope` uses for
+    /// the interprocedural call-site seed.
+    ///
+    /// **Global only.** Tcl consults `::unknown` for a bare unresolved word
+    /// regardless of the calling namespace, so a namespace-local
+    /// `proc unknown` inside `namespace eval ::mylib { … }` is an ordinary
+    /// proc that happens to share the name and must not suppress anything.
+    /// tclsh8.6.14 and tclsh9.0.4 both confirm the split: with a global
+    /// `proc unknown {args} {return handled}` a call to
+    /// `totallyBogusCommand` returns `handled`, while with the same proc
+    /// defined inside `namespace eval ::mylib` it still fails
+    /// `invalid command name "totallyBogusCommand"`. (`namespace unknown
+    /// NAME` registers a per-namespace handler explicitly; that path is
+    /// modelled separately by its handler argument's
+    /// [`tcl_registry::ArgRole::CommandPrefix`] role.)
+    ///
+    /// `::tcl::unknown` is admitted alongside `::unknown`: it is the Tcl
+    /// library's own handler spelling, installed as the interpreter-wide
+    /// handler rather than scoped to callers inside `::tcl`.
+    fn defines_global_unresolved_handler(&self, qualified: &str) -> bool {
+        let Some(registry) = self.registry else {
+            return false;
+        };
+        let mut carriers =
+            registry.commands_with_trait(tcl_registry::Traits::UNRESOLVED_COMMAND_HANDLER);
+        carriers.sort_unstable();
+        carriers.iter().any(|name| {
+            qualified == crate::naming::qualify("::", name)
+                || qualified == crate::naming::qualify("::tcl", name)
+        })
+    }
+
     /// Handle `namespace eval`: opens a new namespace scope and
     /// schedules its body for analysis.
     ///
@@ -1589,11 +1626,81 @@ impl Analyser {
 
         // Body recursion lets procs and classes declared inside
         // ``namespace eval`` register with the correct namespace
-        // prefix.
-        if let (Some(text), Some(tok)) = (body_text, body_tok) {
+        // prefix.  Words past the body join into the script exactly as
+        // `eval`'s do, so a multi-word call is analysed as the whole
+        // concatenation or not at all (issue #1051) — never as its first
+        // word alone, which invented an E002 on the trailing words'
+        // arguments and lost every write they performed.
+        if args.len() > 3 {
+            self.analyse_namespace_eval_tail(args, arg_tokens, &child_path);
+        } else if let (Some(text), Some(tok)) = (body_text, body_tok) {
             self.analyse_body(&text, tok, &child_path);
         }
         true
+    }
+
+    /// Analyse the script a multi-word `namespace eval` / `namespace inscope`
+    /// evaluates, in the namespace scope `child_path` already opened for it.
+    ///
+    /// The two subcommands share this hook but not their tail semantics, and
+    /// the registry records the split:
+    ///
+    /// - `namespace eval ns arg ?arg …?` carries
+    ///   [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`] alone — the tail
+    ///   space-joins into the script (`namespace eval ::n set l2 hello` sets
+    ///   `::n::l2`, tclsh8.6.14/9.0.4-confirmed), so a fully-static tail is
+    ///   joined and walked.
+    /// - `namespace inscope ns script ?arg …?` adds
+    ///   [`tcl_registry::Traits::SCRIPT_APPENDS_LIST_ARGS`] — the tail is
+    ///   appended as *list elements*, so `namespace inscope :: {puts} {a b}`
+    ///   prints `a b` where `namespace eval :: {puts} {a b}` errors. A join
+    ///   would be simply wrong, and reconstructing the list quoting is beyond
+    ///   what the analyser models, so any trailing word means the call is
+    ///   consumed without walking.
+    ///
+    /// A dynamic word takes the same consume-without-walk route as
+    /// [`Self::handle_interp_eval_command`]'s multi-word arm: substitution
+    /// runs before concatenation, so the real script is unknowable.
+    fn analyse_namespace_eval_tail(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        child_path: &[usize],
+    ) {
+        let Some(registry) = self.registry else {
+            return;
+        };
+        let list_append = registry
+            .get("namespace")
+            .and_then(|spec| spec.subcommand(&args[0]))
+            .is_some_and(|sub| {
+                sub.traits
+                    .contains(tcl_registry::Traits::SCRIPT_APPENDS_LIST_ARGS)
+            });
+        if list_append {
+            return;
+        }
+        let (Some(words), Some(tokens)) = (args.get(2..), arg_tokens.get(2..)) else {
+            return;
+        };
+        let Some(first_tok) = tokens.first() else {
+            return;
+        };
+        let Some((script, span)) = super::utils::concat_script_window(words, tokens, &self.source)
+        else {
+            // The tail cannot be walked (a dynamic word). A braced first word
+            // is still a literal script prefix — concatenation appends after
+            // it — and it is the namespace's whole visible body in the common
+            // mangled-document case (an unbalanced brace inside the body word
+            // drags trailing text into extra words). Walk it rather than
+            // discarding every proc and variable the namespace declares.
+            if first_tok.kind == TokenType::Str {
+                self.analyse_body(&words[0], *first_tok, child_path);
+            }
+            return;
+        };
+        let anchor = Token::new(TokenType::Str, span);
+        self.analyse_body(&script, anchor, child_path);
     }
 
     /// Handle `interp eval PATH SCRIPT`: the script runs in a **child**
@@ -8448,6 +8555,102 @@ mod tests {
         let r = a.analyse("proc unknown {cmd args} {}", "tcl");
         let info = r.unknown_proc_info.expect("unknown_proc_info populated");
         assert!(info.empty_stub);
+    }
+
+    /// Pin (gap-review C3) — `conditional_depth` is driven by
+    /// `Traits::BRANCH_SELECTED_BODY`, so exactly the branch-selected bodies
+    /// mark a `package require` conditional.
+    ///
+    /// `if` and `try` bodies are branch-selected: at most one runs, chosen at
+    /// run time, so nothing inside dominates the code after the command. A
+    /// `while` body is skippable *and* repeatable — a different question,
+    /// owned by `control_flow_body_depth` — and does **not** mark the require
+    /// conditional. A top-level require is unconditional.
+    #[test]
+    fn package_require_conditionality_follows_the_branch_selected_body_trait() {
+        let conditional_flags = |src: &str| -> Vec<bool> {
+            let mut a = crate::analyser::Analyser::new();
+            a.analyse(src, "tcl8.6")
+                .package_requires
+                .iter()
+                .map(|p| p.conditional)
+                .collect()
+        };
+        assert_eq!(conditional_flags("package require Tcl 8.6\n"), vec![false]);
+        assert_eq!(
+            conditional_flags("if {$x} { package require Tcl 8.6 }\n"),
+            vec![true],
+        );
+        assert_eq!(
+            conditional_flags("while {$x} { package require Tcl 8.6 }\n"),
+            vec![false],
+            "a loop body is skippable-and-repeatable, a different question",
+        );
+        // `try` carries the trait too, but reaches its bodies through its own
+        // analyser hook rather than the generic body walk, so this depth is
+        // never bumped for it. Pinned as it stands: the trait swap is
+        // behaviour-preserving, and closing that gap is a separate change to
+        // `handle_try_command`.
+        assert_eq!(
+            conditional_flags("try { package require Tcl 8.6 } on error {} {}\n"),
+            vec![false],
+        );
+    }
+
+    /// FIX (gap-review C2) — a `proc unknown` nested inside `namespace eval`
+    /// is an ordinary namespace proc, not the interpreter's handler, so it
+    /// must not seed `unknown_proc_info` and suppress W123 file-wide.
+    ///
+    /// The body is the dynamic (`exec`-dispatching) shape that *would*
+    /// suppress W123 file-wide if this were the global handler, so the test
+    /// isolates the scope question rather than the body-shape one.
+    ///
+    /// Oracle (tclsh8.6.14 and tclsh9.0.4): with
+    /// `namespace eval ::mylib { proc unknown {args} { return handled } }`,
+    /// calling `totallyBogusCommand` still fails
+    /// `invalid command name "totallyBogusCommand"` — only a *global*
+    /// `proc unknown` makes it return `handled`.
+    #[test]
+    fn analyse_namespace_local_unknown_proc_does_not_seed_the_global_handler() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::mylib { proc unknown {cmd args} { exec $cmd {*}$args } }\n\
+             totallyBogusCommand\n",
+            "tcl9.0",
+        );
+        assert!(
+            r.unknown_proc_info.is_none(),
+            "a namespace-local proc named unknown is not the global handler",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W123),
+            "so the bogus command is still unresolved; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    /// TP guard — the global handler still seeds the info (and still
+    /// suppresses W123), which is the behaviour the C2 fix must not disturb.
+    #[test]
+    fn analyse_global_unknown_proc_still_seeds_the_handler() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { exec $cmd {*}$args }\ntotallyBogusCommand\n",
+            "tcl9.0",
+        );
+        assert!(
+            r.unknown_proc_info.is_some(),
+            "a global proc unknown is the handler",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W123),
+            "and it suppresses the unresolved-command warning; got {:?}",
+            r.diagnostics,
+        );
     }
 
     #[test]

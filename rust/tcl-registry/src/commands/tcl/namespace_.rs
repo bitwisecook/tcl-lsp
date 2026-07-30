@@ -291,8 +291,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         body_kind: BodyKind::Structural,
         // Runs an arbitrary script that can touch namespace/global state —
         // dynamic-dispatch consumers (memory-SSA clobber classification)
-        // key off this.
-        traits: Traits::EVALUATES_CODE,
+        // key off this.  Words after the body concatenate into it exactly as
+        // `eval`'s do (`namespace eval ::n set l2 hello` sets `::n::l2`,
+        // tclsh8.6.14/9.0.4-confirmed), so the eval-family trait applies.
+        traits: Traits::EVALUATES_CODE.union(Traits::SCRIPT_CONCATENATES_ARGS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceEval),
         ..SubCommand::DEFAULT
     },
@@ -374,7 +376,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // caller's scope, where a bare command would resolve wrongly).
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceEval),
         body_kind: BodyKind::Structural,
-        traits: Traits::EVALUATES_CODE,
+        // In the eval family (the trailing words are script, not options),
+        // but with the list-append refinement: they arrive as whole list
+        // elements rather than space-joined text, so no consumer may join
+        // them.  See `Traits::SCRIPT_APPENDS_LIST_ARGS`.
+        traits: Traits::EVALUATES_CODE
+            .union(Traits::SCRIPT_CONCATENATES_ARGS)
+            .union(Traits::SCRIPT_APPENDS_LIST_ARGS),
         ..SubCommand::DEFAULT
     },
     SubCommand {

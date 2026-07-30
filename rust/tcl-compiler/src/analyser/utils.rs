@@ -823,6 +823,246 @@ pub fn irules_top_level_only(registry: &CommandRegistry) -> HashSet<String> {
         .collect()
 }
 
+/// The exact source window a [`Traits::SCRIPT_CONCATENATES_ARGS`] tail
+/// evaluates — every content byte at its true offset, every structural
+/// byte blanked to a space — or `None` when the script is not statically
+/// knowable.
+///
+/// `Tcl_ConcatObj` (`generic/tclUtil.c`) is the one rule the whole eval
+/// family shares: take each word's **string representation**, trim ASCII
+/// whitespace from both ends of it, drop the ones that end up empty, and
+/// join the rest with a single space. A braced word contributes its
+/// *contents* — Tcl's word parsing has already removed the outer braces
+/// before `Tcl_ConcatObj` ever sees the value — so braced and bare words
+/// concatenate identically and a command may span word boundaries.
+///
+/// Joining the trimmed texts into a fresh string reproduces those bytes
+/// but loses their *positions*: stripped delimiters, dropped words, and
+/// collapsed whitespace shift every byte after the first divergence, so a
+/// span recorded while walking the joined text can land on the wrong
+/// source bytes (in `eval {} foo` the reconstructed `foo` starts at the
+/// empty word's closing brace, and a rename would edit that delimiter
+/// instead of the command). So this builds the equivalent script *in
+/// place* instead: a buffer covering the words' whole span in `source`,
+/// holding each word's content bytes at their real offsets and a space
+/// everywhere else (delimiters, inter-word gaps). Script parsing treats
+/// any whitespace run as one separator, so the window parses into exactly
+/// the words the trimmed-and-joined text would — `Tcl_ConcatObj`'s trim,
+/// drop, and single-space steps all degenerate to "more whitespace" —
+/// while every span the walk records maps to the source bytes it
+/// describes.
+///
+/// Pinned against tclsh8.6.14 and tclsh9.0.4:
+///
+/// ```text
+/// eval set l2 hello        ≡ set l2 hello
+/// eval {set l2} hello      ≡ set l2 hello   (braces gone, contents kept)
+/// eval "set q" 7           ≡ set q 7        (quotes gone; a space inside
+///                                            a quoted word separates —
+///                                            the re-parse splits it just
+///                                            as the join would)
+/// eval {set l2} {$value}   ≡ set l2 $value  (braces blocked the outer
+///                                            substitution, so the script
+///                                            text is static; `eval`
+///                                            itself resolves `$value`
+///                                            when the script runs)
+/// eval {} foo              ≡ foo            (an empty word is just more
+///                                            whitespace)
+/// ```
+///
+/// Returns `None` when any word is not statically-known script text
+/// ([`super::diagnostics::helpers::word_is_static_script_text`]: a
+/// substitution or a decode runs before concatenation, so the real script
+/// is unknowable), when a word's text does not sit verbatim at its
+/// token's content offset (bytes that cannot be mapped must not be
+/// analysed), or when the window holds no content at all. Callers must
+/// then consume the command without walking it rather than guess.
+///
+/// This is **not** the rule for `namespace inscope`, whose tail is appended
+/// as list elements — see [`Traits::SCRIPT_APPENDS_LIST_ARGS`].
+#[must_use]
+pub fn concat_script_window(
+    words: &[String],
+    tokens: &[Token],
+    source: &str,
+) -> Option<(String, tcl_lexer::Span)> {
+    let (first, last) = (tokens.first()?, tokens.last()?);
+    if words.len() != tokens.len() {
+        return None;
+    }
+    let start = first.span.start() as usize;
+    let end = last.span.end() as usize;
+    if end <= start || source.len() < end {
+        return None;
+    }
+    let mut window = vec![b' '; end - start];
+    for (word, tok) in words.iter().zip(tokens) {
+        if !crate::analyser::diagnostics::helpers::word_is_static_script_text(word, tok.kind) {
+            return None;
+        }
+        let content_start = tok.span.start() as usize + usize::from(tok.content_offset);
+        // The word's text must sit verbatim at its content offset — any
+        // divergence (an escape decode, a token shape this fn does not
+        // model) makes the bytes unmappable, and unmappable bytes must
+        // not be walked.
+        if source.get(content_start..content_start + word.len()) != Some(word.as_str()) {
+            return None;
+        }
+        let off = content_start.checked_sub(start)?;
+        window
+            .get_mut(off..off + word.len())?
+            .copy_from_slice(word.as_bytes());
+    }
+    if window.iter().all(u8::is_ascii_whitespace) {
+        return None;
+    }
+    let window = String::from_utf8(window).ok()?;
+    Some((
+        window,
+        tcl_lexer::Span::new(u32::try_from(start).ok()?, u32::try_from(end).ok()?),
+    ))
+}
+
+#[cfg(test)]
+mod concat_script_window_tests {
+    use super::concat_script_window;
+    use tcl_lexer::{Span, Token, TokenType};
+
+    /// Tail words of `source` from `from`, tokenised the way the analyser's
+    /// argv sees them: each `(text, kind)` pair is located in `source` (in
+    /// order), and a `Str`/quoted token's span covers its delimiters with
+    /// `content_offset` pointing past the opener.
+    fn tail(source: &str, from: usize, pairs: &[(&str, TokenType)]) -> (Vec<String>, Vec<Token>) {
+        let mut texts = Vec::new();
+        let mut toks = Vec::new();
+        let mut at = from;
+        for (text, kind) in pairs {
+            let delim = usize::from(matches!(*kind, TokenType::Str));
+            let content = if text.is_empty() {
+                // Locate an empty content by its `{}` delimiter pair.
+                source[at..].find("{}").expect("fixture") + at + 1
+            } else {
+                source[at..].find(text).expect("fixture") + at
+            };
+            let (s, e) = (content - delim, content + text.len() + delim);
+            let mut tok = Token::new(
+                *kind,
+                Span::new(u32::try_from(s).unwrap(), u32::try_from(e).unwrap()),
+            );
+            tok.content_offset = u8::try_from(delim).unwrap();
+            texts.push((*text).to_owned());
+            toks.push(tok);
+            at = e;
+        }
+        (texts, toks)
+    }
+
+    /// A braced word's contents and a bare word join into one script, and
+    /// every content byte keeps its exact source offset — the window blanks
+    /// the `{`/`}` delimiters and gap to spaces rather than shifting bytes.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: `eval {set l2} hello` ≡ `set l2 hello`.
+    #[test]
+    fn braced_and_bare_words_window_in_place() {
+        let src = "eval {set l2} hello";
+        let (t, k) = tail(
+            src,
+            5,
+            &[("set l2", TokenType::Str), ("hello", TokenType::Esc)],
+        );
+        let (win, span) = concat_script_window(&t, &k, src).expect("static");
+        assert_eq!(win, " set l2  hello");
+        assert_eq!((span.start(), span.end()), (5, 19));
+        // The window is positionally exact: `hello` sits at its source offset.
+        let off = usize::try_from(span.start()).unwrap();
+        assert_eq!(off + win.find("hello").unwrap(), src.find("hello").unwrap());
+    }
+
+    /// A braced word whose contents carry `$`/`[` is still *statically known
+    /// script text* — the braces blocked the outer substitution, and the
+    /// eval-family command itself resolves it when the script runs.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: `set value 5; eval {set l2} {$value};
+    /// puts $l2` → `5`.
+    #[test]
+    fn a_braced_word_with_substitution_text_is_static() {
+        let src = "eval {set l2} {$value}";
+        let (t, k) = tail(
+            src,
+            5,
+            &[("set l2", TokenType::Str), ("$value", TokenType::Str)],
+        );
+        let (win, _) = concat_script_window(&t, &k, src).expect("braced text is static");
+        assert_eq!(win, " set l2   $value ");
+    }
+
+    /// Substitution runs before concatenation, so a dynamic word (or a bare
+    /// word carrying `$`/`[`/escape/quote bytes) makes the real script
+    /// unknowable — the helper declines rather than guessing.
+    #[test]
+    fn a_dynamic_or_decoded_word_anywhere_declines() {
+        let src = "eval $cmd arg";
+        let (t, k) = tail(src, 5, &[("$cmd", TokenType::Var), ("arg", TokenType::Esc)]);
+        assert_eq!(concat_script_window(&t, &k, src), None);
+        let src = "eval set $name";
+        let (t, k) = tail(
+            src,
+            5,
+            &[("set", TokenType::Esc), ("$name", TokenType::Var)],
+        );
+        assert_eq!(concat_script_window(&t, &k, src), None);
+        let src = "eval puts [f]";
+        let (t, k) = tail(src, 5, &[("puts", TokenType::Esc), ("[f]", TokenType::Cmd)]);
+        assert_eq!(concat_script_window(&t, &k, src), None);
+        // A backslash in a bare word decodes before the join — the decoded
+        // text matches no source bytes, so the window declines.
+        let src = "eval set\\ x 5";
+        let (t, k) = tail(
+            src,
+            5,
+            &[("set\\ x", TokenType::Esc), ("5", TokenType::Esc)],
+        );
+        assert_eq!(concat_script_window(&t, &k, src), None);
+    }
+
+    /// An empty braced word contributes nothing — its delimiters blank to
+    /// whitespace and the remaining word keeps its exact offset. This is the
+    /// shape where a naive join anchors the tail one byte early.
+    ///
+    /// tclsh8.6.14 / tclsh9.0.4: `eval {} foo` runs `foo`.
+    #[test]
+    fn an_empty_word_blanks_to_whitespace_and_offsets_hold() {
+        let src = "eval {} foo";
+        let (t, k) = tail(src, 5, &[("", TokenType::Str), ("foo", TokenType::Esc)]);
+        let (win, span) = concat_script_window(&t, &k, src).expect("static");
+        assert_eq!(win, "   foo");
+        let off = usize::try_from(span.start()).unwrap();
+        assert_eq!(off + win.find("foo").unwrap(), src.find("foo").unwrap());
+    }
+
+    /// A window with no content at all declines — there is no script to walk.
+    #[test]
+    fn an_all_whitespace_window_declines() {
+        let src = "eval {} {  }";
+        let (t, k) = tail(src, 5, &[("", TokenType::Str), ("  ", TokenType::Str)]);
+        assert_eq!(concat_script_window(&t, &k, src), None);
+    }
+
+    /// A word whose text does not sit verbatim at its token's content offset
+    /// cannot be mapped to source bytes, so the window declines.
+    #[test]
+    fn a_text_that_diverges_from_the_source_declines() {
+        let src = "eval {set l2} hello";
+        let (mut t, k) = tail(
+            src,
+            5,
+            &[("set l2", TokenType::Str), ("hello", TokenType::Esc)],
+        );
+        t[1] = "other".to_owned();
+        assert_eq!(concat_script_window(&t, &k, src), None);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

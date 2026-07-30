@@ -5526,6 +5526,220 @@ fn w123_tp_a_rename_in_a_dead_branch_is_not_an_unconditional_deletion() {
 }
 
 #[test]
+fn w308_tp_a_renamed_class_name_still_types_its_constructor_1049() {
+    // TP — `rename Dog Cat` moves the class *command*; the class itself is
+    // unchanged, so `Cat new` builds a Dog and `$d fly` is still an unknown
+    // method. Before #1049 the constructor did not type at all, so the
+    // dispatch fell through to W307 noise instead.
+    //
+    // Oracle (tclsh8.6.14 and tclsh9.0.4): `oo::class create Dog { method
+    // bark {} { return woof } }; rename Dog Cat; set d [Cat new]; $d fly`
+    // fails with `unknown method "fly": must be bark or destroy`, while
+    // `$d bark` returns `woof`.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\nset d [Cat new]\n$d fly\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "a class reached through a rename still validates its methods; got {:?}",
+        r.diagnostics,
+    );
+    // The object is typed, so the dispatch is not an unanalysable one.
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
+        "a typed dispatch must not also draw W307; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w308_tn_a_renamed_class_still_accepts_its_real_methods_1049() {
+    // TN — the same shape with a method the class really has draws nothing.
+    // Oracle (tclsh8.6.14 / tclsh9.0.4): `$d bark` → `woof`.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\nset d [Cat new]\n$d bark\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics.is_empty(),
+        "a valid method on a renamed class is silent; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w308_tn_a_constructor_written_before_its_rename_does_not_type_1049() {
+    // TN — the order gate. At top level the rename has not run yet when
+    // `[Cat new]` executes, so `Cat` is simply an unknown command there and
+    // nothing may be typed from it. The paired guard for
+    // `w123_tp_a_class_renamed_away_still_flags_its_old_name`, from the
+    // other side of the rename.
+    //
+    // Oracle (tclsh8.6.14 / tclsh9.0.4): `oo::class create Dog {…}; Cat new`
+    // — before any `rename` — fails with `invalid command name "Cat"`.
+    // The out-of-order call itself is W128's ("called after it was renamed or
+    // deleted earlier in this file" — the same order fact from the other
+    // side); W123 owns the case where the name is never established at all,
+    // as `w123_tp_a_class_renamed_away_still_flags_its_old_name` pins.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nCat new\nset d [Cat new]\nrename Dog Cat\n$d fly\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    let codes: HashSet<String> = r.diagnostics.iter().map(|d| d.code.to_string()).collect();
+    assert!(
+        !codes.contains("W308"),
+        "nothing may be typed from a name the rename has not created yet; got {:?}",
+        r.diagnostics,
+    );
+    assert!(
+        codes.contains("W128"),
+        "and the out-of-order use is still reported; got {codes:?}",
+    );
+}
+
+#[test]
+fn w308_tp_a_chain_of_renames_still_reaches_the_class_1049() {
+    // TP — `rename Dog Cat; rename Cat Kitten` leaves the class reachable
+    // under the last name; the hop walk follows the chain (bounded).
+    //
+    // Oracle (tclsh8.6.14 / tclsh9.0.4): `oo::class create Dog {…}; rename
+    // Dog Cat; rename Cat Kitten; set d [Kitten new]` succeeds, and
+    // `$d fly` fails `unknown method "fly"`.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\nrename Cat Kitten\nset d [Kitten new]\n$d fly\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "a chained rename still reaches the class; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w308_tp_an_interp_alias_of_a_class_types_its_constructor_1049() {
+    // TP — `interp alias {} Cat {} Dog` makes `Cat` dispatch to the class
+    // command, so `Cat new` builds a Dog exactly as `Dog new` does.
+    //
+    // Oracle (tclsh8.6.14 / tclsh9.0.4): `oo::class create Dog {…}; interp
+    // alias {} Cat {} Dog; set d [Cat new]` returns an `::oo::Obj*` handle.
+    let src = "oo::class create Dog { method bark {} { return woof } }\ninterp alias {} Cat {} Dog\nset d [Cat new]\n$d fly\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "an aliased class command still types its constructor; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w308_tn_an_alias_with_prepended_args_is_declined_1049() {
+    // TN — `interp alias {} Cat {} Dog create` prepends words, so `Cat new`
+    // is really `Dog create new`, not the constructor call the plain alias
+    // would make. The hop declines rather than mistyping.
+    //
+    // Oracle (tclsh8.6.14 / tclsh9.0.4): with that alias, `Cat new` runs
+    // `Dog create new` — it creates an *object command named `new`*, and the
+    // value is `::new`, not a fresh anonymous handle.
+    let src = "oo::class create Dog { method bark {} { return woof } }\ninterp alias {} Cat {} Dog create\nset d [Cat new]\n$d fly\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W308),
+        "a prepended-args alias must not be typed as a plain constructor; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w308_tp_an_alias_to_a_renamed_class_name_reaches_the_class_1049() {
+    // TP — the alias's target is not a directly-live class but a *rename
+    // destination*: `Cat` resolves onward to the class still keyed `::Dog`.
+    // The alias hop must keep walking the chain and judge liveness where it
+    // terminates, not demand a class at the hop itself.
+    //
+    // Oracle (tclsh8.6.14 / tclsh9.0.4): `oo::class create Dog {…}; rename
+    // Dog Cat; interp alias {} Pup {} Cat; set d [Pup new]` — `$d bark` →
+    // `woof`, `$d fly` fails `unknown method "fly": must be bark or destroy`.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\ninterp alias {} Pup {} Cat\nset d [Pup new]\n$d fly\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "an alias to a rename destination still reaches the class; got {:?}",
+        r.diagnostics,
+    );
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
+        "a typed dispatch must not also draw W307; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w308_tp_a_chain_of_aliases_reaches_the_class_1049() {
+    // TP — an alias whose target is another alias resolves hop by hop, the
+    // way Tcl re-resolves each name at invocation.
+    //
+    // Oracle (tclsh8.6.14 / tclsh9.0.4): `interp alias {} Cat {} Dog; interp
+    // alias {} Pup {} Cat; set d [Pup new]; $d fly` fails `unknown method
+    // "fly": must be bark or destroy`.
+    let src = "oo::class create Dog { method bark {} { return woof } }\ninterp alias {} Cat {} Dog\ninterp alias {} Pup {} Cat\nset d [Pup new]\n$d fly\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "a chain of aliases still reaches the class; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w308_tn_an_alias_to_the_vacated_source_name_stays_untyped_1049() {
+    // TN — the guard the chain walk must not lose: an alias pointing at a
+    // rename *source* lands on a vacated name. The class survives under
+    // `::Cat`, but the alias re-resolves `Dog` by name at each call and
+    // finds nothing — the lenient rename-source rule that keeps existing
+    // objects typed must not resurrect the name for an alias.
+    //
+    // Oracle (tclsh8.6.14 / tclsh9.0.4): `rename Dog Cat; interp alias {}
+    // Pup {} Dog; Pup new` fails `invalid command name "Dog"`.
+    let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\ninterp alias {} Pup {} Dog\nset d [Pup new]\n$d fly\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W308),
+        "an alias to a vacated name resolves to nothing and must not type; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w308_tp_a_renamed_class_types_a_direct_constructor_dispatch_1049() {
+    // TP — the same fix at the direct-dispatch site (`[Cat new] fly`), which
+    // types the constructor result inline rather than through a variable.
+    let src =
+        "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\n[Cat new] fly\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "a direct dispatch on a renamed constructor still validates; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
 fn w308_fp_issue_1010_reestablished_class_constructor_still_flags_unknown_method() {
     let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog {}\noo::class create Dog { method bark {} { return woof } }\n[Dog new] fly";
     let mut a = Analyser::new();

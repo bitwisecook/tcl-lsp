@@ -524,6 +524,14 @@ impl Analyser {
                 self.lexer_config(),
             );
             for cmd in &cmds {
+                // `link` is deliberately *not* a method-dispatch keyword and
+                // carries none of the `TCLOO_*` traits (issue #1050): it
+                // *creates* per-object bareword commands rather than
+                // dispatching one, so the barewords it installs are per-class
+                // data, not language keywords. Recognising the `link` call
+                // itself is a spec-name match with no behavioural fact behind
+                // it to query — the migration to a registry-modelled member
+                // grammar for `oo::Helpers` is tracked by issue #1026.
                 if cmd.is_partial || cmd.texts.first().map(String::as_str) != Some("link") {
                     continue;
                 }

@@ -127,7 +127,10 @@ fn word_has_observable_side_effect(text: &str, purity: PurityCtx<'_>, depth: u32
             let proc_pure = interproc_pure.contains(cmd_name)
                 || interproc_pure.contains(format!("::{cmd_name}").as_str())
                 || interproc_pure.contains(cmd_name.trim_start_matches(':'));
-            let self_dispatch_pure = matches!(cmd_name, "my" | "::my")
+            // The self-dispatch keyword is registry data (`get` resolves the
+            // `::`-qualified spelling), not a name literal (issue #1050).
+            let self_dispatch_pure = registry.method_dispatch_keyword(cmd_name)
+                == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
                 && !cmd_args.is_empty()
                 && enclosing_class.is_some_and(|cls| method_pure(cls, &cmd_args[0], pure_methods));
             if !proc_pure && !self_dispatch_pure {

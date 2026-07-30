@@ -264,8 +264,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // parent `rename foo` must not edit a child `proc foo`).
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpEval),
         // Runs an arbitrary script — dynamic-dispatch consumers (memory-SSA
-        // clobber classification, side-effect analysis) key off this.
-        traits: Traits::EVALUATES_CODE,
+        // clobber classification, side-effect analysis) key off this.  The
+        // trailing words concatenate into the script (`Tcl_ConcatObj`), so
+        // the eval-family trait applies too.
+        traits: Traits::EVALUATES_CODE.union(Traits::SCRIPT_CONCATENATES_ARGS),
         ..SubCommand::DEFAULT
     },
     SubCommand {

@@ -120,7 +120,7 @@ const SELF_SUBCOMMAND_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "self",
-        traits: Traits::PURE | Traits::LANGUAGE_KEYWORD,
+        traits: Traits::PURE | Traits::LANGUAGE_KEYWORD | Traits::TCLOO_INTROSPECTION,
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::new(0, 1),
         return_type: Some(TclType::String),
