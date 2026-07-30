@@ -51,6 +51,7 @@ pub mod confusables_table;
 pub mod diagnostics;
 pub mod dispatch;
 pub mod handlers;
+pub mod indirection;
 pub mod irules_event_checks;
 pub mod item_tree;
 pub mod oo;

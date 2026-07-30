@@ -4520,6 +4520,7 @@ impl Backend {
         };
         let covers =
             |sp: tcl_lexer::Span| (sp.start() as usize) <= offset && offset < (sp.end() as usize);
+        let offset_u32 = u32::try_from(offset).unwrap_or(u32::MAX);
 
         // A declaration in a *sourced* document resolves standalone to its
         // global-rooted name; the index holds one source-site re-homed twin
@@ -4583,6 +4584,15 @@ impl Backend {
                 // declaration-vs-call-site / cross-file oracle), not a
                 // caller of it, so it needs its own copy of the same check.
                 let has_builtin = registry.get(cand.trim_start_matches("::")).is_some();
+                // A name this document only gains from a `rename` / `interp
+                // alias` written *after* the cursor is not a command here yet
+                // (tclsh: `invalid command name`), so its workspace link must
+                // not settle the call — the index's links are position-free
+                // because a mutation in another file loads wholesale, which
+                // is not true of one in this file (issue #1064).
+                if core_definition::indirection_pending_at(analysis, cand, offset_u32) {
+                    return false;
+                }
                 let same_file_hit = analysis.all_procs.get(cand).is_some_and(|p| {
                     !has_builtin
                         || !analysis.offset_is_inside_any_definition_body(p.name_span.start())

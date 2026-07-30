@@ -499,6 +499,69 @@ fn references_reach_the_current_documents_own_call_when_it_has_no_local_declarat
     assert_eq!(lines.len(), 2, "{lines:?}");
 }
 
+/// idx 21 (differential-audit main audit wave): `interp alias {} sayHi {}
+/// greet` makes every `[sayHi]` a real call site of `greet` — tclsh 9.0.4
+/// and 8.6.16 both execute `greet`'s body twice for the two calls below.
+/// Find-references never consulted the alias table, so a user asking whether
+/// `greet` was safe to delete was told it had no callers.
+#[test]
+fn references_include_call_sites_spelled_through_an_alias() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc greet {} { return hi }\ninterp alias {} sayHi {} greet\nputs [sayHi]\nputs [sayHi]\n",
+    );
+    // Line 0: cursor on the `greet` declaration.
+    let lines = start_lines(&lsp.references(&uri, 0, 6, true));
+    assert!(lines.contains(&0), "decl missing: {lines:?}");
+    assert!(
+        lines.contains(&2) && lines.contains(&3),
+        "both alias call sites must be reported: {lines:?}"
+    );
+}
+
+/// The reverse direction of the same fact: a query from the alias's own call
+/// site resolves through to the target and answers the identical unified set.
+#[test]
+fn references_from_an_alias_call_site_offer_the_targets_sites() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc greet {} { return hi }\ninterp alias {} sayHi {} greet\nputs [sayHi]\nputs [sayHi]\n",
+    );
+    // Line 2: cursor on the `sayHi` call.
+    let lines = start_lines(&lsp.references(&uri, 2, 6, true));
+    assert!(lines.contains(&0), "the target's decl missing: {lines:?}");
+    assert!(
+        lines.contains(&2) && lines.contains(&3),
+        "both alias call sites must be reported: {lines:?}"
+    );
+}
+
+/// idx 92 (differential-audit main audit wave): the `[namespace code [list
+/// ProcName]]` callback wrapper Tk's own `library/fontchooser.tcl` uses ten
+/// times. tclsh 9.0.4 and 8.6.16 both report the installed trace as
+/// `{write {::namespace inscope ::demo Tracer}}` and really dispatch
+/// `::demo::Tracer` on a write, so the wrapped word is a genuine call site.
+#[test]
+fn references_reach_a_namespace_code_list_wrapped_callback() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "namespace eval ::demo {\n    variable S\n    proc Tracer {a b op} { }\n    proc Setup {} {\n        trace add variable S(size) write [namespace code [list Tracer]]\n    }\n}\n",
+    );
+    // Line 2: cursor on the `Tracer` declaration.
+    let lines = start_lines(&lsp.references(&uri, 2, 10, true));
+    assert!(lines.contains(&2), "decl missing: {lines:?}");
+    assert!(
+        lines.contains(&4),
+        "the `[namespace code [list Tracer]]` callback site is missing: {lines:?}"
+    );
+}
+
 /// idx 63 (differential-audit main audit wave, high severity): a `my
 /// methodName` call written inside a `switch` arm body is a genuine,
 /// statically-known call site (tclsh9.0/8.6-verified) — the real corpus

@@ -27,7 +27,7 @@
 //! feeding find-references, call-hierarchy, call-graph, code-lens, W123, and
 //! the callback-arity check off one substrate.
 //!
-//! Three prefix shapes are recognised:
+//! Four prefix shapes are recognised:
 //!
 //! - A **literal bareword** head (a single `Esc` token, not quoted, not a
 //!   `$var`/`[cmd]` substitution) — mirroring the highlight guard in
@@ -47,6 +47,15 @@
 //!   Same head/baked-count semantics as the braced shape, just constructed
 //!   dynamically; the *value* of the trailing arguments isn't needed, only
 //!   their count.
+//! - A **namespace-wrapped prefix** (`[namespace code [list cmd extra]]`, a
+//!   single `Cmd` token whose sole content is a call to a
+//!   `Traits::WRAPS_COMMAND_PREFIX` command): the wrapper's own result is a
+//!   command prefix, so its wrapped word is unwrapped one level and run back
+//!   through the shapes above. The idiom Tk's `library/fontchooser.tcl` uses
+//!   for its trace callbacks (issue #923 idx 92). A *braced* wrapped word is
+//!   excluded: the analyser already walks it as a script, and a second record
+//!   at the same span would double the code-lens reference count (see
+//!   [`extract_wrapped_prefix_head`]).
 //!
 //! A dynamic head (`$var`/`[cmd]`, in any shape) can't be resolved to a
 //! proc and recording it would false-fire W123, so it stays unrecorded.
@@ -230,9 +239,85 @@ fn extract_prefix_head(
         return Some((head.to_string(), head_span, baked));
     }
     if tok.kind == TokenType::Cmd {
-        return extract_list_quoted_prefix_head(registry, tok, text);
+        return extract_list_quoted_prefix_head(registry, tok, text)
+            .or_else(|| extract_wrapped_prefix_head(registry, tok, text));
     }
     None
+}
+
+/// Extract `(head, head_span, baked_arg_count)` from a command-prefix
+/// argument built by a [`tcl_registry::Traits::WRAPS_COMMAND_PREFIX`] command
+/// — `[namespace code [list Tracer]]`, the idiom Tk's own
+/// `library/fontchooser.tcl` uses for every one of its trace callbacks.
+///
+/// `namespace code script` returns `::namespace inscope NS script`: invoking
+/// it runs `script` in `NS` with the caller's arguments appended, so the
+/// command the callback really reaches is `script`'s own head. Unwrap exactly
+/// one level — the inner script must be a single call to a wrapping command,
+/// whose [`ArgRole::Body`] argument is then run back through
+/// [`extract_prefix_head`], so every shape that works directly
+/// (`[list X a]`, a bareword, a braced `{X a}`) works wrapped too, and no
+/// command name appears in this walker.
+///
+/// A **braced** wrapped argument is deliberately left alone.  Every recorded
+/// call site must have exactly one recorder: Find All References dedupes by
+/// range and would hide a duplicate, but `code_lens` counts
+/// `proc_reference_spans().len()` raw, so a second record at the identical
+/// span makes one callback read as *two* references.  The braced word is one
+/// the analyser already walks — `Analyser::analyse_body` descends it as an
+/// ordinary script and records its head — and measuring it confirms the
+/// double: with this guard removed, `[namespace code {Tracer}]` reports two
+/// references for one callback.  Pinned by
+/// `command_table_mutation::tp_lens_counts_each_namespace_code_callback_shape_once`.
+///
+/// The **bareword** shape (`[namespace code Tracer]`) is *not* excluded, even
+/// though `Analyser::dispatch_one_body_argument` does dispatch a bareword
+/// `Body` word as a zero-argument call (the issue #923 idx 61 fix).  That
+/// dispatch runs on the analyser's own statement walk, which does not descend
+/// into a `[…]` command substitution — and a `namespace code` wrapper is
+/// always inside one, since its result has to be substituted to be used.
+/// Measured, not assumed: excluding the bareword shape here drops the
+/// callback's reference count from 1 to 0 (PR #1075 review, P2 — the review's
+/// double-count diagnosis holds for the braced word, which was already
+/// guarded, but not for this one).
+///
+/// [`ArgRole::Body`]: tcl_registry::arg_role::ArgRole::Body
+fn extract_wrapped_prefix_head(
+    registry: &CommandRegistry,
+    tok: Token,
+    text: &str,
+) -> Option<(String, Span, usize)> {
+    let inner = text.strip_prefix('[')?.strip_suffix(']')?;
+    let content_start = tok.span.start() + u32::from(tok.content_offset);
+    let mut segs = segment_commands_with_offset(inner, content_start);
+    if segs.len() != 1 {
+        return None;
+    }
+    let seg = segs.pop()?;
+    let args: Vec<&str> = seg.texts.get(1..)?.iter().map(String::as_str).collect();
+    if !registry
+        .invocation_traits(
+            &seg.texts[0],
+            &args,
+            tcl_registry::prelude::DialectSet::empty(),
+        )
+        .contains(tcl_registry::Traits::WRAPS_COMMAND_PREFIX)
+    {
+        return None;
+    }
+    let wrapped = *registry
+        .arg_indices_for_role(&seg.texts[0], &args, tcl_registry::ArgRole::Body)
+        .first()?;
+    let wrapped_tok = *seg.argv.get(wrapped + 1)?;
+    if wrapped_tok.kind == TokenType::Str {
+        return None;
+    }
+    extract_prefix_head(
+        registry,
+        wrapped_tok,
+        seg.texts.get(wrapped + 1)?,
+        *seg.single_token_word.get(wrapped + 1)?,
+    )
 }
 
 /// Extract `(head, head_span, baked_arg_count)` from a `[list cmd a b]`

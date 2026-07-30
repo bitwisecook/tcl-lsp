@@ -1122,6 +1122,56 @@ fn w127_fires_on_invalid_subcommand_closed_value() {
     );
 }
 
+/// Diagnostic codes for `src` under the Tcl 9.0 profile, in emission order.
+fn all_codes(src: &str) -> Vec<String> {
+    let mut a = Analyser::new();
+    a.analyse(src, "tcl9.0")
+        .diagnostics
+        .into_iter()
+        .map(|d| d.code.to_string())
+        .collect()
+}
+
+#[test]
+fn e003_tp_call_between_two_declarations_checks_the_first_signature() {
+    // TP — issue #923 idx 45. `p a b` sits between a zero-parameter `proc p`
+    // and a later one-parameter redefinition; tclsh 9.0.4 and 8.6.16 both
+    // fail it with `wrong # args: should be "p"` — the *first* signature.
+    // `all_procs` alone only remembers the second, so the call resolved to
+    // nothing and the guaranteed failure went unreported.
+    let src = "proc p {} { return 1 }\np a b\nproc p {a} { return $a }\n";
+    assert!(
+        all_codes(src).contains(&"E003".to_string()),
+        "the in-between call is checked against the first definition: {:?}",
+        all_codes(src)
+    );
+}
+
+#[test]
+fn e003_tn_call_between_two_declarations_matching_the_first_is_silent() {
+    // TN — the paired guard: the same position with an argument count the
+    // *first* definition accepts (and the second would reject) must stay
+    // silent. tclsh: `p` there returns `first`.
+    let src = "proc p {} { return 1 }\np\nproc p {a} { return $a }\n";
+    assert!(
+        !all_codes(src).contains(&"E003".to_string()),
+        "a call the in-effect definition accepts is not an arity error: {:?}",
+        all_codes(src)
+    );
+}
+
+#[test]
+fn e003_tp_call_after_both_declarations_checks_the_last_signature() {
+    // TP — last-redefinition-wins is still right after the second header:
+    // tclsh fails a bare `p` with `wrong # args: should be "p a"`.
+    let src = "proc p {} { return 1 }\nproc p {a} { return $a }\np\n";
+    assert!(
+        all_codes(src).contains(&"E002".to_string()),
+        "the trailing call is checked against the second definition: {:?}",
+        all_codes(src)
+    );
+}
+
 // E002 / E003 arity
 
 #[test]
@@ -11262,6 +11312,41 @@ fn w123_codes(src: &str) -> Vec<String> {
         .filter(|d| d.code == DiagCode::W123)
         .map(|d| d.code.to_string())
         .collect()
+}
+
+#[test]
+fn w123_tp_rename_of_a_nonexistent_command_is_flagged() {
+    // TP — issue #923 idx 5. `rename OLD NEW` requires `OLD` to exist:
+    // tclsh 9.0.4 and 8.6.16 both abort with `can't rename
+    // "definitelyNotDefinedAnywhere": command doesn't exist` (exit 1). `OLD`
+    // is recorded as an ordinary command reference, so W123 reports the
+    // guaranteed failure at the token that causes it.
+    let src = "rename definitelyNotDefinedAnywhere someAlias\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_string()]);
+}
+
+#[test]
+fn w123_tp_deleting_rename_of_a_nonexistent_command_is_flagged() {
+    // TP — the delete form of the same finding: tclsh 9.0.4 and 8.6.16 both
+    // abort with `can't delete "totallyBogusCommand": command doesn't exist`.
+    let src = "rename totallyBogusCommand {}\nputs done\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_string()]);
+}
+
+#[test]
+fn w123_tn_rename_of_an_existing_proc_is_silent() {
+    // TN — the paired guard: the source exists, so the rename is legal
+    // (tclsh: `hello` then returns `hi`) and neither operand is flagged.
+    let src = "proc greet {} { return hi }\nrename greet hello\nhello\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_tn_rename_of_a_builtin_is_silent() {
+    // TN — renaming a registry builtin away is the standard wrap idiom and
+    // must not report the builtin as unknown.
+    let src = "rename puts ::original_puts\nproc puts {args} { }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
 }
 
 #[test]
