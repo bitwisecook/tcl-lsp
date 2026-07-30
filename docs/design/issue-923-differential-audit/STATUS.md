@@ -474,6 +474,14 @@ mathfunc-aware W123 / W002 work that landed on `rust` after the audit ran
 (`is_mathfunc_call` + `is_known_mathfunc_in_dialect`) and is counted with
 them. That makes **30 fixed, 55 remaining**.
 
+**2026-07-30 update — PR B3 (`claude/commandregistry-compiler-fixes-tshu8d-factories`)
+fixed six more, all tier 2 — the "class factories and dynamically-installed
+members" cluster:** idx 44, idx 53, idx 55, idx 96, and idx 97 are newly
+fixed; idx 43 was **re-verified as already fixed** by the `foreach`-literal
+simulation that landed for idx 86 (PR #1020) and is pinned with a regression
+test rather than re-fixed. See the "tier-2 findings fixed by PR B3"
+subsection after the tier-2 table. That makes **36 fixed, 49 remaining**.
+
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
 strings in the raw data — same corpus), tomato 7, pix 8.
@@ -696,8 +704,8 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 
 | feature | count | idx (severity) |
 |---|---|---|
-| tclOO | 10 | 15, 16, 34, 35, 36, 53, ~~54~~ **FIXED**, 55, 96, 97 (all medium) |
-| namespaces | 8 | 3, 19, 43, 44, 64, 65, 75, 85 (all medium) |
+| tclOO | 10 | 15, 16, 34, 35, 36, ~~53~~ **FIXED**, ~~54~~ **FIXED**, ~~55~~ **FIXED**, ~~96~~ **FIXED**, ~~97~~ **FIXED** (all medium) |
+| namespaces | 8 | 3, 19, ~~43~~ **ALREADY FIXED**, ~~44~~ **FIXED**, 64, 65, 75, 85 (all medium) |
 | tricky_indirection | 7 | 0 (medium, **FIXED** — see below), 1, 2, 14, 49, 50, 51 (all medium) |
 | upvar | 7 | 7, 22, 57, 58, 59, 98, 99 (all medium) |
 | proc_args | 7 | 11, 28, 37, 62, 67, 78, ~~104~~ **FIXED** (all medium) |
@@ -766,6 +774,25 @@ plus new `rust/tcl-lsp-server/tests/e2e/{hover,completion}.rs` cases.
 | 81 (tcl_mathop) | Every built-in `expr` math function drew a false `W123 Unknown command`, several with actively-wrong "did you mean" fixes. | **Already fixed** on `rust` after the audit ran: `SignatureCommandInvocation::is_mathfunc_call` plus `is_known_mathfunc_in_dialect` gate the W123 check. Verified, not re-fixed. |
 | 103 (tcl_mathop) | Zero `CommandSpec` entries for `tcl::mathfunc::*`, so the generic per-dispatch-site W002 availability check was blind to the plain-command spelling. | The registry data (`tcl-registry/src/commands/tcl/mathfunc_generated.rs`) **already landed** on `rust`. What PR A3 adds is the query layer the LSP needed on top of it — `tcl-registry/src/mathfunc.rs` — and a test pinning that both qualified spellings exist and gate correctly (`isinf` 9.0+, the command table itself 8.5+ per TIP 232). |
 | 104 (proc_args) | A proc parameter's own name token and its **default-value literal** both resolved to an unrelated same-named command (`{destroy destroy}` in `tk.tcl`'s `::tk::RestoreFocusGrab` showed Tk's `destroy` documentation). | The name token was already answered by idx 9's declaration-offset search; the remaining data words are now guarded generally by `definition::parameter_list_position_at`, consulted by both hover and go-to-definition. A *literal* parameter list holds no command references at all, so the guard needs no per-command knowledge. **Codex review of PR #1073 (P2)** narrowed it from the whole name-token-to-body region to the actual literal parameter-list **word**: `proc`'s parameter list is an ordinary Tcl word and may be computed (`proc p [makeargs] {…}` runs `[makeargs]` at definition time — oracle-confirmed on 9.0.4 and 8.6.16, as are the `$params` and `"m n"` forms), so a word containing `$` / `[` / `"` / a backslash escape stays navigable. A computed list also suppresses the bareword-*declaration* step, because the analyser records a stub `VarDef` named after the whole word (`"[makeargs]"`) that would otherwise make go-to-definition point at the cursor's own token instead of resolving the call. |
+
+#### Tier-2 findings fixed by PR B3 (2026-07-30)
+
+Landed together on `claude/commandregistry-compiler-fixes-tshu8d-factories`
+as one cluster: every one of them is a place where a class, a member, or a
+command name is **installed dynamically** and the analyser gave up on a shape
+that is in fact statically determined. Regression coverage is the
+`class_factories` module in `rust/tcl-compiler/tests/analyser.rs` (19 TP/TN
+cases), plus the updated `handle_oo_define_command` unit tests. Ground truth
+for each shape was taken from tclsh 9.0.4 **and** tclsh 8.6.16, which agree
+on all of them.
+
+| idx | what was wrong | what changed |
+|---|---|---|
+| 43 (namespaces) | `foreach ptype {elist elist.n …} { proc ticklecharts::${ptype} … }` filed one bogus `ProcDef` under the literal `${ptype}` template, so go-to-definition/hover found nothing for the real procs, W123 fired on all five, and the outline showed `${ptype}`. | **Already fixed** on `rust` by the idx 86 `foreach`-literal simulation (PR #1020): `handle_foreach_command` binds the loop variable to each literal element and re-dispatches `proc`, so every element is registered under its real qualified name. Verified, not re-fixed; pinned by `foreach_installed_procs_are_enumerated_per_literal_element`. |
+| 44 (namespaces) | `${ns}::setdef` resolved to nothing — go-to-definition, find-references, and call-hierarchy silently dropped every call site. | Two halves. (1) **Wrong source bytes**: for a braced composite word the lexer merges the whole word into one `Var` token, so its raw text is `ns}::setdef`, not the variable name — `resolve_dynamic_word` looked that up as a variable and always missed. It now truncates at the brace the lexer left in place (the same rule `record_var_or_cmd_command_site` already used for its W307 head reading) and folds the literal tail. (2) The command **head** itself now goes through that folding before `resolve_command_qualified_name`, via `resolve_dynamic_command_head`, using the *dominating*-constant lattice so a branch-conditional binding still abstains. |
+| 53 (tclOO) | `constructor {*}[…]` / `method {*}{…}` members were dropped entirely — `extract_method_def` saw one word where the grammar wanted two or three — so `chart3D`'s whole reflected method surface was missing from the outline with no diagnostic. | `{*}` is applied by the *parser*, so a `{*}`-marked **braced literal** word is not one word but the elements of the list it holds. `splice_static_member_expansions` normalises those words before the member grammar's layout is read off them, with each spliced word carrying its own real source span. A `{*}` over a substitution has no statically-knowable element list and is left verbatim, so the member still abstains — verified against both interpreters, which run `method {*}{foo {} {…}}` and `constructor {*}[info class constructor ::Base]` alike. |
+| 55 (tclOO) | `foreach class {…} { oo::define $class {…} }` bucketed every injected member under a synthetic `@dynclass@<offset>` key, so a real, tclsh-proven method drew a false `W308 Unknown method` and resolved nowhere. | `handle_oo_define_command` now folds its target word through `resolve_dynamic_word` (falling back to the synthetic key only when the target is genuinely unresolvable), and the `foreach`-literal simulation was generalised from a hardcoded `rename`/`proc` name match to the new registry trait `Traits::INSTALLS_NAMED_DEFINITION`, carried by `proc`, `rename`, `oo::define`, and `oo::objdefine`. Cost stays `O(elements × body-commands)` with no fixpoint. |
+| 96, 97 (tclOO) | A class created through a **user-defined metaclass** — Tk's own `::tk::Megawidget` idiom — never entered `all_classes` at all: no document symbols, no find-references, and `next` inside an override resolved nowhere. `is_class_definer` could only ever match the registry's own four metaclass commands. | Metaclass-ness now propagates down the recorded superclass chain: a class whose chain reaches an `IS_OO_METACLASS` command with a `TclOo` grammar is itself a class factory (`user_metaclass_of_command`). The registry stays the seed; only the inheritance step is TclOO language semantics. The manufacturer's **word layout** is read off its own `create` override rather than assumed — Tk's `{name superclasses body}` puts the body at argument 3 — and the members that override splices into every body it makes (`[list superclass ::tk::MegawidgetClass {*}$superclasses]`) are resolved against the call's own arguments and applied through the same registry-grammar routing a written-out member uses. When the override cannot be read the class is still recorded but marked `ClassDef::inheritance_unknown`, which makes W308 abstain exactly as an out-of-index superclass already does. Superclass lists now match `info class superclasses` on both interpreters exactly. |
 
 ### 6c. Broader mandate coverage check
 

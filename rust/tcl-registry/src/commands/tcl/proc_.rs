@@ -61,6 +61,7 @@ pub fn spec() -> CommandSpec {
         name: "proc",
         dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::NOT_PROC_FACTORY
+            | Traits::INSTALLS_NAMED_DEFINITION
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
             | Traits::DEFINES_PROCEDURE

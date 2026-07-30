@@ -61,6 +61,11 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   when `apply` is reached indirectly through `[list apply {...} $x]`
   (the pkgIndex.tcl `package ifneeded ... [list apply {dir {...}} $dir]`
   idiom), even though a direct `apply {...}` call highlights fine.
+- [kcs-issue-classes-made-by-a-class-factory-are-invisible.md](kcs-issue-classes-made-by-a-class-factory-are-invisible.md)
+  — a class made by a user-defined `TclOO` metaclass, a member whose
+  signature arrives through `{*}` expansion, a class named by a `foreach`
+  loop variable, or a command head built from a namespace variable is
+  missing from the outline and resolves nowhere.
 - [kcs-issue-w129-safe-interp-hidden-command-via-bracket-indirection.md](kcs-issue-w129-safe-interp-hidden-command-via-bracket-indirection.md)
   — W129 (a command hidden in a safe interpreter) does not warn when the
   hidden command is reached only through a `[...]` bracket substitution —

@@ -622,6 +622,14 @@ pub struct ClassDef {
     /// for an ``oo::define`` that extends a class created earlier in the same
     /// file.
     pub via_define: bool,
+    /// `true` when the class was manufactured by a **user-defined metaclass**
+    /// whose `create` override the analyser could not read, so the superclass
+    /// list it splices into the class is unknown.  The class itself is real
+    /// and its own body is fully modelled; only its inheritance is opaque.
+    /// Method-existence checks (W308) must abstain on such a class exactly as
+    /// they do for one whose superclass lives outside the workspace index —
+    /// a method it inherits is not one it is missing (issue #923 idx 96/97).
+    pub inheritance_unknown: bool,
 }
 
 impl Default for ClassDef {
@@ -655,6 +663,7 @@ impl Default for ClassDef {
             linked_members: HashMap::new(),
             doc: String::new(),
             via_define: false,
+            inheritance_unknown: false,
         }
     }
 }
