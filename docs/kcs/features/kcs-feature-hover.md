@@ -77,9 +77,18 @@ even when it looks like one:
 - A `$name` inside a comment, or inside a brace-quoted value Tcl passes
   through unchanged (`set t {plain $level here}` really does print
   `plain $level here`).
-- A word in a procedure's own parameter list — a parameter name shows the
-  parameter, and a default value shows nothing, rather than a command that
-  happens to share the name.
+- A word in a procedure's own **literal** parameter list — a parameter name
+  shows the parameter, and a default value shows nothing, rather than a
+  command that happens to share the name.
+
+Both of those are decided narrowly, so a real reference is never hidden:
+
+- Only a `#` that genuinely starts a command is a comment. A brace in the
+  middle of a word is an ordinary character, so `puts a{# $v` still shows
+  `$v` — that line really does substitute it.
+- Only a *literal* parameter list is data. A computed one is live code and
+  stays clickable, so `proc p [makeargs] {…}` still shows and jumps to
+  `makeargs`, which really is called when the procedure is defined.
 
 ## File-path anchors
 

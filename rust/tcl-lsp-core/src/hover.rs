@@ -349,6 +349,15 @@ fn variable_hover(
     }
 
     let decl_byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    // A *computed* parameter list (`proc p [makeargs] …`) is live code, not a
+    // declaration site: the analyser records a stub `VarDef` named after the
+    // whole word (`"[makeargs]"`), so trusting it here would render a bogus
+    // variable hover over what is really a call (Codex review of PR #1073).
+    if crate::definition::parameter_list_position_at(analysis, source, decl_byte_offset)
+        == crate::definition::ParamListPosition::Computed
+    {
+        return None;
+    }
     let var_def =
         crate::definition::var_def_at_declaration_offset(&analysis.global_scope, decl_byte_offset)?;
     let (type_info, taint_info) =
@@ -398,13 +407,14 @@ pub fn hover_with_profile(
         return Some(hover);
     }
 
-    // A word inside an enclosing proc/method's own parameter list is pure
-    // data — a parameter name (already answered by `variable_hover`) or a
+    // A word inside an enclosing proc/method's own *literal* parameter list is
+    // pure data — a parameter name (already answered by `variable_hover`) or a
     // default value — never a command reference (issue #923 idx 104: both the
     // parameter name `destroy` and the default-value literal `destroy` in
     // `proc ::tk::RestoreFocusGrab {grab focus {destroy destroy}}` rendered
-    // Tk's `destroy` *command* documentation).
-    if crate::definition::offset_is_in_parameter_list(analysis, cursor_offset) {
+    // Tk's `destroy` *command* documentation).  A *computed* parameter list
+    // (`proc p [makeargs] {…}`) holds live code and stays navigable.
+    if crate::definition::offset_is_in_parameter_list(analysis, source, cursor_offset) {
         return None;
     }
 

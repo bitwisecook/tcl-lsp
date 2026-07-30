@@ -189,7 +189,11 @@ fn command_words_at(source: &str, probe: usize) -> Option<(Vec<String>, usize)> 
 /// A braced / bracketed / quoted word is consumed whole (nesting counted); an
 /// unclosed one returns `limit`, which is how the caller learns the cursor is
 /// inside it.
-fn word_end(source: &str, start: usize, limit: usize) -> usize {
+///
+/// The one place a single Tcl word is measured off raw source, shared with
+/// [`crate::definition::offset_is_in_parameter_list`] so both agree on where a
+/// braced word ends.
+pub(crate) fn word_end(source: &str, start: usize, limit: usize) -> usize {
     let bytes = source.as_bytes();
     let (open, close) = match bytes[start] {
         b'{' => (b'{', b'}'),

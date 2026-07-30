@@ -348,7 +348,10 @@ fn position_definition(
             .unwrap_or_default(),
         );
     }
-    if let Some(var_def) = var_def_at_declaration_offset(&analysis.global_scope, cursor_off) {
+    let param_position = parameter_list_position_at(analysis, source, cursor_off);
+    if param_position != ParamListPosition::Computed
+        && let Some(var_def) = var_def_at_declaration_offset(&analysis.global_scope, cursor_off)
+    {
         return Some(vec![span_to_range(
             source,
             line_index,
@@ -364,7 +367,7 @@ fn position_definition(
                 .unwrap_or_default(),
         );
     }
-    offset_is_in_parameter_list(analysis, cursor_off).then(Vec::new)
+    (param_position == ParamListPosition::LiteralData).then(Vec::new)
 }
 
 /// Go-to-definition for an instance-method call site (`$obj method` /
@@ -1418,35 +1421,140 @@ pub(crate) fn lookup_var_read_at<'a>(
     (!inert).then_some(var_def)
 }
 
-/// Whether `off` sits inside the **parameter list** of a proc or method —
-/// the region between its name token and its body.
+/// Whether `off` sits inside a **literal** parameter-list word of a proc or
+/// method — the word between its name token and its body.
 ///
-/// Every word there is pure data: a parameter's own name, or a default
-/// value.  Neither is a command reference, so bareword command resolution
-/// must not run on it: `proc ::tk::RestoreFocusGrab {grab focus {destroy
-/// destroy}}` had both the parameter name `destroy` and the default-value
-/// literal `destroy` resolving to Tk's `destroy` **command** (issue #923
-/// differential-audit finding idx 104 — tclsh proves the bare word in a
-/// parameter list never invokes anything).  A cursor on the parameter *name*
-/// is answered earlier, by [`var_def_at_declaration_offset`]; this guard is
-/// what stops the remaining data words falling through.
-pub(crate) fn offset_is_in_parameter_list(analysis: &AnalysisResult, off: u32) -> bool {
-    let in_list = |name_span: tcl_lexer::Span, body_span: tcl_lexer::Span| {
-        name_span.end() <= off && off < body_span.start()
+/// Every word inside a literal parameter list is pure data: a parameter's own
+/// name, or a default value.  Neither is a command reference, so bareword
+/// command resolution must not run on it: `proc ::tk::RestoreFocusGrab {grab
+/// focus {destroy destroy}}` had both the parameter name `destroy` and the
+/// default-value literal `destroy` resolving to Tk's `destroy` **command**
+/// (issue #923 differential-audit finding idx 104 — tclsh proves the bare word
+/// in a parameter list never invokes anything).  A cursor on the parameter
+/// *name* is answered earlier, by [`var_def_at_declaration_offset`]; this
+/// guard is what stops the remaining data words falling through.
+///
+/// **Literal** is the load-bearing word.  `proc`'s parameter-list argument is
+/// an ordinary Tcl word, so it may be *computed*, and then it holds live code
+/// that must stay navigable.  Verified on tclsh 9.0.4 and 8.6.16:
+///
+/// ```tcl
+/// proc makeargs {} { return {a b} }
+/// proc p [makeargs] { return "p got $a $b" }
+/// puts [p 1 2]          ;# p got 1 2
+/// puts [info args p]    ;# a b
+/// set params {x y}
+/// proc q $params { … }  ;# works the same way
+/// proc r "m n" { … }    ;# and so does a quoted one
+/// ```
+///
+/// `[makeargs]` really is a call, made at definition time, so go-to-definition
+/// and hover on it must work.  Only a braced word (`{a {b 1} args}` —
+/// substitution suppressed outright) or a plain bareword with no substitution
+/// syntax is treated as data; anything containing `$`, `[`, `"`, or a
+/// backslash escape stays navigable.
+pub(crate) fn offset_is_in_parameter_list(
+    analysis: &AnalysisResult,
+    source: &str,
+    off: u32,
+) -> bool {
+    parameter_list_position_at(analysis, source, off) == ParamListPosition::LiteralData
+}
+
+/// What a cursor offset is, with respect to the parameter-list word of the
+/// routine that encloses it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ParamListPosition {
+    /// Not inside any routine's parameter-list word.
+    Outside,
+    /// Inside a **literal** parameter list — pure data, no references.
+    LiteralData,
+    /// Inside a **computed** one (`proc p [makeargs] …`, `proc q $params …`,
+    /// `proc r "m n" …`): live code that must stay navigable, and *not* a
+    /// place a parameter declaration can be trusted either — the analyser
+    /// records a stub `VarDef` named after the whole word (`"[makeargs]"`),
+    /// which would otherwise make go-to-definition point at the cursor's own
+    /// token instead of resolving the call.
+    Computed,
+}
+
+/// Classify `off` against the parameter-list word of whichever proc or method
+/// encloses it — see [`ParamListPosition`] and
+/// [`offset_is_in_parameter_list`].
+pub(crate) fn parameter_list_position_at(
+    analysis: &AnalysisResult,
+    source: &str,
+    off: u32,
+) -> ParamListPosition {
+    let classify = |name_span: tcl_lexer::Span, body_span: tcl_lexer::Span| {
+        param_word_position(source, name_span.end(), body_span.start(), off)
     };
-    if analysis
+    let routines = analysis
         .all_procs
         .values()
-        .any(|p| in_list(p.name_span, p.body_span))
-    {
-        return true;
-    }
-    analysis.all_classes.values().any(|c| {
+        .map(|p| (p.name_span, p.body_span));
+    let members = analysis.all_classes.values().flat_map(|c| {
         c.methods
             .values()
             .chain(c.class_methods.values())
-            .any(|m| in_list(m.name_span, m.body_span))
-    })
+            .map(|m| (m.name_span, m.body_span))
+    });
+    routines
+        .chain(members)
+        .map(|(name_span, body_span)| classify(name_span, body_span))
+        .find(|p| *p != ParamListPosition::Outside)
+        .unwrap_or(ParamListPosition::Outside)
+}
+
+/// Classify `off` against the parameter-list word sitting in
+/// `[region_start, region_end)` — a routine's name-token end to its body
+/// start.  See [`offset_is_in_parameter_list`] for the oracle behind the
+/// literal test.
+fn param_word_position(
+    source: &str,
+    region_start: u32,
+    region_end: u32,
+    off: u32,
+) -> ParamListPosition {
+    let (start, end, off) = (region_start as usize, region_end as usize, off as usize);
+    if start > end || off < start || off >= end || end > source.len() {
+        return ParamListPosition::Outside;
+    }
+    // The parameter list is the first word of the region; skip the whitespace
+    // the segmenter left between the name token and it.
+    let bytes = source.as_bytes();
+    let mut word_start = start;
+    while word_start < end && matches!(bytes[word_start], b' ' | b'\t' | b'\r' | b'\n') {
+        word_start += 1;
+    }
+    if word_start >= end {
+        return ParamListPosition::Outside;
+    }
+    let word_end = crate::expr_context::word_end(source, word_start, end);
+    if off < word_start || off >= word_end {
+        return ParamListPosition::Outside;
+    }
+    let Some(word) = source.get(word_start..word_end) else {
+        return ParamListPosition::Outside;
+    };
+    if param_word_is_literal(word) {
+        ParamListPosition::LiteralData
+    } else {
+        ParamListPosition::Computed
+    }
+}
+
+/// Whether a parameter-list word is a literal — data Tcl passes through
+/// without substitution.
+///
+/// A braced word suppresses substitution outright.  A bare word substitutes,
+/// so it only counts as literal when it contains no substitution syntax at
+/// all; a quoted word never counts (its `$` / `[` are live).
+fn param_word_is_literal(word: &str) -> bool {
+    if word.starts_with('{') {
+        return true;
+    }
+    !word.contains(['$', '[', '"', '\\'])
 }
 
 /// Collect every variable name visible at `byte_offset` — the union

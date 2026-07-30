@@ -731,6 +731,154 @@ fn fp_guard_idx24_qualified_reads_still_resolve() {
 }
 
 // ---------------------------------------------------------------------------
+// Codex review of PR #1073 — the two conservative proofs, sharpened
+// ---------------------------------------------------------------------------
+
+/// Finding 1 (TP): a `{` **inside a bare word** is an ordinary character, so a
+/// `#` after it is not in command position and the `$v` following it is a
+/// genuine read that hover / definition / references must still resolve.
+///
+/// Oracle (tclsh 9.0.4 and 8.6.16 agree — `a{#` is one bare word whose brace
+/// is literal, and `$v` is substituted):
+///
+/// ```text
+/// set v OK
+/// puts "1: [list a{# $v]"        -> 1: a\{# OK
+/// puts "2: [string cat a{# $v]"  -> 2: a{#OK
+/// ```
+#[test]
+fn tp_mid_word_brace_does_not_suppress_a_real_variable_read() {
+    let src = "set v OK\nset w [string cat a{# $v]\nputs $w\n";
+    let analysis = analyse(src);
+    let (line, col) = pos_of(src, "$v]");
+    let text = hover_at(src, "tcl8.6", line, col + 1)
+        .expect("the read after a mid-word brace still hovers");
+    assert!(text.contains("**Variable** `v`"), "{text}");
+    assert_eq!(
+        tcl_lsp_core::definition::definition(src, line, col + 1, &analysis).len(),
+        1,
+        "go-to-definition must still resolve"
+    );
+    assert!(
+        !tcl_lsp_core::references::references(src, "tcl8.6", line, col + 1, &analysis, true)
+            .is_empty(),
+        "find-references must still resolve"
+    );
+    assert!(
+        tcl_lsp_core::rename::prepare_rename(src, line, col + 1, &analysis).is_some(),
+        "the read is renameable"
+    );
+}
+
+/// Finding 1 (TN): the existing command-position cases stay suppressed — a
+/// leading `#`, a `#` after `;`, and a `#` just inside a **word-start** brace
+/// (which is structural, unlike a mid-word one).
+#[test]
+fn tn_real_comment_positions_stay_suppressed() {
+    for (src, needle) in [
+        ("proc p {} {\n    set v 1\n    # so $v ...\n}\n", "$v ..."),
+        ("set v 1\nputs hi ;# note $v\n", "$v"),
+        ("set v 1\nputs {# not a comment $v}\n", "$v"),
+    ] {
+        let analysis = analyse(src);
+        let (line, col) = pos_of(src, needle);
+        assert!(
+            hover_at(src, "tcl8.6", line, col + 1).is_none(),
+            "{src:?} / {needle:?} must stay suppressed"
+        );
+        assert!(
+            tcl_lsp_core::definition::definition(src, line, col + 1, &analysis).is_empty(),
+            "{src:?} / {needle:?} must stay suppressed"
+        );
+    }
+}
+
+/// Finding 2 (TP): `proc`'s parameter-list argument is an ordinary Tcl word, so
+/// it may be **computed** — and then it holds live code that must stay
+/// navigable.
+///
+/// Oracle (tclsh 9.0.4 and 8.6.16 agree — `[makeargs]` runs at definition
+/// time):
+///
+/// ```text
+/// proc makeargs {} { return {a b} }
+/// proc p [makeargs] { return "p got $a $b" }
+/// puts [p 1 2]        -> p got 1 2
+/// puts [info args p]  -> a b
+/// ```
+#[test]
+fn tp_computed_parameter_list_stays_navigable() {
+    let src = "\
+proc makeargs {} { return {a b} }
+proc p [makeargs] { return \"p got $a $b\" }
+puts [p 1 2]
+";
+    let analysis = analyse(src);
+    let (line, col) = pos_of(src, "makeargs] {");
+    let locs = tcl_lsp_core::definition::definition(src, line, col, &analysis);
+    assert_eq!(locs.len(), 1, "go-to-definition on `[makeargs]`: {locs:?}");
+    assert_eq!(locs[0].start_line, 0, "{:?}", locs[0]);
+    let text = hover_at(src, "tcl8.6", line, col).expect("hover on `[makeargs]`");
+    assert!(text.contains("proc ::makeargs"), "{text}");
+}
+
+/// Finding 2 (TP): the `$var` and quoted forms of a computed parameter list are
+/// live too — oracle: `set params {x y}; proc q $params {…}` and
+/// `proc r "m n" {…}` both work on 9.0.4 and 8.6.16.
+#[test]
+fn tp_variable_parameter_list_stays_navigable() {
+    let src = "\
+set params {x y}
+proc q $params { return \"q got $x $y\" }
+";
+    let analysis = analyse(src);
+    let (line, col) = pos_of(src, "$params {");
+    let text = hover_at(src, "tcl8.6", line, col + 1).expect("hover on `$params`");
+    assert!(text.contains("**Variable** `params`"), "{text}");
+    assert_eq!(
+        tcl_lsp_core::definition::definition(src, line, col + 1, &analysis).len(),
+        1,
+        "go-to-definition on the parameter-list variable"
+    );
+}
+
+/// Finding 2 (TN): a **braced literal** parameter list stays inert, so a
+/// default-value word inside it draws no bogus command resolution — including
+/// a nested `{b 1}` default pair whose `b` shares a name with a real command.
+#[test]
+fn tn_literal_parameter_list_stays_inert() {
+    let src = "\
+proc b {x} { return $x }
+proc s {a {b 1} args} { return \"s got $a $b $args\" }
+";
+    // The parameter name `b` inside `{b 1}` resolves to the parameter, never
+    // to the same-named global proc on line 0.
+    let (line, col) = pos_of(src, "b 1} args");
+    let text = hover_at(src, "tcl8.6", line, col).expect("the parameter itself");
+    assert!(
+        text.contains("**Variable** `b`"),
+        "the parameter, not the proc: {text}"
+    );
+    // The default-value literal `1` is data.
+    assert!(
+        hover_at(src, "tcl8.6", line, col + 2).is_none(),
+        "the default value is data"
+    );
+    // And a bareword default that names a real command still draws nothing.
+    let shadow = "proc destroy {w} { puts $w }\nproc rfg {g {destroy destroy}} { destroy $g }\n";
+    let shadow_analysis = analyse(shadow);
+    let (line, col) = pos_of(shadow, "destroy}} {");
+    assert!(
+        hover_at(shadow, "tcl8.6", line, col).is_none(),
+        "a default-value literal is not a command reference"
+    );
+    assert!(
+        tcl_lsp_core::definition::definition(shadow, line, col, &shadow_analysis).is_empty(),
+        "a default-value literal is not a command reference"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Issue #1054 — hover type inference must be built for the document's dialect
 // ---------------------------------------------------------------------------
 

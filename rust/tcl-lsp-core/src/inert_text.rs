@@ -51,12 +51,48 @@ const MAX_DEPTH: u32 = 32;
 
 /// Whether `off` sits inside a `#` comment.
 ///
-/// A `#` begins a comment only in **command position** — at the start of a
-/// line, or after a `;` / `{` (`tclParse.c`). Conservative in two ways: the
-/// scan stops at the offset's own line (a backslash-continued comment
-/// therefore under-reports, never over-reports), and a `#` on a line with an
-/// odd number of preceding unescaped `"` is treated as literal text inside a
-/// quoted word rather than a comment.
+/// A `#` begins a comment only in **command position** — where `tclParse.c`'s
+/// `Tcl_ParseCommand` is about to read a command's first word: at the start of
+/// a command, after a `;`, or just inside a `{` that **opens a word**.
+///
+/// That last qualifier is the whole subtlety. A `{` is structural only at
+/// word-start position; **inside** a bare word it is an ordinary character, so
+/// the text after it is still mid-word and a `#` there is data, not a comment.
+/// Verified on tclsh 9.0.4 and 8.6.16:
+///
+/// ```tcl
+/// set v OK
+/// puts "1: [list a{# $v]"          ;# 1: a\{# OK   <- one word `a{#`, $v substituted
+/// puts "2: [string cat a{# $v]"    ;# 2: a{#OK
+/// puts {3: # not a comment $v}     ;# 3: # not a comment $v
+/// if {1} {
+///     # this IS a comment $v
+///     puts "4: reached"            ;# 4: reached
+/// }
+/// puts "5: before" ;# comment $v   ;# 5: before
+/// ```
+///
+/// Line 1 is the case this used to get wrong: `a{#` is a single bare word (the
+/// list quoting shows the brace is literal) and `$v` really is substituted, yet
+/// treating the mid-word `{` as structural classified the `#` as a comment and
+/// suppressed a genuine variable read.
+///
+/// A word-start `{` does keep command position, and that is sound whichever
+/// kind of braced word it opens: if the braces hold a script, a `#` at its
+/// start is a real comment; if they hold data, the `$var` inside is literal
+/// text anyway (line 3). Either way the position is inert.
+///
+/// Conservative in three further ways, all under-reporting rather than
+/// over-reporting:
+///
+/// * The scan covers only the offset's own line, and starts out of command
+///   position when the previous line ends in a backslash continuation.
+/// * A `#` on a line with an odd number of preceding unescaped `"` is literal
+///   text inside a quoted word.
+/// * A `[` is not treated as opening a script at all, so a `#` inside a
+///   bracket substitution is never claimed — which costs nothing, because a
+///   comment there would swallow the `]` to end of line and the script would
+///   not parse (`puts [list [# c] $v]` → `missing close-bracket`).
 #[must_use]
 pub fn offset_in_comment(source: &str, off: u32) -> bool {
     let off = off as usize;
@@ -66,25 +102,65 @@ pub fn offset_in_comment(source: &str, off: u32) -> bool {
     let line_start = source[..off].rfind('\n').map_or(0, |nl| nl + 1);
     let line = &source[line_start..off];
     let mut quotes = 0u32;
-    let mut command_position = true;
-    let mut it = line.char_indices();
-    while let Some((_idx, c)) = it.next() {
+    // A backslash-continued previous line means this one resumes mid-command,
+    // so its first word is not a command name.
+    let mut command_position = !continues_previous_line(&source[..line_start]);
+    // Whether the next non-blank character would start a fresh word — which is
+    // the only position where `{` is structural.
+    let mut at_word_start = true;
+    let mut it = line.chars();
+    while let Some(c) = it.next() {
         match c {
+            // A backslash escapes the next character wholesale.
             '\\' => {
                 let _ = it.next();
                 command_position = false;
+                at_word_start = false;
             }
             '"' => {
                 quotes += 1;
                 command_position = false;
+                at_word_start = false;
             }
             '#' if command_position && quotes.is_multiple_of(2) => return true,
-            ' ' | '\t' => {}
-            ';' | '{' => command_position = true,
-            _ => command_position = false,
+            // Whitespace ends a word but does **not** restore command
+            // position: a `#` as a command's second word is data (`list # x`
+            // yields `# x`).
+            ' ' | '\t' | '\r' => at_word_start = true,
+            ';' => {
+                command_position = true;
+                at_word_start = true;
+            }
+            // Structural only at word start; mid-word it is a literal brace.
+            '{' if at_word_start => {
+                command_position = true;
+                at_word_start = true;
+            }
+            _ => {
+                command_position = false;
+                at_word_start = false;
+            }
         }
     }
     false
+}
+
+/// Whether `before` (everything up to the start of the line under
+/// examination) ends in a backslash-newline continuation, so that line resumes
+/// an unfinished command rather than starting a new one.
+fn continues_previous_line(before: &str) -> bool {
+    let Some(prev) = before.strip_suffix('\n') else {
+        return false;
+    };
+    let prev = prev.strip_suffix('\r').unwrap_or(prev);
+    // An odd run of trailing backslashes means the last one escapes the
+    // newline; an even run is escaped backslashes and the command ended.
+    !prev
+        .chars()
+        .rev()
+        .take_while(|&c| c == '\\')
+        .count()
+        .is_multiple_of(2)
 }
 
 /// Whether `off` sits inside a **braced argument word that carries no
@@ -218,6 +294,71 @@ mod tests {
         // A trailing comment after `;` *is* one.
         let trailing = "set x 1 ;# note $v\n";
         assert!(offset_in_comment(trailing, offset_of(trailing, "$v")));
+    }
+
+    /// TN (Codex review of PR #1073, finding 1): a `{` **inside** a bare word
+    /// is an ordinary character, so the `#` after it is not in command
+    /// position and `$v` is a genuine, substituted read.
+    ///
+    /// Oracle (tclsh 9.0.4 and 8.6.16 agree):
+    ///
+    /// ```text
+    /// set v OK
+    /// puts "1: [list a{# $v]"        -> 1: a\{# OK
+    /// puts "2: [string cat a{# $v]"  -> 2: a{#OK
+    /// ```
+    ///
+    /// The list quoting (`a\{#`) shows `a{#` is one bare word with a literal
+    /// brace, and `OK` shows `$v` was substituted.
+    #[test]
+    fn a_mid_word_brace_does_not_start_command_position() {
+        for src in [
+            "set v OK\nputs a{# $v\n",
+            "set v OK\nset w [string cat a{# $v]\n",
+            "set v OK\nputs abc{def# $v\n",
+        ] {
+            assert!(
+                !offset_in_comment(src, offset_of(src, "$v")),
+                "mid-word brace must not make the `#` a comment: {src:?}"
+            );
+        }
+    }
+
+    /// TP: a `{` at **word start** is structural, so it does keep command
+    /// position — and that is sound either way, because a braced word holds
+    /// either a script (whose leading `#` is a real comment) or data (whose
+    /// `$var` is literal text). Oracle: `puts {3: # not a comment $v}` prints
+    /// `3: # not a comment $v` verbatim on both 9.0.4 and 8.6.16.
+    #[test]
+    fn a_word_start_brace_keeps_command_position() {
+        // A `#` immediately inside a word-start brace.
+        let src = "puts {# not a comment $v}\n";
+        assert!(offset_in_comment(src, offset_of(src, "$v")));
+        // But a non-leading `#` inside that same braced word is not: the
+        // brace's first word is `3:`, so the `#` is its second word.
+        let later = "puts {3: # not a comment $v}\n";
+        assert!(!offset_in_comment(later, offset_of(later, "$v")));
+    }
+
+    /// TN: a `#` as a command's *second* word is data, not a comment —
+    /// whitespace ends a word but does not restore command position
+    /// (`list # x` yields `# x`).
+    #[test]
+    fn a_hash_in_an_argument_position_is_not_a_comment() {
+        let src = "list # $v\n";
+        assert!(!offset_in_comment(src, offset_of(src, "$v")));
+    }
+
+    /// TN: a line resumed by a backslash continuation is mid-command, so its
+    /// first word is not a command name and a `#` there is data.
+    #[test]
+    fn a_continued_line_does_not_start_in_command_position() {
+        let src = "list a \\\n# $v\n";
+        assert!(!offset_in_comment(src, offset_of(src, "$v")));
+        // An *escaped* backslash at end of line does end the command, so the
+        // next line starts fresh and its `#` is a comment.
+        let escaped = "list a \\\\\n# $v\n";
+        assert!(offset_in_comment(escaped, offset_of(escaped, "$v")));
     }
 
     /// TP: a braced *data* word — `set`'s value argument.
