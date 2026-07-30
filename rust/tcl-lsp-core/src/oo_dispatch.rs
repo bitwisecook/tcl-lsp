@@ -33,38 +33,89 @@
 //! apart again. The walk is a single pass over the class's already-computed
 //! linearisation: `O(chain length)`, no fixpoint.
 //!
-//! It also owns the `TclOO` **method-context** predicate
-//! ([`in_oo_method_context`]), the LSP-side half of issue #1026's scoping
-//! rule for the `oo::Helpers` family.
+//! It also owns the `TclOO` **frame** classifier ([`OoFrame`]), the
+//! LSP-side half of issue #1026's scoping rule for the `oo::Helpers`
+//! family.
 
 use tcl_compiler::analyser::{AnalysisResult, MethodDef};
+use tcl_registry::CommandRegistry;
 
 use crate::definition::MethodBucket;
 
-/// Whether `byte_offset` sits inside a `TclOO` method context — a
-/// `method`, `constructor`, `destructor`, class-side (`self method` /
-/// `classmethod`), or `oo::objdefine method` body.
+/// What kind of `TclOO` frame a cursor sits in — the LSP-side half of issue
+/// #1026's scoping rule, and the one place the question is asked.
 ///
-/// The one place the LSP asks that question, resolved through the
-/// analyser's own scope walk
-/// (`tcl_compiler::analyser::scope::innermost_scope_reaches_oo_helpers`)
-/// so hover, completion, and the W123 emitter cannot disagree about which
-/// bodies count.
+/// Two facts, because real Tcl keeps them apart (Codex review of PR #1084):
 ///
-/// Paired with [`tcl_registry::CommandRegistry::resolves_only_in_method_context`]
-/// it implements issue #1026's rule: the registry says *which* commands are
-/// method-context-only (`link` / `my` / `next` / `nextto` / `self` /
-/// `classvariable`), this says *where* the cursor is, and neither side
-/// carries a command name. tclsh 9.0.4 at the top level answers `invalid
-/// command name` for every one of them; inside a method body they resolve
-/// (`namespace which -command link` → `::oo::Helpers::link`, `… my` →
-/// `::oo::ObjN::my`).
-#[must_use]
-pub(crate) fn in_oo_method_context(analysis: &AnalysisResult, byte_offset: u32) -> bool {
-    tcl_compiler::analyser::scope::innermost_scope_reaches_oo_helpers(
-        &analysis.global_scope,
-        byte_offset,
-    )
+/// * `resolves` — the frame's namespace path reaches `::oo::Helpers` (and
+///   the object's own namespace, home of `my`), so the family's bare
+///   spellings **resolve** here.
+/// * `method` — the frame is a real **method invocation**, so they are also
+///   **callable**.
+///
+/// They differ in exactly one place: a Tcl 9 class-level `initialise` /
+/// `initialize` body. tclsh 9.0.4, inside
+/// `oo::class create ::P { initialize { … } }`:
+///
+/// ```text
+/// ns=::oo::Obj20  path=::oo::Helpers ::oo
+/// link:  which='::oo::Helpers::link'  call -> link may only be called from inside a method
+/// self:  which='::oo::Helpers::self'  call -> self may only be called from inside a method
+/// my:    which='::oo::Obj20::my'      call -> OK  (`my new` returns ::oo::Obj22)
+/// ```
+///
+/// So `W123` — "is this an unknown command" — keys on `resolves` and stays
+/// in the analyser, while completion and hover ask [`Self::admits`], which
+/// keys on callability. Which commands need which is registry data
+/// (`Traits::TCLOO_METHOD_CONTEXT` / `Traits::TCLOO_REQUIRES_METHOD_FRAME`),
+/// never a name list on this side.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct OoFrame {
+    /// The bare `oo::Helpers` family resolves at this offset.
+    pub(crate) resolves: bool,
+    /// This offset is inside a real method invocation, so the family is
+    /// callable and not merely resolvable.
+    pub(crate) method: bool,
+}
+
+impl OoFrame {
+    /// Classify the frame containing `byte_offset`.
+    ///
+    /// Both halves come from the analyser's own scope walk
+    /// (`innermost_scope_reaches_oo_helpers` /
+    /// `innermost_scope_is_oo_method_frame`), which share one descent, so
+    /// hover, completion, and the W123 emitter cannot disagree about which
+    /// scope is innermost.
+    #[must_use]
+    pub(crate) fn at(analysis: &AnalysisResult, byte_offset: u32) -> Self {
+        Self {
+            resolves: tcl_compiler::analyser::innermost_scope_reaches_oo_helpers(
+                &analysis.global_scope,
+                byte_offset,
+            ),
+            method: tcl_compiler::analyser::innermost_scope_is_oo_method_frame(
+                &analysis.global_scope,
+                byte_offset,
+            ),
+        }
+    }
+
+    /// Whether a consumer that offers commands to the user (completion,
+    /// hover) may offer `name` in this frame.
+    ///
+    /// `true` for everything the registry does not scope at all. A scoped
+    /// word needs the frame to resolve it, plus — when the registry says the
+    /// word needs a real method invocation — a method frame. `my` is the one
+    /// family member that does not, because it is the object's own dispatch
+    /// command rather than an `::oo::Helpers` member and a class is an
+    /// object, so `my new` in an `initialize` body genuinely works.
+    #[must_use]
+    pub(crate) fn admits(self, registry: &CommandRegistry, name: &str) -> bool {
+        if !registry.resolves_only_in_method_context(name) {
+            return true;
+        }
+        self.resolves && (self.method || !registry.requires_oo_method_frame(name))
+    }
 }
 
 /// The **first applicable implementation** of `method` on `class_q`'s

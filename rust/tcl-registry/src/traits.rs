@@ -900,6 +900,46 @@ declare_traits! {
     /// creates dispatching barewords, it does not dispatch — see
     /// [`Traits::TCLOO_SELF_DISPATCH`].
     TclooBindsMethodAlias => TCLOO_BINDS_METHOD_ALIAS;
+
+    /// Resolving is not enough: **calling** this word needs a real method
+    /// invocation, not merely a frame whose namespace path reaches
+    /// `::oo::Helpers`.
+    ///
+    /// The narrower half of [`Traits::TCLOO_METHOD_CONTEXT`], and the
+    /// reason the two are separate traits rather than one. A Tcl 9 class
+    /// **`initialise` / `initialize`** body runs in the *class object's*
+    /// own namespace with `namespace path` = `::oo::Helpers ::oo`, so
+    /// every family member genuinely **resolves** there — but there is no
+    /// method context, so all but one raise at run time (tclsh 9.0.4,
+    /// inside `oo::class create ::P { initialize { … } }`):
+    ///
+    /// ```text
+    /// ns=::oo::Obj20 path=::oo::Helpers ::oo
+    /// link:          which='::oo::Helpers::link'           call -> link may only be called from inside a method
+    /// next:          which='::oo::Helpers::next'           call -> next may only be called from inside a method
+    /// nextto:        which='::oo::Helpers::nextto'         call -> nextto may only be called from inside a method
+    /// self:          which='::oo::Helpers::self'           call -> self may only be called from inside a method
+    /// classvariable: which='::oo::Helpers::classvariable'  call -> classvariable may only be called from inside a method
+    /// my:            which='::oo::Obj20::my'               call -> OK  (`my new` returns ::oo::Obj22)
+    /// ```
+    ///
+    /// So the five `::oo::Helpers` members carry this trait and **`my`
+    /// does not**: `my` is not an `::oo::Helpers` member at all but the
+    /// object's own dispatch command, and a *class* is an object, so it
+    /// works in a class-level body exactly as it does in a method — there
+    /// it dispatches on the class object (`my new`, `my create`), which is
+    /// the documented Tcl 9 class-factory idiom. Inside a real method the
+    /// whole family is callable (same interpreter: `link zzz` returns
+    /// `::oo::ObjN::zzz`).
+    ///
+    /// Consumers split the two facts accordingly, and the split is the
+    /// point: **`W123` keys on resolution** — a bare `link` in an
+    /// `initialise` body is *not* an unknown command, so it must not warn
+    /// — while **completion and hover key on callability**, via
+    /// [`crate::registry::CommandRegistry::requires_oo_method_frame`]
+    /// paired with the call site's own frame kind. Offering a word the
+    /// interpreter will refuse is the defect this trait exists to prevent.
+    TclooRequiresMethodFrame => TCLOO_REQUIRES_METHOD_FRAME;
 }
 
 /// Every trait that widens a file's caller set beyond the file itself — the

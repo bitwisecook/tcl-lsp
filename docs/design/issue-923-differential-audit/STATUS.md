@@ -949,6 +949,68 @@ appeared to inherit the method's object context — which tclsh 9.0.4 says
 it does not (`apply {{} { link Helper }}` inside a method raises `invalid
 command name "link"`, since `apply` runs its body in the global namespace).
 
+**Codex review of PR #1084 (P2 x 2), plus one CI finding.** All three are
+the same lesson from different angles: a fact about a *name* has to be
+resolved against the dialect and the frame before anything is read off it.
+
+1. **The qualified `oo::Helpers::link` was derived only from the 9.0 core
+   spec.** Tcllib's `ooutil` installs a real `::oo::Helpers::link` under
+   8.6/8.7 - my own oracle transcript showed it - so on
+   8.6-plus-`package require ooutil` the fully qualified call was missing
+   from completion and hover and could draw W123 despite resolving at run
+   time. `oo_helpers::family()` now derives *both* bare entries, carrying
+   the package gate across, so the bare and qualified spellings answer
+   alike per dialect
+   (`qualified_oo_helpers_spellings_track_their_bare_twin_per_dialect`).
+2. **A class `initialise` body satisfied the method-context predicate.**
+   It sets `oo_global_resolution`, so `in_oo_method_context` answered
+   `true` and completion/hover offered `link` / `self` / `classvariable`
+   there. tclsh 9.0.4 says otherwise: the frame's `namespace path` is
+   `::oo::Helpers ::oo`, so every member *resolves*
+   (`namespace which -command link` -> `::oo::Helpers::link`) but calling
+   one raises `... may only be called from inside a method`. **Resolving
+   and being callable are different facts**, and W123 keys on the first
+   while completion/hover key on the second - so W123 stays silent there
+   (unchanged, and now pinned) while the offering stops. `my` is the one
+   exception and the reason the per-command half is registry data rather
+   than a second scope flag: it is `::oo::ObjN::my`, the object's own
+   dispatch command, and a class *is* an object - `my new` in an
+   `initialize` body really does make an instance. New
+   `Scope::oo_method_frame` + `innermost_scope_is_oo_method_frame` carry
+   the frame half (sharing one descent with the resolution predicate so
+   the two cannot disagree about which scope is innermost), new
+   `Traits::TCLOO_REQUIRES_METHOD_FRAME` +
+   `CommandRegistry::requires_oo_method_frame` the command half, and the
+   LSP asks once through `oo_dispatch::OoFrame::at(..).admits(..)`.
+3. **CI's `test-ext` failed the new VS Code test** - `link` *was* offered
+   at the top level there. Root cause is neither a fast path nor a dialect
+   difference: `editors/vscode/testFixture/nameVsValuePositions.tcl`
+   defines `proc link {arr}`, the extension harness opens that whole folder
+   as the workspace, and a global user proc named `link` is genuinely
+   callable at the top level - so the server was right to offer it and the
+   label-only assertion was wrong (its positive half was equally vacuous).
+   Reproduced in-tree with a document-local `proc link`, where the wire
+   shows two `link` items in a method body (the proc, `detail` = its
+   parameter list, no `documentation`; and the built-in, carrying the
+   spec's hover summary) and only the proc at the top level. Both harnesses
+   now assert on that discriminator rather than the label
+   (`a_user_proc_named_link_does_not_mask_the_builtin_scoping`).
+
+Two duplicate-spec wrong answers surfaced while pinning the above and are
+fixed with them. `builtin_completions` read its `detail` / `documentation`
+from `CommandRegistry::get`, which returns the *last-registered* spec - so
+a `tcl9.0` buffer described core `link` as `tcllib (ooutil)`; it now uses
+the same `profile.resolve_command` the availability filter already
+applies. The editor keyword generators (`gen_zed_queries`,
+`gen_tmlanguage_keywords`) had the same single-spec lookup, and because
+they project a whole *grammar union* rather than one version, no
+single-spec answer is even well-defined - they judged `link` and
+`oo::Helpers::link` by the `ooutil` twin and dropped both from every
+generated highlight list. They now ask whether **any** ambient spec
+qualifies, over `CommandRegistry::specs(name)`; the regenerated files gain
+`link`, keep `oo::Helpers::link`, and gain `pkg::create` (core Tcl, same
+misjudgement).
+
 ### 6c. Broader mandate coverage check
 
 The mandate named specific "tricky Tcl feature" dimensions. Rough coverage

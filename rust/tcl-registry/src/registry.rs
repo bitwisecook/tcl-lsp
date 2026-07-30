@@ -554,6 +554,29 @@ impl CommandRegistry {
             .is_some_and(|spec| spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT))
     }
 
+    /// Whether **calling** `head` needs a real `TclOO` method invocation,
+    /// not merely a frame that can resolve it — see
+    /// [`Traits::TCLOO_REQUIRES_METHOD_FRAME`] for the oracle transcript.
+    ///
+    /// The narrower companion to [`Self::resolves_only_in_method_context`],
+    /// and the two answer differently in exactly one place: a Tcl 9 class
+    /// `initialise` / `initialize` body, where the whole family resolves
+    /// (so `W123` must stay silent) but only `my` actually runs (so
+    /// completion and hover must offer only `my`).
+    ///
+    /// A consumer deciding "may I offer this word here / does it hover"
+    /// wants **both**: the word must resolve at the call site *and*, when
+    /// this answers `true`, the call site must be a method frame rather
+    /// than a bare object frame. `tcl_lsp_core::oo_dispatch` pairs them
+    /// once so no consumer re-derives the rule.
+    ///
+    /// Dialect-aware exactly like [`Self::resolves_only_in_method_context`].
+    #[must_use]
+    pub fn requires_oo_method_frame(&self, head: &str) -> bool {
+        self.spec_for_this_registry(head)
+            .is_some_and(|spec| spec.traits.contains(Traits::TCLOO_REQUIRES_METHOD_FRAME))
+    }
+
     /// Whether `head` binds bareword aliases for methods of the current
     /// object — `TclOO`'s `link`; see [`Traits::TCLOO_BINDS_METHOD_ALIAS`].
     ///

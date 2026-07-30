@@ -29,7 +29,9 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "classvariable",
-        traits: Traits::LANGUAGE_KEYWORD.union(Traits::TCLOO_METHOD_CONTEXT),
+        traits: Traits::LANGUAGE_KEYWORD
+            .union(Traits::TCLOO_METHOD_CONTEXT)
+            .union(Traits::TCLOO_REQUIRES_METHOD_FRAME),
         // TIP 478 ("Add Expected Class Level Behaviors to oo::class")
         // introduced `classvariable`; its `Tcl-Version` metadata targeted
         // 8.7, a branch that was never cut as a stable release, and the

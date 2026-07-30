@@ -116,6 +116,23 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     dialects: None,
 }];
 
+/// `my` is the one family member that is **not**
+/// [`Traits::TCLOO_REQUIRES_METHOD_FRAME`].
+///
+/// It is not an `::oo::Helpers` member at all — `namespace which -command
+/// my` answers `::oo::ObjN::my`, a command in the *object's own*
+/// namespace — and a class is itself an object, so it works in a Tcl 9
+/// class `initialise` / `initialize` body as well as in a method. tclsh
+/// 9.0.4, inside `oo::class create ::P { initialize { … } }`:
+///
+/// ```text
+/// my: which='::oo::Obj20::my'   my new -> ::oo::Obj22      (dispatches on the class object)
+/// self / link / classvariable / next / nextto  ->  … may only be called from inside a method
+/// ```
+///
+/// It still carries [`Traits::TCLOO_METHOD_CONTEXT`], because outside any
+/// object frame there is no `my` to call at all (top level: `invalid
+/// command name "my"`).
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "my",

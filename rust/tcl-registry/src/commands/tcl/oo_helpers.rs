@@ -53,20 +53,35 @@
 //! *own* namespace (`::oo::Obj22::my`), which has no statically nameable
 //! spelling, so `my`'s single bare spec carries the whole model.
 //!
-//! Under 8.6 the namespace holds only `next`, `nextto`, and `self`
+//! Under 8.6 core the namespace holds only `next`, `nextto`, and `self`
 //! (tclsh 8.6.14: `info commands ::oo::Helpers::*`); each qualified spec
 //! inherits its bare twin's own `dialects` mask, so the 9.0-only members
 //! stay 9.0-only here too.
+//!
+//! `link` therefore needs the **same two entries** its bare twin has, not
+//! one (Codex review of PR #1084): Tcllib's `ooutil` installs a real
+//! `::oo::Helpers::link` under 8.6/8.7, so a document that says
+//! `package require ooutil` may legitimately write the qualified spelling
+//! and must get completion, hover, and no `W123`. Deriving only from the
+//! 9.0 core spec would have made the qualified call unknown on exactly the
+//! dialect where a user has to reach for it. Both twins are derived from
+//! their bare originals, so the package gating (`required_package`,
+//! `tcllib_package`) carries across unchanged and the qualified/bare pair
+//! answer alike per dialect.
 use crate::prelude::*;
 
 /// The bare specs whose `oo::Helpers::…` spelling is also a real,
 /// separately-callable command, paired with that spelling.
 ///
 /// Derived from the bare spec rather than retyped, so hover text, arity,
-/// dialect gating, and options cannot drift between the two spellings.
+/// dialect gating, **package gating**, and options cannot drift between the
+/// two spellings. `link` appears twice for the same reason it does in the
+/// bare table — a 9.0 core entry and an 8.6/8.7 `ooutil` one; the registry
+/// keys duplicates by name and picks per dialect (`best_visible`).
 fn family() -> Vec<(&'static str, CommandSpec)> {
     vec![
         ("oo::Helpers::link", super::oo_link::spec()),
+        ("oo::Helpers::link", super::oo_link::spec_ooutil_86()),
         ("oo::Helpers::next", super::oo_next::spec()),
         ("oo::Helpers::nextto", super::nextto::spec()),
         ("oo::Helpers::self", super::oo_self::spec()),
@@ -105,7 +120,14 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
 }
 
 /// Traits that belong to the bare, method-context spelling only.
+///
+/// `TCLOO_REQUIRES_METHOD_FRAME` is among them for the same reason
+/// `TCLOO_METHOD_CONTEXT` is: both describe where the *bare* word may be
+/// written. The qualified name is an ordinary global command that a
+/// consumer may offer anywhere — its own "only from inside a method"
+/// failure is a runtime error the caller sees, not a static one.
 const QUALIFIED_SPELLING_EXCLUDED: Traits = Traits::TCLOO_METHOD_CONTEXT
+    .union(Traits::TCLOO_REQUIRES_METHOD_FRAME)
     .union(Traits::TCLOO_SELF_DISPATCH)
     .union(Traits::TCLOO_NEXT_CHAIN)
     .union(Traits::TCLOO_INTROSPECTION)
@@ -135,7 +157,8 @@ mod tests {
     fn qualified_spelling_drops_the_bare_word_traits() {
         for spec in qualified_specs() {
             assert!(
-                !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT),
+                !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT)
+                    && !spec.traits.contains(Traits::TCLOO_REQUIRES_METHOD_FRAME),
                 "{} must not be method-context-scoped",
                 spec.name
             );
@@ -149,18 +172,55 @@ mod tests {
         }
     }
 
-    /// Each qualified spec inherits its bare twin's dialect gate, so the
-    /// 9.0-only members (`link`, `classvariable`) stay 9.0-only and the
-    /// 8.6 members (`next`, `nextto`, `self`) stay 8.6+ — matching
-    /// `info commands ::oo::Helpers::*` on both interpreters.
+    /// Each qualified spec inherits its bare twin's dialect **and package**
+    /// gate, so `classvariable` stays 9.0-only, `next` / `nextto` / `self`
+    /// stay 8.6+, and `link` keeps both of its entries — 9.0 core plus the
+    /// 8.6/8.7 `ooutil` one — matching `info commands ::oo::Helpers::*` on
+    /// both interpreters.
+    ///
+    /// Compared pairwise against `family()`'s own order rather than by
+    /// name lookup, so the two `link` rows cannot alias onto each other.
     #[test]
-    fn qualified_spelling_inherits_the_bare_dialect_gate() {
-        for (qualified, bare) in family() {
-            let found = qualified_specs()
-                .into_iter()
-                .find(|s| s.name == qualified)
-                .expect("registered above");
-            assert_eq!(found.dialects, bare.dialects, "{qualified}");
+    fn qualified_spelling_inherits_the_bare_dialect_and_package_gate() {
+        let derived = qualified_specs();
+        assert_eq!(derived.len(), family().len());
+        for ((qualified, bare), found) in family().into_iter().zip(derived) {
+            assert_eq!(found.name, qualified);
+            assert_eq!(found.dialects, bare.dialects, "{qualified} dialects");
+            assert_eq!(
+                found.required_package, bare.required_package,
+                "{qualified} required_package"
+            );
+            assert_eq!(
+                found.tcllib_package, bare.tcllib_package,
+                "{qualified} tcllib_package"
+            );
         }
+    }
+
+    /// tclsh 8.6.14 core has no `::oo::Helpers::link` at all, but Tcllib's
+    /// `ooutil` installs one — so the qualified spelling needs the same
+    /// two-entry treatment the bare word has, and the `ooutil` entry must
+    /// keep the package gate that makes W120 fire without the
+    /// `package require` and stay silent with it (Codex review of PR
+    /// #1084).
+    #[test]
+    fn qualified_link_has_both_a_core_90_and_an_ooutil_86_entry() {
+        let links: Vec<CommandSpec> = qualified_specs()
+            .into_iter()
+            .filter(|s| s.name == "oo::Helpers::link")
+            .collect();
+        assert_eq!(links.len(), 2, "one core 9.0 entry, one ooutil 8.6 entry");
+        let core = links
+            .iter()
+            .find(|s| s.required_package.is_none())
+            .expect("a core entry");
+        assert_eq!(core.dialects, Some(DialectSet::TCL90_PLUS));
+        let ooutil = links
+            .iter()
+            .find(|s| s.required_package == Some("ooutil"))
+            .expect("an ooutil entry");
+        assert_eq!(ooutil.dialects, Some(DialectSet::TCL86));
+        assert_eq!(ooutil.tcllib_package, Some("ooutil"));
     }
 }

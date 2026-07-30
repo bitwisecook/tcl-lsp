@@ -69,6 +69,39 @@ oo::class create Counter {
 }
 ```
 
+### A class `initialise` body is a special case
+
+A Tcl 9 class-level `initialise` (or `initialize`) body sits in between.
+It runs in the *class object's* namespace, so the words are **found**
+there — the editor does not report them as unknown commands — but calling
+one still fails, because there is no method:
+
+```tcl
+# tcl-dialect: tcl9.0
+oo::class create Registry {
+    initialize {
+        self                ;# self may only be called from inside a method
+        link helper         ;# link may only be called from inside a method
+    }
+    method helper {} { return 1 }
+}
+```
+
+`my` is the exception, and it genuinely works: a class is itself an
+object, so `my` there dispatches on the *class*, which is the usual
+factory idiom.
+
+```tcl
+oo::class create Pool {
+    initialize {
+        variable Spares [list [my new] [my new]]   ;# fine — two instances
+    }
+}
+```
+
+The editor follows exactly that: in an `initialise` body you get no
+`W123` for any of the six, but completion and hover offer only `my`.
+
 ### The fully qualified spelling
 
 `::oo::Helpers::link` (and `::oo::Helpers::next`, `…::nextto`, `…::self`,
@@ -91,7 +124,11 @@ can reach.
 
 Even with `ooutil` loaded, a top-level bare `link` is still an unknown
 command under 8.6 — the package installs `::oo::Helpers::link`, which
-only a method body can reach by its bare name.
+only a method body can reach by its bare name. The *qualified*
+`::oo::Helpers::link`, on the other hand, is a real command once the
+package is loaded, and the editor treats it like any other `ooutil`
+command: no `package require ooutil` in the file means `W120`, and adding
+one clears it.
 
 ## Related
 

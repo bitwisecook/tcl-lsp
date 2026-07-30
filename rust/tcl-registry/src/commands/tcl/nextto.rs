@@ -83,7 +83,8 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::Name)],
         traits: Traits::LANGUAGE_KEYWORD
             .union(Traits::TCLOO_NEXT_CHAIN)
-            .union(Traits::TCLOO_METHOD_CONTEXT),
+            .union(Traits::TCLOO_METHOD_CONTEXT)
+            .union(Traits::TCLOO_REQUIRES_METHOD_FRAME),
         ..CommandSpec::DEFAULT
     }
 }

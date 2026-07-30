@@ -623,16 +623,18 @@ fn builtin_command_hover_text(
         (Cow::Owned(qual), spec)
     };
     let name = name.as_ref();
-    // A command whose *bare* spelling only resolves inside a `TclOO` method
+    // A command whose *bare* spelling only works inside a `TclOO` method
     // context (`link` / `my` / `next` / `nextto` / `self` / `classvariable`
     // — issue #1026) has no hover anywhere else: at the top level real Tcl
     // answers `invalid command name`, so there is nothing to describe.
-    // Registry data decides which commands those are; the scope walk
-    // decides where the cursor is. The separately-registered qualified
-    // spelling (`::oo::Helpers::link`) is not scoped and still hovers.
-    if registry.resolves_only_in_method_context(name)
-        && !crate::oo_dispatch::in_oo_method_context(analysis, cursor_offset)
-    {
+    // Registry data decides which commands those are; the frame classifier
+    // decides where the cursor is. Hover keys on *callability*, not mere
+    // resolution, so a Tcl 9 class `initialise` body — where the family
+    // resolves but raises `… may only be called from inside a method` —
+    // hovers only `my`, the one member a class-object frame can call. The
+    // separately-registered qualified spelling (`::oo::Helpers::link`) is
+    // not scoped and still hovers everywhere.
+    if !crate::oo_dispatch::OoFrame::at(analysis, cursor_offset).admits(registry, name) {
         return None;
     }
     let hover = spec.hover.as_ref()?;

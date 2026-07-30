@@ -156,6 +156,13 @@ An `apply` lambda written inside a method body does **not** count: `apply`
 runs its body in the global namespace, so the object context is gone and
 these words are unresolved there too.
 
+A Tcl 9 class `initialise` / `initialize` body is **not** flagged, even
+though only `my` actually works there. That body runs in the class
+object's own namespace, so the words really are found — calling one fails
+with `self may only be called from inside a method`, which is a different
+error from an unknown command, and `W123` is only about the latter.
+Completion and hover still decline to offer them there.
+
 For the full rule, see
 [Where can I call `my`, `next`, `self`, and `link`?](../kcs-qa-where-can-i-call-my-next-self-and-link.md).
 

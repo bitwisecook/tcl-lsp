@@ -3574,6 +3574,86 @@ mod oo_helpers_scoping {
         let src = "proc link {args} { return $args }\nlink foo\n";
         assert!(!fires(src, "tcl9.0", "W123"), "{:?}", codes(src, "tcl9.0"));
     }
+
+    /// A class-level `initialise` / `initialize` body, both spellings.
+    fn init_body(word: &str, spelling: &str) -> String {
+        format!(
+            "oo::class create C {{\n    {spelling} {{\n        {word} foo\n    }}\n    method m {{}} {{ return 1 }}\n}}\n"
+        )
+    }
+
+    /// **W123 keys on resolution, and the family genuinely resolves in a
+    /// class `initialise` body** — so it must stay silent there (Codex
+    /// review of PR #1084).
+    ///
+    /// tclsh 9.0.4, inside `oo::class create ::P { initialize { … } }`:
+    /// `namespace current` is `::oo::Obj20`, `namespace path` is
+    /// `::oo::Helpers ::oo`, and `namespace which -command link` answers
+    /// `::oo::Helpers::link` — exactly as it does in a method body. Warning
+    /// "unknown command" here would be a plain false positive.
+    #[test]
+    fn init_body_use_draws_no_w123() {
+        for (word, _) in FAMILY {
+            for spelling in ["initialize", "initialise"] {
+                let src = init_body(word, spelling);
+                assert!(
+                    !fires(&src, "tcl9.0", "W123"),
+                    "`{word}` resolves in an `{spelling}` body: {:?}",
+                    codes(&src, "tcl9.0"),
+                );
+            }
+        }
+    }
+
+    /// ...but **callability** is a different fact, and the two diverge in
+    /// exactly this body.
+    ///
+    /// Same interpreter, same frame: every `::oo::Helpers` member raises
+    /// `… may only be called from inside a method` when actually called,
+    /// while `my` runs — it is `::oo::Obj20::my`, the *class object's* own
+    /// dispatch command, and `my new` there really does make an instance.
+    /// So the scope tree must mark the init frame as "resolves, but not a
+    /// method frame".
+    #[test]
+    fn init_body_is_not_a_method_frame_but_still_reaches_oo_helpers() {
+        use tcl_compiler::analyser::{
+            innermost_scope_is_oo_method_frame, innermost_scope_reaches_oo_helpers,
+        };
+        let src = init_body("link", "initialize");
+        let mut a = Analyser::new();
+        let result = a.analyse(&src, "tcl9.0").clone();
+        let init_off = u32::try_from(src.find("link foo").expect("the init-body call")).unwrap();
+        let method_off = u32::try_from(src.find("return 1").expect("the method body")).unwrap();
+        assert!(
+            innermost_scope_reaches_oo_helpers(&result.global_scope, init_off),
+            "an `initialize` body has ::oo::Helpers on its namespace path",
+        );
+        assert!(
+            !innermost_scope_is_oo_method_frame(&result.global_scope, init_off),
+            "an `initialize` body is not a method invocation",
+        );
+        // A real method body answers `true` to both, and the top level to
+        // neither — the two predicates must not have collapsed into one.
+        assert!(innermost_scope_reaches_oo_helpers(
+            &result.global_scope,
+            method_off
+        ));
+        assert!(innermost_scope_is_oo_method_frame(
+            &result.global_scope,
+            method_off
+        ));
+        assert!(!innermost_scope_reaches_oo_helpers(&result.global_scope, 0));
+        assert!(!innermost_scope_is_oo_method_frame(&result.global_scope, 0));
+    }
+
+    /// The per-class `initialise` scoping that issue #923 idx 36 added must
+    /// survive being marked "not a method frame": two sibling classes'
+    /// same-named class variables stay independent.
+    #[test]
+    fn init_body_scoping_still_separates_sibling_classes() {
+        let src = "oo::class create A {\n    initialize { variable Colours {red} }\n}\noo::class create B {\n    initialize { variable Colours {blue} }\n}\n";
+        assert!(!fires(src, "tcl9.0", "W123"), "{:?}", codes(src, "tcl9.0"));
+    }
 }
 
 // ===========================================================================

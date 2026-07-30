@@ -496,7 +496,11 @@ pub const TRAITS: &[Variant] = &[
     ),
     v(
         "TCLOO_BINDS_METHOD_ALIAS",
-        "installs a method-local alias for a command prefix",
+        "binds bareword aliases for methods of the current object",
+    ),
+    v(
+        "TCLOO_REQUIRES_METHOD_FRAME",
+        "calling it needs a real method invocation, not just an object frame",
     ),
 ];
 

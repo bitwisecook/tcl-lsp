@@ -188,10 +188,18 @@ fn classify(reg: &CommandRegistry) -> Buckets {
         if !util::is_safe_command_name(name) || util::is_internal_or_test_harness_noise(name) {
             continue;
         }
-        let Some(spec) = reg.get(name) else { continue };
-        if !spec.supports_dialect(dialects) || spec.required_package.is_some() {
+        // Any *ambient* spec under this grammar union decides the bucket —
+        // see the same change in `gen_zed_queries`. A single-spec lookup
+        // judges a duplicate-named command (`link`, `oo::Helpers::link`) by
+        // its `package require`-gated 8.6 `ooutil` twin and drops the
+        // ambient 9.0 core keyword.
+        let Some(spec) = reg
+            .specs(name)
+            .iter()
+            .find(|spec| spec.supports_dialect(dialects) && spec.required_package.is_none())
+        else {
             continue;
-        }
+        };
 
         if spec.traits.contains(Traits::LANGUAGE_KEYWORD) {
             if CONTROL_STYLE.contains(&name) {

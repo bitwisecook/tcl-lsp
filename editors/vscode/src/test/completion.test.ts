@@ -138,16 +138,24 @@ suite("Completion", () => {
     }
   });
 
-  test("offers `link` only inside a TclOO method body", async () => {
+  test("offers the built-in `link` only inside a TclOO method body", async () => {
     // `link` is `oo::Helpers::link`: real Tcl 9.0 resolves it only from
     // inside a method body, and `link foo` at the top level raises
     // `invalid command name "link"` (`info commands ::link` is empty).
-    // Completion follows the same scoping, so the same partial word offers
-    // it in one place and not the other (issue #1026).
+    // Completion follows the same scoping (issue #1026).
+    //
+    // The label alone cannot express that here. This workspace also defines
+    // a real `proc link {arr}` (testFixture/nameVsValuePositions.tcl), and
+    // a global user proc IS callable at the top level, so the server rightly
+    // offers it in both positions — an earlier label-only version of this
+    // test read that proc as the built-in and failed in CI. Registry items
+    // carry the spec's hover summary as `documentation`; user procs carry
+    // none. Pinned against the same server by the lsp_e2e twin
+    // `a_user_proc_named_link_does_not_mask_the_builtin_scoping`.
     const ooUri = getDocUri("ooMethodContext.tcl");
     await activate(ooUri);
 
-    const labelsAt = async (position: vscode.Position, label: string) => {
+    const itemsAt = async (position: vscode.Position, label: string) => {
       const result = (await pollUntil(
         () =>
           vscode.commands.executeCommand("vscode.executeCompletionItemProvider", ooUri, position),
@@ -157,22 +165,26 @@ suite("Completion", () => {
         },
         { timeout: 10_000, label },
       )) as vscode.CompletionList;
-      return result.items.map((item) =>
-        typeof item.label === "string" ? item.label : item.label.label,
-      );
+      return result.items;
     };
+    const labelOf = (item: vscode.CompletionItem) =>
+      typeof item.label === "string" ? item.label : item.label.label;
+    const hasBuiltin = (items: readonly vscode.CompletionItem[], name: string) =>
+      items.some((item) => labelOf(item) === name && !!item.documentation);
+    const describe = (items: readonly vscode.CompletionItem[]) =>
+      items.map((i) => `${labelOf(i)}${i.documentation ? "(builtin)" : ""}`).join(", ");
 
     // Line 1 is the top-level `lin`; line 5 is the `lin` inside `method bar`.
-    const topLevel = await labelsAt(new vscode.Position(1, 3), "top-level completions");
+    const topLevel = await itemsAt(new vscode.Position(1, 3), "top-level completions");
     assert.ok(
-      !topLevel.includes("link"),
-      `link must not be offered at the top level: ${topLevel.slice(0, 20).join(", ")}`,
+      !hasBuiltin(topLevel, "link"),
+      `built-in link must not be offered at the top level: ${describe(topLevel)}`,
     );
 
-    const inMethod = await labelsAt(new vscode.Position(5, 11), "method-body completions");
+    const inMethod = await itemsAt(new vscode.Position(5, 11), "method-body completions");
     assert.ok(
-      inMethod.includes("link"),
-      `link must be offered inside a method body: ${inMethod.slice(0, 20).join(", ")}`,
+      hasBuiltin(inMethod, "link"),
+      `built-in link must be offered inside a method body: ${describe(inMethod)}`,
     );
   });
 });

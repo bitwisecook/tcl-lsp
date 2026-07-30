@@ -2048,6 +2048,105 @@ fn tcloo_method_alias_binding_membership() {
     assert!(!registry_for_dialect("tcl8.5").binds_method_alias("link"));
 }
 
+/// **Resolving is not calling.** The five `::oo::Helpers` members need a real
+/// method invocation; `my` does not (Codex review of PR #1084).
+///
+/// tclsh 9.0.4, inside `oo::class create ::P { initialize { … } }` — a frame
+/// with the class object's namespace current and `namespace path` =
+/// `::oo::Helpers ::oo`:
+///
+/// ```text
+/// link:          which='::oo::Helpers::link'           call -> link may only be called from inside a method
+/// next:          which='::oo::Helpers::next'           call -> next may only be called from inside a method
+/// nextto:        which='::oo::Helpers::nextto'         call -> nextto may only be called from inside a method
+/// self:          which='::oo::Helpers::self'           call -> self may only be called from inside a method
+/// classvariable: which='::oo::Helpers::classvariable'  call -> classvariable may only be called from inside a method
+/// my:            which='::oo::Obj20::my'               call -> OK  (`my new` returns ::oo::Obj22)
+/// ```
+///
+/// Everything here still carries `TCLOO_METHOD_CONTEXT` — outside any object
+/// frame there is no such command at all — so this set is a strict subset.
+#[test]
+fn tcloo_method_frame_membership() {
+    let reg = registry_for_dialect("tcl9.0");
+    let mut carriers = reg.commands_with_trait(Traits::TCLOO_REQUIRES_METHOD_FRAME);
+    carriers.sort_unstable();
+    carriers.dedup();
+    assert_eq!(
+        carriers,
+        ["classvariable", "link", "next", "nextto", "self"],
+        "`my` is `::oo::ObjN::my`, callable from any object frame",
+    );
+    for name in carriers {
+        assert!(reg.requires_oo_method_frame(name), "{name}");
+        assert!(
+            reg.resolves_only_in_method_context(name),
+            "{name}: the method-frame set is a subset of the scoped set",
+        );
+    }
+    assert!(reg.resolves_only_in_method_context("my"));
+    assert!(
+        !reg.requires_oo_method_frame("my"),
+        "`my new` in a class `initialize` body really does make an instance",
+    );
+    for qualified in ["oo::Helpers::link", "::oo::Helpers::self"] {
+        assert!(
+            !reg.requires_oo_method_frame(qualified),
+            "{qualified} is an ordinary global command",
+        );
+    }
+    assert!(!reg.requires_oo_method_frame("puts"));
+    // 8.6 core has the three it ships plus `ooutil`'s `link`; `classvariable`
+    // is 9.0-only. 8.5 has no TclOO at all.
+    let reg86 = registry_for_dialect("tcl8.6");
+    assert!(!reg86.requires_oo_method_frame("classvariable"));
+    assert!(!reg86.requires_oo_method_frame("my"));
+    for name in ["link", "next", "nextto", "self"] {
+        assert!(reg86.requires_oo_method_frame(name), "{name} under 8.6");
+    }
+    let reg85 = registry_for_dialect("tcl8.5");
+    for name in ["link", "my", "next", "nextto", "self", "classvariable"] {
+        assert!(!reg85.requires_oo_method_frame(name), "{name}: no TclOO");
+    }
+}
+
+/// The **qualified** `oo::Helpers::…` spelling must be gated exactly like its
+/// bare twin per dialect — same dialect availability, same package
+/// requirement — because they are the same underlying command (Codex review
+/// of PR #1084).
+///
+/// The regression this pins: `oo::Helpers::link` was derived only from the
+/// 9.0 core spec, so an 8.6 document with `package require ooutil` — where
+/// Tcllib installs a real `::oo::Helpers::link` — found the qualified call
+/// unknown.
+#[test]
+fn qualified_oo_helpers_spellings_track_their_bare_twin_per_dialect() {
+    for dialect in ["tcl8.5", "tcl8.6", "tcl8.7", "tcl9.0"] {
+        let reg = registry_for_dialect(dialect);
+        let mask = reg
+            .profile()
+            .expect("built for a dialect")
+            .availability_mask;
+        for bare in ["link", "next", "nextto", "self", "classvariable"] {
+            let qualified = format!("oo::Helpers::{bare}");
+            let bare_spec = reg.get_for_dialect(bare, mask);
+            let qual_spec = reg.get_for_dialect(&qualified, mask);
+            assert_eq!(
+                bare_spec.is_some(),
+                qual_spec.is_some(),
+                "{dialect}: {bare} and {qualified} must agree on existence",
+            );
+            if let (Some(b), Some(q)) = (bare_spec, qual_spec) {
+                assert_eq!(b.dialects, q.dialects, "{dialect}: {qualified} dialects");
+                assert_eq!(
+                    b.required_package, q.required_package,
+                    "{dialect}: {qualified} required_package",
+                );
+            }
+        }
+    }
+}
+
 /// The consumer-visible keyword set equals the trait-carrying specs across
 /// every dialect a `TclOO` consumer may run under, including the F5 ones.
 ///

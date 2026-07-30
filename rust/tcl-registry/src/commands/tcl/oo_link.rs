@@ -71,6 +71,7 @@ pub fn spec() -> CommandSpec {
         name: "link",
         traits: Traits::LANGUAGE_KEYWORD
             .union(Traits::TCLOO_METHOD_CONTEXT)
+            .union(Traits::TCLOO_REQUIRES_METHOD_FRAME)
             .union(Traits::TCLOO_BINDS_METHOD_ALIAS),
         dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(1),
@@ -90,6 +91,7 @@ pub fn spec_ooutil_86() -> CommandSpec {
         name: "link",
         traits: Traits::LANGUAGE_KEYWORD
             .union(Traits::TCLOO_METHOD_CONTEXT)
+            .union(Traits::TCLOO_REQUIRES_METHOD_FRAME)
             .union(Traits::TCLOO_BINDS_METHOD_ALIAS),
         dialects: Some(DialectSet::TCL86),
         arity: Arity::at_least(1),

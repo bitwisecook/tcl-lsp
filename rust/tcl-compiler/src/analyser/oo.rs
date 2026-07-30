@@ -578,6 +578,17 @@ impl Analyser {
                 // method body's does — `namespace path` is `::oo::Helpers ::oo`
                 // and the class's *defining* namespace is not searched.
                 child.oo_global_resolution = true;
+                // ...but it is NOT a method invocation, so `oo_method_frame`
+                // stays false (Codex review of PR #1084). The two facts
+                // diverge here and nowhere else: the family *resolves*
+                // (`namespace which -command link` → `::oo::Helpers::link`,
+                // so W123 must stay silent) yet all but `my` raise `… may
+                // only be called from inside a method` when called, so
+                // completion and hover must not offer them. `my` is the
+                // exception because it is `::oo::ObjN::my` rather than an
+                // `::oo::Helpers` member and a class is an object — `my new`
+                // in an `initialize` body really does make an instance.
+                child.oo_method_frame = false;
                 parent.children.push(child);
                 parent.children.len() - 1
             })
@@ -722,6 +733,12 @@ impl Analyser {
                 let mut child = Scope::new(ScopeKind::Method, method_qn.clone());
                 child.body_span = Some(mb.body_tok.span);
                 child.oo_global_resolution = oo_global_resolution;
+                // A real method invocation, unlike the class-level
+                // `initialise` frame `walk_class_init_body` opens: the whole
+                // `oo::Helpers` family is callable here, not merely
+                // resolvable (tclsh 9.0.4 inside a constructor: `link zzz`
+                // returns `::oo::ObjN::zzz`).
+                child.oo_method_frame = oo_global_resolution;
                 parent.children.push(child);
                 parent.children.len() - 1
             })

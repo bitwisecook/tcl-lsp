@@ -709,6 +709,30 @@ pub struct Scope {
     /// scopes stay `false` — their members genuinely resolve in the
     /// type / class namespace.
     pub oo_global_resolution: bool,
+    /// True when this [`Self::oo_global_resolution`] frame is a real
+    /// `TclOO` **method invocation** (`method` / `constructor` /
+    /// `destructor` / class-side / `oo::objdefine method`) rather than
+    /// merely a frame whose namespace path reaches `::oo::Helpers`.
+    ///
+    /// The pair encodes two facts real Tcl keeps separate, and conflating
+    /// them is a live defect (Codex review of PR #1084). A Tcl 9 class
+    /// `initialise` / `initialize` body runs in the class object's own
+    /// namespace with `namespace path` = `::oo::Helpers ::oo`, so it sets
+    /// `oo_global_resolution` — the helpers genuinely **resolve** there —
+    /// but it is not a method context, so calling one raises `… may only
+    /// be called from inside a method` (tclsh 9.0.4). Such a scope leaves
+    /// this `false`.
+    ///
+    /// `W123` keys on resolution, so it must consult
+    /// [`crate::analyser::scope::innermost_scope_reaches_oo_helpers`];
+    /// completion and hover key on callability, so they consult
+    /// [`crate::analyser::scope::innermost_scope_is_oo_method_frame`].
+    /// `my` is callable in both kinds of frame — it lives in the object's
+    /// own namespace, not `::oo::Helpers`, and a class is an object — which
+    /// is why the per-command half of the rule is registry data
+    /// (`Traits::TCLOO_REQUIRES_METHOD_FRAME`) rather than a second scope
+    /// flag.
+    pub oo_method_frame: bool,
 }
 
 impl Scope {
@@ -725,6 +749,7 @@ impl Scope {
             defined_symbols: Vec::new(),
             children: Vec::new(),
             oo_global_resolution: false,
+            oo_method_frame: false,
         }
     }
 

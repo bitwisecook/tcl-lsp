@@ -604,9 +604,9 @@ pub fn completions(
         // that, a plain `.tcl` script must not be offered `button`/`pack`/… .
         let tk_loaded =
             dialect == "tk" || analysis.package_requires.iter().any(|req| req.name == "Tk");
-        let in_method = in_oo_method_context_at(analysis, source, line, character);
+        let oo_frame = oo_frame_at(analysis, source, line, character);
         items.extend(builtin_completions(
-            registry, dialect, &partial, &usage, tk_loaded, analysis, in_method,
+            registry, dialect, &partial, &usage, tk_loaded, analysis, oo_frame,
         ));
     }
     // Inside a scoped command environment (a `report::defstyle` style script),
@@ -1724,22 +1724,22 @@ fn document_usage_counts(analysis: &AnalysisResult) -> FxHashMap<String, usize> 
     counts
 }
 
-/// Whether the completion cursor sits in a `TclOO` method context — the
-/// only place the `oo::Helpers` family's bare spellings resolve (issue
+/// What kind of `TclOO` frame the completion cursor sits in — which decides
+/// whether the `oo::Helpers` family's bare spellings may be offered (issue
 /// #1026).
 ///
-/// Thin position-to-offset wrapper over the crate's single method-context
-/// predicate, so completion, hover, and the analyser's W123 emitter all
+/// Thin position-to-offset wrapper over the crate's single frame
+/// classifier, so completion, hover, and the analyser's W123 emitter all
 /// answer from the same scope walk.
-fn in_oo_method_context_at(
+fn oo_frame_at(
     analysis: &AnalysisResult,
     source: &str,
     line: u32,
     character: u32,
-) -> bool {
+) -> crate::oo_dispatch::OoFrame {
     let line_index = tcl_lexer::LineIndex::new(source);
     let offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-    crate::oo_dispatch::in_oo_method_context(analysis, offset)
+    crate::oo_dispatch::OoFrame::at(analysis, offset)
 }
 
 fn builtin_sort_text(name: &str, usage: usize) -> String {
@@ -1757,7 +1757,7 @@ fn builtin_completions(
     usage: &FxHashMap<String, usize>,
     tk_loaded: bool,
     analysis: &AnalysisResult,
-    in_oo_method_context: bool,
+    oo_frame: crate::oo_dispatch::OoFrame,
 ) -> Vec<CompletionItem> {
     // Availability-gate the command list through the dialect profile: a
     // command whose spec restricts itself to later dialects (`try` is Tcl
@@ -1781,15 +1781,19 @@ fn builtin_completions(
             })
         })
         .filter(|n| profile.resolve_command(registry, n).is_some())
-        // A command whose *bare* spelling only resolves inside a `TclOO`
+        // A command whose *bare* spelling only works inside a `TclOO`
         // method context (`link` / `my` / `next` / `nextto` / `self` /
         // `classvariable` — issue #1026) is offered only there: completing
         // `link` at the top level would insert a call real Tcl rejects with
         // `invalid command name`. Which commands those are is registry data
-        // (`Traits::TCLOO_METHOD_CONTEXT`), never a name list here; the
-        // separately-registered `oo::Helpers::link` spelling is unscoped and
-        // stays offered everywhere.
-        .filter(|n| in_oo_method_context || !registry.resolves_only_in_method_context(n))
+        // (`Traits::TCLOO_METHOD_CONTEXT` plus
+        // `Traits::TCLOO_REQUIRES_METHOD_FRAME`), never a name list here.
+        // The gate is *callability*, not mere resolution: in a Tcl 9 class
+        // `initialise` body the family resolves but all of it except `my`
+        // raises `… may only be called from inside a method`, so only `my`
+        // is offered there. The separately-registered `oo::Helpers::link`
+        // spelling is unscoped and stays offered everywhere.
+        .filter(|n| oo_frame.admits(registry, n))
         // Tk commands (`required_package == "Tk"`) are only offered once Tk
         // is loaded — see the `tk_loaded` computation in `completions` — and
         // never inside a vendor shell: an F5 / EDA / bpf profile is a closed
@@ -1829,7 +1833,15 @@ fn builtin_completions(
         .into_iter()
         .map(|name| {
             let count = usage.get(name).copied().unwrap_or(0);
-            let spec = registry.get(name);
+            // The *profile-resolved* spec, not `registry.get`: a command
+            // with more than one spec under one name (`link` is 9.0 core
+            // plus an 8.6 Tcllib `ooutil` entry) would otherwise describe
+            // itself with whichever duplicate came first — a Tcl 9 buffer
+            // showed `tcllib (ooutil)` as the detail for a core command.
+            // This is the same resolution the availability filter above
+            // already applies, so the item and the decision to offer it
+            // cannot disagree.
+            let spec = profile.resolve_command(registry, name);
             CompletionItem {
                 label: name.to_owned(),
                 insert_text: name.to_owned(),
@@ -2055,9 +2067,9 @@ fn fuzzy_command_fallback(
     if let Some(registry) = registry {
         let tk_loaded =
             dialect == "tk" || analysis.package_requires.iter().any(|req| req.name == "Tk");
-        let in_method = in_oo_method_context_at(analysis, source, line, character);
+        let oo_frame = oo_frame_at(analysis, source, line, character);
         universe.extend(builtin_completions(
-            registry, dialect, "", &usage, tk_loaded, analysis, in_method,
+            registry, dialect, "", &usage, tk_loaded, analysis, oo_frame,
         ));
     }
     if let Some(env) = scoped_env_at(analysis, source, line, character) {

@@ -66,7 +66,8 @@ pub fn spec() -> CommandSpec {
         name: "next",
         traits: Traits::LANGUAGE_KEYWORD
             .union(Traits::TCLOO_NEXT_CHAIN)
-            .union(Traits::TCLOO_METHOD_CONTEXT),
+            .union(Traits::TCLOO_METHOD_CONTEXT)
+            .union(Traits::TCLOO_REQUIRES_METHOD_FRAME),
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::any(),
         return_type: Some(TclType::String),
