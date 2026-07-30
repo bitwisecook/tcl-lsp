@@ -429,36 +429,46 @@ fn eval_list_literal_body(cmd_text: &str) -> Option<String> {
 /// The walk is deliberately shallow and token-based:
 ///
 /// 1. Segment the body into commands.
-/// 2. For each command whose name is in the dynamic-barrier set,
-///    inspect its own body-shaped argument (last arg).  If it isn't
-///    a `Str` token (a braced literal), poison.
+/// 2. For each command the registry marks as evaluating code, ask the
+///    registry which words its script is made of and poison unless
+///    every one of them is a braced literal (`Str`) word.
 /// 3. Recurse into nested braced bodies and into braced-arg shapes
 ///    of non-barrier commands so a nested
 ///    `if { … } { eval $x }` still trips the gate.
+///
+/// Which word is the script is **never** re-derived here (issue #1055):
+/// [`CommandRegistry::arg_indices_for_role`] answers it, so `uplevel`'s
+/// optional-level shape is resolved by the one contract-tested
+/// `uplevel_arg_roles` resolver instead of a second, subtly different
+/// level-word sniff.  The barrier test likewise composes subcommand
+/// traits ([`CommandRegistry::invocation_traits`]), so the compound
+/// eval-family members — `namespace eval`, `namespace inscope`,
+/// `interp eval`, all of which carry the eval-family bits on the
+/// *subcommand* — flow through the same path a bare `eval` does.
 ///
 /// Returns `true` when the body contains a nested dynamic-shape
 /// barrier (the caller should fall back to `IRBarrier`); `false`
 /// when the body is safe to relax.
 fn body_has_dynamic_barrier(body_text: &str, registry: &CommandRegistry) -> bool {
     use tcl_lexer::TokenType;
+    use tcl_registry::prelude::Traits;
     let commands = segment_commands(body_text);
     for sc in &commands {
         if sc.argv.is_empty() || sc.texts.is_empty() {
             continue;
         }
-        let name = sc.texts[0].as_str();
-        // A "dynamic barrier" command evaluates a script in another
-        // frame (`eval` / `uplevel`).  Sourced from the registry's
-        // `EVALUATES_CODE` trait (stamped on exactly those two)
-        // rather than a hardcoded name list; strip any leading `::`
-        // so the fully-qualified spellings resolve too.
-        let is_barrier = registry
-            .get(name.strip_prefix("::").unwrap_or(name))
-            .is_some_and(|s| {
-                s.traits
-                    .contains(tcl_registry::prelude::Traits::EVALUATES_CODE)
-            });
-        if !is_barrier {
+        let raw_name = sc.texts[0].as_str();
+        // Strip any leading `::` so the fully-qualified spellings resolve too.
+        let name = raw_name.strip_prefix("::").unwrap_or(raw_name);
+        let args: Vec<&str> = sc.texts[1..].iter().map(String::as_str).collect();
+        // A "dynamic barrier" command evaluates a script (`eval`,
+        // `uplevel`, `namespace eval`, `interp eval`, …).  Sourced from
+        // the registry's `EVALUATES_CODE` trait rather than a hardcoded
+        // name list.  `DialectSet::empty()` because the question is the
+        // command's *shape*, not its availability: a barrier is a barrier
+        // whichever dialect the file is analysed as.
+        let traits = registry.invocation_traits(name, &args, DialectSet::empty());
+        if !traits.contains(Traits::EVALUATES_CODE) {
             // Recurse into braced args of non-barrier commands so
             // nested barriers still trip the gate.
             for (i, tok) in sc.argv.iter().enumerate() {
@@ -475,45 +485,39 @@ fn body_has_dynamic_barrier(body_text: &str, registry: &CommandRegistry) -> bool
             }
             continue;
         }
-        // Name is a barrier — inspect its own body.
-        let args = &sc.texts[1..];
-        let arg_tokens = &sc.argv[1..];
-        if args.is_empty() {
-            // Malformed: no body. Poison so the outer hook falls
-            // back to IRBarrier (runtime can report the error).
+        // Name is a barrier — inspect the words its script is made of.
+        let body_indices = registry.arg_indices_for_role(name, &args, ArgRole::Body);
+        let Some(&first_body) = body_indices.first() else {
+            // The registry can point at no script word: a malformed call
+            // (`uplevel 1` — a wrong-#args error) or an evaluator whose
+            // code argument is a command *prefix* rather than a script
+            // (`coroprobe` / `coroinject`).  Poison so the outer hook
+            // falls back to IRBarrier and the runtime decides.
             return true;
-        }
-        // For ``uplevel`` skip the level arg if literal.
-        let body_idx = if name == "uplevel" || name == "::uplevel" {
-            let level = &args[0];
-            let level_is_int = !level.is_empty()
-                && (level.starts_with('#')
-                    || level
-                        .trim_start_matches('-')
-                        .chars()
-                        .all(|c| c.is_ascii_digit()));
-            if level_is_int {
-                if args.len() < 2 {
-                    return true;
-                }
-                let level_tok = &arg_tokens[0];
-                if level_tok.kind != TokenType::Esc {
-                    return true;
-                }
-                args.len() - 1
-            } else {
-                args.len() - 1
-            }
-        } else {
-            args.len() - 1
         };
-        let body_tok_nested = &arg_tokens[body_idx];
-        if body_tok_nested.kind != TokenType::Str {
-            return true;
-        }
-        // Recurse into the literal nested body.
-        if body_has_dynamic_barrier(&args[body_idx], registry) {
-            return true;
+        // `SCRIPT_CONCATENATES_ARGS`: the trailing words concatenate into
+        // the one script Tcl evaluates, so `uplevel 1 {set x 1} $tail`
+        // is dynamic even though the marked body word is a literal.  Check
+        // the whole tail from the first script word, not just the marked
+        // ones.
+        let script_words: Vec<usize> = if traits.contains(Traits::SCRIPT_CONCATENATES_ARGS) {
+            (first_body..args.len()).collect()
+        } else {
+            body_indices
+        };
+        for idx in script_words {
+            // `sc.argv` / `sc.texts` include the command name at 0, so the
+            // arg-relative index shifts by one.
+            let (Some(tok), Some(text)) = (sc.argv.get(idx + 1), sc.texts.get(idx + 1)) else {
+                return true;
+            };
+            if tok.kind != TokenType::Str {
+                return true;
+            }
+            // Recurse into the literal nested script word.
+            if body_has_dynamic_barrier(text, registry) {
+                return true;
+            }
         }
     }
     false
@@ -4491,6 +4495,92 @@ mod tests {
         // ``::eval`` and ``::uplevel`` are also caught.
         assert!(body_has_dynamic_barrier("::eval $x", &reg()));
         assert!(body_has_dynamic_barrier("::uplevel 1 $body", &reg()));
+    }
+
+    /// Issue #1055 — the gate resolves `uplevel`'s script word through the
+    /// registry's `ArgRole::Body` resolver, not a local level-word sniff, so
+    /// every documented `uplevel ?level? arg ?arg ...?` shape agrees with
+    /// `uplevel_body_arg_role_skips_optional_level` in `tcl-registry`.
+    #[test]
+    fn body_has_dynamic_barrier_uplevel_level_shapes_follow_the_registry() {
+        let r = reg();
+        // TN — a literal script in each level spelling relaxes.
+        for clean in [
+            "uplevel {set x 1}",
+            "uplevel 1 {set x 1}",
+            "uplevel #0 {set x 1}",
+            "uplevel $lvl {set x 1}",
+            "uplevel [expr {$n - 1}] {set x 1}",
+        ] {
+            assert!(
+                !body_has_dynamic_barrier(clean, &r),
+                "{clean} must not poison"
+            );
+        }
+        // TP — a substituted script word in each level spelling poisons.
+        for dirty in [
+            "uplevel $body",
+            "uplevel 1 $body",
+            "uplevel #0 $body",
+            "uplevel $lvl $body",
+            "uplevel 1 [gen]",
+        ] {
+            assert!(body_has_dynamic_barrier(dirty, &r), "{dirty} must poison");
+        }
+        // FN guard — the words after the script word concatenate into it
+        // (`SCRIPT_CONCATENATES_ARGS`), so a dynamic tail is still dynamic
+        // even though the marked body word is a braced literal.
+        assert!(body_has_dynamic_barrier("uplevel 1 {set x} $tail", &reg()));
+        assert!(body_has_dynamic_barrier("eval {set x} $tail", &reg()));
+        // …and an all-literal multi-word tail stays clean.
+        assert!(!body_has_dynamic_barrier("uplevel 1 {set x} {1}", &reg()));
+        // A bodyless `uplevel 1` is a wrong-#args error the registry exposes
+        // no body word for — poison rather than guess.
+        assert!(body_has_dynamic_barrier("uplevel 1", &reg()));
+        // The deleted local sniff accepted `-N` as a level (it stripped a
+        // leading `-` before the digit test); the registry does not, and the
+        // registry is right.  Oracle, tclsh8.6.14: with `proc -1 {args} {…}`
+        // defined, `uplevel -1 {set x 1}` *calls* `-1` with `set x 1` — the
+        // word is the script's first word, not a level.  tclsh9.0.4 instead
+        // errors `bad level "-1"`.  Under either reading the word is an
+        // unbraced script word, so the gate poisons.
+        assert!(body_has_dynamic_barrier("uplevel -1 {set x 1}", &reg()));
+    }
+
+    /// Issue #1055, the generalisation dividend: the eval-family *subcommand*
+    /// members carry `EVALUATES_CODE` / `SCRIPT_CONCATENATES_ARGS` on the
+    /// subcommand, not on the `namespace` / `interp` spec.  Composing them
+    /// (`invocation_traits`) plus registry-resolved body indices makes them
+    /// flow through the same path a bare `eval` does, which a parent-only
+    /// trait test missed entirely.
+    #[test]
+    fn body_has_dynamic_barrier_covers_compound_eval_family() {
+        let r = reg();
+        // TP — the script is substituted.
+        assert!(body_has_dynamic_barrier("namespace eval ns $body", &r));
+        assert!(body_has_dynamic_barrier("namespace inscope ns $body", &r));
+        assert!(body_has_dynamic_barrier("interp eval slave $body", &r));
+        // TN — a braced literal script relaxes, and its own contents are
+        // still recursed.
+        assert!(!body_has_dynamic_barrier("namespace eval ns {set x 1}", &r));
+        assert!(body_has_dynamic_barrier("namespace eval ns {eval $x}", &r));
+        // TN — a `namespace` subcommand that evaluates nothing is not a
+        // barrier, however dynamic its arguments are.
+        assert!(!body_has_dynamic_barrier("namespace delete $ns", &r));
+        assert!(!body_has_dynamic_barrier("namespace current", &r));
+    }
+
+    /// TN for the barrier test itself: an ordinary command with a
+    /// substituted argument is not a script evaluator, so it never poisons —
+    /// the gate keys on the registry trait, not on "has a `$var` argument".
+    #[test]
+    fn body_has_dynamic_barrier_non_body_command_is_clean() {
+        let r = reg();
+        assert!(!body_has_dynamic_barrier("set x $y", &r));
+        assert!(!body_has_dynamic_barrier("puts [format %s $x]", &r));
+        assert!(!body_has_dynamic_barrier("lappend acc $item", &r));
+        // A user command the registry does not know at all is not a barrier.
+        assert!(!body_has_dynamic_barrier("mycmd $script", &r));
     }
 
     #[test]

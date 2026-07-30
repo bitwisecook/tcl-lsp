@@ -3177,19 +3177,37 @@ impl Analyser {
     ///   (4 words) — define the handler's ``VARLIST`` (e.g.
     ///   ``{result options}``), then recurse into ``BODY``.
     ///
+    /// Conditional-body depth, per clause kind (issue #1065): the main body
+    /// and the `on` / `trap` handler bodies are branch-selected, the
+    /// `finally` body is not.  See [`Self::analyse_selected_body`].
+    ///
+    /// `traits` are the composed traits of the concrete spec / subcommand the
+    /// dispatch already resolved this head to, threaded in rather than
+    /// re-fetched by name: a name lookup would put per-command knowledge back
+    /// in the analyser and would silently diverge from the dispatch the moment
+    /// a dialect variant shares this hook.
+    ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Try`].
     pub fn handle_try_command(
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
+        traits: tcl_registry::Traits,
     ) -> bool {
         if args.is_empty() {
             return false;
         }
+        // The same trait-driven depth the generic body walk in
+        // `dispatch_body_arguments` applies — `Traits::BRANCH_SELECTED_BODY`,
+        // carried by exactly `if` and `try`.  `try` reaches its bodies
+        // through this hook instead of that walk, so without asking here a
+        // `package require` inside a `try` was recorded unconditional
+        // (issue #1065).
+        let branch_selected = traits.contains(tcl_registry::Traits::BRANCH_SELECTED_BODY);
         // Main try body at args[0].
         if let Some(body_tok) = arg_tokens.first().copied() {
-            self.analyse_body(&args[0], body_tok, scope_path);
+            self.analyse_selected_body(&args[0], body_tok, scope_path, branch_selected);
         }
         // Walk handler / finally clauses.
         let mut i = 1;
@@ -3197,6 +3215,8 @@ impl Analyser {
             let kw = args[i].as_str();
             if kw == "finally" && i + 1 < args.len() {
                 if let Some(body_tok) = arg_tokens.get(i + 1).copied() {
+                    // A `finally` body is *not* branch-selected — see
+                    // `analyse_selected_body`.
                     self.analyse_body(&args[i + 1], body_tok, scope_path);
                 }
                 i += 2;
@@ -3215,7 +3235,7 @@ impl Analyser {
                 if let Some(body_tok) = arg_tokens.get(i + 3).copied()
                     && args[i + 3] != "-"
                 {
-                    self.analyse_body(&args[i + 3], body_tok, scope_path);
+                    self.analyse_selected_body(&args[i + 3], body_tok, scope_path, branch_selected);
                 }
                 i += 4;
             } else {
@@ -3223,6 +3243,57 @@ impl Analyser {
             }
         }
         true
+    }
+
+    /// [`Self::analyse_body`] with `conditional_depth` raised for the walk
+    /// when the owning command's bodies are branch-selected, so facts
+    /// recorded inside (a `package require`, a const-string write) do not
+    /// claim to dominate the code after the command.
+    ///
+    /// `branch_selected` comes from the owning command's
+    /// [`tcl_registry::Traits::BRANCH_SELECTED_BODY`] — the same trait the
+    /// generic body walk keys on — never from the command's name.
+    ///
+    /// Which of `try`'s clause bodies pass `true` follows C Tcl's `try`
+    /// semantics, modelled the way `if` already is: `if`'s always-evaluated
+    /// condition is an `ArgRole::Expr` argument and is never depth-bumped,
+    /// only its branch-selected bodies are.  For `try`:
+    ///
+    /// - the **main body** always *starts* running, but any statement in it
+    ///   may be superseded by an exception a handler then swallows, so
+    ///   nothing it establishes dominates the code after the `try`.
+    ///   Branch-selected — the same guarded-probe reading
+    ///   [`Self::handle_catch_command`] applies to `catch`'s script, and
+    ///   `try { package require Foo } on error {} {}` is precisely the
+    ///   idiomatic optional-dependency check.
+    /// - an **`on` / `trap` handler body** runs only when the body completed
+    ///   with a matching completion code / `-errorcode` prefix.
+    ///   Branch-selected.
+    /// - a **`finally` body** always runs: "an optional trailing finally
+    ///   script always runs — even when body or the handler raised an error,
+    ///   and irrespective of which handler, if any, matched" (Tcl 9.0.4
+    ///   `try(n)`; in `generic/tclCmdMZ.c` both of `TclNRTryObjCmd`'s
+    ///   continuations, `TryPostBody` and `TryPostHandler`, schedule the
+    ///   finally script before propagating).  So whenever control reaches
+    ///   past the `try` at all, the finally body has run — it is the one
+    ///   `try` clause that is **not** branch-selected, exactly as
+    ///   [`tcl_registry::Traits::BRANCH_SELECTED_BODY`]'s own documentation
+    ///   names it.  It is no more conditional than a straight-line statement,
+    ///   which can equally fail part-way.
+    fn analyse_selected_body(
+        &mut self,
+        body_text: &str,
+        body_tok: Token,
+        scope_path: &[usize],
+        branch_selected: bool,
+    ) {
+        if branch_selected {
+            self.conditional_depth += 1;
+        }
+        self.analyse_body(body_text, body_tok, scope_path);
+        if branch_selected {
+            self.conditional_depth -= 1;
+        }
     }
 
     /// Register the local-alias names introduced by `upvar`.
@@ -7743,25 +7814,50 @@ mod tests {
 
     // handle_try_command
 
+    /// The traits `AnalyserHookId::Try` dispatch threads into
+    /// `handle_try_command` in production, resolved through that same path so
+    /// these unit tests cannot drift from it.
+    fn try_traits(a: &Analyser, args: &[String]) -> tcl_registry::Traits {
+        a.resolved_analyser_hook_traits("try", args)
+            .expect("`try` resolves the Try analyser hook")
+    }
+
     #[test]
     fn handle_try_canonical_returns_true() {
         let mut a = Analyser::new();
-        let handled = a.handle_try_command(&["body".to_string()], &[str_tok(span(0, 4))], &[]);
+        let args = ["body".to_string()];
+        let traits = try_traits(&a, &args);
+        let handled = a.handle_try_command(&args, &[str_tok(span(0, 4))], &[], traits);
         assert!(handled);
     }
 
     #[test]
     fn handle_try_no_args_returns_false() {
         let mut a = Analyser::new();
-        let handled = a.handle_try_command(&[], &[], &[]);
+        let traits = try_traits(&a, &[]);
+        let handled = a.handle_try_command(&[], &[], &[], traits);
         assert!(!handled);
+    }
+
+    /// The dispatch really does resolve `BRANCH_SELECTED_BODY` for a `try`
+    /// call, so the depth bump keys off a fact and not off a default.
+    #[test]
+    fn try_dispatch_resolves_the_branch_selected_body_trait() {
+        let a = Analyser::new();
+        let args = ["body".to_string()];
+        assert!(
+            try_traits(&a, &args).contains(tcl_registry::Traits::BRANCH_SELECTED_BODY),
+            "hook dispatch must hand the handler `try`'s own traits"
+        );
     }
 
     #[test]
     fn handle_try_walks_main_body() {
         // ``try {set y 1}`` — main body walks and lands ``y``.
         let mut a = Analyser::new();
-        a.handle_try_command(&["set y 1".to_string()], &[str_tok(span(5, 14))], &[]);
+        let args = ["set y 1".to_string()];
+        let traits = try_traits(&a, &args);
+        a.handle_try_command(&args, &[str_tok(span(5, 14))], &[], traits);
         assert!(a.result.global_scope.variables.contains_key("y"));
     }
 
@@ -7769,14 +7865,17 @@ mod tests {
     fn handle_try_walks_finally_body() {
         // ``try {} finally {set z 1}`` — finally clause body walks.
         let mut a = Analyser::new();
+        let args = [String::new(), "finally".to_string(), "set z 1".to_string()];
+        let traits = try_traits(&a, &args);
         a.handle_try_command(
-            &[String::new(), "finally".to_string(), "set z 1".to_string()],
+            &args,
             &[
                 str_tok(span(5, 7)),
                 esc_tok(span(8, 15)),
                 str_tok(span(16, 25)),
             ],
             &[],
+            traits,
         );
         assert!(a.result.global_scope.variables.contains_key("z"));
     }
@@ -7787,14 +7886,16 @@ mod tests {
         // handler body at offset i+3 walks; the varList at i+2
         // is *not* defined as a local.
         let mut a = Analyser::new();
+        let args = [
+            String::new(),
+            "on".to_string(),
+            "error".to_string(),
+            "result options".to_string(),
+            "set q 1".to_string(),
+        ];
+        let traits = try_traits(&a, &args);
         a.handle_try_command(
-            &[
-                String::new(),
-                "on".to_string(),
-                "error".to_string(),
-                "result options".to_string(),
-                "set q 1".to_string(),
-            ],
+            &args,
             &[
                 str_tok(span(5, 7)),
                 esc_tok(span(8, 10)),
@@ -7803,6 +7904,7 @@ mod tests {
                 str_tok(span(34, 43)),
             ],
             &[],
+            traits,
         );
         assert!(a.result.global_scope.variables.contains_key("q"));
         // The `on error {result options}` var-list binds the result message +
@@ -7817,14 +7919,16 @@ mod tests {
         // ``try {} trap NONE {result} {set q 1}`` — same shape
         // as ``on``, but the keyword is ``trap``.
         let mut a = Analyser::new();
+        let args = [
+            String::new(),
+            "trap".to_string(),
+            "NONE".to_string(),
+            "result".to_string(),
+            "set q 1".to_string(),
+        ];
+        let traits = try_traits(&a, &args);
         a.handle_try_command(
-            &[
-                String::new(),
-                "trap".to_string(),
-                "NONE".to_string(),
-                "result".to_string(),
-                "set q 1".to_string(),
-            ],
+            &args,
             &[
                 str_tok(span(5, 7)),
                 esc_tok(span(8, 12)),
@@ -7833,6 +7937,7 @@ mod tests {
                 str_tok(span(27, 36)),
             ],
             &[],
+            traits,
         );
         assert!(a.result.global_scope.variables.contains_key("q"));
     }
@@ -8821,14 +8926,79 @@ mod tests {
             vec![false],
             "a loop body is skippable-and-repeatable, a different question",
         );
-        // `try` carries the trait too, but reaches its bodies through its own
-        // analyser hook rather than the generic body walk, so this depth is
-        // never bumped for it. Pinned as it stands: the trait swap is
-        // behaviour-preserving, and closing that gap is a separate change to
-        // `handle_try_command`.
+        // `try` carries the trait too and reaches its bodies through its own
+        // analyser hook; that hook now honours the same trait (issue #1065),
+        // so the main body is conditional like `if`'s.
         assert_eq!(
             conditional_flags("try { package require Tcl 8.6 } on error {} {}\n"),
+            vec![true],
+        );
+    }
+
+    /// FIX (issue #1065) — `handle_try_command` bumps the branch-selected
+    /// depth per clause kind, so a `package require` records the right
+    /// conditionality wherever in a `try` it sits.
+    ///
+    /// Clause semantics are C Tcl's (Tcl 9.0.4 `try(n)`, `TclNRTryObjCmd` in
+    /// `generic/tclCmdMZ.c`): the main body may be cut short by an exception a
+    /// handler swallows and the `on`/`trap` handlers run only on a match — both
+    /// branch-selected — while `finally` always runs, so it is not.  See
+    /// `Analyser::analyse_selected_body` for the full reasoning.
+    #[test]
+    fn package_require_conditionality_per_try_clause_kind() {
+        let conditional_flags = |src: &str| -> Vec<bool> {
+            let mut a = crate::analyser::Analyser::new();
+            a.analyse(src, "tcl8.6")
+                .package_requires
+                .iter()
+                .map(|p| p.conditional)
+                .collect()
+        };
+        // TP — the issue's own repro: the guarded optional-dependency idiom.
+        assert_eq!(
+            conditional_flags("try { package require Foo } on error {} {}\n"),
+            vec![true],
+            "a require in the main try body is conditional",
+        );
+        // TP — an `on` handler body.
+        assert_eq!(
+            conditional_flags("try { set x 1 } on error {} { package require Foo }\n"),
+            vec![true],
+            "a require in an `on` handler is conditional",
+        );
+        // TP — a `trap` handler body.
+        assert_eq!(
+            conditional_flags(
+                "try { set x 1 } trap {POSIX ENOENT} {m o} { package require Foo }\n"
+            ),
+            vec![true],
+            "a require in a `trap` handler is conditional",
+        );
+        // TN — a `finally` body always runs, so it is not branch-selected.
+        assert_eq!(
+            conditional_flags("try { set x 1 } finally { package require Foo }\n"),
             vec![false],
+            "a `finally` body always runs — the require is unconditional",
+        );
+        // TN — a top-level require, the control.
+        assert_eq!(conditional_flags("package require Foo\n"), vec![false]);
+        // FN guard — the depth is restored after the walk, so a require that
+        // follows the whole `try` command is still unconditional.
+        assert_eq!(
+            conditional_flags(
+                "try { package require A } on error {} { package require B } finally { package require C }\npackage require D\n"
+            ),
+            vec![true, true, false, false],
+            "main body + handler conditional; finally and the following \
+             top-level require unconditional",
+        );
+        // FP guard — nesting a `try` inside an `if` must not leave the depth
+        // stuck: the require after both is still unconditional.
+        assert_eq!(
+            conditional_flags(
+                "if {$x} { try { package require A } finally { set y 1 } }\npackage require B\n"
+            ),
+            vec![true, false],
         );
     }
 

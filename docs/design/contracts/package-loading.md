@@ -45,8 +45,28 @@ per-dialect spec packs, never as name-matching in a consumer (see
    require.
 3. Each `SignaturePackageRequire` carries the name, the optional version, its
    source span, and a `conditional` flag set when the require sits inside a
-   guarded branch (`if` / `catch` / `try`), so version inference does not
-   promote a guarded `package require Tcl 8.6` to an unconditional minimum.
+   guarded branch, so version inference does not promote a guarded
+   `package require Tcl 8.6` to an unconditional minimum. "Guarded" is
+   registry-driven, not a command-name list: the analyser raises
+   `conditional_depth` for a body the registry marks
+   `Traits::BRANCH_SELECTED_BODY` (`if`, `try`), plus `catch`'s script.
+   Per `try` clause, following C Tcl's own semantics (Tcl 9.0.4 `try(n)`;
+   `TclNRTryObjCmd` in `generic/tclCmdMZ.c`):
+
+   | `try` clause      | conditional | why |
+   |-------------------|-------------|-----|
+   | main body         | yes | it always *starts*, but an exception a handler swallows can cut it short, so nothing in it dominates the code after the `try` |
+   | `on` / `trap` body | yes | reached only on a matching completion code / `-errorcode` prefix |
+   | `finally` body    | **no** | it always runs, whatever the body and handlers did, so whenever control reaches past the `try` it has run |
+
+   The `if` modelling is the same shape: the always-evaluated condition is an
+   `ArgRole::Expr` argument and is never depth-bumped, only the
+   branch-selected bodies are (issue #1065).
+   The background `signature_scan` pre-pass answers the same question more
+   coarsely — it walks only `if` / `catch` / `try` bodies and marks *every*
+   recursed body conditional, `finally` included. It is a shallow index for
+   files never opened in the foreground, not a second authority; the
+   analyser's per-clause answer above is the precise one.
 4. Version is captured but currently only used by the package resolver and the
    version-gate diagnostics, not by the per-document command filter.
 

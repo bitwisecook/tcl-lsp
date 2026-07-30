@@ -98,7 +98,9 @@ pushed to this branch (§3/§6a); 2 tcllib findings remain, each with a
 detailed `root_cause_hint` but no refined plan (§6a). The main-wave audit
 (other 7 corpora, 105 findings total) is now **fully complete and triaged**
 (§6b): 85 CONFIRMED (1 critical, 23 high, 60 medium, 1 low), 20 REFUTED.
-Twenty-three of these are **fixed**: idx 61 (critical, §3's `438e56f`), idx 9
+Twenty-four of these are **fixed**: idx 0 (medium, PR #1068 on
+`claude/commandregistry-compiler-fixes-tshu8d-quickfixes`), idx 61
+(critical, §3's `438e56f`), idx 9
 (high, §3's `51d0a35`), idx 10 (high, §3's `2330862`), idx 18 (high, §3's
 `1f5fe71`), idx 29 (high, already resolved by idx 18's fix, pinned in
 §3's `d218463`), idx 31 (high, §3's `89b75a5`), idx 32 (high, §3's
@@ -110,7 +112,7 @@ idx 70 (high, §3's `d5e4d65`), idx 71 (high, §3's `2339d4a`), idx 76
 (high, §3's `0bde16e`), idx 77 (high, §3's `51a630f`), idx 84 (high,
 partial — §3's `7115bc8`), idx 86 (high, §3's `99cf07f`), idx 90 (high,
 §3's `7d476f5`), idx 95 (high, §3's `ef36c73`), idx 94 (high, §3's
-`959bca8`); the other 62
+`959bca8`); the other 61
 main-wave findings are clustered by feature/root-cause with a
 priority-ordered table in
 §6b, ready for a future session to pick up efficiently. Nothing
@@ -447,7 +449,9 @@ tclopt, ticklecharts, pix, tomato, tk) are differentially audited and
 merged into `data/06-main-audit-results-COMPLETE-105of105.json` (idx 0–48
 from the original `06-...-PARTIAL-49of105.json` batch, idx 49–104 from the
 `wf_61c6b92a-e22` workflow's completed resume run). **85 CONFIRMED, 20
-REFUTED.** Of the 85 CONFIRMED: **23 fixed** (idx 61, critical — §3's
+REFUTED.** Of the 85 CONFIRMED: **24 fixed** (idx 0, medium — PR #1068
+on `claude/commandregistry-compiler-fixes-tshu8d-quickfixes`; idx 61,
+critical — §3's
 `438e56f`; idx 9, high — §3's `51d0a35`; idx 10, high — §3's `2330862`;
 idx 18, high — §3's `1f5fe71`; idx 29, high, same root cause as idx 18 —
 §3's `d218463`; idx 31, high — §3's `89b75a5`; idx 32, high — §3's
@@ -459,7 +463,7 @@ partial — §3's `65dda01`; idx 68, high — §3's `134c31c`; idx 70, high —
 `0bde16e`; idx 77, high — §3's `51a630f`; idx 84, high, partial — §3's
 `7115bc8`; idx 86, high — §3's `99cf07f`; idx 90, high — §3's `7d476f5`;
 idx 95, high — §3's `ef36c73`; idx 94, high — §3's `959bca8`),
-**62 remaining**.
+**61 remaining**.
 
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
@@ -673,7 +677,7 @@ users, a worse failure mode than the narrower, but fully oracle-grounded,
 `CONFIGURE`-tracking fix actually shipped. Left as a documented, low-risk
 follow-up for a session with Tk oracle access.
 
-#### Priority tier 2 — medium + low (60 + 1 = 61 findings), grouped by feature for clustering
+#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 1 already fixed), grouped by feature for clustering
 
 Group findings sharing a feature/root-cause together in one fix pass the
 way idx 107+115 and idx 118+119 were — many of these look like they share
@@ -685,7 +689,7 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 |---|---|---|
 | tclOO | 10 | 15, 16, 34, 35, 36, 53, 54, 55, 96, 97 (all medium) |
 | namespaces | 8 | 3, 19, 43, 44, 64, 65, 75, 85 (all medium) |
-| tricky_indirection | 7 | 0, 1, 2, 14, 49, 50, 51 (all medium) |
+| tricky_indirection | 7 | 0 (medium, **FIXED** — see below), 1, 2, 14, 49, 50, 51 (all medium) |
 | upvar | 7 | 7, 22, 57, 58, 59, 98, 99 (all medium) |
 | proc_args | 7 | 11, 28, 37, 62, 67, 78, 104 (all medium) |
 | tcl_mathop | 4 | 30, 80, 81, 103 (all medium) |
@@ -698,6 +702,34 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 | eval | 1 | 24 (medium) |
 | autoindex | 1 | 73 (medium) |
 | safe_interp | 1 | 91 (medium) |
+
+**idx 0 — FIXED** (PR #1068, branch
+`claude/commandregistry-compiler-fixes-tshu8d-quickfixes`). The audit's
+headline `{*}$validateHelper` indirection claim was already correct
+abstention (REFUTED by the audit itself); the real bug it uncovered was a
+literal `apply {{params} {body}}` inside a `[…]` command substitution
+reporting `W123 Unknown command '<the parameter list>'`. `apply` reached that
+way never went through `AnalyserHookId::Apply`; the substitution collectors
+reached its arguments through the shared registry-aware `descend_command`,
+which resolved `ArgRole::Body` only — so the whole `{params body}` list was
+re-segmented as script source and the parameter list became a command head.
+Once `ArgRole::LambdaLiteral` stopped that, an FN took its place: the
+lambda's real body was walked by nothing at all.
+
+Fixed by giving the substitution walk the same dispatch the top level has:
+`dispatch_nested_segment` gained an `AnalyserHookId::Apply` arm beside its
+existing `Proc` / `OoDefine` arms, so a substitution-position `apply` runs
+`handle_apply_command` — the lambda's own scope, rooted at the lambda's
+namespace, with its parameters bound there. `descend_command` deliberately
+still resolves `ArgRole::Body` only. A first attempt (corrected on Codex
+review of the PR) descended the lambda's body *element* from
+`descend_command` instead; that fixed the span but handed the body to the
+collectors as an ordinary body, which they walk in the **enclosing** scope —
+so a lambda-body `set` became a local of the calling proc and an
+explicit-namespace lambda resolved its calls in the caller's namespace. Full
+write-up, including why the sub-span alone is not enough, in
+[the `apply` lambda KCS note](../../kcs/kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md)
+(instance 8).
 
 Each idx's full detail (summary, failure_scenario, oracle_output,
 lsp_output, root_cause_hint) is in

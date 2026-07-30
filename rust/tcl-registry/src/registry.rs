@@ -1025,12 +1025,34 @@ impl CommandRegistry {
     /// carries no linkage — a user proc named `source` is a user proc.
     #[must_use]
     pub fn unit_linkage(&self, name: &str, args: &[&str], dialect: DialectSet) -> Traits {
+        self.invocation_traits(name, args, dialect)
+            .intersection(crate::traits::UNIT_LINKAGE_TRAITS)
+    }
+
+    /// Every trait this concrete invocation carries — `spec.traits |
+    /// sub.traits`, composed exactly as [`crate::spec::SubCommand::traits`]
+    /// documents.
+    ///
+    /// The invocation-level counterpart of `self.get(name).traits`: a
+    /// subcommand's traits are *additive* over its parent's, so a consumer
+    /// asking a trait question about a compound command must compose them.
+    /// `namespace eval` / `namespace inscope` / `interp eval` carry the
+    /// eval-family bits ([`Traits::EVALUATES_CODE`],
+    /// [`Traits::SCRIPT_CONCATENATES_ARGS`]) on the **subcommand**, not on
+    /// the `namespace` / `interp` spec, so a parent-only trait test silently
+    /// misses them.
+    ///
+    /// Resolved through [`Self::resolve_call`], so the subcommand word is
+    /// honoured; pass [`DialectSet::empty`] to skip dialect gating (the
+    /// plain [`Self::get`] lookup) when the question is "what shape is this
+    /// command" rather than "is it available here". An unknown command
+    /// carries no traits.
+    #[must_use]
+    pub fn invocation_traits(&self, name: &str, args: &[&str], dialect: DialectSet) -> Traits {
         let Some(resolved) = self.resolve_call(name, args, dialect) else {
             return Traits::empty();
         };
-        let traits =
-            resolved.spec.traits | resolved.sub.map_or_else(Traits::empty, |sub| sub.traits);
-        traits.intersection(crate::traits::UNIT_LINKAGE_TRAITS)
+        resolved.spec.traits | resolved.sub.map_or_else(Traits::empty, |sub| sub.traits)
     }
 
     /// Whether `name` is valid only at the top level of an iRule script
@@ -4069,6 +4091,56 @@ mod tests {
         assert_eq!(
             reg.unit_linkage("package", &["names"], empty),
             Traits::empty()
+        );
+    }
+
+    /// `invocation_traits` composes `spec.traits | sub.traits` for the
+    /// concrete call, which is the only way the eval-family bits on the
+    /// compound members are visible: `namespace eval` / `namespace inscope` /
+    /// `interp eval` carry `EVALUATES_CODE` on the **subcommand**, so a
+    /// parent-only `get(name).traits` test misses them (issue #1055).
+    #[test]
+    fn invocation_traits_compose_subcommand_traits() {
+        let reg = CommandRegistry::build_default();
+        let empty = DialectSet::empty();
+        // TP — the eval family, bare and compound.
+        for (name, args) in [
+            ("eval", &["{set x 1}"][..]),
+            ("uplevel", &["1", "{set x 1}"][..]),
+            ("namespace", &["eval", "ns", "{set x 1}"][..]),
+            ("namespace", &["inscope", "ns", "{set x 1}"][..]),
+            ("interp", &["eval", "slave", "{set x 1}"][..]),
+        ] {
+            let traits = reg.invocation_traits(name, args, empty);
+            assert!(
+                traits.contains(Traits::EVALUATES_CODE),
+                "{name} {args:?} must carry EVALUATES_CODE"
+            );
+            assert!(
+                traits.contains(Traits::SCRIPT_CONCATENATES_ARGS),
+                "{name} {args:?} must carry SCRIPT_CONCATENATES_ARGS"
+            );
+        }
+        // TN — the parent spec alone carries neither bit, which is exactly
+        // why composing is required.
+        let parent = reg.get("namespace").expect("namespace spec").traits;
+        assert!(!parent.contains(Traits::EVALUATES_CODE));
+        // TN — a sibling subcommand that evaluates nothing stays clean.
+        assert!(
+            !reg.invocation_traits("namespace", &["delete", "ns"], empty)
+                .contains(Traits::EVALUATES_CODE)
+        );
+        // TN — an unknown command carries no traits at all.
+        assert_eq!(
+            reg.invocation_traits("no_such_command_xyz", &["a"], empty),
+            Traits::empty()
+        );
+        // The parent's own traits still compose in — a subcommand's traits
+        // are additive, not a replacement.
+        assert!(
+            reg.invocation_traits("namespace", &["eval", "ns", "{}"], empty)
+                .contains(Traits::LANGUAGE_KEYWORD),
+            "the parent `namespace` spec's own bits survive composition"
         );
     }
 

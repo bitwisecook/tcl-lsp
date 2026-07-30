@@ -299,6 +299,56 @@ no instances of its own:
    inference. Not a fix here since there's nothing live to fix; a flag for
    whoever touches that iterator next.
 
+An eighth instance surfaced from a different direction — the issue-923
+differential audit's finding **idx 0** (georgtree/argparse), which found the
+*original*, pre-role misparse still live in one walker:
+
+8. **The `[…]`-substitution collectors re-segmented the whole lambda list as
+   a script.** `apply` reached through the analyser's substitution walk —
+   `set r [apply {{name opt args} {…}} …]`, `puts [apply {…} …]`, anything
+   where `apply` is not the outermost command of a statement — never went
+   through `AnalyserHookId::Apply`. Instead `record_command_invocations` /
+   `collect_segment_recursive`
+   ([`rust/tcl-compiler/src/analyser/commands.rs`](../../rust/tcl-compiler/src/analyser/commands.rs))
+   reached its arguments through the shared registry-aware
+   [`descend_command`](../../rust/tcl-compiler/src/parsing/syntax/descend.rs),
+   which resolved `ArgRole::Body` only. Two symptoms, one cause:
+   - a **false positive** `W123 Unknown command 'name opt args'` on the
+     lambda's own parameter list, because an earlier revision of the
+     collector descended the whole `{params body}` word as script source;
+   - once the `LambdaLiteral` role stopped that, a **false negative** in its
+     place: the lambda's real body was walked by *nothing*, so a genuinely
+     unknown command inside it escaped W123 and every other per-command
+     check whenever the `apply` sat inside a `[…]`.
+
+   Fixed by giving the substitution walk the *same* dispatch the top level
+   has: `dispatch_nested_segment` gained an `AnalyserHookId::Apply` arm, beside
+   the `Proc` / `OoDefine` arms it already had, so a substitution-position
+   `apply` runs `handle_apply_command` — which builds the lambda's own `Proc`
+   scope rooted at the lambda's namespace, binds its parameters there, and
+   walks the body in it. `descend_command` still resolves `ArgRole::Body` only,
+   so nothing walks the lambda twice and nothing walks it in the wrong scope.
+
+   The first attempt at this fix (PR #1068, corrected before merge on review)
+   instead taught `descend_command` to descend the lambda's braced *body
+   element*. That killed the FP and the FN, but it was still wrong in the same
+   way instances 2 / 4 / 5 / 6 above were wrong: it handed the body to the
+   generic collectors as an ordinary `Body` argument, and every one of them
+   walks a body in the **enclosing** scope. So
+   `proc p {} { set r [apply {{} {gets stdin leaked}}]; puts $leaked }`
+   recorded `leaked` as a local of `p` (tclsh9.0.4: `puts $leaked` raises
+   `can't read "leaked": no such variable` — the lambda's frame is gone by
+   then), and a lambda with an explicit namespace element resolved its
+   bareword calls in the caller's namespace rather than that one. **Getting
+   the sub-span right is not enough for a lambda body — it needs the frame
+   too**, which is precisely why the isolated walk belongs to `apply`'s hook
+   and not to a generic body descent. `descend_command`'s doc comment now says
+   so, with a TN test pinning that it yields no body for a `LambdaLiteral`
+   argument.
+
+   No command name appears anywhere in the change: the substitution dispatch
+   matches on the registry-stamped hook, exactly as the top-level chain does.
+
 ## Failure modes
 
 - Tagging a lambda-literal-shaped argument `ArgRole::Body` instead of
@@ -366,6 +416,15 @@ no instances of its own:
   lambda as executable),
   `package_ifneeded_literal_script_recurses_as_body`,
   `my_call_inside_apply_lambda_body_does_not_resolve`
+- `rust/tcl-compiler/src/parsing/syntax/descend.rs` —
+  `descend_command_yields_no_body_for_a_lambda_literal`
+- `rust/tcl-compiler/src/analyser/diagnostics/tests.rs` —
+  `apply_lambda_in_command_substitution_does_not_report_its_parameter_list`
+  (the audit's own repro), `apply_lambda_body_in_command_substitution_is_walked`,
+  `plain_body_argument_in_command_substitution_still_walked`,
+  `apply_lambda_parameters_named_like_commands_draw_no_unknown_command`,
+  `apply_lambda_in_command_substitution_keeps_its_own_frame`,
+  `apply_lambda_in_command_substitution_records_its_namespace`
 - `rust/tcl-compiler/src/lambda_literal.rs` — `split_lambda_literal`'s own
   unit tests (params/body/namespace splitting, dynamic-lambda guard) and
   `split_lambda_literal_decoded`'s (`decodes_bare_body_backslash_escape`,

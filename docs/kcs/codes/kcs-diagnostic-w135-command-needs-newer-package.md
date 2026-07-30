@@ -41,6 +41,17 @@ ttk::button .b -text Hi
 
 Raise the `package require` to at least the version the command needs. A `package require` *without* a version is treated as permissive (no floor to compare against), so it never draws W135.
 
+## A guarded `package require` does not raise the floor
+
+Only a `package require` that definitely runs sets the version floor. One inside a branch that may not be taken — an `if` body, a `catch` script, a `try` body, or a `try` `on`/`trap` handler — is recorded as *guarded* and is ignored when comparing versions, because at runtime the package may never have been loaded on the path that reaches the command:
+
+```tcl
+catch {package require Tk 8.6}
+ttk::button .b -text Hi     ;# still W135 — the require may not have run
+```
+
+A `try`'s `finally` script is the one exception: it always runs, whatever the body and the handlers did, so a `package require` there *does* raise the floor. Move the require out of the guard (or add an unguarded one) if you mean it to count.
+
 ## How to suppress
 
 Add `# noqa: W135` at the end of the offending line.

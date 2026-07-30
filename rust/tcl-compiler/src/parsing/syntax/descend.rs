@@ -169,6 +169,15 @@ pub struct CommandBody {
 /// deliberately not routed here — they are handled by the expression
 /// lexer.
 ///
+/// [`ArgRole::LambdaLiteral`] arguments are **also** deliberately not routed
+/// here, and a caller must not treat one as an ordinary body.  A lambda
+/// literal is a `{params body ?ns?}` *list*, and its body runs in a fresh
+/// call frame homed to the lambda's own namespace — never the caller's — so
+/// walking it needs an isolated scope, not just the right sub-span.  The
+/// owning consumer routes it through `apply`'s analyser hook instead; see
+/// `Analyser::dispatch_nested_segment` (issue-923 audit finding idx 0, and
+/// its PR #1068 review follow-up).
+///
 /// `args` and `arg_tokens` are the command's arguments (excluding the
 /// command name), parallel and 0-indexed; `sm` maps the region the tokens
 /// belong to.
@@ -353,5 +362,52 @@ mod tests {
         let loop_body = bodies.iter().find(|b| b.index == 3).unwrap();
         assert!(loop_body.descended.is_terminated());
         assert_eq!(loop_body.descended.tree().text(), "puts $i");
+    }
+
+    /// Helper: `descend_command` over the first command of `src`.
+    fn bodies_of(registry: &CommandRegistry, src: &str) -> Vec<CommandBody> {
+        let sm = SourceMap::new(src);
+        let segs = crate::segmenter::segment_commands(src);
+        let cmd = &segs[0];
+        let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
+        descend_command(
+            registry,
+            &sm,
+            cmd.name(),
+            &args,
+            cmd.arg_tokens(),
+            LexerConfig::default(),
+        )
+    }
+
+    /// TN pin (issue-923 audit finding idx 0 + its PR #1068 review) — a
+    /// `LambdaLiteral` argument yields **no** `CommandBody` at all.
+    ///
+    /// Two things would be wrong with descending it here. Descending the whole
+    /// `{params body}` word reads the parameter list as a command head (the
+    /// audit's `Unknown command 'name opt args'` false positive). Descending
+    /// just the body *element* fixes the sub-span but still hands the caller
+    /// an ordinary body, which every `descend_command` consumer walks in the
+    /// **enclosing** scope — and a lambda body runs in a fresh frame homed to
+    /// the lambda's own namespace, so its locals would leak into the calling
+    /// proc and its bareword calls would resolve in the wrong namespace.
+    /// The isolated walk belongs to `apply`'s analyser hook; see
+    /// `Analyser::dispatch_nested_segment`.
+    #[test]
+    fn descend_command_yields_no_body_for_a_lambda_literal() {
+        let registry = CommandRegistry::build_default();
+        for src in [
+            "apply {{name opt args} {puts $name}} a b c",
+            "apply {{a} {puts $a} ::ns} 1",
+            "apply $lambda 1",
+            "apply {{a} {}} 1",
+            "apply {{a}} 1",
+            r"apply {{} puts\ hi}",
+        ] {
+            assert!(
+                bodies_of(&registry, src).is_empty(),
+                "{src} must yield no descended body"
+            );
+        }
     }
 }

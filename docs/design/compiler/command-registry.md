@@ -475,11 +475,21 @@ trait-carrying specs, per dialect.
 `BRANCH_SELECTED_BODY` marks a command whose body arguments run only when
 its own run-time selection picks them, and which performs no iteration —
 `if` (at most one clause body plus an optional `else`) and `try` (handler
-bodies reached only on the matching exception).
+bodies reached only on the matching exception, with `finally` the one
+exception that always runs).
 
 The fact a consumer needs is that nothing established inside such a body
 **dominates** the code after the command: a `package require` there is
 conditional, and a variable written there is not reliably set afterwards.
+
+The trait is command-level, so a command whose *clauses* differ — `try` — has
+its per-clause answer decided by the consumer that already models the clause
+grammar. `try`'s analyser hook raises `conditional_depth` for the main body
+and each `on` / `trap` handler body, and not for `finally`, which always runs
+(issue #1065); the per-clause table lives in
+[package-loading.md](../contracts/package-loading.md#analyser-extraction).
+A consumer reaching a body through the *generic* `ArgRole::Body` walk gets
+the command-level answer for every body, which is correct for `if`.
 
 Deliberately narrower than `CONTROL_FLOW`, which also covers `while` / `for`
 / `foreach` / `lmap` / `switch`. A loop body is *repeatable* as well as
