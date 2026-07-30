@@ -3181,12 +3181,19 @@ impl Analyser {
     /// and the `on` / `trap` handler bodies are branch-selected, the
     /// `finally` body is not.  See [`Self::analyse_selected_body`].
     ///
+    /// `traits` are the composed traits of the concrete spec / subcommand the
+    /// dispatch already resolved this head to, threaded in rather than
+    /// re-fetched by name: a name lookup would put per-command knowledge back
+    /// in the analyser and would silently diverge from the dispatch the moment
+    /// a dialect variant shares this hook.
+    ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Try`].
     pub fn handle_try_command(
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
+        traits: tcl_registry::Traits,
     ) -> bool {
         if args.is_empty() {
             return false;
@@ -3196,16 +3203,8 @@ impl Analyser {
         // carried by exactly `if` and `try`.  `try` reaches its bodies
         // through this hook instead of that walk, so without asking here a
         // `package require` inside a `try` was recorded unconditional
-        // (issue #1065).  The literal spec name is sound for the same reason
-        // `handle_catch_command`'s is: `AnalyserHookId::Try` dispatch has
-        // already resolved the head (qualified spellings included) to this
-        // spec.
-        let branch_selected = self.registry.is_some_and(|registry| {
-            registry.get("try").is_some_and(|spec| {
-                spec.traits
-                    .contains(tcl_registry::Traits::BRANCH_SELECTED_BODY)
-            })
-        });
+        // (issue #1065).
+        let branch_selected = traits.contains(tcl_registry::Traits::BRANCH_SELECTED_BODY);
         // Main try body at args[0].
         if let Some(body_tok) = arg_tokens.first().copied() {
             self.analyse_selected_body(&args[0], body_tok, scope_path, branch_selected);
@@ -7815,25 +7814,50 @@ mod tests {
 
     // handle_try_command
 
+    /// The traits `AnalyserHookId::Try` dispatch threads into
+    /// `handle_try_command` in production, resolved through that same path so
+    /// these unit tests cannot drift from it.
+    fn try_traits(a: &Analyser, args: &[String]) -> tcl_registry::Traits {
+        a.resolved_analyser_hook_traits("try", args)
+            .expect("`try` resolves the Try analyser hook")
+    }
+
     #[test]
     fn handle_try_canonical_returns_true() {
         let mut a = Analyser::new();
-        let handled = a.handle_try_command(&["body".to_string()], &[str_tok(span(0, 4))], &[]);
+        let args = ["body".to_string()];
+        let traits = try_traits(&a, &args);
+        let handled = a.handle_try_command(&args, &[str_tok(span(0, 4))], &[], traits);
         assert!(handled);
     }
 
     #[test]
     fn handle_try_no_args_returns_false() {
         let mut a = Analyser::new();
-        let handled = a.handle_try_command(&[], &[], &[]);
+        let traits = try_traits(&a, &[]);
+        let handled = a.handle_try_command(&[], &[], &[], traits);
         assert!(!handled);
+    }
+
+    /// The dispatch really does resolve `BRANCH_SELECTED_BODY` for a `try`
+    /// call, so the depth bump keys off a fact and not off a default.
+    #[test]
+    fn try_dispatch_resolves_the_branch_selected_body_trait() {
+        let a = Analyser::new();
+        let args = ["body".to_string()];
+        assert!(
+            try_traits(&a, &args).contains(tcl_registry::Traits::BRANCH_SELECTED_BODY),
+            "hook dispatch must hand the handler `try`'s own traits"
+        );
     }
 
     #[test]
     fn handle_try_walks_main_body() {
         // ``try {set y 1}`` — main body walks and lands ``y``.
         let mut a = Analyser::new();
-        a.handle_try_command(&["set y 1".to_string()], &[str_tok(span(5, 14))], &[]);
+        let args = ["set y 1".to_string()];
+        let traits = try_traits(&a, &args);
+        a.handle_try_command(&args, &[str_tok(span(5, 14))], &[], traits);
         assert!(a.result.global_scope.variables.contains_key("y"));
     }
 
@@ -7841,14 +7865,17 @@ mod tests {
     fn handle_try_walks_finally_body() {
         // ``try {} finally {set z 1}`` — finally clause body walks.
         let mut a = Analyser::new();
+        let args = [String::new(), "finally".to_string(), "set z 1".to_string()];
+        let traits = try_traits(&a, &args);
         a.handle_try_command(
-            &[String::new(), "finally".to_string(), "set z 1".to_string()],
+            &args,
             &[
                 str_tok(span(5, 7)),
                 esc_tok(span(8, 15)),
                 str_tok(span(16, 25)),
             ],
             &[],
+            traits,
         );
         assert!(a.result.global_scope.variables.contains_key("z"));
     }
@@ -7859,14 +7886,16 @@ mod tests {
         // handler body at offset i+3 walks; the varList at i+2
         // is *not* defined as a local.
         let mut a = Analyser::new();
+        let args = [
+            String::new(),
+            "on".to_string(),
+            "error".to_string(),
+            "result options".to_string(),
+            "set q 1".to_string(),
+        ];
+        let traits = try_traits(&a, &args);
         a.handle_try_command(
-            &[
-                String::new(),
-                "on".to_string(),
-                "error".to_string(),
-                "result options".to_string(),
-                "set q 1".to_string(),
-            ],
+            &args,
             &[
                 str_tok(span(5, 7)),
                 esc_tok(span(8, 10)),
@@ -7875,6 +7904,7 @@ mod tests {
                 str_tok(span(34, 43)),
             ],
             &[],
+            traits,
         );
         assert!(a.result.global_scope.variables.contains_key("q"));
         // The `on error {result options}` var-list binds the result message +
@@ -7889,14 +7919,16 @@ mod tests {
         // ``try {} trap NONE {result} {set q 1}`` — same shape
         // as ``on``, but the keyword is ``trap``.
         let mut a = Analyser::new();
+        let args = [
+            String::new(),
+            "trap".to_string(),
+            "NONE".to_string(),
+            "result".to_string(),
+            "set q 1".to_string(),
+        ];
+        let traits = try_traits(&a, &args);
         a.handle_try_command(
-            &[
-                String::new(),
-                "trap".to_string(),
-                "NONE".to_string(),
-                "result".to_string(),
-                "set q 1".to_string(),
-            ],
+            &args,
             &[
                 str_tok(span(5, 7)),
                 esc_tok(span(8, 12)),
@@ -7905,6 +7937,7 @@ mod tests {
                 str_tok(span(27, 36)),
             ],
             &[],
+            traits,
         );
         assert!(a.result.global_scope.variables.contains_key("q"));
     }

@@ -86,6 +86,18 @@ struct DispatchSite<'a> {
     scope_path: &'a [usize],
 }
 
+/// One resolved analyser-hook dispatch: the hook the head resolved to, plus
+/// the composed traits (`spec.traits | sub.traits`) of the concrete spec /
+/// subcommand it resolved to.
+///
+/// Carrying the traits alongside the hook is what lets a handler ask a
+/// registry question about *its own invocation* without re-fetching a spec by
+/// literal name — see [`Analyser::resolve_analyser_hook_call`].
+struct ResolvedAnalyserHook {
+    hook: tcl_registry::hooks::AnalyserHookId,
+    traits: tcl_registry::Traits,
+}
+
 /// Shared core registry standing in for [`Analyser::registry`] when a
 /// handler runs outside an `analyse*` entry point (unit harnesses drive
 /// handlers on a bare `Analyser::new()`, which never populates the
@@ -873,6 +885,41 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
     ) -> Option<tcl_registry::hooks::AnalyserHookId> {
+        self.resolve_analyser_hook_call(cmd_name, args)
+            .map(|resolved| resolved.hook)
+    }
+
+    /// The traits [`Self::dispatch_analyser_hook`] threads into a hook handler
+    /// for this head — `None` when the head resolves no hook.
+    ///
+    /// Test-support only: it lets a handler's own unit tests, which call the
+    /// handler directly rather than through the dispatch, obtain exactly the
+    /// traits production passes, so a hand-written trait set can never drift
+    /// from what the dispatch actually resolves.
+    #[cfg(test)]
+    pub(in crate::analyser) fn resolved_analyser_hook_traits(
+        &self,
+        cmd_name: &str,
+        args: &[String],
+    ) -> Option<tcl_registry::Traits> {
+        self.resolve_analyser_hook_call(cmd_name, args)
+            .map(|resolved| resolved.traits)
+    }
+
+    /// [`Self::resolve_analyser_hook`] plus the traits of the concrete spec /
+    /// subcommand the head resolved to — one resolution, both facts.
+    ///
+    /// A handler reached through hook dispatch must read its command's traits
+    /// from *this* resolution rather than re-fetching a spec by literal name:
+    /// the name test puts per-command knowledge back in the analyser, and it
+    /// silently diverges the moment a dialect variant (or a subcommand) shares
+    /// the hook. Traits are composed `spec.traits | sub.traits`, matching
+    /// [`tcl_registry::CommandRegistry::invocation_traits`].
+    fn resolve_analyser_hook_call(
+        &self,
+        cmd_name: &str,
+        args: &[String],
+    ) -> Option<ResolvedAnalyserHook> {
         if let Some(bare) = cmd_name.strip_prefix("::")
             && !bare.contains("::")
         {
@@ -880,13 +927,18 @@ impl Analyser {
         }
         let registry = self.registry.unwrap_or_else(fallback_registry);
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        registry
-            .resolve_call(
-                cmd_name,
-                &arg_strs,
-                tcl_registry::prelude::DialectSet::empty(),
-            )
-            .and_then(|resolved| resolved.analyser_hook)
+        let resolved = registry.resolve_call(
+            cmd_name,
+            &arg_strs,
+            tcl_registry::prelude::DialectSet::empty(),
+        )?;
+        Some(ResolvedAnalyserHook {
+            hook: resolved.analyser_hook?,
+            traits: resolved.spec.traits
+                | resolved
+                    .sub
+                    .map_or_else(tcl_registry::Traits::empty, |sub| sub.traits),
+        })
     }
 
     /// The single typed `match` over the resolved [`AnalyserHookId`].
@@ -911,7 +963,9 @@ impl Analyser {
         scope_path: &[usize],
     ) -> bool {
         use tcl_registry::hooks::AnalyserHookId as Hook;
-        let Some(hook) = self.resolve_analyser_hook(cmd_name, args) else {
+        let Some(ResolvedAnalyserHook { hook, traits }) =
+            self.resolve_analyser_hook_call(cmd_name, args)
+        else {
             // No stamped family — the definition-grammar-driven definers
             // (TclOO metaclass create, snit::type/widget, itcl::class) get
             // their chance, then the tracked-interpreter-handle dispatch
@@ -947,7 +1001,11 @@ impl Analyser {
             Hook::For => self.handle_for_command(args, arg_tokens, scope_path),
             Hook::Switch => self.handle_switch_command(args, arg_tokens, scope_path),
             Hook::Catch => self.handle_catch_command(args, arg_tokens, scope_path),
-            Hook::Try => self.handle_try_command(args, arg_tokens, scope_path),
+            // `traits` are this invocation's own, from the same resolution
+            // that produced the hook — the handler reads
+            // `BRANCH_SELECTED_BODY` off them rather than re-fetching a spec
+            // by literal name (PR #1068 review).
+            Hook::Try => self.handle_try_command(args, arg_tokens, scope_path, traits),
             // apply {{params} body} — owns its body walk (binds params,
             // analyses element 1) so the generic `ArgRole::Body`
             // recursion never mis-reads the parameter list as a command.
@@ -2493,18 +2551,23 @@ impl Analyser {
             }
         }
 
-        // A definition command (`proc`, a class definer, `oo::define`)
-        // nested inside a substitution — the feature-detection idiom
-        // `if {![catch {oo::configurable create Greeter {…}}]} {…}` — still
-        // defines its procedure/class and walks its body by the definer
-        // grammar, exactly as the top-level dispatch does.  Without this the
-        // definer's member keywords (`property`, `constructor`) and the
-        // defined name (`Greeter`) all draw W123 as unknown commands, even
-        // though W002 already reported the dialect-gated definer once.  The
-        // generic collector skips these bodies (`definition_handler_owns_body`)
-        // so members are never also dispatched as plain commands.  The
+        // A definition command (`proc`, a class definer, `oo::define`) or an
+        // `apply` lambda nested inside a substitution — the feature-detection
+        // idiom `if {![catch {oo::configurable create Greeter {…}}]} {…}`, or
+        // the ordinary `set r [apply {{…} {…}} …]` — still defines its
+        // procedure/class and walks its body **in the body's own scope**,
+        // exactly as the top-level dispatch does.  Without this the definer's
+        // member keywords (`property`, `constructor`) and the defined name
+        // (`Greeter`) all draw W123 as unknown commands, even though W002
+        // already reported the dialect-gated definer once, and a lambda body
+        // reached this way is walked by nothing at all (issue-923 audit
+        // finding idx 0).  The generic collector descends none of these
+        // bodies — a definer's by `definition_handler_owns_body`, a lambda's
+        // because `apply`'s script argument is `ArgRole::LambdaLiteral`, which
+        // `descend_command` deliberately does not resolve — so no body is ever
+        // also dispatched as a plain script in the *enclosing* scope.  The
         // dispatch mirrors the top-level chain exactly: the stamped `Proc` /
-        // `OoDefine` hooks first (the handlers no longer name-guard
+        // `OoDefine` / `Apply` hooks first (the handlers no longer name-guard
         // themselves), then the grammar-driven definer trio only on the
         // hookless path.
         // Each handler returns whether it claimed the command; nothing
@@ -2521,6 +2584,17 @@ impl Analyser {
                 }
                 Some(Hook::OoDefine) => {
                     self.handle_oo_define_command(&cmd_name, args, arg_tokens, scope_path);
+                }
+                // `apply {{params} body ?ns?}` — the handler builds the
+                // lambda's own `Proc` scope rooted at the lambda's namespace
+                // (element 2, or `::`), binds its parameters there, and walks
+                // the body in it.  Routing the substitution-position call
+                // through the same handler is what keeps the lambda's frame
+                // isolated: a variable the body sets is a local of the lambda,
+                // not of the enclosing proc, and a bareword call inside it
+                // resolves in the lambda's namespace (PR #1068 review).
+                Some(Hook::Apply) => {
+                    self.handle_apply_command(args, arg_tokens, scope_path);
                 }
                 None => {
                     let _claimed = self

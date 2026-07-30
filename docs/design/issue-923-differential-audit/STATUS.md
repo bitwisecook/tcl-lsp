@@ -98,7 +98,7 @@ pushed to this branch (§3/§6a); 2 tcllib findings remain, each with a
 detailed `root_cause_hint` but no refined plan (§6a). The main-wave audit
 (other 7 corpora, 105 findings total) is now **fully complete and triaged**
 (§6b): 85 CONFIRMED (1 critical, 23 high, 60 medium, 1 low), 20 REFUTED.
-Twenty-four of these are **fixed**: idx 0 (medium, `acc4b7446` on
+Twenty-four of these are **fixed**: idx 0 (medium, PR #1068 on
 `claude/commandregistry-compiler-fixes-tshu8d-quickfixes`), idx 61
 (critical, §3's `438e56f`), idx 9
 (high, §3's `51d0a35`), idx 10 (high, §3's `2330862`), idx 18 (high, §3's
@@ -449,7 +449,7 @@ tclopt, ticklecharts, pix, tomato, tk) are differentially audited and
 merged into `data/06-main-audit-results-COMPLETE-105of105.json` (idx 0–48
 from the original `06-...-PARTIAL-49of105.json` batch, idx 49–104 from the
 `wf_61c6b92a-e22` workflow's completed resume run). **85 CONFIRMED, 20
-REFUTED.** Of the 85 CONFIRMED: **24 fixed** (idx 0, medium — `acc4b7446`
+REFUTED.** Of the 85 CONFIRMED: **24 fixed** (idx 0, medium — PR #1068
 on `claude/commandregistry-compiler-fixes-tshu8d-quickfixes`; idx 61,
 critical — §3's
 `438e56f`; idx 9, high — §3's `51d0a35`; idx 10, high — §3's `2330862`;
@@ -703,7 +703,7 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 | autoindex | 1 | 73 (medium) |
 | safe_interp | 1 | 91 (medium) |
 
-**idx 0 — FIXED** (`acc4b7446`, branch
+**idx 0 — FIXED** (PR #1068, branch
 `claude/commandregistry-compiler-fixes-tshu8d-quickfixes`). The audit's
 headline `{*}$validateHelper` indirection claim was already correct
 abstention (REFUTED by the audit itself); the real bug it uncovered was a
@@ -714,11 +714,20 @@ reached its arguments through the shared registry-aware `descend_command`,
 which resolved `ArgRole::Body` only — so the whole `{params body}` list was
 re-segmented as script source and the parameter list became a command head.
 Once `ArgRole::LambdaLiteral` stopped that, an FN took its place: the
-lambda's real body was walked by nothing at all. `descend_command` now
-resolves `ArgRole::LambdaLiteral` alongside `ArgRole::Body` and descends only
-the braced *body element*, via the shared `split_lambda_literal` primitive —
-one fix in the single registry-aware descent entry point, so both collectors
-get it, with no command name anywhere in the change. Full write-up in
+lambda's real body was walked by nothing at all.
+
+Fixed by giving the substitution walk the same dispatch the top level has:
+`dispatch_nested_segment` gained an `AnalyserHookId::Apply` arm beside its
+existing `Proc` / `OoDefine` arms, so a substitution-position `apply` runs
+`handle_apply_command` — the lambda's own scope, rooted at the lambda's
+namespace, with its parameters bound there. `descend_command` deliberately
+still resolves `ArgRole::Body` only. A first attempt (corrected on Codex
+review of the PR) descended the lambda's body *element* from
+`descend_command` instead; that fixed the span but handed the body to the
+collectors as an ordinary body, which they walk in the **enclosing** scope —
+so a lambda-body `set` became a local of the calling proc and an
+explicit-namespace lambda resolved its calls in the caller's namespace. Full
+write-up, including why the sub-span alone is not enough, in
 [the `apply` lambda KCS note](../../kcs/kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md)
 (instance 8).
 

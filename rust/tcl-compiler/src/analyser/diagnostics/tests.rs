@@ -494,6 +494,122 @@ fn apply_lambda_parameters_named_like_commands_draw_no_unknown_command() {
     }
 }
 
+/// Scope isolation for the substitution-position lambda (PR #1068 review).
+///
+/// `apply`'s lambda body runs in a **fresh call frame**, so a variable it sets
+/// is a local of the lambda, never of the enclosing proc. Walking the body as
+/// an ordinary registry `Body` argument would bind it in whatever scope the
+/// `[…]` substitution sits in; routing the call through `apply`'s own analyser
+/// hook is what keeps the frame separate.
+///
+/// Oracle (tclsh9.0.4) for the reviewer's own repro
+/// `proc p {} { set r [apply {{} {gets stdin leaked}}]; puts $leaked }`:
+/// `can't read "leaked": no such variable` from `puts $leaked` — the lambda's
+/// `leaked` is invisible in `p`.
+#[test]
+fn apply_lambda_in_command_substitution_keeps_its_own_frame() {
+    let scoped_vars = |src: &str| -> Vec<String> {
+        let mut a = crate::analyser::Analyser::new();
+        let mut keys: Vec<String> = a.analyse(src, "tcl9.0").all_variables.into_keys().collect();
+        keys.sort();
+        keys
+    };
+    // TP — the reviewer's repro. `leaked` belongs to the lambda, not to `p`.
+    let vars = scoped_vars(
+        "proc p {} {\n    set r [apply {{} {gets stdin leaked}}]\n    puts $leaked\n}\n",
+    );
+    assert!(
+        !vars.iter().any(|v| v == "p::leaked"),
+        "the lambda's local must not leak into the enclosing proc: {vars:?}"
+    );
+    assert!(
+        vars.iter()
+            .any(|v| v.starts_with("apply@") && v.ends_with("::leaked")),
+        "the lambda's local belongs to the lambda's own scope: {vars:?}"
+    );
+    // …and the read after the `try`-less lambda still warns, matching the
+    // oracle's `can't read "leaked"`.
+    assert!(
+        codes_for_dialect(
+            "proc p {} {\n    set r [apply {{} {gets stdin leaked}}]\n    puts $leaked\n}\n",
+            "tcl9.0",
+        )
+        .contains(&"W210".to_string()),
+        "an undefined read after the lambda must still warn"
+    );
+    // TP — a plain `set` inside the lambda body, same isolation.
+    let vars = scoped_vars("proc p {} {\n    set r [apply {{} {set inner 1}}]\n    return $r\n}\n");
+    assert!(
+        !vars.iter().any(|v| v == "p::inner"),
+        "a lambda-body `set` must not bind in the caller: {vars:?}"
+    );
+    // TP — the lambda's *parameters* are bound too, in the lambda's scope
+    // (before the fix the substitution-position lambda registered none).
+    let vars = scoped_vars("set r [apply {{name opt args} {return $name}} a b c]\n");
+    for want in ["name", "opt", "args"] {
+        assert!(
+            vars.iter()
+                .any(|v| v.starts_with("apply@") && v.ends_with(&format!("::{want}"))),
+            "parameter {want} must bind in the lambda scope: {vars:?}"
+        );
+    }
+    // TN — a genuine enclosing-scope binding from the same statement is
+    // unaffected: `set r […]` still binds `r` in `p`.
+    let vars = scoped_vars("proc p {} {\n    set r [apply {{} {set inner 1}}]\n    return $r\n}\n");
+    assert!(
+        vars.iter().any(|v| v == "p::r"),
+        "the enclosing `set` still binds in the caller: {vars:?}"
+    );
+}
+
+/// The lambda's namespace argument decides where its body's bareword calls
+/// resolve — element 2, or the **global** namespace when absent, never the
+/// caller's (`doc/apply.n`; `TclNRApplyObjCmd` in `generic/tclProc.c`
+/// `::`-prefixes the word before the lookup).
+///
+/// Oracle (tclsh9.0.4 and tclsh8.6.14): with `helper` defined only in
+/// `::myns`, `apply {{} {helper} ::myns}` returns its result, while
+/// `apply {{} {helper}}` fails `invalid command name "helper"`.
+///
+/// The analyser records that namespace as a span-keyed override the LSP's
+/// command resolution consults. A substitution-position lambda recorded none
+/// at all before this fix (PR #1068 review).
+#[test]
+fn apply_lambda_in_command_substitution_records_its_namespace() {
+    let overrides = |src: &str| -> Vec<String> {
+        let mut a = crate::analyser::Analyser::new();
+        a.analyse(src, "tcl9.0")
+            .namespace_overrides
+            .into_iter()
+            .map(|(_, ns)| ns)
+            .collect()
+    };
+    // TP — explicit third element wins, in substitution position.
+    assert_eq!(
+        overrides("proc caller {} {\n    return [apply {{} {helper} ::myns}]\n}\n"),
+        vec!["::myns".to_string()],
+    );
+    // TP — an unqualified namespace word is still resolved against the global
+    // namespace, not the caller's.
+    assert_eq!(
+        overrides(
+            "namespace eval ::outer {\n    proc caller {} {\n        return [apply {{} {helper} sub}]\n    }\n}\n"
+        ),
+        vec!["::sub".to_string()],
+    );
+    // TN — no third element means the global namespace, not `caller`'s.
+    assert_eq!(
+        overrides("proc caller {} {\n    return [apply {{} {helper}}]\n}\n"),
+        vec!["::".to_string()],
+    );
+    // TN — the statement-position form was always right; it must stay
+    // byte-identical to the substitution-position answer.
+    assert_eq!(
+        overrides("proc caller {} {\n    apply {{} {helper} ::myns}\n}\n"),
+        overrides("proc caller {} {\n    return [apply {{} {helper} ::myns}]\n}\n"),
+    );
+}
+
 #[test]
 fn w211_deliberately_skips_destructuring_writer_outputs() {
     // Policy pin (review-2 audit): a command-output variable the script
