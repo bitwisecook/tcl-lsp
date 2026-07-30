@@ -3858,3 +3858,452 @@ mod report_scoped_commands {
         );
     }
 }
+
+// ===========================================================================
+// Class factories and dynamically-installed members — issue #923 audit
+// cluster C3 (idx 43/44/53/55/96/97).
+//
+// C-Tcl ground truth for every case below comes from tclsh 9.0.4 and
+// tclsh 8.6.16, which agree on all of them:
+//
+// * `oo::class create Megawidget { superclass oo::class; self method create
+//   {name superclasses body} { next $name [list superclass MegawidgetClass
+//   {*}$superclasses]\;$body } }` then `Megawidget create SimpleWidget {}
+//   {…}` / `Megawidget create FocusableWidget SimpleWidget {…}` /
+//   `Megawidget create IconList FocusableWidget {…}` report
+//   `info class superclasses` = `::MegawidgetClass`,
+//   `::MegawidgetClass ::SimpleWidget`, and
+//   `::MegawidgetClass ::FocusableWidget` respectively, and `my CreateHull`
+//   from an `IconList` instance really runs `FocusableWidget`'s override.
+// * `oo::define S { method {*}{foo {} {return foo-ran}} }` defines a real,
+//   callable `foo`; so does the same `{*}` form inside an `oo::class create`
+//   body.  `constructor {*}[info class constructor ::Base]` /
+//   `method $m {*}[info class definition ::Base $m]` are equally real but
+//   carry no statically-knowable element list.
+// * `set ns tc; ${ns}::setdef …` dispatches to `::tc::setdef`.
+// ===========================================================================
+mod class_factories {
+    use super::*;
+    use tcl_compiler::analyser::{AnalysisResult, ClassDef};
+
+    fn analysis(src: &str, dialect: &str) -> AnalysisResult {
+        Analyser::new().analyse(src, dialect)
+    }
+
+    fn class(src: &str, qn: &str) -> ClassDef {
+        analysis(src, "tcl9.0")
+            .all_classes
+            .get(qn)
+            .cloned()
+            .unwrap_or_else(|| panic!("class {qn} recorded"))
+    }
+
+    /// The Tk `library/megawidget.tcl` factory, reduced to its mechanism.
+    const MEGAWIDGET: &str = concat!(
+        "oo::class create Megawidget {\n",
+        "    superclass oo::class\n",
+        "    self method create {name superclasses body} {\n",
+        "        next $name [list superclass MegawidgetClass {*}$superclasses]\\;$body\n",
+        "    }\n",
+        "}\n",
+        "oo::class create MegawidgetClass {\n",
+        "    method TraceOption {a b} { return traced }\n",
+        "}\n",
+        "Megawidget create SimpleWidget {} {\n",
+        "    method CreateHull {} { my TraceOption a b }\n",
+        "}\n",
+        "Megawidget create FocusableWidget SimpleWidget {\n",
+        "    method CreateHull {} { my TraceOption c d }\n",
+        "}\n",
+        "Megawidget create IconList FocusableWidget {\n",
+        "    method GetSpecs {} { return iconlist }\n",
+        "}\n",
+    );
+
+    #[test]
+    fn user_metaclass_creates_real_classes() {
+        // TP — idx 96/97: a class whose own superclass chain reaches
+        // `oo::class` is a class factory, so its `create` calls introduce
+        // real classes.  Before this they never entered `all_classes` at
+        // all: no outline entry, no references, no `next` resolution.
+        let r = analysis(MEGAWIDGET, "tcl9.0");
+        for name in ["::SimpleWidget", "::FocusableWidget", "::IconList"] {
+            assert!(
+                r.all_classes.contains_key(name),
+                "{name} recorded: {:?}",
+                r.all_classes.keys().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn user_metaclass_body_argument_is_read_from_the_create_override() {
+        // TP — the override's signature is `{name superclasses body}`, so
+        // the body is argument 3, not the builtin `create Name Body`
+        // argument 2.  Reading the builtin position would walk the
+        // superclass word as a script and lose every member.
+        assert!(
+            class(MEGAWIDGET, "::SimpleWidget")
+                .methods
+                .contains_key("CreateHull")
+        );
+        assert!(
+            class(MEGAWIDGET, "::IconList")
+                .methods
+                .contains_key("GetSpecs")
+        );
+    }
+
+    #[test]
+    fn user_metaclass_splices_its_own_and_the_callers_superclasses() {
+        // TP — matches `info class superclasses` on tclsh 9.0.4 / 8.6.16
+        // exactly, including the implicit `MegawidgetClass` the factory
+        // injects and the caller-supplied list spliced by `{*}$superclasses`.
+        assert_eq!(
+            class(MEGAWIDGET, "::SimpleWidget").superclasses,
+            ["MegawidgetClass"]
+        );
+        assert_eq!(
+            class(MEGAWIDGET, "::FocusableWidget").superclasses,
+            ["MegawidgetClass", "SimpleWidget"]
+        );
+        assert_eq!(
+            class(MEGAWIDGET, "::IconList").superclasses,
+            ["MegawidgetClass", "FocusableWidget"]
+        );
+    }
+
+    #[test]
+    fn a_factory_made_class_with_a_readable_override_is_not_opaque() {
+        // TN — inheritance is fully known here, so method checks stay live
+        // rather than being blanket-suppressed.
+        assert!(!class(MEGAWIDGET, "::FocusableWidget").inheritance_unknown);
+    }
+
+    #[test]
+    fn an_unreadable_manufacturer_override_marks_inheritance_unknown() {
+        // Abstention — the override builds its prologue from a runtime
+        // value, so the superclass list cannot be known.  The class is
+        // still recorded (it exists), but its inheritance is flagged
+        // opaque so no method-existence check fires against a guess.
+        let src = concat!(
+            "oo::class create Meta {\n",
+            "    superclass oo::class\n",
+            "    self method create {name extra body} {\n",
+            "        next $name [list superclass [pickBase $extra]]\\;$body\n",
+            "    }\n",
+            "}\n",
+            "Meta create Widget somewhere {\n",
+            "    method m {} { return 1 }\n",
+            "}\n",
+        );
+        let cd = class(src, "::Widget");
+        assert!(cd.inheritance_unknown, "{cd:?}");
+        assert!(cd.superclasses.is_empty(), "{cd:?}");
+        assert!(cd.methods.contains_key("m"), "{cd:?}");
+    }
+
+    #[test]
+    fn an_ordinary_class_is_not_treated_as_a_factory() {
+        // TN — `Dog` is a plain class, so `Dog create rex` makes an
+        // *instance*, never a class.  Only a chain that reaches
+        // `oo::class` manufactures classes.
+        let src = concat!(
+            "oo::class create Dog {\n",
+            "    method bark {} { return woof }\n",
+            "}\n",
+            "Dog create rex\n",
+        );
+        assert!(
+            !analysis(src, "tcl9.0").all_classes.contains_key("::rex"),
+            "an instance is not a class"
+        );
+    }
+
+    #[test]
+    fn a_factory_without_a_create_override_keeps_the_builtin_layout() {
+        // TP — no override means the inherited `oo::class` manufacturer
+        // runs, so `Meta create Name Body` has its body at argument 2 and
+        // splices no extra superclass.
+        let src = concat!(
+            "oo::class create Meta {\n",
+            "    superclass oo::class\n",
+            "}\n",
+            "Meta create Plain {\n",
+            "    method m {} { return 1 }\n",
+            "}\n",
+        );
+        let cd = class(src, "::Plain");
+        assert!(cd.methods.contains_key("m"), "{cd:?}");
+        assert!(cd.superclasses.is_empty(), "{cd:?}");
+        assert!(!cd.inheritance_unknown, "{cd:?}");
+    }
+
+    #[test]
+    fn oo_define_over_a_literal_foreach_list_extends_every_named_class() {
+        // TP — idx 55: the ticklecharts `etsb.tcl` monkey-patch.  Each
+        // literal element names a real class, so each gets the injected
+        // method; nothing lands under a synthetic `@dynclass@` key.
+        let src = concat!(
+            "oo::class create chart { method Render {} { return 1 } }\n",
+            "oo::class create timeline { method Render {} { return 1 } }\n",
+            "foreach cls {chart timeline} {\n",
+            "    oo::define $cls {\n",
+            "        method RenderTsb {} { return tsb }\n",
+            "    }\n",
+            "}\n",
+        );
+        let r = analysis(src, "tcl9.0");
+        for name in ["::chart", "::timeline"] {
+            assert!(
+                r.all_classes[name].methods.contains_key("RenderTsb"),
+                "{name} gained RenderTsb: {:?}",
+                r.all_classes[name].methods.keys().collect::<Vec<_>>()
+            );
+        }
+        assert!(
+            !r.all_classes.keys().any(|k| k.contains("@dynclass@")),
+            "no synthetic class survives: {:?}",
+            r.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn the_foreach_simulation_does_not_duplicate_body_diagnostics() {
+        // FP guard — the simulation re-dispatches only the named-definition
+        // installer, once per element.  A diagnostic raised inside the
+        // injected member's own body must still be reported exactly once
+        // per class it lands on, never once per (class × iteration).
+        let src = concat!(
+            "oo::class create chart { method Render {} { return 1 } }\n",
+            "oo::class create timeline { method Render {} { return 1 } }\n",
+            "foreach cls {chart timeline} {\n",
+            "    oo::define $cls {\n",
+            "        method RenderTsb {} { return $undefinedVar }\n",
+            "    }\n",
+            "}\n",
+        );
+        let spans: Vec<_> = analysis(src, "tcl9.0")
+            .diagnostics
+            .iter()
+            .map(|d| (d.code.to_string(), d.span))
+            .collect();
+        let mut seen = std::collections::HashSet::new();
+        for entry in &spans {
+            assert!(
+                seen.insert(entry.clone()),
+                "duplicate diagnostic {entry:?} in {spans:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn oo_define_over_a_dynamic_list_still_abstains() {
+        // TN — the element list is a runtime value, so no class name is
+        // knowable and the members stay on a per-call-site synthetic key
+        // rather than being attributed to a guess.
+        let src = concat!(
+            "oo::class create chart { method Render {} { return 1 } }\n",
+            "foreach cls $classes {\n",
+            "    oo::define $cls {\n",
+            "        method RenderTsb {} { return tsb }\n",
+            "    }\n",
+            "}\n",
+        );
+        let r = analysis(src, "tcl9.0");
+        assert!(
+            !r.all_classes["::chart"].methods.contains_key("RenderTsb"),
+            "a runtime target must not be attributed to a literal class"
+        );
+        assert!(
+            r.all_classes.keys().any(|k| k.contains("@dynclass@")),
+            "the members land on a synthetic key: {:?}",
+            r.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn oo_define_resolves_a_dominating_constant_target() {
+        // TP — the narrowest form of the same fact: a target bound by a
+        // plain `set` that dominates the call extends the real class.
+        let src = concat!(
+            "oo::class create Widget {\n",
+            "    method real {} { return 1 }\n",
+            "}\n",
+            "set cls Widget\n",
+            "oo::define $cls method added {} { return 2 }\n",
+        );
+        let cd = class(src, "::Widget");
+        assert!(cd.methods.contains_key("real"), "{cd:?}");
+        assert!(cd.methods.contains_key("added"), "{cd:?}");
+    }
+
+    #[test]
+    fn static_brace_expansion_splices_a_member_signature() {
+        // TP — idx 53: `{*}` of a braced literal is spliced by the parser,
+        // so `method {*}{foo {} {…}}` defines a real `foo` (verified on
+        // tclsh 9.0.4 and 8.6.16, in both the `oo::class create` body and
+        // an `oo::define` body).
+        let src = concat!(
+            "oo::class create S {\n",
+            "    method {*}{foo {x} {return foo-$x}}\n",
+            "    constructor {*}{{a b} {return ctor}}\n",
+            "}\n",
+        );
+        let cd = class(src, "::S");
+        assert!(cd.methods.contains_key("foo"), "{cd:?}");
+        assert_eq!(cd.methods["foo"].params.len(), 1);
+        assert_eq!(cd.constructors.len(), 1, "{cd:?}");
+        assert_eq!(cd.constructors[0].params.len(), 2);
+    }
+
+    #[test]
+    fn static_brace_expansion_splices_in_an_oo_define_body_too() {
+        // TP — same mechanism through the `oo::define` body form.
+        let src = concat!(
+            "oo::class create S {}\n",
+            "oo::define S {\n",
+            "    method {*}{bar {} {return bar}}\n",
+            "}\n",
+        );
+        assert!(class(src, "::S").methods.contains_key("bar"));
+    }
+
+    #[test]
+    fn substituted_brace_expansion_still_abstains() {
+        // TN — `{*}[info class definition …]` reflects a signature whose
+        // words are only known at run time, so the member is left
+        // unrecorded rather than invented with wrong parameters or a body
+        // span pointing at the wrong text.
+        let src = concat!(
+            "oo::class create chart3D {\n",
+            "    constructor {*}[info class constructor chart]\n",
+            "    method options {*}[classDef chart options]\n",
+            "    method getType {} { return chart3D }\n",
+            "}\n",
+        );
+        let cd = class(src, "::chart3D");
+        assert!(cd.methods.contains_key("getType"), "{cd:?}");
+        assert!(!cd.methods.contains_key("options"), "{cd:?}");
+        assert!(cd.constructors.is_empty(), "{cd:?}");
+    }
+
+    #[test]
+    fn a_braced_variable_command_head_resolves_through_its_constant() {
+        // TP — idx 44: the head's *variable* is `ns`, not the whole token
+        // text `ns}::setdef` the lexer hands over for a braced composite
+        // word.  Reading the true source bytes makes the call resolve to
+        // the proc it really dispatches to (tclsh 9.0.4 / 8.6.16 both run
+        // `::tc::setdef`).
+        let src = concat!(
+            "namespace eval tc { proc setdef {a b} { return 1 } }\n",
+            "set ns tc\n",
+            "${ns}::setdef x y\n",
+        );
+        let resolved: Vec<String> = analysis(src, "tcl8.6")
+            .command_invocations
+            .iter()
+            .filter(|inv| inv.name.contains("${ns}"))
+            .filter_map(|inv| inv.resolved_qualified_name.clone())
+            .collect();
+        assert_eq!(resolved, ["::tc::setdef"]);
+    }
+
+    #[test]
+    fn a_resolved_braced_variable_head_is_a_reference_not_a_rename_target() {
+        // FP guard — the head's span is `${ns}::setdef`, which spells only
+        // the tail.  Rewriting that span with a new name would splice it
+        // over the substitution and corrupt the source (the idx 95 lesson),
+        // so the invocation is marked `indirect`: references report it,
+        // rename skips it.
+        let src = concat!(
+            "namespace eval tc { proc setdef {a b} { return 1 } }\n",
+            "set ns tc\n",
+            "${ns}::setdef x y\n",
+        );
+        let r = analysis(src, "tcl8.6");
+        let inv = r
+            .command_invocations
+            .iter()
+            .find(|inv| inv.name.contains("${ns}"))
+            .expect("the composite head is recorded");
+        assert!(inv.indirect, "{inv:?}");
+    }
+
+    #[test]
+    fn a_whole_word_variable_head_is_left_to_the_flow_sensitive_engine() {
+        // TN — `$cmd` is M7's shape, settled from the CFG/SSA value model
+        // rather than the walk's lexical map.  The walk must not
+        // pre-resolve it from a last-write-wins constant, or the two
+        // disagree about which sites are safe to rewrite.
+        let src = "proc target {} { return hi }\nset cmd target\n$cmd\n";
+        let r = analysis(src, "tcl8.6");
+        let inv = r
+            .command_invocations
+            .iter()
+            .find(|inv| inv.name == "${cmd}")
+            .expect("the variable head is recorded");
+        assert_eq!(
+            inv.resolved_qualified_name.as_deref(),
+            Some("::${cmd}"),
+            "the walk leaves this head unfolded for M7 to settle: {inv:?}",
+        );
+    }
+
+    #[test]
+    fn a_braced_variable_command_head_abstains_on_a_branch_binding() {
+        // TN — a head whose variable is written differently on two
+        // branches has no single dominating value, so resolution must not
+        // pin either one.
+        let src = concat!(
+            "namespace eval a { proc go {} { return 1 } }\n",
+            "namespace eval b { proc go {} { return 1 } }\n",
+            "set ns a\n",
+            "if {$cond} { set ns b }\n",
+            "${ns}::go\n",
+        );
+        let resolved: Vec<String> = analysis(src, "tcl8.6")
+            .command_invocations
+            .iter()
+            .filter(|inv| inv.name.contains("${ns}"))
+            .filter_map(|inv| inv.resolved_qualified_name.clone())
+            .collect();
+        assert_eq!(
+            resolved,
+            ["::${ns}::go"],
+            "an unresolved head stays as written"
+        );
+    }
+
+    #[test]
+    fn foreach_installed_procs_are_enumerated_per_literal_element() {
+        // Previously-fixed regression pin — idx 43 (the ticklecharts
+        // `etypes.tcl` ensemble).  The `foreach`-literal simulation landed
+        // for issue #923 idx 86 (PR #1020) and already covers `proc`, so
+        // every element's proc is registered under its real qualified
+        // name.  Pinned here so the idx 43 shape cannot regress.
+        let src = concat!(
+            "namespace eval ticklecharts {}\n",
+            "foreach ptype {elist elist.n elist.s} {\n",
+            "    proc ticklecharts::${ptype} {args} { return $args }\n",
+            "}\n",
+        );
+        let r = analysis(src, "tcl8.6");
+        for name in [
+            "::ticklecharts::elist",
+            "::ticklecharts::elist.n",
+            "::ticklecharts::elist.s",
+        ] {
+            assert!(
+                r.all_procs.contains_key(name),
+                "{name} registered: {:?}",
+                r.all_procs.keys().collect::<Vec<_>>()
+            );
+        }
+        assert!(
+            !r.all_procs.keys().any(|k| k.contains('$')),
+            "no proc is filed under the unsubstituted template: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+}

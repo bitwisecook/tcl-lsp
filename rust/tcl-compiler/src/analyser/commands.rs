@@ -93,9 +93,9 @@ struct DispatchSite<'a> {
 /// Carrying the traits alongside the hook is what lets a handler ask a
 /// registry question about *its own invocation* without re-fetching a spec by
 /// literal name — see [`Analyser::resolve_analyser_hook_call`].
-struct ResolvedAnalyserHook {
-    hook: tcl_registry::hooks::AnalyserHookId,
-    traits: tcl_registry::Traits,
+pub(super) struct ResolvedAnalyserHook {
+    pub(super) hook: tcl_registry::hooks::AnalyserHookId,
+    pub(super) traits: tcl_registry::Traits,
 }
 
 /// Shared core registry standing in for [`Analyser::registry`] when a
@@ -545,6 +545,66 @@ impl Analyser {
         false
     }
 
+    /// The command head this call actually dispatches to, folding a
+    /// statically-determined dynamic head to the name it names.
+    ///
+    /// A head written with a substitution is not automatically a runtime
+    /// unknown: `set ns ticklecharts; ${ns}::setdef …` dispatches to
+    /// `::ticklecharts::setdef` on every execution, and the `TclOO` idiom
+    /// `set ns [namespace qualifiers [self class]]; ${ns}::setdef …` is the
+    /// same shape one level removed (issue #923 idx 44 — go-to-definition,
+    /// find-references, and call-hierarchy all silently dropped every such
+    /// call site).  [`Analyser::resolve_dynamic_word`] does the folding
+    /// through the *dominating* constant lattice, so a branch-conditional
+    /// or otherwise unprovable binding still abstains and the written text
+    /// is kept unchanged — the written text never resolves to anything, so
+    /// abstaining is exactly the previous behaviour.
+    ///
+    /// A folded head that is still dynamic (a partially-resolved
+    /// interpolation) is discarded rather than half-applied.
+    ///
+    /// A head that is a **whole-word** variable read (`$cmd`) is left alone:
+    /// that shape belongs to the flow-sensitive M7 dispatch engine
+    /// (`pending_const_dispatches` ->
+    /// [`super::diagnostics::const_dispatch`]), which settles it from the
+    /// CFG/SSA value model rather than the walk's lexical map and marks the
+    /// resulting invocation `indirect`.  Only the composite shapes M7
+    /// explicitly skips are folded here.
+    fn resolve_dynamic_command_head<'w>(
+        &self,
+        cmd_name: &'w str,
+        cmd_tok: Token,
+        head_is_single_token: bool,
+        scope_path: &[usize],
+    ) -> std::borrow::Cow<'w, str> {
+        if !crate::naming::is_dynamic_word(cmd_name) || self.head_is_whole_word_variable(cmd_tok) {
+            return std::borrow::Cow::Borrowed(cmd_name);
+        }
+        self.resolve_dynamic_word(cmd_name, Some(cmd_tok), head_is_single_token, scope_path)
+            .filter(|folded| !crate::naming::is_dynamic_word(folded))
+            .map_or(
+                std::borrow::Cow::Borrowed(cmd_name),
+                std::borrow::Cow::Owned,
+            )
+    }
+
+    /// Whether the command head is a bare whole-word variable read (`$cmd`,
+    /// `$ns::cmd`) rather than a composite (`${ns}::tail`) — the same
+    /// truncate-at-the-brace test
+    /// [`Self::record_var_or_cmd_command_site`] uses to decide which shape
+    /// M7 owns, so the two can never disagree about it.
+    fn head_is_whole_word_variable(&self, cmd_tok: Token) -> bool {
+        if cmd_tok.kind != TokenType::Var {
+            return false;
+        }
+        let sm = Analyser::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
+        !sm.token_text(cmd_tok).contains('}')
+    }
+
     /// Process a single segmented command.
     ///
     /// Walks `args` against every handler and stops at the first
@@ -615,7 +675,19 @@ impl Analyser {
         // `file_decls` is identical to a full `analyse` (gated by the
         // `file_decls_corpus` corpus test).
         if !self.structure_only {
-            let resolved = self.resolve_command_qualified_name(cmd_name, scope_path);
+            // A `${ns}::setdef`-shaped head is only *written* dynamically —
+            // when `ns` is a constant that dominates this call the target is
+            // as statically determined as a literal one, so resolution runs
+            // on the folded name (issue #923 idx 44).  A head that cannot be
+            // folded keeps its written text and resolves to nothing, exactly
+            // as before.
+            let head = self.resolve_dynamic_command_head(
+                cmd_name,
+                cmd_tok,
+                single_token_word.first().copied().unwrap_or(false),
+                scope_path,
+            );
+            let resolved = self.resolve_command_qualified_name(&head, scope_path);
             // Argument count for cross-file arity checking.  A `{*}`-
             // expanded argument makes the runtime count unknown, so record `None`
             // and let arity checking skip conservatively.
@@ -634,7 +706,13 @@ impl Analyser {
                     argc: arg_count,
                     callback_arity: None,
                     callback_baked_args: 0,
-                    indirect: false,
+                    // A folded head resolves to a real command, but its span
+                    // is not the written name — `${ns}::setdef` spells only
+                    // the tail — so it is a *reference*, never a rename
+                    // target: overwriting the span would splice the new name
+                    // over the substitution itself (the same class of
+                    // corruption as issue #923 idx 95).
+                    indirect: matches!(head, std::borrow::Cow::Owned(_)),
                     rename_safe: true,
                     existence_probe: false,
                     is_mathfunc_call: false,
@@ -915,7 +993,7 @@ impl Analyser {
     /// silently diverges the moment a dialect variant (or a subcommand) shares
     /// the hook. Traits are composed `spec.traits | sub.traits`, matching
     /// [`tcl_registry::CommandRegistry::invocation_traits`].
-    fn resolve_analyser_hook_call(
+    pub(super) fn resolve_analyser_hook_call(
         &self,
         cmd_name: &str,
         args: &[String],
@@ -990,7 +1068,9 @@ impl Analyser {
             // analysed in an isolated scope; a `{}`/multi-word/dynamic shape
             // falls through to the generic body walk in the current scope.
             Hook::InterpEval => self.handle_interp_eval_command(args, arg_tokens, scope_path),
-            Hook::OoDefine => self.handle_oo_define_command(cmd_name, args, arg_tokens, scope_path),
+            Hook::OoDefine => {
+                self.handle_oo_define_command(cmd_name, args, arg_tokens, arg_single, scope_path)
+            }
             Hook::NamespaceEval => self.handle_namespace_eval_command(args, arg_tokens, scope_path),
             // uplevel #0 { body } — opens a global-frame child scope so
             // the body's locals don't leak into the enclosing proc's
@@ -2583,7 +2663,9 @@ impl Analyser {
                     self.handle_opt_proc_command(args, arg_tokens, arg_single, scope_path);
                 }
                 Some(Hook::OoDefine) => {
-                    self.handle_oo_define_command(&cmd_name, args, arg_tokens, scope_path);
+                    self.handle_oo_define_command(
+                        &cmd_name, args, arg_tokens, arg_single, scope_path,
+                    );
                 }
                 // `apply {{params} body ?ns?}` — the handler builds the
                 // lambda's own `Proc` scope rooted at the lambda's namespace

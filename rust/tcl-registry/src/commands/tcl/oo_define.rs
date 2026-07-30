@@ -276,7 +276,10 @@ pub(crate) fn collect_property_body_roles(args: &[&str], start: usize) -> Vec<(u
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::define",
-        traits: Traits::NOT_PROC_FACTORY | Traits::LANGUAGE_KEYWORD | Traits::NEVER_INLINE_BODY,
+        traits: Traits::NOT_PROC_FACTORY
+            | Traits::LANGUAGE_KEYWORD
+            | Traits::INSTALLS_NAMED_DEFINITION
+            | Traits::NEVER_INLINE_BODY,
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::Name)],

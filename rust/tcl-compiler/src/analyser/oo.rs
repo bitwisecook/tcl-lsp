@@ -413,16 +413,31 @@ impl Analyser {
             if cmd.is_partial || cmd.argv.is_empty() {
                 continue;
             }
+            // `{*}` of a literal list is spliced by the *parser*, so the
+            // member's words are the list's elements — `method
+            // {*}{foo {} {return 1}}` really defines `foo` (tclsh 9.0.4 and
+            // 8.6.16 both run it).  Normalise those words before the
+            // grammar's fixed layout is read off them, or the member is one
+            // word long and gets dropped as malformed (issue #923 idx 53).
+            // A `{*}` over a *substituted* word (`{*}[info class definition
+            // …]`) has no statically-known element list, so it is left
+            // exactly as written and the member still abstains.
+            let spliced = splice_static_member_expansions(cmd);
+            let (texts, argv) = spliced
+                .as_ref()
+                .map_or((cmd.texts.as_slice(), cmd.argv.as_slice()), |(t, a)| {
+                    (t.as_slice(), a.as_slice())
+                });
             // A member keyword gated to a newer core — `classmethod`,
             // `private`, `initialise`/`initialize`, `definitionnamespace`,
             // and `property` are all 9.0+ — does not exist in this dialect's
             // definition grammar.  Flag it with the same disabled-in-dialect
             // diagnostic a command draws, then carry on recording it (see
             // the emitter's doc for why reporting must not erase).
-            if let (Some(subcmd), Some(tok)) = (cmd.texts.first(), cmd.argv.first()) {
+            if let (Some(subcmd), Some(tok)) = (texts.first(), argv.first()) {
                 self.emit_w002_oo_member_disabled(grammar, subcmd, *tok, definer_disabled);
             }
-            apply_oo_subcommand(grammar, &cmd.texts, &cmd.argv, class_def);
+            apply_oo_subcommand(grammar, texts, argv, class_def);
             // A member argument that *names* a command — the class a
             // `superclass`/`mixin` extends, the command a `forward` delegates to
             // — is a first-class command reference.  Record it so references /
@@ -430,13 +445,13 @@ impl Analyser {
             // direct call.  Which arguments name commands is registry data (the
             // member grammar's `all_args_ref` / `ArgRole::CommandName`), never a
             // member keyword the walker knows by name.
-            self.record_member_command_references(grammar, &cmd.texts, &cmd.argv, scope_path);
-            if let Some(mb) = collect_method_body(grammar, &cmd.texts, &cmd.argv) {
+            self.record_member_command_references(grammar, texts, argv, scope_path);
+            if let Some(mb) = collect_method_body(grammar, texts, argv) {
                 method_bodies.push(mb);
             }
-            match cmd.texts.first().map(String::as_str) {
+            match texts.first().map(String::as_str) {
                 Some("property") => {
-                    collect_property_accessor_bodies(&cmd.texts, &cmd.argv, &mut accessor_bodies);
+                    collect_property_accessor_bodies(texts, argv, &mut accessor_bodies);
                 }
                 Some(kw @ ("initialise" | "initialize")) => {
                     // A class-level init script: unlike a method, its body (the
@@ -448,7 +463,7 @@ impl Analyser {
                         .and_then(|m| m.indices_for(ArgRole::Body).next())
                         .map(|i| i + 1)
                         && let (Some(body), Some(tok)) =
-                            (cmd.texts.get(body_idx), cmd.argv.get(body_idx).copied())
+                            (texts.get(body_idx), argv.get(body_idx).copied())
                         && tok.kind == TokenType::Str
                     {
                         init_bodies.push((body.clone(), tok));
@@ -1408,6 +1423,62 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
     }
 }
 
+/// One definition-body member command's words with every **statically
+/// determined** `{*}` expansion already spliced, or `None` when the command
+/// has no expansion the analyser can resolve (the overwhelmingly common
+/// case, kept allocation-free).
+///
+/// Tcl expands `{*}` during parsing, so a `{*}`-marked word whose text is a
+/// literal is *not* one word — it is the elements of the list it holds, and
+/// the member grammar's fixed argument layout applies to those.  Without
+/// this normalisation `constructor {*}{args {…}}` / `method
+/// {*}{foo {} {…}}` look one word short of their grammar and the member is
+/// dropped entirely, with no diagnostic (issue #923 idx 53).  Verified
+/// against tclsh 9.0.4 and 8.6.16: both forms define a real, callable
+/// member, in the `oo::class create` body *and* the `oo::define` body.
+///
+/// Only a single **braced** (`Str`) word splices: braces suppress
+/// substitution, so its element list is exactly what the runtime sees.  A
+/// `{*}` over a variable or command substitution (`{*}[info class
+/// definition …]`, the ticklecharts `chart3D` reflection idiom) has no
+/// statically-knowable element list and is left verbatim — the member then
+/// abstains exactly as before rather than being recorded with invented
+/// parameters or a body span pointing at the wrong text.
+///
+/// Element spans come from the segmenter
+/// ([`crate::segmenter::flatten_clause_list_elements`]), so each spliced
+/// word carries its own true source range and downstream consumers
+/// (document symbols, `my`-dispatch, hover) get real positions rather than
+/// the whole-list span.
+fn splice_static_member_expansions(
+    cmd: &crate::segmenter::SegmentedCommand,
+) -> Option<(Vec<String>, Vec<Token>)> {
+    let expand = cmd.expand_word.as_ref()?;
+    if !expand.iter().any(|&e| e) {
+        return None;
+    }
+    let mut texts: Vec<String> = Vec::with_capacity(cmd.texts.len());
+    let mut argv: Vec<Token> = Vec::with_capacity(cmd.argv.len());
+    let mut spliced = false;
+    for (i, (text, tok)) in cmd.texts.iter().zip(cmd.argv.iter()).enumerate() {
+        let is_static_expansion = expand.get(i).copied().unwrap_or(false)
+            && tok.kind == TokenType::Str
+            && cmd.single_token_word.get(i).copied().unwrap_or(false);
+        if is_static_expansion {
+            spliced = true;
+            for (element, element_tok) in crate::segmenter::flatten_clause_list_elements(text, *tok)
+            {
+                texts.push(element);
+                argv.push(element_tok);
+            }
+            continue;
+        }
+        texts.push(text.clone());
+        argv.push(*tok);
+    }
+    spliced.then_some((texts, argv))
+}
+
 /// Per-subcommand dispatcher shared by the body-form and
 /// inline-form walkers.
 ///
@@ -1673,7 +1744,7 @@ fn apply_oo_ctor_or_dtor(
     Some(md)
 }
 
-fn apply_oo_subcommand(
+pub(super) fn apply_oo_subcommand(
     grammar: &DefinitionBodyGrammar,
     texts: &[String],
     argv: &[Token],
