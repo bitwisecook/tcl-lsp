@@ -65,9 +65,14 @@ All editors connect to the native Rust binary `tcl-lsp-server` over stdio
 `#!/usr/bin/tclsh`, `#!/usr/bin/wish`, and `#!/usr/bin/expect`.
 Files named `presentation` (no extension) are auto-detected as APL.
 Per-file `# tcl-dialect:` comment directives pin a specific dialect.
-The `tcl diag` / `lint` / `validate` CLI verbs apply the same per-file
-detection (directive, shebang, content, extension) unless `--dialect` is
-passed, so the CLI and the editor report the same set for the same file.
+Every `tcl` CLI verb applies the same detection (directive, shebang,
+`package require Tcl` guard, content signals such as a `when EVENT {`
+handler, then extension) unless `--dialect` is passed — per input file for
+`diag` / `lint` / `validate` / `minimize`, and once for the whole
+invocation for the verbs that combine their inputs into one source
+(`opt`, `format`, `minify`, `explore`, `diagram`, the graph verbs, …).
+So the CLI and the editor report the same set, and apply the same
+optimisations, for the same file.
 Files named `tclpkg.tcl` are analysed as `tcl pkg` package manifests:
 their directives resolve against the manifest command set instead of
 drawing unknown-command warnings.

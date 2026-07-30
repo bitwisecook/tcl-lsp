@@ -38,5 +38,5 @@ mod data;
 mod graph;
 
 pub use attach::{AttachPattern, AttachReach, attach_reach, irule_attach_patterns, proc_call_refs};
-pub use data::{diagram_data, diagram_data_with_config};
+pub use data::{diagram_data, diagram_data_for_dialect};
 pub use graph::irule_flowchart_graph;

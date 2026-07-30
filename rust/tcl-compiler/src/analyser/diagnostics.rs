@@ -159,8 +159,29 @@ impl Analyser {
         // `catch_unwind` cannot contain a SIGABRT.)
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let dialect_opt = dialect_owned.as_deref();
-            let cu = crate::compilation_unit::CompilationUnit::build_for(source, registry, false)
-                .with_interprocedural(registry, dialect_opt);
+            // Build under the analyser's own dialect, not a blind default: the
+            // lowering needs it to parse a dialect-only operator (an iRules
+            // `contains` condition) as an operator, and the lattice pipeline
+            // needs it to fold one.
+            //
+            // The *lexer* config stays the default rather than
+            // `for_dialect(dialect)`: the hosts that supply this unit through
+            // the `cu_override` seam (`tcl diag`'s `collect_rows`,
+            // `tcl_lsp_db::file_analysis_incremental`) build it with the
+            // default config, and the supplied unit must be the one this
+            // branch would have built. Changing it here would make an iRules
+            // document's diagnostics depend on which path built the unit.
+            let cu = crate::compilation_unit::CompilationUnit::build_with_options(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config: tcl_lexer::LexerConfig::default(),
+                    dialect: dialect_opt.unwrap_or_default(),
+                    external_call_sites: None,
+                },
+            )
+            .with_interprocedural(registry, dialect_opt);
             self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
         }));
     }

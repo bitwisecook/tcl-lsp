@@ -1,0 +1,4 @@
+when HTTP_REQUEST {
+    set x "abcdef"
+    if {$x contains "cd"} { HTTP::respond 200 }
+}

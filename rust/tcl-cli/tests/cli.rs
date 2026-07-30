@@ -205,6 +205,51 @@ fn diag_shares_call_sites_across_inputs() {
     );
 }
 
+/// Issue #1048: the transform verbs auto-detect a document's dialect, so an
+/// iRule folds the same with and without an explicit `--dialect`.
+///
+/// Before the fix `dialect_or_default()` returned `tcl8.6` whenever the flag
+/// was absent, so the optimiser ran the file as plain Tcl: `contains` was not
+/// an operator, the condition never folded, and no `O101` was reported.
+#[test]
+fn opt_detects_the_irules_dialect_without_the_flag() {
+    let input = fixtures_dir().join("wordOperator.irule");
+    let detected =
+        String::from_utf8(run_tcl(&["opt", input.to_str().unwrap()])).expect("utf-8 output");
+    let explicit = String::from_utf8(run_tcl(&[
+        "opt",
+        "--dialect",
+        "f5-irules",
+        input.to_str().unwrap(),
+    ]))
+    .expect("utf-8 output");
+    assert!(
+        detected.contains("if {1}") && detected.contains("O101"),
+        "the detected dialect must fold the word-operator condition: {detected}"
+    );
+    assert_eq!(
+        detected, explicit,
+        "detection must produce exactly what --dialect f5-irules produces"
+    );
+}
+
+/// The control for [`opt_detects_the_irules_dialect_without_the_flag`]: the
+/// same condition in plain Tcl source stays plain Tcl, where `contains` is not
+/// an operator and nothing folds.
+#[test]
+fn opt_leaves_a_word_operator_alone_in_plain_tcl() {
+    let out = String::from_utf8(run_tcl(&[
+        "opt",
+        "--source",
+        "set x \"abcdef\"\nif {$x contains \"cd\"} { puts hit }",
+    ]))
+    .expect("utf-8 output");
+    assert!(
+        !out.contains("if {1}"),
+        "plain Tcl has no `contains` operator, so the condition must not fold: {out}"
+    );
+}
+
 /// Like [`run_tcl`] but tolerates a non-zero exit — `diag` returns 1 whenever
 /// it reports a problem-severity finding, which is not a harness failure.
 fn run_tcl_allow_failure(args: &[&str]) -> Vec<u8> {

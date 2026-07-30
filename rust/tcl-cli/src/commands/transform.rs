@@ -24,8 +24,8 @@ use std::path::Path;
 
 use anyhow::Context;
 use tcl_cli_support::{
-    OutputTarget, combine_sources, read_input_documents, registry_for_dialect,
-    write_highlighted_output, write_text_output,
+    OutputTarget, combine_sources, combined_effective_dialect, read_input_documents,
+    registry_for_dialect, write_highlighted_output, write_text_output,
 };
 use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle, formatting_with};
 use tcl_lsp_core::minify::{
@@ -52,13 +52,14 @@ pub fn run_format(
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(input.dialect_or_default());
+    let registry = registry_for_dialect(&dialect);
 
     let mut config = FormatterConfig {
         // Tokenise with the dialect's rules so, e.g., an iRule's `}{` (valid in
         // TMM) parses as two words and is re-emitted as `} {`.
-        lexer_config: tcl_lexer::LexerConfig::for_dialect(input.dialect_or_default()),
+        lexer_config: tcl_lexer::LexerConfig::for_dialect(&dialect),
         ..Default::default()
     };
     if let Some(size) = indent_size {
@@ -85,13 +86,7 @@ pub fn run_format(
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
-    write_highlighted_output(
-        &target,
-        &formatted,
-        use_colour,
-        DEFAULT_TAB_WIDTH,
-        input.dialect_or_default(),
-    )?;
+    write_highlighted_output(&target, &formatted, use_colour, DEFAULT_TAB_WIDTH, &dialect)?;
     Ok(0)
 }
 
@@ -107,9 +102,9 @@ pub fn run_opt(
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(input.dialect_or_default());
-    let dialect = Some(input.dialect_or_default());
+    let registry = registry_for_dialect(&dialect);
 
     let profile = OptimisationProfile::parse(profile);
     let mut disabled: HashSet<String> = profile_to_disabled(profile)
@@ -139,7 +134,7 @@ pub fn run_opt(
     let (optimised, optimisations, _iterations) = optimise_source_multipass_filtered(
         &source,
         registry,
-        dialect,
+        Some(dialect.as_str()),
         profile.max_iterations(),
         &disabled,
     );
@@ -163,13 +158,7 @@ pub fn run_opt(
     }
 
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
-    write_highlighted_output(
-        &target,
-        &rendered,
-        use_colour,
-        DEFAULT_TAB_WIDTH,
-        input.dialect_or_default(),
-    )?;
+    write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, &dialect)?;
 
     if !target.is_stdout() {
         eprintln!(
@@ -191,33 +180,24 @@ pub fn run_minify(
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(input.dialect_or_default());
+    let registry = registry_for_dialect(&dialect);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
 
     let (rendered, map) = if aggressive {
-        let result = minify_tcl_aggressive(&source, input.dialect_or_default(), isolated, registry);
+        let result = minify_tcl_aggressive(&source, &dialect, isolated, registry);
         (result.source, Some(result.symbol_map))
     } else if compact {
-        let (minified, sm) =
-            minify_tcl_compact(&source, input.dialect_or_default(), isolated, registry);
+        let (minified, sm) = minify_tcl_compact(&source, &dialect, isolated, registry);
         (minified, Some(sm))
     } else {
-        (
-            minify_tcl(&source, input.dialect_or_default(), registry),
-            None,
-        )
+        (minify_tcl(&source, &dialect, registry), None)
     };
 
-    write_highlighted_output(
-        &target,
-        &rendered,
-        use_colour,
-        DEFAULT_TAB_WIDTH,
-        input.dialect_or_default(),
-    )?;
+    write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, &dialect)?;
 
     if let Some(path) = symbol_map {
         // Always honour `--symbol-map FILE`, even for plain minify (which does

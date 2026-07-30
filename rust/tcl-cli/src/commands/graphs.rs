@@ -32,8 +32,8 @@
 use serde::Serialize;
 use serde_json::{Value, json};
 use tcl_cli_support::{
-    OutputTarget, combine_sources, ensure_ascii, read_input_documents, registry_for_dialect,
-    write_text_output,
+    OutputTarget, combine_sources, combined_effective_dialect, ensure_ascii, read_input_documents,
+    registry_for_dialect, write_text_output,
 };
 use tcl_compiler::analyser::{Analyser, ProcDef, Scope, ScopeKind, VarDef};
 use tcl_lexer::LineIndex;
@@ -189,8 +189,9 @@ fn collect_scope_entries(
 /// iRules `when` events) across the combined input.
 pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
-    let result = Analyser::new().analyse(&source, input.dialect_or_default());
+    let result = Analyser::new().analyse(&source, &dialect);
     let line_index = LineIndex::new(&source);
 
     let mut entries = detect_event_entries(&source, &line_index);
@@ -201,7 +202,7 @@ pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     if json {
         let payload = SymbolsPayload {
             count: entries.len(),
-            dialect: input.dialect_or_default().to_string(),
+            dialect: dialect.clone(),
             inputs: documents.iter().map(|d| d.label.clone()).collect(),
             symbols: entries,
         };
@@ -301,8 +302,9 @@ fn append_symbolgraph_scope(lines: &mut Vec<String>, scope: &Value, depth: usize
 /// `tcl symbolgraph` — scope hierarchy with proc/variable references.
 pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
-    let data = graphs::symbol_graph(&source, input.dialect_or_default());
+    let data = graphs::symbol_graph(&source, &dialect);
 
     let summary = data.get("summary").cloned().unwrap_or_else(|| json!({}));
     let count = |key: &str| summary.get(key).and_then(Value::as_i64).unwrap_or(0);
@@ -337,9 +339,10 @@ pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> 
 #[allow(clippy::similar_names)] // caller / callee mirror the domain
 pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(input.dialect_or_default());
-    let data = graphs::call_graph(&source, registry, input.dialect_or_default());
+    let registry = registry_for_dialect(&dialect);
+    let data = graphs::call_graph(&source, registry, &dialect);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 
@@ -425,9 +428,10 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
 /// side-effect classification.
 pub fn run_dataflow(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(input.dialect_or_default());
-    let data = graphs::dataflow_graph(&source, registry, input.dialect_or_default());
+    let registry = registry_for_dialect(&dialect);
+    let data = graphs::dataflow_graph(&source, registry, &dialect);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 

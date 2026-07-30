@@ -70,6 +70,50 @@ fn dis_optimise_folds_constants() {
     );
 }
 
+/// Issue #1048 review follow-up: the compile verbs thread the resolved dialect
+/// into lowering, not just registry selection. An auto-detected iRule's
+/// word-operator condition must reach codegen as a real comparison node and
+/// disassemble to its dedicated opcode — dialect-blind lowering left it an
+/// opaque raw expression on the generic runtime-`expr` path.
+#[test]
+fn dis_lowers_word_operators_for_the_detected_dialect() {
+    let input =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/wordOperator.irule");
+    let detected = String::from_utf8(run_tcl(&["dis", input.to_str().unwrap()])).expect("utf-8");
+    assert!(
+        detected.contains("iruleContains"),
+        "expected the contains word-operator opcode in:\n{detected}"
+    );
+    let explicit = String::from_utf8(run_tcl(&[
+        "dis",
+        "--dialect",
+        "f5-irules",
+        input.to_str().unwrap(),
+    ]))
+    .expect("utf-8");
+    assert_eq!(
+        detected, explicit,
+        "detection must disassemble exactly as --dialect f5-irules does"
+    );
+}
+
+/// The control for [`dis_lowers_word_operators_for_the_detected_dialect`]: the
+/// same condition in plain Tcl source has no word operators, so no iRules
+/// opcode may appear.
+#[test]
+fn dis_keeps_plain_tcl_free_of_irules_opcodes() {
+    let out = run_tcl(&[
+        "dis",
+        "--source",
+        "set x \"abcdef\"\nif {$x eq \"cd\"} { puts hit }\n",
+    ]);
+    let text = String::from_utf8(out).expect("utf-8");
+    assert!(
+        !text.contains("irule"),
+        "plain Tcl must not emit iRules opcodes:\n{text}"
+    );
+}
+
 #[test]
 fn compwasm_emits_valid_module_header() {
     let dir = std::env::temp_dir().join("tcl_compwasm_test");

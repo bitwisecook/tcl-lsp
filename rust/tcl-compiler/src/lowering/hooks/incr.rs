@@ -166,6 +166,7 @@ mod tests {
             expand_word: expand,
             tokens: None,
             arg_kinds: kinds,
+            dialect: None,
         }
     }
 

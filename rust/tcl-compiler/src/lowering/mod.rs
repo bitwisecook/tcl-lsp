@@ -661,6 +661,15 @@ pub struct Lowerer<'r> {
     /// `LexerConfig::default()`; production callers thread the active
     /// dialect via [`Lowerer::with_config`] / [`lower_to_ir_with_config`].
     config: tcl_lexer::LexerConfig,
+    /// The document's analysis dialect (`None` for plain Tcl), threaded into
+    /// every `expr` / condition parse so a dialect-only operator — an iRules
+    /// word operator such as `contains` or `starts_with` — is parsed as that
+    /// operator instead of degrading to
+    /// [`crate::expr_ast::ExprNode::Raw`], which no downstream fold can
+    /// evaluate.  Separate from `config`: the lexer config carries the
+    /// dialect's *word* tokenisation, this carries its *expression* grammar.
+    /// Set by [`Lowerer::with_dialect`] / [`lower_to_ir_with_dialect`].
+    dialect: Option<&'r str>,
     /// Which lowering pass this instance performs — folds what would
     /// otherwise be two related bool fields (`for_bytecode`, `trace_visible`)
     /// into one three-state enum (`clippy::struct_excessive_bools`); see
@@ -720,10 +729,20 @@ impl<'r> Lowerer<'r> {
             dead_code_depth: 0,
             suppress_proc_register: false,
             config,
+            dialect: None,
             target: CompileTarget::Analysis,
             body_cache: None,
             nest_depth: 0,
         }
+    }
+
+    /// Set the document's analysis dialect (see [`Lowerer::dialect`]).  An
+    /// empty `dialect` means plain Tcl, matching
+    /// [`crate::compilation_unit::UnitBuildOptions::dialect`].
+    #[must_use]
+    pub fn with_dialect(mut self, dialect: &'r str) -> Self {
+        self.dialect = (!dialect.is_empty()).then_some(dialect);
+        self
     }
 
     /// Install a memoised per-procedure body-lowering callback (see
@@ -1279,6 +1298,7 @@ impl<'r> Lowerer<'r> {
             expand_word: seg.expand_word.as_deref(),
             tokens: Some(Self::cmd_tokens(seg)),
             arg_kinds: &Self::arg_kinds(seg),
+            dialect: self.dialect,
         };
         if let Some(stmt) = try_lower_hook(&hook_cmd, &self.aliases, self.registry) {
             return Some(stmt);
@@ -2482,8 +2502,8 @@ impl<'r> Lowerer<'r> {
 /// Lower Tcl source to an IR module.
 ///
 /// This is the main entry point for the lowering phase.  Lexes with the
-/// default (Tcl-8.5+) config; use [`lower_to_ir_with_config`] to honour a
-/// document's dialect.
+/// default (Tcl-8.5+) config and parses expressions in the plain-Tcl grammar;
+/// use [`lower_to_ir_with_dialect`] to honour a document's dialect.
 #[must_use]
 pub fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
     lower_to_ir_with_config(source, registry, tcl_lexer::LexerConfig::default())
@@ -2507,8 +2527,9 @@ pub fn lower_proc_body_isolated(
     namespace: &str,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
+    dialect: &str,
 ) -> Script {
-    let mut lowerer = Lowerer::with_config(registry, config);
+    let mut lowerer = Lowerer::with_config(registry, config).with_dialect(dialect);
     lowerer.proc_depth += 1;
     lowerer.const_map_stack.push(HashMap::new());
     let body = lowerer.lower_body(body_text, 0, namespace);
@@ -2670,8 +2691,8 @@ mod body_cache_eligible_tests {
         let reg = CommandRegistry::build_default();
         let cfg = tcl_lexer::LexerConfig::default();
         let src = "interp alias {} = {} expr\nproc f {x} { return [= {$x + 1}] }\n";
-        let cache = |body: &str, ns: &str| lower_proc_body_isolated(body, ns, &reg, cfg);
-        let cached = lower_to_ir_with_body_cache(src, &reg, cfg, &cache);
+        let cache = |body: &str, ns: &str| lower_proc_body_isolated(body, ns, &reg, cfg, "");
+        let cached = lower_to_ir_with_body_cache(src, &reg, cfg, "", &cache);
         let fresh = lower_to_ir_with_config(src, &reg, cfg);
         assert_ne!(
             format!("{cached:?}"),
@@ -2708,8 +2729,8 @@ mod body_cache_eligible_tests {
         let reg = CommandRegistry::build_default();
         let cfg = tcl_lexer::LexerConfig::default();
         let src = "rename puts myputs\nproc f {x} { myputs $x }\n";
-        let cache = |body: &str, ns: &str| lower_proc_body_isolated(body, ns, &reg, cfg);
-        let cached = lower_to_ir_with_body_cache(src, &reg, cfg, &cache);
+        let cache = |body: &str, ns: &str| lower_proc_body_isolated(body, ns, &reg, cfg, "");
+        let cached = lower_to_ir_with_body_cache(src, &reg, cfg, "", &cache);
         let fresh = lower_to_ir_with_config(src, &reg, cfg);
         assert_ne!(
             format!("{cached:?}"),
@@ -2719,21 +2740,28 @@ mod body_cache_eligible_tests {
     }
 }
 
-/// Like [`lower_to_ir_with_config`] but with a memoised per-procedure body-lowering
+/// Like [`lower_to_ir_with_dialect`] but with a memoised per-procedure body-lowering
 /// callback (SRV-INCREMENTAL Task 3): a top-level `proc`'s static body is lowered
 /// through `body_cache` `(offset-0 body text, namespace) -> offset-0 Script` and
 /// rebased, so an unchanged proc's body IR is reused across edits.  The caller must
 /// only install a cache for **context-free** files (see [`Lowerer::body_cache`]);
 /// byte-identity is guarded by the corpus differential gates.
+///
+/// The cached bodies must be produced by [`lower_proc_body_isolated`] under the
+/// **same** `dialect`, since the dialect selects the expression grammar the
+/// body's conditions are parsed with.
 #[must_use]
 pub fn lower_to_ir_with_body_cache(
     source: &str,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
+    dialect: &str,
     body_cache: &dyn Fn(&str, &str) -> Script,
 ) -> Module {
     lower_with(
-        Lowerer::with_config(registry, config).with_body_cache(body_cache),
+        Lowerer::with_config(registry, config)
+            .with_dialect(dialect)
+            .with_body_cache(body_cache),
         source,
     )
 }
@@ -2742,6 +2770,10 @@ pub fn lower_to_ir_with_body_cache(
 /// [`tcl_lexer::LexerConfig`], threaded into every body re-segmentation
 /// so `{*}` expansion (off for Tcl 8.4 / iRules) and the iRules `}{`
 /// ghost SEP are honoured.
+///
+/// Expressions are still parsed in the plain-Tcl grammar — a caller that
+/// knows the dialect *name* should use [`lower_to_ir_with_dialect`], which
+/// also gives `if` / `while` / `for` / `expr` the dialect's operator set.
 #[must_use]
 pub fn lower_to_ir_with_config(
     source: &str,
@@ -2751,6 +2783,29 @@ pub fn lower_to_ir_with_config(
     lower_with(Lowerer::with_config(registry, config), source)
 }
 
+/// Like [`lower_to_ir_with_config`] but also naming the document's analysis
+/// `dialect` (`""` for plain Tcl), so every `if` / `while` / `for` condition
+/// and every inlined `expr` is parsed with that dialect's operator set.
+///
+/// This is what makes an iRules word-operator condition — `if {$x contains
+/// "cd"}` — reach the IR as a real
+/// [`BinOp::Contains`](crate::expr_ast::BinOp::Contains) comparison instead of
+/// an opaque [`ExprNode::Raw`](crate::expr_ast::ExprNode::Raw), which is the
+/// only shape the constant folder (and the I230 constant-condition
+/// diagnostic behind it) can evaluate.
+#[must_use]
+pub fn lower_to_ir_with_dialect(
+    source: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: &str,
+) -> Module {
+    lower_with(
+        Lowerer::with_config(registry, config).with_dialect(dialect),
+        source,
+    )
+}
+
 /// Like [`lower_to_ir`] but for the bytecode/VM compile path: constructs the
 /// backend can't compile correctly (`try`, and a `foreach`/`lmap` directly
 /// nesting another) are lowered to runtime-command barriers (see
@@ -2758,8 +2813,25 @@ pub fn lower_to_ir_with_config(
 /// [`lower_to_ir`].
 #[must_use]
 pub fn lower_to_ir_for_bytecode(source: &str, registry: &CommandRegistry) -> Module {
+    lower_to_ir_for_bytecode_with_dialect(source, registry, tcl_lexer::LexerConfig::default(), "")
+}
+
+/// Like [`lower_to_ir_for_bytecode`] but also naming the document's `dialect`
+/// (`""` for plain Tcl) — the bytecode-path counterpart of
+/// [`lower_to_ir_with_dialect`], so a dialect expression such as an iRules
+/// word-operator condition compiles to its dedicated opcode rather than the
+/// generic runtime-`expr` fallback.
+#[must_use]
+pub fn lower_to_ir_for_bytecode_with_dialect(
+    source: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: &str,
+) -> Module {
     lower_with(
-        Lowerer::with_config(registry, tcl_lexer::LexerConfig::default()).for_bytecode_backend(),
+        Lowerer::with_config(registry, config)
+            .with_dialect(dialect)
+            .for_bytecode_backend(),
         source,
     )
 }

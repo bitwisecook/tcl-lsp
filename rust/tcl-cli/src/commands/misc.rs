@@ -34,7 +34,9 @@
 //! used to carry byte-identical copies of the same 6 codes and hint strings.
 
 use serde::Serialize;
-use tcl_cli_support::{OutputTarget, combine_sources, ensure_ascii, read_input_documents};
+use tcl_cli_support::{
+    OutputTarget, combine_sources, combined_effective_dialect, ensure_ascii, read_input_documents,
+};
 use tcl_compiler::analyser::Analyser;
 use tcl_lexer::LineIndex;
 
@@ -82,9 +84,10 @@ struct LegacyPayload {
 /// `tcl find-legacy` — report legacy patterns eligible for modernisation.
 pub fn run_find_legacy(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
 
-    let result = Analyser::new().analyse(&source, input.dialect_or_default());
+    let result = Analyser::new().analyse(&source, &dialect);
     let line_index = LineIndex::new(&source);
 
     let issues: Vec<LegacyIssue> = result
@@ -108,7 +111,7 @@ pub fn run_find_legacy(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     if json {
         let payload = LegacyPayload {
             count: issues.len(),
-            dialect: input.dialect_or_default().to_string(),
+            dialect: dialect.clone(),
             issues,
         };
         let rendered = ensure_ascii(&serde_json::to_string_pretty(&payload)?);

@@ -78,6 +78,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-always-true-condition-in-a-sourced-library-file.md](kcs-issue-always-true-condition-in-a-sourced-library-file.md)
   — I230 says a condition is always true in a library file whose procedure
   is really called with different values from another file.
+- [kcs-issue-irule-word-operator-is-not-analysed.md](kcs-issue-irule-word-operator-is-not-analysed.md)
+  — an iRules word operator (`contains`, `starts_with`, …) is neither
+  folded by `tcl opt` nor reported by the analyser, because the file's
+  dialect never reached the optimiser or the expression parser.
 - [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
   — the same finding is reported twice.
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)

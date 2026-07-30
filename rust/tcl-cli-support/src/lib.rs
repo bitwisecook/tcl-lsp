@@ -38,7 +38,9 @@ pub mod prompt;
 pub mod secret_input;
 
 pub use highlight::{highlight_ansi, highlight_html};
-pub use input::{CliError, InputDocument, combine_sources, read_input_documents};
+pub use input::{
+    CliError, InputDocument, combine_sources, combined_effective_dialect, read_input_documents,
+};
 pub use output::{
     OutputTarget, ensure_ascii, expand_tabs, resolve_use_colour, write_binary_output,
     write_highlighted_output, write_text_output,

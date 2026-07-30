@@ -448,7 +448,7 @@ pub fn call_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Va
     // Build the full compilation unit (via `ensure_compilation_unit`) so the
     // interprocedural pass sees the same lowered IR — raw `lower_to_ir` alone
     // does not surface nested `[cmd …]` call sites to the call scanner.
-    let cu = CompilationUnit::build_for(source, registry, false)
+    let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect)
         .with_interprocedural(registry, Some(dialect));
     let ir_module = &cu.ir_module;
     let interproc = cu
@@ -760,7 +760,7 @@ fn tainted_var_names(fu: &FunctionUnit) -> Vec<&str> {
 /// Build the dataflow / taint graph payload.
 #[must_use]
 pub fn dataflow_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Value {
-    let cu = CompilationUnit::build_for(source, registry, false)
+    let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect)
         .with_interprocedural(registry, Some(dialect));
     let line_index = LineIndex::new(source);
 
@@ -935,7 +935,7 @@ pub fn def_use_graph(source: &str, registry: &CommandRegistry, dialect: &str) ->
         }
     }
 
-    let cu = CompilationUnit::build_for(source, registry, false)
+    let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect)
         .with_interprocedural(registry, Some(dialect));
 
     let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
@@ -1004,7 +1004,7 @@ fn memory_function_json(
 /// `variable`) with the reason and locations, plus memory-op counts.
 #[must_use]
 pub fn memory_alias_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Value {
-    let cu = CompilationUnit::build_for(source, registry, false)
+    let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect)
         .with_interprocedural(registry, Some(dialect))
         .with_memory_ssa(registry);
 

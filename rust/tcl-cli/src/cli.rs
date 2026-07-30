@@ -76,8 +76,15 @@ pub struct InputArgs {
     pub package_path: Vec<PathBuf>,
 
     /// Dialect profile for parsing and registry lookups. Defaults to
-    /// per-file auto-detection (a `# tcl-dialect:` directive, shebang,
-    /// content signals, then the file extension), falling back to tcl8.6.
+    /// auto-detection (a `# tcl-dialect:` directive, shebang, content
+    /// signals, then the file extension), falling back to tcl8.6.
+    ///
+    /// Resolved per document by the diagnostics verbs (`diag` / `lint` /
+    /// `validate` / `minimize`) via
+    /// [`tcl_cli_support::InputDocument::effective_dialect`], and once for
+    /// the whole invocation by the verbs that combine their inputs into one
+    /// source (transforms, graphs, explore, compile) via
+    /// [`tcl_cli_support::combined_effective_dialect`].
     #[arg(long, value_name = "DIALECT")]
     pub dialect: Option<String>,
 
@@ -88,19 +95,6 @@ pub struct InputArgs {
     /// Output path ('-' or omitted for stdout).
     #[arg(long, short, value_name = "FILE")]
     pub output: Option<PathBuf>,
-}
-
-impl InputArgs {
-    /// The `--dialect` value with the historical `tcl8.6` fallback — for
-    /// verbs that take one dialect for the whole invocation (transforms,
-    /// graphs, explore).  The diagnostics verbs (`diag` / `lint` /
-    /// `validate`) instead resolve per document via
-    /// [`tcl_cli_support::InputDocument::effective_dialect`], which layers
-    /// in-source / filename detection under an explicit flag.
-    #[must_use]
-    pub fn dialect_or_default(&self) -> &str {
-        self.dialect.as_deref().unwrap_or("tcl8.6")
-    }
 }
 
 /// Paired `--colour` / `--no-colour` toggle (resolved against config + TTY).
@@ -182,9 +176,11 @@ pub enum Command {
         /// Inline right-hand source.
         #[arg(long = "right-source", value_name = "CODE")]
         right_source: Option<String>,
-        /// Dialect profile.
-        #[arg(long, default_value = "tcl8.6", value_name = "DIALECT")]
-        dialect: String,
+        /// Dialect profile. Defaults to auto-detection over the left-hand
+        /// input (directive, shebang, content signals, then extension),
+        /// falling back to tcl8.6.
+        #[arg(long, value_name = "DIALECT")]
+        dialect: Option<String>,
         /// Layers to show.
         #[arg(
             long,

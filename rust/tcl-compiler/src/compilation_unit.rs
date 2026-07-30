@@ -37,7 +37,6 @@ use crate::cfg_builder::build_cfg;
 use crate::def_use::{DefUseResult, build_def_use_chains};
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Module as IrModule;
-use crate::lowering::lower_to_ir_with_config;
 use crate::memory_ssa::{MemorySsaFunction, build_memory_ssa};
 use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
 use crate::sccp::{SccpResult, sccp_with_extra_escaping};
@@ -717,10 +716,19 @@ fn lower_and_build_cfg(
 ) -> (IrModule, CfgModule) {
     let registry = options.registry;
     let mut ir_module = match body_cache {
-        Some(bc) => {
-            crate::lowering::lower_to_ir_with_body_cache(source, registry, options.config, bc)
-        }
-        None => lower_to_ir_with_config(source, registry, options.config),
+        Some(bc) => crate::lowering::lower_to_ir_with_body_cache(
+            source,
+            registry,
+            options.config,
+            options.dialect,
+            bc,
+        ),
+        None => crate::lowering::lower_to_ir_with_dialect(
+            source,
+            registry,
+            options.config,
+            options.dialect,
+        ),
     };
     // Specialise Option-shape factories before any other
     // module-level passes so the synthesised child procs
@@ -941,8 +949,13 @@ impl CompilationUnit {
     /// top-level `foreach` / `catch` / `try` are compiled as
     /// opaque calls.
     ///
-    /// Lowers with the default (Tcl-8.5+) lexer config; use
-    /// [`Self::build_for_with_config`] to honour a document's dialect.
+    /// **Dialect-blind**: lowers with the default (Tcl-8.5+) lexer config and
+    /// an empty [`UnitBuildOptions::dialect`], so word tokenisation, the
+    /// expression grammar, and the fold policy are all plain Tcl.  Use it only
+    /// where the document genuinely has no dialect (tests, dialect-agnostic
+    /// helpers); a caller that knows the dialect must use
+    /// [`Self::build_for_dialect`], or an iRules word operator will neither
+    /// fold nor draw a constant-condition diagnostic.
     #[must_use]
     pub fn build_for(source: &str, registry: &CommandRegistry, defer_top_level: bool) -> Self {
         Self::build_for_with_config(
@@ -956,6 +969,12 @@ impl CompilationUnit {
     /// Like [`Self::build_for`] but lowers with an explicit dialect
     /// [`tcl_lexer::LexerConfig`] so `{*}` / `}{` tokenisation follows the
     /// document's dialect.
+    ///
+    /// The *analysis* dialect is still empty — this only fixes word
+    /// tokenisation.  Prefer [`Self::build_for_dialect`], which derives the
+    /// same config from the dialect name and additionally gives the lowering
+    /// and the lattice pipeline that dialect's expression grammar and fold
+    /// policy.
     #[must_use]
     pub fn build_for_with_config(
         source: &str,
@@ -970,6 +989,39 @@ impl CompilationUnit {
                 defer_top_level,
                 config,
                 dialect: "",
+                external_call_sites: None,
+            },
+            None,
+            None,
+        )
+    }
+
+    /// Build for a document whose dialect is known — the entry point every
+    /// production consumer holding a dialect string should use.
+    ///
+    /// Derives the lexer config from `dialect`
+    /// ([`tcl_lexer::LexerConfig::for_dialect`]) *and* records the dialect in
+    /// [`UnitBuildOptions::dialect`], so all three dialect-sensitive layers
+    /// agree: word tokenisation, the expression grammar the lowering parses
+    /// conditions with, and the fold policy the lattice pipeline runs under.
+    /// Pass `""` for plain Tcl.
+    ///
+    /// `registry` must be the registry for the same dialect
+    /// ([`tcl_registry::registry_for_dialect`]).
+    #[must_use]
+    pub fn build_for_dialect(
+        source: &str,
+        registry: &CommandRegistry,
+        defer_top_level: bool,
+        dialect: &str,
+    ) -> Self {
+        Self::build_with(
+            source,
+            UnitBuildOptions {
+                registry,
+                defer_top_level,
+                config: tcl_lexer::LexerConfig::for_dialect(dialect),
+                dialect,
                 external_call_sites: None,
             },
             None,
@@ -1682,7 +1734,8 @@ mod tests {
         let src = "namespace eval ::a { proc x {p1} { set q $p1 } }
                    namespace eval ::b { proc x {p2 extra} { set q $p2 } }
 ";
-        let m = lower_to_ir_with_config(src, &reg, tcl_lexer::LexerConfig::default());
+        let m =
+            crate::lowering::lower_to_ir_with_config(src, &reg, tcl_lexer::LexerConfig::default());
         let (_, proc_params, _) = crate::cfg_builder::prepare_cfg_context(&m);
         // `::b::x` sorts after `::a::x`, so the short name `x` deterministically
         // resolves to `::b::x`'s parameters on every run.

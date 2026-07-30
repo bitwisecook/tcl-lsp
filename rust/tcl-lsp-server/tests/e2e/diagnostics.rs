@@ -1817,7 +1817,17 @@ fn break_arm_escaping_loop_still_fires() {
 fn when_body_not_analysed_under_plain_tcl() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let diags = lsp.open_ready(&uri, "when HTTP_REQUEST {\n    boguscmd $undefvar\n}\n");
+    // Opened with the *versioned* `tcl8.6` language id, which is a deliberate
+    // editor choice and outranks detection. The bare `tcl` id every editor
+    // sends for a `.tcl` buffer now defers to the shared detector, and a
+    // `when EVENT {` handler is one of its iRules content signatures (issue
+    // #1048) — so this source would otherwise be analysed as an iRule, which
+    // is not the case under test.
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "when HTTP_REQUEST {\n    boguscmd $undefvar\n}\n",
+        "tcl8.6",
+    );
     // `when` itself is unknown under Tcl, but the opaque body must not be
     // recursed into: no W123 naming the body command, no W210 on its var.
     let body_w123: Vec<&Value> = diags

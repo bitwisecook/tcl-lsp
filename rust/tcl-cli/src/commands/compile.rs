@@ -34,15 +34,15 @@
 //! the `optimise` rewrites), then compiles the rewritten source.
 
 use tcl_cli_support::{
-    OutputTarget, combine_sources, read_input_documents, registry_for_dialect, write_binary_output,
-    write_text_output,
+    OutputTarget, combine_sources, combined_effective_dialect, read_input_documents,
+    registry_for_dialect, write_binary_output, write_text_output,
 };
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::codegen::format::format_module_asm;
 use tcl_compiler::codegen::wasm::wasm_codegen_module;
-use tcl_compiler::lowering::{lower_to_ir, lower_to_ir_for_bytecode};
-use tcl_compiler::optimiser::{apply_optimisations, optimise};
+use tcl_compiler::lowering::{lower_to_ir_for_bytecode_with_dialect, lower_to_ir_with_dialect};
+use tcl_compiler::optimiser::{apply_optimisations, optimise_with_dialect};
 use tcl_registry::CommandRegistry;
 
 use crate::cli::InputArgs;
@@ -51,9 +51,17 @@ use crate::cli::InputArgs;
 /// `compile_script(optimise=...)` entry: collect the rewrites, apply
 /// them, and compile the rewritten text. Returns the (possibly unchanged)
 /// source.
-fn maybe_optimise(source: &str, registry: &CommandRegistry, optimise_on: bool) -> String {
+fn maybe_optimise(
+    source: &str,
+    registry: &CommandRegistry,
+    dialect: &str,
+    optimise_on: bool,
+) -> String {
     if optimise_on {
-        apply_optimisations(source, &optimise(source, registry))
+        apply_optimisations(
+            source,
+            &optimise_with_dialect(source, registry, Some(dialect)),
+        )
     } else {
         source.to_owned()
     }
@@ -62,10 +70,21 @@ fn maybe_optimise(source: &str, registry: &CommandRegistry, optimise_on: bool) -
 /// `tcl dis` — compile source and emit human-readable bytecode disassembly.
 pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let registry = registry_for_dialect(input.dialect_or_default());
-    let source = maybe_optimise(&combine_sources(&documents), registry, optimise_on);
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let registry = registry_for_dialect(&dialect);
+    let source = maybe_optimise(
+        &combine_sources(&documents),
+        registry,
+        &dialect,
+        optimise_on,
+    );
 
-    let ir = lower_to_ir_for_bytecode(&source, registry);
+    let ir = lower_to_ir_for_bytecode_with_dialect(
+        &source,
+        registry,
+        tcl_lexer::LexerConfig::for_dialect(&dialect),
+        &dialect,
+    );
     let cfg = build_cfg_codegen(&ir, false);
     let module = codegen_module(&cfg, &ir, registry);
     let disassembly = format_module_asm(&module);
@@ -161,10 +180,16 @@ fn run_compwasm_tree_walker(
     wat_output: Option<&std::path::Path>,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let registry = registry_for_dialect(input.dialect_or_default());
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let registry = registry_for_dialect(&dialect);
     let source = combine_sources(&documents);
 
-    let ir = lower_to_ir(&source, registry);
+    let ir = lower_to_ir_with_dialect(
+        &source,
+        registry,
+        tcl_lexer::LexerConfig::for_dialect(&dialect),
+        &dialect,
+    );
     let mut wasm = wasm_codegen_module(&ir, &source);
     let bytes = wasm.to_bytes();
 

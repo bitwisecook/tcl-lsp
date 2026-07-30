@@ -142,16 +142,16 @@ fn main() {
     let registry = db.registry(dialect);
     let cfg_lexer = tcl_lexer::LexerConfig::for_dialect(dialect);
     let build = || {
-        CompilationUnit::build_for_with_config(&src, &registry, false, cfg_lexer)
-            .with_interprocedural(&registry, Some(dialect))
+        CompilationUnit::build_for_with_config(&src, registry, false, cfg_lexer)
+            .with_interprocedural(registry, Some(dialect))
     };
     time("CompilationUnit::build_for + interproc", 3, build);
     let cu = build();
     time("run_all_checks", 3, || {
-        tcl_compiler::compiler_checks::run_all_checks(&cu, &registry, Some(dialect))
+        tcl_compiler::compiler_checks::run_all_checks(&cu, registry, Some(dialect))
     });
     time("optimise_unit", 3, || {
-        tcl_compiler::optimiser::optimise_unit(&cu, &registry, Some(dialect))
+        tcl_compiler::optimiser::optimise_unit(&cu, registry, Some(dialect))
     });
     println!("  (functions in unit: {})", cu.functions().count());
 
@@ -160,16 +160,16 @@ fn main() {
     // memo; the whole-unit interproc taint solve does not.
     println!("\n== run_all_checks phase decomposition (whole-file, no memo) ==");
     let t_gvn = time("GVN redundancy/partial/loop (per-fn)", 3, || {
-        find_redundancies_for_cu(&cu, &registry, Some(dialect)).len()
-            + find_partial_redundancies_for_cu(&cu, &registry, Some(dialect)).len()
-            + find_loop_invariants_for_cu(&cu, &registry, Some(dialect)).len()
+        find_redundancies_for_cu(&cu, registry, Some(dialect)).len()
+            + find_partial_redundancies_for_cu(&cu, registry, Some(dialect)).len()
+            + find_loop_invariants_for_cu(&cu, registry, Some(dialect)).len()
     });
     let t_shimmer = time("shimmer + thunking (per-fn)", 3, || {
-        find_shimmer_warnings_for_cu(&cu, &registry).len()
-            + find_thunking_warnings_for_cu(&cu, &registry).len()
+        find_shimmer_warnings_for_cu(&cu, registry).len()
+            + find_thunking_warnings_for_cu(&cu, registry).len()
     });
     let t_taint = time("solve_interprocedural_taints (whole-unit)", 3, || {
-        solve_interprocedural_taints(&cu, &registry, Some(dialect))
+        solve_interprocedural_taints(&cu, registry, Some(dialect))
     });
     println!(
         "  per-function (GVN+shimmer) ~ {:.0} ms  |  whole-unit taint solve ~ {:.0} ms",
@@ -198,7 +198,7 @@ fn main() {
                 &db,
                 &edited,
                 tcl_compiler::compilation_unit::UnitBuildOptions {
-                    registry: &registry,
+                    registry,
                     defer_top_level: false,
                     config: cfg_d,
                     dialect,
