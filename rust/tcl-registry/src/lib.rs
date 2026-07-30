@@ -70,6 +70,7 @@ pub mod events;
 pub mod forms;
 pub mod hooks;
 pub mod hover;
+pub mod mathfunc;
 pub mod patterns;
 pub mod private_tcl_namespaces;
 pub mod profile_defaults;
