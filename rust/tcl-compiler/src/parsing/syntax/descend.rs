@@ -145,29 +145,74 @@ pub fn descend_token(sm: &SourceMap<'_>, token: Token, config: LexerConfig) -> D
     }
 }
 
-/// A registry-resolved `Body` argument of a command, descended.
+/// Descend an already-delimiter-free source region as a child CST.
+///
+/// The [`descend_token`] counterpart for a region that is *not* a whole
+/// word: a list **element** inside a braced word, such as the body element
+/// of an [`ArgRole::LambdaLiteral`] argument. `span` must address the
+/// element's content (no wrapping `{}`), so the child anchors at exactly
+/// `span.start()` and the region is by definition terminated — a caller
+/// that only has a whole delimited word wants `descend_token` instead.
+#[must_use]
+pub fn descend_span(sm: &SourceMap<'_>, span: tcl_lexer::Span, config: LexerConfig) -> Descended {
+    let (start, _end) = sm.range_positions(span);
+    let inner = sm.text(span);
+    let (document, _warnings) = build_document(inner, config);
+    let tree = SyntaxTree::with_parts(
+        document,
+        start.offset,
+        start.line,
+        start.character.get(),
+        inner.to_string(),
+        build_line_starts(inner),
+    );
+    Descended {
+        tree,
+        terminated: true,
+    }
+}
+
+/// A registry-resolved script argument of a command, descended.
 #[derive(Debug, Clone)]
 pub struct CommandBody {
     /// The real argument index (into `args` / `arg_tokens`).
     pub index: usize,
-    /// The body word's inner text.
+    /// The script's own text — the body word's inner text for an
+    /// [`ArgRole::Body`] argument, the body *element*'s text for an
+    /// [`ArgRole::LambdaLiteral`] one.
     pub text: String,
-    /// The owning `Str` token.
+    /// The owning `Str` word token.  For a lambda literal this is the whole
+    /// `{params body ?ns?}` word, not the body element — [`Self::text`] and
+    /// [`Self::descended`] are the element.
     pub token: Token,
-    /// The body's child CST.
+    /// The script's child CST.
     pub descended: Descended,
 }
 
-/// Descend each [`ArgRole::Body`] argument of a command as a child CST.
+/// Descend each script-bearing argument of a command as a child CST —
+/// [`ArgRole::Body`] arguments and the body element of
+/// [`ArgRole::LambdaLiteral`] ones.
 ///
 /// The single registry-aware descent entry point — the analogue of
-/// `green_tree.descend_command`, resolving body arguments through the
+/// `green_tree.descend_command`, resolving arguments through the
 /// registry's [`CommandRegistry::arg_indices_for_role`] (the Rust
 /// `iter_body_arguments`) so the set of descended bodies matches exactly.
 /// A body that is not a non-empty `Str` word is skipped (it is data, not
 /// a script the tree should re-lex).  [`ArgRole::Expr`] arguments are
 /// deliberately not routed here — they are handled by the expression
 /// lexer.
+///
+/// A [`ArgRole::LambdaLiteral`] argument (`apply {{params} {body}} …`) is a
+/// two- or three-element **list**, not a script: element 0 is the parameter
+/// list and element 1 the real body.  Descending the whole word would read
+/// the parameter list as a command head — the `Unknown command 'name opt
+/// args'` false positive of the issue-923 audit's finding idx 0, and the
+/// mis-parse `apply`'s own analyser hook exists to prevent — so only the
+/// body element is descended, via [`crate::lambda_literal`]'s shared split.
+/// Only a `{braced}` body element is descended: a bare or quoted element's
+/// backslash escapes collapse before `apply` ever evaluates it, so its
+/// source slice is not the script that runs (see
+/// [`crate::lambda_literal::LambdaLiteralElements::braced_body`]).
 ///
 /// `args` and `arg_tokens` are the command's arguments (excluding the
 /// command name), parallel and 0-indexed; `sm` maps the region the tokens
@@ -194,6 +239,29 @@ pub fn descend_command(
             text: text.to_string(),
             token,
             descended: descend_token(sm, token, config),
+        });
+    }
+    for index in registry.arg_indices_for_role(cmd_name, args, ArgRole::LambdaLiteral) {
+        let Some(&token) = arg_tokens.get(index) else {
+            continue;
+        };
+        if token.kind != TokenType::Str {
+            continue;
+        }
+        let Some(body) = crate::lambda_literal::split_lambda_literal(sm.source(), token)
+            .and_then(|elems| elems.braced_body())
+        else {
+            continue;
+        };
+        let text = sm.text(body);
+        if text.trim().is_empty() {
+            continue;
+        }
+        bodies.push(CommandBody {
+            index,
+            text: text.to_string(),
+            token,
+            descended: descend_span(sm, body, config),
         });
     }
     bodies
@@ -353,5 +421,65 @@ mod tests {
         let loop_body = bodies.iter().find(|b| b.index == 3).unwrap();
         assert!(loop_body.descended.is_terminated());
         assert_eq!(loop_body.descended.tree().text(), "puts $i");
+    }
+
+    /// Helper: `descend_command` over the first command of `src`.
+    fn bodies_of(registry: &CommandRegistry, src: &str) -> Vec<CommandBody> {
+        let sm = SourceMap::new(src);
+        let segs = crate::segmenter::segment_commands(src);
+        let cmd = &segs[0];
+        let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
+        descend_command(
+            registry,
+            &sm,
+            cmd.name(),
+            &args,
+            cmd.arg_tokens(),
+            LexerConfig::default(),
+        )
+    }
+
+    /// Audit finding idx 0 — an `ArgRole::LambdaLiteral` argument yields its
+    /// **body element** as the descended script, never the whole
+    /// `{params body}` list (whose first word would be read as a command
+    /// head).
+    #[test]
+    fn descend_command_resolves_the_lambda_body_element() {
+        let registry = CommandRegistry::build_default();
+        let bodies = bodies_of(&registry, "apply {{name opt args} {puts $name}} a b c");
+        assert_eq!(bodies.len(), 1, "one script argument: {bodies:?}");
+        assert_eq!(bodies[0].index, 0, "the lambda word is arg 0");
+        assert_eq!(bodies[0].text, "puts $name");
+        assert_eq!(bodies[0].descended.tree().text(), "puts $name");
+        // Anchored absolutely at the body element, not at the lambda word.
+        let src = "apply {{name opt args} {puts $name}} a b c";
+        assert_eq!(
+            &src[24..34],
+            "puts $name",
+            "the body element sits at 24..34"
+        );
+        // A three-element lambda: element 2 is a namespace, not a script.
+        let three = bodies_of(&registry, "apply {{a} {puts $a} ::ns} 1");
+        assert_eq!(three.len(), 1);
+        assert_eq!(three[0].text, "puts $a");
+    }
+
+    /// A lambda the split cannot trust yields no script: a `$var`-computed
+    /// literal (not a `Str` word), an empty body, a one-element list, and a
+    /// bare (unbraced, so escape-collapsing) body element.
+    #[test]
+    fn descend_command_skips_untrustworthy_lambda_shapes() {
+        let registry = CommandRegistry::build_default();
+        for src in [
+            "apply $lambda 1",
+            "apply {{a} {}} 1",
+            "apply {{a}} 1",
+            r"apply {{} puts\ hi}",
+        ] {
+            assert!(
+                bodies_of(&registry, src).is_empty(),
+                "{src} must yield no descended script"
+            );
+        }
     }
 }

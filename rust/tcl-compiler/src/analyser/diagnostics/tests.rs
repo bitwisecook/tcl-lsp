@@ -384,6 +384,116 @@ Greeter new x
     );
 }
 
+/// FIX (issue-923 differential audit, finding idx 0) — a literal
+/// `apply {{params} {body}}` inside a `[…]` command substitution reported
+/// `Unknown command '<the parameter list>'`: the substitution collectors
+/// re-segmented the whole `{params body}` list as if it were script source,
+/// so the parameter-list word became a command head.
+///
+/// The fix is registry-role-driven, not `apply`-aware: `descend_command`
+/// resolves `ArgRole::LambdaLiteral` arguments through
+/// `lambda_literal::split_lambda_literal` and descends only the body
+/// element, so the parameter list is never walked as code and the body is.
+///
+/// Source is the audit's own repro — the `validateHelper` lambda body
+/// verbatim from `georgtree/argparse`'s `argparse.tcl:19-34`, with the outer
+/// `{*}$validateHelper` variable indirection removed so `apply` is called
+/// literally. Oracle: tclsh9.0.4 and tclsh8.6.14 both run it and print
+/// `green`, so every command in it is real.
+#[test]
+fn apply_lambda_in_command_substitution_does_not_report_its_parameter_list() {
+    let src = r#"set result [apply {{name opt args} {
+    if {[dict exists $opt enum]} {
+        set command [list tcl::prefix match -message "$name value" \
+                             {*}[if {[uplevel 1 {info exists exact}]} {list -exact}] [dict get $opt enum]]
+        set args [lmap arg $args {{*}$command $arg}]
+    }
+    return $args
+}} widget [dict create enum {red green blue}] gr]
+puts $result
+"#;
+    let mut a = crate::analyser::Analyser::new();
+    let unknown: Vec<String> = a
+        .analyse(src, "tcl9.0")
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W123)
+        .map(|d| d.message.clone())
+        .collect();
+    assert!(
+        unknown.is_empty(),
+        "the lambda's parameter list is not a command: {unknown:?}"
+    );
+}
+
+/// FN half of the same fix: descending the lambda's *body* element is what
+/// makes the commands inside it visible at all.  Before the fix a lambda
+/// body nested in a `[…]` substitution was walked by nothing, so a genuinely
+/// unknown command in it escaped W123 entirely.
+#[test]
+fn apply_lambda_body_in_command_substitution_is_walked() {
+    for src in [
+        "set r [apply {{a} {zz9unknowncmd}} 5]\nputs $r\n",
+        "puts [apply {{a} {zz9unknowncmd}} 5]\n",
+        "proc p {} { set r [apply {{a} {zz9unknowncmd}} 5]; return $r }\n",
+        "set r [catch {apply {{a} {zz9unknowncmd}} 5}]\nputs $r\n",
+        // Three-element lambda: element 2 is a namespace, not a script.
+        "set r [apply {{a} {zz9unknowncmd} ::ns} 5]\nputs $r\n",
+    ] {
+        let codes = codes_for_dialect(src, "tcl9.0");
+        assert!(
+            codes.contains(&"W123".to_string()),
+            "the lambda body's unknown command must be reported for {src:?}: {codes:?}"
+        );
+    }
+    // TP control — the same command at the top level was already reported.
+    assert!(
+        codes_for_dialect("apply {{a} {zz9unknowncmd}} 5\n", "tcl9.0")
+            .contains(&"W123".to_string())
+    );
+}
+
+/// TN for the lambda carve-out: an ordinary registry `ArgRole::Body`
+/// argument nested in the same substitution position is still a script and
+/// is still walked — the fix narrows nothing but the lambda shape.
+#[test]
+fn plain_body_argument_in_command_substitution_still_walked() {
+    for src in [
+        "set r [if {1} {zz9unknowncmd}]\nputs $r\n",
+        "set r [eval {zz9unknowncmd}]\nputs $r\n",
+        "set r [uplevel 1 {zz9unknowncmd}]\nputs $r\n",
+    ] {
+        let codes = codes_for_dialect(src, "tcl9.0");
+        assert!(
+            codes.contains(&"W123".to_string()),
+            "a plain body argument is still a script for {src:?}: {codes:?}"
+        );
+    }
+}
+
+/// FP guard — a lambda whose parameters are *named* like commands must draw
+/// no W123: the parameter list is never a script, whatever the words in it
+/// happen to spell.  Oracle (tclsh9.0.4, tclsh8.6.14): `apply {{set list}
+/// {…}} a b` binds locals named `set` and `list` and runs fine — the words
+/// are formal-parameter names, not calls.
+#[test]
+fn apply_lambda_parameters_named_like_commands_draw_no_unknown_command() {
+    for src in [
+        "set r [apply {{set list} {return \"$set$list\"}} a b]\nputs $r\n",
+        // A defaulted parameter whose default value is a bareword.
+        "set r [apply {{a {puts x}} {return $a}} 1]\nputs $r\n",
+        // A parameter list whose words are not commands at all — the shape
+        // that used to be reported as `Unknown command 'name opt args'`.
+        "set r [apply {{name opt args} {return $name}} a b c]\nputs $r\n",
+    ] {
+        let codes = codes_for_dialect(src, "tcl9.0");
+        assert!(
+            !codes.contains(&"W123".to_string()),
+            "parameter names are not command calls for {src:?}: {codes:?}"
+        );
+    }
+}
+
 #[test]
 fn w211_deliberately_skips_destructuring_writer_outputs() {
     // Policy pin (review-2 audit): a command-output variable the script
