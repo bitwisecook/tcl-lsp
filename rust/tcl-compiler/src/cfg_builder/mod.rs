@@ -173,6 +173,13 @@ pub(crate) struct CfgBuilder {
     /// function currently being built — drained into [`crate::cfg::Function`] so
     /// codegen can re-derive each body's `errorInfo` frame (see that field).
     inline_eval_spans: Vec<tcl_lexer::Span>,
+    /// Caller-frame injection the function currently being built is subject
+    /// to: the union of every called procedure's
+    /// [`UpvarInfo::caller_frame_barrier`].  Drained into
+    /// [`crate::cfg::Function::caller_frame_barrier`], which
+    /// [`crate::dynamic_names::dynamic_name_barrier`] folds into the
+    /// function's blindness lattice.
+    caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier,
     /// Current `lower_script` recursion depth, bounded by [`MAX_LOWER_DEPTH`]
     /// so deeply-nested bodies cannot overflow the stack.
     depth: u32,
@@ -223,6 +230,7 @@ impl CfgBuilder {
             throw_blocks: None,
             last_terminal_block: None,
             inline_eval_spans: Vec::new(),
+            caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
             depth: 0,
         }
     }
@@ -258,7 +266,34 @@ impl CfgBuilder {
     /// `upvar #0`, see [`global_write_info`]) — a global name doesn't
     /// depend on call-site arguments, so no params-based mapping is
     /// needed, just the literal name list.
-    fn apply_upvar_invalidation(&self, mut stmt: Statement) -> Vec<Statement> {
+    fn apply_upvar_invalidation(&mut self, stmt: Statement) -> Vec<Statement> {
+        self.record_caller_frame_barrier(&stmt);
+        self.upvar_invalidated(stmt)
+    }
+
+    /// Whole-frame blindness the statement's calls impose on *this*
+    /// function, as distinct from the per-name `defs` widening
+    /// [`Self::upvar_invalidated`] applies.
+    ///
+    /// A callee that runs `uplevel 1 $body` — or aliases a caller-frame name
+    /// it cannot place — reaches names no `defs` list can enumerate.
+    /// Recorded flow-insensitively on the function, in the same lattice and
+    /// the same abstention direction as the dynamic-name barrier
+    /// ([`crate::dynamic_names`]).
+    fn record_caller_frame_barrier(&mut self, stmt: &Statement) {
+        for command in Self::called_command_names(stmt) {
+            if let Some(info) = self.upvar_procs.get(command.as_str()) {
+                self.caller_frame_barrier =
+                    self.caller_frame_barrier.union(info.caller_frame_barrier());
+            }
+        }
+    }
+
+    /// The `defs`-widening half of [`Self::apply_upvar_invalidation`], with
+    /// no side effect on the function-level barrier — so a speculative query
+    /// ([`Self::init_written_names`]) can ask what a statement writes without
+    /// recording the statement twice.
+    fn upvar_invalidated(&self, mut stmt: Statement) -> Vec<Statement> {
         // 0. A callee whose `upvar` caller-side name is unresolvable
         //    (`upvar 1 $computed x`) can write ANY caller variable — no
         //    per-name def list is sound, so widen the call site with an
@@ -384,6 +419,57 @@ impl CfgBuilder {
         }
 
         vec![stmt]
+    }
+
+    /// Every command word a statement invokes: its own head, plus the head
+    /// of every `[…]` substitution nested in its arguments (or, for an
+    /// assignment, in its value).
+    ///
+    /// The caller-frame barrier is a *whole-function* fact, so it has to be
+    /// raised wherever a call appears — `helper $x`, `set y [helper $x]`,
+    /// and `if {[helper $x]} …` alike. Bounded by
+    /// [`MAX_EMBEDDED_SUBST_DEPTH`], like every other bracket descent here.
+    fn called_command_names(stmt: &Statement) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        let mut texts: Vec<&str> = Vec::new();
+        match stmt {
+            Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
+                out.push(command.clone());
+                texts.extend(args.iter().map(String::as_str));
+            }
+            Statement::AssignValue { value, .. } | Statement::AssignConst { value, .. } => {
+                texts.push(value.as_str());
+            }
+            _ => {}
+        }
+        for text in texts {
+            Self::command_heads_in_text(text, 0, &mut out);
+        }
+        out
+    }
+
+    /// Accumulate the head word of every `[…]` substitution in *text*,
+    /// descending into nested brackets.
+    fn command_heads_in_text(text: &str, depth: u32, out: &mut Vec<String>) {
+        use tcl_lexer::{Lexer, SourceMap, TokenType};
+
+        if !text.contains('[') || depth >= MAX_EMBEDDED_SUBST_DEPTH {
+            return;
+        }
+        let sm = SourceMap::new(text);
+        let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+            return;
+        };
+        for tok in &tokens {
+            if tok.kind != TokenType::Cmd {
+                continue;
+            }
+            let inner = sm.token_text(*tok);
+            if let Some(head) = words_from_text(inner).first() {
+                out.push(head.clone());
+            }
+            Self::command_heads_in_text(inner, depth + 1, out);
+        }
     }
 
     /// Scan *text* for `[command_substitution]` tokens and
@@ -777,6 +863,7 @@ impl CfgBuilder {
             .map(|(from, to)| (self.bid(&from), self.bid(&to)))
             .collect();
         func.inline_eval_spans = std::mem::take(&mut self.inline_eval_spans);
+        func.caller_frame_barrier = self.caller_frame_barrier;
         func
     }
 
@@ -1256,11 +1343,46 @@ impl CfgBuilder {
 
 // Public API
 
-/// Scan a module for procedures whose bodies contain `upvar`
-/// declarations, returning a map from command name to
-/// [`UpvarInfo`].  Both the fully qualified name (`::ns::foo`) and
-/// the short name (`foo`) are registered so call sites using either
-/// spelling resolve to the same info.
+/// Every spelling a call site may use for the procedure named `qname`.
+///
+/// A qualified definition is reachable by its absolute name, by its bare
+/// tail, **and** by any `::`-boundary suffix in between: written from
+/// `::other`, the word `demo::setdef` resolves relative to the current
+/// namespace first and then falls back to `::demo::setdef`, so that
+/// spelling has to key the same summary (issue #923 audit idx 59, where the
+/// relative-qualified spelling silently missed the caller-frame defs while
+/// the bare and absolute spellings both worked).
+///
+/// Registering a suffix is the same over-approximation the bare tail
+/// already was: a same-named proc in a different namespace can claim the
+/// key. The consequence is a *widened* `defs` list at a call site, which
+/// only ever silences a warning.
+#[must_use]
+pub fn qualified_lookup_keys(qname: &str) -> Vec<String> {
+    let mut keys = vec![qname.to_owned()];
+    let mut push = |key: &str| {
+        if !key.is_empty() && !keys.iter().any(|k| k == key) {
+            keys.push(key.to_owned());
+        }
+    };
+    // `::demo::setdef` → `demo::setdef` → `setdef`: drop one leading
+    // namespace segment at a time, so every relative spelling of the same
+    // definition keys the same summary.
+    let mut rest = qname.trim_start_matches("::");
+    push(rest);
+    while let Some((_, tail)) = rest.split_once("::") {
+        let tail = tail.trim_start_matches("::");
+        push(tail);
+        rest = tail;
+    }
+    keys
+}
+
+/// Scan a module for procedures with a caller-frame effect
+/// (`upvar` / `uplevel`), returning a map from command name to its
+/// [frame-effect summary][UpvarInfo].  Every spelling a call site may use
+/// ([`qualified_lookup_keys`]) is registered so the lookup does not depend
+/// on how the caller happened to write the name.
 #[must_use]
 pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
     let mut result: HashMap<String, UpvarInfo> = HashMap::new();
@@ -1273,15 +1395,58 @@ pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
     // by luck of the process start (issue #1035 follow-up).
     let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
+    let mut own: Vec<(&String, &crate::ir::Procedure, UpvarInfo)> = Vec::new();
     for (qname, proc) in entries {
-        let info = collect_upvar_targets(&proc.body, &proc.params);
+        own.push((qname, proc, collect_upvar_targets(&proc.body, &proc.params)));
+    }
+
+    // One hop, no fixpoint: `uplevel <caller frame> [list callee …]` puts
+    // the callee's own caller-frame effects into *this* proc's caller
+    // (issue #1019). Composing against the *own-body* summaries — not the
+    // composed ones — bounds the walk at a single level by construction, so
+    // a recursive or mutually-recursive forward cannot diverge. A two-hop
+    // chain is left to the opaque-widening path, which is the safe
+    // direction.
+    // `own` is already qualified-name-sorted, so a short key shared by two
+    // procedures resolves to the same one every run.
+    let mut by_name: HashMap<String, (&UpvarInfo, &[String])> = HashMap::new();
+    for (qname, proc, info) in &own {
+        for key in qualified_lookup_keys(qname) {
+            by_name.insert(key, (info, proc.params.as_slice()));
+        }
+    }
+    let mut composed: Vec<(&String, UpvarInfo)> = Vec::new();
+    for (qname, proc, own_info) in &own {
+        let mut info = own_info.clone();
+        for (callee, constructed) in &own_info.uplevel_forwarded_calls {
+            if let Some((callee_info, callee_params)) = by_name.get(callee.as_str()) {
+                upvar_info::compose_forwarded(
+                    callee_info,
+                    callee_params,
+                    constructed,
+                    &proc.params,
+                    &mut info,
+                );
+            } else {
+                // The forwarded command is not a procedure this unit can
+                // see (a cross-file helper, a runtime-installed command).
+                // It still runs in the caller's frame, so widen.
+                info.caller_frame_opaque_writes = true;
+                info.caller_frame_opaque_reads = true;
+            }
+        }
+        composed.push((qname, info));
+    }
+
+    for (qname, info) in composed {
         if info.is_empty() {
             continue;
         }
-        if let Some((_, short)) = qname.rsplit_once("::")
-            && !short.is_empty()
-        {
-            result.insert(short.to_owned(), info.clone());
+        for key in qualified_lookup_keys(qname) {
+            if key == *qname {
+                continue;
+            }
+            result.insert(key, info.clone());
         }
         result.insert(qname.clone(), info);
     }
@@ -1318,12 +1483,9 @@ pub fn prepare_cfg_context(module: &Module) -> CfgContext {
     let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
     for (qname, proc) in entries {
-        if let Some((_, short)) = qname.rsplit_once("::")
-            && !short.is_empty()
-        {
-            proc_params.insert(short.to_owned(), proc.params.clone());
+        for key in qualified_lookup_keys(qname) {
+            proc_params.insert(key, proc.params.clone());
         }
-        proc_params.insert(qname.clone(), proc.params.clone());
     }
     (upvar_procs, proc_params, global_write_procs)
 }
@@ -1924,7 +2086,7 @@ impl CfgBuilder {
             // characterised here — clear every constant binding to stay sound.
             _ => return None,
         };
-        for s in self.apply_upvar_invalidation(stmt.clone()) {
+        for s in self.upvar_invalidated(stmt.clone()) {
             // A widening barrier means the callee can write ANY caller
             // variable (an `upvar` with a dynamic caller-side name) — no
             // per-name set exists, so report "can't tell" and let the
@@ -2021,7 +2183,7 @@ fn is_catchable_throw(command: &str) -> bool {
 /// [`crate::naming::normalise_var_name`].
 ///
 /// Returns an empty list when the text fails to lex.
-fn words_from_text(text: &str) -> Vec<String> {
+pub(super) fn words_from_text(text: &str) -> Vec<String> {
     use tcl_lexer::{Lexer, SourceMap, TokenType};
 
     let sm = SourceMap::new(text);

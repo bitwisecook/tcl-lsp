@@ -214,6 +214,18 @@ pub struct Function {
     /// body still gets the body frame the uncompiled command would add to
     /// `errorInfo` (the LSP keeps its inlined view). Empty when none were folded.
     pub inline_eval_spans: Vec<tcl_lexer::Span>,
+    /// Caller-frame injection this function is *subject to*: a callee whose
+    /// [frame-effect summary](crate::cfg_builder::upvar_info::UpvarInfo)
+    /// says it writes or reads names in **this** frame that no static
+    /// analysis can enumerate (`helper $x` where `helper` runs
+    /// `uplevel 1 $body`, or `argparse`'s definition-list injection).
+    ///
+    /// Recorded here, on the CFG, because it is the CFG builder — the one
+    /// stage holding the module-wide proc summaries — that can see it, while
+    /// the consumers ([`crate::dynamic_names::dynamic_name_barrier`] and
+    /// everything downstream of it) run per function with only the CFG in
+    /// hand.  Cleared for any CFG built without an upvar context.
+    pub caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier,
     /// Block-name interner: names indexed by [`BlockId`]`.0`, in creation order.
     block_names: Vec<String>,
     /// Reverse interner index: block name → its [`BlockId`].
@@ -231,6 +243,7 @@ impl Function {
             loop_nodes: HashMap::new(),
             exception_edges: Vec::new(),
             inline_eval_spans: Vec::new(),
+            caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
             block_names: Vec::new(),
             name_to_id: FxHashMap::default(),
         };

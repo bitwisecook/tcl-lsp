@@ -29,6 +29,7 @@ use crate::clause_shape::ClauseShapeChecker;
 use crate::command_table::CommandTableEffect;
 use crate::dialects::DialectSet;
 use crate::forms::{CommandForm, SubCommandForm};
+use crate::frame_effect::FrameEffectSpec;
 use crate::hooks::{
     AnalyserHookId, ArgTypeHint, CodegenHookId, ConstFoldFn, InlineCodegenHookId, LoweringHookId,
     TclVersion, VersionedConstFoldFn, WasmCodegenHookId,
@@ -298,6 +299,18 @@ pub struct CommandSpec {
 
     /// Dynamic argument role resolver (for variable-layout commands).
     pub arg_role_resolver: Option<ArgRoleResolver>,
+
+    /// How the command crosses stack frames — which argument is the level
+    /// word, which arguments name variables in the selected frame, and
+    /// which carry a script that runs there.  See
+    /// [`FrameEffectSpec`](crate::frame_effect::FrameEffectSpec).
+    ///
+    /// `None` (the default) means the command has no frame-crossing
+    /// argument grammar.  Distinct from [`Traits::CREATES_SCOPE_ALIAS`] and
+    /// [`Traits::EVALUATES_IN_SHIFTED_FRAME`], which say *that* a command
+    /// crosses frames; this says *how*, in enough detail for a consumer to
+    /// read the level and the affected names without naming the command.
+    pub frame_effect: Option<FrameEffectSpec>,
 
     /// Clause-chain shape validator, for a command whose valid argument
     /// shapes aren't a single `min..=max` [`Arity`] range (`if`'s
@@ -839,6 +852,7 @@ impl CommandSpec {
         arity: Arity::any(),
         arg_roles: &[],
         arg_role_resolver: None,
+        frame_effect: None,
         clause_shape_check: None,
         command_prefixes: &[],
         command_prefix_resolver: None,

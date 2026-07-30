@@ -72,6 +72,17 @@ pub fn spec() -> CommandSpec {
             | Traits::SCRIPT_CONCATENATES_ARGS,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Body)],
+        // `eval` concatenates its args and runs the result **in the calling
+        // frame** — no level word, no frame shift.  A script it cannot read
+        // statically (`eval $body`) can therefore create, read, or destroy
+        // any local of the frame the `eval` is written in (tclsh 9.0.4 /
+        // 8.6.14: `proc f {b} {set helper 42; eval $b}` called with
+        // `{set helper}` returns `42`, while the same body under
+        // `uplevel 1 $b` raises `can't read "helper"`).
+        frame_effect: Some(FrameEffectSpec {
+            level_word: FrameLevelWord::None,
+            layout: FrameArgLayout::ScriptInCurrentFrame,
+        }),
         lowering_hook: Some(crate::hooks::LoweringHookId::Eval),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {

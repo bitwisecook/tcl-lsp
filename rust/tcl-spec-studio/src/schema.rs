@@ -289,6 +289,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Callback assigning roles from the actual argument list; wins over `arg_roles`.",
     ),
     f(
+        "frame_effect",
+        "Frame effect",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(frame_effect::UPVAR)",
+        },
+        "How the command crosses stack frames: level word, frame-selected variable args, and caller-frame scripts.",
+    ),
+    f(
         "clause_shape_check",
         "Clause-shape checker",
         ADVANCED,

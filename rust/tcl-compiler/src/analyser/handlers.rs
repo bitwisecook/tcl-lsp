@@ -3687,11 +3687,32 @@ impl Analyser {
         }
     }
 
-    /// Register the local-alias names introduced by `upvar`.
+    /// Register the local-alias names introduced by `upvar`, and link the
+    /// alias to its target cell whenever the target is frame-independent.
     ///
-    /// `upvar ?level? otherVar myVar ?otherVar myVar ...?` — an optional
-    /// leading level makes the arg count odd; each pair after it binds the
-    /// local alias `myVar`.
+    /// `upvar ?level? otherVar myVar ?otherVar myVar ...?` — C Tcl decides
+    /// whether the level word is present from the **argument count parity**
+    /// (`Tcl_UpvarObjCmd` tests `objc`), so an odd count means the first word
+    /// is the level. tclsh 9.0.4 / 8.6.14, identical: `upvar 1 b` has an even
+    /// count and therefore aliases the caller variable literally named `1`,
+    /// while `upvar $lvl a b` really does take `$lvl` as its level.
+    ///
+    /// **`otherVar`** normally names a variable in *another frame*, which has
+    /// no namespace path to link to — a bare `x` at level 1 is whatever local
+    /// the caller happens to have. Two spellings escape that and name one
+    /// fixed cell whatever the call depth, so both get a link target
+    /// (issue #923 audit idx 98, where `upvar ::tk::FocusGrab($index) data`
+    /// left the array completely unregistered):
+    ///
+    /// * a **fully-qualified** target — `upvar 1 ::myns::q g` binds
+    ///   `::myns::q` from any depth (tclsh 9.0.4 / 8.6.14: reached
+    ///   identically through `upvar 1` and `upvar 2`);
+    /// * any target at **`#0`** — the global frame, so `upvar #0 counter c`
+    ///   binds `::counter` however deep the call stack is.
+    ///
+    /// An array element (`::tk::FocusGrab($index)`) links to its **base**:
+    /// the element key is runtime data, but the array it lives in is the
+    /// named cell every sibling access shares.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Upvar`].
     pub fn handle_upvar_command(
@@ -3700,19 +3721,53 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
+        use tcl_registry::frame_effect::FrameLevel;
+
         if args.is_empty() || arg_tokens.is_empty() {
             return;
         }
         let pair_start = usize::from(args.len() % 2 == 1);
+        let level = if pair_start == 1 {
+            FrameLevel::parse(&args[0]).unwrap_or(FrameLevel::Dynamic)
+        } else {
+            FrameLevel::DEFAULT
+        };
         let mut i = pair_start + 1;
         while i < args.len() && i < arg_tokens.len() {
             // The local alias name may be dynamic (`upvar 1 x $local`) — skip
             // it rather than record the substitution text.
             if !crate::naming::is_dynamic_word(&args[i]) {
                 self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
+                if let Some(target) = Self::upvar_link_target(&args[i - 1], level) {
+                    self.set_var_link_target(&args[i], scope_path, target);
+                }
             }
             i += 2;
         }
+    }
+
+    /// The fixed cell an `upvar` `otherVar` word names, or `None` when it
+    /// names a frame-relative variable with no stable path.
+    ///
+    /// See [`Self::handle_upvar_command`] for the two qualifying spellings
+    /// and their oracle transcripts.
+    fn upvar_link_target(
+        other: &str,
+        level: tcl_registry::frame_effect::FrameLevel,
+    ) -> Option<String> {
+        // `a($k)` names the array `a`; the element key is runtime data, so
+        // the base is tested for dynamism, not the whole word.
+        let base = other.split_once('(').map_or(other, |(base, _)| base);
+        if base.is_empty() || crate::naming::is_dynamic_word(base) {
+            return None;
+        }
+        if base.starts_with("::") {
+            return Some(base.to_owned());
+        }
+        if level.is_global_frame() {
+            return Some(format!("::{base}"));
+        }
+        None
     }
 
     /// Register the local aliases introduced by `namespace upvar`.
@@ -5963,6 +6018,94 @@ mod tests {
         let mut a = Analyser::new();
         a.handle_variable_command(&["x".to_string()], &[esc_tok(span(0, 1))], &[]);
         assert!(a.result.global_scope.variables.contains_key("x"));
+    }
+
+    // handle_upvar_command — the `otherVar` link (issue #923 audit idx 98)
+
+    /// Run `upvar <args>` through the handler and report the alias's link
+    /// target, if it got one.
+    fn upvar_link_of(args: &[&str], local: &str) -> Option<String> {
+        let mut a = Analyser::new();
+        let owned: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
+        let toks: Vec<Token> = (0..owned.len())
+            .map(|i| {
+                esc_tok(span(
+                    u32::try_from(i).unwrap() * 4,
+                    u32::try_from(i).unwrap() * 4 + 1,
+                ))
+            })
+            .collect();
+        a.handle_upvar_command(&owned, &toks, &[]);
+        a.result
+            .global_scope
+            .variables
+            .get(local)
+            .and_then(|v| v.link_target.clone())
+    }
+
+    #[test]
+    fn upvar_links_a_fully_qualified_other_var_at_any_level() {
+        // `upvar 1 ::myns::q g` binds `::myns::q` from any call depth
+        // (tclsh 9.0.4 / 8.6.14: reached identically through `upvar 1` and
+        // `upvar 2`), so the alias has a stable cell to link to.
+        assert_eq!(
+            upvar_link_of(&["1", "::myns::q", "g"], "g"),
+            Some("::myns::q".to_string()),
+        );
+        assert_eq!(
+            upvar_link_of(&["2", "::myns::q", "g"], "g"),
+            Some("::myns::q".to_string()),
+        );
+    }
+
+    #[test]
+    fn upvar_links_an_array_other_var_to_its_base() {
+        // tk.tcl:177 `upvar ::tk::FocusGrab($index) data` — the element key
+        // is runtime data, the array is the named cell every sibling access
+        // shares.
+        assert_eq!(
+            upvar_link_of(&["::tk::FocusGrab($index)", "data"], "data"),
+            Some("::tk::FocusGrab".to_string()),
+        );
+    }
+
+    #[test]
+    fn upvar_at_level_hash_zero_links_to_the_global_cell() {
+        // tclsh 9.0.4 / 8.6.14: `upvar #0 counter c` reaches `::counter`
+        // however deep the stack is.
+        assert_eq!(
+            upvar_link_of(&["#0", "counter", "c"], "c"),
+            Some("::counter".to_string()),
+        );
+    }
+
+    #[test]
+    fn upvar_does_not_link_a_frame_relative_other_var() {
+        // TN — `upvar 1 x y` names whatever local the *caller* happens to
+        // have; there is no namespace path for it, so inventing one would
+        // unify unrelated cells.
+        assert_eq!(upvar_link_of(&["1", "x", "y"], "y"), None);
+        assert_eq!(upvar_link_of(&["x", "y"], "y"), None);
+        // A computed target has no readable name at all.
+        assert_eq!(upvar_link_of(&["1", "$name", "obj"], "obj"), None);
+        // A computed *level* could be `#0`, but could equally be `1` — the
+        // alias must not be linked on a guess.
+        assert_eq!(upvar_link_of(&["$lvl", "counter", "c"], "c"), None);
+    }
+
+    #[test]
+    fn upvar_level_word_presence_follows_argument_count_parity() {
+        // `upvar 1 b` is TWO words, so there is no level word and `1` is the
+        // caller-side variable name — the alias is `b` (tclsh 9.0.4 /
+        // 8.6.14: with `set 1 ONE` in the caller, the callee reads `ONE`).
+        let mut a = Analyser::new();
+        a.handle_upvar_command(
+            &["1".to_string(), "b".to_string()],
+            &[esc_tok(span(0, 1)), esc_tok(span(2, 3))],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("b"));
+        assert!(!a.result.global_scope.variables.contains_key("1"));
     }
 
     // handle_proc_command

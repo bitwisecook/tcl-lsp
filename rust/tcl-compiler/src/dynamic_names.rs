@@ -53,13 +53,50 @@
 //! eliminate (`O101` / `O109` / `O126`).  Both are the same direction — say
 //! less rather than say something wrong.
 //!
-//! # Not covered
+//! # Caller-frame injection (issue #923 audit cluster C1)
 //!
-//! `eval $body` / `uplevel 1 $body` run *arbitrary code*, a strictly larger
-//! blindness than a computed name: they can read, write, and destroy names
-//! this walk never sees a role for.  Those lower to
-//! [`Statement::Barrier`](crate::ir::Statement::Barrier) and are handled (or
-//! not) by the per-consumer barrier rules, not here.
+//! A second, independent way to lose the name space is to have somebody
+//! *else* write it.  Tcl's frame-crossing commands make a callee's writes
+//! land in the caller's frame, and the caller's own text shows nothing:
+//!
+//! ```tcl
+//! proc runner {body} { uplevel 1 $body }   ;# runs $body in the CALLER's frame
+//! proc f {s} { runner $s; puts $x }        ;# $x may well be set — by $s
+//! ```
+//!
+//! Which frame each such command targets is registry data
+//! ([`FrameEffectSpec`]), and the answer decides who goes blind:
+//!
+//! | shape | frame written | recorded by |
+//! |---|---|---|
+//! | `eval $body` | the frame it is written in | this module, directly |
+//! | `argparse {…}` | the frame that *called* it | this module, directly |
+//! | `uplevel 1 $body` in a proc | that proc's caller | the proc's [frame-effect summary][sum], read at each call site |
+//! | `upvar 1 $computed x` | that proc's caller | the same summary |
+//!
+//! The first two are visible in the function's own statements, so the walk
+//! below raises the flags itself.  The last two are visible only with the
+//! module-wide proc summaries, which the CFG builder holds and this
+//! per-function walk does not — so it records them on
+//! [`CfgFunction::caller_frame_barrier`], and
+//! [`dynamic_name_barrier`] folds them in.  Either way the fact lands in
+//! the same three bits, so every consumer's abstention rule is unchanged
+//! and the cost stays `O(1)` per query.
+//!
+//! Deliberately **not** a per-call-site fact: every consumer of this
+//! lattice (`W210` / `W211` / `W220` / `I230`, `O101` / `O109` / `O126`)
+//! already reads it once per function and abstains for the whole function.
+//! A per-site fact would need flow-sensitivity none of them have, and would
+//! buy nothing — the flow-insensitive union is what they would compute.
+//!
+//! `uplevel 1 $body` written *inside* a proc raises nothing for that proc:
+//! the script runs one frame **up**, so the proc's own locals are
+//! untouched. tclsh 9.0.4 / 8.6.14, identical: `proc runner {body} {set
+//! helper 42; uplevel 1 $body}` invoked with `{set x $helper}` raises
+//! `can't read "helper": no such variable`, while the same body under
+//! `eval $body` reads `42`.
+//!
+//! [sum]: crate::cfg_builder::upvar_info::UpvarInfo
 //!
 //! A **computed command head** (`$cmd length foo`, `[pick] $n 1`) is the same
 //! case one level up: the *command* is run-time data, so no argument of it has
@@ -89,6 +126,7 @@
 //!   over-broad fact kills real diagnostics just as surely as a wrong one
 //!   invents false positives.
 
+use tcl_registry::frame_effect::{FrameArgLayout, FrameEffectSpec};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::cfg::{Function as CfgFunction, Terminator};
@@ -123,6 +161,26 @@ impl DynamicNameBarrier {
     pub const fn is_clear(self) -> bool {
         !self.writes && !self.destroys && !self.reads
     }
+
+    /// Union with `other` — the lattice join.  Blindness only accumulates,
+    /// so merging two sources of it (this walk and the CFG builder's
+    /// caller-frame record) is a per-flag `or`.
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self {
+            writes: self.writes || other.writes,
+            destroys: self.destroys || other.destroys,
+            reads: self.reads || other.reads,
+        }
+    }
+
+    /// Every direction blinded — an arbitrary script ran in this frame, so
+    /// any name may have been created, read, or destroyed.
+    pub const OPAQUE_SCRIPT: Self = Self {
+        writes: true,
+        destroys: true,
+        reads: true,
+    };
 }
 
 /// Whether *word* — an argument sitting in a registry-declared
@@ -169,7 +227,9 @@ pub fn names_a_dynamic_variable(word: &str) -> bool {
 /// which only ever silences, never invents, a fact.
 #[must_use]
 pub fn dynamic_name_barrier(cfg: &CfgFunction, registry: &CommandRegistry) -> DynamicNameBarrier {
-    let mut barrier = DynamicNameBarrier::default();
+    // Caller-frame injection the CFG builder already resolved against the
+    // module-wide proc summaries — the same three bits, joined in.
+    let mut barrier = cfg.caller_frame_barrier;
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
             scan_statement(stmt, registry, &mut barrier);
@@ -341,6 +401,71 @@ fn template_word_is_substituted(word: &str, braced_literal: bool) -> bool {
     !braced_literal && (word.contains('$') || word.contains('['))
 }
 
+/// Raise the flags a frame-crossing command imposes on the frame it is
+/// *written in*.
+///
+/// Only two of the four layouts do:
+///
+/// * [`FrameArgLayout::ScriptInCurrentFrame`] — `eval $body` runs unreadable
+///   code right here.
+/// * [`FrameArgLayout::OpaqueCallerVars`] — `argparse` creates locals in the
+///   frame that called it, which *is* this one.
+///
+/// [`FrameArgLayout::AliasPairs`] (`upvar`) binds a statically named local,
+/// and [`FrameArgLayout::ScriptInSelectedFrame`] (`uplevel`) runs its script
+/// somewhere else — unless the level word selects this very frame
+/// (`uplevel 0 $body`), or the global frame (`uplevel #0 $body`), whose
+/// names a proc cannot separate from its own bare locals.  Both of those
+/// land here.
+fn scan_frame_effect(
+    frame: FrameEffectSpec,
+    args: &[&str],
+    arg_braced: Option<&[bool]>,
+    barrier: &mut DynamicNameBarrier,
+) {
+    match frame.layout {
+        // Every caller-frame variable `argparse` creates is named from its
+        // definition-list mini-language, which nothing here interprets.
+        FrameArgLayout::OpaqueCallerVars => barrier.writes = true,
+        FrameArgLayout::ScriptInCurrentFrame => {
+            if script_words_are_opaque(args, arg_braced, 0) {
+                *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+            }
+        }
+        FrameArgLayout::ScriptInSelectedFrame => {
+            let taken = frame.level_word_len(args);
+            let (level, script) = frame.resolve(args);
+            // A caller-frame or further-up `uplevel` is the callee's effect
+            // on *its* caller, summarised per proc and applied at call
+            // sites; it does not blind the frame it is written in.
+            if !level.is_current_frame() && !level.is_global_frame() {
+                return;
+            }
+            if script_words_are_opaque(script, arg_braced, taken) {
+                *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+            }
+        }
+        FrameArgLayout::AliasPairs => {}
+    }
+}
+
+/// Whether a script assembled from `words` is code this analysis cannot
+/// read — i.e. any word substitutes.
+///
+/// A brace-quoted word is source text the ordinary walkers already see (the
+/// lowering inlines it), so a fully literal script is not a barrier.
+/// `offset` is where `words` starts within the original argument list, so
+/// the per-word `braced` flags line up.
+fn script_words_are_opaque(words: &[&str], arg_braced: Option<&[bool]>, offset: usize) -> bool {
+    words.iter().enumerate().any(|(i, w)| {
+        let braced = arg_braced
+            .and_then(|b| b.get(offset + i))
+            .copied()
+            .unwrap_or(false);
+        !braced && (w.contains('$') || w.contains('['))
+    })
+}
+
 /// Apply the registry's name-role answers for one `command args…` call.
 ///
 /// `arg_braced`, when present, says for each argument whether it is a single
@@ -359,6 +484,9 @@ fn scan_command(
         return;
     };
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    if let Some(frame) = spec.frame_effect {
+        scan_frame_effect(frame, &arg_strs, arg_braced, barrier);
+    }
     let destroys = spec.traits.contains(Traits::DESTROYS_VARIABLE);
     // A brace-quoted word is Tcl's literal spelling for a name that contains
     // `$` or `[`: `set {$n} v` creates a variable *called* `$n`, unrelated to

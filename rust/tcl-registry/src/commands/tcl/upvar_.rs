@@ -98,6 +98,16 @@ pub fn spec() -> CommandSpec {
             examples: "proc add2 name {\n    upvar $name x\n    set x [expr {$x + 2}]\n}\nset n 5\nadd2 n\nputs $n\n\n# level defaults to 1 (the caller); an explicit level reaches further up the stack\nproc decr {varName {decrement 1}} {\n    upvar 1 $varName var\n    incr var [expr {-$decrement}]\n}\n\n# level #0 links straight to the global scope, regardless of call depth\nproc bumpCounter {} {\n    upvar #0 counter c\n    incr c\n}",
             return_value: "The empty string.",
         }),
+        // `upvar ?level? otherVar myVar …` — C Tcl reads the level word off
+        // the *argument count parity* (`Tcl_UpvarObjCmd` tests `objc`), never
+        // off the word's text, so `upvar 1 b` aliases the caller variable
+        // literally named `1` while `upvar $lvl a b` really does take `$lvl`
+        // as its level.  tclsh 9.0.4 / 8.6.14 agree; see
+        // `FrameLevelWord::ArityParity` for the pinned table.
+        frame_effect: Some(FrameEffectSpec {
+            level_word: FrameLevelWord::ArityParity,
+            layout: FrameArgLayout::AliasPairs,
+        }),
         lowering_hook: Some(LoweringHookId::Upvar),
         codegen_hook: Some(CodegenHookId::Upvar),
         forms: FORMS,

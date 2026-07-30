@@ -1200,15 +1200,24 @@ mod soundness_gates {
 // ---------------------------------------------------------------------------
 // TestFlowSensitiveNarrowing — true-region reads are safe; false region flags.
 //
-// The leading `eval $cmd` barrier keeps both arms live (no fold), so narrowing
-// — not DCE — governs the verdict. `cmd` is itself the genuine read-before-set
-// in each reproducer.
+// The leading `uplevel 1 $cmd` barrier keeps both arms live (no fold), so
+// narrowing — not DCE — governs the verdict. `cmd` is itself the genuine
+// read-before-set in each reproducer.
+//
+// The scaffolding is `uplevel 1`, not `eval`, precisely because of the frame
+// difference: `uplevel 1 $cmd` runs the script one frame **up**, so it cannot
+// define a local of `p` and leaves `p`'s own name space provable, while
+// `eval $cmd` runs *here* and therefore blinds every W210 in `p` (tclsh 9.0.4 /
+// 8.6.14: `proc runner {b} {set helper 42; uplevel 1 $b}` invoked with
+// `{set x $helper}` raises `can't read "helper"`, while the same body under
+// `eval $b` reads `42`). Both are `Statement::Barrier`s, so either disables the
+// existence fold; only one of them is a name barrier.
 // ---------------------------------------------------------------------------
 mod flow_sensitive_narrowing {
     use super::*;
 
     fn flagged(body: &str) -> std::collections::HashSet<String> {
-        w210_vars(&format!("proc p {{}} {{ eval $cmd; {body} }}"))
+        w210_vars(&format!("proc p {{}} {{ uplevel 1 $cmd; {body} }}"))
     }
 
     #[test]
@@ -1275,7 +1284,7 @@ mod info_vars_narrowing {
     use super::*;
 
     fn flagged(body: &str) -> std::collections::HashSet<String> {
-        w210_vars(&format!("proc p {{}} {{ eval $cmd; {body} }}"))
+        w210_vars(&format!("proc p {{}} {{ uplevel 1 $cmd; {body} }}"))
     }
 
     #[test]
@@ -1338,7 +1347,7 @@ mod catch_narrowing {
     use super::*;
 
     fn flagged(body: &str) -> std::collections::HashSet<String> {
-        w210_vars(&format!("proc p {{}} {{ eval $cmd; {body} }}"))
+        w210_vars(&format!("proc p {{}} {{ uplevel 1 $cmd; {body} }}"))
     }
 
     #[test]
