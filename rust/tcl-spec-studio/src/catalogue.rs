@@ -486,6 +486,10 @@ pub const TRAITS: &[Variant] = &[
         "EVALUATES_IN_SHIFTED_FRAME",
         "runs its body script in another stack frame",
     ),
+    v(
+        "INSTALLS_NAMED_DEFINITION",
+        "installs, moves, or extends a definition named by an argument",
+    ),
 ];
 
 /// [`TaintColour`] bits.

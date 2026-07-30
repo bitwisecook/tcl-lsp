@@ -826,6 +826,29 @@ declare_traits! {
     /// b }` calls `::helper`, never the `::foo::helper` sitting in the
     /// enclosing namespace.
     EvaluatesInShiftedFrame => EVALUATES_IN_SHIFTED_FRAME;
+
+    /// Installs, moves, or extends a **named definition** whose target is
+    /// named by an [`crate::arg_role::ArgRole::Name`] argument word —
+    /// `proc`, `rename`, `oo::define`, `oo::objdefine`.  Every one of them
+    /// re-reads that word on every execution, so running the *same written
+    /// command* twice with a different value bound to the substitution in
+    /// it defines two different things.
+    ///
+    /// The analyser consults this when it simulates a
+    /// literal-list `foreach`'s remaining iterations
+    /// (`tcl_compiler::analyser::Analyser::handle_foreach_command`): the
+    /// loop variable takes a different concrete value each time round, so
+    /// exactly the commands carrying this trait have to be re-dispatched
+    /// per element to see the whole set of names the loop installs —
+    /// `foreach t {A B} { oo::define $t { … } }` extends both `A` and `B`
+    /// (issue #923 idx 55/86).  Every *other* command in the body keeps the
+    /// single evaluation the ordinary walk gave it, so the simulation
+    /// cannot duplicate diagnostics or scope entries.
+    ///
+    /// Not carried by commands that merely *shift context* by name
+    /// (`namespace eval`, `coroutine`): re-running those would re-walk a
+    /// body, which is what the narrowness above rules out.
+    InstallsNamedDefinition => INSTALLS_NAMED_DEFINITION;
 }
 
 /// Every trait that widens a file's caller set beyond the file itself — the

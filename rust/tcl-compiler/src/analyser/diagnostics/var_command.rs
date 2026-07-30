@@ -1713,10 +1713,16 @@ impl Analyser {
     /// [`Self::w308_for_object_var`] and [`Self::validate_method_on_class`]
     /// so the two escape hatches cannot drift.
     fn has_external_super_or_mixin(&self, cd: &super::types::ClassDef) -> bool {
-        cd.superclasses
-            .iter()
-            .chain(&cd.mixins)
-            .any(|s| !self.result.all_classes.contains_key(s) && !OO_BASE.contains(&s.as_str()))
+        // A class manufactured by a user-defined metaclass whose `create`
+        // override could not be read has an unknown superclass list, which is
+        // the same situation as a superclass outside the index: a method it
+        // inherits is not a method it is missing (issue #923 idx 96/97).
+        cd.inheritance_unknown
+            || cd
+                .superclasses
+                .iter()
+                .chain(&cd.mixins)
+                .any(|s| !self.result.all_classes.contains_key(s) && !OO_BASE.contains(&s.as_str()))
     }
 
     /// Suppress W123 diagnostics whose command-name contains a

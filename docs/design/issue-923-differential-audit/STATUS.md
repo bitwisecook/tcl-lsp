@@ -476,14 +476,23 @@ mathfunc-aware W123 / W002 work that landed on `rust` after the audit ran
 (`is_mathfunc_call` + `is_known_mathfunc_in_dialect`) and is counted with
 them. That makes **30 fixed, 55 remaining**.
 
+**2026-07-30 update — PR B3 (`claude/commandregistry-compiler-fixes-tshu8d-factories`,
+merged as #1074) fixed six more, all tier 2 — the "class factories and
+dynamically-installed members" cluster:** idx 44, idx 53, idx 55, idx 96, and
+idx 97 are newly fixed; idx 43 was **re-verified as already fixed** by the
+`foreach`-literal simulation that landed for idx 86 (PR #1020) and is pinned
+with a regression test rather than re-fixed. See the "tier-2 findings fixed
+by PR B3" subsection after the tier-2 table. That makes **36 fixed, 49
+remaining**.
+
 **2026-07-30 update — PR #1071 and PR B1
-(`claude/commandregistry-compiler-fixes-tshu8d-cmdtable`) fixed eight more,
-all tier 2:** idx 3, idx 4, and idx 11 landed in **PR #1071** (tcllib
-`textutil` submodule registry keys + W113 package-gating) — that PR's own
-tracker commit was deliberately dropped, so their rows are ticked here
-instead. idx 5, idx 21, idx 45, idx 89, and idx 92 are **PR B1**, the
+(`claude/commandregistry-compiler-fixes-tshu8d-cmdtable`, PR #1075) fixed
+eight more, all tier 2:** idx 3, idx 4, and idx 11 landed in **PR #1071**
+(tcllib `textutil` submodule registry keys + W113 package-gating) — that
+PR's own tracker commit was deliberately dropped, so their rows are ticked
+here instead. idx 5, idx 21, idx 45, idx 89, and idx 92 are **PR B1**, the
 command-table-mutation cluster — see the "tier-2 findings fixed by PR B1"
-subsection after the tier-2 table. That makes **38 fixed, 47 remaining**.
+subsection after the tier-2 table. That makes **44 fixed, 41 remaining**.
 
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
@@ -697,7 +706,7 @@ users, a worse failure mode than the narrower, but fully oracle-grounded,
 `CONFIGURE`-tracking fix actually shipped. Left as a documented, low-risk
 follow-up for a session with Tk oracle access.
 
-#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 15 now fixed — 46 remaining), grouped by feature for clustering
+#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 22 now fixed — 39 remaining), grouped by feature for clustering
 
 Group findings sharing a feature/root-cause together in one fix pass the
 way idx 107+115 and idx 118+119 were — many of these look like they share
@@ -707,8 +716,8 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 
 | feature | count | idx (severity) |
 |---|---|---|
-| tclOO | 10 | 15, 16, 34, 35, 36, 53, ~~54~~ **FIXED**, 55, 96, 97 (all medium) |
-| namespaces | 8 | ~~3~~ **FIXED** (#1071), 19, 43, 44, 64, 65, 75, 85 (all medium) |
+| tclOO | 10 | 15, 16, 34, 35, 36, ~~53~~ **FIXED**, ~~54~~ **FIXED**, ~~55~~ **FIXED**, ~~96~~ **FIXED**, ~~97~~ **FIXED** (all medium) |
+| namespaces | 8 | ~~3~~ **FIXED** (#1071), 19, ~~43~~ **ALREADY FIXED**, ~~44~~ **FIXED**, 64, 65, 75, 85 (all medium) |
 | tricky_indirection | 7 | 0 (medium, **FIXED** — see below), 1, 2, 14, 49, 50, 51 (all medium) |
 | upvar | 7 | 7, 22, 57, 58, 59, 98, 99 (all medium) |
 | proc_args | 7 | ~~11~~ **FIXED** (#1071), 28, 37, 62, 67, 78, ~~104~~ **FIXED** (all medium) |
@@ -829,6 +838,24 @@ three shapes at one reference each.
 | 45 (rename) | `all_procs.insert` clobbered on self-redefinition, so the displaced definition's span and parameter list vanished: go-to-definition from a call *between* two declarations jumped to the later header, and a genuine `wrong # args` against the first signature went unreported. | New `AnalysisResult::superseded_procs` keeps the displaced `ProcDef`s (empty for every document without a redefinition), with `proc_declarations` / `proc_def_in_effect_at` as the order-gated queries — the `proc` analogue of `rename_offsets`/`alias_offsets`. `definition()` resolves the in-effect definition, the arity resolver checks the in-effect signature, and `UserResolutionFacts::proc_offsets` now records the *earliest* declaration so the shadowing suppression is order-correct too. The cross-document declaration test was already handled by idx 31. |
 | 89 (aliasing) | `definition()` resolved a call to a same-named proc that an `interp alias` had already replaced (the real `tk/library/accessibility.tcl` `interp alias {} ::ttk::spinbox {} ::tk::spinbox` trick), because the alias fallback sat *after* the proc resolution and was unreachable. | The indirection hop is now one uniform tier asked **before** the ordinary call resolution, covering `rename` and `interp alias`, procs and classes alike (`indirect_definition_target`, plus the hop inside `resolve_proc_target_at` / `resolve_class_target_at`). Order-gating keeps the pre-mutation call resolving the ordinary way, in-document and — via `definition::indirection_pending_at`, consulted by the server's `resolve_workspace_symbols` — through the position-free workspace index too. The trailing ungated alias fallback is gone. |
 | 92 (tracing) | `[namespace code [list Handler]]` in a command-prefix slot (Tk's own `fontchooser.tcl` uses it ten times) recorded nothing, so find-references / rename / call-hierarchy / code-lens silently dropped every such callback site. | New `Traits::WRAPS_COMMAND_PREFIX`, set on the `namespace code` **subcommand**: the value it returns is itself a command prefix. `extract_wrapped_prefix_head` unwraps exactly one level — the wrapping command's own `ArgRole::Body` word — and re-runs the ordinary extraction on it, so the `[list X a]`, bareword, and (already-covered) braced shapes all work through one rule with no command name in the walker. A braced wrapped word is skipped, since the analyser already walks it as a script and recording it twice would double-count the site. |
+#### Tier-2 findings fixed by PR B3 (2026-07-30)
+
+Landed together on `claude/commandregistry-compiler-fixes-tshu8d-factories`
+as one cluster: every one of them is a place where a class, a member, or a
+command name is **installed dynamically** and the analyser gave up on a shape
+that is in fact statically determined. Regression coverage is the
+`class_factories` module in `rust/tcl-compiler/tests/analyser.rs` (19 TP/TN
+cases), plus the updated `handle_oo_define_command` unit tests. Ground truth
+for each shape was taken from tclsh 9.0.4 **and** tclsh 8.6.16, which agree
+on all of them.
+
+| idx | what was wrong | what changed |
+|---|---|---|
+| 43 (namespaces) | `foreach ptype {elist elist.n …} { proc ticklecharts::${ptype} … }` filed one bogus `ProcDef` under the literal `${ptype}` template, so go-to-definition/hover found nothing for the real procs, W123 fired on all five, and the outline showed `${ptype}`. | **Already fixed** on `rust` by the idx 86 `foreach`-literal simulation (PR #1020): `handle_foreach_command` binds the loop variable to each literal element and re-dispatches `proc`, so every element is registered under its real qualified name. Verified, not re-fixed; pinned by `foreach_installed_procs_are_enumerated_per_literal_element`. |
+| 44 (namespaces) | `${ns}::setdef` resolved to nothing — go-to-definition, find-references, and call-hierarchy silently dropped every call site. | Two halves. (1) **Wrong source bytes**: for a braced composite word the lexer merges the whole word into one `Var` token, so its raw text is `ns}::setdef`, not the variable name — `resolve_dynamic_word` looked that up as a variable and always missed. It now truncates at the brace the lexer left in place (the same rule `record_var_or_cmd_command_site` already used for its W307 head reading) and folds the literal tail. (2) The command **head** itself now goes through that folding before `resolve_command_qualified_name`, via `resolve_dynamic_command_head`, using the *dominating*-constant lattice so a branch-conditional binding still abstains. |
+| 53 (tclOO) | `constructor {*}[…]` / `method {*}{…}` members were dropped entirely — `extract_method_def` saw one word where the grammar wanted two or three — so `chart3D`'s whole reflected method surface was missing from the outline with no diagnostic. | `{*}` is applied by the *parser*, so a `{*}`-marked **braced literal** word is not one word but the elements of the list it holds. `splice_static_member_expansions` normalises those words before the member grammar's layout is read off them, with each spliced word carrying its own real source span. A `{*}` over a substitution has no statically-knowable element list and is left verbatim, so the member still abstains — verified against both interpreters, which run `method {*}{foo {} {…}}` and `constructor {*}[info class constructor ::Base]` alike. |
+| 55 (tclOO) | `foreach class {…} { oo::define $class {…} }` bucketed every injected member under a synthetic `@dynclass@<offset>` key, so a real, tclsh-proven method drew a false `W308 Unknown method` and resolved nowhere. | `handle_oo_define_command` now folds its target word through `resolve_dynamic_word` (falling back to the synthetic key only when the target is genuinely unresolvable), and the `foreach`-literal simulation was generalised from a hardcoded `rename`/`proc` name match to the new registry trait `Traits::INSTALLS_NAMED_DEFINITION`, carried by `proc`, `rename`, `oo::define`, and `oo::objdefine`. Cost stays `O(elements × body-commands)` with no fixpoint. |
+| 96, 97 (tclOO) | A class created through a **user-defined metaclass** — Tk's own `::tk::Megawidget` idiom — never entered `all_classes` at all: no document symbols, no find-references, and `next` inside an override resolved nowhere. `is_class_definer` could only ever match the registry's own four metaclass commands. | Metaclass-ness now propagates down the recorded superclass chain: a class whose chain reaches an `IS_OO_METACLASS` command with a `TclOo` grammar is itself a class factory (`user_metaclass_of_command`). The registry stays the seed; only the inheritance step is TclOO language semantics. The manufacturer's **word layout** is read off its own `create` override rather than assumed — Tk's `{name superclasses body}` puts the body at argument 3 — and the members that override splices into every body it makes (`[list superclass ::tk::MegawidgetClass {*}$superclasses]`) are resolved against the call's own arguments and applied through the same registry-grammar routing a written-out member uses. When the override cannot be read the class is still recorded but marked `ClassDef::inheritance_unknown`, which makes W308 abstain exactly as an out-of-index superclass already does. Superclass lists now match `info class superclasses` on both interpreters exactly. |
 
 ### 6c. Broader mandate coverage check
 

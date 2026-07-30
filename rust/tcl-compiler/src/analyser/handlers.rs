@@ -222,6 +222,287 @@ fn summarise_detail(description: &str) -> String {
     }
 }
 
+/// A recorded class that is itself a `TclOO` class factory, with the
+/// definition-body grammar the bodies it manufactures obey.
+///
+/// See [`Analyser::user_metaclass_of_command`].
+struct UserMetaclass {
+    /// Fully-qualified name of the factory class.
+    qualified: String,
+    /// The root registry metaclass's definition-body grammar.
+    grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
+}
+
+/// One definition-body member a class factory injects into every class it
+/// manufactures, with each word resolved to a real source token.
+struct InjectedMember {
+    /// Member keyword followed by its argument words.
+    texts: Vec<String>,
+    /// Parallel tokens — each in the manufacturer's own body (a literal it
+    /// always splices) or in the creation call (a `{*}$param` splice).
+    argv: Vec<Token>,
+}
+
+/// Where a class-manufacturing call's words sit, and what its manufacturer
+/// contributes on top of the written body.
+///
+/// See [`Analyser::manufacturer_layout`].
+struct ManufacturerLayout {
+    /// Argument index of the new class's name.
+    name_arg: usize,
+    /// Argument index of the new class's definition body.
+    body_arg: usize,
+    /// Members the manufacturer always injects.
+    injected: Vec<InjectedMember>,
+    /// `true` when the manufacturer override could not be read, so the
+    /// class's superclass list is unknown — see
+    /// [`super::types::ClassDef::inheritance_unknown`].
+    inheritance_unknown: bool,
+}
+
+impl ManufacturerLayout {
+    /// `oo::class`'s own shape: `create Name Body` / `new Body` /
+    /// `createWithNamespace Name ns Body`, with nothing injected.  The
+    /// name/body indices match the registry's `oo_class_arg_roles`.
+    fn builtin() -> Self {
+        Self {
+            name_arg: 1,
+            body_arg: 2,
+            injected: Vec::new(),
+            inheritance_unknown: false,
+        }
+    }
+}
+
+/// Every `$name` / `${name}` variable reference in `word`, in written order.
+///
+/// A deliberately syntactic scan: the callers need the *names* a template
+/// word reads, not its value, and the word may embed a command
+/// substitution (`[list … {*}$supers]`) that a value-folding splitter
+/// refuses outright.
+fn interpolated_var_names(word: &str) -> Vec<&str> {
+    let mut names = Vec::new();
+    let mut rest = word;
+    while let Some(dollar) = rest.find('$') {
+        let after = &rest[dollar + 1..];
+        if let Some(braced) = after.strip_prefix('{') {
+            if let Some(close) = braced.find('}') {
+                names.push(&braced[..close]);
+                rest = &braced[close + 1..];
+                continue;
+            }
+            rest = after;
+            continue;
+        }
+        let len = after
+            .find(|c: char| !(c.is_alphanumeric() || c == '_' || c == ':'))
+            .unwrap_or(after.len());
+        if len > 0 {
+            names.push(&after[..len]);
+        }
+        rest = &after[len..];
+    }
+    names
+}
+
+/// A literal list word's elements, each with the source span it occupies
+/// inside the word — the static half of `{*}` expansion.
+///
+/// Returns `None` when the word is not a literal (a substitution's runtime
+/// value is not a knowable list) or when an unbraced element itself
+/// interpolates, so a caller can abstain instead of splicing text the
+/// runtime would never produce.  An empty word yields an empty splice,
+/// which is exactly what `{*}{}` contributes.
+fn literal_list_words(text: &str, tok: Token) -> Option<Vec<(String, Token)>> {
+    if !matches!(tok.kind, TokenType::Str | TokenType::Esc) {
+        return None;
+    }
+    if tok.kind == TokenType::Esc && crate::naming::is_dynamic_word(text) {
+        return None;
+    }
+    let base = tok.span.start() + u32::from(tok.content_offset);
+    let mut words = Vec::new();
+    let mut pos = 0usize;
+    while let Some(element) = tcl_syntax::list::find_element(text, pos).ok()? {
+        let value = text.get(element.value.clone())?;
+        if !element.braced && crate::naming::is_dynamic_word(value) {
+            return None;
+        }
+        let start = base + u32::try_from(element.value.start).ok()?;
+        let end = base + u32::try_from(element.value.end).ok()?;
+        words.push((
+            value.to_string(),
+            Token {
+                kind: TokenType::Esc,
+                span: Span::new(start, end),
+                content_offset: 0,
+                in_quote: false,
+            },
+        ));
+        pos = element.next;
+    }
+    Some(words)
+}
+
+/// One piece of a manufacturer prologue word, as
+/// [`Analyser::manufacturer_injected_members`] accounts for it.
+#[derive(Debug, PartialEq, Eq)]
+enum ProloguePiece<'a> {
+    /// A `[…]` command substitution — one prologue member to read.
+    Substitution,
+    /// A `$name` / `${name}` variable read.
+    VarRead(&'a str),
+    /// Whitespace, a statement separator, or an escaped separator — text
+    /// that joins pieces without contributing any member of its own.
+    Separator,
+    /// Anything else: literal prologue text, or a fragment the scanner
+    /// cannot classify.  Its presence means the prologue is *not* fully
+    /// read.
+    Opaque,
+}
+
+/// Split a manufacturer prologue word into the pieces its reader must
+/// account for.
+///
+/// Operates on the word's round-tripped source text (the segmenter's own
+/// per-word reconstruction), which preserves every substitution verbatim.
+/// A single `Opaque` piece is enough for the caller to abstain, so the scan
+/// stops at the first one.
+fn prologue_pieces(word: &str) -> Vec<ProloguePiece<'_>> {
+    let mut pieces = Vec::new();
+    let mut rest = word;
+    while !rest.is_empty() {
+        let first = rest.as_bytes()[0];
+        if first.is_ascii_whitespace() || first == b';' {
+            rest = &rest[1..];
+            if !matches!(pieces.last(), Some(ProloguePiece::Separator)) {
+                pieces.push(ProloguePiece::Separator);
+            }
+            continue;
+        }
+        // A backslash escape of a separator (`\;` — the idiomatic way to
+        // end the injected statement inside one word) joins, like the
+        // separator it escapes.
+        if first == b'\\' {
+            let escaped = rest.as_bytes().get(1).copied();
+            if escaped.is_some_and(|c| c.is_ascii_whitespace() || c == b';' || c == b'n') {
+                rest = &rest[2..];
+                if !matches!(pieces.last(), Some(ProloguePiece::Separator)) {
+                    pieces.push(ProloguePiece::Separator);
+                }
+                continue;
+            }
+            pieces.push(ProloguePiece::Opaque);
+            break;
+        }
+        if first == b'[' {
+            let Some(end) = matching_bracket(rest) else {
+                pieces.push(ProloguePiece::Opaque);
+                break;
+            };
+            pieces.push(ProloguePiece::Substitution);
+            rest = &rest[end + 1..];
+            continue;
+        }
+        if first == b'$' {
+            let after = &rest[1..];
+            if let Some(braced) = after.strip_prefix('{') {
+                let Some(close) = braced.find('}') else {
+                    pieces.push(ProloguePiece::Opaque);
+                    break;
+                };
+                pieces.push(ProloguePiece::VarRead(&braced[..close]));
+                rest = &braced[close + 1..];
+                continue;
+            }
+            let len = after
+                .find(|c: char| !(c.is_alphanumeric() || c == '_' || c == ':'))
+                .unwrap_or(after.len());
+            if len == 0 {
+                pieces.push(ProloguePiece::Opaque);
+                break;
+            }
+            pieces.push(ProloguePiece::VarRead(&after[..len]));
+            rest = &after[len..];
+            continue;
+        }
+        pieces.push(ProloguePiece::Opaque);
+        break;
+    }
+    pieces
+}
+
+/// Byte offset of the `]` closing the `[` at the start of `text`, honouring
+/// nesting.  `None` when it is unbalanced.
+fn matching_bracket(text: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    for (offset, ch) in text.char_indices() {
+        match ch {
+            '[' => depth += 1,
+            ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(offset);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Resolve one prologue member statement from a manufacturer override into
+/// the member the creation call actually installs.
+///
+/// A literal word is kept with its own token (it lives in the
+/// manufacturer's body, which is where the reference genuinely is written).
+/// A `{*}$param` word splices the creation call's corresponding argument,
+/// whose literal list elements carry call-site tokens.  Anything else —
+/// a substitution with no statically-known value, or a `{*}` over one —
+/// yields `None`, and the caller abstains rather than inventing a
+/// superclass list.
+fn resolve_injected_member(
+    seg: &SegmentedCommand,
+    params: &[&str],
+    args: &[String],
+    arg_tokens: &[Token],
+) -> Option<InjectedMember> {
+    let texts_in = seg.args();
+    let tokens_in = seg.arg_tokens();
+    let mut member_words: Vec<String> = Vec::new();
+    let mut member_tokens: Vec<Token> = Vec::new();
+    for (i, (text, tok)) in texts_in.iter().zip(tokens_in.iter()).enumerate() {
+        let expanded = seg
+            .expand_word
+            .as_ref()
+            .and_then(|e| e.get(i + 1).copied())
+            .unwrap_or(false);
+        if expanded {
+            let refs = interpolated_var_names(text);
+            let [name] = refs.as_slice() else {
+                return None;
+            };
+            let arg_index = params.iter().position(|p| p == name)? + 1;
+            let call_tok = *arg_tokens.get(arg_index)?;
+            let call_text = args.get(arg_index)?;
+            for (element, element_tok) in literal_list_words(call_text, call_tok)? {
+                member_words.push(element);
+                member_tokens.push(element_tok);
+            }
+            continue;
+        }
+        if crate::naming::is_dynamic_word(text) {
+            return None;
+        }
+        member_words.push(text.clone());
+        member_tokens.push(*tok);
+    }
+    Some(InjectedMember {
+        texts: member_words,
+        argv: member_tokens,
+    })
+}
+
 /// Bundled arguments for [`Analyser::walk_proc_body_in_new_scope`] — kept
 /// under clippy's argument-count limit (mirrors `TaintScan` in `taint.rs`).
 #[derive(Clone, Copy)]
@@ -2896,16 +3177,26 @@ impl Analyser {
     /// For each literal element *after* the first (the first iteration is
     /// already covered by [`Self::handle_foreach_command`]'s own
     /// pre-binding + the loop's one normal body walk), narrowly re-dispatch
-    /// just the body's own `rename`/`proc` sub-commands with `var`
-    /// temporarily rebound to that element — the two commands whose
-    /// handlers already resolve a constant-foldable dynamic word via
-    /// [`Self::resolve_dynamic_word`], and the two go-to-definition/
-    /// references/rename need correctly resolved per iteration (issue #923
-    /// idx 86). Every *other* command in the body keeps the single
-    /// evaluation the normal walk above already gave it — deliberately
-    /// narrow, matching the issue #923 idx 110 precedent: this does not
-    /// generally re-walk the body per iteration (which would duplicate
-    /// diagnostics/scope entries for everything else), only these two.
+    /// just the body's own **named-definition installers** with `var`
+    /// temporarily rebound to that element — the commands whose registry
+    /// spec carries [`tcl_registry::Traits::INSTALLS_NAMED_DEFINITION`],
+    /// because those (and only those) name their target with a word whose
+    /// substituted value changes per iteration, so each element installs a
+    /// *different* definition (issue #923 idx 86 for `proc`/`rename`, idx
+    /// 55 for `oo::define`'s class target). Which commands those are is
+    /// registry data, never a name list here — a newly-stamped spec joins
+    /// the simulation with no edit to this walker.
+    ///
+    /// Every *other* command in the body keeps the single evaluation the
+    /// normal walk above already gave it — deliberately narrow, matching
+    /// the issue #923 idx 110 precedent: this does not generally re-walk
+    /// the body per iteration (which would duplicate diagnostics/scope
+    /// entries for everything else).
+    ///
+    /// Cost is `O(elements × body-commands)` with no fixpoint: the element
+    /// list is a bounded literal and each element re-dispatches only the
+    /// already-segmented installer commands.
+    ///
     /// Leaves `var` bound to the *last* element afterwards — the same
     /// value real Tcl leaves the loop variable holding once `foreach`
     /// completes.
@@ -2916,6 +3207,8 @@ impl Analyser {
         body_tok: Token,
         scope_path: &[usize],
     ) {
+        use tcl_registry::hooks::AnalyserHookId as Hook;
+
         if elements.len() < 2 || body_tok.kind != TokenType::Str {
             return;
         }
@@ -2935,27 +3228,58 @@ impl Analyser {
             let descended = descend_token(&sm, body_tok, config);
             segments_from_tree(descended.tree(), &sm)
         };
+        // Which of the body's commands install a per-iteration name is a
+        // fixed property of the segmented body, so classify once (registry
+        // lookup per body command) rather than once per element.
+        let installers: Vec<(SegmentedCommand, Hook)> = segs
+            .iter()
+            .filter_map(|seg| {
+                let resolved = self.resolve_analyser_hook_call(seg.name(), seg.args())?;
+                resolved
+                    .traits
+                    .contains(tcl_registry::Traits::INSTALLS_NAMED_DEFINITION)
+                    .then(|| (seg.clone(), resolved.hook))
+            })
+            .collect();
+        if installers.is_empty() {
+            return;
+        }
         for element in &elements[1..] {
             self.set_const_string(var, element.clone(), body_tok.span, scope_path);
-            for seg in &segs {
-                match seg.name() {
-                    "rename" => {
+            for (seg, hook) in &installers {
+                let args = seg.args();
+                let arg_tokens = seg.arg_tokens();
+                let arg_single = seg.arg_single_token();
+                match hook {
+                    Hook::Proc => {
+                        self.handle_proc_command(args, arg_tokens, arg_single, scope_path);
+                    }
+                    Hook::Rename => {
                         self.handle_rename(
-                            seg.args(),
-                            seg.arg_tokens(),
-                            seg.arg_single_token(),
+                            args,
+                            arg_tokens,
+                            arg_single,
                             scope_path,
                             seg.span.start(),
                         );
                     }
-                    "proc" => {
-                        self.handle_proc_command(
-                            seg.args(),
-                            seg.arg_tokens(),
-                            seg.arg_single_token(),
+                    Hook::OoDefine => {
+                        self.handle_oo_define_command(
+                            seg.name(),
+                            args,
+                            arg_tokens,
+                            arg_single,
                             scope_path,
                         );
                     }
+                    Hook::OoObjdefine => {
+                        self.handle_oo_objdefine(args, arg_tokens, arg_single, scope_path);
+                    }
+                    // Unreachable for a spec carrying the trait —
+                    // `installer_hook_is_redispatched` pins that every one
+                    // of them lands on an arm above, so a newly-stamped
+                    // spec cannot silently promise a re-dispatch this match
+                    // never delivers (Codex review of PR #1074).
                     _ => {}
                 }
             }
@@ -3607,8 +3931,10 @@ impl Analyser {
     /// as data rather than computing it — [`Self::handle_rename`]'s
     /// `OLD`/`NEW` words, and [`Self::handle_source_command`]'s path word
     /// (issue #923 idx 46: `set p "e.tcl"; source $p`, the same shape
-    /// `rename $old new` already resolved for idx 3).
-    fn resolve_dynamic_word(
+    /// `rename $old new` already resolved for idx 3), the `oo::define`
+    /// target word, and the command head itself
+    /// ([`Self::resolve_dynamic_command_head`]).
+    pub(super) fn resolve_dynamic_word(
         &self,
         text: &str,
         tok: Option<Token>,
@@ -3638,10 +3964,34 @@ impl Analyser {
                 &self.cached_line_index,
                 self.cached_line_index_source_len,
             );
-            let var_name = sm.token_text(tok);
-            return self
-                .lookup_dominating_const_string(var_name, scope_path)
-                .map(str::to_string);
+            // The token's *true source bytes*, which for a braced composite
+            // head (`${ns}::setdef`) are the whole word — the lexer merges
+            // the `${…}` substitution and everything glued to it into one
+            // `Var` token, so the raw text is `ns}::setdef`, not the
+            // variable name.  Reading it whole looks up a variable that
+            // cannot exist and abstains on a word that is in fact
+            // statically resolvable (issue #923 idx 44).  The dispatched
+            // variable ends at the brace the lexer left in place; the rest
+            // is an ordinary word suffix, folded like any other (it may
+            // itself interpolate, `${ns}::${sub}`).  Same truncation rule
+            // as `record_var_or_cmd_command_site`'s W307 head reading, so
+            // the two agree on which bytes name the variable.
+            let raw = sm.token_text(tok);
+            let (var_name, suffix) = if tok.content_offset >= 2 {
+                raw.split_once('}')
+                    .map_or((raw, ""), |(name, rest)| (name, rest))
+            } else {
+                (raw, "")
+            };
+            let value = self.lookup_dominating_const_string(var_name, scope_path)?;
+            if suffix.is_empty() {
+                return Some(value.to_string());
+            }
+            let folded_suffix = crate::text::fold_interpolation_single(suffix, |name| {
+                self.lookup_dominating_const_string(name, scope_path)
+                    .map(str::to_string)
+            })?;
+            return Some(format!("{value}{folded_suffix}"));
         }
         crate::text::fold_interpolation_single(text, |name| {
             self.lookup_dominating_const_string(name, scope_path)
@@ -3831,12 +4181,22 @@ impl Analyser {
     /// name is present), mirroring [`Self::handle_oo_define_command`],
     /// so the generic body recursion does not also descend the body.
     ///
+    /// A receiver written as a substitution keeps its **variable** name as
+    /// the `objdefined_vars` / `object_methods` key — that is what a
+    /// `$obj method` dispatch site is keyed by — but when the word also
+    /// folds to a dominating constant (`foreach o {::a ::b} { oo::objdefine
+    /// $o { … } }`) the per-object facts are recorded under the *object's*
+    /// own name as well, so a bare `::a probe` call sees them too.  tclsh
+    /// 9.0.4 / 8.6.16 both confirm every literal element really gains the
+    /// method.
+    ///
     /// Dispatched via
     /// [`tcl_registry::hooks::AnalyserHookId::OoObjdefine`].
     pub fn handle_oo_objdefine(
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
+        arg_single: &[bool],
         scope_path: &[usize],
     ) -> bool {
         if args.is_empty() {
@@ -3849,6 +4209,19 @@ impl Analyser {
         if !obj_name.is_empty() {
             self.objdefined_vars.insert(obj_name.clone());
         }
+        // The object the receiver word actually names this time round, when
+        // it is statically determined.
+        let resolved_obj = self
+            .resolve_dynamic_word(
+                &args[0],
+                arg_tokens.first().copied(),
+                arg_single.first().copied().unwrap_or(false),
+                scope_path,
+            )
+            .map(|name| name.trim().to_string())
+            .filter(|name| {
+                !name.is_empty() && *name != obj_name && !crate::naming::is_dynamic_word(name)
+            });
 
         // `oo::objdefine $obj` with no definition script — the object variable
         // is recorded above; there is nothing more to walk.
@@ -3918,18 +4291,19 @@ impl Analyser {
         // Each record carries the objdefine site's receiver offset, so
         // consumers key it by the receiver's *binding identity* — never by
         // the textual tail alone (issue #945 fault 5).
-        if !obj_name.is_empty() && !object_class.methods.is_empty() {
+        if !object_class.methods.is_empty() {
             let objdefine_offset = arg_tokens.first().map_or(0, |t| t.span.start());
-            self.result
-                .object_methods
-                .entry(obj_name)
-                .or_default()
-                .extend(object_class.methods.into_values().map(|def| {
-                    super::types::ObjectMethodDef {
-                        def,
-                        objdefine_offset,
-                    }
-                }));
+            // Source-ordered, so the recorded sequence is the same on every
+            // run (and the same under each key) rather than the hash map's
+            // iteration order.
+            let mut methods: Vec<super::types::MethodDef> =
+                object_class.methods.into_values().collect();
+            methods.sort_by_key(|def| def.name_span.start());
+            for key in [Some(obj_name), resolved_obj].into_iter().flatten() {
+                if !key.is_empty() {
+                    self.record_object_methods(key, &methods, objdefine_offset);
+                }
+            }
         }
 
         true
@@ -4078,6 +4452,334 @@ impl Analyser {
             .and_then(|s| s.definition_body)
     }
 
+    /// The word layout of `Meta create …` plus whatever members the
+    /// manufacturer injects into every class it makes.
+    ///
+    /// A user metaclass that does not override the manufacturer inherits
+    /// `oo::class`'s own `create Name Body` shape, so the builtin layout
+    /// applies unchanged.  One that *does* override it declares its own
+    /// shape in the override's parameter list, and that override is read
+    /// here rather than guessed: Tk's `self method create {name superclasses
+    /// body}` puts the body at argument 3, not 2, and splices a superclass
+    /// the caller never wrote (issue #923 idx 96/97).
+    fn manufacturer_layout(
+        &self,
+        meta: &UserMetaclass,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) -> ManufacturerLayout {
+        // `args[0]` is the manufacturer subcommand this call actually used,
+        // so the override looked up is the one that will run.
+        let override_def = self
+            .result
+            .all_classes
+            .get(&meta.qualified)
+            .and_then(|class| class.class_methods.get(&args[0]));
+        let Some(override_def) = override_def else {
+            return ManufacturerLayout::builtin();
+        };
+        let positions = self.manufacturer_word_positions(override_def);
+        let (name_arg, body_arg) = positions.unwrap_or((1, 2));
+        let injected = positions
+            .and_then(|_| self.manufacturer_injected_members(meta, override_def, args, arg_tokens));
+        ManufacturerLayout {
+            name_arg,
+            body_arg,
+            inheritance_unknown: injected.is_none(),
+            injected: injected.unwrap_or_default(),
+        }
+    }
+
+    /// Which of the creation call's argument words carry the new class's
+    /// name and body, read off the manufacturer override's own `next` call.
+    ///
+    /// The override re-enters the manufacturer chain through `next`
+    /// (identified by [`tcl_registry::registry::MethodDispatchKind::NextChain`],
+    /// registry data), whose arguments sit at the *builtin* `create Name
+    /// Body` positions.  Whichever of the override's parameters those
+    /// arguments read is therefore the caller's name / body word: the first
+    /// parameter reference is the name, the last is the body (the body is
+    /// always spliced in last — everything between is the definition
+    /// prologue the manufacturer builds).  Returns `None` when the override
+    /// cannot be read that way, and the caller falls back to the builtin
+    /// positions with inheritance marked unknown.
+    fn manufacturer_word_positions(
+        &self,
+        override_def: &super::types::MethodDef,
+    ) -> Option<(usize, usize)> {
+        let params: Vec<&str> = override_def
+            .params
+            .iter()
+            .map(|p| p.name.as_str())
+            .collect();
+        let next_seg = self.manufacturer_next_call(override_def)?;
+        // Parameter `i` of the override binds argument `i + 1` of the call
+        // (argument 0 being the manufacturer subcommand itself).
+        let param_arg = |name: &str| params.iter().position(|p| *p == name).map(|i| i + 1);
+        let refs: Vec<&str> = next_seg
+            .args()
+            .iter()
+            .flat_map(|word| interpolated_var_names(word))
+            .collect();
+        let name_arg = param_arg(refs.first().copied()?)?;
+        let body_arg = param_arg(refs.last().copied()?)?;
+        (name_arg != body_arg).then_some((name_arg, body_arg))
+    }
+
+    /// The manufacturer override's `next` statement, re-segmented from its
+    /// own source bytes.
+    fn manufacturer_next_call(
+        &self,
+        override_def: &super::types::MethodDef,
+    ) -> Option<SegmentedCommand> {
+        let registry = self.registry.as_ref()?;
+        let start = override_def.body_span.start() as usize;
+        let end = override_def.body_span.end() as usize;
+        let raw = self.source.get(start..end)?;
+        // `MethodDef` keeps the body **word**'s span, whose start sits on
+        // the opening delimiter; the script is its content.
+        let (body, base) = raw
+            .strip_prefix(['{', '"'])
+            .map_or((raw, start), |inner| (inner, start.saturating_add(1)));
+        crate::segmenter::segment_commands_with_offset_and_config(
+            body,
+            u32::try_from(base).unwrap_or(0),
+            self.lexer_config(),
+        )
+        .into_iter()
+        .find(|seg| {
+            !seg.is_partial
+                && registry.method_dispatch_keyword(seg.name())
+                    == Some(tcl_registry::registry::MethodDispatchKind::NextChain)
+        })
+    }
+
+    /// The definition-body members the manufacturer splices into every class
+    /// it makes, resolved against *this* call's arguments.
+    ///
+    /// Tk's `Megawidget` hands `next` a `[list superclass ::tk::MegawidgetClass
+    /// {*}$superclasses]` prologue, so every class it makes really does
+    /// inherit `::tk::MegawidgetClass` plus whatever the caller passed —
+    /// tclsh 9.0.4 and 8.6.16 both report exactly that from `info class
+    /// superclasses`.  Only **reference-only** members (`superclass`,
+    /// `mixin`, `filter`, `export`, … — the grammar's `all_args_ref` set)
+    /// are injected: they name existing entities, so every injected word
+    /// keeps a real source span, either in the manufacturer's own body
+    /// (a literal it always splices) or in this call's arguments (a
+    /// `{*}$param` splice).
+    ///
+    /// **Reading the whole prologue is a precondition, not a best effort.**
+    /// The definition word `next` receives is scanned piece by piece, and
+    /// every piece must be one the analyser can account for: a `[list
+    /// <member> …]` group it parsed, the manufacturer's own `$param` read
+    /// (the caller's body, spliced in verbatim), or list/statement
+    /// separator text.  Anything else — most importantly a **string-built**
+    /// prologue such as `next $name "superclass Base\n$body"`, which
+    /// injects a superclass with no nested command at all (tclsh 9.0.4 /
+    /// 8.6.16: `info class superclasses` really reports `::Base`, and its
+    /// methods really are inherited) — yields `None`, and the class is
+    /// recorded with its inheritance marked unknown.  Returning a
+    /// *known-empty* injection for a prologue that was merely unreadable
+    /// would claim the class has no superclass and let W308 fire on
+    /// perfectly good inherited methods.
+    fn manufacturer_injected_members(
+        &self,
+        meta: &UserMetaclass,
+        override_def: &super::types::MethodDef,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) -> Option<Vec<InjectedMember>> {
+        let params: Vec<&str> = override_def
+            .params
+            .iter()
+            .map(|p| p.name.as_str())
+            .collect();
+        let next_seg = self.manufacturer_next_call(override_def)?;
+        // The definition word is `next`'s last argument that reads one of
+        // the override's parameters — the builtin `create Name Body`
+        // layout's `Body` position, which is what the prologue is composed
+        // into.
+        let (word_index, prologue) =
+            next_seg.args().iter().enumerate().rev().find(|(_, word)| {
+                interpolated_var_names(word)
+                    .iter()
+                    .any(|name| params.contains(name))
+            })?;
+        // `Cmd` sub-tokens of that word, in source order — the word is
+        // `next`'s last argument, so every command substitution at or after
+        // its first token belongs to it.
+        let word_start = next_seg.argv.get(word_index + 1)?.span.start();
+        let mut groups = next_seg
+            .all_tokens
+            .iter()
+            .filter(|tok| tok.kind == TokenType::Cmd && tok.span.start() >= word_start);
+        let mut injected: Vec<InjectedMember> = Vec::new();
+        for piece in prologue_pieces(prologue) {
+            match piece {
+                ProloguePiece::Separator => {}
+                ProloguePiece::VarRead(name) if params.contains(&name) => {}
+                ProloguePiece::Substitution => {
+                    injected.push(self.injected_member_from_group(
+                        meta,
+                        *groups.next()?,
+                        &params,
+                        args,
+                        arg_tokens,
+                    )?);
+                }
+                // Literal prologue text, a read of something that is not a
+                // manufacturer parameter, or an unreadable fragment: the
+                // prologue is not fully accounted for.
+                ProloguePiece::VarRead(_) | ProloguePiece::Opaque => return None,
+            }
+        }
+        Some(injected)
+    }
+
+    /// The definition-body member one `[…]` group of a manufacturer
+    /// prologue installs, or `None` when the group is not a
+    /// reference-only member built by a canonical-list command.
+    fn injected_member_from_group(
+        &self,
+        meta: &UserMetaclass,
+        group: Token,
+        params: &[&str],
+        args: &[String],
+        arg_tokens: &[Token],
+    ) -> Option<InjectedMember> {
+        let registry = self.registry.as_ref()?;
+        let sm = SourceMap::new(&self.source);
+        let descended = descend_token(&sm, group, self.lexer_config());
+        let mut segs = segments_from_tree(descended.tree(), &sm).into_iter();
+        let seg = segs.next()?;
+        // One group builds one member; a `[a; b]` compound is not a shape
+        // the prologue reader accounts for.
+        if segs.next().is_some() {
+            return None;
+        }
+        // The prologue is built by a command that quotes its arguments into
+        // a canonical list — registry data (`PRODUCES_CANONICAL_LIST`),
+        // never a command name here.
+        if !registry.get(seg.name()).is_some_and(|spec| {
+            spec.traits
+                .contains(tcl_registry::Traits::PRODUCES_CANONICAL_LIST)
+        }) {
+            return None;
+        }
+        let member = seg
+            .args()
+            .first()
+            .and_then(|keyword| meta.grammar.member(keyword))?;
+        member.all_args_ref?;
+        resolve_injected_member(&seg, params, args, arg_tokens)
+    }
+
+    /// The recorded class `cmd_name` names when that class is **itself a
+    /// class factory** — a user-defined `TclOO` metaclass.
+    ///
+    /// A class is a factory when its (possibly indirect) superclass chain
+    /// reaches a command the registry marks [`tcl_registry::Traits::IS_OO_METACLASS`]
+    /// with a `TclOo` definition-body grammar — the same seed
+    /// [`Self::handle_oo_class_command`] uses for a written-out
+    /// `oo::class create`.  Only the inheritance step is added here, and
+    /// that is `TclOO` language semantics (`oo::class`'s subclasses
+    /// manufacture classes), not per-command knowledge.
+    ///
+    /// The returned grammar is the *root registry metaclass's* own
+    /// definition-body grammar, so the bodies this factory makes are walked
+    /// by exactly the grammar the language gives them without the walker
+    /// naming a metaclass command.
+    ///
+    /// A `superclass` word is written as the *declaring* class sees it, so
+    /// a relative name (`superclass Meta` inside `::n::DerivedMeta`) is
+    /// resolved through the shared owner-aware class-name resolution
+    /// ([`super::class_hierarchy::resolve_class_name`]) — the same
+    /// current-namespace-then-global rule the class lattice and the MRO
+    /// builder already implement, never a re-derivation of it here.  That
+    /// keeps this chain walk sound-by-abstention in the same places they
+    /// are: an ambiguous simple name resolves to nothing rather than
+    /// cross-linking a same-named class in an unrelated namespace.
+    ///
+    /// Chain walking is depth-bounded and visited-checked, so a cyclic
+    /// `superclass` declaration (rejected by real Tcl, but writable in a
+    /// half-edited buffer) terminates.
+    fn user_metaclass_of_command(
+        &self,
+        cmd_name: &str,
+        scope_path: &[usize],
+    ) -> Option<UserMetaclass> {
+        let registry = self.registry.as_ref()?;
+        let qualified = self.resolve_command_qualified_name(cmd_name, scope_path);
+        if !self.result.all_classes.contains_key(&qualified) {
+            return None;
+        }
+        let tail_index = super::class_hierarchy::build_tail_index(self.result.all_classes.keys());
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut queue: Vec<String> = vec![qualified.clone()];
+        // Bounded by the recorded class count — every class is visited once.
+        while let Some(class_qname) = queue.pop() {
+            if !seen.insert(class_qname.clone()) {
+                continue;
+            }
+            let Some(class) = self.result.all_classes.get(&class_qname) else {
+                continue;
+            };
+            for parent in &class.superclasses {
+                // The registry seed: `oo::class` and its siblings are named
+                // as commands, so a leading `::` is the same command.
+                let bare = parent.strip_prefix("::").unwrap_or(parent);
+                if let Some(spec) = registry.get(bare)
+                    && spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS)
+                    && let Some(grammar) = spec.definition_body
+                    && grammar.family == tcl_registry::definer::DefinerFamily::TclOo
+                {
+                    return Some(UserMetaclass { qualified, grammar });
+                }
+                if let Some(next) = super::class_hierarchy::resolve_class_name(
+                    parent,
+                    &class_qname,
+                    |candidate| self.result.all_classes.contains_key(candidate),
+                    &tail_index,
+                ) {
+                    queue.push(next);
+                }
+            }
+        }
+        None
+    }
+
+    /// Add one `oo::objdefine` site's per-object methods under `key`,
+    /// skipping any the same site already contributed.
+    ///
+    /// The `foreach`-literal simulation re-dispatches an installer once per
+    /// remaining element, and the ordinary walk already covered the first
+    /// one, so the first element's site is visited twice under the
+    /// *variable*'s key.  A single source site can never legitimately
+    /// declare the same member twice, so `(objdefine_offset, name)` is an
+    /// exact identity for "already recorded" — no iteration count is
+    /// needed, and a genuinely separate `oo::objdefine` block on the same
+    /// object (a different offset) still accumulates.
+    fn record_object_methods(
+        &mut self,
+        key: String,
+        methods: &[super::types::MethodDef],
+        objdefine_offset: u32,
+    ) {
+        let recorded = self.result.object_methods.entry(key).or_default();
+        for def in methods {
+            if recorded
+                .iter()
+                .any(|m| m.objdefine_offset == objdefine_offset && m.def.name == def.name)
+            {
+                continue;
+            }
+            recorded.push(super::types::ObjectMethodDef {
+                def: def.clone(),
+                objdefine_offset,
+            });
+        }
+    }
+
     /// Handle `oo::class create NAME ?BODY?` — record the class.
     ///
     /// Records a [`super::types::ClassDef`] in ``result.all_classes``
@@ -4111,7 +4813,21 @@ impl Analyser {
         //    create method …` (a class literally named `create`) must not be
         //    mistaken for a creation and stolen from `handle_oo_define_command`.
         // define/objdefine carry no `IS_OO_METACLASS`, so they fall through.
-        let is_class_definer = self
+        //
+        // The cheap shape tests come first: this runs for *every* command
+        // with no stamped analyser hook, and only a `create` / `new` /
+        // `createWithNamespace` head can possibly introduce a class, so the
+        // registry and class-chain lookups below are reached by almost
+        // nothing.
+        if args.len() < 2 || arg_tokens.len() < 2 {
+            return false;
+        }
+        // `create Name ?body?`, `new ?body?`, and `createWithNamespace Name ns
+        // ?body?` all introduce a class.
+        if !matches!(args[0].as_str(), "create" | "new" | "createWithNamespace") {
+            return false;
+        }
+        let registry_definer = self
             .registry
             .as_ref()
             .and_then(|r| r.get(cmd_name))
@@ -4120,15 +4836,37 @@ impl Analyser {
                     && s.definition_body
                         .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::TclOo)
             });
-        if !is_class_definer || args.len() < 2 || arg_tokens.len() < 2 {
+        // …but *being* a metaclass is a property of the class, not of the
+        // registry: `oo::class create Megawidget { superclass ::oo::class … }`
+        // makes `Megawidget` every bit as much a class factory as `oo::class`
+        // itself, and Tk's own `library/megawidget.tcl` builds `SimpleWidget`
+        // / `FocusableWidget` / `IconList` that way (issue #923 idx 96/97).
+        // A registry lookup alone can never see it, so metaclass-ness also
+        // propagates down the recorded superclass chain — the *seed* is still
+        // registry data (`IS_OO_METACLASS`), only the inheritance step is
+        // `TclOO` language semantics.
+        let user_metaclass = if registry_definer {
+            None
+        } else {
+            self.user_metaclass_of_command(cmd_name, scope_path)
+        };
+        if !registry_definer && user_metaclass.is_none() {
             return false;
         }
-        // `create Name ?body?`, `new ?body?`, and `createWithNamespace Name ns
-        // ?body?` all introduce a class.
-        if !matches!(args[0].as_str(), "create" | "new" | "createWithNamespace") {
+        // Where the name and body words sit, and what the manufacturer
+        // splices into every body it makes.  For a registry metaclass this is
+        // the builtin `create Name Body` layout; a user metaclass that
+        // *overrides* the manufacturer (`self method create {name superclasses
+        // body} { next $name [list superclass Base {*}$superclasses];$body }`)
+        // declares its own, read off the override.
+        let layout = match user_metaclass.as_ref() {
+            None => ManufacturerLayout::builtin(),
+            Some(meta) => self.manufacturer_layout(meta, args, arg_tokens),
+        };
+        if layout.name_arg >= args.len() || layout.name_arg >= arg_tokens.len() {
             return false;
         }
-        let raw_name = &args[1];
+        let raw_name = &args[layout.name_arg];
         // Home the class to the command-resolution namespace (see the same
         // reasoning in `handle_proc_command`): a class created inside a
         // qualified-name proc's body homes to that proc's defining namespace,
@@ -4137,11 +4875,11 @@ impl Analyser {
         let ns_prefix = self.command_resolution_namespace(scope_path);
         let qualified = qualify(&ns_prefix, raw_name);
         let simple = crate::naming::key_tail(&qualified).to_string();
-        let name_span = arg_tokens[1].span;
+        let name_span = arg_tokens[layout.name_arg].span;
         // **W314** — the class name has no absolute written form (#934).
         self.emit_w314_no_absolute_name(raw_name, name_span);
-        let body_tok_opt = arg_tokens.get(2).copied();
-        let body_span = body_tok_opt.map_or(arg_tokens[1].span, |t| t.span);
+        let body_tok_opt = arg_tokens.get(layout.body_arg).copied();
+        let body_span = body_tok_opt.map_or(name_span, |t| t.span);
         let doc = std::mem::take(&mut self.last_comment);
         let mut class = super::types::ClassDef {
             name: simple,
@@ -4150,13 +4888,34 @@ impl Analyser {
             body_span,
             metaclass: cmd_name.to_string(),
             doc,
+            inheritance_unknown: layout.inheritance_unknown,
             ..Default::default()
         };
+        // A user metaclass has no spec of its own, so the bodies it makes are
+        // governed by the definition grammar of the registry metaclass at the
+        // root of its superclass chain — the same `TclOO` grammar, reached
+        // without naming it here.
+        let grammar = user_metaclass
+            .as_ref()
+            .map_or_else(|| self.definition_grammar(cmd_name), |m| Some(m.grammar));
+        // Members the manufacturer itself injects (Tk's `Megawidget` splices
+        // `superclass ::tk::MegawidgetClass` plus whatever the caller passed)
+        // are applied through the *same* registry-grammar routing as a member
+        // written in the body, so no member keyword is known here by name.
+        if let Some(grammar) = grammar {
+            for injected in &layout.injected {
+                super::oo::apply_oo_subcommand(
+                    grammar,
+                    &injected.texts,
+                    &injected.argv,
+                    &mut class,
+                );
+            }
+        }
         // Walk the class body when present — populates
         // ``superclasses`` / ``mixins`` / ``methods`` /
         // ``class_methods`` from the OO-define subcommands.
-        if let (Some(body_text), Some(body_tok)) = (args.get(2), body_tok_opt) {
-            let grammar = self.definition_grammar(cmd_name);
+        if let (Some(body_text), Some(body_tok)) = (args.get(layout.body_arg), body_tok_opt) {
             let definer_disabled = self.command_dialect_disabled(cmd_name);
             self.parse_oo_definition_body(
                 body_text,
@@ -4209,12 +4968,29 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
+        arg_single: &[bool],
         scope_path: &[usize],
     ) -> bool {
         if args.is_empty() {
             return false;
         }
-        let raw_class_name = &args[0];
+        // A target word written with a substitution may still name exactly
+        // one class: `foreach cls {A B} { oo::define $cls { … } }` binds
+        // `cls` to a literal element per iteration, so each iteration
+        // extends a real, named class (issue #923 idx 55 — the ticklecharts
+        // `etsb.tcl` monkey-patch of four literally-listed classes).  Fold
+        // through the same dominating-constant lattice every other
+        // identity-resolving word uses; only a genuinely unresolvable
+        // target falls through to the synthetic key below.
+        let resolved_class_name = self
+            .resolve_dynamic_word(
+                &args[0],
+                arg_tokens.first().copied(),
+                arg_single.first().copied().unwrap_or(false),
+                scope_path,
+            )
+            .filter(|name| !crate::naming::is_dynamic_word(name));
+        let raw_class_name = resolved_class_name.as_ref().unwrap_or(&args[0]);
         // A relative class name resolves against the namespace current at the
         // call — the command-resolution namespace (issue #923 idx 85).
         let ns_prefix = self.command_resolution_namespace(scope_path);
@@ -8512,26 +9288,164 @@ mod tests {
         assert!(!r.source_targets[0].is_literal, "{:?}", r.source_targets[0]);
     }
 
+    // The `INSTALLS_NAMED_DEFINITION` re-dispatch contract.
+
+    #[test]
+    fn every_installer_spec_lands_on_a_live_redispatch_arm() {
+        // Drift gate — the trait is a *promise* that
+        // `simulate_remaining_foreach_iterations` re-runs the command once
+        // per literal `foreach` element.  A spec that carries it but whose
+        // analyser hook has no arm in that match silently promises nothing
+        // (Codex review of PR #1074: `oo::objdefine` was exactly that).
+        // Registry-driven, so a newly-stamped spec fails here rather than
+        // in a corpus months later.
+        use tcl_registry::hooks::AnalyserHookId as Hook;
+        let redispatched = [Hook::Proc, Hook::Rename, Hook::OoDefine, Hook::OoObjdefine];
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let mut checked = 0usize;
+        for name in registry.command_names() {
+            for spec in registry.specs(name) {
+                if !spec
+                    .traits
+                    .contains(tcl_registry::Traits::INSTALLS_NAMED_DEFINITION)
+                {
+                    continue;
+                }
+                checked += 1;
+                let hook = spec.analyser_hook.unwrap_or_else(|| {
+                    panic!("{name} carries INSTALLS_NAMED_DEFINITION but has no analyser hook")
+                });
+                assert!(
+                    redispatched.contains(&hook),
+                    "{name} carries INSTALLS_NAMED_DEFINITION but its hook {hook:?} has no \
+                     arm in the foreach re-dispatch — the trait promises a re-dispatch \
+                     the match does not deliver",
+                );
+            }
+        }
+        assert!(
+            checked >= 4,
+            "expected proc/rename/oo::define/oo::objdefine, saw {checked}"
+        );
+    }
+
+    #[test]
+    fn foreach_objdefine_records_per_object_facts_for_every_literal_element() {
+        // TP — issue #923 idx 55's sibling shape.  tclsh 9.0.4 and 8.6.16
+        // both run `foreach o {::a ::b} { oo::objdefine $o { method probe
+        // {} {…} } }` and report `probe` in `info object methods` for
+        // *both* objects, so both must carry the per-object method fact.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Base { method hello {} { return hi } }\n\
+             Base create ::a\n\
+             Base create ::b\n\
+             foreach o {::a ::b} {\n    oo::objdefine $o {\n        method probe {} { return probed }\n    }\n}\n",
+            "tcl9.0",
+        );
+        for obj in ["::a", "::b"] {
+            let methods = r
+                .object_methods
+                .get(obj)
+                .unwrap_or_else(|| panic!("{obj} has per-object methods: {:?}", r.object_methods));
+            assert!(
+                methods.iter().any(|m| m.def.name == "probe"),
+                "{obj} gained probe: {methods:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn foreach_objdefine_does_not_double_record_the_first_element() {
+        // FP guard — the ordinary body walk covers the first element and
+        // the simulation covers the rest, so the first element's site is
+        // visited twice under the loop variable's own key.  One source site
+        // can never declare the same member twice, so it must appear once.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Base { method hello {} { return hi } }\n\
+             Base create ::a\n\
+             Base create ::b\n\
+             foreach o {::a ::b} {\n    oo::objdefine $o {\n        method probe {} { return probed }\n    }\n}\n",
+            "tcl9.0",
+        );
+        for (key, methods) in &r.object_methods {
+            let probes = methods.iter().filter(|m| m.def.name == "probe").count();
+            assert!(
+                probes <= 1,
+                "{key} recorded probe {probes} times: {methods:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn foreach_objdefine_does_not_duplicate_body_diagnostics() {
+        // FP guard — re-running the installer per element re-walks the
+        // per-object method bodies, so a diagnostic raised inside one must
+        // still be reported once per site, never once per iteration.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Base { method hello {} { return hi } }\n\
+             Base create ::a\n\
+             Base create ::b\n\
+             foreach o {::a ::b} {\n    oo::objdefine $o {\n        method probe {} { return $undefinedVar }\n    }\n}\n",
+            "tcl9.0",
+        );
+        let mut seen = std::collections::HashSet::new();
+        for diag in &r.diagnostics {
+            assert!(
+                seen.insert((diag.code.to_string(), diag.span)),
+                "duplicate diagnostic {:?} at {:?}",
+                diag.code,
+                diag.span,
+            );
+        }
+    }
+
+    #[test]
+    fn foreach_objdefine_over_a_dynamic_list_abstains() {
+        // TN — a runtime element list names no object the walk can know, so
+        // the per-object facts stay under the loop variable's own key and
+        // are never attributed to a literal object.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Base { method hello {} { return hi } }\n\
+             Base create ::a\n\
+             foreach o $objects {\n    oo::objdefine $o {\n        method probe {} { return probed }\n    }\n}\n",
+            "tcl9.0",
+        );
+        assert!(
+            !r.object_methods.contains_key("::a"),
+            "a runtime receiver must not be attributed to a literal object: {:?}",
+            r.object_methods,
+        );
+        assert!(
+            r.object_methods.contains_key("o"),
+            "the facts stay under the receiver variable: {:?}",
+            r.object_methods,
+        );
+    }
+
     // handle_oo_objdefine
 
     #[test]
     fn handle_oo_objdefine_records_dollar_var() {
         let mut a = Analyser::new();
-        a.handle_oo_objdefine(&["$obj".to_string()], &[], &[]);
+        a.handle_oo_objdefine(&["$obj".to_string()], &[], &[], &[]);
         assert!(a.objdefined_vars.contains("obj"));
     }
 
     #[test]
     fn handle_oo_objdefine_records_braced_dollar_var() {
         let mut a = Analyser::new();
-        a.handle_oo_objdefine(&["${obj}".to_string()], &[], &[]);
+        a.handle_oo_objdefine(&["${obj}".to_string()], &[], &[], &[]);
         assert!(a.objdefined_vars.contains("obj"));
     }
 
     #[test]
     fn handle_oo_objdefine_records_bare_name() {
         let mut a = Analyser::new();
-        a.handle_oo_objdefine(&["obj".to_string()], &[], &[]);
+        a.handle_oo_objdefine(&["obj".to_string()], &[], &[], &[]);
         assert!(a.objdefined_vars.contains("obj"));
     }
 
@@ -8775,10 +9689,15 @@ mod tests {
         // method into the second's ClassDef (and vice versa via the
         // dual-registration into `scope.classes`), producing a document
         // symbol whose child method range sits outside its own parent's.
+        // The targets here are *parameters*, so no constant dominates
+        // either call and both stay genuinely dynamic — the shape this
+        // guard is about.  (A target bound to a dominating constant is a
+        // different, statically-resolvable case: see
+        // `oo_define_resolves_a_dominating_constant_target`.)
         let mut a = Analyser::new();
         let r = a.analyse(
-            "proc addFoo {} {\n    set class ::A\n    oo::define $class method foo {} { return foo }\n}\n\
-             proc addBar {} {\n    set class ::B\n    oo::define $class method bar {} { return bar }\n}\n",
+            "proc addFoo {class} {\n    oo::define $class method foo {} { return foo }\n}\n\
+             proc addBar {class} {\n    oo::define $class method bar {} { return bar }\n}\n",
             "tcl8.6",
         );
         let synthetic: Vec<_> = r
@@ -8810,14 +9729,19 @@ mod tests {
 
     #[test]
     fn dynamic_oo_define_target_does_not_touch_a_same_named_literal_class() {
-        // FP guard — a literal class that happens to share source text with
-        // an unrelated dynamic target (`$Widget` vs a real class literally
-        // named `Widget`) must never be found/extended by the dynamic call:
-        // the synthetic key can never collide with a real qualified name.
+        // FP guard — a class whose *written* name matches nothing knowable
+        // (`$class` bound to a parameter) must never be found/extended
+        // through a literal class that happens to share the variable's
+        // source text: the synthetic key can never collide with a real
+        // qualified name.  A target bound to a dominating constant *is*
+        // resolvable and does extend the real class — tclsh 9.0.4/8.6.16
+        // agree — which is
+        // `oo_define_resolves_a_dominating_constant_target`'s case, not
+        // this one.
         let mut a = Analyser::new();
         let r = a.analyse(
             "oo::class create Widget {\n    method real {} {}\n}\n\
-             proc addDynamic {} {\n    set class Widget\n    oo::define $class method dynamic {} {}\n}\n",
+             proc addDynamic {class} {\n    oo::define $class method dynamic {} {}\n}\n",
             "tcl8.6",
         );
         let widget = &r.all_classes["::Widget"];
@@ -8838,6 +9762,7 @@ mod tests {
             &["MyClass".to_string(), "method m {} {}".to_string()],
             &[],
             &[],
+            &[],
         );
         assert!(handled);
     }
@@ -8845,7 +9770,7 @@ mod tests {
     #[test]
     fn handle_oo_define_no_args_returns_false() {
         let mut a = Analyser::new();
-        let handled = a.handle_oo_define_command("oo::define", &[], &[], &[]);
+        let handled = a.handle_oo_define_command("oo::define", &[], &[], &[], &[]);
         assert!(!handled);
     }
 
