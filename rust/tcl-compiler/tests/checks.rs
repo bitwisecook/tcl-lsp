@@ -1849,6 +1849,44 @@ mod builtin_shadow {
         ));
         assert!(!fires("proc ::snit::type {name def} {}", D, "W113"));
     }
+
+    // issue #923 idx 11: a bare-name `proc` whose only registry match is a
+    // `required_package`-gated third-party command (argparse, a tcllib
+    // package, …) must not fire W113 — that command does not exist in a
+    // stock interpreter until its package is loaded, so defining a proc of
+    // the same name is not shadowing a built-in; it is (often) that
+    // package's own implementation. Ground truth (tclsh 9.0.4 / 8.6.14):
+    // `info commands argparse` is empty and calling it errors
+    // `invalid command name "argparse"` before the package is sourced.
+    #[test]
+    fn package_gated_command_name_not_flagged() {
+        // TP (repro, argparse.tcl:17's exact shape): defining the
+        // `argparse` package's own entry point must not warn that it
+        // shadows a built-in — `argparse` is required_package-gated
+        // (rust/tcl-registry/src/commands/argparse/command.rs), not a core
+        // command.
+        assert!(!fires("proc ::argparse {args} {}", D, "W113"));
+        // A tcllib package command name hits the same gate.
+        assert!(!fires("proc ::textutil::adjust {s} {}", D, "W113"));
+    }
+
+    // TN: a genuine core built-in (no `required_package`) still fires,
+    // across dialects — the package-gating filter must not blunt the
+    // original check.
+    #[test]
+    fn ungated_builtin_shadow_still_fires_across_dialects() {
+        assert_eq!(count("proc set {a b} {}", "tcl8.4", "W113"), 1);
+        assert_eq!(count("proc set {a b} {}", "tcl9.0", "W113"), 1);
+    }
+
+    // TN: iRules' `pool` is ambient (part of the profile's real, always-
+    // present command surface) and carries no `required_package` at all —
+    // it must keep firing W113 exactly as before this fix, proving the new
+    // filter does not touch commands that were never package-gated.
+    #[test]
+    fn ambient_irules_command_still_flagged() {
+        assert_eq!(count("proc pool {a} {}", IR, "W113"), 1);
+    }
 }
 
 // ===========================================================================

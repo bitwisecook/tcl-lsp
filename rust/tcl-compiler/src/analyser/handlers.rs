@@ -683,6 +683,22 @@ impl Analyser {
     /// — its own definition or a deliberate override, not shadowing a built-in.
     /// And the overridable Tcl *library* procedures (`unknown`, `history`,
     /// `auto_*`, …) are script-defined, documented user-replaceable overlays.
+    /// A third-party/package command (`argparse`, a tcllib/itcl/ticklecharts
+    /// proc, …) is excluded too (issue #923 idx 11): `registry.command_names()`
+    /// is the full package-inclusive command universe, not the set of names a
+    /// bare Tcl interpreter actually starts with, so a proc named after a
+    /// registered package command (e.g. `proc ::argparse {args} {...}`
+    /// defining the `argparse` package's own entry point) is not shadowing
+    /// anything until that package is actually loaded — and even then it is
+    /// the package's own definition, not a redefinition of a core built-in.
+    /// The gate reads `CommandSpec::owning_package` (`required_package` or
+    /// its `tcllib_package` alias) rather than a hardcoded package-name list,
+    /// so it stays correct as new package specs are added. A package a
+    /// profile ships **ambient** (an F5 command pack, an EDA vendor tool
+    /// surface) is the exception: that profile's real, always-present command
+    /// surface, so it keeps firing W113 like any other core built-in (e.g.
+    /// iRules' `pool`, which — being ambient and never `required_package`-gated
+    /// in the first place — is untouched by this filter).
     fn emit_w113_proc_shadows_builtin(&mut self, raw_name: &str, qualified: &str, name_span: Span) {
         let normalised_proc: String = raw_name.trim_start_matches(':').to_string();
         let normalised_qual: String = qualified.trim_start_matches(':').to_string();
@@ -704,7 +720,9 @@ impl Analyser {
             }
         };
         let shadow_name = shadow_name.filter(|name| {
-            !name.contains("::") && !overridable_library_procs().contains(name.as_str())
+            !name.contains("::")
+                && !overridable_library_procs().contains(name.as_str())
+                && !self.is_package_gated_non_ambient(name)
         });
         if shadow_name.is_some() {
             // The permissive fallback profile means "no specific dialect" —
@@ -723,6 +741,27 @@ impl Analyser {
                 fixes: Vec::new(),
             });
         }
+    }
+
+    /// Whether `name` (a bare or fully-qualified command name already known
+    /// to be in `registry.command_names()`) resolves to a `CommandSpec` gated
+    /// behind a `required_package` / `tcllib_package` (`CommandSpec::
+    /// owning_package`) that this profile does **not** ship ambiently
+    /// (issue #923 idx 11).
+    ///
+    /// Data-driven, not a hardcoded package-name list: the answer comes
+    /// straight from the resolved spec's package attribution and the
+    /// profile's own `is_ambient_package` query (the same query
+    /// `emit_missing_package_require_diagnostics` / W120 already uses for the
+    /// converse fact), so a new package-gated spec is covered automatically —
+    /// no per-package entry to remember to add here.
+    fn is_package_gated_non_ambient(&self, name: &str) -> bool {
+        use tcl_registry::ProfileQueries;
+        let registry = tcl_registry::cache::registry_for_profile(self.profile);
+        self.profile
+            .resolve_command(registry, name)
+            .and_then(tcl_registry::CommandSpec::owning_package)
+            .is_some_and(|pkg| !self.profile.is_ambient_package(pkg))
     }
 
     /// **W314.** The definition's name has no absolute (fully-qualified)

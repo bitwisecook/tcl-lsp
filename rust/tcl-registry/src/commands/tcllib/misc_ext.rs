@@ -20,6 +20,11 @@
 //!
 //! Remaining flat commands across many packages (html, ip, sha1/sha2/md5 incremental APIs, grammar, simulation, nettool, cron, zipfile, …), each attributed to its namespace package.
 
+use super::{
+    textutil__adjust, textutil__indent, textutil__longestcommonprefix, textutil__tabify,
+    textutil__tabify2, textutil__trim, textutil__trimleft, textutil__trimright, textutil__undent,
+    textutil__untabify, textutil__untabify2,
+};
 use crate::prelude::*;
 
 /// A row in a package command table: name, arity, synopsis, and summary.
@@ -2553,7 +2558,33 @@ const TEXTUTIL_CMDS: &[Row] = &[(
 )];
 
 /// The `textutil::adjust` package.
+///
+/// `adjust` and `indent` are the package's two primary, most-used commands
+/// (tcllib-2.0 `modules/textutil/adjust.tcl`); they are also re-exported as
+/// the flattened `::textutil::adjust` / `::textutil::indent` aliases by the
+/// `textutil` umbrella package (`textutil.tcl`'s `namespace import -force
+/// adjust::adjust adjust::indent adjust::undent`) — see
+/// `textutil__adjust.rs` / `textutil__indent.rs` for those, which are gated
+/// on `required_package: "textutil"` (the umbrella), not this package.
+/// Requiring `textutil::adjust` alone grants only these three-segment names
+/// (issue #923 idx 3/4, confirmed against tclsh 9.0.4 + real tcllib-2.0: a
+/// bare `::textutil::adjust` command exists only after `package require
+/// textutil`, never after `package require textutil::adjust` alone).
 const TEXTUTIL__ADJUST_CMDS: &[Row] = &[
+    (
+        "textutil::adjust::adjust",
+        Arity::at_least(1),
+        &[
+            "textutil::adjust::adjust string ?-length num? ?-justify left|right|center|plain? ?-hyphenate bool? ?-full bool? ?-strictlength bool?",
+        ],
+        "Adjust/reformat a paragraph of text to a given line length, with optional justification and hyphenation.",
+    ),
+    (
+        "textutil::adjust::indent",
+        Arity::new(2, 3),
+        &["textutil::adjust::indent text prefix ?skip?"],
+        "Indent each line of text by prefixing it with prefix, skipping the first skip lines.",
+    ),
     (
         "textutil::adjust::readPatterns",
         Arity::exact(1),
@@ -2626,10 +2657,43 @@ const TEXTUTIL__STRING_CMDS: &[Row] = &[
         &["textutil::string::longestCommonPrefixList list"],
         "tcllib command.",
     ),
+    (
+        "textutil::string::longestCommonPrefix",
+        Arity::at_least(0),
+        &["textutil::string::longestCommonPrefix ?string...?"],
+        "Returns the longest common prefix of the given strings.",
+    ),
 ];
 
 /// The `textutil::trim` package.
+///
+/// `trim`/`trimleft`/`trimright` are also re-exported as the flattened
+/// `::textutil::trim` / `::textutil::trimleft` / `::textutil::trimright`
+/// aliases by the `textutil` umbrella package — see `textutil__trim.rs` /
+/// `textutil__trimleft.rs` / `textutil__trimright.rs` for those (gated on
+/// `required_package: "textutil"`, not this package). Requiring
+/// `textutil::trim` alone grants only these three-segment names (same
+/// meta-package-flattening shape as `textutil::adjust`, issue #923 idx 3/4;
+/// confirmed against tclsh 9.0.4 + real tcllib-2.0).
 const TEXTUTIL__TRIM_CMDS: &[Row] = &[
+    (
+        "textutil::trim::trim",
+        Arity::new(1, 2),
+        &["textutil::trim::trim string ?trim?"],
+        "Removes any leading and trailing occurrences of the characters in trim (a regular expression, default whitespace) from string.",
+    ),
+    (
+        "textutil::trim::trimleft",
+        Arity::new(1, 2),
+        &["textutil::trim::trimleft string ?trim?"],
+        "Removes any leading occurrences of the characters in trim (a regular expression, default whitespace) from string.",
+    ),
+    (
+        "textutil::trim::trimright",
+        Arity::new(1, 2),
+        &["textutil::trim::trimright string ?trim?"],
+        "Removes any trailing occurrences of the characters in trim (a regular expression, default whitespace) from string.",
+    ),
     (
         "textutil::trim::trimPrefix",
         Arity::exact(2),
@@ -2641,6 +2705,44 @@ const TEXTUTIL__TRIM_CMDS: &[Row] = &[
         Arity::exact(1),
         &["textutil::trim::trimEmptyHeading string"],
         "Looks for empty lines (including lines consisting of only whitespace) at the beginning of the string and removes ",
+    ),
+];
+
+/// The `textutil::tabify` package.
+///
+/// `tabify`/`untabify`/`tabify2`/`untabify2` are also re-exported as the
+/// flattened `::textutil::tabify` / `::textutil::untabify` /
+/// `::textutil::tabify2` / `::textutil::untabify2` aliases by the `textutil`
+/// umbrella package — see `textutil__tabify.rs` / `textutil__untabify.rs` /
+/// `textutil__tabify2.rs` / `textutil__untabify2.rs` for those (gated on
+/// `required_package: "textutil"`, not this package). Requiring
+/// `textutil::tabify` alone grants only these three-segment names (same
+/// meta-package-flattening shape as `textutil::adjust`, issue #923 idx 3/4;
+/// confirmed against tclsh 9.0.4 + real tcllib-2.0).
+const TEXTUTIL__TABIFY_CMDS: &[Row] = &[
+    (
+        "textutil::tabify::tabify",
+        Arity::new(1, 2),
+        &["textutil::tabify::tabify string ?num?"],
+        "Replaces all appropriate occurrences of num spaces with a tab character in string.",
+    ),
+    (
+        "textutil::tabify::untabify",
+        Arity::new(1, 2),
+        &["textutil::tabify::untabify string ?num?"],
+        "Replaces all tabs in string with the appropriate number of spaces, assuming a tab size of num.",
+    ),
+    (
+        "textutil::tabify::tabify2",
+        Arity::new(1, 2),
+        &["textutil::tabify::tabify2 string ?num?"],
+        "Like tabify, but works line by line and only replaces spaces at true tab-stop-aligned positions.",
+    ),
+    (
+        "textutil::tabify::untabify2",
+        Arity::new(1, 2),
+        &["textutil::tabify::untabify2 string ?num?"],
+        "Like untabify, but works line by line.",
     ),
 ];
 
@@ -2813,6 +2915,7 @@ const GROUPS: &[(&str, &[Row])] = &[
     ("textutil::adjust", TEXTUTIL__ADJUST_CMDS),
     ("textutil::patch", TEXTUTIL__PATCH_CMDS),
     ("textutil::string", TEXTUTIL__STRING_CMDS),
+    ("textutil::tabify", TEXTUTIL__TABIFY_CMDS),
     ("textutil::trim", TEXTUTIL__TRIM_CMDS),
     ("uevent", UEVENT_CMDS),
     ("zipfile::decode", ZIPFILE__DECODE_CMDS),
@@ -2843,9 +2946,58 @@ fn processman_onexit_spec() -> CommandSpec {
     }
 }
 
+/// `(submodule-qualified name, that command's canonical spec)` pairs: every
+/// `Row`-declared submodule command above that is *also* re-exported,
+/// unmodified, as a flattened `textutil::NAME` umbrella alias by one of the
+/// individual `textutil__*.rs` files elsewhere in this crate (`adjust` /
+/// `indent` / `undent` from the `textutil::adjust` package; `trim` /
+/// `trimleft` / `trimright` from `textutil::trim`; `tabify` / `untabify` /
+/// `tabify2` / `untabify2` from `textutil::tabify`; `longestCommonPrefix`
+/// from `textutil::string`).
+///
+/// The umbrella alias file is the sole source of truth for that command's
+/// trait descriptors (`Traits::PURE`, …) — [`sync_textutil_submodule_traits`]
+/// copies them onto the `Row`-built submodule spec below rather than a
+/// second, independent `Traits::PURE` declaration, so the two spellings of
+/// the same real tcllib command can never drift apart (issue #923 idx 3/4
+/// review follow-up: the submodule spec was built via the generic `Row` →
+/// `CommandSpec::DEFAULT` path and so silently lacked the `Traits::PURE` its
+/// umbrella sibling already carried, blocking purity-based GVN/DCE on the
+/// canonical three-segment spelling only).
+fn textutil_submodule_trait_sources() -> Vec<(&'static str, CommandSpec)> {
+    vec![
+        ("textutil::adjust::adjust", textutil__adjust::spec()),
+        ("textutil::adjust::indent", textutil__indent::spec()),
+        ("textutil::adjust::undent", textutil__undent::spec()),
+        ("textutil::trim::trim", textutil__trim::spec()),
+        ("textutil::trim::trimleft", textutil__trimleft::spec()),
+        ("textutil::trim::trimright", textutil__trimright::spec()),
+        ("textutil::tabify::tabify", textutil__tabify::spec()),
+        ("textutil::tabify::untabify", textutil__untabify::spec()),
+        ("textutil::tabify::tabify2", textutil__tabify2::spec()),
+        ("textutil::tabify::untabify2", textutil__untabify2::spec()),
+        (
+            "textutil::string::longestCommonPrefix",
+            textutil__longestcommonprefix::spec(),
+        ),
+    ]
+}
+
+/// Apply [`textutil_submodule_trait_sources`]'s canonical traits onto their
+/// matching `specs` entries in place. A missing name is a silent no-op — the
+/// pairing is exhaustively checked by the `registry_commands.rs` contract
+/// test instead of panicking here.
+fn sync_textutil_submodule_traits(specs: &mut [CommandSpec]) {
+    for (name, canonical) in textutil_submodule_trait_sources() {
+        if let Some(spec) = specs.iter_mut().find(|s| s.name == name) {
+            spec.traits = canonical.traits;
+        }
+    }
+}
+
 /// All command specs in this group.
 pub fn specs() -> Vec<CommandSpec> {
-    GROUPS
+    let mut specs: Vec<CommandSpec> = GROUPS
         .iter()
         .flat_map(|&(pkg, table)| rows(pkg, table))
         // The `html` package uses the richer [`HtmlRow`] table (per-command
@@ -2853,5 +3005,7 @@ pub fn specs() -> Vec<CommandSpec> {
         // 4-tuple [`Row`], so it is appended separately (issue #811).
         .chain(html_rows(HTML_CMDS))
         .chain(std::iter::once(processman_onexit_spec()))
-        .collect()
+        .collect();
+    sync_textutil_submodule_traits(&mut specs);
+    specs
 }

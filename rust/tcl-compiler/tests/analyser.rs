@@ -2409,6 +2409,60 @@ mod unresolved_command {
         );
     }
 
+    // issue #923 idx 3/4: tcllib `textutil::adjust` submodule commands were
+    // registered under the wrong (umbrella-only) 2-segment name, so the
+    // real 3-segment commands the common `package require textutil::adjust;
+    // namespace import textutil::adjust::*` idiom (georgtree_argparse's
+    // `argparse.tcl:380-382`) actually resolves to had no registry entry at
+    // all. Ground truth (tclsh 9.0.4 + real tcllib-2.0): `package require
+    // textutil::adjust` creates `::textutil::adjust::adjust` /
+    // `::textutil::adjust::indent`, never a bare `::textutil::adjust`.
+    mod textutil_adjust_idx3_idx4 {
+        use super::*;
+
+        #[test]
+        fn qualified_submodule_calls_resolve_after_package_require() {
+            // As phrased by the fix's own acceptance criterion: a call to
+            // the real, canonical name resolves once the submodule package
+            // is required. Note `package require` (any package, this file's
+            // included) blanket-suppresses W123 file-wide (`emit_unresolved_
+            // command_diagnostics`'s conservative "package may define
+            // anything at runtime" gate) — so this pins that the call
+            // resolves under the real-world idiom, while the two tests below
+            // isolate the registry-data fact itself (no `package require` in
+            // scope, so the file-wide suppression gate does not mask it).
+            let src = "package require textutil::adjust\n\
+                       namespace import textutil::adjust::*\n\
+                       set a [adjust hello -length 20]\n\
+                       set b [indent $a \"  \"]\n";
+            assert!(w123(src).is_empty(), "got {:?}", w123(src));
+        }
+
+        #[test]
+        fn qualified_submodule_names_are_directly_registry_known() {
+            // TP, isolating the registry-data fact with no `package require`
+            // in scope (so the blanket suppression gate above cannot mask
+            // it): the literal, fully-qualified 3-segment names must be
+            // directly known to W123's registry-name set.
+            let src = "textutil::adjust::adjust hello -length 20\n\
+                       textutil::adjust::indent hello \"  \"\n";
+            assert!(w123(src).is_empty(), "got {:?}", w123(src));
+        }
+
+        #[test]
+        fn a_bare_unimported_flat_name_still_unresolved() {
+            // TN/FN contrast: with no `package require`, no `namespace
+            // import`, and no umbrella alias in play, the *bare* flattened
+            // names (`adjust`/`indent` with no qualification at all) are
+            // correctly still unknown — the fix adds the submodule's real
+            // names, it does not fabricate a global bare alias that only
+            // the `textutil` umbrella actually provides.
+            let d = w123("adjust hello -length 20\n");
+            assert_eq!(d.len(), 1, "got {d:?}");
+            assert!(d[0].contains("adjust"));
+        }
+    }
+
     #[test]
     fn coroutine_name_is_a_known_command() {
         // `coroutine NAME cmd ?arg …?` creates the command NAME

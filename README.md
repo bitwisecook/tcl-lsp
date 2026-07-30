@@ -412,6 +412,22 @@ set d [Pup new]
 $d fly                         ;# W308: unknown method 'fly' on ::Dog
 ```
 
+W113 ("proc shadows a built-in") only fires for a genuine core
+built-in. A proc named after a command that is gated behind `package
+require` — a tcllib package, `argparse`, an `itcl`/TclOO helper, … — is
+not flagged: that command does not exist until its package is loaded,
+and even then a proc of the same name is that package's own
+implementation, not a shadow of a core built-in. The one exception is a
+package a dialect profile ships **ambiently** (an F5 command pack, an
+EDA vendor tool surface) — that command is the profile's genuine,
+always-present surface, so redefining it still warns.
+
+```tcl
+package require argparse
+proc ::argparse {args} { ... }   ;# no W113: argparse is package-gated, not a core built-in
+proc ::set {a b} { ... }         ;# W113: 'set' is a genuine core built-in
+```
+
 ### Completions
 
 Context-aware completions for commands, subcommands, variables, proc names
@@ -2223,7 +2239,7 @@ In a project with an "entry" file that runs the `package require`s and then
 | W110 | `==`/`!=` on strings in `expr` (use `eq`/`ne`) | Replace operator |
 | W111 | Line exceeds configured maximum length | |
 | W112 | Trailing whitespace | Remove whitespace |
-| W113 | Procedure shadows a built-in command | |
+| W113 | Procedure shadows a built-in command (package-gated commands, e.g. `argparse` or a tcllib package, are excluded) | |
 | W114 | Redundant nested `[expr]` -- already in expression context | Unwrap the nested `expr` |
 | W115 | Backslash-newline in comment silently swallows the next line | Convert to per-line comments |
 | W116 | Stub command shadows a built-in command | |

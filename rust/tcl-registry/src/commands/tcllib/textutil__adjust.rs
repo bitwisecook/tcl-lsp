@@ -16,7 +16,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `textutil::adjust` command.
+//! `textutil::adjust` — the flattened, umbrella-only alias.
+//!
+//! This is **not** the `textutil::adjust` *package*'s own command (that is
+//! `::textutil::adjust::adjust`, registered as `"textutil::adjust::adjust"`
+//! in `misc_ext.rs`'s `TEXTUTIL__ADJUST_CMDS`, gated on `required_package:
+//! "textutil::adjust"`). It is the bare `::textutil::adjust` re-export the
+//! `textutil` *umbrella* package creates via `namespace import -force
+//! adjust::adjust ...` (tcllib-2.0 `modules/textutil/textutil.tcl`) — real
+//! and callable, but only after `package require textutil`, never after
+//! `package require textutil::adjust` alone (issue #923 idx 3/4; confirmed
+//! against tclsh 9.0.4 + real tcllib-2.0: `package require textutil::adjust`
+//! creates no bare `::textutil::adjust` command, only the three-segment
+//! `::textutil::adjust::adjust`).
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
@@ -30,7 +42,7 @@ pub fn spec() -> CommandSpec {
         dialects: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
-            summary: "Adjust a text block to a given line length.",
+            summary: "Adjust a text block to a given line length. Re-exported alias for `textutil::adjust::adjust`, provided by the `textutil` umbrella package (not by `package require textutil::adjust` alone).",
             synopsis: &[
                 "textutil::adjust string ?-length num? ?-justify left|right|center|plain? ?-hyphenate bool? ?-full bool? ?-strictlength bool?",
             ],

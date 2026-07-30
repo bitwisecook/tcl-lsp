@@ -2126,3 +2126,192 @@ fn script_append_list_refinement_is_inscope_only() {
         );
     }
 }
+
+// ===========================================================================
+// issue #923 idx 3/4 — tcllib `textutil::adjust` submodule vs the `textutil`
+// umbrella package's flattened re-export aliases.
+//
+// Ground truth (tclsh 9.0.4 + real tcllib-2.0 `modules/textutil/`, verified
+// directly — see the PR's commit message for the exact transcripts):
+//   - `package require textutil::adjust` alone creates only the three-segment
+//     `::textutil::adjust::adjust` / `::textutil::adjust::indent` /
+//     `::textutil::adjust::undent` (plus `readPatterns`/`listPredefined`/
+//     `getPredefined`) — no bare `::textutil::adjust` command exists.
+//   - `package require textutil` (the umbrella) additionally creates the
+//     flattened `::textutil::adjust` / `::textutil::indent` / `::textutil::undent`
+//     aliases via `namespace import -force adjust::adjust adjust::indent
+//     adjust::undent` — real and callable, but ONLY after requiring the
+//     umbrella, never after requiring the submodule alone.
+// The same shape recurs in `textutil::trim` (trim/trimleft/trimright) and
+// `textutil::tabify` (tabify/untabify/tabify2/untabify2).
+// ===========================================================================
+mod textutil_submodule_vs_umbrella {
+    use super::*;
+
+    /// TP — the real submodule-qualified commands the common `package
+    /// require textutil::adjust; namespace import textutil::adjust::*`
+    /// idiom (tcllib-consuming corpora like `georgtree_argparse`) actually
+    /// resolves to must be registered, gated on the submodule package.
+    #[test]
+    fn textutil_adjust_submodule_commands_registered() {
+        let (reg, ds) = reg_and_set("tcl8.6");
+        for (name, pkg) in [
+            ("textutil::adjust::adjust", "textutil::adjust"),
+            ("textutil::adjust::indent", "textutil::adjust"),
+            ("textutil::adjust::undent", "textutil::adjust"),
+        ] {
+            let spec = reg
+                .get_for_dialect(name, ds)
+                .unwrap_or_else(|| panic!("{name} must be registered"));
+            assert_eq!(
+                spec.required_package,
+                Some(pkg),
+                "{name} must be gated on the submodule package, not the umbrella"
+            );
+        }
+    }
+
+    /// TP — the umbrella package's flattened re-export aliases are also
+    /// registered, distinctly gated on `textutil` (not `textutil::adjust`).
+    #[test]
+    fn textutil_umbrella_aliases_registered_distinctly() {
+        let (reg, ds) = reg_and_set("tcl8.6");
+        for name in ["textutil::adjust", "textutil::indent"] {
+            let spec = reg
+                .get_for_dialect(name, ds)
+                .unwrap_or_else(|| panic!("{name} (umbrella alias) must be registered"));
+            assert_eq!(
+                spec.required_package,
+                Some("textutil"),
+                "{name} is the umbrella's re-export, gated on requiring `textutil` itself"
+            );
+        }
+    }
+
+    /// TN — the umbrella-vs-submodule distinction is not collapsed: the
+    /// 2-segment alias and the 3-segment submodule command are two distinct
+    /// registry entries with two distinct package gates, so requiring
+    /// `textutil::adjust` alone must not read as granting the umbrella's
+    /// `textutil::adjust` alias name (they carry different `required_package`
+    /// values even though one's name is a prefix of the other's).
+    #[test]
+    fn submodule_and_umbrella_names_are_distinct_keys() {
+        let (reg, ds) = reg_and_set("tcl8.6");
+        let submodule = reg
+            .get_for_dialect("textutil::adjust::adjust", ds)
+            .expect("submodule command registered");
+        let umbrella = reg
+            .get_for_dialect("textutil::adjust", ds)
+            .expect("umbrella alias registered");
+        assert_ne!(submodule.required_package, umbrella.required_package);
+        assert_eq!(umbrella.required_package, Some("textutil"));
+        assert_eq!(submodule.required_package, Some("textutil::adjust"));
+    }
+
+    /// TN — a name shaped like the wrong guess this finding started from
+    /// (`textutil::indent` treated as if it were its own *package*, i.e. a
+    /// `textutil::indent::indent` submodule path) does not exist: `indent`
+    /// lives inside the `textutil::adjust` package only, and there never was
+    /// a separate `textutil::indent` package in real tcllib.
+    #[test]
+    fn no_fabricated_textutil_indent_package_submodule() {
+        let (reg, ds) = reg_and_set("tcl8.6");
+        assert!(
+            reg.get_for_dialect("textutil::indent::indent", ds)
+                .is_none()
+        );
+    }
+
+    /// TP/TN sibling sweep (verified against tclsh 9.0.4 the same way):
+    /// `textutil::trim` and `textutil::tabify` show the exact same
+    /// meta-package-flattening shape — the submodule-qualified commands must
+    /// be registered too, distinctly from their umbrella aliases.
+    #[test]
+    fn sibling_submodules_trim_and_tabify_also_registered() {
+        let (reg, ds) = reg_and_set("tcl8.6");
+        for name in [
+            "textutil::trim::trim",
+            "textutil::trim::trimleft",
+            "textutil::trim::trimright",
+            "textutil::tabify::tabify",
+            "textutil::tabify::untabify",
+            "textutil::tabify::tabify2",
+            "textutil::tabify::untabify2",
+            "textutil::string::longestCommonPrefix",
+        ] {
+            assert!(
+                reg.get_for_dialect(name, ds).is_some(),
+                "{name} must be registered (tclsh 9.0.4-verified real tcllib command)"
+            );
+        }
+        // Their umbrella aliases remain separately registered too.
+        for name in [
+            "textutil::trim",
+            "textutil::trimleft",
+            "textutil::trimright",
+            "textutil::tabify",
+            "textutil::untabify",
+            "textutil::tabify2",
+            "textutil::untabify2",
+        ] {
+            let spec = reg
+                .get_for_dialect(name, ds)
+                .unwrap_or_else(|| panic!("{name} (umbrella alias) must be registered"));
+            assert_eq!(spec.required_package, Some("textutil"));
+        }
+    }
+
+    /// Contract test (code-review follow-up on this PR): the umbrella alias
+    /// and the submodule-qualified canonical name are the *same real tcllib
+    /// command* under two different call spellings, so every trait
+    /// descriptor (`Traits::PURE` and any future one) must agree between
+    /// them — a consumer doing purity-based GVN/DCE must not see a different
+    /// answer purely because of which spelling a call site happens to use.
+    /// `rust/tcl-registry/src/commands/tcllib/misc_ext.rs`'s
+    /// `sync_textutil_submodule_traits` is what keeps this true (it derives
+    /// the submodule spec's traits from the umbrella alias file rather than
+    /// declaring them a second time); this test is the general guard that
+    /// catches the *next* drift — a newly added re-exported command whose
+    /// submodule row is never wired into that sync list — not just today's.
+    #[test]
+    fn umbrella_alias_and_submodule_canonical_name_agree_on_traits() {
+        let (reg, ds) = reg_and_set("tcl8.6");
+        for (umbrella, submodule) in [
+            ("textutil::adjust", "textutil::adjust::adjust"),
+            ("textutil::indent", "textutil::adjust::indent"),
+            ("textutil::undent", "textutil::adjust::undent"),
+            ("textutil::trim", "textutil::trim::trim"),
+            ("textutil::trimleft", "textutil::trim::trimleft"),
+            ("textutil::trimright", "textutil::trim::trimright"),
+            ("textutil::tabify", "textutil::tabify::tabify"),
+            ("textutil::untabify", "textutil::tabify::untabify"),
+            ("textutil::tabify2", "textutil::tabify::tabify2"),
+            ("textutil::untabify2", "textutil::tabify::untabify2"),
+        ] {
+            let umbrella_spec = reg
+                .get_for_dialect(umbrella, ds)
+                .unwrap_or_else(|| panic!("{umbrella} (umbrella alias) must be registered"));
+            let submodule_spec = reg.get_for_dialect(submodule, ds).unwrap_or_else(|| {
+                panic!("{submodule} (submodule canonical name) must be registered")
+            });
+            assert_eq!(
+                umbrella_spec.traits, submodule_spec.traits,
+                "{umbrella} and {submodule} are the same real tcllib command \
+                 and must carry identical traits (got {:?} vs {:?})",
+                umbrella_spec.traits, submodule_spec.traits
+            );
+        }
+        // The `textutil::string` package has no bare `longestCommonPrefix`
+        // 2-segment umbrella alias file of its own name (the umbrella only
+        // re-exports it as `textutil::longestCommonPrefix`), covered above
+        // by `textutil_umbrella_aliases_registered_distinctly`'s sibling
+        // tests; check it here too for the same trait-parity property.
+        let umbrella_spec = reg
+            .get_for_dialect("textutil::longestCommonPrefix", ds)
+            .expect("textutil::longestCommonPrefix (umbrella alias) must be registered");
+        let submodule_spec = reg
+            .get_for_dialect("textutil::string::longestCommonPrefix", ds)
+            .expect("textutil::string::longestCommonPrefix must be registered");
+        assert_eq!(umbrella_spec.traits, submodule_spec.traits);
+    }
+}

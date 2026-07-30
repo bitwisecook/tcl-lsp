@@ -9697,11 +9697,19 @@
     },
     {
       "name": "textutil::adjust",
-      "summary": "Adjust a text block to a given line length."
+      "summary": "Adjust a text block to a given line length. Re-exported alias for `textutil::adjust::adjust`, provided by the `textutil` umbrella package (not by `package require textutil::adjust` alone)."
+    },
+    {
+      "name": "textutil::adjust::adjust",
+      "summary": "Adjust/reformat a paragraph of text to a given line length, with optional justification and hyphenation."
     },
     {
       "name": "textutil::adjust::getPredefined",
       "summary": "Use this command to query the package for the full path name of the hyphenation file filename coming with the pac"
+    },
+    {
+      "name": "textutil::adjust::indent",
+      "summary": "Indent each line of text by prefixing it with prefix, skipping the first skip lines."
     },
     {
       "name": "textutil::adjust::listPredefined",
@@ -9741,7 +9749,7 @@
     },
     {
       "name": "textutil::indent",
-      "summary": "Indent each line of text by a given prefix."
+      "summary": "Indent each line of text by a given prefix. Re-exported alias for `textutil::adjust::indent`, provided by the `textutil` umbrella package (not by `package require textutil::adjust` alone)."
     },
     {
       "name": "textutil::longestCommonPrefix",
@@ -9800,6 +9808,11 @@
       "summary": "A convenience command."
     },
     {
+      "name": "textutil::string::longestCommonPrefix",
+      "summary": "Returns the longest common prefix of the given strings.",
+      "pure": true
+    },
+    {
       "name": "textutil::string::longestCommonPrefixList",
       "summary": "tcllib command."
     },
@@ -9822,6 +9835,26 @@
       "pure": true
     },
     {
+      "name": "textutil::tabify::tabify",
+      "summary": "Replaces all appropriate occurrences of num spaces with a tab character in string.",
+      "pure": true
+    },
+    {
+      "name": "textutil::tabify::tabify2",
+      "summary": "Like tabify, but works line by line and only replaces spaces at true tab-stop-aligned positions.",
+      "pure": true
+    },
+    {
+      "name": "textutil::tabify::untabify",
+      "summary": "Replaces all tabs in string with the appropriate number of spaces, assuming a tab size of num.",
+      "pure": true
+    },
+    {
+      "name": "textutil::tabify::untabify2",
+      "summary": "Like untabify, but works line by line.",
+      "pure": true
+    },
+    {
       "name": "textutil::tail",
       "summary": "Remove the first character.",
       "pure": true
@@ -9831,12 +9864,26 @@
       "summary": "Remove leading whitespace from each line of text."
     },
     {
+      "name": "textutil::trim::trim",
+      "summary": "Removes any leading and trailing occurrences of the characters in trim (a regular expression, default whitespace) from string."
+    },
+    {
       "name": "textutil::trim::trimEmptyHeading",
       "summary": "Looks for empty lines (including lines consisting of only whitespace) at the beginning of the string and removes "
     },
     {
       "name": "textutil::trim::trimPrefix",
       "summary": "Removes the prefix from the beginning of string and returns the result."
+    },
+    {
+      "name": "textutil::trim::trimleft",
+      "summary": "Removes any leading occurrences of the characters in trim (a regular expression, default whitespace) from string.",
+      "pure": true
+    },
+    {
+      "name": "textutil::trim::trimright",
+      "summary": "Removes any trailing occurrences of the characters in trim (a regular expression, default whitespace) from string.",
+      "pure": true
     },
     {
       "name": "textutil::trimEmptyHeading",
