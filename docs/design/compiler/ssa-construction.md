@@ -191,9 +191,116 @@ Consumers and the direction each abstains in:
 | dead store / unused → W211, W220 | `reads` | stay silent |
 | `optimiser::elimination` → O109, O126 | `reads` | do not eliminate |
 
-`eval $body` / `uplevel 1 $body` are deliberately **out of scope**: they run
-arbitrary code, a strictly larger blindness than a computed name, and lower to
-`Statement::Barrier` where the per-consumer barrier rules already apply.
+### The caller-frame injection model
+
+A computed name is one way to lose the name space.  The other is to have
+somebody *else* write it.  Tcl's frame-crossing primitives make a callee's
+writes land in the **caller's** frame, and the caller's own text shows
+nothing:
+
+```tcl
+proc setdef {d key args} { upvar 1 $d _dict; dict set _dict $key … }
+proc build {} { setdef options name -type str; return [dict get $options name] }
+```
+
+`options` is never assigned in `build`, yet it is set twice before the read.
+`rust/tcl-compiler/src/cfg_builder/upvar_info.rs` supplies the missing fact
+as a per-procedure **frame-effect summary** (`UpvarInfo` — the name is kept
+because the salsa interning layer imports it by that path):
+
+| bucket | shape | resolved |
+|---|---|---|
+| `literal_targets` | `upvar 1 caller_x x` | at summary time |
+| `param_targets` | `upvar 1 $param x` | at the call site, from the argument passed for `param` |
+| `args_tail_upvar` | `upvar 1 $args x` | at the call site, positionally |
+| `uplevel_literal_writes` | `uplevel 1 {set n …}`, `uplevel 1 [list set n …]` | at summary time |
+| `uplevel_param_writes` | `uplevel 1 [list set $param …]` | at the call site, like `param_targets` |
+| `uplevel_forwarded_calls` | `uplevel 1 [list callee …]` | one hop, in `detect_upvar_procs` |
+| `has_unresolvable_caller_target` | `upvar 1 $computed x` | not resolvable — widen |
+| `caller_frame_opaque_writes` / `_reads` | `uplevel 1 $body`, `upvar 2 …`, `upvar $lvl …` | not resolvable — widen |
+
+**Complexity.**  One walk per procedure to build the summary; one hash
+lookup plus work proportional to the *bound arguments* at each call site.
+The forwarded-call hop composes against the **own-body** summaries, never
+the composed ones, so a recursive or mutually-recursive forward cannot
+diverge — a single level by construction, no fixpoint and no iteration cap.
+
+**Frame targeting is the whole game.**  Only a `Relative(1)` level (or an
+omitted one) reaches the direct caller.  Which argument is the level word,
+and how to read it, is registry data —
+[`FrameEffectSpec`](../../../rust/tcl-registry/src/frame_effect.rs) on
+`CommandSpec`, so no consumer names `upvar` or `uplevel`:
+
+| written in the callee | frame written | contributed |
+|---|---|---|
+| `upvar 1 x y` / `upvar x y` | the caller | a named binding |
+| `upvar #0 g l` | the global frame | nothing — `global_write_info` owns it |
+| `upvar 0 x y` | the callee's own frame | nothing |
+| `upvar 2 far f`, `upvar $lvl a b` | somewhere further out | widen |
+| `uplevel 1 $body` | the caller | opaque write **and** read |
+| `uplevel 0 $body` / `eval $body` | the callee's own frame | the callee's own barrier |
+
+C Tcl decides whether `upvar`'s level word is present from the **argument
+count parity** (`Tcl_UpvarObjCmd` tests `objc`), never from the word's text.
+Three consumers had each re-derived that by sniffing for digits or `#`, and
+two of them were wrong: `upvar $lvl a b` has three words, so `$lvl` *is* the
+level and `(a, b)` is the pair, but a text sniff sees no level and pairs
+`($lvl, a)` — losing the commonest by-reference binding of all. Pinned on
+tclsh 9.0.4 and 8.6.14, identical:
+
+```tcl
+proc t3 {} {upvar 1 b; return [catch {set b} e]:$e}
+proc h3 {} {set 1 ONE; return [t3]}
+h3                          ;# → 0:ONE   — `1` is the otherVar, not a level
+catch {upvar foo bar baz} e ;# → bad level "foo"  — 3 words ⇒ the first IS the level
+```
+
+**Where the fact lands.**  A *named* caller-frame write is merged into the
+call statement's `defs`, so name-level SSA sees the definition and every
+existing consumer works unchanged.  An *opaque* one has no name to merge, so
+the CFG builder records it on `cfg::Function::caller_frame_barrier` and
+`dynamic_name_barrier` joins it into the same three-bit lattice above.
+Deliberately **not** a per-call-site fact: every consumer of that lattice
+already reads it once per function and abstains for the whole function, so a
+per-site fact would need flow-sensitivity none of them have and would buy
+nothing.
+
+**Soundness direction.**  Identical to the dynamic-name barrier's — abstain
+toward silence for warnings, toward no-fold for the optimiser.  A level the
+summary cannot place at the direct caller is *widened*, not dropped:
+dropping an `upvar 2` write would leave it invisible to the frame that
+receives it and produce a false `W210`, while widening only ever silences
+one.
+
+This also closes the `eval $body` / `uplevel 1 $body` gap that the
+dynamic-name barrier left out of scope.  The two are **not** the same
+effect, and the difference is load-bearing — tclsh 9.0.4 / 8.6.14,
+identical:
+
+```tcl
+proc runner {body} {set helper 42; uplevel 1 $body}
+runner {set x $helper}      ;# → can't read "helper": no such variable
+proc evalrunner {body} {set helper 42; eval $body}
+evalrunner {set helper}     ;# → 42
+```
+
+So `eval $body` blinds the frame it is written in, while `uplevel 1 $body`
+blinds that procedure's *callers* and leaves its own locals provable.
+
+**What cross-document (PR C1b) needs.**  `detect_upvar_procs` takes one
+`Module`, i.e. one file's parse, so a helper defined in another file is
+invisible however the call spells it (issue #923 audit idx 59's real
+ticklecharts layout: `setdef` in `utils.tcl`, 1876 call sites in
+`options.tcl`).  The summary is already a pure function of a procedure's
+body plus its parameter list and is `Hash`/`Eq`, so the workspace layer can
+intern one per procedure and merge the maps before `prepare_cfg_context`
+runs — no change to the model, only to who supplies the map.  The navigation
+providers need the same map plus the call site's scope, which the analyser's
+`SignatureCommandInvocation` does not yet carry.
+
+`eval $body` / `uplevel 1 $body` are no longer out of scope — see the
+caller-frame injection model above.  They still lower to
+`Statement::Barrier`, so the per-consumer barrier rules apply as well.
 
 ### Known limitation — a brace-quoted `$`-bearing name is mis-keyed
 

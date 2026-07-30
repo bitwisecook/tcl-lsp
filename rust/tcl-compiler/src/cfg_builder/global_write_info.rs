@@ -159,16 +159,12 @@ pub fn detect_global_write_procs(module: &Module) -> HashMap<String, GlobalWrite
     own
 }
 
-/// Both the short and fully-qualified forms of `qname`, matching
-/// [`super::detect_upvar_procs`]'s registration convention.
+/// Every call-site spelling of `qname`, from the one helper
+/// [`super::detect_upvar_procs`] and [`super::prepare_cfg_context`] also
+/// use — the three maps are looked up by the same key at the same call
+/// site, so they must agree on what keys exist.
 fn registered_keys(qname: &str) -> Vec<String> {
-    let mut keys = vec![qname.to_owned()];
-    if let Some((_, short)) = qname.rsplit_once("::")
-        && !short.is_empty()
-    {
-        keys.push(short.to_owned());
-    }
-    keys
+    super::qualified_lookup_keys(qname)
 }
 
 /// Pass 1: union every `global` / `variable` declaration in `body` into one

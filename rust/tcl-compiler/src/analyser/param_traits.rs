@@ -937,11 +937,15 @@ fn handle_upvar<'p>(
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     aliases: &mut Aliases<'p>,
 ) {
-    // `upvar ?level? otherVar myVar ?otherVar myVar ...?` — an optional leading
-    // level word (`1`, `#0`) shifts the first pair.
-    let has_level = args
-        .first()
-        .is_some_and(|h| h.chars().all(|c| c.is_ascii_digit()) || h.starts_with('#'));
+    // `upvar ?level? otherVar myVar ?otherVar myVar ...?` — C Tcl decides
+    // whether the level word is present from the **argument count parity**
+    // (`Tcl_UpvarObjCmd` tests `objc`), not from the word's text.  Sniffing
+    // the text instead dropped the commonest by-reference idiom of all:
+    // `upvar $lvl a b` has three words, so `$lvl` *is* the level and `(a, b)`
+    // is the pair, but a digits-or-`#` test sees no level and pairs
+    // `($lvl, a)` — losing the `a`/`b` binding entirely.  tclsh 9.0.4 /
+    // 8.6.14 agree; see `tcl_registry::frame_effect::FrameLevelWord`.
+    let has_level = args.len() % 2 == 1;
     let pairs = args.get(usize::from(has_level)..).unwrap_or(&[]);
     record_upvar_pairs(pairs, param_set, traits, aliases);
 }

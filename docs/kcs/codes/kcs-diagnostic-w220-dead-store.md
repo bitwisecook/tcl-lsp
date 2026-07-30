@@ -74,6 +74,32 @@ silent for the whole proc, and the optimiser stops removing stores there
 Removing a store the analyser cannot see the reader for would change what the
 program prints, so the analysis abstains instead.
 
+## A procedure you call can read your variables
+
+A procedure can run a whole script in its **caller's** frame, so a store the
+calling code never appears to read may well be read there:
+
+```tcl
+proc runner {script} { uplevel 1 $script }
+proc host {expr} {
+    set threshold 10       ;# not a dead store — `$script` may read it
+    runner $expr
+}
+```
+
+When the script is not readable — `uplevel 1 $script`, or a computed `upvar`
+target — the callee could read *any* of your variables, so `W220` and
+[`W211`](kcs-diagnostic-w211-variable-set-not-used.md) both go silent for the
+whole calling procedure and the optimiser stops removing stores there. A
+brace-quoted script (`runner {puts $threshold}`) is ordinary source text the
+analyser reads directly, so it does not silence anything.
+
+The frame the script runs in decides whose variables are at risk. Inside
+`runner` itself, `uplevel 1 $script` runs one frame *up*, so `runner`'s own
+locals stay provable — a `set` in `runner` that nothing in `runner` reads is
+still a real dead store. `eval $script` is the other way round: it runs where
+it is written, so it protects that procedure's own locals instead.
+
 ## How to suppress
 
 Add `# noqa: W220` at the end of the offending line.

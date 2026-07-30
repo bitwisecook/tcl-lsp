@@ -251,6 +251,21 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        // `argparse` creates one local per recognised element **in the frame
+        // that called it** — `argparse.tcl:964` runs
+        // `uplevel 1 [list ::upvar … $val $key]` for `-upvar` elements and
+        // `uplevel 1 [list set …]` for the rest.  The names come from the
+        // definition list's own mini-language (`-key`/`-alias`/`-pass`
+        // rewrite them, `-inline` suppresses them entirely), which this
+        // analysis does not interpret, so the effect is an *opaque*
+        // caller-frame injection: a consumer must widen rather than
+        // enumerate.  tclsh 9.0.4 / 8.6.14: `proc p {args} {argparse {{a
+        // -upvar} b c}; puts "$a $b $c"}` reads three locals nothing in `p`
+        // ever assigns.
+        frame_effect: Some(FrameEffectSpec {
+            level_word: FrameLevelWord::None,
+            layout: FrameArgLayout::OpaqueCallerVars,
+        }),
         required_package: Some("argparse"),
         ..CommandSpec::DEFAULT
     }

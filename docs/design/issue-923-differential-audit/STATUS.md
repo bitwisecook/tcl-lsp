@@ -511,6 +511,32 @@ counted here because its repros are now pinned as regression tests
 (FP-DS-13) rather than left unguarded. That makes **48 fixed, 37
 remaining**.
 
+**2026-07-30 update — PR C1a (`claude/commandregistry-compiler-fixes-tshu8d-upvar-model`)
+fixed four more, all tier 2 — the "caller-frame injection" cluster:** idx 7,
+idx 38, idx 57, and idx 59. All four are the same missing fact from four
+angles, now supplied by the per-proc
+[frame-effect summary](../../../rust/tcl-compiler/src/cfg_builder/upvar_info.rs):
+*which names does a call to this procedure write in **my** frame?* — computed
+once per procedure from the registry's new
+[`FrameEffectSpec`](../../../rust/tcl-registry/src/frame_effect.rs) and read
+at every call site. idx 57/59 were the summary being keyed only under the
+bare and fully-absolute spellings, so the ordinary relative-qualified call
+(`demo::setdef`) silently missed. idx 38 is `uplevel 1 [list set $v …]`: a
+constructed body names its command statically, so `set`'s own `VarWrite`
+role says which word is the caller-frame target. idx 7 is `argparse`, whose
+caller-frame locals come from a definition-list mini-language nothing here
+interprets — registry-declared as an opaque caller-frame injection, so the
+calling proc widens instead of guessing. **idx 22 and idx 98 are PARTIAL**:
+the analyser half landed (a fully-qualified or `#0` `upvar` target now gets a
+link target; the caller-frame defs now reach the dataflow), but their
+headline symptom is hover / go-to-definition / find-references returning
+nothing, and those consumers live in `tcl-lsp-core` — PR C1b takes them
+together with idx 58/99/100. idx 59's **cross-file** half is likewise
+unfixed: `detect_upvar_procs` is single-`Module`, so a helper defined in
+another file is invisible whatever the spelling (see "what C1b needs" in
+[`ssa-construction.md`](../../design/compiler/ssa-construction.md)). That
+makes **52 fixed, 33 remaining**.
+
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
 strings in the raw data — same corpus), tomato 7, pix 8.
@@ -723,7 +749,7 @@ users, a worse failure mode than the narrower, but fully oracle-grounded,
 `CONFIGURE`-tracking fix actually shipped. Left as a documented, low-risk
 follow-up for a session with Tk oracle access.
 
-#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 26 now fixed — 35 remaining), grouped by feature for clustering
+#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 30 now fixed — 31 remaining), grouped by feature for clustering
 
 Group findings sharing a feature/root-cause together in one fix pass the
 way idx 107+115 and idx 118+119 were — many of these look like they share
@@ -736,7 +762,7 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 | tclOO | 10 | 15, 16, 34, 35, 36, ~~53~~ **FIXED**, ~~54~~ **FIXED**, ~~55~~ **FIXED**, ~~96~~ **FIXED**, ~~97~~ **FIXED** (all medium) |
 | namespaces | 8 | ~~3~~ **FIXED** (#1071), 19, ~~43~~ **ALREADY FIXED**, ~~44~~ **FIXED**, ~~64~~ **FIXED**, 65, 75, 85 (all medium) |
 | tricky_indirection | 7 | 0 (medium, **FIXED** — see below), ~~1~~ **FIXED**, ~~2~~ **FIXED**, 14, ~~49~~ **FIXED**, 50, 51 (all medium) |
-| upvar | 7 | 7, 22, 57, 58, 59, 98, 99 (all medium) |
+| upvar | 7 | ~~7~~ **FIXED** (PR C1a), 22 (**PARTIAL** — model landed, navigation in C1b), ~~57~~ **FIXED** (PR C1a), 58, ~~59~~ **FIXED** (PR C1a, single-document; cross-file open), 98 (**PARTIAL** — same), 99 (all medium) |
 | proc_args | 7 | ~~11~~ **FIXED** (#1071), 28, 37, 62, 67, 78, ~~104~~ **FIXED** (all medium) |
 | tcl_mathop | 4 | ~~30~~ **FIXED**, 80, ~~81~~ **ALREADY FIXED**, ~~103~~ **FIXED** (all medium) |
 | package_loading | 3 | ~~4~~ **FIXED** (#1071), 42, 72 (all medium) |
@@ -744,7 +770,7 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 | tracing | 3 | 47, ~~48~~ **FIXED**, ~~92~~ **FIXED** (PR B1) (all medium) |
 | rename | 2 | ~~5~~ **ALREADY FIXED** (pinned, PR B1), ~~45~~ **FIXED** (PR B1) (all medium) |
 | aliasing | 2 | ~~21~~ **FIXED** (PR B1), ~~89~~ **FIXED** (PR B1) (all medium) |
-| uplevel | 2 | 38 (medium), 100 (low) |
+| uplevel | 2 | ~~38~~ **FIXED** (PR C1a) (medium), 100 (low) |
 | eval | 1 | ~~24~~ **FIXED** (medium) |
 | autoindex | 1 | 73 (medium) |
 | safe_interp | 1 | 91 (medium) |

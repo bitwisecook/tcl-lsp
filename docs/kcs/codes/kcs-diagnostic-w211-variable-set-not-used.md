@@ -60,6 +60,27 @@ proved unused. See
 [W220](kcs-diagnostic-w220-dead-store.md#computed-variable-names-silence-the-check)
 for the same rule on the dead-store side.
 
+## Reads from a procedure you call
+
+A procedure can run a script in its **caller's** frame, and that script can
+read the caller's variables:
+
+```tcl
+proc runner {script} { uplevel 1 $script }
+proc host {expr} {
+    set threshold 10       ;# not flagged — `$script` may read it
+    runner $expr
+}
+```
+
+When the script is not readable, the callee could read any of the caller's
+variables, so `W211` goes silent for the whole calling procedure. Which frame
+the script runs in decides whose variables are protected: `uplevel 1 $script`
+protects the *caller's*, `eval $script` protects the procedure that writes it.
+See
+[W220](kcs-diagnostic-w220-dead-store.md#a-procedure-you-call-can-read-your-variables)
+for the same rule on the dead-store side.
+
 ## How to suppress
 
 Add `# noqa: W211` at the end of the offending line, or set

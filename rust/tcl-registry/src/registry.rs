@@ -1202,6 +1202,18 @@ impl CommandRegistry {
         })
     }
 
+    /// How *name* crosses stack frames, if it does — the registry's
+    /// [`FrameEffectSpec`](crate::frame_effect::FrameEffectSpec).
+    ///
+    /// The single membership test for "is this a frame-crossing command?".
+    /// A consumer reads the returned descriptor to find the level word and
+    /// the affected arguments; it never names `upvar` / `uplevel` / `eval`
+    /// itself.
+    #[must_use]
+    pub fn frame_effect(&self, name: &str) -> Option<crate::frame_effect::FrameEffectSpec> {
+        self.get(name).and_then(|spec| spec.frame_effect)
+    }
+
     /// Resolve argument indices for a given role.
     ///
     /// For subcommand-based commands (e.g. `dict create`), pass the

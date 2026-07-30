@@ -186,6 +186,15 @@ pub fn spec() -> CommandSpec {
         // scope), exactly as `proc` / `namespace eval` bodies are.
         body_kind: BodyKind::Structural,
         arg_role_resolver: Some(uplevel_arg_roles),
+        // `uplevel ?level? arg …` — the level word is probed from the
+        // leading word's text (`Tcl_UplevelObjCmd` → `TclObjGetFrame`), and
+        // the script it runs belongs to the frame that word selects, not to
+        // the frame the call is written in.  `uplevel_script_start` above is
+        // the same rule expressed for the arg-role layer.
+        frame_effect: Some(FrameEffectSpec {
+            level_word: FrameLevelWord::LeadingProbe,
+            layout: FrameArgLayout::ScriptInSelectedFrame,
+        }),
         lowering_hook: Some(crate::hooks::LoweringHookId::Uplevel),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {
