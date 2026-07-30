@@ -96,13 +96,27 @@ and lowers to richer IR nodes instead of the generic `IRBarrier`:
 
 1. Body argument's word-token type is `TokenType.STR` (braced literal).
    Anything else (ESC, VAR, CMD) stays on the barrier path.
-2. The body does not contain any nested `_DYNAMIC_BARRIER_COMMANDS` whose
-   own body is still dynamic. A braced `eval {uplevel 1 $x}` stays a
-   barrier because the inner `uplevel` has a dynamic body. See
-   `compiler/lowering_hooks/_barrier_gate.py::body_has_dynamic_barrier`.
-3. For `uplevel`, the level specifier must be absent, a bare integer, or
-   `#N` with a plain `TokenType.ESC` level token. `uplevel $lvl {...}`
-   stays a barrier.
+2. The body does not contain a nested script evaluator whose own script is
+   still dynamic. A braced `eval {uplevel 1 $x}` stays a barrier because
+   the inner `uplevel` has a dynamic body. See
+   `rust/tcl-compiler/src/lowering/mod.rs::body_has_dynamic_barrier`.
+   Both halves of that question are registry answers, never a name test
+   (issue #1055): a command is an evaluator when
+   `CommandRegistry::invocation_traits` — which composes `spec.traits |
+   sub.traits`, so the compound members `namespace eval`, `namespace
+   inscope`, and `interp eval` resolve too — reports
+   `Traits::EVALUATES_CODE`, and *which* words make up its script comes from
+   `arg_indices_for_role(…, ArgRole::Body)` plus, for a
+   `Traits::SCRIPT_CONCATENATES_ARGS` evaluator, every word after the first
+   script word (they concatenate into the same script, so a dynamic tail is
+   dynamic). An evaluator the registry exposes no script word for — a
+   malformed `uplevel 1`, or a command-prefix evaluator like `coroprobe` —
+   poisons the gate rather than being guessed at.
+3. For `uplevel`, the *lowering hook* still requires a static level (absent,
+   a bare integer, or `#N`) — `uplevel $lvl {...}` stays a barrier. The
+   gate in (2) does not re-derive the level: it asks the registry which word
+   is the script, so a dynamic level in a *nested* `uplevel $lvl {literal}`
+   does not by itself poison an outer relaxation.
 
 The gate is token-level. **No SSA or escape analysis is required** at
 lowering time; we look only at the lexed word structure.

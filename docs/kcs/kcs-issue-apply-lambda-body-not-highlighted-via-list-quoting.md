@@ -299,6 +299,38 @@ no instances of its own:
    inference. Not a fix here since there's nothing live to fix; a flag for
    whoever touches that iterator next.
 
+An eighth instance surfaced from a different direction — the issue-923
+differential audit's finding **idx 0** (georgtree/argparse), which found the
+*original*, pre-role misparse still live in one walker:
+
+8. **The `[…]`-substitution collectors re-segmented the whole lambda list as
+   a script.** `apply` reached through the analyser's substitution walk —
+   `set r [apply {{name opt args} {…}} …]`, `puts [apply {…} …]`, anything
+   where `apply` is not the outermost command of a statement — never went
+   through `AnalyserHookId::Apply`. Instead `record_command_invocations` /
+   `collect_segment_recursive`
+   ([`rust/tcl-compiler/src/analyser/commands.rs`](../../rust/tcl-compiler/src/analyser/commands.rs))
+   reached its arguments through the shared registry-aware
+   [`descend_command`](../../rust/tcl-compiler/src/parsing/syntax/descend.rs),
+   which resolved `ArgRole::Body` only. Two symptoms, one cause:
+   - a **false positive** `W123 Unknown command 'name opt args'` on the
+     lambda's own parameter list, because an earlier revision of the
+     collector descended the whole `{params body}` word as script source;
+   - once the `LambdaLiteral` role stopped that, a **false negative** in its
+     place: the lambda's real body was walked by *nothing*, so a genuinely
+     unknown command inside it escaped W123 and every other per-command
+     check whenever the `apply` sat inside a `[…]`.
+
+   Fixed in `descend_command` itself rather than in either collector — it is
+   the single registry-aware descent entry point, so both callers (and any
+   future one) get it at once. It now resolves `ArgRole::LambdaLiteral`
+   arguments alongside `ArgRole::Body` ones and descends **only the braced
+   body element**, via the same `split_lambda_literal` /
+   `LambdaLiteralElements::braced_body` primitive every other consumer uses.
+   `descend_span` (new, beside `descend_token`) descends a list *element*'s
+   content span rather than a whole delimited word. No command name appears
+   anywhere in the change.
+
 ## Failure modes
 
 - Tagging a lambda-literal-shaped argument `ArgRole::Body` instead of
@@ -366,6 +398,14 @@ no instances of its own:
   lambda as executable),
   `package_ifneeded_literal_script_recurses_as_body`,
   `my_call_inside_apply_lambda_body_does_not_resolve`
+- `rust/tcl-compiler/src/parsing/syntax/descend.rs` —
+  `descend_command_resolves_the_lambda_body_element`,
+  `descend_command_skips_untrustworthy_lambda_shapes`
+- `rust/tcl-compiler/src/analyser/diagnostics/tests.rs` —
+  `apply_lambda_in_command_substitution_does_not_report_its_parameter_list`
+  (the audit's own repro), `apply_lambda_body_in_command_substitution_is_walked`,
+  `plain_body_argument_in_command_substitution_still_walked`,
+  `apply_lambda_parameters_named_like_commands_draw_no_unknown_command`
 - `rust/tcl-compiler/src/lambda_literal.rs` — `split_lambda_literal`'s own
   unit tests (params/body/namespace splitting, dynamic-lambda guard) and
   `split_lambda_literal_decoded`'s (`decodes_bare_body_backslash_escape`,

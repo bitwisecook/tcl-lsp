@@ -41,6 +41,8 @@ entry .e -placeholder "type here"
 
 Raise the `package require` to at least the version the option needs. A `package require` *without* a version is treated as permissive (no floor to compare against), so it never draws W136.
 
+A `package require` inside a branch that may not be taken does not raise the floor either — see [the guarded-require section of the W135 note](kcs-diagnostic-w135-command-needs-newer-package.md#a-guarded-package-require-does-not-raise-the-floor).
+
 ## How to suppress
 
 Add `# noqa: W136` at the end of the offending line.
