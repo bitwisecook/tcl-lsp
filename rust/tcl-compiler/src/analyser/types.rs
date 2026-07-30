@@ -1132,16 +1132,31 @@ impl AnalysisResult {
 
     /// The definition of `qualified` a call at `call_off` actually reaches.
     ///
-    /// Order-gated the same way every other command-table fact is: at top
-    /// level the latest declaration written before the call wins, and inside
-    /// any definition body the last declaration in the file wins, because the
+    /// Order-gated the same way every other command-table fact is
+    /// ([`crate::analyser::indirection::in_effect`], which shares the rule):
+    /// at load time the latest declaration written before the call wins, and
+    /// a call *inside a definition body* additionally sees every declaration
+    /// written outside that body, wherever it sits in the file, because the
     /// whole file loads — running every top-level `proc` — before any body
-    /// runs.  A call that precedes *every* declaration reaches none of them,
-    /// but the winner is still returned so a consumer that has its own
-    /// order gate (go-to-definition's lenient "show me the declaration
-    /// anyway") behaves exactly as it did before redefinitions were tracked.
+    /// runs.
     ///
-    /// Oracle (tclsh 8.6.16 and 9.0.4) for `proc p {} {return first}` / `p` /
+    /// That load-before-body shortcut stops at the body's own edge.  A `proc`
+    /// written as a statement *of the body now executing* is an ordinary
+    /// statement of the running script, so it is gated by offset like any
+    /// other, and — having run later than everything the file's load
+    /// installed — it outranks them all.  Oracle (tclsh 8.6.14 and 9.0.4) for
+    /// `proc outer {} { proc p {} {return one}; p; proc p {a} {…} }`: the bare
+    /// `p` between the two returns `one`, and `p X` after them dispatches the
+    /// one-parameter definition, while the counterpart
+    /// `proc outer {} { later }` / `proc later {} {…}` — declared outside,
+    /// after — resolves fine (`LATER`), which is what the shortcut exists for.
+    ///
+    /// A call that precedes *every* declaration reaches none of them, but the
+    /// winner is still returned so a consumer that has its own order gate
+    /// (go-to-definition's lenient "show me the declaration anyway") behaves
+    /// exactly as it did before redefinitions were tracked.
+    ///
+    /// Oracle (tclsh 8.6.14 and 9.0.4) for `proc p {} {return first}` / `p` /
     /// `proc p {a} {…}` / `p x`: the first call returns `first`, the second
     /// dispatches the one-parameter definition, and a bare `p` after the
     /// redefinition fails `wrong # args: should be "p a"`.
@@ -1151,14 +1166,42 @@ impl AnalysisResult {
         let Some(earlier) = self.superseded_procs.get(qualified) else {
             return Some(winner);
         };
-        if self.offset_is_inside_any_definition_body(call_off) {
-            return Some(winner);
-        }
-        earlier
-            .iter()
-            .chain(std::iter::once(winner))
-            .rfind(|def| def.name_span.start() < call_off)
+        let declarations = || earlier.iter().chain(std::iter::once(winner));
+        let Some(body) = self.innermost_definition_body_span(call_off) else {
+            // Load time: plain textual order.
+            return declarations()
+                .rfind(|def| def.name_span.start() < call_off)
+                .or(Some(winner));
+        };
+        let in_this_body = |def: &&ProcDef| {
+            let at = def.name_span.start();
+            body.start() <= at && at < body.end()
+        };
+        // A declaration this body already executed beats everything the file's
+        // load installed; failing that, the last declaration from outside.
+        declarations()
+            .rfind(|def| in_this_body(def) && def.name_span.start() < call_off)
+            .or_else(|| declarations().rfind(|def| !in_this_body(def)))
             .or(Some(winner))
+    }
+
+    /// The body span of the *innermost* recorded proc or class definition
+    /// containing `off` — the body that is actually executing when the
+    /// statement at `off` runs — or `None` at load-time (top level).
+    ///
+    /// The span form of [`Self::enclosing_definition_qualified_name`], for the
+    /// order-gating rules that need to ask "is this other statement part of
+    /// the *same* running body, or did it already run at load time?" —
+    /// [`Self::proc_def_in_effect_at`] and
+    /// [`crate::analyser::indirection::in_effect`].
+    #[must_use]
+    pub fn innermost_definition_body_span(&self, off: u32) -> Option<Span> {
+        self.all_procs
+            .values()
+            .map(|p| p.body_span)
+            .chain(self.all_classes.values().map(|c| c.body_span))
+            .filter(|span| span.start() <= off && off < span.end())
+            .min_by_key(|span| span.end() - span.start())
     }
 
     /// The qualified name of the *innermost* recorded proc or class

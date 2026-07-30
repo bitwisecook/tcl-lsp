@@ -317,24 +317,37 @@ pub fn definition(
 ///
 /// One tier for both hop kinds and both target kinds, so nothing that
 /// navigates has to know which mutation produced the binding.  The chain
-/// itself is resolved by [`command_indirection_target`]; the terminal name is
-/// then resolved as an ordinary command would be: as a user `proc` (from the
+/// itself is resolved by [`command_indirection`]; the terminal name is then
+/// resolved as an ordinary command would be: as a user `proc` (from the
 /// global namespace, where an alias target and a rename source are both
 /// looked up when the binding fires) and then as a class.  A chain ending on a
 /// registry builtin (`interp alias {} mycmd {} puts`) has no Tcl source to
 /// jump to, so it correctly answers nothing rather than guessing.
+///
+/// The terminal *name* is not by itself the answer when that name has been
+/// redeclared: a `rename` hands over the command **object**, so the definition
+/// the chain captured is the one in effect at the hop's own as-of time
+/// (`Indirection::resolve_at`), not whichever declaration ends up winning the
+/// name.  Oracle (tclsh 8.6.14/9.0.4): `proc p {} {return first}; rename p
+/// oldp; proc p {} {return second}` leaves `oldp` running `first` — so `oldp`
+/// jumps to the *first* header while `p` jumps to the second (PR #1075
+/// review, P2).
 fn indirect_definition_target(
     analysis: &AnalysisResult,
     source: &str,
     cursor_off: u32,
     word: &str,
 ) -> Option<tcl_lexer::Span> {
-    let target = command_indirection_target(analysis, word, cursor_off)?;
+    let hop = command_indirection(analysis, word, cursor_off)?;
     let registry = tcl_registry::registry_for_dialect(&analysis.dialect);
-    if let Some(proc_def) = resolve_called_proc(analysis, source, "::", &target, Some(registry)) {
-        return Some(proc_def.name_span);
+    if let Some(proc_def) = resolve_called_proc(analysis, source, "::", &hop.target, Some(registry))
+    {
+        let captured = analysis
+            .proc_def_in_effect_at(&proc_def.qualified_name, hop.resolve_at)
+            .unwrap_or(proc_def);
+        return Some(captured.name_span);
     }
-    class_declaration_at(analysis, &target, cursor_off)
+    class_declaration_at(analysis, &hop.target, cursor_off)
 }
 
 /// The cursor context [`position_definition`] needs beyond the offset.
@@ -1131,18 +1144,27 @@ pub(crate) fn classmethod_dispatch_class(
 /// `O(1)` hash lookups bounded by the hop cap: no invocation scan, no source
 /// rescan, so it is safe to call on every request.
 #[must_use]
-pub(crate) fn command_indirection_target(
+pub(crate) fn command_indirection(
     analysis: &AnalysisResult,
     word: &str,
     cursor_off: u32,
-) -> Option<String> {
+) -> Option<tcl_compiler::analyser::indirection::Indirection> {
     tcl_compiler::analyser::indirection::walk(
         analysis,
         word,
         cursor_off,
         &tcl_syntax::naming::normalise_qualified_name,
     )
-    .map(|hop| hop.target)
+}
+
+/// [`command_indirection`] for the callers that only need the terminal name.
+#[must_use]
+pub(crate) fn command_indirection_target(
+    analysis: &AnalysisResult,
+    word: &str,
+    cursor_off: u32,
+) -> Option<String> {
+    command_indirection(analysis, word, cursor_off).map(|hop| hop.target)
 }
 
 /// Whether `qualified` is a name **this document** only gains through a
@@ -1155,14 +1177,22 @@ pub(crate) fn command_indirection_target(
 /// `invalid command name`. The cross-document resolver
 /// (`tcl-lsp-server::resolve_workspace_symbols`) asks this before chasing a
 /// link so its ordering matches the in-document provider's (issue #1064).
+///
+/// A name can carry both a `rename` and an `interp alias` record; the document
+/// gains the name as soon as the *first* of them runs, so the question is
+/// asked of the earliest — reading one map ahead of the other would call a
+/// name pending on the strength of a mutation that is not the one that
+/// introduced it (PR #1075 review, P2).
 #[must_use]
 pub fn indirection_pending_at(analysis: &AnalysisResult, qualified: &str, cursor_off: u32) -> bool {
     let key = tcl_syntax::naming::normalise_qualified_name(qualified);
-    let established = analysis
+    let earliest = analysis
         .rename_offsets
         .get(&key)
-        .or_else(|| analysis.alias_offsets.get(&key));
-    established.is_some_and(|&at| {
+        .into_iter()
+        .chain(analysis.alias_offsets.get(&key))
+        .min();
+    earliest.is_some_and(|&at| {
         !tcl_compiler::analyser::indirection::in_effect(analysis, at, cursor_off)
     })
 }

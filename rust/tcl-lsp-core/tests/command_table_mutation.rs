@@ -46,6 +46,26 @@
 //!   inscope ::demo Tracer}}` and writing the variable dispatches
 //!   `::demo::Tracer`, so the wrapped `Tracer` word is a real call site.
 //!
+//! Three further claims were pinned on tclsh 9.0.4 and 8.6.14 for the PR
+//! #1075 review round:
+//!
+//! * `proc a {} {return A}` / `proc b {} {return B}` / `rename a x` /
+//!   `interp alias {} x {} b` — `x` returns `B`: the *later* of the two
+//!   bindings on one name is the one the slot holds. (The mirror order is not
+//!   a reachable program: `rename a x` onto a live `x` aborts with `can't
+//!   rename to "x": command already exists`.)
+//! * `proc p {} {return first}` / `rename p oldp` / `proc p {} {return
+//!   second}` — `oldp` returns `first` and `p` returns `second`, and `oldp`'s
+//!   arity is the *first* signature (`wrong # args: should be "oldp a"` for
+//!   `proc p {a}`). A rename hands over the command object, so the two names
+//!   are two different commands.
+//! * `proc outer {} { proc p {} {return one}; p; proc p {a} {…} }` — the bare
+//!   `p` returns `one`: a declaration that is a statement of the body now
+//!   running is in genuine execution order, not covered by the
+//!   load-before-body shortcut. That shortcut still holds for a declaration
+//!   *outside* the body: `proc outer {} { later }` / `proc later {…}` prints
+//!   `LATER`.
+//!
 //! Issue #1064, issue #1062's deferred B1/B2, and issue #923 differential
 //! -audit findings idx 21 / 45 / 89 / 92.
 
@@ -60,6 +80,26 @@ fn analyse(source: &str) -> AnalysisResult {
 
 fn start_lines(ranges: &[LspRange]) -> Vec<u32> {
     ranges.iter().map(|r| r.start_line).collect()
+}
+
+/// The reference count the code lens *displays* for `qname`.
+///
+/// Distinct from [`refs`] on purpose: `references()` dedupes by range, so a
+/// call site recorded twice is invisible there, while `code_lenses` counts
+/// `proc_reference_spans().len()` raw and would show it doubled (PR #1075
+/// review, P2).
+fn lens_count(source: &str, qname: &str) -> usize {
+    let analysis = analyse(source);
+    let title = tcl_lsp_core::code_lens::code_lenses(source, "tcl9.0", Some(&analysis), None, "")
+        .into_iter()
+        .find(|lens| lens.qname == qname)
+        .map_or_else(|| panic!("no lens for {qname}"), |lens| lens.command_title);
+    // `reference_count_title` renders "N references" / "1 reference".
+    title
+        .split_whitespace()
+        .next()
+        .and_then(|n| n.parse().ok())
+        .unwrap_or_else(|| panic!("unparsable lens title {title:?}"))
 }
 
 fn refs(source: &str) -> impl Fn(u32, u32) -> Vec<u32> + '_ {
@@ -296,6 +336,222 @@ fn tp_references_agree_from_either_declaration_of_a_redefined_proc() {
     );
 }
 
+// Latest binding wins when a name carries both a rename and an alias
+// (PR #1075 review, P2)
+
+/// `proc a`, `proc b`, `rename a x`, `interp alias {} x {} b` — oracle
+/// (tclsh 9.0.4 and 8.6.14): `x` returns `B`.  The alias ran last, so it is
+/// what the slot holds; the earlier rename is dead.
+const RENAME_THEN_ALIAS: &str = concat!(
+    "proc a {} { return A }\n",
+    "proc b {} { return B }\n",
+    "rename a x\n",
+    "interp alias {} x {} b\n",
+    "x\n",
+);
+
+#[test]
+fn tp_definition_prefers_the_later_alias_over_an_earlier_rename() {
+    let analysis = analyse(RENAME_THEN_ALIAS);
+    assert_eq!(
+        start_lines(&definition(RENAME_THEN_ALIAS, 4, 0, &analysis)),
+        vec![1],
+        "`x` reaches `b`, the binding written last — not `a`'s rename"
+    );
+}
+
+#[test]
+fn tp_definition_uses_the_rename_while_it_is_still_the_latest_binding() {
+    // The same document read *between* the two mutations: only the rename has
+    // run there, so `x` is still `a` (tclsh: a call placed there prints `A`).
+    let src = concat!(
+        "proc a {} { return A }\n",
+        "proc b {} { return B }\n",
+        "rename a x\n",
+        "x\n",
+        "interp alias {} x {} b\n",
+    );
+    let analysis = analyse(src);
+    assert_eq!(
+        start_lines(&definition(src, 3, 0, &analysis)),
+        vec![0],
+        "before the alias replaces it, the rename is the live binding"
+    );
+}
+
+#[test]
+fn tp_references_follow_the_latest_binding_not_the_first_map_read() {
+    let query = refs(RENAME_THEN_ALIAS);
+    assert_eq!(
+        query(1, 5),
+        vec![1, 3, 4],
+        "`b` owns the post-alias `x` call site"
+    );
+    assert_eq!(
+        query(0, 5),
+        vec![0, 2],
+        "`a` keeps only its declaration and the rename's own source word"
+    );
+}
+
+#[test]
+fn tp_alias_onto_a_live_command_still_resolves_when_written_first() {
+    // The mirror order is not a reachable program — `rename a x` onto a live
+    // `x` aborts with `can't rename to "x": command already exists` (tclsh
+    // 9.0.4 and 8.6.14) — but the walk must still terminate and answer with
+    // the latest binding rather than looping or preferring by map order.
+    let src = concat!(
+        "proc a {} { return A }\n",
+        "proc b {} { return B }\n",
+        "interp alias {} x {} b\n",
+        "rename a x\n",
+        "x\n",
+    );
+    let analysis = analyse(src);
+    assert_eq!(
+        start_lines(&definition(src, 4, 0, &analysis)),
+        vec![0],
+        "the rename is the later binding of the two"
+    );
+}
+
+// A rename moves the command object (PR #1075 review, P2)
+
+/// Oracle (tclsh 9.0.4 and 8.6.14): `oldp` → `first`, `p` → `second`.  The
+/// rename handed `oldp` the object `p` held *then*; the later `proc p` builds
+/// a new, unrelated command under the vacated name.
+const RENAME_THEN_REDEFINE: &str = concat!(
+    "proc p {} { return first }\n",
+    "rename p oldp\n",
+    "proc p {} { return second }\n",
+    "oldp\n",
+    "p\n",
+);
+
+#[test]
+fn tp_definition_through_a_rename_reaches_the_declaration_it_captured() {
+    let analysis = analyse(RENAME_THEN_REDEFINE);
+    assert_eq!(
+        start_lines(&definition(RENAME_THEN_REDEFINE, 3, 0, &analysis)),
+        vec![0],
+        "`oldp` runs the definition the rename froze, not `p`'s successor"
+    );
+    assert_eq!(
+        start_lines(&definition(RENAME_THEN_REDEFINE, 4, 0, &analysis)),
+        vec![2],
+        "`p` itself reaches the redefinition"
+    );
+}
+
+#[test]
+fn tn_references_do_not_merge_two_commands_split_by_a_rename() {
+    // `oldp` and `p` are two different commands after the redefinition, so
+    // the `oldp` call site is not a reference to the surviving `p`.
+    let query = refs(RENAME_THEN_REDEFINE);
+    assert!(
+        !query(2, 5).contains(&3),
+        "the `oldp` call belongs to the captured definition, not to `p`"
+    );
+    assert_eq!(
+        query(2, 5),
+        vec![1, 2, 4],
+        "the rename's own source word, this header, and `p`'s own call"
+    );
+}
+
+#[test]
+fn tp_references_through_a_rename_without_a_redefinition_are_unaffected() {
+    // TN guard for the identity check: with a single declaration there is
+    // nothing to disambiguate, so idx 21's plain case still unifies.
+    let src = "proc greet {} { return hi }\nrename greet hello\nhello\n";
+    assert_eq!(refs(src)(0, 6), vec![0, 1, 2]);
+}
+
+// Same-body redefinition order (PR #1075 review, P2)
+
+#[test]
+fn tp_definition_inside_a_body_respects_that_bodys_own_redefinitions() {
+    // Oracle (tclsh 9.0.4 and 8.6.14) for
+    // `proc outer {} { proc p {} {return one}; p; proc p {a} {…} }`: the bare
+    // `p` prints `one`.  The redefinitions are statements of the body that is
+    // running, so they are in genuine execution order — the load-before-body
+    // shortcut does not apply to them.
+    let src = concat!(
+        "proc outer {} {\n",
+        "    proc p {} { return one }\n",
+        "    p\n",
+        "    proc p {a} { return two }\n",
+        "}\n",
+    );
+    let analysis = analyse(src);
+    assert_eq!(
+        start_lines(&definition(src, 2, 4, &analysis)),
+        vec![1],
+        "the in-between call reaches the declaration already executed"
+    );
+}
+
+#[test]
+fn tp_definition_inside_a_body_still_sees_a_later_top_level_declaration() {
+    // TN for the same rule: a proc declared *outside* the body, after it, has
+    // run by the time the body executes (tclsh: `outer` prints `LATER`).
+    // This is what the load-before-body shortcut exists for.
+    let src = concat!(
+        "proc outer {} {\n",
+        "    later\n",
+        "}\n",
+        "proc later {} { return LATER }\n",
+        "outer\n",
+    );
+    let analysis = analyse(src);
+    assert_eq!(
+        start_lines(&definition(src, 1, 4, &analysis)),
+        vec![3],
+        "a declaration outside the running body is already in effect"
+    );
+}
+
+#[test]
+fn tn_definition_declines_a_same_body_rename_written_after_the_call() {
+    // The identical rule for the mutation timeline: a `rename` that is a
+    // statement of the running body has not run yet at an earlier call in
+    // that same body (tclsh: `invalid command name "x"`).
+    let src = concat!(
+        "proc a {} { return A }\n",
+        "proc outer {} {\n",
+        "    x\n",
+        "    rename a x\n",
+        "}\n",
+    );
+    let analysis = analyse(src);
+    assert!(
+        definition(src, 2, 4, &analysis).is_empty(),
+        "a same-body rename below the call has not run yet"
+    );
+}
+
+#[test]
+fn tp_definition_follows_a_rename_from_another_bodys_statement() {
+    // TN guard for the narrowing above: a rename inside a *different* body is
+    // still leniently in effect — whether that body ever runs is not
+    // statically decidable, and this is the pre-existing behaviour.
+    let src = concat!(
+        "proc a {} { return A }\n",
+        "proc installer {} {\n",
+        "    rename a x\n",
+        "}\n",
+        "proc caller {} {\n",
+        "    x\n",
+        "}\n",
+    );
+    let analysis = analyse(src);
+    assert_eq!(
+        start_lines(&definition(src, 5, 4, &analysis)),
+        vec![0],
+        "a rename in another body still resolves the call"
+    );
+}
+
 // `namespace code [list X]` callbacks (issue #923 idx 92)
 
 const TRACER: &str = concat!(
@@ -352,6 +608,44 @@ fn tn_namespace_code_does_not_double_count_a_braced_callback() {
         vec![2, 4],
         "exactly one call site, not two"
     );
+}
+
+/// The bare, `[list]`-wrapped, and braced forms of the same callback, which
+/// must all read as exactly one reference apiece.
+fn tracer_source(callback: &str) -> String {
+    format!(
+        concat!(
+            "namespace eval ::demo {{\n",
+            "    variable S\n",
+            "    proc Tracer {{a b op}} {{ }}\n",
+            "    proc Setup {{}} {{\n",
+            "        trace add variable S(size) write {callback}\n",
+            "    }}\n",
+            "}}\n",
+        ),
+        callback = callback
+    )
+}
+
+#[test]
+fn tp_lens_counts_each_namespace_code_callback_shape_once() {
+    // The lens count is the raw span count, so a call site recorded by both
+    // the body recursion and the command-prefix unwrap shows up as two
+    // references for one callback (PR #1075 review, P2). One recorder per
+    // shape: `[namespace code X]` and `[namespace code {X}]` are recorded by
+    // the analyser's `ArgRole::Body` walk, `[namespace code [list X]]` — which
+    // that walk's `has_substitution` guard stops at — by the unwrap.
+    for callback in [
+        "[namespace code Tracer]",
+        "[namespace code {Tracer}]",
+        "[namespace code [list Tracer]]",
+    ] {
+        assert_eq!(
+            lens_count(&tracer_source(callback), "::demo::Tracer"),
+            1,
+            "one callback site, one reference, for {callback}"
+        );
+    }
 }
 
 #[test]

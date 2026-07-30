@@ -42,14 +42,22 @@ renamed-to name answers the same unified set. Both directions are order-gated:
 a call written before the `interp alias` or `rename` is not attributed to the
 target, matching Tcl, where it raises `invalid command name`. Rename
 deliberately does **not** rewrite those call sites — they spell a *different*
-command's name, which keeps its own spelling when the target is renamed.
+command's name, which keeps its own spelling when the target is renamed. When
+a name carries both a `rename` and an `interp alias`, the one written later is
+the one whose call sites are attributed.
 
 A callback wrapped for its namespace — `trace add variable v w [namespace
 code [list Handler]]`, the idiom Tk's own `fontchooser.tcl` uses — is a
 reference to `Handler`, in the `[list …]`, braced, and bareword forms alike.
+Each such callback counts once, so the reference lens above the declaration
+reads the same number Find All References opens.
 
 A proc declared twice in one file is one command with two headers: a query
-from either header returns the same set.
+from either header returns the same set. A `rename` between the two
+declarations breaks that, because it takes the command **object** away under
+its own name: `proc p …`, `rename p oldp`, `proc p …` leaves two unrelated
+commands, and the surviving `p`'s reference set excludes the `oldp` call
+sites — they belong to the definition the rename carried off.
 
 ## Example
 

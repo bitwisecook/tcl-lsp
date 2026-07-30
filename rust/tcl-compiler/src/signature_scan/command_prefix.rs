@@ -52,7 +52,10 @@
 //!   `Traits::WRAPS_COMMAND_PREFIX` command): the wrapper's own result is a
 //!   command prefix, so its wrapped word is unwrapped one level and run back
 //!   through the shapes above. The idiom Tk's `library/fontchooser.tcl` uses
-//!   for its trace callbacks (issue #923 idx 92).
+//!   for its trace callbacks (issue #923 idx 92). A *braced* wrapped word is
+//!   excluded: the analyser already walks it as a script, and a second record
+//!   at the same span would double the code-lens reference count (see
+//!   [`extract_wrapped_prefix_head`]).
 //!
 //! A dynamic head (`$var`/`[cmd]`, in any shape) can't be resolved to a
 //! proc and recording it would false-fire W123, so it stays unrecorded.
@@ -256,10 +259,27 @@ fn extract_prefix_head(
 /// (`[list X a]`, a bareword, a braced `{X a}`) works wrapped too, and no
 /// command name appears in this walker.
 ///
-/// A **braced** wrapped argument is deliberately left alone: the analyser
-/// already walks it as an ordinary `Body` and records its head, so extracting
-/// it here as well would double-count the same call site in the reference
-/// list and the code-lens count.
+/// A **braced** wrapped argument is deliberately left alone.  Every recorded
+/// call site must have exactly one recorder: Find All References dedupes by
+/// range and would hide a duplicate, but `code_lens` counts
+/// `proc_reference_spans().len()` raw, so a second record at the identical
+/// span makes one callback read as *two* references.  The braced word is one
+/// the analyser already walks — `Analyser::analyse_body` descends it as an
+/// ordinary script and records its head — and measuring it confirms the
+/// double: with this guard removed, `[namespace code {Tracer}]` reports two
+/// references for one callback.  Pinned by
+/// `command_table_mutation::tp_lens_counts_each_namespace_code_callback_shape_once`.
+///
+/// The **bareword** shape (`[namespace code Tracer]`) is *not* excluded, even
+/// though `Analyser::dispatch_one_body_argument` does dispatch a bareword
+/// `Body` word as a zero-argument call (the issue #923 idx 61 fix).  That
+/// dispatch runs on the analyser's own statement walk, which does not descend
+/// into a `[…]` command substitution — and a `namespace code` wrapper is
+/// always inside one, since its result has to be substituted to be used.
+/// Measured, not assumed: excluding the bareword shape here drops the
+/// callback's reference count from 1 to 0 (PR #1075 review, P2 — the review's
+/// double-count diagnosis holds for the braced word, which was already
+/// guarded, but not for this one).
 ///
 /// [`ArgRole::Body`]: tcl_registry::arg_role::ArgRole::Body
 fn extract_wrapped_prefix_head(

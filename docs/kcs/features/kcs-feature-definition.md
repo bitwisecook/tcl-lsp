@@ -34,14 +34,26 @@ replaced it. Both are order-gated: a call written *before* the `rename` or
 `interp alias` still resolves the ordinary way (or, if nothing else defines
 it, not at all), which is what real Tcl does. A call inside a proc or class
 body sees every one of the file's renames and aliases regardless of where
-they are written, because the whole file loads before any body runs. An
-alias that binds leading arguments (`interp alias {} c {} target extra`) is
-not the same call, so Go to Definition abstains rather than pointing at a
-signature that does not describe it.
+they are written, because the whole file loads before any body runs — but
+only those written *outside* that body. A `rename` or `proc` that is itself
+a statement of the body being read is an ordinary statement of the running
+script, so it counts only from where it is written onward, exactly as at the
+top level. An alias that binds leading arguments (`interp alias {} c {}
+target extra`) is not the same call, so Go to Definition abstains rather
+than pointing at a signature that does not describe it.
+
+When a name carries both a `rename` and an `interp alias`, the one written
+**later** is what the call reaches — an alias silently replaces whatever the
+name held, and so does a rename.
 
 A proc declared twice in one file is two definitions of one command. A call
 between the two jumps to the **first** header, a call after both jumps to
 the second, and a cursor on either header stays on that header.
+
+A `rename` moves the command **object**, so it splits a redefined name into
+two genuinely different commands: after `proc p …`, `rename p oldp`, `proc p
+…`, the name `oldp` jumps to the *first* header — a later `proc p` cannot
+change what `oldp` runs — while `p` jumps to the second.
 
 A `TclOO` member name written as a bare word inside a class body is only a
 jump target when it really is one: the cursor must sit on the member's own

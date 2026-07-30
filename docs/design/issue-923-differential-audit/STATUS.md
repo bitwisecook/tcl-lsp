@@ -789,10 +789,38 @@ analyser's constructor typing already used
 factored into `tcl-compiler/src/analyser/indirection.rs` and consumed by
 both the diagnostics and the LSP's navigation providers, so the two cannot
 drift. Regression coverage is
-`rust/tcl-lsp-core/tests/command_table_mutation.rs` (19 TP/TN cases), unit
+`rust/tcl-lsp-core/tests/command_table_mutation.rs` (31 TP/TN cases), unit
 tests in `analyser/indirection.rs`, W123/E00x cases in
 `analyser/diagnostics/tests.rs`, and nine new
 `rust/tcl-lsp-server/tests/e2e/{definition,references,rename}.rs` cases.
+
+**Codex review of PR #1075 (P2 × 4)** hardened the ordering model into one
+shape — *a command name is a slot whose timeline is queried at (offset,
+context)* — after the first cut got three ordering/identity subtleties
+wrong. (1) A name carrying both a `rename` and an `interp alias` record was
+resolved by whichever map the code read first, not by which statement ran
+last (oracle, 9.0.4/8.6.14: `rename a x` then `interp alias {} x {} b` makes
+`x` return `B`); `indirection::latest_binding` now picks the later of the
+two in-effect bindings. (2) A `rename` hands over the command **object**, so
+the terminal name has to be read as of the *rename*, not the call — `proc p`
+/ `rename p oldp` / `proc p` leaves `oldp` running the first definition and
+`p` the second; `Indirection::resolve_at` carries that as-of time, and the
+reverse index (`names_reaching` → `Reaching`) carries it back so a reference
+query cannot merge two commands' sites (or double the survivor's lens
+count). An alias, which re-resolves by name at every invocation, keeps the
+call site's own offset as its as-of time. (3) The load-before-body shortcut
+stopped at nothing; it now stops at the executing body's own edge, so a
+`proc` or `rename` that is a *statement of that body* stays order-gated by
+offset (`proc outer {} { proc p …; p; proc p {a} … }` reaches the first),
+while a declaration outside it is still unconditionally in effect. The
+fourth P2 — a `[namespace code Tracer]` bareword callback double-recorded —
+**did not reproduce**: measured, the analyser's bareword-`Body` dispatch does
+not descend into a `[…]` substitution, so excluding that shape drops the
+callback's reference count from 1 to 0. The braced shape *is* the
+double-count risk the review identified, and was already guarded; the
+review's requested code-lens count test
+(`tp_lens_counts_each_namespace_code_callback_shape_once`) now pins all
+three shapes at one reference each.
 
 | idx | what was wrong | what changed |
 |---|---|---|
