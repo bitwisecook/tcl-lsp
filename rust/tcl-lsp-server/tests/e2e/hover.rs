@@ -753,3 +753,95 @@ fn hover_same_file_behaviour_is_unchanged_1018() {
     let text = hover(&mut lsp, &uri, 1, 4);
     assert!(text.contains("greetPerson"), "same-file hover: {text:?}");
 }
+
+// -- expr math functions (issue #974 defect 1) ---------------------------
+
+/// A bare `sin(…)` inside `expr` renders the same registry documentation the
+/// namespace-qualified `::tcl::mathfunc::sin` spelling already did — before
+/// this it drew nothing at any column of the function word.
+#[test]
+fn bare_mathfunc_call_in_expr_hovers_974() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set a [expr {sin(1.0)}]\n");
+    let text = hover(&mut lsp, &uri, 0, 14);
+    assert!(text.contains("sin"), "hover: {text:?}");
+    assert!(text.contains("math function"), "hover: {text:?}");
+    assert!(
+        text.contains("::tcl::mathfunc::sin"),
+        "names its dispatch target: {text:?}"
+    );
+}
+
+/// A user `proc ::tcl::mathfunc::NAME` override wins over the built-in — it is
+/// a real command in the table C Tcl dispatches through.
+#[test]
+fn overridden_mathfunc_hovers_as_the_proc_974() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "namespace eval tcl::mathfunc {\n    proc li {list index args} { ::lindex $list $index }\n}\nproc caller {} {\n    if {li({0 1},1)} { return yes }\n}\n",
+    );
+    let text = hover(&mut lsp, &uri, 4, 9);
+    assert!(
+        text.contains("::tcl::mathfunc::li"),
+        "the override: {text:?}"
+    );
+}
+
+/// TN: the same word outside an expression draws no math-function hover.
+#[test]
+fn mathfunc_hover_does_not_fire_outside_expr_974() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set sin 1\nputs $sin\n");
+    let text = hover(&mut lsp, &uri, 1, 7);
+    assert!(text.to_lowercase().contains("variable"), "hover: {text:?}");
+    assert!(!text.contains("math function"), "hover: {text:?}");
+}
+
+// -- inert `$var` text (issue #923 idx 24) -------------------------------
+
+/// A `$var`-shaped substring inside a comment or a brace-quoted data word is
+/// emitted verbatim by Tcl, so it must not hover as a variable.
+#[test]
+fn inert_dollar_ref_does_not_hover_923_idx24() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc holder {} {\n    set level 42\n    # so $level ...\n    set t {plain $level here}\n    return $t\n}\n",
+    );
+    assert!(
+        hover_text(&lsp.hover(&uri, 2, 11)).is_empty(),
+        "comment occurrence must not hover"
+    );
+    assert!(
+        hover_text(&lsp.hover(&uri, 3, 19)).is_empty(),
+        "data-brace occurrence must not hover"
+    );
+    // FP guard: a live read still hovers.
+    let text = hover(&mut lsp, &uri, 4, 12);
+    assert!(text.to_lowercase().contains("variable"), "hover: {text:?}");
+}
+
+// -- parameter-list data words (issue #923 idx 104) ----------------------
+
+/// A parameter's default-value literal is data, not a command reference.
+#[test]
+fn parameter_default_literal_does_not_hover_923_idx104() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc destroy {w} { puts $w }\nproc rfg {grab focus {destroy destroy}} {\n    destroy $grab\n}\n",
+    );
+    assert!(
+        hover_text(&lsp.hover(&uri, 1, 30)).is_empty(),
+        "the default-value literal must not hover as a command"
+    );
+    // FP guard: the real call in the body still resolves.
+    let text = hover(&mut lsp, &uri, 2, 5);
+    assert!(text.contains("destroy"), "hover: {text:?}");
+}
