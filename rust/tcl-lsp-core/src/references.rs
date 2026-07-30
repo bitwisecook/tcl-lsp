@@ -70,13 +70,34 @@
 //!   the workspace index to find which documents to scan and (for a
 //!   classmethod) which class names are valid bare-dispatch heads when the
 //!   scanned document doesn't declare the class itself.
-//! * A classmethod's class-command dispatch is matched by exact name-set
-//!   membership (the class's as-written simple name plus its fully
-//!   `::`-qualified name) rather than full namespace-relative resolution —
-//!   a call spelled with a *partial* namespace qualifier from a sibling
-//!   namespace (`ns::Factory make` where the class is `::ns::Factory`) is
-//!   not matched.  The same imprecision already applies to `CLASS create
-//!   NAME` object-command dispatch above.
+//! * A classmethod's class-command dispatch is matched by *resolving* the
+//!   written head against the call site's own lexical namespace with C Tcl's
+//!   rule (current namespace, then `namespace path`, then global — see
+//!   [`CommandReceivers::class_head_matches`]), so two classes sharing a
+//!   simple name in different namespaces are never cross-linked (issue
+//!   #981).  A `CLASS create NAME` **object command** is still matched by
+//!   text: the analyser records instance-command names unqualified
+//!   (`AnalysisResult::created_instance_commands`), so two same-named object
+//!   commands in different namespaces are already indistinguishable in the
+//!   data this scanner reads — qualifying them is an analyser-shape change.
+//! * An **explicit** `namespace import ::a::Factory` is followed: the imported
+//!   name is a real command in the importing namespace, so it joins the
+//!   resolver's `exists` universe and resolves through to the source command
+//!   for the class-identity test ([`explicit_import_aliases`]).  A **wildcard**
+//!   import (`namespace import ::a::*`) is **not**: reproducing it needs the
+//!   export-gated import *snapshot* — which commands existed in `::a` when the
+//!   import ran — that issue #1027 tracks, and treating every exported command
+//!   as imported regardless of definition order would invent aliases the
+//!   runtime never created.  So a wildcard-imported class's bare dispatch is
+//!   still not matched, and a rename still leaves it stale.
+//! * [incr Tcl]'s class-scoped `proc` uses a different dispatch shape
+//!   entirely — a single `::`-qualified command word (`Factory::make`), not
+//!   two words — so it is matched by [`crate::definition::itcl_class_proc_target`]
+//!   against `analysis.command_invocations`, with Tcl's own
+//!   current-namespace-then-global resolution rather than by name-set
+//!   membership.  That path is single-document: a call in a sibling file is
+//!   not found, because the cross-file layer below still carries only the
+//!   two-word shape's name sets.
 //! * `uplevel`'s body is `BodyKind::Structural` (a different call frame in
 //!   the general case — level `0` and level `1`+ can't be told apart from
 //!   the static registry spec alone), so a `my`/`next`/`$obj method`
@@ -395,6 +416,15 @@ pub fn references(
 
     // Proc references.
     if let Some(out) = proc_references(&ctx, &word) {
+        return out;
+    }
+
+    // `Factory::make` — [incr Tcl]'s colon-qualified class-proc dispatch
+    // (issue #990). Tried *after* `proc_references` so an ordinary
+    // namespace-qualified proc call of the same spelling keeps priority:
+    // this only ever fires when nothing resolves as a proc and the written
+    // word's parent namespace really is an itcl class declaring that member.
+    if let Some(out) = itcl_class_proc_references(&ctx) {
         return out;
     }
 
@@ -745,6 +775,42 @@ fn classmethod_call_site_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     call_spans.extend(method_next_dispatch_spans(
         analysis, source, dialect, &class_q, &method, true,
     ));
+    Some(build_member_ranges(
+        source,
+        line_index,
+        decl_span,
+        call_spans,
+        include_declaration,
+    ))
+}
+
+/// Build references for a `Factory::make` call site — [incr Tcl]'s
+/// colon-qualified class-proc dispatch (issue #990).
+///
+/// itcl's class-scoped `proc` is its equivalent of `TclOO`'s `classmethod`,
+/// but it is invoked as a *single* `::`-qualified command word, not as a
+/// two-word `Factory make` dispatch (which in itcl is the unrelated
+/// `ClassName instanceName` object-creation syntax).  The word is resolved
+/// with Tcl's own current-namespace-then-global rule
+/// ([`crate::definition::itcl_class_proc_target`]), so it reaches the class
+/// the runtime would reach and nothing else.
+///
+/// Returns `None` for every other spelling, leaving ordinary qualified proc
+/// calls to [`proc_references`].
+fn itcl_class_proc_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
+    let RefCtx {
+        source,
+        dialect,
+        line_index,
+        line,
+        character,
+        analysis,
+        include_declaration,
+    } = *ctx;
+    let (class_q, member) =
+        crate::definition::itcl_class_proc_target_at(source, dialect, line, character, analysis)?;
+    let (decl_span, call_spans) =
+        method_references_for_class(source, dialect, analysis, &class_q, &member, true)?;
     Some(build_member_ranges(
         source,
         line_index,
@@ -1633,48 +1699,71 @@ pub(crate) fn find_obj_method_call_sites(
     )
 }
 
-/// Whether `cd`'s definer command dispatches its class-scoped members as a
-/// single `::`-qualified identifier (`Factory::make`) rather than the
-/// two-word `Factory make` shape — true for [incr Tcl] only.  Registry data
-/// (`DefinerFamily`), not a hardcoded command-name check: `cd.metaclass` is
-/// looked up in `dialect`'s registry and its attached
-/// [`tcl_registry::definer::DefinitionBodyGrammar::family`] compared.  A
-/// metaclass the registry doesn't recognise as a definer (shouldn't happen
-/// for a real `ClassDef`) is conservatively treated as *not* itcl, matching
-/// prior behaviour.
-fn is_itcl_class(cd: &tcl_compiler::analyser::types::ClassDef, dialect: &str) -> bool {
-    tcl_registry::registry_for_dialect(dialect)
-        .get(&cd.metaclass)
-        .and_then(|spec| spec.definition_body)
-        .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::Itcl)
-}
+use crate::definition::is_itcl_class;
 
-/// [`find_obj_method_call_sites`], plus `extra_cmd_names` — bare command
-/// names to treat as valid classmethod-dispatch heads for `method`
-/// regardless of what this document's own `analysis.all_classes` knows.
+/// Every call site in this document that dispatches `class_q`'s [incr Tcl]
+/// class-scoped `proc` named `member` — the single `::`-qualified
+/// `Factory::make` shape, which is a *different call shape entirely* from
+/// the two-word `Factory make` dispatch `classmethod` / `typemethod` use
+/// (issue #990).
 ///
-/// `is_classmethod` selects `method`'s dispatch shape explicitly rather than
-/// inferring it from map membership: a class may legally define a `method`
-/// and a `classmethod` of the *same name* (they occupy separate dispatch
-/// tables — the instance's and the class object's own), so "does
-/// `class_methods` contain this name" cannot answer "which one does the
-/// caller mean" when both do (Codex review on #971, P2).
+/// Each returned span covers only the call's final `::`-segment (the `make`
+/// of `Factory::make`), so a rename rewrites the member name and leaves the
+/// as-written qualifier alone — `Factory::make` → `Factory::produce`.
 ///
-/// A same-document call (`extra_cmd_names` empty) derives everything from
-/// `analysis` directly, as before.  The cross-file *pure-consumer* path
-/// ([`obj_method_call_sites`]) cannot: a document that only calls `Factory
-/// make` and never declares/extends `Factory` has no `::Factory` entry in
-/// its own `all_classes` for the local classmethod check below to find, so
-/// its caller supplies the workspace-wide answer here instead.
-fn find_obj_method_call_sites_with_extra_cmd_names(
-    source: &str,
-    dialect: &str,
+/// Sites come from `analysis.command_invocations` rather than a text scan:
+/// an itcl class proc really is an ordinary command, so the analyser has
+/// already indexed every call to it, including those nested inside `[...]`
+/// substitutions and control-flow bodies.  Each candidate is then resolved
+/// with [`crate::definition::itcl_class_proc_target`], which applies Tcl's
+/// own current-namespace-then-global rule to the call's *lexical* namespace
+/// — so `Factory::make` written inside `namespace eval ::app` reaches
+/// `::app::Factory`, and the same text written at the top level (where only
+/// `::app::Factory` exists) reaches nothing at all.
+fn itcl_class_proc_call_sites(
     analysis: &AnalysisResult,
+    dialect: &str,
     class_q: &str,
-    method: &str,
-    is_classmethod: bool,
-    extra_cmd_names: &[String],
+    member: &str,
 ) -> Vec<tcl_lexer::Span> {
+    analysis
+        .command_invocations
+        .iter()
+        .filter_map(|inv| {
+            let namespace = crate::definition::namespace_context_at(
+                &analysis.global_scope,
+                inv.range.start(),
+                &analysis.namespace_overrides,
+            );
+            let (target_class, target_member) = crate::definition::itcl_class_proc_target(
+                analysis, dialect, &namespace, &inv.name,
+            )?;
+            if target_class != class_q || target_member != member {
+                return None;
+            }
+            let tail = tcl_syntax::naming::written_command_tail(inv.name.as_bytes());
+            let tail_len = u32::try_from(tail.len()).ok()?;
+            Some(tcl_lexer::Span::new(
+                inv.range.end().saturating_sub(tail_len),
+                inv.range.end(),
+            ))
+        })
+        .collect()
+}
+/// The receiver sets a dispatch scan for `method` on `class_q` must match:
+/// the `$v method` variables, and the bare-word command receivers.
+///
+/// `target` is `(class_q, method, is_classmethod)`, bundled to keep the
+/// parameter count inside the lint budget; `is_classmethod` is the caller's
+/// already-resolved fact about which of a possibly-same-named
+/// `method` / `classmethod` pair is meant, never re-derived here.
+fn dispatch_receivers<'a>(
+    analysis: &'a AnalysisResult,
+    dialect: &str,
+    target: (&str, &str, bool),
+    extra_cmd_names: &[String],
+) -> (FxHashSet<&'a str>, CommandReceivers) {
+    let (class_q, method, is_classmethod) = target;
     let hierarchy = analysis.class_hierarchy();
     // A classmethod dispatches on the class's own command, never an
     // instance — instance-receiver matching only ever applies to a `method`.
@@ -1703,22 +1792,34 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     // (so `NAME` is a command, dispatched bare as `NAME method`, not `$NAME
     // method`).  A `set v [CLASS new]` receiver is a *variable* only and never
     // enters this set, so a bare `v method` is (correctly) not matched.
-    let mut cmd_set: FxHashSet<&str> = var_set
-        .iter()
-        .copied()
-        .filter(|name| analysis.created_instance_commands.contains(*name))
-        .collect();
+    let mut receivers = CommandReceivers {
+        object_commands: var_set
+            .iter()
+            .copied()
+            .filter(|name| analysis.created_instance_commands.contains(*name))
+            .map(str::to_owned)
+            .collect(),
+        class_targets: FxHashSet::default(),
+        class_tails: FxHashSet::default(),
+        import_aliases: explicit_import_aliases(analysis),
+    };
     // A `classmethod` dispatches on the *class's own* command (`Factory
     // make`) — never on an instance: TclOO's `classmethod` sugar puts the
     // method on the class object's own class, which no instance's MRO
     // reaches.  When the caller says `method` is a classmethod, and
     // `class_q`'s definer family actually uses this two-word dispatch shape,
-    // fold in the defining class's own name (simple + qualified) plus the
-    // own name of any subclass that inherits (does not override) it — the
-    // same inheritance test as the instance `var_set` above, so a `Sub make`
-    // dispatch on an inheriting subclass counts too.  Never runs for a plain
-    // `method` — even one that shares a name with a `classmethod` on the same
-    // class — which must never gain a phantom `ClassName method` match.
+    // fold in the defining class's fully qualified name plus that of any
+    // subclass that inherits (does not override) it — the same inheritance
+    // test as the instance `var_set` above, so a `Sub make` dispatch on an
+    // inheriting subclass counts too.  Never runs for a plain `method` — even
+    // one that shares a name with a `classmethod` on the same class — which
+    // must never gain a phantom `ClassName method` match.
+    //
+    // Only the *qualified* name goes in: a written head is matched by
+    // resolving it against the call site's own namespace
+    // ([`CommandReceivers::class_head_matches`]), not by name-set membership,
+    // so a bare `Factory` inside `namespace eval ::b` reaches `::b::Factory`
+    // and never `::a::Factory` (issue #981).
     //
     // The definer-family check matters because [incr Tcl]'s class-scoped
     // `proc` lands in this same `class_methods` bucket (so the declaration
@@ -1743,8 +1844,7 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
             .and_then(|cd| cd.class_methods.get(method))
     {
         if let Some(cd) = analysis.all_classes.get(class_q) {
-            cmd_set.insert(cd.name.as_str());
-            cmd_set.insert(cd.qualified_name.as_str());
+            receivers.add_class_target(&cd.qualified_name);
         }
         if !cq_method.is_self_method {
             for (other_q, other_cd) in &analysis.all_classes {
@@ -1752,27 +1852,82 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
                     && hierarchy.method_target(other_q, method) == Some(class_q)
                     && !is_itcl_class(other_cd, dialect)
                 {
-                    cmd_set.insert(other_cd.name.as_str());
-                    cmd_set.insert(other_cd.qualified_name.as_str());
+                    receivers.add_class_target(&other_cd.qualified_name);
                 }
             }
         }
     }
     // The caller's workspace-wide classmethod knowledge, for a document where
     // the class itself isn't known locally.  Meaningless for a plain method.
+    // Qualified names, so the same namespace-resolution rule applies to a
+    // pure-consumer document as to one that declares the class.
     if is_classmethod {
-        cmd_set.extend(extra_cmd_names.iter().map(String::as_str));
+        for name in extra_cmd_names {
+            receivers.add_class_target(name);
+        }
     }
-    if var_set.is_empty() && cmd_set.is_empty() {
-        return Vec::new();
+    (var_set, receivers)
+}
+
+/// [`find_obj_method_call_sites`], plus `extra_cmd_names` — bare command
+/// names to treat as valid classmethod-dispatch heads for `method`
+/// regardless of what this document's own `analysis.all_classes` knows.
+///
+/// `is_classmethod` selects `method`'s dispatch shape explicitly rather than
+/// inferring it from map membership: a class may legally define a `method`
+/// and a `classmethod` of the *same name* (they occupy separate dispatch
+/// tables — the instance's and the class object's own), so "does
+/// `class_methods` contain this name" cannot answer "which one does the
+/// caller mean" when both do (Codex review on #971, P2).
+///
+/// A same-document call (`extra_cmd_names` empty) derives everything from
+/// `analysis` directly, as before.  The cross-file *pure-consumer* path
+/// ([`obj_method_call_sites`]) cannot: a document that only calls `Factory
+/// make` and never declares/extends `Factory` has no `::Factory` entry in
+/// its own `all_classes` for the local classmethod check below to find, so
+/// its caller supplies the workspace-wide answer here instead.
+fn find_obj_method_call_sites_with_extra_cmd_names(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+    is_classmethod: bool,
+    extra_cmd_names: &[String],
+) -> Vec<tcl_lexer::Span> {
+    // [incr Tcl] class-scoped `proc`s land in the same `class_methods`
+    // bucket as a `classmethod`, but dispatch as a single `::`-qualified
+    // identifier (`Factory::make`) — a shape the two-word scanner below
+    // cannot see, and whose two-word look-alike is unrelated
+    // instance-creation syntax.  Collected first so every consumer of this
+    // scanner (references, rename, the code lens, call hierarchy) gets itcl
+    // edges from one place.
+    let mut out: Vec<tcl_lexer::Span> = if is_classmethod
+        && analysis
+            .all_classes
+            .get(class_q)
+            .is_some_and(|cd| is_itcl_class(cd, dialect))
+    {
+        itcl_class_proc_call_sites(analysis, dialect, class_q, method)
+    } else {
+        Vec::new()
+    };
+    let (var_set, receivers) = dispatch_receivers(
+        analysis,
+        dialect,
+        (class_q, method, is_classmethod),
+        extra_cmd_names,
+    );
+    if var_set.is_empty() && !receivers.has_any() {
+        return out;
     }
-    let mut out: Vec<tcl_lexer::Span> = Vec::new();
-    let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
+    let mut seen: FxHashSet<(u32, u32)> = out.iter().map(|s| (s.start(), s.end())).collect();
     let ctx = ObjMethodScan {
         source,
         dialect,
+        analysis,
         var_set: &var_set,
-        cmd_set: &cmd_set,
+        receivers: &receivers,
         method,
         var_receivers_in_scope: true,
     };
@@ -1812,23 +1967,159 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     out
 }
 
+/// The bare-word command receivers a dispatch scan matches — the two kinds
+/// are matched by *different* rules, because the analysis knows different
+/// things about them.
+///
+/// * `class_targets` — the fully `::`-qualified names of the classes whose
+///   own class command dispatches the method (`Factory make`).  A written
+///   head is matched by **resolving** it against the call site's lexical
+///   namespace with Tcl's own rule and comparing the winner against this
+///   set, never by comparing the text.  So, with a class in `::a` and
+///   another in `::b`, a bare `Factory make` written inside `namespace eval
+///   ::b` reaches `::b::Factory` and is *not* attributed to `::a::Factory`
+///   (issue #981; pinned against tclsh 8.6.14 and 9.0.4, which answer
+///   `b-made` there, `invalid command name "Factory"` where no candidate
+///   exists, and the global class where only that exists).
+///
+/// * `object_commands` — the instance-command names bound by `CLASS create
+///   NAME`.  These stay an exact text match: the analyser records them
+///   unqualified (`AnalysisResult::created_instance_commands` is a set of
+///   bare names with no creation namespace, and `instance_classes` keeps one
+///   binding per bare name), so two same-named object commands in different
+///   namespaces are already indistinguishable in the data this scanner
+///   reads.  Qualifying them is an analyser-shape change, not a scanner one.
+struct CommandReceivers {
+    class_targets: FxHashSet<String>,
+    /// Simple (tail) names of every entry in `class_targets` — the cheap
+    /// pre-filter that keeps the namespace resolution off every command head
+    /// in the document.
+    class_tails: FxHashSet<String>,
+    object_commands: FxHashSet<String>,
+    /// `namespace import`-created command aliases: the *imported* name in the
+    /// importing namespace (`::b::Factory`) mapped to the source command
+    /// (`::a::Factory`).  See [`explicit_import_aliases`].
+    import_aliases: FxHashMap<String, String>,
+}
+
+/// The command aliases an **explicit** (pattern-free) `namespace import`
+/// creates, as `imported qualified name → source qualified name`.
+///
+/// `namespace import ::a::Factory` inside `::b` creates a real command
+/// `::b::Factory` that dispatches `::a::Factory` — tclsh 9.0.4 (probe
+/// `ns981.tcl`) confirms both halves: `Factory make` inside `::b` prints
+/// `A-MADE`, and `info commands ::b::Factory` lists `::b::Factory`.  Without
+/// these entries the bare-dispatch resolver's `exists` universe has no
+/// candidate for the imported name at all, so the call site is invisible and
+/// a rename leaves it stale.
+///
+/// **Wildcard imports are deliberately excluded.**  `namespace import ::a::*`
+/// needs the export-gated import *snapshot* model (which commands existed in
+/// `::a` at the moment the import ran, filtered by `namespace export`) — issue
+/// #1027.  Half-building it here, by treating every exported command as
+/// imported regardless of definition order, would invent aliases the runtime
+/// never created.  A pattern containing any glob metacharacter is skipped.
+fn explicit_import_aliases(analysis: &AnalysisResult) -> FxHashMap<String, String> {
+    analysis
+        .namespace_imports
+        .iter()
+        .filter(|import| !import.pattern.contains(['*', '?', '[']))
+        .filter_map(|import| {
+            let tail = std::str::from_utf8(tcl_syntax::naming::written_command_tail(
+                import.pattern.as_bytes(),
+            ))
+            .ok()?;
+            (!tail.is_empty()).then(|| {
+                (
+                    tcl_syntax::naming::qualify(&import.ns, tail),
+                    tcl_syntax::naming::normalise_qualified_name(&import.pattern),
+                )
+            })
+        })
+        .collect()
+}
+
+impl CommandReceivers {
+    /// Register a class whose own command dispatches the method, by its
+    /// fully qualified name.
+    fn add_class_target(&mut self, qualified_name: &str) {
+        let tail = tcl_syntax::naming::written_command_tail(qualified_name.as_bytes());
+        if let Ok(tail) = std::str::from_utf8(tail) {
+            self.class_tails.insert(tail.to_owned());
+        }
+        self.class_targets.insert(qualified_name.to_owned());
+    }
+
+    fn has_any(&self) -> bool {
+        !self.class_targets.is_empty() || !self.object_commands.is_empty()
+    }
+
+    /// Whether the bare head `raw`, written at byte offset `offset`, is a
+    /// class command in `class_targets` — resolved the way Tcl resolves it,
+    /// from the namespace lexically in effect there.
+    ///
+    /// The `exists` universe is this document's procs and classes, the
+    /// caller-supplied targets themselves, and every explicit
+    /// `namespace import` alias: a pure-consumer document does not declare the
+    /// class it calls, so without the targets no candidate would ever "exist"
+    /// and every cross-file consumer site would be lost.  A same-named proc or
+    /// class at a higher-priority candidate still shadows the target, exactly
+    /// as it would at runtime.
+    ///
+    /// An imported name is a real command in the importing namespace, so it
+    /// both *exists* as a candidate and, when it wins, resolves through to the
+    /// source command for the class-identity test — otherwise
+    /// `namespace import ::a::Factory; Factory make` inside `::b` matches
+    /// nothing (the winning `::b::Factory` is not itself a class target).
+    fn class_head_matches(&self, analysis: &AnalysisResult, raw: &str, offset: u32) -> bool {
+        if self.class_targets.is_empty() {
+            return false;
+        }
+        let Ok(tail) =
+            std::str::from_utf8(tcl_syntax::naming::written_command_tail(raw.as_bytes()))
+        else {
+            return false;
+        };
+        if !self.class_tails.contains(tail) {
+            return false;
+        }
+        let namespace = crate::definition::namespace_context_at(
+            &analysis.global_scope,
+            offset,
+            &analysis.namespace_overrides,
+        );
+        crate::definition::resolved_command_name(analysis, &namespace, raw, &|candidate| {
+            self.class_targets.contains(candidate)
+                || analysis.all_classes.contains_key(candidate)
+                || analysis.all_procs.contains_key(candidate)
+                || self.import_aliases.contains_key(candidate)
+        })
+        .is_some_and(|winner| {
+            let dispatched = self.import_aliases.get(&winner).unwrap_or(&winner);
+            self.class_targets.contains(dispatched)
+        })
+    }
+}
+
 /// Read-only context for the object-method call-site scan: the document
-/// `source`, its `dialect`, the `method` being looked up, and two receiver
-/// sets — `var_set` matches `$v method` dispatch (variables holding an
-/// object, keyed by bare name) and `cmd_set` matches `NAME method` dispatch
-/// (object *commands* bound by `CLASS create NAME`).
+/// `source`, its `dialect`, its `analysis`, the `method` being looked up, and
+/// the receiver sets — `var_set` matches `$v method` dispatch (variables
+/// holding an object, keyed by bare name) and `receivers` matches `NAME
+/// method` dispatch (object commands bound by `CLASS create NAME`, and class
+/// commands resolved namespace-aware).
 #[derive(Clone, Copy)]
 struct ObjMethodScan<'a> {
     source: &'a str,
     dialect: &'a str,
+    analysis: &'a AnalysisResult,
     var_set: &'a FxHashSet<&'a str>,
-    cmd_set: &'a FxHashSet<&'a str>,
+    receivers: &'a CommandReceivers,
     method: &'a str,
     /// `false` once the scan has descended through a frame-shifting region
     /// ([`frame_shifted_dispatch_regions`]), where a `$var` receiver's bare
     /// name no longer names the enclosing frame's variable — so `var_set`
-    /// stops matching while `cmd_set` (an ordinary command, resolvable from
-    /// any frame) keeps going.
+    /// stops matching while `receivers` (ordinary commands, resolvable from
+    /// any frame) keep going.
     var_receivers_in_scope: bool,
 }
 
@@ -1844,7 +2135,16 @@ impl ObjMethodScan<'_> {
     /// Whether this context can still match anything — a frame-shifted scan
     /// with no command receivers to look for has nothing left to do.
     fn has_receivers(&self) -> bool {
-        !self.cmd_set.is_empty() || (self.var_receivers_in_scope && !self.var_set.is_empty())
+        self.receivers.has_any() || (self.var_receivers_in_scope && !self.var_set.is_empty())
+    }
+
+    /// Whether the bare-word head `raw` at `offset` names a receiver whose
+    /// dispatch this scan is looking for.
+    fn command_receiver_matches(&self, raw: &str, offset: u32) -> bool {
+        self.receivers.object_commands.contains(raw)
+            || self
+                .receivers
+                .class_head_matches(self.analysis, raw, offset)
     }
 }
 
@@ -1913,11 +2213,12 @@ fn scan_obj_method_region(
                     ctx.var_receivers_in_scope
                         && strip_var_decoration(raw).is_some_and(|name| ctx.var_set.contains(name))
                 } else {
-                    // A bare-word object command (`rex bark`).  `cmd_set` holds
-                    // only plain names, and a braced / bracketed / substituted
-                    // head's source slice keeps its delimiters (`{rex}`, `[x]`),
-                    // so an exact match admits only a genuine bare word.
-                    ctx.cmd_set.contains(raw)
+                    // A bare-word object command (`rex bark`) or class command
+                    // (`Factory make`).  Both receiver sets hold only plain
+                    // names, and a braced / bracketed / substituted head's
+                    // source slice keeps its delimiters (`{rex}`, `[x]`), so
+                    // neither can admit anything but a genuine bare word.
+                    ctx.command_receiver_matches(raw, head.span.start())
                 };
                 if receiver_matches {
                     let m_start = method_tok.span.start() as usize;

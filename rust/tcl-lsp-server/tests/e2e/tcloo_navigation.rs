@@ -404,3 +404,242 @@ fn tp_classmethod_lens_click_and_count_reach_a_consumer_document() {
         "and its count must be that same number: {command:?}"
     );
 }
+
+// Issue #981 — bare class-command dispatch is namespace-scoped.
+
+/// TN, the issue's own repro, across files: two classes named `Factory` in
+/// `::a` and `::b`, each with its own `make`, and a consumer document that
+/// dispatches `Factory make` inside `namespace eval ::b`.  Real Tcl resolves
+/// that to `::b::Factory` (verified on tclsh 8.6.14 and 9.0.4), so a rename
+/// of `::a::Factory`'s `make` must not rewrite it — which it did before,
+/// corrupting an unrelated class's call site in a different file.
+#[test]
+fn tn_consumer_bare_dispatch_is_attributed_to_its_own_namespaces_class() {
+    let mut lsp = Lsp::tcl();
+    let a = unique_uri("tcl");
+    lsp.open_ready(
+        &a,
+        "namespace eval ::a {\n    oo::class create Factory {\n        classmethod make {} { return 1 }\n    }\n}\n",
+    );
+    let b = unique_uri("tcl");
+    lsp.open_ready(
+        &b,
+        "namespace eval ::b {\n    oo::class create Factory {\n        classmethod make {} { return 2 }\n    }\n}\n",
+    );
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(&consumer, "namespace eval ::b {\n    Factory make\n}\n");
+
+    let refs = lsp.references(&a, 2, 20, false);
+    assert!(
+        location_lines(&refs, &consumer).is_empty(),
+        "`::b`'s bare dispatch is not a reference to `::a::Factory`'s make: {refs:?}"
+    );
+
+    let edits = rename_edits(&lsp.rename(&a, 2, 20, "produce"));
+    assert!(
+        edit_lines(&edits, &consumer).is_empty(),
+        "and rename must not rewrite it: {edits:?}"
+    );
+    assert!(
+        edit_lines(&edits, &b).is_empty(),
+        "nor `::b`'s own class: {edits:?}"
+    );
+}
+
+/// TP: the same consumer document *is* attributed to `::b::Factory`, so the
+/// scoping is a re-attribution, not a loss — and the cross-file consumer
+/// rename from #1047 still reaches it.
+#[test]
+fn tp_consumer_bare_dispatch_belongs_to_the_matching_namespaces_class() {
+    let mut lsp = Lsp::tcl();
+    let a = unique_uri("tcl");
+    lsp.open_ready(
+        &a,
+        "namespace eval ::a {\n    oo::class create Factory {\n        classmethod make {} { return 1 }\n    }\n}\n",
+    );
+    let b = unique_uri("tcl");
+    lsp.open_ready(
+        &b,
+        "namespace eval ::b {\n    oo::class create Factory {\n        classmethod make {} { return 2 }\n    }\n}\n",
+    );
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(&consumer, "namespace eval ::b {\n    Factory make\n}\n");
+
+    let refs = lsp.references(&b, 2, 20, false);
+    assert!(
+        location_lines(&refs, &consumer).contains(&1),
+        "`::b`'s bare dispatch must be a reference to `::b::Factory`'s make: {refs:?}"
+    );
+    let edits = rename_edits(&lsp.rename(&b, 2, 20, "produce"));
+    assert_eq!(
+        edit_lines(&edits, &consumer),
+        vec![1],
+        "and rename must rewrite it: {edits:?}"
+    );
+}
+
+// Issue #990 — [incr Tcl]'s colon-qualified class-proc dispatch.
+
+/// TP: `Factory::make` is how [incr Tcl] dispatches a class-scoped `proc`
+/// (its equivalent of `TclOO`'s `classmethod`), and it is a *single*
+/// `::`-qualified command word rather than the two-word `Factory make` shape
+/// `TclOO` / snit use.  Definition, references, and rename must all follow it.
+///
+/// Oracle (tclsh 8.6.14 + Itcl 3.4): `Factory::make` and `::Factory::make`
+/// both dispatch the class proc, a bare `make` inside a sibling class body
+/// does too, and the two-word `Factory make` instead creates an *object*
+/// named `make`.
+#[test]
+fn tp_itcl_class_proc_colon_dispatch_navigates_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "itcl::class Factory {\n",
+            "    proc make {} { return 1 }\n",
+            "    proc other {} { return [make] }\n",
+            "}\n",
+            "Factory::make\n",
+            "::Factory::make\n",
+        ),
+    );
+
+    // Go-to-definition from the qualified call site reaches the `proc`.
+    let def = lsp.definition(&uri, 4, 11);
+    assert_eq!(
+        start_lines(&def),
+        [1].into_iter().collect(),
+        "`Factory::make` must reach the class proc: {def:?}"
+    );
+
+    // References from the declaration cover every dispatch spelling.
+    let refs = lsp.references(&uri, 1, 10, true);
+    assert_eq!(
+        start_lines(&refs),
+        [1, 2, 4, 5].into_iter().collect(),
+        "decl + bare sibling call + both qualified dispatches: {refs:?}"
+    );
+
+    // Rename rewrites the member name and preserves each qualifier.
+    let edits = rename_edits(&lsp.rename(&uri, 1, 10, "produce"));
+    assert_eq!(edit_lines(&edits, &uri), vec![1, 2, 4, 5], "{edits:?}");
+    assert!(
+        edits
+            .get(&uri)
+            .is_some_and(|e| e.iter().all(|e| e["newText"] == "produce")),
+        "each edit replaces only the member name: {edits:?}"
+    );
+}
+
+/// TN: itcl's two-word `Factory make` is object *creation*
+/// (`ClassName instanceName`) — never a class-proc dispatch — so the class
+/// proc keeps only its declaration.
+#[test]
+fn tn_itcl_two_word_object_creation_is_not_a_class_proc_dispatch() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "itcl::class Factory {\n    proc make {} { return 1 }\n}\nFactory make\n",
+    );
+    let refs = lsp.references(&uri, 1, 10, true);
+    assert_eq!(
+        start_lines(&refs),
+        [1].into_iter().collect(),
+        "declaration only: {refs:?}"
+    );
+}
+
+// Issue #1019 idx 16 — method names that are not identifiers.
+
+/// TP: a hyphenated method (`with-dash`) and a TIP 558 property accessor
+/// (`<ReadProp-x>`) are ordinary dispatchable method names — oracle-checked
+/// on tclsh 8.6.14 and 9.0.4 — so definition, references, hover, and rename
+/// must all resolve them from their call sites.  Before the fix the cursor
+/// word stopped at `-` / `<` / `>`, truncating the name to something no
+/// class declares.
+#[test]
+fn tp_non_identifier_method_names_navigate_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create Widget {\n",
+            "    method with-dash {} { return 1 }\n",
+            "    method <ReadProp-x> {} { return 2 }\n",
+            "    method probe {} { my <ReadProp-x> }\n",
+            "}\n",
+            "Widget create rex\n",
+            "rex with-dash\n",
+        ),
+    );
+
+    // Go-to-definition from the hyphenated call site (line 6).
+    let def = lsp.definition(&uri, 6, 7);
+    assert_eq!(
+        start_lines(&def),
+        [1].into_iter().collect(),
+        "`rex with-dash` must reach the declaration: {def:?}"
+    );
+
+    // Go-to-definition from the `my <ReadProp-x>` internal dispatch.
+    let prop_def = lsp.definition(&uri, 3, 28);
+    assert_eq!(
+        start_lines(&prop_def),
+        [2].into_iter().collect(),
+        "`my <ReadProp-x>` must reach the accessor declaration: {prop_def:?}"
+    );
+
+    // References from the declaration cover the call site.
+    let refs = lsp.references(&uri, 1, 13, true);
+    assert_eq!(
+        start_lines(&refs),
+        [1, 6].into_iter().collect(),
+        "declaration + `rex with-dash`: {refs:?}"
+    );
+
+    // Hover on the call site names the method.
+    let hover = hover_text(&lsp.hover(&uri, 6, 7));
+    assert!(
+        hover.contains("with-dash"),
+        "hover must describe the hyphenated method: {hover:?}"
+    );
+
+    // Rename rewrites both sites.  The *new* name still has to pass the
+    // existing safe-symbol gate (`is_safe_symbol_name`), which is about what
+    // an editor may write, not about what Tcl can dispatch — so renaming
+    // *from* a hyphenated name works, renaming *to* one does not.
+    let edits = rename_edits(&lsp.rename(&uri, 1, 13, "renamed"));
+    assert_eq!(
+        edit_lines(&edits, &uri),
+        vec![1, 6],
+        "both the declaration and the call site must rename: {edits:?}"
+    );
+}
+
+/// TN: `$x-1` is arithmetic.  The widened word rule must not read it as a
+/// `-1` method dispatch on an object-holding variable, so the class's own
+/// method keeps exactly one reference (its declaration).
+#[test]
+fn tn_subtraction_is_not_a_method_dispatch() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create Widget {\n",
+            "    method with-dash {} { return 1 }\n",
+            "}\n",
+            "set x [Widget new]\n",
+            "set y [expr {$x-1}]\n",
+        ),
+    );
+    let refs = lsp.references(&uri, 1, 13, true);
+    assert_eq!(
+        start_lines(&refs),
+        [1].into_iter().collect(),
+        "only the declaration: {refs:?}"
+    );
+}

@@ -1943,3 +1943,131 @@ fn rename_rewrites_a_consumed_dispatch_table_literal_m7() {
         .expect("table edit");
     assert_eq!(table_edit.new_text, "sum");
 }
+
+// ---------------------------------------------------------------------------
+// rename — [incr Tcl] `Factory::make` class-proc dispatch (issue #990)
+// ---------------------------------------------------------------------------
+
+/// TP: renaming an itcl class-scoped `proc` rewrites its declaration, its
+/// bare sibling call, and the tail of every `::`-qualified dispatch — the
+/// as-written qualifier is preserved (`Factory::make` → `Factory::produce`),
+/// exactly as an ordinary qualified proc rename already does.
+#[test]
+fn rename_itcl_class_proc_rewrites_every_dispatch_spelling() {
+    let src = concat!(
+        "itcl::class Factory {\n",
+        "    proc make {} { return 1 }\n",
+        "    proc other {} { return [make] }\n",
+        "}\n",
+        "Factory::make\n",
+        "::Factory::make\n",
+    );
+    let analysis = analyse(src);
+    // Cursor on the declaration name.
+    let edits = rename(src, "tcl8.6", 1, 10, "produce", &analysis, None);
+    assert_eq!(edit_lines(&edits), vec![1, 2, 4, 5], "{edits:?}");
+    assert_eq!(
+        apply_edits(src, &edits),
+        concat!(
+            "itcl::class Factory {\n",
+            "    proc produce {} { return 1 }\n",
+            "    proc other {} { return [produce] }\n",
+            "}\n",
+            "Factory::produce\n",
+            "::Factory::produce\n",
+        ),
+        "the qualifier must survive; only the member name changes"
+    );
+}
+
+/// TP: the same rename triggered *from* a `::`-qualified call site reaches
+/// the same set.
+#[test]
+fn rename_itcl_class_proc_from_the_call_site_matches_the_declaration() {
+    let src = concat!(
+        "itcl::class Factory {\n",
+        "    proc make {} { return 1 }\n",
+        "}\n",
+        "Factory::make\n",
+    );
+    let analysis = analyse(src);
+    let from_site = rename(src, "tcl8.6", 3, 11, "produce", &analysis, None);
+    let from_decl = rename(src, "tcl8.6", 1, 10, "produce", &analysis, None);
+    assert_eq!(edit_lines(&from_site), vec![1, 3], "{from_site:?}");
+    assert_eq!(edit_lines(&from_site), edit_lines(&from_decl));
+}
+
+/// TN: an ordinary namespace-qualified proc of the same spelling is renamed
+/// by the plain proc path and is unaffected by the class-proc resolver —
+/// `Factory` here is a namespace, not a class.
+#[test]
+fn rename_plain_namespace_qualified_proc_is_unaffected() {
+    let src = "namespace eval ::Factory {\n    proc make {} { return 1 }\n}\nFactory::make\n";
+    let analysis = analyse(src);
+    let edits = rename(src, "tcl8.6", 3, 11, "produce", &analysis, None);
+    assert_eq!(edit_lines(&edits), vec![1, 3], "{edits:?}");
+    assert_eq!(
+        apply_edits(src, &edits),
+        "namespace eval ::Factory {\n    proc produce {} { return 1 }\n}\nFactory::produce\n"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// rename — namespace-scoped bare class dispatch (issue #981)
+// ---------------------------------------------------------------------------
+
+/// Two classes sharing a simple name in different namespaces, one bare
+/// `Factory make` dispatch each.  Oracle (tclsh 8.6.14 and 9.0.4): the
+/// dispatch inside `::b` reaches `::b::Factory`, so renaming `::a`'s
+/// classmethod must not rewrite it — before the fix it did, silently
+/// corrupting an unrelated class's call site.
+const TWO_NAMESPACE_FACTORIES: &str = concat!(
+    "namespace eval ::a {\n",
+    "    oo::class create Factory {\n",
+    "        classmethod make {} { return 1 }\n",
+    "    }\n",
+    "    Factory make\n",
+    "}\n",
+    "namespace eval ::b {\n",
+    "    oo::class create Factory {\n",
+    "        classmethod make {} { return 2 }\n",
+    "    }\n",
+    "    Factory make\n",
+    "}\n",
+);
+
+/// TN: renaming `::a`'s classmethod rewrites only `::a`'s own sites.
+#[test]
+fn rename_classmethod_does_not_rewrite_a_sibling_namespaces_dispatch() {
+    let src = TWO_NAMESPACE_FACTORIES;
+    let analysis = analyse(src);
+    let edits = rename(src, "tcl8.6", 2, 20, "produce", &analysis, None);
+    assert_eq!(edit_lines(&edits), vec![2, 4], "{edits:?}");
+    assert_eq!(
+        apply_edits(src, &edits),
+        concat!(
+            "namespace eval ::a {\n",
+            "    oo::class create Factory {\n",
+            "        classmethod produce {} { return 1 }\n",
+            "    }\n",
+            "    Factory produce\n",
+            "}\n",
+            "namespace eval ::b {\n",
+            "    oo::class create Factory {\n",
+            "        classmethod make {} { return 2 }\n",
+            "    }\n",
+            "    Factory make\n",
+            "}\n",
+        ),
+        "`::b`'s class and its dispatch must be untouched"
+    );
+}
+
+/// TN, the mirror direction: renaming `::b`'s classmethod leaves `::a` alone.
+#[test]
+fn rename_classmethod_is_scoped_in_the_other_direction_too() {
+    let src = TWO_NAMESPACE_FACTORIES;
+    let analysis = analyse(src);
+    let edits = rename(src, "tcl8.6", 8, 20, "produce", &analysis, None);
+    assert_eq!(edit_lines(&edits), vec![8, 10], "{edits:?}");
+}

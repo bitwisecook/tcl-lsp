@@ -247,6 +247,19 @@ pub fn definition(
         cursor_offset,
         &analysis.namespace_overrides,
     );
+    // `Factory::make` — [incr Tcl]'s colon-qualified class-proc dispatch
+    // (issue #990).  Asked **before** the stock proc resolution below, because
+    // itcl installs a custom command resolver on every class namespace and Tcl
+    // consults it ahead of the ordinary lookup: inside a class's own bodies the
+    // class proc wins even when a real `::Factory::make` proc exists (oracle in
+    // `itcl_self_qualified_candidate`).  Order is safe because
+    // `itcl_class_proc_target` applies the whole precedence itself — its own
+    // resolver first, then stock resolution — and answers `None` unless the
+    // winning candidate really is an itcl class-scoped `proc`, so a genuine
+    // `::ns::helper` call still falls through to `resolve_called_proc`.
+    if let Some(span) = itcl_class_proc_declaration(analysis, &namespace, &word) {
+        return vec![span_to_range(source, &line_index, span)];
+    }
     if let Some(proc_def) = resolve_called_proc(
         analysis,
         source,
@@ -256,24 +269,8 @@ pub fn definition(
     ) {
         return vec![span_to_range(source, &line_index, proc_def.name_span)];
     }
-    // Cursor sitting on a class's own declaration name → that class.
-    if let Some((_, class_def)) = analysis
-        .all_classes
-        .iter()
-        .find(|(_, c)| c.name_span.start() <= cursor_offset && cursor_offset < c.name_span.end())
-    {
-        return vec![span_to_range(source, &line_index, class_def.name_span)];
-    }
-    // A call / reference that names a class (`superclass X`, `X new`, …).  Skip
-    // a document-local `oo::define` extension stub (`via_define`): the real
-    // `oo::class create` site lives in another file, and the cross-document
-    // resolver prefers it — pinning navigation to the local extension would
-    // shadow the true definition.  When the class *is* created here,
-    // `via_define` is false and this is that creation site.
-    if let Some((_, class_def)) = analysis.all_classes.iter().find(|(qname, c)| {
-        !c.via_define && (c.name == word || *qname == &word || *qname == &format!("::{word}"))
-    }) {
-        return vec![span_to_range(source, &line_index, class_def.name_span)];
+    if let Some(span) = class_declaration_at(analysis, &word, cursor_offset) {
+        return vec![span_to_range(source, &line_index, span)];
     }
     // Class-member lookup — when the cursor sits inside a
     // class body, walk that class's methods / properties /
@@ -759,6 +756,25 @@ fn canonicalise_class(analysis: &AnalysisResult, owner: &str, name: &str) -> Str
 /// [`receiver_instance_class`], which gates bare receivers on
 /// `created_instance_commands` (so a plain variable's bare name — never a
 /// valid dispatch — does not resolve).
+///
+/// The method-name word is bounded by [`crate::hover::word_char_bounds`] —
+/// the same lexer-faithful rule every other cursor-word consumer uses — so
+/// a method whose name is not a programming-language identifier still
+/// resolves.  Tcl imposes no character restriction on a method name:
+/// `$obj with-dash`, `$obj a.b`, and TIP 558's generated property accessors
+/// (`my <ReadProp-x>` / `my <WriteProp-x>`, produced by `oo::configurable`'s
+/// `property`) all dispatch for real (verified against tclsh 8.6.14 and
+/// 9.0.4), and an identifier rule that stopped at `-` / `<` / `>` silently
+/// truncated those names to something no class declares (issue #1019 idx
+/// 16).
+///
+/// A word carrying no alphanumeric / `_` content at all — `<`, `<=`, `-`,
+/// `::` — is rejected: those are expression operators and separators, so
+/// `expr {$a < $b}` must not read as `$a` dispatching a method named `<`.
+/// Tcl *would* let a class declare a method literally named `+` or `<`, and
+/// this deliberately does not resolve those: `expr` bodies are far more
+/// common than operator-named methods, and rejecting them keeps the
+/// pre-existing behaviour rather than trading one gap for a false positive.
 pub(crate) fn instance_method_at_cursor(
     source: &str,
     line: u32,
@@ -767,21 +783,13 @@ pub(crate) fn instance_method_at_cursor(
     let line_text = source.split('\n').nth(line as usize)?;
     let chars: Vec<char> = line_text.chars().collect();
     let col = utf16_col_to_char_col(line_text, character).min(chars.len());
-    let is_ident = |c: char| c.is_alphanumeric() || c == '_' || c == ':';
 
     // Method-name word bounds around the cursor.
-    let mut wstart = col;
-    while wstart > 0 && is_ident(chars[wstart - 1]) {
-        wstart -= 1;
-    }
-    let mut wend = col;
-    while wend < chars.len() && is_ident(chars[wend]) {
-        wend += 1;
-    }
-    if wstart == wend {
+    let (wstart, wend) = crate::hover::word_char_bounds(&chars, col)?;
+    let method: String = chars[wstart..wend].iter().collect();
+    if !method.chars().any(|c| c.is_alphanumeric() || c == '_') {
         return None;
     }
-    let method: String = chars[wstart..wend].iter().collect();
 
     // Command-segment start: nearest `;` / `[` / `{` to the
     // left, else the line start.
@@ -1459,6 +1467,250 @@ fn proc_visible_from_namespace<'a>(
     tcl_syntax::naming::command_resolution_candidates(namespace, path, word)
         .into_iter()
         .find_map(|qname| analysis.all_procs.get(&qname))
+}
+
+/// The qualified name C Tcl's command resolution **commits to** when the
+/// written word `word` is called from `namespace`: the first candidate from
+/// [`tcl_syntax::naming::command_resolution_candidates`] (the caller's
+/// namespace, then each `namespace path` entry, then global; an absolute
+/// `::`-prefixed word is exact) for which `exists` reports a real command.
+///
+/// Tcl commits to the first existing candidate and never falls through to a
+/// same-tail alternative, which is precisely what a name-set match cannot
+/// express.  A caller asking "does this call reach *my* definition?" must
+/// therefore compare the returned name against its own qualified name, not
+/// against the word's tail: written inside `namespace eval ::b`, a bare
+/// `Factory` reaches `::b::Factory` whenever that exists, and only otherwise
+/// `::Factory` — never `::a::Factory`, however identically the tail is
+/// spelled (verified against tclsh 8.6.14 / 9.0.4).
+///
+/// This is the single namespace-resolution primitive behind the bare
+/// object-command / classmethod dispatch matcher (issue #981) and the [incr
+/// Tcl] class-proc resolver (issue #990), so those two cannot disagree about
+/// which definition a written word reaches.
+///
+/// Deliberate limits: `exists` sees only what this document's analysis
+/// knows, so a command defined in a sibling file does not shadow a local
+/// candidate here (the cross-document layer supplies its own predicate), and
+/// runtime-only bindings — `rename`, `interp alias`, `unknown` — are not
+/// modelled.
+pub(crate) fn resolved_command_name(
+    analysis: &AnalysisResult,
+    namespace: &str,
+    word: &str,
+    exists: &dyn Fn(&str) -> bool,
+) -> Option<String> {
+    let path = analysis
+        .namespace_paths
+        .get(namespace)
+        .map_or(&[][..], Vec::as_slice);
+    tcl_syntax::naming::command_resolution_candidates(namespace, path, word)
+        .into_iter()
+        .find(|qname| exists(qname))
+}
+
+/// Whether `cd`'s definer command dispatches its class-scoped members as a
+/// single `::`-qualified identifier (`Factory::make`) rather than the
+/// two-word `Factory make` shape — true for [incr Tcl] only.  Registry data
+/// ([`tcl_registry::definer::DefinerFamily`]), not a hardcoded command-name
+/// check: `cd.metaclass` is looked up in `dialect`'s registry and its
+/// attached [`tcl_registry::definer::DefinitionBodyGrammar::family`]
+/// compared.  A metaclass the registry does not recognise as a definer
+/// (which should not happen for a real `ClassDef`) is conservatively treated
+/// as *not* itcl.
+pub(crate) fn is_itcl_class(cd: &tcl_compiler::analyser::types::ClassDef, dialect: &str) -> bool {
+    tcl_registry::registry_for_dialect(dialect)
+        .get(&cd.metaclass)
+        .and_then(|spec| spec.definition_body)
+        .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::Itcl)
+}
+
+/// Read `qname` as an [incr Tcl] class-scoped `proc` — itcl's equivalent of
+/// `TclOO`'s `classmethod` — returning `(class qualified name, member name)`
+/// when its parent namespace names an itcl class that declares that member.
+///
+/// itcl gives every class a real namespace of the same name and installs its
+/// class-scoped `proc`s as ordinary commands inside it, so `::app::Factory`'s
+/// `proc make` is genuinely the command `::app::Factory::make`.  Verified on
+/// tclsh 8.6.14 with Itcl 3.4: `info commands ::Factory::*` lists it, and
+/// `::app::Factory::make`, `app::Factory::make`, and a bare `Factory::make`
+/// from inside `::app` all dispatch it.  An *instance* method is not
+/// reachable this way — calling `::Factory::inst` errors `namespace "::" is
+/// not a class namespace` — so only `class_methods` is consulted.
+pub(crate) fn itcl_class_proc_at<'a>(
+    analysis: &'a AnalysisResult,
+    dialect: &str,
+    qname: &str,
+) -> Option<(&'a String, String)> {
+    let separator = qname.rfind("::")?;
+    let (parent, tail) = qname.split_at(separator);
+    let member = tail.trim_start_matches(':');
+    if member.is_empty() {
+        return None;
+    }
+    let (class_q, class_def) = analysis.all_classes.get_key_value(parent)?;
+    (is_itcl_class(class_def, dialect) && class_def.class_methods.contains_key(member))
+        .then(|| (class_q, member.to_owned()))
+}
+
+/// Resolve a written command word to the [incr Tcl] class-scoped `proc` it
+/// dispatches.
+///
+/// Two resolvers, in the order the interpreter applies them:
+///
+/// 1. [`itcl_self_qualified_candidate`] — itcl installs a **custom command
+///    resolver** on each class namespace, and it is consulted *before* the
+///    ordinary namespace lookup, so inside a class's own namespace the class's
+///    simple name qualifies its members ahead of every stock candidate.
+/// 2. [`resolved_command_name`] — stock Tcl resolution (current namespace,
+///    `namespace path`, then global) for every other call site, so a call is
+///    attributed to the class the runtime would actually reach and an ordinary
+///    proc or class command shadows it exactly as it would at runtime.
+pub(crate) fn itcl_class_proc_target<'a>(
+    analysis: &'a AnalysisResult,
+    dialect: &str,
+    namespace: &str,
+    word: &str,
+) -> Option<(&'a String, String)> {
+    let winner = itcl_self_qualified_candidate(analysis, dialect, namespace, word)
+        // The custom resolver only claims a member the class really declares;
+        // anything else falls through to the stock candidates (oracle: a
+        // sibling class's `Other::omake`, and an undeclared `Factory::nope`,
+        // both raise `invalid command name` rather than resolving).
+        .filter(|candidate| itcl_class_proc_at(analysis, dialect, candidate).is_some())
+        .or_else(|| {
+            resolved_command_name(analysis, namespace, word, &|candidate| {
+                analysis.all_procs.contains_key(candidate)
+                    || analysis.all_classes.contains_key(candidate)
+                    || itcl_class_proc_at(analysis, dialect, candidate).is_some()
+            })
+        })?;
+    itcl_class_proc_at(analysis, dialect, &winner)
+}
+
+/// [incr Tcl]'s own class-namespace command resolver: written *inside* a
+/// class's namespace — any method or class-`proc` body — the class's own
+/// **simple** name qualifies its members, so `Factory::make` reaches
+/// `::app::Factory::make` even though stock Tcl resolution would try only
+/// `::app::Factory::Factory::make` and `::Factory::make`, neither of which
+/// exists.
+///
+/// This resolver **pre-empts** the stock candidates rather than backing them
+/// up: itcl installs a custom command resolver (`Itcl_ClassCmdResolver`) on
+/// every class namespace, and Tcl consults a namespace's resolver *before* its
+/// ordinary command lookup.  A real command at a stock candidate — even the
+/// current-namespace-relative one — does **not** win.
+///
+/// Pinned against tclsh 8.6 + Itcl 3.4 (probes `itcl2.tcl`, `itcl2b.tcl`,
+/// `itcl2c.tcl`), with a class `::app::Factory` declaring `proc make`:
+///
+/// | Written          | Called from            | Also defined                      | Dispatches |
+/// |------------------|------------------------|-----------------------------------|------------|
+/// | `Factory::make`  | the class's own bodies | `::Factory::make` (a plain proc)   | the **class proc** |
+/// | `Factory::make`  | the class's own bodies | `::app::Factory::Factory::make`    | the **class proc** |
+/// | `Factory::make`  | `::app`                | —                                 | the class proc, by stock relative lookup |
+/// | `Factory::make`  | `::` or `::other`      | `::Factory::make`                 | the **plain proc** |
+/// | `Other::omake`   | `::app::Factory`       | class `::app::Other` with `omake`  | nothing — `invalid command name` |
+/// | `Factory::nope`  | `::app::Factory`       | —                                 | nothing — `invalid command name` |
+///
+/// So the rule covers the *enclosing* class only, and only for members it
+/// declares; the ordinary spellings (`app::Factory::make`,
+/// `::app::Factory::make`) keep resolving through
+/// [`resolved_command_name`].
+fn itcl_self_qualified_candidate(
+    analysis: &AnalysisResult,
+    dialect: &str,
+    namespace: &str,
+    word: &str,
+) -> Option<String> {
+    let class_def = analysis.all_classes.get(namespace)?;
+    if !is_itcl_class(class_def, dialect) {
+        return None;
+    }
+    let member = word
+        .strip_prefix(class_def.name.as_str())?
+        .strip_prefix("::")?;
+    (!member.is_empty() && !member.contains("::"))
+        .then(|| format!("{}::{member}", class_def.qualified_name))
+}
+
+/// The declaration name span of the class the cursor names: the class whose
+/// own declaration name span contains `cursor_offset`, else the class `word`
+/// refers to as a call or reference (`superclass X`, `X new`, …).
+///
+/// A document-local `oo::define` extension stub (`via_define`) is skipped
+/// for the second case: the real `oo::class create` site lives in another
+/// file and the cross-document resolver prefers it, so pinning navigation to
+/// the local extension would shadow the true definition.  When the class *is*
+/// created here, `via_define` is false and this is that creation site.
+fn class_declaration_at(
+    analysis: &AnalysisResult,
+    word: &str,
+    cursor_offset: u32,
+) -> Option<tcl_lexer::Span> {
+    if let Some((_, class_def)) = analysis
+        .all_classes
+        .iter()
+        .find(|(_, c)| c.name_span.start() <= cursor_offset && cursor_offset < c.name_span.end())
+    {
+        return Some(class_def.name_span);
+    }
+    analysis
+        .all_classes
+        .iter()
+        .find(|(qname, c)| {
+            !c.via_define
+                && (c.name == word || qname.as_str() == word || *qname == &format!("::{word}"))
+        })
+        .map(|(_, class_def)| class_def.name_span)
+}
+
+/// The declaration name span of the [incr Tcl] class-scoped `proc` that the
+/// written word `word`, called from `namespace`, dispatches — go-to-definition's
+/// half of [`itcl_class_proc_target`].
+///
+/// The empty dialect string picks the default Tcl registry, which is where
+/// the itcl definer grammar lives; `definition` has no dialect of its own to
+/// thread through.
+fn itcl_class_proc_declaration(
+    analysis: &AnalysisResult,
+    namespace: &str,
+    word: &str,
+) -> Option<tcl_lexer::Span> {
+    let (class_q, member) = itcl_class_proc_target(analysis, "", namespace, word)?;
+    analysis
+        .all_classes
+        .get(class_q)
+        .and_then(|cd| cd.class_methods.get(&member))
+        .map(|decl| decl.name_span)
+}
+
+/// [`itcl_class_proc_target`] for the word under the cursor: the
+/// `(class qualified name, member name)` of the [incr Tcl] class-scoped
+/// `proc` a `Factory::make` call site at `(line, character)` dispatches.
+///
+/// The one cursor entry point shared by go-to-definition, Find All
+/// References, rename, and the cross-file rename seed, so none of them can
+/// disagree about which class-proc a given call site names.  Returns `None`
+/// off any word, and for every spelling that is not this dispatch shape.
+#[must_use]
+pub fn itcl_class_proc_target_at(
+    source: &str,
+    dialect: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<(String, String)> {
+    let (word, _start, _end) = crate::hover::find_word_span_at_position(source, line, character)?;
+    let line_index = LineIndex::new(source);
+    let cursor = byte_offset_at(&line_index, source, line, character);
+    let namespace = namespace_context_at(
+        &analysis.global_scope,
+        cursor,
+        &analysis.namespace_overrides,
+    );
+    itcl_class_proc_target(analysis, dialect, &namespace, &word)
+        .map(|(class_q, member)| (class_q.clone(), member))
 }
 
 /// Resolve a bareword `word` (`namespace` context, honouring `namespace
@@ -3093,6 +3345,102 @@ mod tests {
         // command.
         let src = "[x] bark\n";
         assert_eq!(instance_method_at_cursor(src, 0, 5), None);
+    }
+
+    // Method names with non-identifier characters (issue #1019 idx 16).
+    // Oracle (tclsh 8.6.14 + 9.0.4): `method with-dash`, `method a.b`, and
+    // TIP 558's `<ReadProp-x>` / `<WriteProp-x>` all dispatch for real.
+
+    #[test]
+    fn instance_method_at_cursor_keeps_a_hyphenated_method_name_whole() {
+        // TP — `-` is part of the method word, not a boundary.
+        let src = "$d with-dash\n";
+        assert_eq!(
+            instance_method_at_cursor(src, 0, 8),
+            Some(("d".to_string(), "with-dash".to_string(), true))
+        );
+    }
+
+    #[test]
+    fn instance_method_at_cursor_keeps_an_angle_bracketed_method_name_whole() {
+        // TP — the TIP 558 property-accessor shape, cursor inside the name.
+        let src = "my <ReadProp-colour>\n";
+        assert_eq!(
+            instance_method_at_cursor(src, 0, 8),
+            Some(("my".to_string(), "<ReadProp-colour>".to_string(), false))
+        );
+    }
+
+    #[test]
+    fn instance_method_at_cursor_keeps_a_dotted_method_name_whole() {
+        // TP — `method a.b` dispatches in real Tcl; `.` is not a boundary.
+        let src = "$d a.b\n";
+        assert_eq!(
+            instance_method_at_cursor(src, 0, 4),
+            Some(("d".to_string(), "a.b".to_string(), true))
+        );
+    }
+
+    #[test]
+    fn instance_method_at_cursor_rejects_subtraction_in_an_expression() {
+        // TN — `$x-1` is arithmetic. The whole `x-1` run is one word whose
+        // head slice is a bare `$`, so nothing dispatches.
+        let src = "expr {$x-1}\n";
+        assert_eq!(instance_method_at_cursor(src, 0, 8), None);
+        assert_eq!(instance_method_at_cursor(src, 0, 9), None);
+    }
+
+    #[test]
+    fn instance_method_at_cursor_rejects_a_bare_comparison_operator() {
+        // TN — `expr {$a < $b}` must not read as `$a` dispatching `<`:
+        // the word carries no alphanumeric content.
+        let src = "expr {$a < $b}\n";
+        assert_eq!(instance_method_at_cursor(src, 0, 9), None);
+    }
+
+    #[test]
+    fn hyphenated_and_angle_bracketed_methods_resolve_from_a_call_site() {
+        // TP — end-to-end. `with-dash` starts with an ASCII lowercase
+        // letter so it is exported and dispatches externally; the TIP 558
+        // accessor `<ReadProp-x>` starts with `<` so it is *unexported* and
+        // only reachable from inside the class via `my` (oracle: tclsh
+        // 9.0.4 answers `unknown method "<foo>"` for an external call but
+        // runs `my <ReadProp-x>` fine).
+        let src = concat!(
+            "oo::class create C {\n",
+            "    method with-dash {} { return 1 }\n",
+            "    method <ReadProp-x> {} { return 2 }\n",
+            "    method probe {} { my <ReadProp-x> }\n",
+            "}\n",
+            "C create rex\n",
+            "rex with-dash\n",
+        );
+        let analysis = analyse(src);
+        let dash = definition(src, 6, 6, &analysis);
+        assert_eq!(dash.len(), 1, "{dash:?}");
+        assert_eq!(dash[0].start_line, 1);
+        assert_eq!(dash[0].start_character, 11);
+        let prop = definition(src, 3, 28, &analysis);
+        assert_eq!(prop.len(), 1, "{prop:?}");
+        assert_eq!(prop[0].start_line, 2);
+        assert_eq!(prop[0].start_character, 11);
+    }
+
+    #[test]
+    fn unexported_angle_bracketed_method_is_not_externally_dispatchable() {
+        // TN — the export rule still applies to the widened word: an
+        // external `rex <ReadProp-x>` is `unknown method` in real Tcl
+        // (verified, tclsh 8.6.14 + 9.0.4), so it must resolve to nothing
+        // rather than to the declaration.
+        let src = concat!(
+            "oo::class create C {\n",
+            "    method <ReadProp-x> {} { return 2 }\n",
+            "}\n",
+            "C create rex\n",
+            "rex <ReadProp-x>\n",
+        );
+        let analysis = analyse(src);
+        assert!(definition(src, 4, 8, &analysis).is_empty());
     }
 
     #[test]

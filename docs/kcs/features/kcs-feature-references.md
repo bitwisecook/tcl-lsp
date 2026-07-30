@@ -79,26 +79,31 @@ double-quoted string.
   and a call site found in it would point at the wrong bytes.
 - Expect's `expect { -re pattern body … }` clause list is not descended (only
   a plain `{pattern body …}` clause list, `switch`'s shape, is).
-- [incr Tcl] dispatches a class-scoped `proc` (itcl's own class-method form)
-  as a single `::`-qualified identifier — `Factory::make`, not `Factory make`
-  — which is a different call shape entirely from `classmethod` /
-  `typemethod`'s two-word dispatch. Find References does not yet follow this
-  form (it would need to be resolved through the ordinary proc-reference
-  path, not the object-method scanner). The reverse direction is guarded,
-  though: itcl's own two-word instance-creation syntax (`ClassName
-  instanceName`), which can coincidentally share text shape with a
-  same-named class-proc, is never mistaken for a dispatch of it.
-- A classmethod's / typemethod's own-class-command dispatch (unlike an
-  instance's `$obj method`) is matched by exact name-set membership (the
-  class's as-written simple name plus its fully `::`-qualified name), so a
-  call spelled with a *partial* namespace qualifier from a sibling namespace
-  is not matched — the same imprecision `CLASS create NAME` object-command
-  dispatch already has. The same imprecision can also over-match: two
-  unrelated classes sharing a simple (tail) name in different namespaces
-  aren't distinguished by lexical scope, so a bare dispatch inside one
-  namespace can be wrongly attributed to the other's same-named class —
-  renaming from the wrong one's declaration could then rewrite the
-  unrelated class's call site. Tracked as a follow-up; not yet fixed.
+- A method whose name is a bare operator — Tcl lets you write `method + {o}
+  {…}` — is not resolved from its call site. Every other method name is:
+  hyphens, dots, and TIP 558's generated property accessors
+  (`<ReadProp-NAME>` / `<WriteProp-NAME>`, produced by `oo::configurable`'s
+  `property`) are all part of the name. Operator-only names stay out because
+  `expr {$a < $b}` would otherwise read as `$a` dispatching a method called
+  `<`, and `expr` bodies are far more common than operator-named methods.
+- [incr Tcl]'s class-scoped `proc` dispatch is followed **within one
+  document only**. itcl gives every class a real namespace and installs its
+  class-scoped `proc`s as commands inside it, so `Factory::make` is a genuine
+  command name; Find References, Go to Definition, Rename, and Call Hierarchy
+  all resolve it against the call's own namespace. A call written in a
+  *sibling file* is not found — the cross-file layer still looks only for the
+  two-word `Class method` shape. The two-word form in itcl source is
+  guarded in the other direction too: `Factory make` there is itcl's
+  instance-creation syntax (`ClassName instanceName`), never a class-proc
+  dispatch, and is never counted as one.
+- A `CLASS create NAME` object command (`rex bark`) is matched by name text
+  alone. Two object commands called `rex` in different namespaces are one
+  name as far as the analyser is concerned — it records instance-command
+  names without their creating namespace — so a bare `rex bark` in either
+  namespace counts for whichever `rex` the analyser bound first. A
+  classmethod's own-class-command dispatch (`Factory make`) does **not**
+  have this problem: it is resolved against the call's own namespace, first
+  the current one and then the global one, exactly as Tcl resolves it.
 
 ## Test anchors
 
@@ -107,7 +112,12 @@ double-quoted string.
   `obj_method_dispatch`, `next_dispatch`, `classmethod_dispatch` —
   control-flow-nested dispatch TP/FP/TN matrix (issue #957) and the
   classmethod/typemethod/itcl-proc TP/FP/TN/FN matrix, including issue #956's
-  exact repro and call-site-cursor resolution)
+  exact repro and call-site-cursor resolution;
+  `non_identifier_method_names` — hyphenated / dotted / TIP 558
+  angle-bracketed method names; `itcl_class_proc_dispatch` — the
+  colon-qualified [incr Tcl] class-proc TP/FP/TN matrix;
+  `namespace_scoped_class_dispatch` — two same-named classes in different
+  namespaces are not cross-linked)
 - `rust/tcl-lsp-core/src/references.rs` (`mod tests`, including
   `references_for_property_includes_decl_and_my_dispatch_call_sites`,
   `references_disambiguates_property_and_method_sharing_a_name_by_cursor`,

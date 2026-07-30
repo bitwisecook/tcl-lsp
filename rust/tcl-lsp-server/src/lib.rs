@@ -4824,9 +4824,16 @@ impl Backend {
     }
 
     /// Whether `method` is a `classmethod` on any of `definers`, and — if
-    /// so — the (qualified + simple name) set of every class in
-    /// `definers`/`inheritors` valid as a bare classmethod-dispatch head
+    /// so — the fully `::`-qualified name of every class in
+    /// `definers`/`inheritors` whose own command dispatches it
     /// (`Factory make`).
+    ///
+    /// **Qualified names only.**  The core scanner resolves each written head
+    /// against the call site's own lexical namespace and compares the winner
+    /// against these names, so handing it simple names too would re-introduce
+    /// exactly the namespace-blind text match issue #981 removed: with a
+    /// `Factory` in `::a` and another in `::b`, a bare `Factory make` inside
+    /// `namespace eval ::b` must be attributed to `::b::Factory` alone.
     ///
     /// A `classmethod` dispatches on the *class's own* command, never on an
     /// instance, so the same-document analyser can only widen its dispatch
@@ -4878,7 +4885,7 @@ impl Backend {
             .iter()
             .chain(inheritors.iter().filter(|_| inheritable))
             .filter(|wc| !wc.is_itcl(dialect))
-            .flat_map(|wc| [wc.name.clone(), wc.qualified_name.clone()])
+            .map(|wc| wc.qualified_name.clone())
             .collect()
     }
 
@@ -20601,6 +20608,63 @@ mod tests {
             refs.iter()
                 .any(|l| l.uri == consumer && l.range.start.line == 0),
             "`Factory make` in the pure-consumer document missing: {refs:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn cross_file_consumer_bare_dispatch_is_namespace_scoped() {
+        // Issue #981, the consumer-document variant. Two classes named
+        // `Factory`, in `::a` and `::b`, each declaring `make`; a consumer
+        // document dispatches `Factory make` inside `namespace eval ::b`.
+        // Real Tcl resolves that bare word to `::b::Factory` (tclsh 8.6.14
+        // and 9.0.4 both answer `b-made`), so it must count for `::b`'s
+        // classmethod and *not* `::a`'s — a name-set match counted it for
+        // both, and rename then rewrote an unrelated class's call site.
+        let backend = test_backend();
+        let a = Uri::from_str("file:///a.tcl").unwrap();
+        let b = Uri::from_str("file:///b.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer.tcl").unwrap();
+        let a_src = "namespace eval ::a {\n    oo::class create Factory {\n        classmethod make {} { return 1 }\n    }\n}\n";
+        let b_src = "namespace eval ::b {\n    oo::class create Factory {\n        classmethod make {} { return 2 }\n    }\n}\n";
+        register(&backend, &a, a_src).await;
+        register(&backend, &b, b_src).await;
+        register(
+            &backend,
+            &consumer,
+            "namespace eval ::b {\n    Factory make\n}\n",
+        )
+        .await;
+
+        let from_a = backend
+            .cross_file_consumer_method_references(
+                &a,
+                a_src,
+                "tcl8.6",
+                "::a::Factory",
+                "make",
+                true,
+            )
+            .await;
+        assert!(
+            !from_a.iter().any(|l| l.uri == consumer),
+            "`::b`'s bare dispatch must not count for `::a::Factory`: {from_a:?}"
+        );
+
+        let from_b = backend
+            .cross_file_consumer_method_references(
+                &b,
+                b_src,
+                "tcl8.6",
+                "::b::Factory",
+                "make",
+                true,
+            )
+            .await;
+        assert!(
+            from_b
+                .iter()
+                .any(|l| l.uri == consumer && l.range.start.line == 1),
+            "and it must count for `::b::Factory`: {from_b:?}"
         );
     }
 
