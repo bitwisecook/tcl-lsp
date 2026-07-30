@@ -775,6 +775,29 @@ fn ir_eval_dynamic_body_is_pessimistic() {
 }
 
 #[test]
+fn ir_eval_multiword_body_escapes_through_the_joined_script() {
+    // Pin (#1051): `handle_eval` joins a multi-word `eval` with single spaces
+    // before scanning, exactly as `Tcl_ConcatObj` does at run time, so a `$x`
+    // buried in a trailing word still escapes.
+    //
+    // tclsh8.6.14 / tclsh9.0.4: `set x l2; eval set $x hello; puts $l2`
+    // → `hello` — the substituted word really is part of the script.
+    use tcl_compiler::var_escape::BarrierKind;
+    let s = escape_ir("proc ::p {} { set x 1\n eval set l2 $x }");
+    let p = summary(&s, "::p");
+    assert!(
+        p.dynamic_barrier(),
+        "a $-referencing word anywhere in the joined body is pessimistic"
+    );
+    assert!(
+        p.barriers.iter().any(|b| b.kind == BarrierKind::Eval),
+        "an Eval barrier is recorded for the joined body: {:?}",
+        p.barriers
+    );
+    assert!(p.is_frame("x"), "the referenced name escapes: {p:?}");
+}
+
+#[test]
 fn ir_uplevel_global_zero_literal_body_escapes_touched_names() {
     // tclsh: `uplevel #0 {set glob 1}` writes a global, observable past the
     // call. On the IR walk the literal `uplevel #0` body is treated like a

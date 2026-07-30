@@ -846,3 +846,52 @@ fn s102_fires_for_numeric_shimmer_masked_by_int_entry() {
     );
     assert!(codes(&diags).contains("S102"), "{diags:?}");
 }
+
+#[test]
+fn multiword_eval_reports_nothing_end_to_end_1051() {
+    // Issue #1051 — `eval` evaluates the *concatenation* of every trailing
+    // script word, so `eval set l2 hello` really runs `set l2 hello`. Walking
+    // only the first word invented an E002 and lost the write, which then drew
+    // a false W210 on the read below.
+    //
+    // Oracle (tclsh8.6.14 and tclsh9.0.4): `eval set l2 hello; puts $l2`
+    // prints `hello`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "eval set l2 hello\nputs $l2\n");
+    assert!(diags.is_empty(), "{diags:?}");
+}
+
+#[test]
+fn multiword_eval_still_reports_a_short_joined_script_1051() {
+    // The flip side: the joined script really is checked, so a genuinely
+    // short one still reports. Oracle: `eval set` fails
+    // `wrong # args: should be "set varName ?newValue?"`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "eval set\n");
+    assert!(codes(&diags).contains("E002"), "{diags:?}");
+}
+
+#[test]
+fn a_renamed_class_still_reports_an_unknown_method_1049() {
+    // Issue #1049 — `rename Dog Cat` moves the class *command*; the class is
+    // unchanged, so `Cat new` builds a Dog and `$d fly` is still an unknown
+    // method. Before the fix the constructor did not type at all and the
+    // dispatch fell through to W307 noise.
+    //
+    // Oracle (tclsh8.6.14 and tclsh9.0.4): `$d fly` fails
+    // `unknown method "fly": must be bark or destroy`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\nset d [Cat new]\n$d fly\n",
+    );
+    let found = codes(&diags);
+    assert!(found.contains("W308"), "{diags:?}");
+    assert!(
+        !found.contains("W307"),
+        "a typed dispatch is not W307: {diags:?}"
+    );
+}

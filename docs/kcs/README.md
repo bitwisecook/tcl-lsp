@@ -35,6 +35,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   you want to know whether the Tcl Language Server started at all.
 - [kcs-issue-stale-compiler-cache.md](kcs-issue-stale-compiler-cache.md)
   — stale incremental cache produces wrong diagnostics.
+- [kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md](kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md)
+  — builds in one git worktree fail or pass with artefacts from a
+  sibling checkout because the worktrees share one cargo target
+  directory.
 - [kcs-issue-memory-grows-while-editing.md](kcs-issue-memory-grows-while-editing.md)
   — the language server's memory use climbs with every keystroke and never
   comes back down.
@@ -67,6 +71,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   `tailcall` in a safe-interpreter body, and the *Inline proc* code action
   is missing on `file`, `exec`, `open`, and seven other commands — two
   symptoms of one trait-flag bit collision.
+- [kcs-issue-false-diagnostics-inside-a-multi-word-eval.md](kcs-issue-false-diagnostics-inside-a-multi-word-eval.md)
+  — a multi-word `eval`, `uplevel`, or `namespace eval` draws a false E002
+  "wrong number of arguments", and a variable the call sets is still
+  reported as read before it is set (W210).
 - [kcs-issue-always-true-condition-in-a-sourced-library-file.md](kcs-issue-always-true-condition-in-a-sourced-library-file.md)
   — I230 says a condition is always true in a library file whose procedure
   is really called with different values from another file.

@@ -376,6 +376,42 @@ rename helper {}
 proc caller {} { helper }      ;# W123: helper was deleted, never re-established
 ```
 
+The eval family (`eval`, `uplevel`, `namespace eval`, `interp eval`) is
+analysed the way Tcl runs it: the trailing words concatenate into one
+script, so a multi-word call is walked as the script it actually
+evaluates rather than its first word alone — no invented arity errors,
+and the variables it really sets count as written. A brace-quoted word
+is static script text even when it contains `$` or `[` (the braces
+blocked the substitution; `eval` resolves it when the script runs). A
+genuinely dynamic word (`eval $cmd arg`) makes the script unknowable,
+so the analyser claims nothing instead of guessing — and `namespace
+inscope` is honoured as the one member whose tail appends as list
+elements rather than joining. Everything found inside the concatenated
+script — definitions, references, diagnostics — is anchored at its real
+source bytes, so rename and go-to-definition work inside these calls.
+
+```tcl
+eval set l2 hello              ;# runs 'set l2 hello' — no wrong-#-args, l2 is set
+eval {set l2} {$value}         ;# same script; $value resolves when it runs
+namespace eval ::cfg set port 8080   ;# ::cfg::port is really written
+```
+
+Object typing follows commands through `rename` and `interp alias`
+chains: a class constructor reached under a renamed or aliased name
+still types the object it builds, so method validation (W308) names the
+real class instead of degrading into untyped-dispatch noise — while a
+constructor called before the rename/alias exists, an alias with bound
+extra words, or an alias landing on a vacated name stays untyped, just
+as it fails in tclsh.
+
+```tcl
+oo::class create Dog { method bark {} { return woof } }
+rename Dog Cat
+interp alias {} Pup {} Cat
+set d [Pup new]
+$d fly                         ;# W308: unknown method 'fly' on ::Dog
+```
+
 ### Completions
 
 Context-aware completions for commands, subcommands, variables, proc names

@@ -162,6 +162,13 @@ impl Analyser {
                             || self.class_live_for_call(&head, off)
                         {
                             class_qn = Some(qn);
+                        } else {
+                            // The head may reach a live class through a
+                            // `rename` or `interp alias` — `rename Dog Cat`
+                            // then `set d [Cat new]` types `d` as `::Dog`
+                            // (issue #1049). Resolved to the *canonical*
+                            // name so the `ClassDef` / method lookup keys.
+                            class_qn = self.class_reachable_by_indirection(&head, off);
                         }
                     }
                     // The constructor's class head is a `$var` reference
@@ -588,7 +595,14 @@ impl Analyser {
             let Some((target, prepended)) = method_def.forward_target.as_ref() else {
                 break;
             };
-            if target == "my" || target == "::my" {
+            // `forward m my other` re-dispatches on the same instance. The
+            // self-dispatch keyword comes from the registry (which resolves
+            // the `::`-qualified spelling itself), not a name literal
+            // (issue #1050).
+            if self.registry.is_some_and(|r| {
+                r.method_dispatch_keyword(target)
+                    == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+            }) {
                 let (next_method, rest) = prepended.split_first()?;
                 let next_provider = hierarchy.method_target(receiver_class, next_method)?;
                 // `my` dispatches on the same instance, so only an
@@ -667,6 +681,114 @@ impl Analyser {
             proc_by_tail,
             class_by_tail,
         }
+    }
+
+    /// Maximum command-name hops [`Self::class_reachable_by_indirection`]
+    /// follows. Mirrors the eight-hop cap the user-call arity resolver uses
+    /// for the same chains (`validity.rs`), so a `rename a b; rename b c; …`
+    /// cycle cannot spin.
+    const MAX_CLASS_NAME_HOPS: u8 = 8;
+
+    /// The canonical class a *written* command name reaches at `call_off`
+    /// after following `rename` and `interp alias` indirection, or `None`
+    /// when it reaches no live class.
+    ///
+    /// `rename Dog Cat` makes `Cat` the class command: tclsh8.6.14 and
+    /// tclsh9.0.4 both accept `set d [Cat new]; $d bark` and both reject
+    /// `$d fly` with `unknown method "fly": must be bark or destroy`. The
+    /// class's own identity is unchanged by the rename — its `ClassDef` and
+    /// method table are still keyed by `::Dog` — so this resolves *forward*
+    /// through `renamed_commands` (which maps `new → old`) and returns the
+    /// canonical name, which is what the method lookup needs (issue #1049).
+    ///
+    /// Both hop kinds are order-gated on the offset that established them,
+    /// via the same rule the user-call arity resolver uses: unconditional
+    /// inside a proc/method body (the whole file loads before any body runs)
+    /// and textual-order-gated at top level. `[Cat new]` written *before* the
+    /// rename therefore resolves to nothing — matching tclsh, where it is
+    /// simply an unknown command.
+    ///
+    /// The two hop kinds are not symmetric, and the asymmetry is deliberate:
+    ///
+    /// - A `rename` moves the command once and for all, so the old name being
+    ///   gone afterwards is exactly what freed it up — chasing back through it
+    ///   is always valid. [`Self::class_live_by_name_for_call`] already
+    ///   encodes this by treating a rename *source* class as unconditionally
+    ///   live.
+    /// - An `interp alias` is re-resolved by name on every invocation, so its
+    ///   target must resolve to a live command at the call site — but "live"
+    ///   is judged where the chain *terminates*, not at the alias hop itself:
+    ///   the target may be another alias or a rename destination (`rename Dog
+    ///   Cat; interp alias {} Pup {} Cat` — `Pup new` builds a Dog,
+    ///   tclsh8.6.14/9.0.4-confirmed), and demanding a directly-live class at
+    ///   the hop breaks exactly those chains. A chain that ends *on* an alias
+    ///   target requires the strict direct-class check there — a rename
+    ///   *source* name is vacated, so an alias pointing at it fails `invalid
+    ///   command name` at run time (tclsh8.6.14/9.0.4-confirmed) and the
+    ///   lenient rename-source rule below must not resurrect it. A
+    ///   `-prependedargs` alias (`interp alias {} Cat {} Dog extra`) is
+    ///   declined outright: the bound words shift the constructor's
+    ///   arguments, so `Cat new` is not the call `Dog new` would be.
+    fn class_reachable_by_indirection(&self, written: &str, call_off: u32) -> Option<String> {
+        let mut cur = self.canonicalise_class_name(written);
+        let mut hopped = false;
+        let mut via_alias = false;
+        for _ in 0..Self::MAX_CLASS_NAME_HOPS {
+            // `renamed_commands` / `command_aliases` are keyed by the
+            // qualified name the scanner resolved; `cur` starts as written.
+            let key = crate::naming::normalise_qualified_name(&cur);
+            if let Some(old) = self.result.renamed_commands.get(&key) {
+                let established = *self.result.rename_offsets.get(&key)?;
+                if !self.indirection_in_effect(established, call_off) {
+                    return None;
+                }
+                cur = self.canonicalise_class_name(old);
+                // A rename destination is a live command name in its own
+                // right — the class data just stays keyed by the source —
+                // so the chain is back on the rename-chase rule.
+                via_alias = false;
+            } else if let Some(alias) = self.result.command_aliases.get(&key) {
+                if !alias.extras.is_empty() {
+                    return None;
+                }
+                let established = *self.result.alias_offsets.get(&key)?;
+                if !self.indirection_in_effect(established, call_off) {
+                    return None;
+                }
+                let target = self.canonicalise_class_name(&alias.target);
+                if target == cur {
+                    return None;
+                }
+                cur = target;
+                via_alias = true;
+            } else {
+                // Terminal name. Reached through a rename chase, the class
+                // survives its source name being vacated
+                // (`class_live_by_name_for_call`); reached straight from an
+                // alias, the name itself must resolve, so only a directly
+                // live class will do.
+                let live = if via_alias {
+                    self.class_live_for_call(&cur, call_off)
+                } else {
+                    self.class_live_by_name_for_call(&cur, call_off)
+                };
+                return (hopped && live).then(|| self.canonicalise_class_name(&cur));
+            }
+            hopped = true;
+        }
+        None
+    }
+
+    /// Whether an indirection established at `established` is observably in
+    /// effect by the time the call at `call_off` runs.
+    ///
+    /// Order-gated at top level and unconditional inside a definition body —
+    /// the whole file loads, running every top-level statement, before any
+    /// body runs, so a rename written after a method that uses it is still in
+    /// effect when that method executes. The same rule `validity.rs`'s
+    /// `fact_in_effect` applies to proc definitions, renames, and aliases.
+    fn indirection_in_effect(&self, established: u32, call_off: u32) -> bool {
+        established < call_off || self.result.offset_is_inside_any_definition_body(call_off)
     }
 
     /// Whether `qualified` names a class that is still live at `call_off`
@@ -1211,6 +1333,36 @@ impl Analyser {
         self.emit_cmd_command_diagnostics(registry, hierarchy.as_ref());
     }
 
+    /// Whether `site` is a `[cmd]::method` namespaced-ensemble dispatch
+    /// (FP-OBJ-07): a command-substitution head composed with a literal
+    /// `::method` tail.
+    ///
+    /// The literal tail is static method-name evidence — the dispatch is
+    /// well-formed, with only the namespace prefix computed at run time — so
+    /// W307 must not fire. A bare `[cmd] arg` dispatch with no `::method`
+    /// tail has no such evidence and still fires.
+    fn is_namespaced_ensemble_dispatch(
+        &self,
+        site: &crate::analyser::state::CmdCommandSite,
+    ) -> bool {
+        let start = site.cmd_span.start() as usize;
+        let end = (site.cmd_span.end() as usize).min(self.source.len());
+        let Some(word) = self.source.get(start..end) else {
+            return false;
+        };
+        if !word.starts_with('[') {
+            return false;
+        }
+        let Some(sep) = word.find("]::") else {
+            return false;
+        };
+        let tail = &word[sep + 3..];
+        !tail.is_empty()
+            && tail
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
+    }
+
     /// Emit W307/W308 for `[cmd] method` command-substitution dispatch sites.
     ///
     /// W307 fires only when the inner command's return type is unknown AND the
@@ -1224,28 +1376,8 @@ impl Analyser {
     ) {
         let cmd_sites = std::mem::take(&mut self.cmd_command_sites);
         for site in &cmd_sites {
-            // `[cmd]::method` namespaced-ensemble dispatch (FP-OBJ-07): a
-            // command-substitution head composed with a literal `::method` tail.
-            // The literal tail is static method-name evidence — the dispatch is
-            // well-formed (only the namespace prefix is computed at runtime), so
-            // W307 must not fire. A bare `[cmd] arg` dispatch with no `::method`
-            // tail has no such evidence and still fires.
-            {
-                let s = site.cmd_span.start() as usize;
-                let e = (site.cmd_span.end() as usize).min(self.source.len());
-                let word = &self.source[s..e];
-                if word.starts_with('[')
-                    && let Some(p) = word.find("]::")
-                {
-                    let tail = &word[p + 3..];
-                    if !tail.is_empty()
-                        && tail
-                            .chars()
-                            .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
-                    {
-                        continue;
-                    }
-                }
+            if self.is_namespaced_ensemble_dispatch(site) {
+                continue;
             }
             // No blanket `in_method` suppression: an in-method `[cmd] method`
             // dispatch must earn its silence from a positive signal (a known
@@ -1275,7 +1407,22 @@ impl Analyser {
             // the dispatched method resolves in the enclosing class and its
             // body is a simple `return <literal>`, the result is a plain
             // string, not an object — so the *outer* dispatch fires W307.
-            if matches!(head, "my" | "self") {
+            // `my <method>` (self-dispatch) and `self <subcommand>`
+            // (introspection) both return something the analyser treats as an
+            // object handle by default. Both kinds come from the registry;
+            // `next`/`nextto` are deliberately *not* included — they return
+            // the next implementation's result, not a handle.
+            if self
+                .registry
+                .and_then(|r| r.method_dispatch_keyword(head))
+                .is_some_and(|kind| {
+                    matches!(
+                        kind,
+                        tcl_registry::MethodDispatchKind::SelfDispatch
+                            | tcl_registry::MethodDispatchKind::Introspection
+                    )
+                })
+            {
                 let returns_literal = arg_strs.first().is_some_and(|method| {
                     self.oo_self_method_returns_literal(site.cmd_span.start(), method)
                 });
@@ -1298,11 +1445,21 @@ impl Analyser {
             // command) so we recognise the constructor pattern
             // explicitly here — ``known_class new/create`` maps to
             // ``TclType.OBJECT`` with the class name attached.
-            let class_qn = self.canonicalise_class_name(head);
+            let mut class_qn = self.canonicalise_class_name(head);
             // Renamed/deleted with no re-establishment fails the call (issue #1010).
             let off = site.cmd_span.start();
-            let head_is_known_class =
+            let mut head_is_known_class =
                 self.class_live_for_call(&class_qn, off) || self.class_live_for_call(head, off);
+            // …but a `rename`/`interp alias` can make a *different* written
+            // name reach the class, and the constructor call is then perfectly
+            // ordinary (issue #1049). Resolve to the canonical name so the
+            // object type carries the identity the method tables are keyed by.
+            if !head_is_known_class
+                && let Some(reached) = self.class_reachable_by_indirection(head, off)
+            {
+                class_qn = reached;
+                head_is_known_class = true;
+            }
             let is_constructor_call = head_is_known_class
                 && arg_strs
                     .first()

@@ -439,9 +439,6 @@ pub struct Analyser {
     /// as [`Self::var_command_sites`] but for ``[cmd] args``
     /// shapes.
     pub cmd_command_sites: Vec<CmdCommandSite>,
-    /// Cache: ``scope_path → namespace string`` for
-    /// ``namespace_from_scope``. Cleared on snapshot restore.
-    pub ns_cache: HashMap<Vec<usize>, String>,
     /// Namespaces where ``namespace ensemble create`` was seen —
     /// their tail names become valid commands.
     pub ensemble_namespaces: HashSet<String>,
@@ -911,7 +908,6 @@ impl Analyser {
             seed_scope_path: Vec::new(),
             widget_dispatch_sites: Vec::new(),
             cmd_command_sites: Vec::new(),
-            ns_cache: HashMap::new(),
             ensemble_namespaces: HashSet::new(),
             ensemble_command_maps: HashMap::new(),
             objdefined_vars: HashSet::new(),
@@ -1458,7 +1454,6 @@ impl Analyser {
         self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
         self.tk_dialect = dialect == "tk";
         self.unresolved_commands_emitted = false;
-        self.ns_cache.clear();
 
         let file_codes = super::utils::parse_file_suppression(source);
         for code in &file_codes {
@@ -1542,7 +1537,6 @@ impl Analyser {
         self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
         self.tk_dialect = dialect == "tk";
         self.unresolved_commands_emitted = false;
-        self.ns_cache.clear();
 
         let file_codes = super::utils::parse_file_suppression(source);
         for code in &file_codes {
@@ -2001,7 +1995,6 @@ mod tests {
         assert!(a.builtin_names.is_none());
         assert!(a.builtin_dialect.is_none());
         assert!(a.current_event.is_none());
-        assert!(a.ns_cache.is_empty());
         assert!(a.ensemble_namespaces.is_empty());
         assert!(a.objdefined_vars.is_empty());
         assert!(!a.unresolved_commands_emitted);
@@ -2043,6 +2036,71 @@ mod tests {
         );
     }
 
+    /// TP — the tcllib pki idiom: `proc [namespace current]::_x {...}` inside
+    /// `::pki`.  The body's own definitions must home to `::pki`, not to a
+    /// phantom namespace made out of the substitution's source text.
+    ///
+    /// Oracle (tclsh 8.6.16 and 9.0.4, probe `s5_probe.tcl`):
+    ///
+    /// ```text
+    /// inner exists: ::pki::_inner
+    /// helper homed at: ::pki::helper / global:
+    /// ```
+    #[test]
+    fn a_dynamically_named_procs_body_homes_to_the_lexical_namespace() {
+        let src = "namespace eval ::pki {\n\
+                       proc _outer {} {\n\
+                           proc [namespace current]::_inner {} {\n\
+                               proc helper {} { return HELPED }\n\
+                           }\n\
+                       }\n\
+                   }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.all_procs.contains_key("::pki::helper"),
+            "the body of a `[namespace current]`-named proc runs in ::pki: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !r.all_procs
+                .keys()
+                .any(|k| k.contains("[namespace current]") && k.ends_with("helper")),
+            "no phantom substitution-text namespace may appear: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// TN — a statically-named proc is untouched: the scope name is the
+    /// resolved name verbatim, so an ordinary qualified-name proc still homes
+    /// its nested definitions to its own defining namespace.
+    #[test]
+    fn a_statically_named_procs_body_still_homes_to_its_defining_namespace() {
+        let src = "proc ::pki::_outer {} { proc helper {} {} }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.all_procs.contains_key("::pki::helper"),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// A `$`-spelled dynamic tail (`proc _$n {...}`) keeps the lexical
+    /// namespace too — the fallback is the trailing segment, whose holder is
+    /// the enclosing namespace.
+    #[test]
+    fn a_dollar_named_procs_body_homes_to_the_lexical_namespace() {
+        let src = "namespace eval ::pki { proc _$suffix {} { proc helper {} {} } }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.all_procs.contains_key("::pki::helper"),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
     #[test]
     fn apply_body_proc_honours_explicit_lambda_namespace() {
         // A lambda pinning a namespace (element 2) runs its body there.
@@ -2051,6 +2109,80 @@ mod tests {
         assert!(
             r.all_procs.contains_key("::bar::helper"),
             "explicit lambda namespace must be honoured: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// TP — a *relative* (non-`::`-prefixed) lambda namespace element is
+    /// interpreted against the GLOBAL namespace, never the caller's.
+    ///
+    /// `doc/apply.n`: "If given, namespace is interpreted relative to the
+    /// global namespace even if its name does not start with `::`";
+    /// `tclProc.c`'s `TclNRApplyObjCmd` `::`-prefixes the word before the
+    /// lookup. tclsh 9.0.4 oracle (probe `a2b_apply.tcl`), with `::sub`,
+    /// `::pin::sub`, and `::lex::sub` all defined:
+    ///
+    /// ```text
+    /// lex-body current=::lex -> ns=::sub who=GLOBAL-SUB
+    /// proc current=::pin     -> ns=::sub who=GLOBAL-SUB
+    /// c2 current=::pin       -> ns=::sub who=GLOBAL-SUB
+    /// ```
+    #[test]
+    fn apply_relative_lambda_namespace_homes_globally_not_to_the_caller() {
+        let src = "namespace eval ::sub {}\n\
+                   namespace eval ::caller::sub {}\n\
+                   proc ::caller::p {} {\n\
+                       apply {{} { proc helper {} { return 1 } } sub}\n\
+                   }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.all_procs.contains_key("::sub::helper"),
+            "relative lambda ns must resolve against ::, not the caller: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !r.all_procs.contains_key("::caller::sub::helper"),
+            "relative lambda ns must NOT pin against the caller namespace: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        let (_, ns) = r
+            .namespace_overrides
+            .first()
+            .expect("the lambda body records a namespace override");
+        assert_eq!(ns, "::sub");
+    }
+
+    /// TN — an *absolute* namespace element is unaffected by the
+    /// global-relative rule: `::caller::sub` stays `::caller::sub`.
+    #[test]
+    fn apply_absolute_lambda_namespace_is_unchanged() {
+        let src = "namespace eval ::sub {}\n\
+                   namespace eval ::caller::sub {}\n\
+                   proc ::caller::p {} {\n\
+                       apply {{} { proc helper {} { return 1 } } ::caller::sub}\n\
+                   }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.all_procs.contains_key("::caller::sub::helper"),
+            "absolute lambda ns must be honoured verbatim: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// Control — no namespace element at all still means the global
+    /// namespace, from inside a qualified-name proc as much as anywhere.
+    #[test]
+    fn apply_without_a_namespace_element_stays_global_inside_a_qualified_proc() {
+        let src = "proc ::caller::p {} {\n\
+                       apply {{} { proc helper {} { return 1 } }}\n\
+                   }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.all_procs.contains_key("::helper"),
+            "an absent lambda ns means global: {:?}",
             r.all_procs.keys().collect::<Vec<_>>()
         );
     }

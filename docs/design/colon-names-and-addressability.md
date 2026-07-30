@@ -98,7 +98,7 @@ applying it to constructed keys.
   conformance vector machinery (which builds colon-named definitions
   *relatively*, since no absolute spelling exists to write).
 - `tcl-compiler/src/analyser/` — `join_namespace` /
-  `namespace_from_scope_path` / `advance_command_resolution_namespace`
+  `command_resolution_namespace` / `advance_command_resolution_namespace`
   join-then-never-reparse; definition handlers derive simple names via
   `key_tail` and emit W314.
 - `tcl-vm/src/interp.rs` — `register_command` takes canonical unrooted keys

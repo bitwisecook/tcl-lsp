@@ -50,35 +50,43 @@ impl Analyser {
     /// into a script and re-parses the result (`eval`).
     ///
     /// [`Traits::EVALUATES_CODE`] alone is too wide for this shape:
-    /// `uplevel` carries it but takes an optional leading `level` word
-    /// (its script position is call-shape-dependent, owned by W301), and
     /// the coroutine injectors (`coroinject` / `coroprobe`) carry it but
     /// take a coroutine name plus a command *prefix* — a word list that is
-    /// never re-parsed.  The concat-reparse shape is the spec that pairs
-    /// the trait with [`Traits::TAINT_SINK`] and statically declares its
-    /// whole tail a script: a fixed [`ArgRole::Body`] at argument 0 with
-    /// no dynamic resolver.
+    /// never re-parsed.  The concat-reparse shape is
+    /// [`Traits::SCRIPT_CONCATENATES_ARGS`], the registry's own record of
+    /// "every trailing word joins into one re-parsed script", paired with
+    /// [`Traits::TAINT_SINK`].
+    ///
+    /// `uplevel` is excluded by [`Traits::EVALUATES_IN_SHIFTED_FRAME`], which
+    /// is *why* it belongs to W301 instead: injecting into a script that runs
+    /// in the caller's frame is a frame-escalation finding with its own
+    /// message, not the same warning as injecting into a same-frame `eval`.
+    ///
+    /// The gate used to read that split *indirectly* — "no
+    /// `arg_role_resolver`, with a fixed [`ArgRole::Body`] at argument 0" —
+    /// which made W101's scope an accident of how a spec spells its argument
+    /// layout rather than of what the command does. Both halves now name the
+    /// semantics, so re-modelling `eval`'s roles cannot silently switch W101
+    /// off (issue #1051).
     fn is_concat_eval_command(&self, cmd_name: &str) -> bool {
         self.security_spec(cmd_name).is_some_and(|s| {
             s.traits
-                .contains(Traits::EVALUATES_CODE | Traits::TAINT_SINK)
-                && s.arg_role_resolver.is_none()
-                && s.arg_role_at(0) == Some(ArgRole::Body)
+                .contains(Traits::SCRIPT_CONCATENATES_ARGS | Traits::TAINT_SINK)
+                && !s.traits.contains(Traits::EVALUATES_IN_SHIFTED_FRAME)
         })
     }
 
-    /// W301's gate: a code-evaluating taint sink whose script position is
-    /// call-shape-dependent — an optional leading `level` word resolved
-    /// dynamically (`uplevel`).  The complement of
-    /// [`Self::is_concat_eval_command`] within the
-    /// `EVALUATES_CODE + TAINT_SINK` pair: the registry models `uplevel`'s
-    /// "script starts after the optional level" layout as an
-    /// `arg_role_resolver` where `eval` has a static role table.
+    /// W301's gate: a concat-reparse taint sink whose script runs in a
+    /// **different stack frame** than the call is written in — `uplevel`.
+    /// The exact complement of [`Self::is_concat_eval_command`] within the
+    /// [`Traits::SCRIPT_CONCATENATES_ARGS`] + [`Traits::TAINT_SINK`] pair, so
+    /// every family member is owned by exactly one of the two codes and
+    /// neither double-reports.
     fn is_level_eval_command(&self, cmd_name: &str) -> bool {
         self.security_spec(cmd_name).is_some_and(|s| {
             s.traits
-                .contains(Traits::EVALUATES_CODE | Traits::TAINT_SINK)
-                && s.arg_role_resolver.is_some()
+                .contains(Traits::SCRIPT_CONCATENATES_ARGS | Traits::TAINT_SINK)
+                && s.traits.contains(Traits::EVALUATES_IN_SHIFTED_FRAME)
         })
     }
 

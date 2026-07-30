@@ -66,6 +66,13 @@
 //! command, so all four really do dispatch it (tclsh9.0-verified), and the
 //! `my`-scope rule ([`dispatch_reaches`]) does not gate this shape.
 //!
+//! The same scanner also carries [incr Tcl]'s class-scoped `proc` shape — a
+//! single `::`-qualified `Factory::make` word rather than two words (issue
+//! #990) — so an itcl class proc gets the same edges from the same place.
+//! itcl's own two-word `Factory make` is object *creation*
+//! (`ClassName instanceName`) and never becomes an edge, which is the
+//! registry-driven definer-family rule the scanner already applies.
+//!
 //! Still out of scope: a `next` / `nextto` super-dispatch is not a
 //! call-hierarchy edge (it *is* a reference — see
 //! [`crate::references::method_next_dispatch_spans`] — but attributing it a
@@ -138,6 +145,20 @@ pub fn prepare(
 
 /// Synthetic call-hierarchy name for a class method:
 /// `<class-qualified-name>::<method-name>` (e.g. `::C::greet`).
+/// Whether `head` is a `TclOO` method-context keyword under `dialect` —
+/// `my`, `next`, `nextto`, or `self`.
+///
+/// The registry-first replacement for the `matches!(head, "my" | "next" |
+/// "nextto")` literals this module carried (issue #1050): a dialect that
+/// gains or loses one of these propagates through its `CommandSpec`, never
+/// through an edit here. All three kinds are excluded together because none
+/// of them is an *unresolved command reference* — a dispatch keyword resolves
+/// through the object's method table and an introspection keyword resolves to
+/// nothing at all, so neither belongs in a bare-head call scan.
+fn is_method_dispatch_keyword(dialect: &str, head: &str) -> bool {
+    crate::definition::method_dispatch_keyword_in(dialect, head).is_some()
+}
+
 fn method_item_name(class_def: &ClassDef, method: &MethodDef) -> String {
     format!("{}::{}", class_def.qualified_name, method.name)
 }
@@ -602,11 +623,12 @@ fn unresolved_method_outgoing_calls(
     let mut by_head: std::collections::BTreeMap<String, Vec<LspRange>> =
         std::collections::BTreeMap::new();
     for (head, span) in segment_body_calls(source, dialect, source_method.body_span) {
-        // `my` / `next` / `nextto` are `TclOO` dispatch keywords, not
-        // unresolved command references — the actual dispatch target (the
-        // word *after* `my`) is handled by `method_outgoing_calls`'s
-        // `scan_my_method_sites` pass, never by this bare-head scan.
-        if matches!(head.as_str(), "my" | "next" | "nextto") {
+        // A `TclOO` method-context keyword is not an unresolved command
+        // reference — the actual dispatch target (the word *after* `my`) is
+        // handled by `method_outgoing_calls`'s `scan_my_method_sites` pass,
+        // never by this bare-head scan. Membership comes from the registry,
+        // not a name list (issue #1050).
+        if is_method_dispatch_keyword(dialect, &head) {
             continue;
         }
         // Local top-level proc?  Resolved from the class's namespace (a
@@ -1037,7 +1059,7 @@ fn method_outgoing_calls(
     );
     let class_ns = tcl_syntax::naming::key_holder_and_tail(&class_def.qualified_name).0;
     for (head, span) in segment_body_calls(source, dialect, source_method.body_span) {
-        if matches!(head.as_str(), "my" | "next" | "nextto") {
+        if is_method_dispatch_keyword(dialect, &head) {
             continue;
         }
         // Top-level user proc?  Resolved from the class's namespace (a
@@ -1609,6 +1631,53 @@ mod tests {
         let callees: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert_eq!(callees, vec!["::Factory::make"], "{outgoing:?}");
         assert_eq!(outgoing[0].from_ranges.len(), 1, "{outgoing:?}");
+    }
+
+    /// FN→TP (issue #990): [incr Tcl]'s class-scoped `proc` dispatches as a
+    /// single `::`-qualified word, so the two-word scan that finds a
+    /// `classmethod`'s edges never saw it and itcl call hierarchies were
+    /// empty.  Oracle (tclsh 8.6.14 + Itcl 3.4): a bare `make` inside a
+    /// sibling class `proc`, `Factory::make` inside a method body, and a
+    /// top-level `Factory::make` all enter `make`.
+    #[test]
+    fn incoming_calls_for_an_itcl_class_proc_find_colon_qualified_dispatch() {
+        let src = "itcl::class Factory {\n    proc make {} { return 1 }\n    proc build {} { return [make] }\n    method viaInstance {} { return [Factory::make] }\n}\nFactory::make\n";
+        let analysis = analyse(src);
+        // Cursor on `make`'s declaration name (line 1, col 10).
+        let items = prepare(src, 1, 10, &analysis);
+        assert_eq!(items[0].name, "::Factory::make", "{items:?}");
+        let incoming = incoming_calls(src, "tcl8.6", &items[0], &analysis);
+        let callers: Vec<&str> = incoming.iter().map(|c| c.from.name.as_str()).collect();
+        assert_eq!(
+            callers,
+            vec!["::Factory::build", "::Factory::viaInstance", "<top-level>"],
+            "{incoming:?}"
+        );
+    }
+
+    /// FN→TP: the outgoing direction of the same shape — `build`'s body
+    /// dispatches `make`, so `make` is its callee.
+    #[test]
+    fn outgoing_calls_from_an_itcl_class_proc_reach_the_sibling_class_proc() {
+        let src = "itcl::class Factory {\n    proc make {} { return 1 }\n    proc build {} { return [make] }\n}\nFactory::make\n";
+        let analysis = analyse(src);
+        let items = prepare(src, 2, 10, &analysis);
+        assert_eq!(items[0].name, "::Factory::build", "{items:?}");
+        let outgoing = outgoing_calls(src, "tcl8.6", &items[0], &analysis);
+        let callees: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
+        assert_eq!(callees, vec!["::Factory::make"], "{outgoing:?}");
+    }
+
+    /// TN: itcl's two-word `Factory make` is object *creation*
+    /// (`ClassName instanceName`), never a class-proc dispatch, so it adds
+    /// no call-hierarchy edge.
+    #[test]
+    fn itcl_two_word_object_creation_is_not_a_call_hierarchy_edge() {
+        let src = "itcl::class Factory {\n    proc make {} { return 1 }\n}\nFactory make\n";
+        let analysis = analyse(src);
+        let items = prepare(src, 1, 10, &analysis);
+        let incoming = incoming_calls(src, "tcl8.6", &items[0], &analysis);
+        assert!(incoming.is_empty(), "{incoming:?}");
     }
 
     /// TP: a class command is an ordinary global command, so an *instance*

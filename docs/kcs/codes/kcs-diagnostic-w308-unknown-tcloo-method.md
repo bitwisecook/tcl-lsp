@@ -88,6 +88,38 @@ The analyser reports **`W308`** on `$d fly`. The vacated name `Dog` is a
 separate question, and is reported separately as `W123` if anything
 still calls it.
 
+Objects built through the *new* name are checked too, because the class
+itself is unchanged — only the command that reaches it moved:
+
+```tcl
+oo::class create Dog { method bark {} { return woof } }
+rename Dog Cat
+set d [Cat new]
+$d fly
+```
+
+The analyser reports **`W308`** on `$d fly`, naming the class `::Dog`, and
+`$d bark` stays quiet. An `interp alias {} Cat {} Dog` and a chain of
+renames (`rename Dog Cat; rename Cat Kitten`) work the same way.
+
+Order matters, because the rename has to have run:
+
+```tcl
+oo::class create Dog { method bark {} { return woof } }
+set d [Cat new]
+rename Dog Cat
+$d fly
+```
+
+Here `Cat` does not exist yet when `[Cat new]` runs, so nothing is built and
+the analyser makes no claim about the method. The out-of-order call itself is
+reported as `W128` instead. Inside a procedure or method body the order does
+not matter — the whole file loads before any body runs.
+
+An alias that binds extra words (`interp alias {} Cat {} Dog create`) is left
+alone. Those words shift the constructor's own arguments, so `Cat new` is not
+the call `Dog new` would be.
+
 ## Fix
 
 Call a method the class actually defines, or add the method to the class:

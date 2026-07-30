@@ -361,6 +361,16 @@ pub fn rename(
     ) {
         return edits;
     }
+    if let Some(edits) = rename_itcl_class_proc(
+        source,
+        dialect,
+        (line, character),
+        new_name,
+        analysis,
+        &line_index,
+    ) {
+        return edits;
+    }
     // `$obj method` external call site — when the cursor sits
     // on the method-name token of an instance-method call and
     // `$obj`'s class is known, rename the method across its
@@ -422,6 +432,38 @@ pub fn rename(
 /// cursor would silently break the override relationship.  See
 /// [`override_family`].  Shared by the in-class-body and external
 /// `$obj method` rename entry points.
+/// Rename an [incr Tcl] class-scoped `proc` from a `Factory::make` call site
+/// or its declaration (issue #990).
+///
+/// Tried after the proc / class rename paths so an ordinary qualified proc
+/// call of the same spelling keeps priority.  The edits come from the shared
+/// member-reference collector, whose itcl call sites cover only the final
+/// `::`-segment — so the as-written qualifier survives the rewrite.
+///
+/// Single-document: a `Factory::make` call in a sibling file is not
+/// rewritten, because the cross-file rename layer still carries only the
+/// two-word `Class method` dispatch shape.
+fn rename_itcl_class_proc(
+    source: &str,
+    dialect: &str,
+    cursor: (u32, u32),
+    new_name: &str,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Option<Vec<TextEdit>> {
+    let (line, character) = cursor;
+    let (class_q, member) =
+        crate::definition::itcl_class_proc_target_at(source, dialect, line, character, analysis)?;
+    rename_method_in_class(
+        source,
+        dialect,
+        (&class_q, &member, true),
+        new_name,
+        analysis,
+        line_index,
+    )
+}
+
 fn rename_method_in_class(
     source: &str,
     dialect: &str,
@@ -512,7 +554,7 @@ pub fn method_target_with_access(
     {
         // `my method` — an internal call from inside the enclosing class.
         // Always instance-context: `my` never reaches a classmethod.
-        if inst == "my"
+        if crate::definition::is_self_dispatch_keyword(&inst)
             && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor)
         {
             return Some((class_q.to_owned(), method, false, MethodAccess::Internal));

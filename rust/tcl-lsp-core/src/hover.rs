@@ -153,6 +153,34 @@ pub fn hover(
     )
 }
 
+/// Render the hover body for a proc or class that lives in **another**
+/// document, identified by its qualified name.
+///
+/// `defining_analysis` is the analyser result for the document the symbol is
+/// declared in — the same result an in-document hover there would use, so the
+/// rendering is identical whichever file the cursor is in (issue #1018).
+/// Class hover in particular reads superclass and mixin methods out of that
+/// analysis, which is why the *defining* file's result is required rather than
+/// the caller's.
+///
+/// `qualified` is the absolute name (`::math::zzqfrobnicate`); a proc is
+/// preferred over a class of the same name, matching go-to-definition's own
+/// ordering. Returns `None` when the name names neither.
+#[must_use]
+pub fn qualified_symbol_hover(
+    defining_analysis: &AnalysisResult,
+    qualified: &str,
+) -> Option<Hover> {
+    if let Some(proc_def) = defining_analysis.all_procs.get(qualified) {
+        return Some(Hover::markdown(proc_hover_text(proc_def)));
+    }
+    let class_def = defining_analysis.all_classes.get(qualified)?;
+    Some(Hover::markdown(class_hover_text(
+        defining_analysis,
+        class_def,
+    )))
+}
+
 /// `<ensemble> <subcommand>` hover — a static `namespace ensemble create
 /// -map`/`-subcommands` mapping (issue #923 idx 106), the hover twin of
 /// `definition()`'s identical check. Extracted from
@@ -361,7 +389,7 @@ pub fn hover_with_profile(
     // is split across a separate `oo::define` block).
     if let Some((inst, method, _)) =
         crate::definition::instance_method_at_cursor(source, line, character)
-        && inst == "my"
+        && crate::definition::is_self_dispatch_keyword(&inst)
         && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor_offset)
         && let Some(text) = obj_method_hover_text(analysis, class_q, &method, registry)
     {
@@ -2218,6 +2246,37 @@ fn clock_format_string_at_position(source: &str, line: u32, character: u32) -> O
     string_literal_with_percent_at(line_text, character)
 }
 
+/// The `[start, end)` char-index bounds of the bare Tcl word around `col`
+/// in `chars` (one source line), using [`WORD_DELIMS`].
+///
+/// This is the single word-bounding rule shared by every cursor-word
+/// consumer, so hover, definition, references, and rename all agree on
+/// where a word starts and ends.  It deliberately follows the *lexer's*
+/// notion of a bare word — bounded by whitespace and the structural
+/// characters `;{}[]"$` — rather than a programming-language identifier
+/// rule.  Tcl puts no character restriction on a command or method name, so
+/// `with-dash`, `a.b`, and TIP 558's generated property accessors
+/// `<ReadProp-x>` / `<WriteProp-x>` are all one word (verified against
+/// tclsh 8.6.14 and 9.0.4).
+///
+/// Returns `None` when the cursor sits on a delimiter run (empty word).
+///
+/// Deliberately *not* handled: a word split across lines by a
+/// backslash-newline continuation, and the interior structure of a word
+/// that mixes literal text with substitutions (`pre[cmd]post`) — the
+/// caller sees the literal slice only.
+pub(crate) fn word_char_bounds(chars: &[char], col: usize) -> Option<(usize, usize)> {
+    let mut start = col.min(chars.len());
+    while start > 0 && !WORD_DELIMS.contains(&chars[start - 1]) {
+        start -= 1;
+    }
+    let mut end = col.min(chars.len());
+    while end < chars.len() && !WORD_DELIMS.contains(&chars[end]) {
+        end += 1;
+    }
+    (start != end).then_some((start, end))
+}
+
 /// Find the word and its `[start, end)` columns at the given
 /// position, using Tcl's word delimiters.
 ///
@@ -2236,18 +2295,7 @@ pub fn find_word_span_at_position(
     if col >= chars.len() {
         return None;
     }
-
-    let mut start = col;
-    while start > 0 && !WORD_DELIMS.contains(&chars[start - 1]) {
-        start -= 1;
-    }
-    let mut end = col;
-    while end < chars.len() && !WORD_DELIMS.contains(&chars[end]) {
-        end += 1;
-    }
-    if start == end {
-        return None;
-    }
+    let (start, end) = word_char_bounds(&chars, col)?;
     let word: String = chars[start..end].iter().collect();
     let prefix: String = chars[..start].iter().collect();
     let start_u32 = crate::definition::utf16_len(&prefix);
@@ -3561,6 +3609,37 @@ mod tests {
         let proc_def = analysis.all_procs.values().next().unwrap();
         let text = proc_hover_text(proc_def);
         assert!(text.contains("{name world}"), "got: {text}");
+    }
+
+    /// Issue #1018: the cross-document renderer answers by qualified name and
+    /// produces the *same* body the in-document path does, for both a proc and
+    /// a class — one renderer, so a call-site hover in another file can never
+    /// drift from the declaration's own.
+    #[test]
+    fn qualified_symbol_hover_matches_the_in_document_rendering_1018() {
+        let src = "proc ::math::zzqfrobnicate {val args} { return $val }\noo::class create ::geo::Plane {\n    method fly {} {}\n}\n";
+        let analysis = analyse(src);
+
+        let proc_hover =
+            qualified_symbol_hover(&analysis, "::math::zzqfrobnicate").expect("proc hover");
+        assert_eq!(
+            proc_hover.value,
+            proc_hover_text(&analysis.all_procs["::math::zzqfrobnicate"]),
+        );
+        assert!(proc_hover.value.contains("val"), "{proc_hover:?}");
+
+        let class_hover = qualified_symbol_hover(&analysis, "::geo::Plane").expect("class hover");
+        assert_eq!(
+            class_hover.value,
+            class_hover_text(&analysis, &analysis.all_classes["::geo::Plane"]),
+        );
+
+        // A name neither map holds resolves to nothing — the fallback never
+        // invents a symbol.
+        assert!(qualified_symbol_hover(&analysis, "::math::nosuchthing").is_none());
+        // The lookup is by *qualified* name only; a bare tail is not a match,
+        // so a same-tailed proc in an unrelated namespace cannot be picked up.
+        assert!(qualified_symbol_hover(&analysis, "zzqfrobnicate").is_none());
     }
 
     #[test]

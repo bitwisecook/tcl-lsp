@@ -79,6 +79,11 @@ kinds read consistently in the same list.
   [Find References](kcs-feature-references.md)).
 - An external `$obj method` call from a different class or document is not
   an incoming edge on the method (intra-class only).
+- [incr Tcl]'s class-scoped `proc` gets edges for its real
+  `Factory::make` dispatch shape, but only within one document — a call in
+  a sibling file is not an incoming edge. itcl's two-word `Factory make`
+  is object creation (`ClassName instanceName`), not a dispatch, and is
+  correctly never an edge.
 
 ## Test anchors
 
@@ -88,6 +93,9 @@ kinds read consistently in the same list.
   `outgoing_calls_from_proc_reach_bare_class_dispatch`,
   `classmethod_incoming_covers_lambda_and_namespace_eval_bodies`,
   `classmethod_incoming_names_proc_callers_qualified`,
+  `incoming_calls_for_an_itcl_class_proc_find_colon_qualified_dispatch`,
+  `outgoing_calls_from_an_itcl_class_proc_reach_the_sibling_class_proc`,
+  `itcl_two_word_object_creation_is_not_a_call_hierarchy_edge`,
   and `prepare_resolves_classmethod_over_same_named_method_by_cursor`)
 - `rust/tcl-lsp-server/tests/e2e/navigation_extras.rs`
   (`method_incoming_and_outgoing_calls_match_my_dispatch`,

@@ -474,6 +474,60 @@ impl CommandRegistry {
             .and_then(|specs| self.best_visible(specs, dialect))
     }
 
+    /// Resolve `head` the way this registry's own availability rules
+    /// resolve it: through [`Self::get_for_dialect`] against the dialect
+    /// profile this registry was built for, or through the dialect-agnostic
+    /// [`Self::get`] when it has no profile.
+    ///
+    /// The single place the "same availability rules as `get`" promise made
+    /// by the profile-aware behaviour queries is implemented, so a query
+    /// added later cannot quietly answer for a command the profile's
+    /// dialect does not have.
+    fn spec_for_this_registry(&self, head: &str) -> Option<&CommandSpec> {
+        match self.profile {
+            Some(profile) => self.get_for_dialect(head, profile.availability_mask),
+            None => self.get(head),
+        }
+    }
+
+    /// Which `TclOO` method-context keyword `head` is, if it is one.
+    ///
+    /// The registry-first replacement for the `head == "my"` /
+    /// `matches!(head, "my" | "next" | "nextto")` literals consumers used to
+    /// carry (issue #1050). Every consumer that needs "is this word a method
+    /// dispatch or introspection keyword, and which kind" asks here, so a
+    /// dialect that gains or loses one of them propagates through the specs
+    /// rather than through a walker edit.
+    ///
+    /// A leading `::` resolves to the bare name (consumers previously
+    /// matched `"my" | "::my"` by hand), matching [`Self::get`].
+    ///
+    /// Dialect-aware through the registry instance itself: a registry built
+    /// by `registry_for_dialect` / `registry_for_profile` answers under that
+    /// profile's availability mask, so all four keywords — every one of them
+    /// `TCL86_PLUS` — return `None` from a `tcl8.4` or `tcl8.5` registry. A
+    /// profile-less registry (`CommandRegistry::build_default`) answers
+    /// dialect-agnostically, exactly as [`Self::get`] does.
+    ///
+    /// `link` is **not** a keyword here and must not be added: it creates
+    /// per-class bareword commands rather than dispatching one (issue
+    /// #1026). Nor is `self`'s definer-grammar homonym — the `self` word
+    /// inside an `oo::define` body is a member-grammar wrapper, resolved
+    /// through [`crate::definer`], not a command head.
+    #[must_use]
+    pub fn method_dispatch_keyword(&self, head: &str) -> Option<MethodDispatchKind> {
+        let traits = self.spec_for_this_registry(head)?.traits;
+        if traits.contains(Traits::TCLOO_SELF_DISPATCH) {
+            Some(MethodDispatchKind::SelfDispatch)
+        } else if traits.contains(Traits::TCLOO_NEXT_CHAIN) {
+            Some(MethodDispatchKind::NextChain)
+        } else if traits.contains(Traits::TCLOO_INTROSPECTION) {
+            Some(MethodDispatchKind::Introspection)
+        } else {
+            None
+        }
+    }
+
     /// The single spec-selection rule (§5.3, D6): among the specs of one
     /// name visible under `dialect`, pick the **most specific** — a
     /// dialect-scoped spec beats a catch-all (`dialects: None`), a tighter
@@ -1554,6 +1608,32 @@ pub struct ResolvedTerminator {
     /// `0` for every subcommand-scoped match (no subcommand currently
     /// needs the reservation) and for any form without one declared.
     pub reserved_trailing_words: usize,
+}
+
+/// Which `TclOO` method-context keyword a command word is — the answer
+/// [`CommandRegistry::method_dispatch_keyword`] returns.
+///
+/// The three variants are three different axes, deliberately not merged: a
+/// consumer that wants "does the next word name a method" wants
+/// [`Self::SelfDispatch`] alone, and one that wants "is this a call into the
+/// method chain" wants `SelfDispatch | NextChain` but never
+/// [`Self::Introspection`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MethodDispatchKind {
+    /// `my` — dispatches a method on the current object; the following word
+    /// is a method name on the enclosing class
+    /// ([`Traits::TCLOO_SELF_DISPATCH`]).
+    SelfDispatch,
+    /// `next` / `nextto` — invokes the next implementation of the
+    /// *currently executing* method along the receiver's method resolution
+    /// order, so no word names a method. `nextto`'s first word names the
+    /// *class* to resume from, marked [`ArgRole::Name`] on the spec
+    /// ([`Traits::TCLOO_NEXT_CHAIN`]).
+    NextChain,
+    /// `self` — introspects the current invocation and dispatches nothing;
+    /// its argument is a closed subcommand set, never a method name
+    /// ([`Traits::TCLOO_INTROSPECTION`]).
+    Introspection,
 }
 
 /// Outcome of [`CommandRegistry::resolve_call`].

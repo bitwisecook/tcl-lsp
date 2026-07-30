@@ -68,7 +68,8 @@ pub fn spec() -> CommandSpec {
             | Traits::EVALUATES_CODE
             | Traits::TAINT_SINK
             | Traits::CREATES_DYNAMIC_BARRIER
-            | Traits::DYNAMIC_EVAL_BODY,
+            | Traits::DYNAMIC_EVAL_BODY
+            | Traits::SCRIPT_CONCATENATES_ARGS,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Body)],
         lowering_hook: Some(crate::hooks::LoweringHookId::Eval),

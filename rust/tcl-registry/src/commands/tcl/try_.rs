@@ -162,7 +162,8 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW
             | Traits::LANGUAGE_KEYWORD
-            | Traits::NEVER_INLINE_BODY,
+            | Traits::NEVER_INLINE_BODY
+            | Traits::BRANCH_SELECTED_BODY,
         // `TCL86_PLUS`, via the mask-intersection rule
         // `CommandSpec::supports_dialect` / `ProfileQueries::is_available`,
         // already resolves availability correctly for every non-core

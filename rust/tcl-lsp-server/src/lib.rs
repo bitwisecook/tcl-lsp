@@ -1083,7 +1083,11 @@ async fn widen_recovery_extra_commands(
         names.insert(name.trim_start_matches("::").to_owned());
     }
     if !requires.is_empty() {
-        let commands = resolver.package_defined_commands(&requires, &|path| {
+        // Same release-aware package view the W123 refinement uses, so the
+        // known-name set and the diagnostic filter cannot disagree about which
+        // guarded packages this document can actually load.
+        let target = tcl_dialect::TclVersion::from_dialect(Some(dialect));
+        let commands = resolver.package_defined_commands(&requires, target, &|path| {
             std::fs::read_to_string(path)
                 .map(|text| defined_command_tails(&text, dialect))
                 .unwrap_or_default()
@@ -4293,6 +4297,92 @@ impl Backend {
         resolved
     }
 
+    /// Hover for a command head the current document cannot resolve, using
+    /// the same two fallback tiers `compute_definition` already has: the
+    /// cross-document workspace index, then the autoload / package database
+    /// (issue #1018).
+    ///
+    /// Go-to-definition, find-references, and the unknown-command diagnostic
+    /// all resolve a tcllib-shaped command whose `proc` lives in a sibling
+    /// file reached through `source` or `auto_path`/`tclIndex`.  Hover used to
+    /// be the one provider that gave up at the file boundary and silently
+    /// showed nothing, at the very call site the other three resolved.
+    ///
+    /// The body is rendered from the *defining* document's own analysis
+    /// ([`core_hover::qualified_symbol_hover`]) — the same renderer, and the
+    /// same input, that hovering the declaration itself uses, so the two can
+    /// never disagree.
+    async fn cross_document_hover(
+        &self,
+        uri: &Uri,
+        source: &str,
+        pos: Position,
+        analysis: &AnalysisResult,
+    ) -> Option<CoreHover> {
+        // Cross-document tier: a proc / class defined in a sibling document
+        // the workspace index knows about.
+        let symbols = self
+            .resolve_workspace_symbols(uri, source, analysis, pos)
+            .await;
+        for qualified in &symbols {
+            if let Some(hover) = self.hover_for_indexed_symbol(qualified).await {
+                return Some(hover);
+            }
+        }
+        // Autoload tier (M8's hover twin): the command is defined nowhere in
+        // the open workspace, but `tclIndex` / `pkgIndex.tcl` on the configured
+        // library paths says which file defines it.  `ensure_autoload_indexed`
+        // merges that file into the workspace index, so the render below reads
+        // it exactly like any other indexed document.
+        let (word, namespace) = core_definition::command_head_and_namespace_at(
+            source,
+            analysis,
+            pos.line,
+            pos.character,
+        )?;
+        let qualified = self.ensure_autoload_indexed(&word, &namespace).await?;
+        self.hover_for_indexed_symbol(&qualified).await
+    }
+
+    /// Render `qualified` from whichever indexed document declares it.
+    ///
+    /// A name several documents declare renders from the first that yields a
+    /// body; go-to-definition offers every site, but a hover has one popup, so
+    /// picking one is the only option and the index's own order decides.
+    async fn hover_for_indexed_symbol(&self, qualified: &str) -> Option<CoreHover> {
+        let target_uris: Vec<String> = {
+            let index = self.workspace_index.read().await;
+            index
+                .proc_definitions_qualified(qualified, "")
+                .into_iter()
+                .map(|p| p.uri.clone())
+                .chain(
+                    index
+                        .class_definitions_qualified(qualified, "")
+                        .into_iter()
+                        .map(|c| c.uri.clone()),
+                )
+                .collect()
+        };
+        for target_uri in target_uris {
+            let Ok(parsed) = Uri::from_str(&target_uri) else {
+                continue;
+            };
+            let Some(target_doc) = self.read_document(&parsed).await else {
+                continue;
+            };
+            // Memoised by `analysis_for`, so a hover over an already-analysed
+            // sibling costs a cache hit, not a second whole-file walk.
+            let target_analysis = self
+                .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
+                .await;
+            if let Some(hover) = core_hover::qualified_symbol_hover(&target_analysis, qualified) {
+                return Some(hover);
+            }
+        }
+        None
+    }
+
     /// Resolve the symbol at `pos` against the workspace index
     /// when the current document has no local definition.  Only
     /// fires on bare command words (not `$var` references), and
@@ -4837,9 +4927,16 @@ impl Backend {
     }
 
     /// Whether `method` is a `classmethod` on any of `definers`, and — if
-    /// so — the (qualified + simple name) set of every class in
-    /// `definers`/`inheritors` valid as a bare classmethod-dispatch head
+    /// so — the fully `::`-qualified name of every class in
+    /// `definers`/`inheritors` whose own command dispatches it
     /// (`Factory make`).
+    ///
+    /// **Qualified names only.**  The core scanner resolves each written head
+    /// against the call site's own lexical namespace and compares the winner
+    /// against these names, so handing it simple names too would re-introduce
+    /// exactly the namespace-blind text match issue #981 removed: with a
+    /// `Factory` in `::a` and another in `::b`, a bare `Factory make` inside
+    /// `namespace eval ::b` must be attributed to `::b::Factory` alone.
     ///
     /// A `classmethod` dispatches on the *class's own* command, never on an
     /// instance, so the same-document analyser can only widen its dispatch
@@ -4891,7 +4988,7 @@ impl Backend {
             .iter()
             .chain(inheritors.iter().filter(|_| inheritable))
             .filter(|wc| !wc.is_itcl(dialect))
-            .flat_map(|wc| [wc.name.clone(), wc.qualified_name.clone()])
+            .map(|wc| wc.qualified_name.clone())
             .collect()
     }
 
@@ -10910,12 +11007,19 @@ impl LanguageServer for Backend {
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
         let hover_profile = tcl_dialect::DialectProfile::by_name(&doc.dialect);
+        // The cross-document fallback must only fire on a command head, the
+        // same gate `compute_definition` applies — otherwise an argument word
+        // that happens to share a sibling proc's name would pop up that proc's
+        // signature.  Computed here, while `analysis` is still in scope.
+        let on_command_head = position_is_command_head(&doc.text, pos, &analysis);
+        let text = doc.text.clone();
+        let analysis_worker = Arc::clone(&analysis);
         let result = tokio::task::spawn_blocking(move || {
             core_hover::hover_with_profile(
-                &doc.text,
+                &text,
                 pos.line,
                 pos.character,
-                &analysis,
+                &analysis_worker,
                 Some(registry),
                 hover_profile,
             )
@@ -10926,7 +11030,19 @@ impl LanguageServer for Backend {
             message: format!("hover worker panicked: {err}").into(),
             data: None,
         })?;
-        Ok(result.map(lift_hover))
+        if let Some(hover) = result {
+            return Ok(Some(lift_hover(hover)));
+        }
+        // Nothing in this document explains the word.  If it is a command
+        // head, resolve it the way go-to-definition does — across the
+        // workspace, then through the autoload / package database (#1018).
+        if !on_command_head {
+            return Ok(None);
+        }
+        Ok(self
+            .cross_document_hover(&uri, &doc.text, pos, &analysis)
+            .await
+            .map(lift_hover))
     }
 }
 
@@ -12374,6 +12490,25 @@ fn defined_command_tails(text: &str, dialect: &str) -> Vec<String> {
 /// resolve to a real library definition must not be reported "unknown". The
 /// check is entirely data-driven — the resolver is queried *by the flagged
 /// name*, never matched against a hard-coded command list.
+///
+/// # `pkgIndex.tcl` guards
+///
+/// A package whose `pkgIndex.tcl` gates its `package ifneeded` behind a
+/// version guard supplies commands only on the releases that guard admits, so
+/// the package database is queried for the release `dialect` names. The
+/// three-way answer maps onto the suppression like this:
+///
+/// | Availability  | W123 | Why |
+/// |---------------|------|-----|
+/// | `Available`   | suppressed | the command really is provided (issue #832) |
+/// | `Conditional` | suppressed | a guard the scan could not read; treating "unsure" as "absent" is what produced the false unknown-command reports of issue #923 idx 42 |
+/// | `Unavailable` | **fires**  | the guard was read and definitely skips the declaration, so `package require` really fails and the call really is an error (issue #1017) |
+///
+/// `Conditional` is suppressed outright rather than reported more quietly:
+/// W123's own default severity is already `Hint`, the lowest LSP severity, so
+/// there is no lower-confidence channel to downgrade into. Between a silent
+/// miss and a false "unknown command" on working code, the miss is the lesser
+/// error for a hint whose whole purpose is precision.
 fn refine_w123_diagnostics(
     diags: Vec<tcl_compiler::analyser::Diagnostic>,
     available: &[String],
@@ -12383,10 +12518,11 @@ fn refine_w123_diagnostics(
     // Command names the document's available packages define via their
     // `pkgIndex` implementation files. Empty in the common no-`package require`
     // case (where auto-load alone carries the fix), so no file is read then.
+    let target = tcl_dialect::TclVersion::from_dialect(Some(dialect));
     let package_commands = if available.is_empty() {
         HashSet::new()
     } else {
-        resolver.package_defined_commands(available, &|path| {
+        resolver.package_defined_commands(available, target, &|path| {
             std::fs::read_to_string(path)
                 .map(|text| defined_command_tails(&text, dialect))
                 .unwrap_or_default()
@@ -20615,6 +20751,63 @@ mod tests {
             refs.iter()
                 .any(|l| l.uri == consumer && l.range.start.line == 0),
             "`Factory make` in the pure-consumer document missing: {refs:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn cross_file_consumer_bare_dispatch_is_namespace_scoped() {
+        // Issue #981, the consumer-document variant. Two classes named
+        // `Factory`, in `::a` and `::b`, each declaring `make`; a consumer
+        // document dispatches `Factory make` inside `namespace eval ::b`.
+        // Real Tcl resolves that bare word to `::b::Factory` (tclsh 8.6.14
+        // and 9.0.4 both answer `b-made`), so it must count for `::b`'s
+        // classmethod and *not* `::a`'s — a name-set match counted it for
+        // both, and rename then rewrote an unrelated class's call site.
+        let backend = test_backend();
+        let a = Uri::from_str("file:///a.tcl").unwrap();
+        let b = Uri::from_str("file:///b.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer.tcl").unwrap();
+        let a_src = "namespace eval ::a {\n    oo::class create Factory {\n        classmethod make {} { return 1 }\n    }\n}\n";
+        let b_src = "namespace eval ::b {\n    oo::class create Factory {\n        classmethod make {} { return 2 }\n    }\n}\n";
+        register(&backend, &a, a_src).await;
+        register(&backend, &b, b_src).await;
+        register(
+            &backend,
+            &consumer,
+            "namespace eval ::b {\n    Factory make\n}\n",
+        )
+        .await;
+
+        let from_a = backend
+            .cross_file_consumer_method_references(
+                &a,
+                a_src,
+                "tcl8.6",
+                "::a::Factory",
+                "make",
+                true,
+            )
+            .await;
+        assert!(
+            !from_a.iter().any(|l| l.uri == consumer),
+            "`::b`'s bare dispatch must not count for `::a::Factory`: {from_a:?}"
+        );
+
+        let from_b = backend
+            .cross_file_consumer_method_references(
+                &b,
+                b_src,
+                "tcl8.6",
+                "::b::Factory",
+                "make",
+                true,
+            )
+            .await;
+        assert!(
+            from_b
+                .iter()
+                .any(|l| l.uri == consumer && l.range.start.line == 1),
+            "and it must count for `::b::Factory`: {from_b:?}"
         );
     }
 

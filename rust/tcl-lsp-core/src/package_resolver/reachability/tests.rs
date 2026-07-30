@@ -1,0 +1,479 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Guard-reachability tests.  Every expectation is the answer a real
+//! `tclsh8.6` / `tclsh9.0` gives for the same index file.
+
+use super::{Availability, scan};
+use tcl_dialect::TclVersion;
+
+/// `(package name, availability)` for each declaration `content` yields,
+/// evaluated for `target`.
+fn availabilities(content: &str, target: Option<TclVersion>) -> Vec<(String, Availability)> {
+    let registry = tcl_registry::registry_for_dialect("tcl");
+    let mut out = Vec::new();
+    scan(content, registry, &mut |reached| {
+        let name = super::word_raw(reached.text, &reached.words[2]).to_owned();
+        out.push((name, reached.conditions.availability(target)));
+    });
+    out
+}
+
+/// The availability of the single declaration `content` yields.
+fn only(content: &str, target: Option<TclVersion>) -> Availability {
+    let found = availabilities(content, target);
+    assert_eq!(found.len(), 1, "expected one declaration, got {found:?}");
+    found[0].1
+}
+
+const V86: Option<TclVersion> = Some(TclVersion::V8_6);
+const V90: Option<TclVersion> = Some(TclVersion::V9_0);
+
+/// The unguarded index file — by far the commonest shape — is unconditional
+/// on every release.
+#[test]
+fn an_unguarded_declaration_is_available_everywhere() {
+    let src = "package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
+    assert_eq!(only(src, V86), Availability::Available);
+    assert_eq!(only(src, V90), Availability::Available);
+    assert_eq!(only(src, None), Availability::Available);
+}
+
+/// Issue #1017's exact repro, shrunk from tcllib's `modules/try/pkgIndex.tcl`
+/// `file::home` gate.
+///
+/// Oracle: `tclsh9.0` → `package require mypkg` fails ("can't find package
+/// mypkg"); `tclsh8.6` → it loads and returns 1.0.
+#[test]
+fn a_vsatisfies_early_return_gates_the_declaration_1017() {
+    let src = "if {[package vsatisfies [package provide Tcl] 9-]} { return }\n\
+               package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
+    assert_eq!(only(src, V90), Availability::Unavailable);
+    assert_eq!(only(src, V86), Availability::Available);
+    // With no known target release the guard cannot be decided either way.
+    assert_eq!(only(src, None), Availability::Conditional);
+}
+
+/// The real tcllib head guard — a *negated* test with two requirements.
+///
+/// Oracle: `package vsatisfies [package provide Tcl] 8.5 9` is 1 on both
+/// 8.6.14 and 9.0.4, so the `return` never fires on either and the package
+/// loads; it does fire on 8.4.
+#[test]
+fn the_tcllib_head_guard_admits_both_supported_releases() {
+    let src = "if {![package vsatisfies [package provide Tcl] 8.5 9]} {return}\n\
+               package ifneeded log 1.5 [list source [file join $dir log.tcl]]\n";
+    assert_eq!(only(src, V86), Availability::Available);
+    assert_eq!(only(src, V90), Availability::Available);
+    assert_eq!(only(src, Some(TclVersion::V8_4)), Availability::Unavailable);
+}
+
+/// The trivial control from issue #1017: unreachable under *every* release,
+/// with no version reasoning involved at all.
+#[test]
+fn a_constant_true_early_return_gates_the_declaration_1017() {
+    for src in [
+        "if {1} { return }\npackage ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n",
+        "if {true} {return}\npackage ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n",
+        "return\npackage ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n",
+    ] {
+        assert!(
+            availabilities(src, V90).is_empty(),
+            "nothing after an unconditional return is reachable: {src}",
+        );
+    }
+}
+
+/// The negative control from issue #1017, which already behaved: a
+/// declaration nested in a constant-false branch never registers.  It is now
+/// *seen* (the scan descends into branches) and reported unavailable, rather
+/// than being invisible by accident.
+#[test]
+fn a_constant_false_branch_never_registers_1017() {
+    let src =
+        "if {0} {\n  package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n}\n";
+    assert_eq!(only(src, V90), Availability::Unavailable);
+    assert_eq!(only(src, V86), Availability::Unavailable);
+}
+
+/// Issue #923 idx 42: the TEA idiom that picks a Tcl-8 or Tcl-9 build.  Both
+/// arms declare the package, so it is available on both releases — the
+/// over-flagging direction of the same mechanism.
+///
+/// Oracle: `tclsh8.6` and `tclsh9.0` both load the package and run its
+/// command.
+#[test]
+fn both_arms_of_a_tea_version_branch_declare_the_package_923_idx42() {
+    let src = "if {[package vsatisfies [package provide Tcl] 9.0-]} {\n\
+               \x20   package ifneeded tclopt 0.4 [list source [file join $dir tclopt.tcl]]\n\
+               } else {\n\
+               \x20   package ifneeded tclopt 0.4 [list source [file join $dir tclopt.tcl]]\n\
+               }\n";
+    for target in [V86, V90] {
+        let found = availabilities(src, target);
+        assert_eq!(found.len(), 2, "both arms are scanned: {found:?}");
+        assert!(
+            found
+                .iter()
+                .any(|(_, availability)| *availability == Availability::Available),
+            "one arm must be the taken one for {target:?}: {found:?}",
+        );
+        assert!(
+            found
+                .iter()
+                .any(|(_, availability)| *availability == Availability::Unavailable),
+            "…and the other the untaken one: {found:?}",
+        );
+    }
+}
+
+/// The whole `modules/try/pkgIndex.tcl` from tcllib 2.0, verbatim: two guards
+/// in sequence, the second wrapping a `package provide` beside its `return`.
+///
+/// Oracle (`tclsh8.6`): `try`, `throw`, and `file::home` all load.
+/// Oracle (`tclsh9.0`): `try` and `throw` load; `file::home` is provided by
+/// the guard's own `package provide`, so `fhome.tcl` is never sourced.
+#[test]
+fn the_real_tcllib_try_index_resolves_per_release() {
+    let src = "if {![package vsatisfies [package provide Tcl] 8.5 9]} {\n\
+               \x20   return\n\
+               }\n\
+               package ifneeded try   1.1 [list source [file join $dir try.tcl]]\n\
+               package ifneeded throw 1.1 [list source [file join $dir throw.tcl]]\n\
+               if {[package vsatisfies [package provide Tcl] 9-]} {\n\
+               \x20   package provide file::home 1\n\
+               \x20   return\n\
+               }\n\
+               package ifneeded file::home 1 [list source [file join $dir fhome.tcl]]\n";
+
+    let on_86 = availabilities(src, V86);
+    assert_eq!(
+        on_86,
+        vec![
+            ("try".to_owned(), Availability::Available),
+            ("throw".to_owned(), Availability::Available),
+            ("file::home".to_owned(), Availability::Available),
+        ],
+    );
+
+    let on_90 = availabilities(src, V90);
+    assert_eq!(
+        on_90,
+        vec![
+            ("try".to_owned(), Availability::Available),
+            ("throw".to_owned(), Availability::Available),
+            ("file::home".to_owned(), Availability::Unavailable),
+        ],
+    );
+}
+
+/// A guard this scan does not model must leave the declaration *conditional*,
+/// never decided.  These are the documented limits, pinned so a future change
+/// that starts guessing is caught.
+#[test]
+fn an_unmodelled_guard_leaves_the_declaration_conditional() {
+    for src in [
+        // A platform test, not a version test.
+        "if {$::tcl_platform(platform) eq \"windows\"} { return }\n\
+         package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n",
+        // A filesystem probe.
+        "if {![file exists [file join $dir mypkg.tcl]]} { return }\n\
+         package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n",
+        // A compound expression over two version tests.
+        "if {[package vsatisfies [package provide Tcl] 9-] && $::force} { return }\n\
+         package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n",
+        // `vsatisfies` over a package that is not Tcl says nothing about the
+        // Tcl release.
+        "if {[package vsatisfies [package provide Tk] 9-]} { return }\n\
+         package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n",
+        // A loop body: a `return` inside one is never treated as certain.
+        "foreach v {8 9} { if {$v} { return } }\n\
+         package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n",
+    ] {
+        assert_eq!(
+            only(src, V90),
+            Availability::Conditional,
+            "must abstain, not decide: {src}",
+        );
+    }
+}
+
+/// `error` / `throw` / `exit` end the script exactly as `return` does —
+/// `tclPkgUnknown` sources each index inside a `catch`, so a raise stops
+/// registration.  Recognised from the registry's `TERMINATES_BLOCK` trait,
+/// so this needs no per-command list here.
+#[test]
+fn any_registry_terminator_ends_the_index() {
+    for terminator in ["return", "error boom", "exit 1"] {
+        let src = format!(
+            "if {{[package vsatisfies [package provide Tcl] 9-]}} {{ {terminator} }}\n\
+             package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n"
+        );
+        assert_eq!(only(&src, V90), Availability::Unavailable, "{terminator}");
+        assert_eq!(only(&src, V86), Availability::Available, "{terminator}");
+    }
+}
+
+/// A guard body that does something *other* than terminate leaves everything
+/// after it unconditional — the guard selects behaviour, not reachability.
+#[test]
+fn a_non_terminating_guard_body_does_not_gate_what_follows() {
+    let src = "if {[package vsatisfies [package provide Tcl] 9-]} { set extra 1 }\n\
+               package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
+    assert_eq!(only(src, V90), Availability::Available);
+    assert_eq!(only(src, V86), Availability::Available);
+}
+
+/// An `elseif` chain: each arm's condition is read, and an arm is reached only
+/// when every earlier one tested false.
+#[test]
+fn an_elseif_chain_selects_one_arm_per_release() {
+    let src = "if {[package vsatisfies [package provide Tcl] 9-]} {\n\
+               \x20   package ifneeded mypkg 2.0 [list source [file join $dir new.tcl]]\n\
+               } elseif {[package vsatisfies [package provide Tcl] 8.5-]} {\n\
+               \x20   package ifneeded mypkg 1.0 [list source [file join $dir old.tcl]]\n\
+               }\n";
+    assert_eq!(
+        availabilities(src, V90),
+        vec![
+            ("mypkg".to_owned(), Availability::Available),
+            ("mypkg".to_owned(), Availability::Unavailable),
+        ],
+    );
+    assert_eq!(
+        availabilities(src, V86),
+        vec![
+            ("mypkg".to_owned(), Availability::Unavailable),
+            ("mypkg".to_owned(), Availability::Available),
+        ],
+    );
+}
+
+/// The `then` noise word and a brace-less body are part of `if`'s real
+/// grammar; the clause chain comes from the registry, so both work without
+/// this module knowing about them.
+#[test]
+fn the_then_noise_word_and_a_braceless_return_are_understood() {
+    let src = "if {1} then {return}\n\
+               package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
+    assert!(availabilities(src, V90).is_empty());
+
+    let bare = "if {![package vsatisfies [package provide Tcl] 8.5 9]} return\n\
+                package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
+    assert_eq!(only(bare, V86), Availability::Available);
+    assert_eq!(
+        only(bare, Some(TclVersion::V8_4)),
+        Availability::Unavailable
+    );
+}
+
+/// Tcl 9's **own** core-package index — `apply {{dir} { … foreach … }} $dir`
+/// (the zipfs `tcl_library/pkgIndex.tcl`, shrunk to three packages and
+/// otherwise verbatim).  Before the body descent this scan saw only the
+/// `apply` call, so http / msgcat / tcltest declared nothing at all on a
+/// tcl9.0 workspace.  Each declaration is reached under an undecidable guard
+/// (the `apply` frame, the `foreach` iteration, the `if … continue`), so all
+/// three are `Conditional` — which counts as loadable downstream.
+#[test]
+fn the_tcl9_zipfs_index_shape_declares_its_packages() {
+    let src = "apply {{dir} {\n\
+               \x20 set isafe [interp issafe]\n\
+               \x20 foreach {safe package version file} {\n\
+               \x20   0 http    2.10.2 {http http.tcl}\n\
+               \x20   1 msgcat  1.7.1  {msgcat msgcat.tcl}\n\
+               \x20   1 tcltest 2.5.11 {tcltest tcltest.tcl}\n\
+               \x20 } {\n\
+               \x20   if {$isafe && !$safe} continue\n\
+               \x20   package ifneeded $package $version [list source [file join $dir {*}$file]]\n\
+               \x20 }\n\
+               }} $dir\n";
+    let found = availabilities(src, V90);
+    assert_eq!(
+        found,
+        vec![("$package".to_owned(), Availability::Conditional)],
+        "the declaration inside the apply/foreach body must be reached",
+    );
+}
+
+/// The same shape with literal name and version words, which is what a
+/// consumer can actually key on — the `apply` lambda body and the `foreach`
+/// body are both descended, and the declaration comes back `Conditional`.
+#[test]
+fn a_declaration_inside_an_apply_lambda_and_a_foreach_is_conditional() {
+    let src = "apply {{dir} {\n\
+               \x20 foreach f {mypkg.tcl} {\n\
+               \x20   package ifneeded mypkg 1.0 [list source [file join $dir $f]]\n\
+               \x20 }\n\
+               }} $dir\n";
+    assert_eq!(only(src, V90), Availability::Conditional);
+    assert_eq!(only(src, V86), Availability::Conditional);
+    assert_eq!(only(src, None), Availability::Conditional);
+}
+
+/// The other body-taking commands the module names, each reached through its
+/// registry [`super::ArgRole::Body`] argument rather than by name.
+#[test]
+fn every_body_taking_command_is_descended() {
+    for wrapper in [
+        "namespace eval ::pkg { PLACEHOLDER }",
+        "catch { PLACEHOLDER }",
+        "eval { PLACEHOLDER }",
+        "foreach v {1} { PLACEHOLDER }",
+        "while {0} { PLACEHOLDER }",
+        "uplevel #0 { PLACEHOLDER }",
+    ] {
+        let src = wrapper.replace(
+            "PLACEHOLDER",
+            "package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]",
+        );
+        assert_eq!(
+            only(&src, V90),
+            Availability::Conditional,
+            "must be reached, conditionally: {wrapper}",
+        );
+    }
+}
+
+/// TN — the descent must not turn an *unguarded* top-level declaration
+/// conditional, and must not disturb the #1017 guarded-return result.
+#[test]
+fn the_body_descent_leaves_top_level_declarations_alone() {
+    let plain = "package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
+    assert_eq!(only(plain, V90), Availability::Available);
+    assert_eq!(only(plain, V86), Availability::Available);
+
+    // Issue #1017's guarded-return TP still decides both ways.
+    let guarded = "if {[package vsatisfies [package provide Tcl] 9-]} { return }\n\
+                   package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
+    assert_eq!(only(guarded, V90), Availability::Unavailable);
+    assert_eq!(only(guarded, V86), Availability::Available);
+}
+
+/// TN — a declaration in a constant-false `if` branch stays `Unavailable`:
+/// `if` still goes through the symbolic clause walk, not the generic body
+/// descent, so its conditions are not flattened to `Undecidable`.
+#[test]
+fn if_branches_keep_their_symbolic_conditions() {
+    let src =
+        "if {0} {\n  package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n}\n";
+    assert_eq!(only(src, V90), Availability::Unavailable);
+
+    // And a single declaration is visited once, not twice.
+    let once =
+        "if {1} {\n  package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n}\n";
+    assert_eq!(availabilities(once, V90).len(), 1);
+}
+
+/// A dynamic (`$var` / `[cmd]`) lambda has no statically splittable body, so
+/// there is nothing to descend and nothing is invented.
+#[test]
+fn a_dynamic_lambda_is_not_descended() {
+    let src = "apply $loader $dir\n";
+    assert!(availabilities(src, V90).is_empty());
+}
+
+/// A requirement naming a **patch level** cannot be evaluated against the
+/// two-component release model, so the guard abstains instead of deciding it
+/// wrongly.
+///
+/// Oracle (`tclsh9.0`, `[package provide Tcl]` = 9.0.4):
+///
+/// ```text
+/// vsatisfies 9.0.4 9.0.1  = 1
+/// vsatisfies 9.0.4 9.0.1- = 1
+/// vsatisfies 9.0.4 9.0.9- = 0
+/// ```
+///
+/// `TclVersion::V9_0`'s `version_string` is `9.0`, which compares *below*
+/// `9.0.1` — so evaluating the requirement would report the guard as failing
+/// on a real 9.0.4 and mark the package `Unavailable`, the one direction that
+/// makes W123 fire falsely on its commands.  Two shipped 9.0 releases disagree
+/// about `9.0.9-`, so "conditional" is the only honest answer.
+#[test]
+fn a_patch_level_requirement_leaves_the_declaration_conditional() {
+    for requirement in ["9.0.1", "9.0.1-", "9.0-9.0.2"] {
+        let src = format!(
+            "if {{![package vsatisfies [package provide Tcl] {requirement}]}} {{return}}\n\
+             package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n"
+        );
+        assert_eq!(
+            only(&src, V90),
+            Availability::Conditional,
+            "a patch-level requirement must abstain: {requirement}",
+        );
+        assert_eq!(
+            only(&src, V86),
+            Availability::Conditional,
+            "a patch-level requirement must abstain: {requirement}",
+        );
+    }
+}
+
+/// TN for the same rule: a requirement that *is* satisfiable two-component
+/// still settles the whole `vsatisfies` OR, however many patch-level
+/// requirements sit beside it — real `package vsatisfies` is an OR.
+#[test]
+fn a_satisfied_two_component_requirement_still_decides_beside_a_patch_level_one() {
+    let src = "if {![package vsatisfies [package provide Tcl] 9.0.1 9]} {return}\n\
+               package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
+    // 9.0 satisfies the bare `9`, so the guard is decided true regardless of
+    // the undecidable `9.0.1`.
+    assert_eq!(only(src, V90), Availability::Available);
+    // 8.6 satisfies neither the bare `9` nor (decidably) `9.0.1`.
+    assert_eq!(only(src, V86), Availability::Conditional);
+}
+
+/// Control — the two-component matrix this module already decided is
+/// unchanged by the patch-level rule.
+#[test]
+fn the_two_component_requirement_matrix_is_unchanged() {
+    for (requirement, on_86, on_90) in [
+        ("8.5", Availability::Available, Availability::Unavailable),
+        ("8.5-", Availability::Available, Availability::Available),
+        (
+            "8.5-9.0",
+            Availability::Available,
+            Availability::Unavailable,
+        ),
+        ("9-", Availability::Unavailable, Availability::Available),
+    ] {
+        let src = format!(
+            "if {{![package vsatisfies [package provide Tcl] {requirement}]}} {{return}}\n\
+             package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n"
+        );
+        assert_eq!(only(&src, V86), on_86, "8.6 / {requirement}");
+        assert_eq!(only(&src, V90), on_90, "9.0 / {requirement}");
+    }
+}
+
+/// Deeply nested guards must not recurse without bound; past the cap the scan
+/// abstains rather than descending further.
+#[test]
+fn pathological_nesting_terminates() {
+    let depth = 200;
+    let mut src = String::new();
+    for _ in 0..depth {
+        src.push_str("if {1} {\n");
+    }
+    src.push_str("package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n");
+    for _ in 0..depth {
+        src.push_str("}\n");
+    }
+    // The only requirement is that this returns at all.
+    let _ = availabilities(&src, V90);
+}

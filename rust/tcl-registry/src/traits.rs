@@ -482,6 +482,72 @@ declare_traits! {
     /// passes (expr re-lexing, W110) that consume the role.
     ExprConcatenatesArgs => EXPR_CONCATENATES_ARGS;
 
+    /// The command evaluates the concatenation of **every** trailing word
+    /// from its first [`crate::arg_role::ArgRole::Body`] argument onwards
+    /// as one script — the `Tcl_ConcatObj` eval family: `eval`, `uplevel`,
+    /// `namespace eval`, `namespace inscope`, and `interp eval`. The
+    /// script-side counterpart of [`Traits::EXPR_CONCATENATES_ARGS`].
+    ///
+    /// `Tcl_ConcatObj` (`generic/tclUtil.c`) takes each word's **string
+    /// representation** — so a braced word contributes its *contents*, the
+    /// outer braces already stripped by Tcl's word parsing — trims ASCII
+    /// whitespace from each end of it, and joins the results with a single
+    /// space. Commands therefore span word boundaries. tclsh8.6.14 and
+    /// tclsh9.0.4 both confirm:
+    ///
+    /// ```text
+    /// concat {set x} {5}      → set x 5
+    /// concat "  a  " "  b  "  → a b
+    /// eval set l2 hello       → sets l2 to "hello"
+    /// eval {set l2} hello     → sets l2 to "hello"
+    /// ```
+    ///
+    /// **Consumer contract.** A consumer that walks `ArgRole::Body`
+    /// arguments must never treat the first Body-role word as the whole
+    /// script when this trait is present and further words follow it.
+    /// Analysing `eval set l2 hello` as the one-word script `set` invents a
+    /// wrong-#-args error and loses the write to `l2`. Either join the
+    /// trailing words per the rule above (sound only when every one of them
+    /// is a static literal — a bare or braced word with no `$` / `[`
+    /// substitution) or decline to walk the command at all.
+    ///
+    /// **Limit.** The join is a *static* approximation. One dynamic word
+    /// makes the whole script unknowable at analysis time, because
+    /// substitution happens before concatenation: `eval $cmd arg` may run
+    /// any command at all. Consumers must consume such a call without
+    /// walking rather than guess.
+    ///
+    /// `catch` is deliberately **not** in this family: it takes a single
+    /// bounded script argument, so its remaining words are result/options
+    /// variable names, not script text.
+    ///
+    /// [`Traits::SCRIPT_APPENDS_LIST_ARGS`] refines the join rule for the
+    /// one family member that does not space-join.
+    ScriptConcatenatesArgs => SCRIPT_CONCATENATES_ARGS;
+
+    /// Refines [`Traits::SCRIPT_CONCATENATES_ARGS`] for the one family
+    /// member whose trailing words are appended as **list elements**
+    /// instead of being space-joined into the script text —
+    /// `namespace inscope`.
+    ///
+    /// `namespace inscope ns script ?arg ...?` is equivalent to
+    /// `namespace eval ns [concat script [list arg ...]]`
+    /// (`NamespaceInscopeCmd`, `generic/tclNamesp.c`), so each trailing word
+    /// arrives at the invoked command as exactly one argument, whatever
+    /// whitespace it contains. tclsh8.6.14 and tclsh9.0.4 both confirm the
+    /// divergence:
+    ///
+    /// ```text
+    /// namespace inscope :: {puts} {a b}   → prints "a b"  (one argument)
+    /// namespace eval    :: {puts} {a b}   → error: can not find channel named "a"
+    /// ```
+    ///
+    /// A consumer must therefore **not** space-join a call carrying this
+    /// trait. Reconstructing the real script needs list quoting the analyser
+    /// does not model, so the sound response to any trailing word here is to
+    /// consume the command without walking it.
+    ScriptAppendsListArgs => SCRIPT_APPENDS_LIST_ARGS;
+
     /// (Subcommand) installs or removes an active variable trace on a
     /// named target — `trace add|remove|variable|vdelete` (not
     /// `info`/`vinfo`, which only *query* trace state). A variable
@@ -544,6 +610,76 @@ declare_traits! {
     /// distinguished structurally via an [`crate::arg_role::ArgRole::Name`]
     /// at argument index 0, not by command name.
     TclooNextChain => TCLOO_NEXT_CHAIN;
+
+    /// `TclOO` `my` — dispatches a method on the **current object**, from
+    /// inside that object's own method, constructor, or destructor
+    /// (`TclOOMyObjCmd`, `generic/tclOO.c`). Unlike calling the object's
+    /// public command, `my` reaches non-exported (and, from 9.0, private)
+    /// methods, so a `my foo` word is a real reference to the enclosing
+    /// class's `foo` method and must resolve, rename, and report references
+    /// as one.
+    ///
+    /// One of the three `TclOO` method-context keyword traits, which sit on
+    /// distinct axes and must not be conflated by a consumer:
+    ///
+    /// - **`TCLOO_SELF_DISPATCH`** (`my`) — instance self-dispatch: the
+    ///   first argument names a method on *this* object.
+    /// - [`Traits::TCLOO_NEXT_CHAIN`] (`next` / `nextto`) — superclass
+    ///   chain: no method name at all, the callee is the next
+    ///   implementation of the *currently executing* method.
+    /// - [`Traits::TCLOO_INTROSPECTION`] (`self`) — introspection, never
+    ///   dispatch: it returns a description of the current invocation.
+    ///
+    /// `link` is deliberately outside all three. `link` *creates* bareword
+    /// commands in the object's namespace (`link {alias method}`), so those
+    /// barewords are per-class data — not language keywords — and no
+    /// consumer may treat `link` itself as a dispatch site (issue #1026).
+    ///
+    /// A dialect that gained or lost `my` would propagate through this
+    /// spec's `dialects` mask, so consumers query the registry rather than
+    /// spelling the name: see
+    /// [`crate::registry::CommandRegistry::method_dispatch_keyword`].
+    TclooSelfDispatch => TCLOO_SELF_DISPATCH;
+
+    /// `TclOO` `self` — **introspects** the current method invocation
+    /// (`TclOOSelfObjCmd`, `generic/tclOO.c`): which object is running,
+    /// which method, which declaring class, which instance namespace, and
+    /// where in the call chain it sits. It dispatches nothing.
+    ///
+    /// The distinction matters to every consumer that walks method bodies
+    /// looking for method references: a `self` word introduces no method
+    /// name, so a consumer that lumps it in with
+    /// [`Traits::TCLOO_SELF_DISPATCH`] would treat `self class` as a call
+    /// to a method named `class`. Its argument is a closed subcommand set
+    /// (`arg_values` / `closed_value_args` on the spec), not a method name.
+    ///
+    /// See [`Traits::TCLOO_SELF_DISPATCH`] for the full family and
+    /// [`crate::registry::CommandRegistry::method_dispatch_keyword`] for
+    /// the query consumers use instead of a literal name test.
+    TclooIntrospection => TCLOO_INTROSPECTION;
+
+    /// Each body argument runs only when this command's own run-time
+    /// selection picks it, and the command performs no iteration — `if`
+    /// (at most one clause body plus an optional `else`) and `try` (handler
+    /// bodies reached only on the matching exception, with `finally` the one
+    /// exception that always runs).
+    ///
+    /// The fact a consumer needs is that nothing established inside such a
+    /// body **dominates** the code after the command: a `package require`
+    /// there is conditional, and a variable written there is not reliably
+    /// set afterwards.
+    ///
+    /// Deliberately narrower than [`Traits::CONTROL_FLOW`], which also
+    /// covers `while` / `for` / `foreach` / `lmap`. A loop body is
+    /// *repeatable* as well as skippable, so the two questions have
+    /// different answers and different consumers —
+    /// `Analyser::control_flow_body_depth` (straight-line-ness, driven by
+    /// `CONTROL_FLOW`) and `Analyser::conditional_depth` (domination, driven
+    /// by this trait) must not be merged. Also distinct from
+    /// [`Traits::HAS_BOOLEAN_COND`], which is about an argument being read
+    /// as a boolean expression (`if` / `while` / `for`) rather than about
+    /// which bodies run.
+    BranchSelectedBody => BRANCH_SELECTED_BODY;
 
     /// Raises a *catchable* exception — completes `TCL_ERROR`, which
     /// `catch` / `try` intercept: `error` (`Tcl_ErrorObjCmd`,
