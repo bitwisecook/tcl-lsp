@@ -112,10 +112,21 @@ proc build {} {
 parameter (`varName`) that carried the name, which is the whole explanation of
 where the value comes from.
 
-Two limits are deliberate. A callee that binds a *literal* caller-side name
-(`upvar 1 options options`) spells nothing at the call site, so there is no
-word to attribute the variable to and hover stays silent. And a `$`-led read
-that nothing binds shows **nothing at all** rather than falling back to a
+The call may be written inside an `if`, `while`, `foreach`, `catch` or
+`switch` body — those run in the very frame they are written in, so the
+variable still belongs to the enclosing procedure and hover still finds it. A
+call inside a nested `proc`, an `apply` lambda, a `namespace eval` or an
+`uplevel` body is a *different* frame, so it contributes nothing here.
+
+Only `upvar 1` (or an omitted level, which means the same) reaches the
+caller's frame. `upvar 0` aliases the callee's own local, `upvar #0` a global,
+and `upvar 2` the caller's caller — none of them creates anything where you
+are reading, so hover stays silent for those.
+
+Two further limits are deliberate. A callee that binds a *literal* caller-side
+name (`upvar 1 options options`) spells nothing at the call site, so there is
+no word to attribute the variable to and hover stays silent. And a `$`-led
+read that nothing binds shows **nothing at all** rather than falling back to a
 command or method of the same name: Tcl keeps variable names and command names
 in separate tables, so `$dataset` can never mean a method called `dataset`.
 

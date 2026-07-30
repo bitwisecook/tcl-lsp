@@ -559,11 +559,34 @@ in disjoint namespaces, so a `$`-led token can never denote a method; the
 already abstained). On top of that abstention, `tcl-lsp-core`'s new
 [`caller_frame`](../../../rust/tcl-lsp-core/src/caller_frame.rs) module
 *resolves* the read: it finds the call sites in the enclosing frame whose
-callee parameter carries `ProcArgTrait::VarWrite` / `VarRead` (the analyser's
-own inference from the callee's `upvar ?level? $param local`, the same fact
-the frame-effect summary's `param_targets` bucket holds), so hover names the
-creating call, go-to-definition reaches the call-site word, and
-find-references links that word with every `$name` read it feeds.
+callee parameter both carries `ProcArgTrait::VarWrite` / `VarRead` *and*
+appears in the new `ProcDef::caller_frame_params`, so hover names the creating
+call, go-to-definition reaches the call-site word, and find-references links
+that word with every `$name` read it feeds.
+
+The two facts are needed together, and the codex review of the PR is why.
+`VarWrite` / `VarRead` record only *that* a parameter's value is used as a
+variable name through an `upvar`; they carry **no frame level**, and only
+`upvar 1` (or an omitted level) reaches the caller. tclsh 9.0.4 and 8.6.14
+agree byte-for-byte: with `proc q {n} {upvar L $n a; set a 1}` called as
+`q y` from a proc, the caller's `y` exists afterwards for `L` = `1` and for
+no other spelling — `0` aliases the callee's own local, `#0` the global `::y`,
+`2` the caller's caller. `caller_frame_params` (from
+`analyser::param_traits::caller_frame_upvar_params`, sharing `upvar`'s
+arity-parity split with the trait scan through the registry's own
+`FrameEffectSpec`) is that missing level fact, and it excludes `namespace
+upvar` for the same reason — that aliases a *namespace* variable, not the
+calling frame's.
+
+The binding scan also descends **same-frame** scripts, via
+`references::nested_dispatch_regions` — the existing registry-driven walker
+(`ArgRole::Body` gated on a `Plain` `BodyKind`, plus `[…]` substitutions and
+`switch`-style clause lists), under the same `MAX_DISPATCH_SCAN_DEPTH` guard.
+`setdef x` inside an `if` / `while` / `catch` / `foreach` body or a `switch`
+clause therefore binds the enclosing frame, exactly as C Tcl runs it (pinned
+on both interpreters), while `proc`, `apply`, `namespace eval` and `uplevel`
+bodies stay excluded — those are fresh frames and leak nothing outward
+(`info exists` = 0 on both interpreters for all three).
 
 **idx 22 and idx 98 stay PARTIAL, now for a narrower reason.** Their shape is
 `upvar 1 name name` — a *literal* caller-side name the call site never

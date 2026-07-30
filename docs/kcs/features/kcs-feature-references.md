@@ -96,6 +96,18 @@ word looks unrelated to every read it feeds. Occurrences Tcl never
 substitutes (inside a comment, or inside a brace-quoted data word) are left
 out, exactly as they are for an ordinary variable.
 
+Turning declarations off (`includeDeclaration: false`) drops only the call
+sites that **create** the variable. A helper that upvar-*reads* its caller's
+variable without writing it (`peek options`) creates nothing, so that call
+site is an ordinary reference and stays in the list.
+
+Calls written inside an `if`, `while`, `foreach`, `catch` or `switch` body run
+in the same frame and are found; calls inside a nested `proc`, an `apply`
+lambda, a `namespace eval` or an `uplevel` body run in a different frame and
+are not. Only `upvar 1` (or an omitted level) reaches the caller's frame at
+all — `upvar 0`, `upvar #0` and `upvar 2` name other frames, so a call to a
+helper using one of those binds nothing here.
+
 When nothing binds the name, Find All References returns nothing rather than
 falling back to a command or method of the same name — a `$`-led token can
 only ever be the variable.

@@ -81,6 +81,12 @@ the word you would rename. It works from either end: the same jump target is
 reported whether the cursor is on the `$options` read or on the bare word
 itself.
 
+The creating call may sit inside an `if`, `while`, `foreach`, `catch` or
+`switch` body — those run in the frame they are written in, so the jump still
+works. A call inside a nested `proc`, an `apply` lambda, a `namespace eval` or
+an `uplevel` body creates that frame's variable instead, and is not a
+definition here.
+
 When nothing binds the name, Go to Definition reports no location rather than
 guessing. A `$`-led read never resolves to a command, proc, or method of the
 same name — Tcl keeps those in a separate table from variables.
@@ -90,6 +96,9 @@ same name — Tcl keeps those in a separate table from variables.
 - Definition not found after proc lookup or namespace resolution changes.
 - A callee that binds a *literal* caller-side name (`upvar 1 options options`)
   names it nowhere at the call site, so there is no word to jump to.
+- A callee whose `upvar` level is not `1` (`upvar 0`, `upvar #0`, `upvar 2`)
+  aliases some other frame, so its call site defines nothing where you are
+  reading and no location is reported.
 
 ## Test anchors
 

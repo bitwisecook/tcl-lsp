@@ -639,9 +639,11 @@ struct RefCtx<'a> {
 ///
 /// The reference set is deliberately both halves of the idiom: the bare
 /// call-site word that names the variable *and* every `$name` read it feeds.
-/// `include_declaration` selects the call-site words, which are the nearest
-/// thing the frame has to a declaration.  `None` (rather than an empty set)
-/// when no call site binds the name, so the caller keeps abstaining.
+/// `include_declaration` selects the **creating** call-site words, which are
+/// the nearest thing the frame has to a declaration; a call site whose callee
+/// only upvar-*reads* the alias is a plain reference and survives either way.
+/// `None` (rather than an empty set) when no call site binds the name, so the
+/// caller keeps abstaining.
 fn caller_frame_references(
     ctx: &RefCtx<'_>,
     byte_offset: u32,
@@ -666,7 +668,15 @@ fn caller_frame_references(
     if bindings.is_empty() {
         return None;
     }
-    let declarations: Vec<tcl_lexer::Span> = bindings.iter().map(|b| b.arg_span).collect();
+    // Only a *creating* call site is the declaration. A `read_only` binding —
+    // a callee that upvar-READS through the alias and never writes it
+    // (`peek x`) — is an ordinary reference to the variable, so dropping it
+    // with `include_declaration = false` would lose a real use.
+    let declarations: Vec<tcl_lexer::Span> = bindings
+        .iter()
+        .filter(|b| !b.read_only)
+        .map(|b| b.arg_span)
+        .collect();
     let mut out: Vec<LspRange> = crate::caller_frame::caller_frame_reference_spans(
         analysis,
         source,
@@ -2525,7 +2535,8 @@ fn strip_outer_braces(source: &str, span: tcl_lexer::Span) -> (usize, usize) {
 /// own `MAX_BODY_DEPTH` (`tcl_compiler::analyser::commands`): a guard against
 /// a stack overflow on pathologically nested / generated / minified Tcl, not
 /// a limit any hand-written script should ever approach.
-const MAX_DISPATCH_SCAN_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
+pub(crate) const MAX_DISPATCH_SCAN_DEPTH: tcl_core_types::RecursionLimit =
+    tcl_core_types::RecursionLimit(256);
 
 /// Every nested region reachable from one segmented command that a
 /// dispatch scan (`my` / `next` / `nextto` / `$obj method` call-site search)
@@ -2548,7 +2559,7 @@ const MAX_DISPATCH_SCAN_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::
 /// and Rename) — registry-driven, so it needs no per-command-name branch
 /// here and covers any command whose spec declares a `Plain` body role, not
 /// just the control-flow keywords a hand-written list would enumerate.
-fn nested_dispatch_regions(
+pub(crate) fn nested_dispatch_regions(
     source: &str,
     dialect: &str,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,

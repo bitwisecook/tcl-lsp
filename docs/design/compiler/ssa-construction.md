@@ -304,10 +304,26 @@ caller-frame injection model above.  They still lower to
 
 **What PR C1b took, and what is left.**  The *navigation* half landed in
 [`tcl-lsp-core/src/caller_frame.rs`](../../../rust/tcl-lsp-core/src/caller_frame.rs),
-but it consumes the analyser's per-parameter `ProcArgTrait::VarWrite` /
-`VarRead` rather than this summary: those traits are the same fact as the
-`param_targets` bucket, and they are already on `ProcDef`, where a navigation
-provider can reach them without lowering the document to IR on every hover.
+but it consumes two per-parameter facts on `ProcDef` rather than this
+summary, so a navigation provider reaches them without lowering the document
+to IR on every hover:
+
+* `ProcArgTrait::VarWrite` / `VarRead` — the parameter's value is used as a
+  variable name through an `upvar`, and whether the callee writes through the
+  alias or only reads it.
+* `ProcDef::caller_frame_params` — the alias lands in the **immediate
+  caller's** frame.  The traits carry no level at all, so this is the analyser
+  side of the very gate `record_upvar_call` applies here
+  (`FrameLevel::is_caller_frame`): `upvar 0` aliases the callee's own frame,
+  `upvar #0` the global one, `upvar 2` the caller's caller, and none of them
+  creates anything at the call site.  Computed by
+  `analyser::param_traits::caller_frame_upvar_params`, which shares `upvar`'s
+  arity-parity split with the trait scan through the registry's
+  `FrameEffectSpec`, so the two views of a proc cannot drift apart.  It is a
+  deliberate near-duplicate of `param_targets`, differing only in reading the
+  proc's *source* rather than its lowered IR; if the interning below lands,
+  merging them is the obvious follow-up.
+
 Two gaps remain, both needing a fact the analyser does not record yet:
 
 * `literal_targets` (`upvar 1 name name`, audit idx 22/98) has no call-site
