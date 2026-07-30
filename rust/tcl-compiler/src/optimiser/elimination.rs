@@ -438,6 +438,13 @@ fn emit_dead_stores_and_unused(
     purity: PurityCtx<'_>,
     proc_index: &crate::interprocedural::ProcIndex,
 ) -> HashSet<(String, u32)> {
+    // A dynamic read (`[set $name]`, `subst $tmpl`) can observe *any* store,
+    // so no assignment in this function is provably dead (issue #923 audit
+    // idx 2/64).  Deleting one would change what the program prints, so the
+    // optimiser abstains toward not folding — no O109/O126, and no ADCE seed.
+    if fu.dynamic_names.reads {
+        return HashSet::new();
+    }
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
     // Alias recognition is registry-driven; a registry-less context (unit
     // tests) falls back to the cached default so `global`/`upvar` bindings

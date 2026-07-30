@@ -523,6 +523,7 @@ fn collect_expr_cmd_sub_writes(
     considered: &HashSet<BlockId>,
 ) -> FxHashSet<String> {
     use crate::ir::Statement;
+    let registry = tcl_registry::cache::registry_for_dialect("tcl8.6");
     let mut out = FxHashSet::default();
     for &bn in considered {
         let Some(block) = fu.cfg.blocks.get(&bn) else {
@@ -530,7 +531,9 @@ fn collect_expr_cmd_sub_writes(
         };
         for stmt in &block.statements {
             if let Statement::AssignExpr { expr, .. } = stmt {
-                out.extend(crate::ir_helpers::condition_command_out_vars(expr));
+                out.extend(crate::ir_helpers::condition_command_out_vars(
+                    expr, registry,
+                ));
             }
         }
         // A branch condition (`if {![catch {set x 1}]} …`) evaluates its command
@@ -538,7 +541,9 @@ fn collect_expr_cmd_sub_writes(
         // catch result var *and* the catch body's assignments — are (maybe) set
         // in the taken arm and must not look read-before-set.
         if let Some(crate::cfg::Terminator::Branch { condition, .. }) = &block.terminator {
-            out.extend(crate::ir_helpers::condition_command_out_vars(condition));
+            out.extend(crate::ir_helpers::condition_command_out_vars(
+                condition, registry,
+            ));
         }
     }
     out
@@ -624,7 +629,7 @@ fn collect_script_concat_writes(
                 text.clone()
             };
             let mut writes = Vec::new();
-            crate::ir_helpers::script_text_out_vars(&script, &mut writes);
+            crate::ir_helpers::script_text_out_vars(&script, registry, &mut writes);
             out.extend(writes);
         }
     }

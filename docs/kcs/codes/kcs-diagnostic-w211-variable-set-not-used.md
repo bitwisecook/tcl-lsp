@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, liveness
+all-editors, diagnostic, liveness, dataflow
 
 ## Profiles
 
@@ -39,6 +39,26 @@ Remove the unused assignment, or use the variable:
 set result [expr {1 + 1}]
 puts $result
 ```
+
+## Reads through a computed name
+
+A variable read through a name Tcl computes at run time counts as a use, even
+though no `$name` token spells it:
+
+```tcl
+proc dump {} {
+    set alpha 10           ;# not flagged — the loop below reads it
+    set beta 20
+    foreach v [info locals] { puts [set $v] }
+}
+```
+
+Once a proc contains such a read — `[set $v]`, the double-`subst`
+`[subst $[subst $v]]` idiom, or a `subst` over a template held in a variable —
+`W211` goes silent for that whole proc, because no local in it can still be
+proved unused. See
+[W220](kcs-diagnostic-w220-dead-store.md#computed-variable-names-silence-the-check)
+for the same rule on the dead-store side.
 
 ## How to suppress
 

@@ -1554,3 +1554,145 @@ fn fp_rbs_callbyname_upvar_alias_still_suppresses() {
         "upvar-aliased callee write must continue to suppress caller W211/W220; emitted: {cs:?}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-RBS-20 — a condition-embedded variable writer defines its target
+// (issue #923 audit idx 49)
+// ---------------------------------------------------------------------------
+//
+// `condition_command_out_vars` used to hardcode `catch` / `scan` / `gets` /
+// `regexp`, so the ubiquitous `if {[set VAR EXPR] rel N} {…$VAR…}` idiom
+// (ticklecharts utils.tcl:1068-1071) read as read-before-set.  It now asks
+// the registry for the call's `ArgRole::VarWrite` positions, so every command
+// the registry knows writes an out-var answers.
+//
+// Oracle (tclsh 9.0.4 and 8.6.14, identical):
+//   proc bar {lst} { if {[set idx [lsearch $lst foo]] > -1} { puts $idx } }
+//   bar {a foo b}                                    → 1
+//   proc loopy {} { set i 0; while {[incr i] < 3} { puts $i } }
+//   loopy                                            → 1 2
+//   proc lass {lst} { lassign $lst a b; puts "$a-$b" }
+//   lass {1 2}                                       → 1-2
+//   proc binscan {} { binary scan "AB" H2H2 hi lo; puts "$hi $lo" }
+//   binscan                                          → 41 42
+
+#[test]
+fn fp_rbs_20_set_in_if_condition_defines_its_target() {
+    let src = "proc bar {lst} { if {[set idx [lsearch $lst foo]] > -1} { puts $idx } }\n";
+    assert!(
+        !fires(src, D, "W210"),
+        "FP-RBS-20: `if {{[set idx …]}}` defines idx; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_20_incr_in_while_condition_defines_its_target() {
+    let src = "proc loopy {} { while {[incr j] < 3} { puts $j } }\n";
+    assert!(
+        !fires(src, D, "W210"),
+        "FP-RBS-20: `while {{[incr j] …}}` defines j; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_20_lassign_in_condition_defines_its_targets() {
+    let src = "proc la {lst} { if {[lassign $lst a b] eq {}} { puts $a$b } }\n";
+    assert!(
+        !fires(src, D, "W210"),
+        "FP-RBS-20: `lassign` writes a and b; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_20_binary_scan_in_condition_defines_its_targets() {
+    let src = "proc bs {d} { if {[binary scan $d H2H2 hi lo] == 2} { puts $hi$lo } }\n";
+    assert!(
+        !fires(src, D, "W210"),
+        "FP-RBS-20: `binary scan` writes hi and lo; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_20_previously_hardcoded_four_still_silent() {
+    // Regression net for the deleted name list: catch / scan / gets / regexp
+    // must keep the recognition the registry query replaced.
+    for src in [
+        "proc c {} { if {[catch {error x} msg]} { puts $msg } }\n",
+        "proc s {t} { if {[scan $t {%d %d} a b] == 2} { puts $a$b } }\n",
+        "proc g {fp} { while {[gets $fp line] >= 0} { puts $line } }\n",
+        "proc r {s} { if {[regexp {(a)(b)} $s m a b]} { puts $m$a$b } }\n",
+    ] {
+        assert!(
+            !fires(src, D, "W210"),
+            "FP-RBS-20: registry query must cover the old hardcoded four; \
+{src} emitted: {:?}",
+            codes(src, D)
+        );
+    }
+}
+
+#[test]
+fn fp_rbs_20_genuine_read_before_set_still_fires() {
+    // TP control: a condition with no variable writer at all leaves the body
+    // read genuinely undefined.
+    let src = "proc t {} { if {[string length foo] > 0} { puts $undefinedvar } }\n";
+    assert!(
+        fires(src, D, "W210"),
+        "FP-RBS-20 TP: an unwritten body read must still fire W210; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_20_condition_unset_is_not_a_definition() {
+    // TN control: `unset` carries `ArgRole::VarWrite` on the name it removes,
+    // so the registry harvest must exclude `Traits::DESTROYS_VARIABLE` —
+    // otherwise the harvest would claim `gone` is defined and swallow a real
+    // warning.  tclsh 9.0.4 / 8.6.14 agree the read is an error:
+    //   proc t {} { if {[catch {unset gone}]} { puts $gone } }
+    //   catch {t} err → 1, err → `can't read "gone": no such variable`
+    let src = "proc t {} { if {[catch {unset gone}]} { puts $gone } }\n";
+    assert!(
+        fires(src, D, "W210"),
+        "FP-RBS-20 TN: a condition `unset` must not manufacture a def; \
+emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_20_substituted_command_head_harvests_nothing() {
+    // TN control (PR #1076 review, P2): the head word's *content* spelling
+    // drops the `$`, so `[$set length foo]` used to resolve as the builtin
+    // `set` and harvest `length` as a definition — silencing a genuine
+    // warning.  Which command runs is run-time data, so nothing may be
+    // claimed about what it writes.
+    //
+    // tclsh 9.0.4 / 8.6.14 (identical): calling `f string` executes
+    // `string length foo`, which defines nothing —
+    //   catch {f string} err → 1, err → `can't read "length": no such variable`
+    let src = "proc f {set} { if {[$set length foo]} { puts $length } }\n";
+    assert!(
+        fires(src, D, "W210"),
+        "FP-RBS-20 TN: a substituted head must not harvest its lookalike \
+builtin's out-vars; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_20_literal_head_named_like_the_variable_still_harvests() {
+    // TP control for the pair above: a *literal* `set` head keeps the
+    // recognition — the guard must key on substitution, not on the spelling.
+    let src = "proc f {} { if {[set length foo]} { puts $length } }\n";
+    assert!(
+        !fires(src, D, "W210"),
+        "FP-RBS-20: a literal `set` head still defines its target; \
+emitted: {:?}",
+        codes(src, D)
+    );
+}

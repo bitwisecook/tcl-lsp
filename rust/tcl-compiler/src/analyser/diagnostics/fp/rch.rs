@@ -216,3 +216,109 @@ fn fp_rch_04_infinite_loop_dead_code_fires() {
         all_codes(FP_RCH_04_REPRO, D)
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-RCH-05 — a dynamic-name write / destroy weakens the existence fold
+// (issue #923 audit idx 1)
+// ---------------------------------------------------------------------------
+//
+// `set $switch {}` defines whatever variable `$switch` names, so
+// `[info exists mixed]` cannot be folded to a constant `false` and neither
+// I230 (analyser) nor O101 (optimiser fold / DCE) may claim the guarded arm
+// is unreachable.  `unset $n` is the mirror image: it can remove a parameter,
+// so even the "a parameter always exists" fold has to abstain.
+//
+// Oracle (tclsh 9.0.4 and 8.6.14, identical):
+//   proc f {} { set x foo; set $x bar; if {[info exists foo]} { return yes }
+//               return no }
+//   f                                                       → yes
+//   proc f {p n} { unset $n; if {[info exists p]} { return yes }; return no }
+//   f hello p                                               → no
+//   f hello n                                               → yes
+
+const FP_RCH_05_REPRO: &str = "\
+proc f {} {
+    set x foo
+    # Defines the variable *named by* $x — i.e. `foo`.
+    set $x bar
+    if {[info exists foo]} { return yes }
+    return no
+}
+";
+
+#[test]
+fn fp_rch_05_dynamic_write_blocks_the_absent_fold() {
+    assert!(
+        !fires(FP_RCH_05_REPRO, D, "I230"),
+        "FP-RCH-05: `set $x bar` may define `foo`; emitted {:?}",
+        all_codes(FP_RCH_05_REPRO, D)
+    );
+    assert!(
+        !o107_fires(FP_RCH_05_REPRO, D),
+        "FP-RCH-05: the reachable arm must not be optimised away; emitted {:?}",
+        all_codes(FP_RCH_05_REPRO, D)
+    );
+}
+
+#[test]
+fn fp_rch_05_static_write_still_folds() {
+    // TN control: with no dynamic write, a never-defined local really is
+    // absent and the fold must survive.
+    let src = "\
+proc f {} {
+    set x foo
+    if {[info exists foo]} { return yes }
+    return no
+}
+";
+    assert!(
+        fires(src, D, "I230"),
+        "FP-RCH-05 TN: a never-defined local still folds to absent; emitted {:?}",
+        all_codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rch_05_dynamic_unset_blocks_the_present_fold() {
+    let src = "\
+proc f {p n} {
+    unset $n
+    if {[info exists p]} { return $p }
+    return no
+}
+";
+    assert!(
+        !fires(src, D, "I230"),
+        "FP-RCH-05: `unset $n` may remove the parameter; emitted {:?}",
+        all_codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rch_05_parameter_without_dynamic_unset_still_folds() {
+    // TN control: a parameter with no dynamic destroy anywhere always exists.
+    let src = "proc f {p} { if {[info exists p]} { return $p }\n    return no\n}\n";
+    assert!(
+        fires(src, D, "I230"),
+        "FP-RCH-05 TN: a parameter still folds to present; emitted {:?}",
+        all_codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rch_05_dynamic_array_element_key_still_folds() {
+    // TN control: `set a($k) 1` names a run-time *element* of the statically
+    // named array `a` — it cannot conjure the local `foo`, so the fold stands.
+    let src = "\
+proc f {k} {
+    set a($k) 1
+    if {[info exists foo]} { return yes }
+    return no
+}
+";
+    assert!(
+        fires(src, D, "I230"),
+        "FP-RCH-05 TN: a dynamic element key is not a dynamic name; emitted {:?}",
+        all_codes(src, D)
+    );
+}

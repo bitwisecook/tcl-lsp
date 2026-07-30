@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, liveness
+all-editors, diagnostic, liveness, dataflow
 
 ## Profiles
 
@@ -85,6 +85,42 @@ genuine errors:
 A body that assigns the variable only under an inner condition
 (`foreach x $items { if {$x} { set y 1 } }; puts $y`) is also still flagged —
 the variable can be unset even when the loop runs.
+
+## Commands that set a variable inside a condition
+
+A command that writes a variable named by one of its own arguments does so
+before either branch of the `if` (or the first turn of the `while`) can run,
+so the guarded body may read that variable safely:
+
+```tcl
+proc find {lst} {
+    if {[set idx [lsearch $lst foo]] > -1} {
+        puts $idx          ;# not flagged — the condition set it
+    }
+}
+```
+
+Which argument writes which variable comes from the command registry, so this
+covers every command it knows: `set`, `incr`, `append`, `lappend`, `lset`,
+`catch`, `gets`, `scan`, `regexp`, `regsub`, `lassign`, `binary scan`, and the
+rest. `unset` is the exception — it removes a variable rather than creating
+one, so a read after it is still flagged.
+
+## Computed variable names silence the check
+
+Tcl can compute a variable's *name* at run time:
+
+```tcl
+proc handle {name} {
+    set $name 1        ;# sets whatever variable $name spells
+    puts $foo           ;# not flagged — `$name` may have been "foo"
+}
+```
+
+Once a proc contains a write like that, no local in it can still be proved
+unset, so `W210` goes silent for the whole proc. That is deliberate: a warning
+that cannot be proved is worse than a missing one. Spell the name out to get
+the check back.
 
 ## How to suppress
 

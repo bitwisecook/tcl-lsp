@@ -122,7 +122,7 @@ impl Gen {
             // proc / namespace definitions are top-level only (matching the
             // oracle): nesting them changes scope semantics in ways the
             // generator doesn't model.
-            let arms = if depth == 0 { 10 } else { 7 };
+            let arms = if depth == 0 { 11 } else { 7 };
             match self.rng.below(arms) {
                 0 => self.if_stmt(depth),
                 1 => self.while_stmt(depth),
@@ -134,6 +134,7 @@ impl Gen {
                 7 => self.proc_stmt(depth),
                 8 => self.namespace_stmt(depth),
                 9 => self.inscope_stmt(),
+                10 => self.dynamic_name_stmt(),
                 _ => self.leaf_statement(depth),
             }
         }
@@ -453,6 +454,49 @@ impl Gen {
             let _ = write!(call, " {arg}");
         }
         let _ = writeln!(self.out, "puts [{call}]");
+    }
+
+    /// Variable access whose *name* is computed at run time — `set $n v`,
+    /// `[set $n]`, `lappend $n w`, `unset $n`, and a `subst` over a
+    /// variable-held template.
+    ///
+    /// The compiler's SSA / dataflow treats these as whole-name-space
+    /// barriers (issue #923 audit cluster C10,
+    /// `tcl_compiler::dynamic_names`), which gates the constant-branch fold
+    /// and dead-store elimination feeding this backend's input IR — so the
+    /// differential needs the shapes present to catch a VM that resolves a
+    /// computed name differently from C Tcl.
+    ///
+    /// Every arm keeps to a private `_dn*` name space the other productions
+    /// never touch, so the emitted lines stay deterministic wherever they land
+    /// in the script.  Output is the resolved value plus an `info exists`
+    /// probe, so a wrong resolution is a stdout mismatch rather than a silent
+    /// pass.  tclsh 9.0.4 / 8.6.14 agree on all five arms.
+    fn dynamic_name_stmt(&mut self) {
+        match self.rng.below(5) {
+            // `set $n v` writes, `[set $n]` reads back — the argparse idiom.
+            0 => self.out.push_str(
+                "set _dnn _dnv\nset $_dnn hello\nputs [set $_dnn]\nputs [info exists _dnv]\n",
+            ),
+            // A read-modify-write through a computed name.
+            1 => self.out.push_str(
+                "set _dnn _dna\nlappend $_dnn one\nlappend $_dnn two\nputs [set $_dnn]\n",
+            ),
+            // `append` through a computed name.
+            2 => self
+                .out
+                .push_str("set _dnn _dnb\nappend $_dnn ab\nappend $_dnn cd\nputs [set $_dnn]\n"),
+            // A template held in a variable: `subst` expands names that only
+            // exist in run-time data.
+            3 => self
+                .out
+                .push_str("set _dnv 7\nset _dnt {$_dnv}\nputs [subst $_dnt]\n"),
+            // A computed-name destroy, probed either side.
+            _ => self.out.push_str(
+                "set _dnn _dnu\nset $_dnn gone\nputs [info exists _dnu]\n\
+                 unset $_dnn\nputs [info exists _dnu]\n",
+            ),
+        }
     }
 
     /// One trailing word for [`Gen::inscope_stmt`], chosen to exercise the
@@ -1099,6 +1143,49 @@ mod tests {
                 !corpus.iter().any(|s| s.contains(func)),
                 "TIP 745 (9.1-only) function must never be generated: {func:?}"
             );
+        }
+    }
+
+    /// Issue #923 audit cluster C10's coverage seed. Variable access through
+    /// a **computed name** was never generated, so the whole dynamic-name
+    /// path — which the compiler now treats as a dataflow barrier gating the
+    /// constant-branch fold and dead-store elimination that feed this
+    /// backend's input IR — went differentially untested. Proves every arm
+    /// reaches a generated script.
+    #[test]
+    fn dynamic_name_shapes_are_exercised() {
+        let cfg = GenConfig {
+            max_depth: 4,
+            max_stmts: 16,
+            ..GenConfig::default()
+        };
+        let corpus: Vec<String> = (0..600u64).map(|s| generate(s, &cfg)).collect();
+        for needle in [
+            "set $_dnn hello",
+            "puts [set $_dnn]",
+            "lappend $_dnn one",
+            "append $_dnn ab",
+            "puts [subst $_dnt]",
+            "unset $_dnn",
+        ] {
+            assert!(
+                corpus.iter().any(|s| s.contains(needle)),
+                "dynamic-name production never generated: {needle:?}"
+            );
+        }
+        // The shapes must stay inside their private `_dn*` name space, so
+        // wherever they land they cannot perturb the rest of a script.
+        for line in corpus
+            .iter()
+            .flat_map(|s| s.lines())
+            .filter(|l| l.contains("_dn"))
+        {
+            for v in VARS {
+                assert!(
+                    !line.contains(&format!("${v} ")) && !line.ends_with(&format!("${v}")),
+                    "dynamic-name line touches shared variable {v:?}: {line:?}"
+                );
+            }
         }
     }
 }

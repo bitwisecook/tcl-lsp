@@ -697,3 +697,222 @@ fn fp_ds_11_clean_uplevel_body_is_silent() {
         codes(src, D)
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-DS-12 — a dynamic-name read makes every store observable
+// (issue #923 audit idx 2 and 64)
+// ---------------------------------------------------------------------------
+//
+// `foreach v [info locals] { … [set $v] … }` reads every local through a name
+// no literal `$x` token spells, so neither "set but never used" (W211) nor
+// "assignment never read" (W220) is provable once such a read exists.
+//
+// Oracle (tclsh 9.0.4 and 8.6.14, identical):
+//   proc collect {} { set alpha 10; set beta 20; set gamma 30
+//                     set r [dict create]
+//                     foreach v [info locals] {
+//                         if {$v in {r v}} { continue }
+//                         dict append r $v [subst $[subst $v]] }
+//                     return $r }
+//   collect                                  → alpha 10 beta 20 gamma 30
+//   set ns "ctx"; puts "{ $ns"               → `{ ctx`
+
+const FP_DS_12_REPRO: &str = "\
+proc collect {} {
+    set alpha 10
+    set beta 20
+    set resultDict [dict create]
+    foreach locVar [info locals] {
+        dict append resultDict $locVar [subst $[subst $locVar]]
+    }
+    return $resultDict
+}
+";
+
+#[test]
+fn fp_ds_12_double_subst_dereference_keeps_locals_live() {
+    assert!(
+        !fires(FP_DS_12_REPRO, D, "W211"),
+        "FP-DS-12: `[subst $[subst $locVar]]` reads every local; emitted: {:?}",
+        codes(FP_DS_12_REPRO, D)
+    );
+    assert!(
+        !fires(FP_DS_12_REPRO, D, "W220"),
+        "FP-DS-12: no store is provably dead beside a dynamic read; emitted: {:?}",
+        codes(FP_DS_12_REPRO, D)
+    );
+}
+
+#[test]
+fn fp_ds_12_single_indirect_dereference_keeps_locals_live() {
+    // The audit's second control: one level of indirection (`[set $locVar]`)
+    // reproduces the same false positives.
+    let src = "\
+proc collect2 {} {
+    set alpha 10
+    set beta 20
+    set out {}
+    foreach locVar [info locals] {
+        lappend out $locVar [set $locVar]
+    }
+    return $out
+}
+";
+    assert!(
+        !fires(src, D, "W211"),
+        "FP-DS-12: `[set $locVar]` reads every local; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_ds_12_dynamic_read_keeps_an_overwritten_store_live() {
+    let src = "proc f {n} { set a 1\n puts [set $n]\n set a 2\n return $a }\n";
+    assert!(
+        !fires(src, D, "W220"),
+        "FP-DS-12: the dynamic read may observe the first store; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_ds_12_genuine_unused_and_dead_store_still_fire() {
+    // TP controls: with no dynamic read in the function, both verdicts stand.
+    let unused = "proc g {} { set alpha 10; set beta 20; return $beta }\n";
+    assert!(
+        fires(unused, D, "W211"),
+        "FP-DS-12 TP: a genuinely unused local must still fire W211; emitted: {:?}",
+        codes(unused, D)
+    );
+    let dead = "proc f {} { set a 1\n set a 2\n return $a }\n";
+    assert!(
+        fires(dead, D, "W220"),
+        "FP-DS-12 TP: a genuine dead store must still fire W220; emitted: {:?}",
+        codes(dead, D)
+    );
+}
+
+#[test]
+fn fp_ds_12_literal_subst_template_is_not_a_dynamic_read() {
+    // TN control: `subst {$a}` carries its names in source text, so the
+    // ordinary scanners see them and the barrier stays clear — an unrelated
+    // dead store in the same proc must still fire.
+    let src = "proc f {} { set a 1\n set b 1\n set b 2\n return [subst {$a$b}] }\n";
+    assert!(
+        fires(src, D, "W220"),
+        "FP-DS-12 TN: a literal subst template must not blind the pass; \
+emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-DS-13 — an unmatched `{` inside a double-quoted string does not hide
+// the `$var` read (issue #923 audit idx 64, `namespaces` corpus `pix`)
+// ---------------------------------------------------------------------------
+//
+// The dead-store read scan runs over the segmenter's already-dequoted word
+// text.  Re-lexing that text with ordinary top-level rules used to read a
+// stray `{` as opening a brace-quoted (non-substituting) word, so `$ns`
+// stopped being a read and every `set ns …` feeding a multi-line
+// `puts $fp "namespace eval ::pix {\n … $ns …\n}"` looked dead.
+//
+// Oracle (tclsh 9.0.4 and 8.6.14, identical):
+//   set ns "ctx"; puts "{ $ns"               → `{ ctx`
+
+#[test]
+fn fp_ds_13_unmatched_brace_in_quoted_string_keeps_the_read() {
+    let src = "set ns \"ctx\"\nputs \"{ $ns\"\n";
+    assert!(
+        !fires(src, D, "W220"),
+        "FP-DS-13: `$ns` inside `\"{{ $ns\"` is a read; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_ds_13_real_pixdoc_generation_shape_keeps_the_reads() {
+    let src = "\
+proc gen {fp} {
+    set ns \"ctx\"
+    set preamble \"hello\"
+    puts $fp \"namespace eval ::pix {
+        namespace eval $ns {
+            variable _ruff_preamble $preamble
+        }
+    }\"
+}
+";
+    assert!(
+        !fires(src, D, "W220"),
+        "FP-DS-13: both `set ns` and `set preamble` feed the string; emitted: {:?}",
+        codes(src, D)
+    );
+    assert!(
+        !fires(src, D, "W211"),
+        "FP-DS-13: neither local is unused; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_ds_13_overwritten_store_beside_a_quoted_read_still_fires() {
+    // TP control: the same shape with a genuinely overwritten first store.
+    let src = "proc f {} { set ns \"ctx\"\n set ns \"other\"\n return \"{ $ns\" }\n";
+    assert!(
+        fires(src, D, "W220"),
+        "FP-DS-13 TP: a real dead store beside a quoted read still fires; \
+emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-DS-14 — a brace-quoted variable name does not blind the function
+// (PR #1076 review, P2)
+// ---------------------------------------------------------------------------
+//
+// `{$n}` is Tcl's literal spelling for a variable *called* `$n`; nothing is
+// computed, so the dynamic-name barrier must stay clear and every diagnostic
+// in the function must stay live.
+//
+// Oracle (tclsh 9.0.4 and 8.6.14, identical):
+//   set {$n} v; info exists {$n} → 1 ; info exists n → 0
+//   set i 5; set {arr($i)} 1; array names arr → {$i} ; info exists arr(5) → 0
+
+#[test]
+fn fp_ds_14_brace_quoted_name_keeps_unrelated_diagnostics_live() {
+    for (label, src) in [
+        (
+            "write",
+            "proc f {} { set {$n} 1\n set a 1\n set a 2\n return $a }\n",
+        ),
+        (
+            "read",
+            "proc f {} { set b [set {$n}]\n set a 1\n set a 2\n return \"$a$b\" }\n",
+        ),
+        (
+            "destroy",
+            "proc f {} { unset -nocomplain {$n}\n set a 1\n set a 2\n return $a }\n",
+        ),
+    ] {
+        assert!(
+            fires(src, D, "W220"),
+            "FP-DS-14 ({label}): a brace-quoted name is literal and must not \
+blind the dead-store pass; emitted: {:?}",
+            codes(src, D)
+        );
+    }
+}
+
+#[test]
+fn fp_ds_14_unbraced_computed_name_still_blinds_the_pass() {
+    // TN control: dropping the braces makes the name genuinely computed, so
+    // the read barrier applies and W220 correctly goes silent.
+    let src = "proc f {n} { set b [set $n]\n set a 1\n set a 2\n return \"$a$b\" }\n";
+    assert!(
+        !fires(src, D, "W220"),
+        "FP-DS-14 TN: `[set $n]` may observe the first store; emitted: {:?}",
+        codes(src, D)
+    );
+}
