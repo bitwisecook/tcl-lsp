@@ -33,6 +33,21 @@
 # Gate: `make runtime-rust-test` runs the native `cargo test` here. The leak
 # round-trip test is the T1.1 acceptance (zero residual under the alloc/free
 # counters).
+#
+# The empty `[workspace]` table below pins this crate as its OWN workspace
+# root rather than relying solely on the parent's `exclude` entry. Cargo's
+# ancestor search does not stop at the first excluding parent — when this
+# crate is checked out in a git worktree that is itself nested inside
+# another checkout of this repo (e.g.
+# `<repo>/.claude/worktrees/<agent>/runtime/rust`), the walk continues past
+# the worktree's own (correctly-excluding) root and lands on the outer
+# checkout's `Cargo.toml`, whose `exclude` entry is resolved relative to
+# ITS OWN directory and so does not match the nested worktree path — cargo
+# then reports "current package believes it's in a workspace when it's
+# not". Declaring the workspace here locally short-circuits the ancestor
+# search entirely, independent of where this checkout is nested.
+[workspace]
+
 [package]
 name = "tcl-runtime"
 version = "0.1.0"

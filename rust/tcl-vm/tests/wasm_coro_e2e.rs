@@ -175,9 +175,18 @@ fn vm_coroutines_run_on_wasm32() {
     let harness = dir.join("harness.mjs");
     std::fs::write(&harness, HARNESS_MJS).expect("write harness");
 
+    // An explicit `--target-dir` (rather than relying on the default,
+    // cwd-relative `target/`) keeps this build's output where the artifact
+    // lookup below expects it regardless of the ambient environment: a CLI
+    // flag outranks an inherited `CARGO_TARGET_DIR` (the agent build
+    // isolation env var — see `scripts/dev/agent-build-env.sh`), which this
+    // child process would otherwise pick up and build into instead.
+    let target_dir = dir.join("target");
     let build = Command::new(env!("CARGO"))
         .current_dir(&dir)
         .args(["build", "--release", "--target", "wasm32-unknown-unknown"])
+        .arg("--target-dir")
+        .arg(&target_dir)
         .output()
         .expect("run cargo build");
     assert!(
@@ -186,7 +195,7 @@ fn vm_coroutines_run_on_wasm32() {
         String::from_utf8_lossy(&build.stderr)
     );
 
-    let wasm = dir.join("target/wasm32-unknown-unknown/release/tcl_vm_wasm_coro.wasm");
+    let wasm = target_dir.join("wasm32-unknown-unknown/release/tcl_vm_wasm_coro.wasm");
     assert!(wasm.exists(), "wasm artifact missing at {}", wasm.display());
 
     let out = run_node(&harness, &wasm);
@@ -223,6 +232,10 @@ fn vm_wasm_crate_runs_coroutines_via_abi() {
     }
     let crate_path = crate_dir().join("..").join("tcl-vm-wasm");
     let manifest = crate_path.join("Cargo.toml");
+    // Explicit `--target-dir`, for the same reason as `vm_coroutines_run_on_wasm32`
+    // above: an inherited `CARGO_TARGET_DIR` would otherwise redirect this build
+    // away from the fixed path the artifact lookup below checks.
+    let target_dir = crate_path.join("target");
     let build = Command::new(env!("CARGO"))
         .args([
             "build",
@@ -232,6 +245,8 @@ fn vm_wasm_crate_runs_coroutines_via_abi() {
             "--manifest-path",
             manifest.to_str().expect("manifest path utf-8"),
         ])
+        .arg("--target-dir")
+        .arg(&target_dir)
         .output()
         .expect("run cargo build");
     assert!(
@@ -239,7 +254,7 @@ fn vm_wasm_crate_runs_coroutines_via_abi() {
         "tcl-vm-wasm build failed:\n{}",
         String::from_utf8_lossy(&build.stderr)
     );
-    let wasm = crate_path.join("target/wasm32-unknown-unknown/release/tcl_vm_wasm.wasm");
+    let wasm = target_dir.join("wasm32-unknown-unknown/release/tcl_vm_wasm.wasm");
     assert!(wasm.exists(), "wasm artifact missing at {}", wasm.display());
 
     // `verify.mjs` runs a generator, the resume-value idiom, a yield-across-catch

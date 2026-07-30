@@ -18,6 +18,8 @@
 
 import * as path from "path";
 import * as fs from "fs";
+import * as os from "os";
+import * as crypto from "crypto";
 import { execSync } from "child_process";
 import { runTests } from "@vscode/test-electron";
 
@@ -87,11 +89,29 @@ async function main() {
     // No stale marker to remove.
   }
 
+  // The user-data dir's IPC lock file is a Unix domain socket
+  // (`<dir>/<version>-main.sock`), whose path is capped at ~107 bytes by
+  // `sun_path` — comfortably long for a normal checkout, but a checkout
+  // nested several levels deep (e.g. an isolated agent worktree under
+  // `.claude/worktrees/<id>/`) can push
+  // `<extensionDevelopmentPath>/.vscode-test/user-data/<ver>-main.sock`
+  // over that limit, which fails as `EINVAL: listen` with no useful
+  // message pointing at the real cause. Keep the user-data dir under the
+  // system temp dir instead — short regardless of how deeply this checkout
+  // is nested — but derive its name from `extensionDevelopmentPath` so
+  // repeated runs against the *same* checkout keep reusing (and clearing)
+  // the same directory rather than leaking a fresh one every time, while
+  // a different checkout (a different worktree) gets its own.
+  const checkoutId = crypto
+    .createHash("sha1")
+    .update(extensionDevelopmentPath)
+    .digest("hex")
+    .slice(0, 12);
+  const userDataDir = path.join(os.tmpdir(), `tcl-lsp-vscode-test-${checkoutId}`, "user-data");
   // Clear persisted user settings from prior test runs so tests start
   // with a clean slate.  Settings modified via workspace.getConfiguration
   // .update() persist in the user-data directory and can pollute
   // subsequent runs.
-  const userDataDir = path.resolve(extensionDevelopmentPath, ".vscode-test", "user-data");
   const userSettingsFile = path.resolve(userDataDir, "User", "settings.json");
   try {
     const { writeFileSync, mkdirSync } = require("fs");
@@ -112,6 +132,7 @@ async function main() {
       launchArgs: [
         testWorkspace,
         "--disable-extensions", // Disable other extensions
+        `--user-data-dir=${userDataDir}`,
       ],
     });
 

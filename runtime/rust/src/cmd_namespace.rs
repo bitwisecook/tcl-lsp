@@ -572,19 +572,62 @@ fn drop_fresh(obj: *mut TclObj) {
 
 /// `namespace inscope ns cmd ?arg ...?` — evaluate `cmd` (with the extra args
 /// appended) in namespace `ns`. Like `namespace eval` but used by
-/// `namespace code` scripts. (The extra args are space-appended — the
-/// list-element-quoting refinement matters only for the multi-arg form.)
+/// `namespace code` scripts.
+///
+/// `NamespaceInscopeCmd` (`generic/tclNamesp.c`) is the one member of the
+/// `Tcl_ConcatObj` eval family whose trailing words are **not** space-joined
+/// into the script text: it collects the extra args into a **list object**
+/// and concatenates that list's string rep onto the script, so each extra
+/// word reaches the invoked command as exactly one argument however much
+/// whitespace or list punctuation it holds:
+///
+/// ```text
+/// namespace inscope :: {puts} {a b}   → prints "a b"  (one argument)
+/// namespace eval    :: {puts} {a b}   → error: can not find channel named "a"
+/// ```
+///
+/// (Twin of #1056/#1067, already fixed for the bytecode VM.) With no extra
+/// args, C takes the `objc == 3` arm and evaluates the script verbatim — no
+/// concat, so no trim and no trailing space, which the early return mirrors.
 fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args(b"namespace inscope name arg ?arg...?");
     }
     let name = obj_bytes(argv[2]);
-    let mut script = obj_bytes(argv[3]);
-    for &a in &argv[4..] {
-        script.push(b' ');
-        script.extend_from_slice(&obj_bytes(a));
-    }
+    let script = inscope_script(argv[3], &argv[4..]);
     interp.ns_eval(&name, &script)
+}
+
+/// Build the script `ns_inscope` evaluates: `Tcl_ConcatObj(script, list(tail))`.
+/// No tail args → `script` verbatim (C's `objc == 3` arm). Otherwise the
+/// tail's list-element quoting reuses the crate's canonical
+/// [`list::append_list_element`] (`TclScanElement`/`TclConvertElement` — the
+/// same helper the list type's own string rep uses), and the two-part concat
+/// reuses `tcl_cmd_core::list::trim_concat_element` (`Tcl_ConcatObj`'s
+/// backslash-aware right trim + drop-empty-part rule): a whitespace-padded
+/// script is trimmed, and an all-whitespace script contributes no leading
+/// separator (the tail becomes the whole command).
+fn inscope_script(script: *mut TclObj, tail: &[*mut TclObj]) -> Vec<u8> {
+    let script_bytes = obj_bytes(script);
+    if tail.is_empty() {
+        return script_bytes;
+    }
+    let mut tail_list = Vec::new();
+    for (i, &a) in tail.iter().enumerate() {
+        if i > 0 {
+            tail_list.push(b' ');
+        }
+        list::append_list_element(&mut tail_list, &obj_bytes(a), i == 0);
+    }
+    let script_str = String::from_utf8_lossy(&script_bytes);
+    let trimmed = tcl_cmd_core::list::trim_concat_element(&script_str);
+    if trimmed.is_empty() {
+        return tail_list;
+    }
+    let mut out = trimmed.as_bytes().to_vec();
+    out.push(b' ');
+    out.extend_from_slice(&tail_list);
+    out
 }
 
 /// `namespace origin command` — the fully-qualified original name of `command`
@@ -1178,6 +1221,18 @@ mod tests {
     /// the `tcl-syntax` conformance test) must dispatch identically
     /// through this runtime's namespace tree — the anti-drift gate for
     /// `Namespaces::home_of`.
+    ///
+    /// `vector_script` wraps every call in `if {[catch {…} __r]} {…}`
+    /// (`tcl-syntax`'s shared script renderer), so this test needs `if` —
+    /// which `builtins::install` only registers under `have_tommath`
+    /// (issue #1058). Without libtommath vendored, every vector fails
+    /// identically with `invalid command name "if"`, which is a build
+    /// environment gap, not a dispatch regression — ignore with the
+    /// real reason instead of failing on a mundane cause.
+    #[cfg_attr(
+        not(have_tommath),
+        ignore = "libtommath not vendored; if/while/for/expr unavailable (issue #1058)"
+    )]
     #[test]
     fn dispatch_matches_every_conformance_vector() {
         use tcl_syntax::naming::conformance::{vector_script, vectors};
@@ -1458,6 +1513,96 @@ mod tests {
             assert_eq!(i.eval_str(b"::a::b::path list v 5"), Code::Ok);
             assert_eq!(i.result_bytes(), b"5");
             i.eval_str(b"unset v");
+        });
+    }
+
+    // -- namespace inscope (issue #1058's twin of #1056/#1067) -----------------
+    //
+    // These avoid `if`/`while`/`for`/`expr` (and anything else `have_tommath`-
+    // gated) entirely, so they run identically with or without the bignum
+    // tower — unlike `dispatch_matches_every_conformance_vector` above, which
+    // genuinely needs `if`.
+
+    #[test]
+    fn inscope_zero_tail_args_evaluates_script_verbatim() {
+        leak_free(|i| {
+            i.eval_str(b"proc probe {args} { return $args }");
+            // C's `objc == 3` arm: no tail, so no list is appended and no
+            // concat/trim/trailing space happens — the script runs as-is.
+            assert_eq!(i.eval_str(b"namespace inscope :: probe"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"");
+        });
+    }
+
+    #[test]
+    fn inscope_tail_args_become_list_elements_not_joined_words() {
+        // `NamespaceInscopeCmd` (`generic/tclNamesp.c`) collects the tail
+        // into a LIST and concatenates its string rep onto `script`
+        // (`Tcl_ConcatObj` over `[script, list(tail)]`), so however many
+        // words a tail argument holds, it reaches the invoked command as
+        // exactly one argument.
+        leak_free(|i| {
+            i.eval_str(b"proc probe {args} { return $args }");
+
+            // A tail word with an embedded space stays ONE argument (the
+            // pre-fix bug: it split into two words, "x" and "y").
+            assert_eq!(
+                i.eval_str(b"llength [namespace inscope :: probe {x y}]"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"1");
+            assert_eq!(
+                i.eval_str(b"lindex [namespace inscope :: probe {x y}] 0"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"x y");
+
+            // An empty-string tail arg round-trips as one empty argument.
+            assert_eq!(
+                i.eval_str(b"llength [namespace inscope :: probe {}]"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"1");
+            assert_eq!(
+                i.eval_str(b"lindex [namespace inscope :: probe {}] 0"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"");
+
+            // Multiple tail words each keep their own arg boundary.
+            assert_eq!(
+                i.eval_str(b"llength [namespace inscope :: probe a {b c} d]"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"3");
+
+            // Special characters round-trip through the list-element
+            // quoting (`list::append_list_element`): an unbalanced brace, a
+            // lone backslash, and an embedded double quote. `lindex`
+            // recovers the raw element value regardless of which of the
+            // four renderings (none/brace/mask/escape) quoting picked.
+            i.eval_str(b"set v1 \"a\\{b\"");
+            assert_eq!(
+                i.eval_str(b"lindex [namespace inscope :: probe $v1] 0"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"a{b");
+
+            i.eval_str(b"set v2 \"\\\\\"");
+            assert_eq!(
+                i.eval_str(b"lindex [namespace inscope :: probe $v2] 0"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"\\");
+
+            i.eval_str(b"set v3 {a\"b}");
+            assert_eq!(
+                i.eval_str(b"lindex [namespace inscope :: probe $v3] 0"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"a\"b");
+
+            i.eval_str(b"unset v1 v2 v3");
         });
     }
 }
