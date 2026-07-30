@@ -112,7 +112,9 @@ idx 70 (high, §3's `d5e4d65`), idx 71 (high, §3's `2339d4a`), idx 76
 (high, §3's `0bde16e`), idx 77 (high, §3's `51a630f`), idx 84 (high,
 partial — §3's `7115bc8`), idx 86 (high, §3's `99cf07f`), idx 90 (high,
 §3's `7d476f5`), idx 95 (high, §3's `ef36c73`), idx 94 (high, §3's
-`959bca8`); the other 61
+`959bca8`); later sessions took that to **38 fixed** (PR A3's six plus
+idx 81 re-verified; PR #1071's idx 3/4/11; PR B1's idx 5/21/45/89/92 — see
+§6b for each). The other 47
 main-wave findings are clustered by feature/root-cause with a
 priority-ordered table in
 §6b, ready for a future session to pick up efficiently. Nothing
@@ -474,6 +476,15 @@ mathfunc-aware W123 / W002 work that landed on `rust` after the audit ran
 (`is_mathfunc_call` + `is_known_mathfunc_in_dialect`) and is counted with
 them. That makes **30 fixed, 55 remaining**.
 
+**2026-07-30 update — PR #1071 and PR B1
+(`claude/commandregistry-compiler-fixes-tshu8d-cmdtable`) fixed eight more,
+all tier 2:** idx 3, idx 4, and idx 11 landed in **PR #1071** (tcllib
+`textutil` submodule registry keys + W113 package-gating) — that PR's own
+tracker commit was deliberately dropped, so their rows are ticked here
+instead. idx 5, idx 21, idx 45, idx 89, and idx 92 are **PR B1**, the
+command-table-mutation cluster — see the "tier-2 findings fixed by PR B1"
+subsection after the tier-2 table. That makes **38 fixed, 47 remaining**.
+
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
 strings in the raw data — same corpus), tomato 7, pix 8.
@@ -686,7 +697,7 @@ users, a worse failure mode than the narrower, but fully oracle-grounded,
 `CONFIGURE`-tracking fix actually shipped. Left as a documented, low-risk
 follow-up for a session with Tk oracle access.
 
-#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 1 already fixed), grouped by feature for clustering
+#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 15 now fixed — 46 remaining), grouped by feature for clustering
 
 Group findings sharing a feature/root-cause together in one fix pass the
 way idx 107+115 and idx 118+119 were — many of these look like they share
@@ -697,16 +708,16 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 | feature | count | idx (severity) |
 |---|---|---|
 | tclOO | 10 | 15, 16, 34, 35, 36, 53, ~~54~~ **FIXED**, 55, 96, 97 (all medium) |
-| namespaces | 8 | 3, 19, 43, 44, 64, 65, 75, 85 (all medium) |
+| namespaces | 8 | ~~3~~ **FIXED** (#1071), 19, 43, 44, 64, 65, 75, 85 (all medium) |
 | tricky_indirection | 7 | 0 (medium, **FIXED** — see below), 1, 2, 14, 49, 50, 51 (all medium) |
 | upvar | 7 | 7, 22, 57, 58, 59, 98, 99 (all medium) |
-| proc_args | 7 | 11, 28, 37, 62, 67, 78, ~~104~~ **FIXED** (all medium) |
+| proc_args | 7 | ~~11~~ **FIXED** (#1071), 28, 37, 62, 67, 78, ~~104~~ **FIXED** (all medium) |
 | tcl_mathop | 4 | ~~30~~ **FIXED**, 80, ~~81~~ **ALREADY FIXED**, ~~103~~ **FIXED** (all medium) |
-| package_loading | 3 | 4, 42, 72 (all medium) |
+| package_loading | 3 | ~~4~~ **FIXED** (#1071), 42, 72 (all medium) |
 | source | 3 | 27, 41, 102 (all medium) |
-| tracing | 3 | 47, ~~48~~ **FIXED**, 92 (all medium) |
-| rename | 2 | 5, 45 (all medium) |
-| aliasing | 2 | 21, 89 (all medium) |
+| tracing | 3 | 47, ~~48~~ **FIXED**, ~~92~~ **FIXED** (PR B1) (all medium) |
+| rename | 2 | ~~5~~ **ALREADY FIXED** (pinned, PR B1), ~~45~~ **FIXED** (PR B1) (all medium) |
+| aliasing | 2 | ~~21~~ **FIXED** (PR B1), ~~89~~ **FIXED** (PR B1) (all medium) |
 | uplevel | 2 | 38 (medium), 100 (low) |
 | eval | 1 | ~~24~~ **FIXED** (medium) |
 | autoindex | 1 | 73 (medium) |
@@ -766,6 +777,30 @@ plus new `rust/tcl-lsp-server/tests/e2e/{hover,completion}.rs` cases.
 | 81 (tcl_mathop) | Every built-in `expr` math function drew a false `W123 Unknown command`, several with actively-wrong "did you mean" fixes. | **Already fixed** on `rust` after the audit ran: `SignatureCommandInvocation::is_mathfunc_call` plus `is_known_mathfunc_in_dialect` gate the W123 check. Verified, not re-fixed. |
 | 103 (tcl_mathop) | Zero `CommandSpec` entries for `tcl::mathfunc::*`, so the generic per-dispatch-site W002 availability check was blind to the plain-command spelling. | The registry data (`tcl-registry/src/commands/tcl/mathfunc_generated.rs`) **already landed** on `rust`. What PR A3 adds is the query layer the LSP needed on top of it — `tcl-registry/src/mathfunc.rs` — and a test pinning that both qualified spellings exist and gate correctly (`isinf` 9.0+, the command table itself 8.5+ per TIP 232). |
 | 104 (proc_args) | A proc parameter's own name token and its **default-value literal** both resolved to an unrelated same-named command (`{destroy destroy}` in `tk.tcl`'s `::tk::RestoreFocusGrab` showed Tk's `destroy` documentation). | The name token was already answered by idx 9's declaration-offset search; the remaining data words are now guarded generally by `definition::parameter_list_position_at`, consulted by both hover and go-to-definition. A *literal* parameter list holds no command references at all, so the guard needs no per-command knowledge. **Codex review of PR #1073 (P2)** narrowed it from the whole name-token-to-body region to the actual literal parameter-list **word**: `proc`'s parameter list is an ordinary Tcl word and may be computed (`proc p [makeargs] {…}` runs `[makeargs]` at definition time — oracle-confirmed on 9.0.4 and 8.6.16, as are the `$params` and `"m n"` forms), so a word containing `$` / `[` / `"` / a backslash escape stays navigable. A computed list also suppresses the bareword-*declaration* step, because the analyser records a stub `VarDef` named after the whole word (`"[makeargs]"`) that would otherwise make go-to-definition point at the cursor's own token instead of resolving the call. |
+
+#### Tier-2 findings fixed by PR B1 (2026-07-30)
+
+Landed together on
+`claude/commandregistry-compiler-fixes-tshu8d-cmdtable` alongside issue
+#1064 and issue #1062's deferred B1/B2, because all five share one theme:
+**navigation must survive command-table mutation**. The hop walk the
+analyser's constructor typing already used
+(`diagnostics::var_command::class_reachable_by_indirection`, PR #1062) is
+factored into `tcl-compiler/src/analyser/indirection.rs` and consumed by
+both the diagnostics and the LSP's navigation providers, so the two cannot
+drift. Regression coverage is
+`rust/tcl-lsp-core/tests/command_table_mutation.rs` (19 TP/TN cases), unit
+tests in `analyser/indirection.rs`, W123/E00x cases in
+`analyser/diagnostics/tests.rs`, and nine new
+`rust/tcl-lsp-server/tests/e2e/{definition,references,rename}.rs` cases.
+
+| idx | what was wrong | what changed |
+|---|---|---|
+| 5 (rename) | `rename OLD NEW` never checked that `OLD` resolves to a known command, so a guaranteed tclsh abort (`can't rename "X": command doesn't exist`, `can't delete "X": …`) produced no diagnostic at all. | **Already fixed** on `rust` by idx 39's work (`handle_rename` records `OLD`'s own token as an ordinary `SignatureCommandInvocation`, which feeds W123). Re-verified against tclsh 9.0.4 and 8.6.16 for both the delete and the alias form, and pinned with four TP/TN regression tests; not re-fixed. |
+| 21 (aliasing) | `references()` never consulted `analysis.command_aliases` in either direction: a proc's reference set omitted every call site spelled through a live `interp alias`, and the alias name itself had no navigable reference set. | `proc_reference_spans` / `class_reference_spans` now union in `indirection::names_reaching` — every name whose in-effect chain terminates on the definition — and `resolve_proc_target_at` hops forward, so a query from either spelling answers one unified set. Order-gated per call site, so a call written before the alias is not attributed. Deliberately **not** wired into `invocation_references_proc`/`_class`, so rename still leaves the alias's own call sites alone (they spell a different command's name) — the same split the wildcard-import fallback already uses. |
+| 45 (rename) | `all_procs.insert` clobbered on self-redefinition, so the displaced definition's span and parameter list vanished: go-to-definition from a call *between* two declarations jumped to the later header, and a genuine `wrong # args` against the first signature went unreported. | New `AnalysisResult::superseded_procs` keeps the displaced `ProcDef`s (empty for every document without a redefinition), with `proc_declarations` / `proc_def_in_effect_at` as the order-gated queries — the `proc` analogue of `rename_offsets`/`alias_offsets`. `definition()` resolves the in-effect definition, the arity resolver checks the in-effect signature, and `UserResolutionFacts::proc_offsets` now records the *earliest* declaration so the shadowing suppression is order-correct too. The cross-document declaration test was already handled by idx 31. |
+| 89 (aliasing) | `definition()` resolved a call to a same-named proc that an `interp alias` had already replaced (the real `tk/library/accessibility.tcl` `interp alias {} ::ttk::spinbox {} ::tk::spinbox` trick), because the alias fallback sat *after* the proc resolution and was unreachable. | The indirection hop is now one uniform tier asked **before** the ordinary call resolution, covering `rename` and `interp alias`, procs and classes alike (`indirect_definition_target`, plus the hop inside `resolve_proc_target_at` / `resolve_class_target_at`). Order-gating keeps the pre-mutation call resolving the ordinary way, in-document and — via `definition::indirection_pending_at`, consulted by the server's `resolve_workspace_symbols` — through the position-free workspace index too. The trailing ungated alias fallback is gone. |
+| 92 (tracing) | `[namespace code [list Handler]]` in a command-prefix slot (Tk's own `fontchooser.tcl` uses it ten times) recorded nothing, so find-references / rename / call-hierarchy / code-lens silently dropped every such callback site. | New `Traits::WRAPS_COMMAND_PREFIX`, set on the `namespace code` **subcommand**: the value it returns is itself a command prefix. `extract_wrapped_prefix_head` unwraps exactly one level — the wrapping command's own `ArgRole::Body` word — and re-runs the ordinary extraction on it, so the `[list X a]`, bareword, and (already-covered) braced shapes all work through one rule with no command name in the walker. A braced wrapped word is skipped, since the analyser already walks it as a script and recording it twice would double-count the site. |
 
 ### 6c. Broader mandate coverage check
 
@@ -864,14 +899,15 @@ just no longer the primary "what's left" pointer.
 4. Pick the next finding to fix — two ready queues, both fully triaged:
    - §6a: 2 remaining tcllib findings (idx 128/24), no
      refined plan for either — use `07`'s `root_cause_hint` directly.
-   - §6b: 62 remaining main-wave findings (idx 61, idx 9, idx 10, idx 18,
-     idx 29, idx 31, idx 32, idx 33, idx 39, idx 46, idx 52, idx 56, idx
-     63, idx 68, idx 70, idx 71, idx 76, idx 77, idx 84, idx 86, idx 90,
-     idx 95, and idx 94 are fixed — idx 46, idx 63, and idx 84 only
-     partially, see their §3/§6b rows for what's still open — so far),
+   - §6b: 47 remaining main-wave findings (38 fixed so far — the tier-1
+     set idx 61/9/10/18/29/31/32/33/39/46/52/56/63/68/70/71/76/77/84/86/
+     90/94/95 plus idx 0, and the tier-2 set idx 24/30/48/54/81/103/104
+     (PR A3), idx 3/4/11 (PR #1071), idx 5/21/45/89/92 (PR B1) — idx 46,
+     idx 63, and idx 84 only partially, see their §3/§6b rows for what's
+     still open),
      fully triaged into a
      priority-ordered critical/high table (1 remaining, start here) and a feature-clustered medium/low
-     table (61 findings, group by feature when fixing). Likely the
+     table (46 remaining, group by feature when fixing). Likely the
      higher-leverage queue given its size and the presence of several
      zero-results go-to-definition/references failures on common
      real-world idioms.
@@ -916,7 +952,7 @@ just no longer the primary "what's left" pointer.
    confirm byte-for-byte what actually landed matches local before trusting
    it (see idx 95's `7953d5e`/`ef36c73` commits and the surrounding
    session transcript for the full story — it worked, but took real care).
-7. Both queues (§6a's 2 tcllib findings, §6b's 62 main-wave findings) are
+7. Both queues (§6a's 2 tcllib findings, §6b's 47 main-wave findings) are
    independent — fix from whichever queue makes sense, no need to exhaust
    one before starting the other. Keep this document's counts current as
    findings get fixed: move a finished idx out of §6a/§6b's tables and into

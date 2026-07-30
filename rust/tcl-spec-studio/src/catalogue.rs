@@ -395,6 +395,10 @@ pub const TRAITS: &[Variant] = &[
     v("IS_UNESCAPE", "performs unescaping or decoding"),
     v("PRODUCES_CANONICAL_LIST", "produces a canonical list"),
     v("BUILDS_COMMAND_PREFIX", "builds a command prefix"),
+    v(
+        "WRAPS_COMMAND_PREFIX",
+        "wraps a script into a command prefix",
+    ),
     v("UNSAFE", "unsafe in sandboxed dialects"),
     v("PASSWORD_OPTION", "takes a password-bearing option"),
     v("IS_SIDE_SWITCH", "switches the iRules connection side"),

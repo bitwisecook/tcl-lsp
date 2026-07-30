@@ -34,6 +34,23 @@ Triggering from the classmethod's own bare dispatch site (not just its declarati
 
 A class is found through every use of its name, not only `<Class> new` instantiations: a `superclass`, `mixin`, or `[incr Tcl]` `inherit` argument that names the class is a reference to it, and a `forward` member's delegated command is a reference to that command. These references are resolved by the class's namespace exactly as a call would be, so a fully-qualified `superclass ::ns::Base` in one file is found from `::ns::Base`'s declaration in another, and a same-named class in an unrelated namespace is never cross-linked. Because the same references drive rename, renaming a class rewrites every `superclass` / `mixin` / `inherit` site that names it, keeping the inheritance graph intact.
 
+A command reached through a **mutated command table** is found too. An
+`interp alias {} sayHi {} greet` makes every `sayHi` call a real call site of
+`greet`, and a `rename greet hello` makes every later `hello` one, so both
+appear in `greet`'s reference set — and a query started from the alias or the
+renamed-to name answers the same unified set. Both directions are order-gated:
+a call written before the `interp alias` or `rename` is not attributed to the
+target, matching Tcl, where it raises `invalid command name`. Rename
+deliberately does **not** rewrite those call sites — they spell a *different*
+command's name, which keeps its own spelling when the target is renamed.
+
+A callback wrapped for its namespace — `trace add variable v w [namespace
+code [list Handler]]`, the idiom Tk's own `fontchooser.tcl` uses — is a
+reference to `Handler`, in the `[list …]`, braced, and bareword forms alike.
+
+A proc declared twice in one file is one command with two headers: a query
+from either header returns the same set.
+
 ## Example
 
 ```tcl

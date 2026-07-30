@@ -488,6 +488,99 @@ fn foreach_rename_reinstall_idiom_resolves_to_the_wrapper_not_the_stale_original
     );
 }
 
+/// Issue #1064 / #1062's deferred B1: go-to-definition follows a `rename`.
+/// tclsh 9.0.4 and 8.6.16 both prove `hello` runs `greet`'s body after
+/// `rename greet hello` (and that `greet` is then `invalid command name`),
+/// so the call site's declaration is the original `proc greet` header.
+#[test]
+fn definition_follows_a_rename_to_the_original_proc_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc greet {} { return hi }\nrename greet hello\nhello\n",
+    );
+    // Line 2: `hello` — cursor on the renamed-to call.
+    let locs = locations(&lsp.definition(&uri, 2, 1));
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        start_line(&locs[0]),
+        0,
+        "the renamed-to call resolves to `proc greet` (line 0): {locs:?}"
+    );
+}
+
+/// The order-gated other direction of the same fact: a call written *before*
+/// the rename is `invalid command name "hello"` on both tclsh 9.0.4 and
+/// 8.6.16, so there is nothing to navigate to and the provider must abstain
+/// rather than resolve backwards through a mutation that has not run.
+#[test]
+fn definition_declines_a_rename_written_after_the_call_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc greet {} { return hi }\nhello\nrename greet hello\n",
+    );
+    let locs = locations(&lsp.definition(&uri, 1, 1));
+    assert!(
+        locs.is_empty(),
+        "a rename that has not run yet must not resolve the call: {locs:?}"
+    );
+}
+
+/// idx 89 (differential-audit main audit wave): `interp alias {} NAME {}
+/// TARGET` silently *replaces* an existing command of that name — the real
+/// `tk/library/accessibility.tcl` `interp alias {} ::ttk::spinbox {}
+/// ::tk::spinbox` trick. tclsh 9.0.4 and 8.6.16 both print `classic
+/// tk::spinbox:` for a later `::ttk::spinbox` call, so the original proc is
+/// dead code under that name and the call's definition is the alias target.
+#[test]
+fn definition_prefers_an_alias_over_the_proc_it_replaced_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "namespace eval ::ttk {}\nnamespace eval ::tk {}\nproc ::ttk::spinbox {w args} { }\nproc ::tk::spinbox {w args} { }\ninterp alias {} ::ttk::spinbox {} ::tk::spinbox\n::ttk::spinbox .sb\n",
+    );
+    // Line 5: `::ttk::spinbox .sb` — cursor on the call's head.
+    let locs = locations(&lsp.definition(&uri, 5, 2));
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        start_line(&locs[0]),
+        3,
+        "must resolve to the alias target `proc ::tk::spinbox` (line 3), not the replaced `::ttk::spinbox` (line 2): {locs:?}"
+    );
+}
+
+/// idx 45 (differential-audit main audit wave): a proc redefined later in the
+/// same document is two definitions sharing one name. tclsh 9.0.4 and 8.6.16
+/// both prove the call *between* them runs the first body, so it must
+/// resolve to the first header even though the map keeps only the second.
+#[test]
+fn definition_between_two_declarations_reaches_the_first_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc p {} { return first }\np\nproc p {a} { return $a }\np x\n",
+    );
+    let first = locations(&lsp.definition(&uri, 1, 0));
+    assert_eq!(first.len(), 1, "{first:?}");
+    assert_eq!(
+        start_line(&first[0]),
+        0,
+        "the in-between call reaches the first definition: {first:?}"
+    );
+    let second = locations(&lsp.definition(&uri, 3, 0));
+    assert_eq!(second.len(), 1, "{second:?}");
+    assert_eq!(
+        start_line(&second[0]),
+        2,
+        "the trailing call reaches the redefinition: {second:?}"
+    );
+}
+
 /// idx 90 (differential-audit main audit wave, high severity): `tcl::OptProc`
 /// had no `AnalyserHookId` at all, so go-to-definition from a real call
 /// site fell through to nothing (the stub proc's stale, unresolved

@@ -845,6 +845,25 @@ pub struct AnalysisResult {
     /// (issue #923 idx 31, main audit wave) — `all_procs`' own span alone
     /// can never satisfy that lookup, since it only ever holds the winner's.
     pub proc_declaration_sites: Vec<(String, Span)>,
+    /// The `ProcDef`s a later same-named `proc` displaced from
+    /// [`Self::all_procs`], keyed by qualified name, in source order —
+    /// empty for every document that redefines nothing.
+    ///
+    /// `all_procs` keeps plain Tcl's "last redefinition wins", which is the
+    /// right answer for a call site *after* the last declaration and the
+    /// wrong one for a call between two of them: that call reaches the
+    /// earlier definition, with the earlier definition's span and parameter
+    /// list. This is the order-gated companion the map cannot express —
+    /// the `proc` analogue of [`Self::rename_offsets`] /
+    /// [`Self::alias_offsets`] — and
+    /// [`Self::proc_def_in_effect_at`] is how consumers ask it (issue #923
+    /// idx 45).
+    ///
+    /// Distinct from [`Self::proc_declaration_sites`], which records only
+    /// *spans* (enough to recognise a shadowed declaration's own name token,
+    /// issue #923 idx 31) and so cannot answer what the displaced definition's
+    /// parameters were.
+    pub superseded_procs: HashMap<String, Vec<ProcDef>>,
     /// Classes keyed by qualified name.
     pub all_classes: HashMap<String, ClassDef>,
     /// Every class-body span contributing member declarations to a
@@ -1092,6 +1111,54 @@ impl AnalysisResult {
             .map(|p| p.body_span)
             .chain(self.all_classes.values().map(|c| c.body_span))
             .any(|span| span.start() <= off && off < span.end())
+    }
+
+    /// Every declaration of `qualified` in this document, in source order —
+    /// the definitions a later same-named `proc` displaced
+    /// ([`Self::superseded_procs`]) followed by the winner
+    /// ([`Self::all_procs`]).  One element for the overwhelmingly common
+    /// single-declaration case.
+    pub fn proc_declarations<'a>(
+        &'a self,
+        qualified: &str,
+    ) -> impl DoubleEndedIterator<Item = &'a ProcDef> + 'a {
+        self.superseded_procs
+            .get(qualified)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .iter()
+            .chain(self.all_procs.get(qualified))
+    }
+
+    /// The definition of `qualified` a call at `call_off` actually reaches.
+    ///
+    /// Order-gated the same way every other command-table fact is: at top
+    /// level the latest declaration written before the call wins, and inside
+    /// any definition body the last declaration in the file wins, because the
+    /// whole file loads — running every top-level `proc` — before any body
+    /// runs.  A call that precedes *every* declaration reaches none of them,
+    /// but the winner is still returned so a consumer that has its own
+    /// order gate (go-to-definition's lenient "show me the declaration
+    /// anyway") behaves exactly as it did before redefinitions were tracked.
+    ///
+    /// Oracle (tclsh 8.6.16 and 9.0.4) for `proc p {} {return first}` / `p` /
+    /// `proc p {a} {…}` / `p x`: the first call returns `first`, the second
+    /// dispatches the one-parameter definition, and a bare `p` after the
+    /// redefinition fails `wrong # args: should be "p a"`.
+    #[must_use]
+    pub fn proc_def_in_effect_at(&self, qualified: &str, call_off: u32) -> Option<&ProcDef> {
+        let winner = self.all_procs.get(qualified)?;
+        let Some(earlier) = self.superseded_procs.get(qualified) else {
+            return Some(winner);
+        };
+        if self.offset_is_inside_any_definition_body(call_off) {
+            return Some(winner);
+        }
+        earlier
+            .iter()
+            .chain(std::iter::once(winner))
+            .rfind(|def| def.name_span.start() < call_off)
+            .or(Some(winner))
     }
 
     /// The qualified name of the *innermost* recorded proc or class

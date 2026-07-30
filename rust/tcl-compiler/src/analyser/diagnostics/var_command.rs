@@ -683,12 +683,6 @@ impl Analyser {
         }
     }
 
-    /// Maximum command-name hops [`Self::class_reachable_by_indirection`]
-    /// follows. Mirrors the eight-hop cap the user-call arity resolver uses
-    /// for the same chains (`validity.rs`), so a `rename a b; rename b c; …`
-    /// cycle cannot spin.
-    const MAX_CLASS_NAME_HOPS: u8 = 8;
-
     /// The canonical class a *written* command name reaches at `call_off`
     /// after following `rename` and `interp alias` indirection, or `None`
     /// when it reaches no live class.
@@ -701,14 +695,17 @@ impl Analyser {
     /// through `renamed_commands` (which maps `new → old`) and returns the
     /// canonical name, which is what the method lookup needs (issue #1049).
     ///
-    /// Both hop kinds are order-gated on the offset that established them,
-    /// via the same rule the user-call arity resolver uses: unconditional
-    /// inside a proc/method body (the whole file loads before any body runs)
-    /// and textual-order-gated at top level. `[Cat new]` written *before* the
-    /// rename therefore resolves to nothing — matching tclsh, where it is
-    /// simply an unknown command.
+    /// The hop walk itself — order gating, the eight-hop cap, and the
+    /// argument-prepending decline — lives in
+    /// [`crate::analyser::indirection::walk`], which the LSP's navigation
+    /// providers consume through the same entry point (issue #1064): a class
+    /// that go-to-definition follows a rename to and a class this pass types a
+    /// constructor through can never be resolved by two different rules.
+    /// What stays here is the part that is genuinely class-specific — class
+    /// -name canonicalisation and the liveness question at the terminal name.
     ///
-    /// The two hop kinds are not symmetric, and the asymmetry is deliberate:
+    /// The two hop kinds are not symmetric in that liveness question, and the
+    /// asymmetry is deliberate:
     ///
     /// - A `rename` moves the command once and for all, so the old name being
     ///   gone afterwards is exactly what freed it up — chasing back through it
@@ -725,70 +722,20 @@ impl Analyser {
     ///   target requires the strict direct-class check there — a rename
     ///   *source* name is vacated, so an alias pointing at it fails `invalid
     ///   command name` at run time (tclsh8.6.14/9.0.4-confirmed) and the
-    ///   lenient rename-source rule below must not resurrect it. A
-    ///   `-prependedargs` alias (`interp alias {} Cat {} Dog extra`) is
-    ///   declined outright: the bound words shift the constructor's
-    ///   arguments, so `Cat new` is not the call `Dog new` would be.
+    ///   lenient rename-source rule below must not resurrect it.
     fn class_reachable_by_indirection(&self, written: &str, call_off: u32) -> Option<String> {
-        let mut cur = self.canonicalise_class_name(written);
-        let mut hopped = false;
-        let mut via_alias = false;
-        for _ in 0..Self::MAX_CLASS_NAME_HOPS {
-            // `renamed_commands` / `command_aliases` are keyed by the
-            // qualified name the scanner resolved; `cur` starts as written.
-            let key = crate::naming::normalise_qualified_name(&cur);
-            if let Some(old) = self.result.renamed_commands.get(&key) {
-                let established = *self.result.rename_offsets.get(&key)?;
-                if !self.indirection_in_effect(established, call_off) {
-                    return None;
-                }
-                cur = self.canonicalise_class_name(old);
-                // A rename destination is a live command name in its own
-                // right — the class data just stays keyed by the source —
-                // so the chain is back on the rename-chase rule.
-                via_alias = false;
-            } else if let Some(alias) = self.result.command_aliases.get(&key) {
-                if !alias.extras.is_empty() {
-                    return None;
-                }
-                let established = *self.result.alias_offsets.get(&key)?;
-                if !self.indirection_in_effect(established, call_off) {
-                    return None;
-                }
-                let target = self.canonicalise_class_name(&alias.target);
-                if target == cur {
-                    return None;
-                }
-                cur = target;
-                via_alias = true;
-            } else {
-                // Terminal name. Reached through a rename chase, the class
-                // survives its source name being vacated
-                // (`class_live_by_name_for_call`); reached straight from an
-                // alias, the name itself must resolve, so only a directly
-                // live class will do.
-                let live = if via_alias {
-                    self.class_live_for_call(&cur, call_off)
-                } else {
-                    self.class_live_by_name_for_call(&cur, call_off)
-                };
-                return (hopped && live).then(|| self.canonicalise_class_name(&cur));
+        let hop = crate::analyser::indirection::walk(&self.result, written, call_off, &|name| {
+            self.canonicalise_class_name(name)
+        })?;
+        let live = match hop.last_hop {
+            crate::analyser::indirection::LastHop::Alias => {
+                self.class_live_for_call(&hop.target, call_off)
             }
-            hopped = true;
-        }
-        None
-    }
-
-    /// Whether an indirection established at `established` is observably in
-    /// effect by the time the call at `call_off` runs.
-    ///
-    /// Order-gated at top level and unconditional inside a definition body —
-    /// the whole file loads, running every top-level statement, before any
-    /// body runs, so a rename written after a method that uses it is still in
-    /// effect when that method executes. The same rule `validity.rs`'s
-    /// `fact_in_effect` applies to proc definitions, renames, and aliases.
-    fn indirection_in_effect(&self, established: u32, call_off: u32) -> bool {
-        established < call_off || self.result.offset_is_inside_any_definition_body(call_off)
+            crate::analyser::indirection::LastHop::Rename => {
+                self.class_live_by_name_for_call(&hop.target, call_off)
+            }
+        };
+        live.then_some(hop.target)
     }
 
     /// Whether `qualified` names a class that is still live at `call_off`

@@ -152,6 +152,7 @@ const BOOL_TRAITS: &[(&str, Traits)] = &[
     ("is_language_keyword", Traits::LANGUAGE_KEYWORD),
     ("produces_canonical_list", Traits::PRODUCES_CANONICAL_LIST),
     ("builds_command_prefix", Traits::BUILDS_COMMAND_PREFIX),
+    ("wraps_command_prefix", Traits::WRAPS_COMMAND_PREFIX),
     ("is_side_switch", Traits::IS_SIDE_SWITCH),
     ("defines_procedure", Traits::DEFINES_PROCEDURE),
     ("unsafe", Traits::UNSAFE),

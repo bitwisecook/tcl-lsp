@@ -26,6 +26,23 @@ Resolves proc calls, variable references, namespace-qualified names, and BIG-IP 
 - `server/features/definition.py`
 - `analyser/proc_lookup.py`
 
+Go to Definition follows the **command table as it stands where the cursor
+is**, not merely how the word is spelled. A `rename OLD NEW` makes `NEW`
+jump to `OLD`'s declaration; an `interp alias {} NAME {} TARGET` makes
+`NAME` jump to `TARGET`, even when a same-named proc exists — the alias has
+replaced it. Both are order-gated: a call written *before* the `rename` or
+`interp alias` still resolves the ordinary way (or, if nothing else defines
+it, not at all), which is what real Tcl does. A call inside a proc or class
+body sees every one of the file's renames and aliases regardless of where
+they are written, because the whole file loads before any body runs. An
+alias that binds leading arguments (`interp alias {} c {} target extra`) is
+not the same call, so Go to Definition abstains rather than pointing at a
+signature that does not describe it.
+
+A proc declared twice in one file is two definitions of one command. A call
+between the two jumps to the **first** header, a call after both jumps to
+the second, and a cursor on either header stays on that header.
+
 A `TclOO` member name written as a bare word inside a class body is only a
 jump target when it really is one: the cursor must sit on the member's own
 declaration, or on a bare word that `link` (Tcl 9.0's `oo::Helpers::link`)

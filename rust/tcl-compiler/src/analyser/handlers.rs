@@ -952,12 +952,7 @@ impl Analyser {
         // ``result.all_procs`` is keyed by the fully-qualified
         // name. The full qualified name is still on
         // ``ProcDef.qualified_name`` for callers that need it.
-        self.result
-            .all_procs
-            .insert(qualified.clone(), proc.clone());
-        self.result
-            .proc_declaration_sites
-            .push((qualified.clone(), name_span));
+        self.register_proc_definition(&qualified, &proc, name_span);
         let simple_key = proc.name.clone();
         let path = scope_path.to_vec();
         if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
@@ -990,6 +985,44 @@ impl Analyser {
         }
 
         true
+    }
+
+    /// Record one `proc` declaration into the whole-document tables —
+    /// `all_procs` (keyed by qualified name, last redefinition winning, which
+    /// is plain Tcl's own semantics), the never-deduplicated
+    /// `proc_declaration_sites` span list, and, when this declaration
+    /// displaces an earlier one of the same qualified name,
+    /// `superseded_procs`.
+    ///
+    /// The displaced definition is kept because "last wins" is only true
+    /// *from the second declaration onward*: a call written between the two
+    /// reaches the first one, with the first one's span and parameter list.
+    /// Oracle (tclsh 8.6.16 and 9.0.4): with `proc p {} {return first}`,
+    /// `p` between the declarations returns `first`, and after a later
+    /// `proc p {a} {…}` the same bare `p` fails `wrong # args: should be "p
+    /// a"`. Dropping the first definition on the map insert made
+    /// go-to-definition from the in-between call jump to the *later* header
+    /// and left its arity unknowable (issue #923 idx 45).
+    ///
+    /// `superseded_procs` stays empty for every document without a
+    /// redefinition, so the common case pays one `HashMap::insert` return
+    /// value and nothing else.
+    fn register_proc_definition(
+        &mut self,
+        qualified: &str,
+        proc: &ProcDef,
+        name_span: tcl_lexer::Span,
+    ) {
+        if let Some(previous) = self.result.all_procs.insert(qualified.into(), proc.clone()) {
+            self.result
+                .superseded_procs
+                .entry(qualified.to_string())
+                .or_default()
+                .push(previous);
+        }
+        self.result
+            .proc_declaration_sites
+            .push((qualified.to_string(), name_span));
     }
 
     /// Walks a `proc`'s body in a freshly created child scope: binds formal
@@ -1162,12 +1195,7 @@ impl Analyser {
             param_traits,
         };
 
-        self.result
-            .all_procs
-            .insert(qualified.clone(), proc.clone());
-        self.result
-            .proc_declaration_sites
-            .push((qualified.clone(), name_span));
+        self.register_proc_definition(&qualified, &proc, name_span);
         let simple_key = proc.name.clone();
         let path = scope_path.to_vec();
         if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {

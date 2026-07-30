@@ -328,6 +328,26 @@ declare_traits! {
     /// name appears in the consumer.
     BuildsCommandPrefix => BUILDS_COMMAND_PREFIX;
 
+    /// Wraps a script/prefix argument into a value that is *itself* a
+    /// command prefix: evaluating the result invokes whatever command
+    /// the wrapped argument names, with the caller's own arguments
+    /// appended.  Set on `namespace code`, whose result is
+    /// `::namespace inscope NS script` (verified on tclsh 8.6.16 and
+    /// 9.0.4: after `trace add variable S(size) write [namespace code
+    /// [list Tracer]]`, `trace info variable ::demo::S(size)` reports
+    /// `{write {::namespace inscope ::demo Tracer}}` and writing the
+    /// variable really dispatches `::demo::Tracer`).
+    ///
+    /// The wrapped word is the command's own
+    /// [`crate::arg_role::ArgRole::Body`] argument — the same position
+    /// that already describes the script — so no second index table is
+    /// needed.  Consumers unwrap one level and re-apply their ordinary
+    /// command-prefix extraction to what they find, which keeps
+    /// `[namespace code [list X]]`, `[namespace code {X a}]`, and
+    /// `[namespace code X]` all resolving through one rule and no
+    /// command name in the walker (issue #923 idx 92).
+    WrapsCommandPrefix => WRAPS_COMMAND_PREFIX;
+
     // Safety
     /// Inherently dangerous command.
     Unsafe => UNSAFE;

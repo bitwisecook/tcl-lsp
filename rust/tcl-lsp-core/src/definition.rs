@@ -41,12 +41,26 @@
 //!   behaviour for procs whose defining namespace isn't
 //!   statically visible at the call.
 //!
-//! Command-alias resolution: when the cursor's word matches an
-//! `interp alias {} ALIAS {} TARGET` recorded in
-//! `analysis.command_aliases`, the provider jumps to the target
-//! proc's definition (when the target is a user proc), resolving
-//! the target from the global namespace — where an alias target
-//! is looked up when the alias fires.
+//! Command-table indirection: Tcl's command table is mutable, so a
+//! word's spelling does not by itself name the definition the call
+//! reaches. When `analysis.renamed_commands` / `analysis.command_aliases`
+//! record a `rename OLD NEW` or an `interp alias {} ALIAS {} TARGET`
+//! that is **in effect at the cursor**, the provider follows the chain
+//! (via the shared walk in `tcl_compiler::analyser::indirection`, which
+//! the analyser's own constructor typing uses) and resolves the terminal
+//! name from the global namespace — where an alias target and a rename
+//! source are both looked up when the binding fires. This is asked
+//! *before* the ordinary call resolution, because an alias silently
+//! replaces a same-named command. It is order-gated: a call written
+//! before the mutation resolves the ordinary way, matching tclsh, where
+//! it is `invalid command name`. An argument-prepending alias is
+//! declined — it is not the call the target would receive.
+//!
+//! Redefinition: a proc declared twice in one document is two
+//! definitions of one command. `all_procs` keeps the last (plain Tcl's
+//! own rule) and `AnalysisResult::superseded_procs` keeps the rest, so a
+//! call between the two resolves to the definition in effect there and a
+//! cursor on either header stays on that header.
 //!
 //! Class-member lookup: when the cursor sits on a
 //! word inside a class body span, the provider walks that
@@ -197,7 +211,7 @@ pub fn definition(
                 source,
                 "::",
                 target,
-                Some(tcl_registry::registry_for_dialect("")),
+                Some(tcl_registry::registry_for_dialect(&analysis.dialect)),
             )
         {
             return vec![span_to_range(source, &line_index, proc_def.name_span)];
@@ -206,23 +220,26 @@ pub fn definition(
     // `next` / `nextto` inside a method body — jump to the super-method in
     // the MRO chain that the enclosing method overrides (`next`), or to the
     // named class's copy of it (`nextto Cls`).
-    if is_next_chain_keyword(&word)
+    if is_next_chain_keyword_in(&analysis.dialect, &word)
         && let Some(span) =
             next_dispatch_target(analysis, source, &line_index, line, character, &word)
     {
         return vec![span_to_range(source, &line_index, span)];
     }
-    // Prefer the proc whose own declaration name span covers the cursor (so
-    // a same-named proc in another namespace's own decl resolves to *that*
+    // Prefer the declaration whose own name span covers the cursor (so a
+    // same-named proc in another namespace's own decl resolves to *that*
     // one — mirrors `references::proc_references` / `rename::rename_proc`;
-    // #924).
+    // #924).  `proc_declaration_sites` rather than `all_procs`, so a
+    // declaration a later same-named `proc` displaced still resolves to
+    // itself instead of silently jumping to its own successor (issue #923
+    // idx 45) — the map only ever keeps the winner's span.
     let cursor_offset = byte_offset_at(&line_index, source, line, character);
-    if let Some((_, proc_def)) = analysis
-        .all_procs
+    if let Some((_, span)) = analysis
+        .proc_declaration_sites
         .iter()
-        .find(|(_, p)| p.name_span.start() <= cursor_offset && cursor_offset < p.name_span.end())
+        .find(|(_, span)| span.start() <= cursor_offset && cursor_offset < span.end())
     {
-        return vec![span_to_range(source, &line_index, proc_def.name_span)];
+        return vec![span_to_range(source, &line_index, *span)];
     }
     // Otherwise it is a CALL — resolve namespace-aware, following C Tcl's
     // command resolution (`Tcl_FindCommand`, `tclNamesp.c`): the caller's
@@ -237,6 +254,21 @@ pub fn definition(
         cursor_offset,
         &analysis.namespace_overrides,
     );
+    // The command table may have been *mutated* before this call runs: a
+    // `rename OLD NEW` moved a definition onto this word, or an `interp
+    // alias` installed (or silently replaced) it. That is what the call
+    // actually reaches, so it is asked ahead of the ordinary resolution
+    // below — which would otherwise answer with a same-named `proc` the
+    // alias has already displaced (issue #923 idx 89; tclsh 8.6.16/9.0.4:
+    // after `interp alias {} ::ttk::spinbox {} ::tk::spinbox`, calling
+    // `::ttk::spinbox` runs `::tk::spinbox`'s body, and the original proc is
+    // unreachable under that name). The hop is order-gated, so a rename or
+    // alias written *after* this call site does not apply and the ordinary
+    // resolution below still wins (tclsh: a `hello` before `rename greet
+    // hello` is `invalid command name "hello"`).
+    if let Some(span) = indirect_definition_target(analysis, source, cursor_offset, &word) {
+        return vec![span_to_range(source, &line_index, span)];
+    }
     // `Factory::make` — [incr Tcl]'s colon-qualified class-proc dispatch
     // (issue #990).  Asked **before** the stock proc resolution below, because
     // itcl installs a custom command resolver on every class namespace and Tcl
@@ -255,9 +287,15 @@ pub fn definition(
         source,
         &namespace,
         &word,
-        Some(tcl_registry::registry_for_dialect("")),
+        Some(tcl_registry::registry_for_dialect(&analysis.dialect)),
     ) {
-        return vec![span_to_range(source, &line_index, proc_def.name_span)];
+        // A proc redefined later in the document is two definitions sharing
+        // one name; the call reaches whichever was in effect where it is
+        // written, not unconditionally the last (issue #923 idx 45).
+        let in_effect = analysis
+            .proc_def_in_effect_at(&proc_def.qualified_name, cursor_offset)
+            .unwrap_or(proc_def);
+        return vec![span_to_range(source, &line_index, in_effect.name_span)];
     }
     if let Some(span) = class_declaration_at(analysis, &word, cursor_offset) {
         return vec![span_to_range(source, &line_index, span)];
@@ -270,23 +308,33 @@ pub fn definition(
     if let Some(span) = lookup_class_member(analysis, &word, cursor_offset) {
         return vec![span_to_range(source, &line_index, span)];
     }
-    // Alias resolution — when the cursor's word matches an
-    // `interp alias {} ALIAS {} TARGET` recorded in
-    // `analysis.command_aliases`, jump to the TARGET proc.  An alias target
-    // is looked up when the alias fires, from the global namespace, so its
-    // resolution context is `"::"` wherever the alias was written.
-    if let Some(alias) = lookup_alias(analysis, &word)
-        && let Some(proc_def) = resolve_called_proc(
-            analysis,
-            source,
-            "::",
-            &alias.target,
-            Some(tcl_registry::registry_for_dialect("")),
-        )
-    {
-        return vec![span_to_range(source, &line_index, proc_def.name_span)];
-    }
     Vec::new()
+}
+
+/// The declaration span a word reaches through the document's command-table
+/// mutations — `rename OLD NEW` and `interp alias {} ALIAS {} TARGET` — or
+/// `None` when no in-effect indirection covers it.
+///
+/// One tier for both hop kinds and both target kinds, so nothing that
+/// navigates has to know which mutation produced the binding.  The chain
+/// itself is resolved by [`command_indirection_target`]; the terminal name is
+/// then resolved as an ordinary command would be: as a user `proc` (from the
+/// global namespace, where an alias target and a rename source are both
+/// looked up when the binding fires) and then as a class.  A chain ending on a
+/// registry builtin (`interp alias {} mycmd {} puts`) has no Tcl source to
+/// jump to, so it correctly answers nothing rather than guessing.
+fn indirect_definition_target(
+    analysis: &AnalysisResult,
+    source: &str,
+    cursor_off: u32,
+    word: &str,
+) -> Option<tcl_lexer::Span> {
+    let target = command_indirection_target(analysis, word, cursor_off)?;
+    let registry = tcl_registry::registry_for_dialect(&analysis.dialect);
+    if let Some(proc_def) = resolve_called_proc(analysis, source, "::", &target, Some(registry)) {
+        return Some(proc_def.name_span);
+    }
+    class_declaration_at(analysis, &target, cursor_off)
 }
 
 /// The cursor context [`position_definition`] needs beyond the offset.
@@ -725,13 +773,11 @@ fn lookup_method_in_class(
 /// these keywords propagates through its `CommandSpec`, never through a
 /// walker edit.
 ///
-/// The dialect-less callers below pass `""`, which resolves to the
-/// permissive plain-Tcl profile — availability mask `ALL_TCL`, so every 8.6+
-/// `TclOO` keyword resolves. `definition` reaches its providers without a
-/// dialect string in scope (as its three pre-existing
-/// `registry_for_dialect("")` call sites already show); threading a real
-/// dialect through every `go-to-definition` entry point is worth doing, but
-/// as its own change.
+/// `definition` threads `AnalysisResult::dialect` — the dialect the document
+/// was actually analysed under — through its own registry lookups (issue
+/// #1064). The remaining `""` callers are the ones with no analysis in scope;
+/// `""` resolves to the permissive plain-Tcl profile (availability mask
+/// `ALL_TCL`), so every 8.6+ `TclOO` keyword still resolves there.
 pub(crate) fn method_dispatch_keyword_in(
     dialect: &str,
     word: &str,
@@ -746,9 +792,10 @@ pub(crate) fn is_self_dispatch_keyword(word: &str) -> bool {
     method_dispatch_keyword_in("", word) == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
 }
 
-/// Whether `word` is a `TclOO` next-chain keyword (`next` / `nextto`).
-fn is_next_chain_keyword(word: &str) -> bool {
-    method_dispatch_keyword_in("", word) == Some(tcl_registry::MethodDispatchKind::NextChain)
+/// Whether `word` is a `TclOO` next-chain keyword (`next` / `nextto`) under
+/// `dialect` — a registry that predates `TclOO` answers `false`.
+fn is_next_chain_keyword_in(dialect: &str, word: &str) -> bool {
+    method_dispatch_keyword_in(dialect, word) == Some(tcl_registry::MethodDispatchKind::NextChain)
 }
 
 /// Whether a next-chain keyword names an explicit resume-from class in its
@@ -1063,22 +1110,61 @@ pub(crate) fn classmethod_dispatch_class(
         .map(|_| provider_q.to_string())
 }
 
-/// Look up an alias by name.  Accepts the alias's simple or
-/// qualified form (`mycmd` and `::mycmd` both match an alias
-/// stored with `qualified_name == "::mycmd"`).
-fn lookup_alias<'a>(
-    analysis: &'a AnalysisResult,
-    name: &str,
-) -> Option<&'a tcl_compiler::signature_scan::types::SignatureCommandAlias> {
-    let qualified = if name.starts_with("::") {
-        name.to_string()
-    } else {
-        format!("::{name}")
-    };
-    analysis
-        .command_aliases
-        .get(&qualified)
-        .or_else(|| analysis.command_aliases.get(name))
+/// The command name a word written at `cursor_off` actually reaches once the
+/// document's `rename` / `interp alias` statements are taken into account, or
+/// `None` when the command table leaves the word alone there.
+///
+/// The single navigation entry to the shared hop walk
+/// ([`tcl_compiler::analyser::indirection::walk`]) that the analyser's
+/// constructor typing already uses — order-gated, hop-capped, and declining an
+/// argument-prepending alias, all decided in one place so a class that W307
+/// resolves through a rename and a class go-to-definition resolves through the
+/// same rename can never disagree (issues #1062 B1/B2, #1064).
+///
+/// Navigation asks only "which name does this reach"; whether that name has a
+/// user `proc` / class to jump to is the caller's own question, so no liveness
+/// predicate is applied here.  Canonicalisation is the plain
+/// qualified-name normalisation the alias/rename tables are keyed by — a
+/// bare `mycmd` matches an alias stored as `::mycmd`, exactly like the
+/// `lookup_alias` it replaces.
+///
+/// `O(1)` hash lookups bounded by the hop cap: no invocation scan, no source
+/// rescan, so it is safe to call on every request.
+#[must_use]
+pub(crate) fn command_indirection_target(
+    analysis: &AnalysisResult,
+    word: &str,
+    cursor_off: u32,
+) -> Option<String> {
+    tcl_compiler::analyser::indirection::walk(
+        analysis,
+        word,
+        cursor_off,
+        &tcl_syntax::naming::normalise_qualified_name,
+    )
+    .map(|hop| hop.target)
+}
+
+/// Whether `qualified` is a name **this document** only gains through a
+/// `rename` / `interp alias` that has not run yet at `cursor_off`.
+///
+/// The workspace index's command links are position-free by design — a
+/// mutation in *another* file is unconditionally in effect, since that file
+/// loads wholesale — but a link this same document established later in its
+/// own text is not, and following it would resolve a call tclsh answers with
+/// `invalid command name`. The cross-document resolver
+/// (`tcl-lsp-server::resolve_workspace_symbols`) asks this before chasing a
+/// link so its ordering matches the in-document provider's (issue #1064).
+#[must_use]
+pub fn indirection_pending_at(analysis: &AnalysisResult, qualified: &str, cursor_off: u32) -> bool {
+    let key = tcl_syntax::naming::normalise_qualified_name(qualified);
+    let established = analysis
+        .rename_offsets
+        .get(&key)
+        .or_else(|| analysis.alias_offsets.get(&key));
+    established.is_some_and(|&at| {
+        !tcl_compiler::analyser::indirection::in_effect(analysis, at, cursor_off)
+    })
 }
 
 /// Resolve `head sub` (as returned by [`instance_method_at_cursor`], with
@@ -2191,6 +2277,20 @@ pub(crate) fn resolve_proc_target_at<'a>(
     {
         return Some(hit);
     }
+    // A declaration a later same-named `proc` displaced keeps its own name
+    // token, which `all_procs` (winner-only) can never match; it still
+    // declares that qualified name, so resolve through to whichever
+    // definition currently wins for it — the same rule
+    // `tcl-lsp-server::resolve_workspace_symbols` applies cross-document
+    // (issue #923 idx 31 / idx 45).
+    if let Some((qualified, _)) = analysis
+        .proc_declaration_sites
+        .iter()
+        .find(|(_, span)| span.start() <= cursor_off && cursor_off < span.end())
+        && let Some(hit) = analysis.all_procs.get_key_value(qualified)
+    {
+        return Some(hit);
+    }
     // An `expr` math-function call site resolves through the analyser's own
     // two-candidate mathfunc rule, not the ordinary bareword one — so
     // find-references / rename / call-hierarchy / linked-editing triggered
@@ -2203,6 +2303,16 @@ pub(crate) fn resolve_proc_target_at<'a>(
             .resolved_qualified_name
             .as_deref()
             .and_then(|resolved| analysis.all_procs.get_key_value(resolved));
+    }
+    // A word the command table has moved onto (a `rename` destination, an
+    // `interp alias` name) targets the definition it really reaches, so
+    // find-references / rename / call-hierarchy issued from either spelling
+    // converge on one proc (issues #1062 B1/B2, #1064). Order-gated, so a
+    // call written before the mutation still resolves the ordinary way.
+    if let Some(target) = command_indirection_target(analysis, word, cursor_off)
+        && let Some(hit) = analysis.all_procs.get_key_value(&target)
+    {
+        return Some(hit);
     }
     let ns = namespace_context_at(
         &analysis.global_scope,
@@ -2229,6 +2339,18 @@ pub(crate) fn resolve_class_target_at<'a>(
         .all_classes
         .iter()
         .find(|(_, c)| c.name_span.start() <= cursor_off && cursor_off < c.name_span.end())
+    {
+        return Some(hit);
+    }
+    // A `rename Dog Cat` / `interp alias {} Pup {} Dog` makes the written word
+    // reach a class keyed under a different name; the class's own identity
+    // (its `ClassDef`, its method table) is unchanged by the move, so the
+    // canonical name is what the lookup needs. Order-gated by the shared
+    // walk, so `Cat` written before the rename still resolves to nothing here
+    // (issue #1064; the diagnostics side of the same fact is
+    // `class_reachable_by_indirection`).
+    if let Some(target) = command_indirection_target(analysis, word, cursor_off)
+        && let Some(hit) = analysis.all_classes.get_key_value(&target)
     {
         return Some(hit);
     }
