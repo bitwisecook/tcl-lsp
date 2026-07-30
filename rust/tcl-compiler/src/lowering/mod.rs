@@ -1091,7 +1091,7 @@ impl<'r> Lowerer<'r> {
             // `apply {{params} body ?ns?} …` — walk the braced body so nested
             // definitions register (like `namespace eval`), keeping the call a
             // runtime barrier because the body runs in a separate frame.
-            LoweringHookId::Apply => Some(self.lower_apply(seg, namespace)),
+            LoweringHookId::Apply => Some(self.lower_apply(seg)),
 
             // `array for {k v} arr body` (Tcl 9.0) — iterate array entries.
             // Like `apply`, the call stays a runtime barrier (C Tcl invokes
@@ -1913,7 +1913,7 @@ impl<'r> Lowerer<'r> {
         );
     }
 
-    fn lower_apply(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
+    fn lower_apply(&mut self, seg: &SegmentedCommand) -> Statement {
         use tcl_lexer::TokenType;
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
@@ -1947,12 +1947,15 @@ impl<'r> Lowerer<'r> {
         if let Some((body_text, body_offset)) = body_info {
             // `apply` evaluates the body in the namespace named by lambda element
             // 2, or the *global* namespace when it is absent — never the caller's
-            // namespace (Tcl `apply` manual). So a nested `proc` registers
-            // globally unless the lambda pins a namespace; a non-`::`-qualified
-            // pin resolves relative to the caller (as `TclGetNamespaceFromObj`).
+            // namespace. Element 2 is interpreted relative to the **global**
+            // namespace even when it does not start with `::` (`doc/apply.n`:
+            // "If given, namespace is interpreted relative to the global
+            // namespace even if its name does not start with ::"; `tclProc.c`
+            // `TclNRApplyObjCmd` `::`-prefixes the word before the lookup), so
+            // this must mirror the analyser's `handle_apply_command` exactly.
             let body_ns = match lambda_elems.get(2).map(|(_, t)| t.as_str()) {
                 Some(ns) if !ns.is_empty() && !ns.starts_with('$') && !ns.starts_with('[') => {
-                    join_namespace(namespace, ns)
+                    join_namespace("::", ns)
                 }
                 _ => "::".to_string(),
             };
@@ -3331,6 +3334,27 @@ mod tests {
         assert!(
             m.procedures.contains_key("::bar::helper"),
             "explicit lambda namespace must be honoured: {:?}",
+            m.procedures.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// TP — a relative lambda namespace element homes against the GLOBAL
+    /// namespace even from inside a qualified-name proc (`doc/apply.n`:
+    /// "interpreted relative to the global namespace even if its name does
+    /// not start with ::"; tclsh 9.0.4 probe `a2b_apply.tcl`). Mirrors the
+    /// analyser's `handle_apply_command` so IR and analysis agree.
+    #[test]
+    fn apply_relative_lambda_namespace_homes_globally_not_to_the_caller() {
+        let src = "proc ::caller::p {} { apply {{} { proc helper {} { return 1 } } sub} }\n";
+        let m = lower_to_ir(src, &reg());
+        assert!(
+            m.procedures.contains_key("::sub::helper"),
+            "relative lambda ns must resolve against ::: {:?}",
+            m.procedures.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !m.procedures.contains_key("::caller::sub::helper"),
+            "relative lambda ns must NOT pin against the caller: {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
     }

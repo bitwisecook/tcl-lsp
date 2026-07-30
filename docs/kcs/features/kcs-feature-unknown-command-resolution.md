@@ -44,6 +44,44 @@ W123 behaviour accordingly:
 - **User-defined procs**: Any `proc` defined in the file (or sourced via packages) is a known command.
 - **Command aliases**: Commands defined via `interp alias` are treated as known. See [Command Alias Resolution](../../../docs/design/contracts/command-alias-resolution.md).
 - **Namespace-qualified names**: Commands containing `::` are skipped (may come from `namespace import`).
+- **Library and package commands**: A command an installed library auto-loads
+  (through a `tclIndex` on the configured library paths), or that a package the
+  document requires defines, is treated as known — see below.
+
+### Guarded packages and the Tcl version you target
+
+A package's `pkgIndex.tcl` may only register itself on some Tcl releases. The
+tcllib idiom guards the whole file:
+
+```tcl
+if {![package vsatisfies [package provide Tcl] 8.5 9]} {return}
+package ifneeded log 1.5 [list source [file join $dir log.tcl]]
+```
+
+and the idiom C extensions use picks a branch:
+
+```tcl
+if {[package vsatisfies [package provide Tcl] 9.0-]} {
+    package ifneeded mypkg 1.0 [list load [file join $dir mypkg9.so]]
+} else {
+    package ifneeded mypkg 1.0 [list load [file join $dir mypkg8.so]]
+}
+```
+
+The server reads these guards and evaluates them against the Tcl version the
+document targets (the `tclLsp.dialect` setting, a folder override, or the
+version detected from the file). The outcome decides whether W123 is
+suppressed:
+
+| The guard says | W123 |
+|---|---|
+| the package **does** register on your Tcl version | suppressed — the command is real |
+| the guard cannot be read (it tests the platform, a file, or a variable) | suppressed — the server does not guess |
+| the package **does not** register on your Tcl version | **shown** — `package require` would fail here, so the call really is an error |
+
+The last row is the case that used to be missed: a package that cannot load on
+Tcl 9 no longer silences the warning for a Tcl 9 workspace. If you see W123 on
+a command you believe exists, check the `tclLsp.dialect` setting first.
 
 ## Operational context
 
@@ -57,21 +95,30 @@ against the union of: registry commands, user-defined procs, stub commands,
 
 ## File-path anchors
 
-- `analyser/_analyser/_diag_commands.py` — `_emit_unresolved_command_diagnostics`
-- `analyser/_analyser/_oo.py` — `_extract_unknown_proc_info`
-- `analyser/semantic_model.py` — `UnknownProcInfo`
-- `shared/text.py` — `edit_distance`, `suggest_similar`
-- `server/features/diagnostics.py` — `_to_lsp_diagnostic` (code description link)
+- `rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs` — the W123 pass and
+  its known-name sets
+- `rust/tcl-lsp-server/src/lib.rs` — `refine_w123_diagnostics`, the workspace
+  refinement that consults the package database
+- `rust/tcl-lsp-core/src/package_resolver.rs` — the `auto_path` / `pkgIndex` /
+  `tclIndex` package database
+- `rust/tcl-lsp-core/src/package_resolver/reachability.rs` — which
+  `package ifneeded` declarations a given Tcl release actually runs
 
 ## Failure modes
 
 - False positives in codebases using dynamic command creation (e.g. `apply`, `coroutine`) not detected by the gating logic.
 - Forward-defined `unknown` proc in a sourced file (cross-file) is not detected — analysis is single-file.
+- A `pkgIndex.tcl` guard the server cannot read leaves the package "possibly
+  available", so a command it would never really provide is not flagged. That
+  is deliberate: a missed hint is a smaller problem than a warning on working
+  code.
 
 ## Test anchors
 
-- `tests/test_analyser.py` — W123 test cases
-- `tests/test_text_utils.py` — edit distance and suggestion tests
+- `rust/tcl-lsp-core/src/package_resolver/reachability/tests.rs` — guard
+  evaluation, per Tcl release
+- `rust/tcl-lsp-server/tests/e2e/diagnostics.rs` — end-to-end W123 cases,
+  including the guarded-package pair
 
 ## Example
 

@@ -30,7 +30,7 @@
 //! Helpers operate on ``&mut Analyser`` rather than free
 //! functions because most need both the scope under cursor
 //! (resolved from the path) and access to the analyser's
-//! tracking maps (``const_strings``, ``regex_vars``, ``ns_cache``,
+//! tracking maps (``const_strings``, ``regex_vars``,
 //! ``result.regex_patterns``).
 
 use std::collections::{HashMap, HashSet};
@@ -66,7 +66,7 @@ fn scope_at<'a>(root: &'a Scope, path: &[usize]) -> Option<&'a Scope> {
 
 /// Append a namespace component `part` onto the absolute namespace
 /// `ns` (`"::"`-rooted), mirroring the join in
-/// [`Analyser::namespace_from_scope_path`]: an absolute `part` rebases,
+/// [`Analyser::command_resolution_namespace`]: an absolute `part` rebases,
 /// a relative one is appended.
 ///
 /// `part` is a *written* namespace name — canonicalise it once (colon runs
@@ -1170,58 +1170,21 @@ impl Analyser {
         None
     }
 
-    /// Compute the namespace string for a scope path, with a
-    /// per-call cache.
-    ///
-    /// Walks the scope path collecting ``ScopeKind::Namespace``
-    /// names, then joins them via [`normalise_qualified_name`].
-    /// Caches the result on `self.ns_cache` keyed by the path.
-    pub fn namespace_from_scope_path(&mut self, scope_path: &[usize]) -> String {
-        if let Some(cached) = self.ns_cache.get(scope_path) {
-            return cached.clone();
-        }
-        let mut parts: Vec<String> = Vec::new();
-        let mut cursor = &self.result.global_scope;
-        // The global scope itself is not a namespace component;
-        // contribute its name only if we're past the root.
-        for &idx in scope_path {
-            let Some(child) = cursor.children.get(idx) else {
-                break;
-            };
-            if child.kind == ScopeKind::Namespace {
-                parts.push(child.name.clone());
-            }
-            cursor = child;
-        }
-        let result = if parts.is_empty() {
-            "::".to_string()
-        } else {
-            // One join per written segment — `join_namespace` canonicalises
-            // the written part and appends with an exact separator, so a
-            // namespace legitimately named `:` never collapses (#934).
-            let mut ns = "::".to_string();
-            for part in parts {
-                ns = join_namespace(&ns, &part);
-            }
-            ns
-        };
-        self.ns_cache.insert(scope_path.to_vec(), result.clone());
-        result
-    }
-
     /// Namespace in which an *unqualified* command invoked at
     /// `scope_path` resolves, following Tcl's command-resolution rule:
     /// the call's enclosing namespace, where a proc body resolves
     /// commands in the proc's **defining** namespace (the prefix of its
     /// qualified name) rather than its lexical parent.
     ///
-    /// This differs from [`Self::namespace_from_scope_path`] (which is
-    /// purely lexical and ignores proc scopes): `proc ::ns::p {...}`
-    /// declared at top level has defining namespace `::ns`, so an
-    /// unqualified `foo` in its body resolves to `::ns::foo` then
-    /// `::foo` — even though there is no enclosing `namespace eval`.
-    /// Used to scope the E002/E003 arity shadow guard to the command a
-    /// call actually resolves to.
+    /// This is deliberately **not** a purely lexical namespace walk.
+    /// `proc ::ns::p {...}` declared at top level has defining namespace
+    /// `::ns`, so an unqualified `foo` in its body resolves to `::ns::foo`
+    /// then `::foo` — even though there is no enclosing `namespace eval`.
+    /// A lexical walk (one that skips proc scopes) answers `::` there and
+    /// mis-homes everything the body creates or looks up: procs, classes,
+    /// ensembles, `namespace import`/`export` targets, and aliases
+    /// (issue #923 idx 85).  Every analyser site that needs "the namespace
+    /// current at this point" uses this one rule.
     #[must_use]
     pub(super) fn command_resolution_namespace(&self, scope_path: &[usize]) -> String {
         let mut ns = "::".to_string();
@@ -1871,44 +1834,49 @@ mod tests {
     }
 
     #[test]
-    fn namespace_from_scope_path_global_returns_root() {
-        let mut a = Analyser::new();
-        assert_eq!(a.namespace_from_scope_path(&[]), "::");
+    fn command_resolution_namespace_global_returns_root() {
+        let a = Analyser::new();
+        assert_eq!(a.command_resolution_namespace(&[]), "::");
     }
 
     #[test]
-    fn namespace_from_scope_path_single_relative() {
-        let mut a = make_analyser_with_namespace("ns1");
-        assert_eq!(a.namespace_from_scope_path(&[0]), "::ns1");
+    fn command_resolution_namespace_single_relative() {
+        let a = make_analyser_with_namespace("ns1");
+        assert_eq!(a.command_resolution_namespace(&[0]), "::ns1");
     }
 
     #[test]
-    fn namespace_from_scope_path_absolute_rebases() {
+    fn command_resolution_namespace_absolute_rebases() {
         let mut a = make_analyser_with_namespace("outer");
         // Add an absolute child namespace.
         a.result.global_scope.children[0]
             .children
             .push(Scope::new(ScopeKind::Namespace, "::abs"));
         // Path [0, 0] should rebase at ::abs, not nest under outer.
-        assert_eq!(a.namespace_from_scope_path(&[0, 0]), "::abs");
+        assert_eq!(a.command_resolution_namespace(&[0, 0]), "::abs");
+    }
+
+    /// A proc scope resolves in its own **defining** namespace, so a
+    /// qualified-name proc declared at the top level still answers `::ns1`
+    /// (issue #923 idx 85 — a purely lexical walk answered `::`).
+    #[test]
+    fn command_resolution_namespace_uses_a_procs_defining_namespace() {
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Proc, "::ns1::myproc"));
+        assert_eq!(a.command_resolution_namespace(&[0]), "::ns1");
     }
 
     #[test]
-    fn namespace_from_scope_path_caches_result() {
-        let mut a = make_analyser_with_namespace("ns1");
-        let _ = a.namespace_from_scope_path(&[0]);
-        assert!(a.ns_cache.contains_key(&vec![0_usize]));
-    }
-
-    #[test]
-    fn namespace_from_scope_path_skips_proc_scopes() {
-        // proc scopes don't contribute to the namespace path.
+    fn command_resolution_namespace_nested_proc_keeps_the_enclosing_namespace() {
         let mut a = Analyser::new();
         let mut ns = Scope::new(ScopeKind::Namespace, "ns1");
         ns.children
             .push(Scope::new(ScopeKind::Proc, "::ns1::myproc"));
         a.result.global_scope.children.push(ns);
-        assert_eq!(a.namespace_from_scope_path(&[0, 0]), "::ns1");
+        assert_eq!(a.command_resolution_namespace(&[0, 0]), "::ns1");
     }
 
     /// The Method-scope namespace rule: a `TclOO` method (flagged) resolves

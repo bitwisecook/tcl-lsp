@@ -162,7 +162,7 @@ fn enclosing_namespace(qualified: &str) -> String {
 }
 
 /// Join a namespace prefix with a (possibly absolute) child name, mirroring the
-/// absolute-reset rule the analyser's `namespace_from_scope_path` uses.
+/// absolute-reset rule the analyser's `command_resolution_namespace` uses.
 fn join_ns(prefix: &str, name: &str) -> String {
     if name.starts_with("::") {
         name.to_string()

@@ -635,7 +635,11 @@ impl Analyser {
         // isolated `Method` scope matches the whole-file walk), the formal
         // params, and the class instance variables (pre-bound in every method).
         if self.defer_proc_bodies {
-            let namespace = self.namespace_from_scope_path(scope_path);
+            // Same rule `handle_proc_command` records for a deferred proc body:
+            // the command-resolution namespace, so the isolated per-item rebuild
+            // and the whole-file walk agree even when the class definer ran
+            // inside a qualified-name proc (issue #923 idx 85).
+            let namespace = self.command_resolution_namespace(scope_path);
             let safe_interp_ctx = self.safe_interp_ctx_snapshot();
             self.deferred_bodies.push(super::per_item::DeferredBody {
                 body_text: mb.body_text.clone(),
@@ -690,7 +694,10 @@ impl Analyser {
         }
         let raw_name = &args[0];
         let body = &args[1];
-        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        // A relative type name homes to the namespace current at the call —
+        // the command-resolution namespace, so a `snit::type` created inside
+        // `proc ::ns::p {}` becomes `::ns::T` (issue #923 idx 85).
+        let ns_prefix = self.command_resolution_namespace(scope_path);
         // Constructed key in, construction-inverse tail out (#934): a colon
         // trim or `rsplit("::")` would collapse a lone-colon name.
         let qualified = super::handlers::qualify(&ns_prefix, raw_name);
@@ -1044,7 +1051,9 @@ impl Analyser {
         }
         let raw_name = &args[0];
         let body = &args[1];
-        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        // As for snit: a relative itcl class name homes to the namespace
+        // current at the call, not the lexical one (issue #923 idx 85).
+        let ns_prefix = self.command_resolution_namespace(scope_path);
         // Constructed key in, construction-inverse tail out (#934): a colon
         // trim or `rsplit("::")` would collapse a lone-colon name.
         let qualified = super::handlers::qualify(&ns_prefix, raw_name);

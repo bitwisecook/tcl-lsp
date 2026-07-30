@@ -1417,13 +1417,15 @@ impl Analyser {
         arg_single: &[bool],
         scope_path: &[usize],
     ) {
-        // Current namespace for the imported-command fallback below. Computed
-        // before the immutable `registry` borrow (it needs `&mut self`), and
-        // only when imports were recorded — `namespace_from_scope_path` caches.
+        // Current namespace for the imported-command fallback below: the
+        // *command-resolution* namespace, since that is the one whose imports
+        // an unqualified call actually consults — the lexical walk skips proc
+        // scopes and so missed a qualified-name proc's own namespace
+        // (issue #923 idx 85). Computed only when imports were recorded.
         let cur_ns = if self.result.namespace_imports.is_empty() {
             String::new()
         } else {
-            self.namespace_from_scope_path(scope_path)
+            self.command_resolution_namespace(scope_path)
         };
         let Some(registry) = self.registry else {
             return;

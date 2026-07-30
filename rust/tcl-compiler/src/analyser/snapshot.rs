@@ -146,9 +146,7 @@ impl Analyser {
     /// Restore analyser state from a snapshot.
     ///
     /// Replaces the result tree with an independent deep copy of the
-    /// snapshot, resets the per-walk tracking state, and clears the
-    /// ``ns_cache`` (it caches scope identity which is invalidated
-    /// by the deep-copy).
+    /// snapshot and resets the per-walk tracking state.
     ///
     /// Fields not in the snapshot (``disabled_diagnostics``,
     /// ``file_path``, ``builtin_names`` cache, ``body_depth``,
@@ -175,9 +173,6 @@ impl Analyser {
         self.pending_user_call_arity = snap.pending_user_call_arity;
         self.pending_ctor_arity = snap.pending_ctor_arity;
         self.pending_next_arity = snap.pending_next_arity;
-        // Cache invalidation — the namespace cache keys on scope
-        // path identity, which the deep-copy disrupts.
-        self.ns_cache.clear();
     }
 }
 
@@ -290,17 +285,6 @@ mod tests {
         // Snapshot still has ::foo and not ::bar.
         assert!(snap.result.all_procs.contains_key("::foo"));
         assert!(!snap.result.all_procs.contains_key("::bar"));
-    }
-
-    #[test]
-    fn restore_clears_namespace_cache() {
-        // ns_cache is invalidated by restore because its scope-path
-        // keys may no longer be valid against the restored tree.
-        let mut a = Analyser::new();
-        a.ns_cache.insert(vec![0, 1], "::ns".to_string());
-        let snap = a.snapshot();
-        a.restore(snap);
-        assert!(a.ns_cache.is_empty());
     }
 
     #[test]

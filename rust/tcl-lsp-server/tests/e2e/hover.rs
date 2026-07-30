@@ -594,3 +594,162 @@ fn my_dispatch_hover_resolves_when_class_extended_via_separate_oo_define() {
     assert!(h.contains("method"), "hover: {h}");
     assert!(h.contains("geo::Plane::GetType"), "hover: {h}");
 }
+
+// -- Issue #1018: cross-document and autoload hover ----------------------
+//
+// Go-to-definition, find-references, and the unknown-command diagnostic all
+// resolve a command whose `proc` lives in a sibling file. Hover was the one
+// provider that gave up at the file boundary and showed nothing — at the exact
+// call site the other three resolved. These are the first cross-file cases in
+// this suite.
+
+/// The plain `source` control: `main.tcl` sources `lib.tcl`, which declares
+/// `greetPerson`. Hovering the call in `main.tcl` must render the real
+/// signature, exactly as hovering the declaration in `lib.tcl` does.
+#[test]
+fn hover_resolves_a_proc_defined_in_a_sourced_sibling_1018() {
+    let mut lsp = Lsp::tcl();
+    let lib = unique_uri("tcl");
+    let lib_name = lib.rsplit('/').next().expect("lib basename").to_owned();
+    let main = unique_uri("tcl");
+    lsp.open_ready(
+        &lib,
+        "proc greetPerson {name {greeting hello}} {\n    return \"$greeting, $name\"\n}\n",
+    );
+    lsp.open_ready(&main, &format!("source {lib_name}\ngreetPerson Alice\n"));
+
+    let call = hover(&mut lsp, &main, 1, 4);
+    assert!(
+        call.contains("greetPerson"),
+        "cross-file call hover must name the proc: {call:?}",
+    );
+    assert!(
+        call.contains("name") && call.contains("greeting"),
+        "…and render its real parameter list: {call:?}",
+    );
+
+    // The same symbol hovered at its own declaration renders the same body —
+    // one renderer, one input, so the two views cannot drift apart.
+    let decl = hover(&mut lsp, &lib, 0, 8);
+    assert_eq!(call, decl, "call-site and declaration hover must agree");
+}
+
+/// TN: a command nothing in the workspace defines still hovers nothing. The
+/// fallback resolves real symbols; it does not invent one for a typo.
+#[test]
+fn hover_stays_empty_for_a_command_no_document_defines_1018() {
+    let mut lsp = Lsp::tcl();
+    let lib = unique_uri("tcl");
+    let lib_name = lib.rsplit('/').next().expect("lib basename").to_owned();
+    let main = unique_uri("tcl");
+    lsp.open_ready(&lib, "proc greetPerson {name} { return $name }\n");
+    lsp.open_ready(&main, &format!("source {lib_name}\ngreetPersonn Alice\n"));
+    assert!(
+        hover_text(&lsp.hover(&main, 1, 4)).is_empty(),
+        "a command no document defines must hover nothing",
+    );
+}
+
+/// FP guard: the fallback is gated on the cursor sitting on a *command head*.
+/// An argument word that happens to match a sibling document's proc name must
+/// not pop that proc's signature up.
+#[test]
+fn hover_does_not_resolve_an_argument_word_across_documents_1018() {
+    let mut lsp = Lsp::tcl();
+    let lib = unique_uri("tcl");
+    let lib_name = lib.rsplit('/').next().expect("lib basename").to_owned();
+    let main = unique_uri("tcl");
+    lsp.open_ready(&lib, "proc zqwidget {name} { return $name }\n");
+    // `zqwidget` here is `puts`'s argument, not a command head.
+    lsp.open_ready(&main, &format!("source {lib_name}\nputs zqwidget\n"));
+    let text = hover_text(&lsp.hover(&main, 1, 7));
+    assert!(
+        !text.contains("proc ::zqwidget"),
+        "an argument word must not resolve to a sibling proc: {text:?}",
+    );
+}
+
+/// Per-call counter for the autoload-hover fixture dir.
+static AUTOLOAD_HOVER_N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// The issue's own repro (tcllib's `modules/math/math.tcl` shape): a package
+/// whose commands are declared in a sibling file reached through
+/// `auto_path` / `tclIndex`, with no `source` edge to follow.
+///
+/// Oracle (`tclsh8.6` and `tclsh9.0`, identical): the script runs and prints
+/// `frob 1 2 3 4` / `42`, so `::math::zzqfrobnicate` and `::math::wibblenum`
+/// in `misc.tcl` are the real, unambiguous targets. Go-to-definition already
+/// jumped there; hover showed nothing.
+#[test]
+fn hover_resolves_an_autoloaded_library_proc_1018() {
+    use std::sync::atomic::Ordering;
+
+    let libdir = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-hover-autoload-{}-{}",
+        std::process::id(),
+        AUTOLOAD_HOVER_N.fetch_add(1, Ordering::Relaxed)
+    ));
+    let pkgdir = libdir.join("mathlib");
+    std::fs::create_dir_all(&pkgdir).expect("mk mathlib dir");
+    std::fs::write(
+        pkgdir.join("misc.tcl"),
+        "proc ::math::zzqfrobnicate {val args} {\n    return \"frob $val $args\"\n}\n\
+         proc ::math::wibblenum {n} {\n    return [expr {$n * 2}]\n}\n",
+    )
+    .expect("write misc.tcl");
+    std::fs::write(
+        pkgdir.join("tclIndex"),
+        "# Tcl autoload index file, version 2.0\n\
+         set auto_index(::math::zzqfrobnicate) [list source [file join $dir misc.tcl]]\n\
+         set auto_index(::math::wibblenum) [list source [file join $dir misc.tcl]]\n",
+    )
+    .expect("write tclIndex");
+
+    let mut lsp = Lsp::with_config(serde_json::json!({
+        "libraryPaths": [ libdir.to_string_lossy() ],
+    }));
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "package require math\nmath::zzqfrobnicate 1 2 3 4\n");
+
+    // The package database is built asynchronously at startup; poll until the
+    // autoload tier can answer, then assert on what it rendered.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+    let mut text = hover(&mut lsp, &uri, 1, 8);
+    while text.is_empty() && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        text = hover(&mut lsp, &uri, 1, 8);
+    }
+    assert!(
+        text.contains("math::zzqfrobnicate"),
+        "autoload hover must name the resolved proc: {text:?}",
+    );
+    assert!(
+        text.contains("val") && text.contains("args"),
+        "…and render its real signature: {text:?}",
+    );
+
+    // TN on the same fixture: a name the `tclIndex` does not declare still
+    // hovers nothing, so the tier resolves rather than blanket-suppressing.
+    let typo = unique_uri("tcl");
+    lsp.open_ready(&typo, "package require math\nmath::zzqfrobnicat 1\n");
+    assert!(
+        hover_text(&lsp.hover(&typo, 1, 8)).is_empty(),
+        "a command no index declares must hover nothing",
+    );
+
+    let _ = std::fs::remove_dir_all(&libdir);
+}
+
+/// Same-file hover is unchanged — the fallback only runs when the
+/// in-document provider has already declined.
+#[test]
+fn hover_same_file_behaviour_is_unchanged_1018() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc greetPerson {name} { return $name }\ngreetPerson Alice\n",
+    );
+    let text = hover(&mut lsp, &uri, 1, 4);
+    assert!(text.contains("greetPerson"), "same-file hover: {text:?}");
+}

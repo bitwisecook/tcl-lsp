@@ -21,18 +21,43 @@ all-editors, MCP, analyser
 
 The hover provider resolves the symbol under the cursor and returns documentation from the command registry, proc signatures from analysis, variable types, and taint tracking status for iRules.
 
+### Commands defined in another file
+
+When nothing in the current document explains the word under the cursor and
+that word is a command being called, hover looks further afield — the same two
+steps go-to-definition takes:
+
+1. **Across the workspace.** A `proc` or class declared in another open
+   document, including one reached through `source`.
+2. **Through the library index.** A command an installed library auto-loads
+   (a `tclIndex` or `pkgIndex.tcl` on the configured library paths), even
+   though no file in the workspace declares it.
+
+The popup is rendered from the *defining* file, so it reads exactly as it does
+when you hover the declaration itself.
+
+Hover only looks further afield for a **command being called**. An ordinary
+argument word that happens to share a name with a proc in another file shows
+nothing, so a `puts widget` never pops up an unrelated `widget` procedure.
+
 ## File-path anchors
 
-- `server/features/hover.py`
+- `rust/tcl-lsp-core/src/hover.rs` — the provider and its renderers, including
+  `qualified_symbol_hover` for a symbol defined in another document
+- `rust/tcl-lsp-server/src/lib.rs` — `cross_document_hover`, the workspace and
+  library-index fallback
 
 ## Failure modes
 
 - Missing hover after command registry updates.
 - Incorrect position mapping in multi-line constructs.
+- A command reached only at run time (built by `eval`, or dispatched through a
+  variable) has no declaration to point at, so hover shows nothing.
 
 ## Test anchors
 
-- `tests/test_hover.py`
+- `rust/tcl-lsp-server/tests/e2e/hover.rs`
+- `rust/tcl-lsp-core/src/hover.rs` — renderer unit tests
 
 ## Screenshots
 
