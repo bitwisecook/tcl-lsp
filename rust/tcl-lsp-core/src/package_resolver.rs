@@ -703,15 +703,13 @@ impl PackageResolver {
         if !dir.is_dir() {
             return;
         }
-        // The directory itself, then each immediate subdirectory.
+        // The directory itself, then each immediate subdirectory in name
+        // order — `read_dir` order is filesystem-dependent, and discovery
+        // order decides which provider an unconstrained `resolve` answers, so
+        // it must not vary across machines.
         self.scan_single_dir(dir);
-        if let Ok(read) = std::fs::read_dir(dir) {
-            for entry in read.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    self.scan_single_dir(&path);
-                }
-            }
+        for path in sorted_subdirs(dir) {
+            self.scan_single_dir(&path);
         }
     }
 
@@ -735,13 +733,10 @@ impl PackageResolver {
             }
             visited += 1;
             self.scan_single_dir(&dir);
-            if let Ok(read) = std::fs::read_dir(&dir) {
-                for entry in read.flatten() {
-                    let path = entry.path();
-                    if path.is_dir() {
-                        stack.push(path);
-                    }
-                }
+            // Reverse-sorted push so the LIFO pop visits children in name
+            // order, keeping discovery order machine-independent.
+            for path in sorted_subdirs(&dir).into_iter().rev() {
+                stack.push(path);
             }
         }
     }
@@ -965,7 +960,26 @@ impl PackageResolver {
     }
 }
 
-/// List the `*.tcl` files directly in `dir` (the `pkg_mkIndex` fallback).
+/// The immediate subdirectories of `dir`, sorted by name — `read_dir` yields
+/// filesystem order, and everything downstream of a scan (which provider is
+/// first-discovered, the order of a package's source files) must be identical
+/// on every machine.
+fn sorted_subdirs(dir: &Path) -> Vec<PathBuf> {
+    let mut subdirs = Vec::new();
+    if let Ok(read) = std::fs::read_dir(dir) {
+        for entry in read.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                subdirs.push(path);
+            }
+        }
+    }
+    subdirs.sort();
+    subdirs
+}
+
+/// List the `*.tcl` files directly in `dir` (the `pkg_mkIndex` fallback),
+/// sorted by name for machine-independent output.
 fn list_tcl_files(dir: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
     if let Ok(read) = std::fs::read_dir(dir) {
@@ -976,6 +990,7 @@ fn list_tcl_files(dir: &Path) -> Vec<PathBuf> {
             }
         }
     }
+    files.sort();
     files
 }
 
