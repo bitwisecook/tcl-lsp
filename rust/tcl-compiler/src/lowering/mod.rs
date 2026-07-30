@@ -1906,12 +1906,17 @@ impl<'r> Lowerer<'r> {
     /// resolve a bare call inside the body against the *correct* namespace
     /// via [`crate::interprocedural::resolve_internal_call`], rather than
     /// silently defaulting every body unit to global.
+    ///
+    /// `is_lambda` marks the frame as a closed one whose parameter list binds
+    /// locals (`apply`), recording it in [`Module::lambda_body_units`]; a
+    /// `namespace eval` body is not.
     fn register_body_unit(
         &mut self,
         label: &str,
         params: Vec<String>,
         span: tcl_lexer::Span,
         body: Script,
+        is_lambda: bool,
     ) {
         let n = self.body_unit_count;
         self.body_unit_count += 1;
@@ -1921,6 +1926,9 @@ impl<'r> Lowerer<'r> {
         // even when `label` carries a namespace prefix — matching every
         // other `Procedure::name`'s "short name" contract.
         let short_name = prefix.rsplit("::").next().unwrap_or(prefix).to_string();
+        if is_lambda {
+            self.module.lambda_body_units.insert(qualified.clone());
+        }
         self.module.body_units.insert(
             qualified.clone(),
             Procedure {
@@ -2016,7 +2024,7 @@ impl<'r> Lowerer<'r> {
             // plain `apply` marker. tclsh8.6/9.0-confirmed: inside
             // `::foo::runIt`, `apply {{x} { helper $x } ::foo} b` calls
             // `::foo::helper`, not `::helper`.
-            self.register_body_unit(&join_namespace(&body_ns, "apply"), params, span, body);
+            self.register_body_unit(&join_namespace(&body_ns, "apply"), params, span, body, true);
         }
 
         Statement::Barrier {
@@ -2113,6 +2121,7 @@ impl<'r> Lowerer<'r> {
             vec![],
             span,
             body,
+            false,
         );
 
         Statement::Barrier {

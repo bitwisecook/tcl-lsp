@@ -53,15 +53,19 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // `upvar` to count — 8.4's manpage, predating `apply`, mentions only
 // `namespace eval`; (2) the "level cannot be omitted" clause reads
 // "starts with a digit or #" in the 8.4/8.5/8.6 manpages but "is an
-// integer or starts with #" in the 9.0/9.1 manpages. That second wording
-// change is not itself a 9.0 behavioural change — it belatedly documents
-// a dispatch change C Tcl actually made earlier, in 8.6: `TclObjGetFrame`
-// (`generic/tclProc.c`) tries the *whole* word against
-// `Tcl_GetIntFromObj` before ever falling back to a `#`-prefix check from
-// Tcl 8.6 onward (confirmed against the real 8.4/8.5/8.6/9.0/9.1 source),
-// where 8.4 and 8.5 (for a fresh, string-typed literal word) only ever
-// inspect the word's first character. See `word_is_literal_level` below
-// for what this means for this file's own level-detection heuristic.
+// integer or starts with #" in the 9.0/9.1 manpages. That wording change
+// *is* a behavioural change, and it lands in 9.0 — run, not read (issue
+// #1069; both directions pinned in
+// `tcl_registry::frame_effect::FrameLevelWord::LeadingProbe`):
+//
+//   uplevel -1  {oops}   9.0.4: bad level "-1"             8.6.14: invalid command name "-1"
+//   uplevel 1.0 {oops}   9.0.4: invalid command name "1.0" 8.6.14: bad level "1.0"
+//
+// i.e. 8.6 still commits a digit-led word to the level slot and dispatches
+// a negative one as a command, exactly as its manpage says, while 9.0
+// tries the whole word against `Tcl_GetIntFromObj` first. Both spellings
+// are errors under both, so no working script is shaped differently; the
+// level *value* grammar (`FrameLevel::parse`) is identical on both.
 // 9.1's uplevel.html is byte-for-byte identical to 9.0's (bar doc-anchor
 // line-number IDs) — no 9.1-specific delta exists for this command.
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -70,59 +74,28 @@ const FORMS: &[FormSpec] = &[FormSpec {
     dialects: None,
 }];
 
-/// Whether `word` is *literally* an `uplevel` frame level.
-///
-/// An argument is consumed as a level iff it begins with `#` (absolute
-/// frame, `#0`) or an ASCII digit (relative frame, `1`). A literal level
-/// is the frame selector even with no script following it (`uplevel 1`
-/// alone is a wrong-#args error, but `1` is still a level, not a command
-/// named `1`).
-///
-/// This exactly mirrors C Tcl's own first-character dispatch for a fresh,
-/// string-typed literal word — true of `TclGetFrame` in 8.4, and of
-/// `TclObjGetFrame` in 8.5 (`generic/tclProc.c`; 8.5's extra fast path for
-/// an already-int-typed `Tcl_Obj` only fires for a value shimmered to int
-/// by prior use, which a freshly-parsed source-text word never is). From
-/// Tcl 8.6 onward (8.6, 9.0, 9.1 all confirmed identical here),
-/// `TclObjGetFrame` instead tries the *whole* word against
-/// `Tcl_GetIntFromObj` before ever inspecting its first character, so a
-/// signed spelling like `+1` or `-1` also counts as a level there even
-/// though neither starts with a digit or `#` — a real, source-verified
-/// dispatch difference this check does not capture. Left uncorrected
-/// deliberately: every real call of that shape is a "bad level" error in
-/// 8.6+ (a negative relative level walks past the top of the stack) and
-/// an "invalid command name" error in 8.4/8.5 (the word is never
-/// recognised as a level there, so it's run as the script instead) either
-/// way, so no *working* Tcl script is misclassified by keeping the
-/// simpler digit/`#` check — and the registry's `ArgRoleResolver` function
-/// type carries no dialect parameter to gate on even if one did.
-fn word_is_literal_level(word: &str) -> bool {
-    matches!(word.as_bytes().first(), Some(&b) if b == b'#' || b.is_ascii_digit())
-}
-
-/// Whether `word` is a *substituted* level selector — `$lvl` or
-/// `[expr {$n-1}]`.
-///
-/// Its runtime value can't be inspected from source, so it only counts as
-/// a level when a script word follows it: `uplevel $lvl {…}` shifts frame,
-/// but a lone `uplevel $body` is an implicit-level-1 script whose body *is*
-/// that argument. The arg-role layer only needs to know a level is
-/// *present* — enough to place the body word one slot later so its braced
-/// script recurses.
-fn word_is_dynamic_level(word: &str) -> bool {
-    word.starts_with('$') || (word.starts_with('[') && word.ends_with(']'))
-}
+/// This command's own frame-crossing grammar, so the arg-role resolver and
+/// `CommandSpec::frame_effect` below cannot drift apart.
+const FRAME_EFFECT: FrameEffectSpec = FrameEffectSpec {
+    level_word: FrameLevelWord::LeadingProbe,
+    layout: FrameArgLayout::ScriptInSelectedFrame,
+};
 
 /// Index of the first *script* word in an `uplevel` argument list — `1`
 /// when a leading `level` word is present, else `0`.
+///
+/// Delegates to [`FrameEffectSpec::level_word_len`], the single level-word
+/// rule; this file previously carried a private first-byte `#`-or-digit
+/// sniff, which rejected `+1`, `-0`, `-1`, `" 1"`, `0x1`, and `0b1` — all of
+/// which C Tcl consumes as levels (issue #1069).  An
+/// [`ArgRoleResolver`](crate::hooks) carries no dialect, so the
+/// version-invariant reading is the one asked for here: it abstains on the two
+/// spellings where the releases disagree (`-1`, `1.0`), leaving them as script
+/// text rather than claiming the next word is a body — both are hard errors on
+/// both interpreters, so no working script is shaped differently.  See
+/// [`FrameLevelWord::LeadingProbe`] for the pinned per-release matrix.
 fn uplevel_script_start(args: &[&str]) -> usize {
-    match args.first() {
-        Some(w) if word_is_literal_level(w) => 1,
-        // A substituted level only separates from the script when a script
-        // word follows (`uplevel $lvl {…}`); a lone `uplevel $body` is a body.
-        Some(w) if args.len() >= 2 && word_is_dynamic_level(w) => 1,
-        _ => 0,
-    }
+    FRAME_EFFECT.level_word_len(args)
 }
 
 /// Dynamic arg-role resolver for `uplevel ?level? arg ?arg ...?`.
@@ -150,10 +123,9 @@ fn uplevel_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// Command spec for `uplevel`.
 ///
 /// Stable across every fetched version: Tcl 8.4, 8.5, 8.6, 9.0, and 9.1
-/// all document (and, for the level-detection dispatch, actually
-/// implement — see `word_is_literal_level`) the same command under the
-/// same single form. See the comment above `FORMS` for the version
-/// research this rests on.
+/// all document the same command under the same single form. The
+/// level-word *detection* dispatch is the one per-release delta — see the
+/// comment above `FORMS` and [`FrameLevelWord::LeadingProbe`].
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "uplevel",
@@ -191,10 +163,7 @@ pub fn spec() -> CommandSpec {
         // the script it runs belongs to the frame that word selects, not to
         // the frame the call is written in.  `uplevel_script_start` above is
         // the same rule expressed for the arg-role layer.
-        frame_effect: Some(FrameEffectSpec {
-            level_word: FrameLevelWord::LeadingProbe,
-            layout: FrameArgLayout::ScriptInSelectedFrame,
-        }),
+        frame_effect: Some(FRAME_EFFECT),
         lowering_hook: Some(crate::hooks::LoweringHookId::Uplevel),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {

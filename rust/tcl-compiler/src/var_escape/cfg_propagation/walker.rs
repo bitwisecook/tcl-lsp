@@ -229,24 +229,23 @@ fn handle_uplevel(args: &[String], state: &mut CfgState, defs: &HashMap<String, 
         return;
     }
     let first = &args[0];
-    let no_dash = first.trim_start_matches('-');
-    let is_level_literal = (!no_dash.is_empty() && no_dash.chars().all(|c| c.is_ascii_digit()))
-        || (first.starts_with('#') && first[1..].chars().all(|c| c.is_ascii_digit()));
-    if !is_level_literal {
+    // Registry level-word grammar, not a local digit sniff — see the twin in
+    // `crate::var_escape::walker::handle_uplevel`.
+    let Some(level) = tcl_registry::frame_effect::FrameLevel::parse(first) else {
         state.mark_pessimistic();
         return;
-    }
+    };
     // `uplevel 0` runs the body in the *current* frame — a `set x` there
     // name-writes our proc's local `x` exactly like `eval`. Walk it the same
     // way so those escapes are recorded; treating `0` as global-safe like `#0`
     // wrongly whitelists our own frame (RUST_ISSUE_073).
-    if first == "0" {
+    if level.is_current_frame() {
         handle_eval(&args[1..], state, defs);
         return;
     }
     // Only `uplevel #0` (global scope) is safe: our locals aren't visible
     // there. Any other level runs in a different caller frame — pessimistic.
-    if first != "#0" {
+    if !level.is_global_frame() {
         state.mark_pessimistic();
         return;
     }

@@ -11632,3 +11632,90 @@ fn w123_fp_issue_1015_mutual_recursion_cycle_entered_at_top_level_resolves() {
     let src = "proc helper {} { return hi }\nproc pingCaller {} { helper }\nproc pongCaller {} { pingCaller }\nproc entry {} { pongCaller }\nentry\nrename helper {}\n";
     assert_eq!(w123_codes(src), Vec::<String>::new());
 }
+
+/// FP — issue #1070. A lambda's own parameters are bound by `apply`, so
+/// reading one in the body is never a read-before-set.  The bare-statement
+/// spelling used to draw `W210` on every parameter because the enclosing
+/// frame's SSA read-scan walked the whole lambda literal as if the body ran
+/// in the caller's frame.
+///
+/// Parameter binding is `proc` semantics — defaults and `args` included.
+/// tclsh 9.0.4 / 8.6.14, identical:
+///
+/// ```text
+/// apply {{a b} {return $a-$b}} 1 2       → 1-2
+/// apply {{a {b 99}} {return $a-$b}} 1    → 1-99
+/// apply {{a args} {return $a-$args}} 1 2 3 → 1-2 3
+/// apply {{a args} {return $a-[llength $args]}} 1 → 1-0
+/// ```
+#[test]
+fn apply_lambda_parameters_are_bound_not_read_before_set() {
+    for src in [
+        "apply {{a} {puts $a}} 5\n",
+        "apply {{a b} {puts $a$b}} 5 6\n",
+        "apply {{a args} {puts $a$args}} 5 6\n",
+        "apply {{a args} {puts $a[llength $args]}} 5\n",
+        "apply {{a {b 1}} {puts $a$b}} 5\n",
+        // The lambda's namespace element must not shift the parameter binding.
+        "apply {{a} {puts $a} ::ns} 5\n",
+        // Nested inside a proc body, and inside a control-flow body.
+        "proc p {} { apply {{a} {puts $a}} 5 }\n",
+        "if {1} { apply {{a} {puts $a}} 5 }\n",
+        // The command-substitution spelling was already clean; keep it so.
+        "set r [apply {{a} {puts $a}} 5]\nputs $r\n",
+    ] {
+        let codes = codes_for_dialect(src, "tcl9.0");
+        assert!(
+            !codes.contains(&"W210".to_string()),
+            "a bound lambda parameter must not fire W210 for {src:?}: {codes:?}"
+        );
+    }
+}
+
+/// TN — the same change must not blind the lambda body.  A name the body
+/// reads without binding is a genuine error (tclsh 9.0.4 / 8.6.14:
+/// `apply {{a} {return $zznever}} 5` → `can't read "zznever": no such
+/// variable`), and the caller's locals are *not* visible inside the lambda
+/// (`set x 7; apply {{} {puts $x}}` → `can't read "x": no such variable`), so
+/// its body units carry the read-before-set family in their own right.
+#[test]
+fn apply_lambda_body_unbound_read_still_fires_w210() {
+    for src in [
+        "apply {{a} {puts $zznever}} 5\n",
+        "apply {{a} {set b $zznever; puts $b}} 5\n",
+        "proc p {} { apply {{a} {puts $zznever}} 5 }\n",
+    ] {
+        let codes = codes_for_dialect(src, "tcl9.0");
+        assert!(
+            codes.contains(&"W210".to_string()),
+            "an unbound read in a lambda body must still fire W210 for {src:?}: {codes:?}"
+        );
+    }
+}
+
+/// TN — a `namespace eval` body unit is deliberately *not* in the
+/// read-before-set family: its variables belong to the namespace and are
+/// routinely written by a different body that opens the same namespace, so
+/// the closed-frame argument a lambda gives does not hold there.
+#[test]
+fn namespace_eval_body_is_not_read_before_set_analysed() {
+    let src = "namespace eval ::demo { variable counter }\n\
+               namespace eval ::demo { variable counter; incr counter }\n";
+    let codes = codes_for_dialect(src, "tcl9.0");
+    assert!(
+        !codes.contains(&"W210".to_string()),
+        "a namespace-eval body must not be read-before-set analysed: {codes:?}"
+    );
+}
+
+/// FN control — a *dynamic* lambda word is a real caller-frame read, so it
+/// must keep firing.  `apply $lambda` reads `lambda` in the caller's frame
+/// (tclsh 9.0.4 / 8.6.14 both raise `can't read "zzlambda"` for an unset one).
+#[test]
+fn dynamic_apply_lambda_word_is_still_a_caller_frame_read() {
+    let codes = codes_for_dialect("proc p {} { apply $zzlambda 5 }\n", "tcl9.0");
+    assert!(
+        codes.contains(&"W210".to_string()),
+        "`apply $lambda` must still read `lambda` in the caller's frame: {codes:?}"
+    );
+}

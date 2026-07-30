@@ -1075,6 +1075,29 @@ pub(crate) fn structural_body_indices(
     // skip set — `if`, `while`, `for`, `foreach`, `catch`, `try`,
     // … bodies share the caller's frame and SSA must scan them as
     // part of the enclosing block's data flow.
+    // An `ArgRole::LambdaLiteral` word is a whole anonymous procedure —
+    // `{params body ?ns?}` — and C Tcl runs it in a **fresh frame**, so no
+    // name written inside it is a read (or write) in the frame the call is
+    // written in.  tclsh 9.0.4 / 8.6.14, identical:
+    //
+    //   set x 7; apply {{} {puts $x}}   ;# can't read "x": no such variable
+    //
+    // The lambda's own body is analysed on its own, in that frame, with its
+    // parameter list bound (`lowering::lower_apply` registers it as a body
+    // unit) — so scanning the literal here both mis-frames the read and
+    // duplicates it, drawing a false `W210` on the lambda's own parameters
+    // (issue #1070).  Unconditional, not gated on `body_kind`: the role is
+    // itself the "fresh frame" statement.  A *dynamic* lambda (`apply
+    // $lambda`) is not braced, so `is_braced_arg` keeps it a genuine read.
+    let lambda_words: HashSet<usize> = {
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        registry
+            .arg_indices_for_role(command, &arg_strs, ArgRole::LambdaLiteral)
+            .into_iter()
+            .filter(|&idx| idx < args.len() && is_braced_arg(tokens, idx))
+            .collect()
+    };
+
     if let Some(spec) = registry.get(command) {
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
         // Subcommand body_kind (if the call dispatches to a sub).
@@ -1091,11 +1114,12 @@ pub(crate) fn structural_body_indices(
             return candidates
                 .into_iter()
                 .filter(|&idx| idx < args.len() && is_braced_arg(tokens, idx))
+                .chain(lambda_words)
                 .collect();
         }
     }
 
-    HashSet::new()
+    lambda_words
 }
 
 /// Extract variable names used (read) by an IR statement.
