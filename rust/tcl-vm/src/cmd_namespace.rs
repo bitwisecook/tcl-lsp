@@ -377,18 +377,54 @@ fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let Some((ns, parts)) = rest.split_first() else {
         return err("wrong # args: should be \"namespace inscope namespace arg ?arg ...?\"");
     };
-    if parts.is_empty() {
+    let Some((script, extra)) = parts.split_first() else {
         return err("wrong # args: should be \"namespace inscope namespace arg ?arg ...?\"");
-    }
+    };
     let target = canon_ns(vm, &ns.to_str());
-    let body = parts
-        .iter()
-        .map(|v| v.to_str().to_string())
-        .collect::<Vec<_>>()
-        .join(" ");
+    let body = inscope_script(vm, script, extra);
     let mut call_argv = vec![Value::string("namespace"), Value::string("inscope")];
     call_argv.extend(rest.iter().cloned());
     eval_in_ns(vm, target, &body, call_argv)
+}
+
+/// The script `namespace inscope ns script ?arg ...?` evaluates:
+/// `Tcl_ConcatObj(script, list(arg …))` — `NamespaceInscopeCmd`
+/// (`generic/tclNamesp.c`) collects the trailing words into a **list object**
+/// and concatenates that list's string representation onto `script`. So the
+/// tail arrives as list *elements*, not as space-joined script text, and each
+/// word reaches the invoked command as exactly one argument however much
+/// whitespace or list punctuation it holds:
+///
+/// ```text
+/// namespace inscope :: {puts} {a b}   → prints "a b"  (one argument)
+/// namespace eval    :: {puts} {a b}   → error: can not find channel named "a"
+/// ```
+///
+/// (`namespace eval`'s plain space-join is right for *its* concat semantics;
+/// `inscope` is the one family member that list-quotes — the registry models
+/// the split as `SCRIPT_APPENDS_LIST_ARGS` refining `SCRIPT_CONCATENATES_ARGS`.
+/// Issue #1056: the VM used to space-join here too, so `{x y}` became two
+/// arguments.)
+///
+/// Both halves reuse the canonical implementations rather than re-deriving
+/// them: the list's string rep comes from `Value::list`'s
+/// `tcl_syntax::list::join_list` quoting (`Tcl_ScanElement` /
+/// `Tcl_ConvertElement`), and the concatenation itself is the shared
+/// `tcl_cmd_core::list::concat` (`Tcl_ConcatObj`) — which trims each part and
+/// drops one that is empty after trimming, so an all-whitespace `script`
+/// contributes no leading separator.
+///
+/// With no trailing words C takes the `objc == 3` arm and evaluates `script`
+/// verbatim (no concat, hence no trim and no trailing space), which the early
+/// return mirrors.
+fn inscope_script(vm: &mut Vm, script: &Value, extra: &[Value]) -> String {
+    if extra.is_empty() {
+        return script.to_str().to_string();
+    }
+    let tail = Value::list(extra.to_vec());
+    tcl_cmd_core::list::concat(vm, &[script.clone(), tail])
+        .to_str()
+        .to_string()
 }
 
 fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
