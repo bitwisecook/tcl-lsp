@@ -578,20 +578,19 @@ fn collect_script_concat_writes(
             // (concatenation only appends after it), so its writes are
             // recovered from that word alone — mirroring the analyser's
             // `dispatch_concatenated_script` fallback.
-            let script = match concat_barrier_words(tokens, first + 1) {
-                Some(script) => script,
-                None => {
-                    let (Some(text), Some(&kind)) = (
-                        tokens.argv_texts.get(first + 1),
-                        tokens.argv_kinds.get(first + 1),
-                    ) else {
-                        continue;
-                    };
-                    if kind != tcl_lexer::TokenType::Str {
-                        continue;
-                    }
-                    text.clone()
+            let script = if let Some(script) = concat_barrier_words(tokens, first + 1) {
+                script
+            } else {
+                let (Some(text), Some(&kind)) = (
+                    tokens.argv_texts.get(first + 1),
+                    tokens.argv_kinds.get(first + 1),
+                ) else {
+                    continue;
+                };
+                if kind != tcl_lexer::TokenType::Str {
+                    continue;
                 }
+                text.clone()
             };
             let mut writes = Vec::new();
             crate::ir_helpers::script_text_out_vars(&script, &mut writes);
