@@ -49,7 +49,9 @@ The success signal: repeated builds in both worktrees stop flip-flopping,
 and `scripts/dev/agent-build-env.sh --check` reports a per-worktree
 target dir with no warning.
 
-## File-path anchors
+## Related
 
-- `scripts/dev/agent-build-env.sh`
-- `AGENTS.md` — "Parallel worktrees and agent build isolation"
+- [KCS index](README.md)
+- The "Parallel worktrees and agent build isolation" section of
+  [AGENTS.md](../../AGENTS.md) — the contributor-facing rules the helper
+  script enforces.

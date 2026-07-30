@@ -82,4 +82,13 @@ agent_build_env__main() {
     esac
 }
 
-agent_build_env__main "$@"
+# When sourced, never forward "$@": with no explicit source arguments,
+# bash leaves the caller's positional parameters in place, and a caller
+# argument like "build" would be misread as an unknown mode, erroring out
+# with nothing exported.  Sourcing is always the plain export form; the
+# --print/--check modes are for direct execution.
+if [ "${BASH_SOURCE[0]}" != "$0" ]; then
+    agent_build_env__main
+else
+    agent_build_env__main "$@"
+fi
