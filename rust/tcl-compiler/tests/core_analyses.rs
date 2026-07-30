@@ -999,16 +999,16 @@ mod no_read_before_set {
     }
 
     #[test]
-    fn cmd_sub_set_in_branch_condition_diverges() {
-        // Same shape in a branch condition — `if {[set x 1]} { puts $x }`. The
-        // `set x 1` inside the condition's command substitution defines x (tclsh:
-        // x is 1 in the body). The analyser does not scan branch-condition
-        // cmd-sub writes, so `$x` is flagged W210. Sound over-warn; actual
-        // verdict asserted.
+    fn cmd_sub_set_in_branch_condition_is_a_definition() {
+        // `if {[set x 1]} { puts $x }` — the `set x 1` inside the condition's
+        // command substitution defines x before either arm runs (tclsh 9.0.4 /
+        // 8.6.14 print `1`). The condition out-var harvest asks the registry
+        // which arguments carry `ArgRole::VarWrite`, so `set` answers like
+        // `catch` / `gets` / `regexp` / `scan` always did (issue #923 idx 49).
         let src = "proc p {} { if {[set x 1]} { puts $x } }\n";
         assert!(
-            fires(src, "W210"),
-            "Rust flags the cmd-sub-defined $x in a branch condition"
+            !fires(src, "W210"),
+            "a condition-embedded `set` defines its target"
         );
     }
 

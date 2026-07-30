@@ -475,6 +475,7 @@ mod tests {
             taints: std::collections::HashMap::new(),
             rendered_props: std::collections::HashMap::new(),
             memory_ssa: None,
+            dynamic_names: crate::dynamic_names::DynamicNameBarrier::default(),
             complexity_guarded: false,
             base_offset: 0,
         }

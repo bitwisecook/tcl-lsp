@@ -221,6 +221,15 @@ pub struct FunctionUnit {
     pub rendered_props: HashMap<ValueKey, RenderedValueProps>,
     /// Optional memory-SSA annotations (populated on demand).
     pub memory_ssa: Option<MemorySsaFunction>,
+    /// Whether this function accesses variables whose *name* is computed at
+    /// run time (`set $var v` / `[set $name]` / `unset $n`).
+    ///
+    /// Three flags, no name set — a dynamic access clobbers the whole name
+    /// space, so the consumers ([`crate::sccp::existence_constant_branches`]'s
+    /// existence fold, the W210 / W211 / W220 emitters, and the optimiser's
+    /// O101 / O109 / O126) read it in `O(1)` and abstain.  See
+    /// [`crate::dynamic_names`].
+    pub dynamic_names: crate::dynamic_names::DynamicNameBarrier,
     /// Single source of truth for the deep-analysis complexity guard: when
     /// `true` (CFG block count **or** body bytes over the ceiling), `ssa` and
     /// the dataflow lattices are trivial and **every** per-proc diagnostic /
@@ -453,9 +462,17 @@ impl FunctionUnit {
         // parameter/existence facts to fold them itself.
         let param_set: std::collections::HashSet<&str> =
             params.iter().map(String::as_str).collect();
+        // Dynamic-name facts (issue #923 audit cluster C10): a `set $var v`
+        // means any name may be defined, an `unset $n` that any name may have
+        // stopped existing — so the existence fold must abstain in that
+        // direction rather than hand the optimiser a wrong constant branch.
+        let dynamic_names = crate::dynamic_names::dynamic_name_barrier(&cfg, registry);
         sccp.constant_branches
             .extend(crate::sccp::existence_constant_branches(
-                &cfg, &param_set, registry,
+                &cfg,
+                &param_set,
+                registry,
+                dynamic_names,
             ));
         let types = propagate_types(
             &cfg,
@@ -497,6 +514,7 @@ impl FunctionUnit {
             taints,
             rendered_props,
             memory_ssa: None,
+            dynamic_names,
             complexity_guarded: false,
             base_offset: 0,
         }
@@ -520,6 +538,9 @@ impl FunctionUnit {
             taints: HashMap::new(),
             rendered_props: HashMap::new(),
             memory_ssa: None,
+            // A guarded unit's lattices are all trivial and every per-proc
+            // pass skips it, so the barrier stays clear (never consulted).
+            dynamic_names: crate::dynamic_names::DynamicNameBarrier::default(),
             complexity_guarded: true,
             base_offset: 0,
         }

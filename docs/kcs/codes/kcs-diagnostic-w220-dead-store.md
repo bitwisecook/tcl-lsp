@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, dce
+all-editors, diagnostic, dce, dataflow
 
 ## Profiles
 
@@ -48,6 +48,31 @@ puts $x
 ```
 
 Remove the redundant first assignment.
+
+## Computed variable names silence the check
+
+Tcl can compute a variable's *name* at run time, and a read through a computed
+name can reach any local at all:
+
+```tcl
+proc dump {} {
+    set alpha 10
+    set beta 20
+    foreach v [info locals] {
+        puts [set $v]      ;# reads alpha and beta, with no `$alpha` anywhere
+    }
+}
+```
+
+`[set $v]` — and the same idiom spelled `[subst $[subst $v]]`, or a `subst`
+over a template held in a variable — names its target from run-time data, so
+no assignment in the proc can still be proved unread. Once one appears,
+`W220` and [`W211`](kcs-diagnostic-w211-variable-set-not-used.md) both go
+silent for the whole proc, and the optimiser stops removing stores there
+([`O109`](kcs-optimisation-o109-dead-store.md) /
+[`O126`](kcs-optimisation-o126-unused-variable-removal.md)).
+Removing a store the analyser cannot see the reader for would change what the
+program prints, so the analysis abstains instead.
 
 ## How to suppress
 

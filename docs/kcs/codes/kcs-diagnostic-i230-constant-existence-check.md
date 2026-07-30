@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, sccp
+all-editors, diagnostic, sccp, dataflow
 
 ## Profiles
 
@@ -99,6 +99,31 @@ before may correctly have gone away:
 - A body run by `uplevel 0`. That is the *current* frame, not the global
   one — only `uplevel #0` is global — so its calls count against the
   enclosing namespace's procs.
+
+## Where a computed variable name stops the fold
+
+Tcl can compute a variable's *name* at run time, and the analyser cannot know
+which name it lands on:
+
+```tcl
+proc parse {args} {
+    foreach a $args {
+        set switch [string trimleft $a -]
+        set $switch {}          ;# defines whatever $switch spells
+    }
+    if {[info exists mixed]} { return has-mixed }   ;# no I230
+    return no-mixed
+}
+```
+
+`set $switch {}` may well have created `mixed`, so the check is not provably
+false and no `I230` is reported. The mirror case is `unset $n`, which may
+remove a variable the analyser thought certain to exist — including a
+parameter — so it stops the "always true" fold in the same way. The optimiser
+follows suit and leaves both branches in place, because folding away a branch
+that really runs would change the program.
+
+Spell the name out to get the fold (and the diagnostic) back.
 
 ## Fix
 

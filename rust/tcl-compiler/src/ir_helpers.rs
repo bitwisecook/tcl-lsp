@@ -25,9 +25,9 @@
 //! definitions produced by command substitutions.
 
 use tcl_lexer::{Lexer, SourceMap, TokenType};
-use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
+use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 use crate::naming::normalise_var_name;
@@ -248,11 +248,11 @@ pub fn defs_from_expr(expr: &ExprNode, registry: &CommandRegistry) -> Vec<String
             .unwrap_or(cmd_text);
 
         let words = tokenise_to_words(text);
-        if words.is_empty() {
+        let Some((cmd_word, arg_words)) = words.split_first() else {
             continue;
-        }
-        let cmd_name = &words[0];
-        let args: Vec<&str> = words[1..].iter().map(String::as_str).collect();
+        };
+        let cmd_name = &cmd_word.text;
+        let args: Vec<&str> = arg_words.iter().map(|w| w.text.as_str()).collect();
 
         // VarWrite positions.
         for idx in registry.arg_indices_for_role(cmd_name, &args, ArgRole::VarWrite) {
@@ -284,17 +284,14 @@ pub fn defs_from_expr(expr: &ExprNode, registry: &CommandRegistry) -> Vec<String
 /// (e.g. `set x 1` inside a `catch` body).
 fn defs_from_body_script(body_text: &str, registry: &CommandRegistry) -> Vec<String> {
     let mut defs = Vec::new();
-    let words_list = tokenise_to_command_words(body_text);
-
-    for words in &words_list {
-        if words.is_empty() {
+    for words in tokenise_command_words(body_text) {
+        let Some((cmd_word, arg_words)) = words.split_first() else {
             continue;
-        }
-        let cmd_name = &words[0];
-        let args: Vec<&str> = words[1..].iter().map(String::as_str).collect();
-        for idx in registry.arg_indices_for_role(cmd_name, &args, ArgRole::VarWrite) {
-            if idx < args.len() {
-                let name = normalise_var_name(args[idx]);
+        };
+        let args: Vec<&str> = arg_words.iter().map(|w| w.text.as_str()).collect();
+        for idx in registry.arg_indices_for_role(&cmd_word.text, &args, ArgRole::VarWrite) {
+            if let Some(arg) = args.get(idx) {
+                let name = normalise_var_name(arg);
                 if !name.is_empty() {
                     defs.push(name.to_owned());
                 }
@@ -304,13 +301,19 @@ fn defs_from_body_script(body_text: &str, registry: &CommandRegistry) -> Vec<Str
     defs
 }
 
-/// Out-variable names assigned by `catch` / `regexp` / `scan` command
-/// substitutions appearing in `condition` (an `if`/`while` condition expr).
-/// These builtins write result variables as a side effect, so a read of
-/// such a variable in the guarded body is **not** read-before-set — the
-/// CFG records them as defs on the synthetic `<cond>` statement so the
-/// def-use / W210 analysis sees the write.
-pub(crate) fn condition_command_out_vars(condition: &ExprNode) -> Vec<String> {
+/// Out-variable names assigned by command substitutions appearing in
+/// `condition` (an `if`/`while` condition expr).
+///
+/// A command that writes a variable named by one of its own arguments does
+/// so *before* either branch runs, so a read of such a variable in the
+/// guarded body is **not** read-before-set — the CFG records them as defs on
+/// the synthetic `<cond>` statement so the def-use / W210 analysis sees the
+/// write.  Which arguments those are is the registry's
+/// [`ArgRole::VarWrite`] answer, never a name list here (issue #923 idx 49).
+pub(crate) fn condition_command_out_vars(
+    condition: &ExprNode,
+    registry: &CommandRegistry,
+) -> Vec<String> {
     let mut cmds = Vec::new();
     collect_expr_commands(condition, &mut cmds);
     let mut out = Vec::new();
@@ -320,131 +323,124 @@ pub(crate) fn condition_command_out_vars(condition: &ExprNode) -> Vec<String> {
             .strip_prefix('[')
             .and_then(|s| s.strip_suffix(']'))
             .unwrap_or(trimmed);
-        cmd_substitution_out_vars(&tokenise_to_words(inner), &mut out);
+        cmd_substitution_out_vars(&tokenise_to_words(inner), registry, &mut out, 0);
     }
     out
 }
 
-/// A word usable as a variable name: identifier characters only (so
-/// `{script}`, `$ref`, `[sub]` and quoted words are rejected).
-fn is_bare_var_word(word: &str) -> bool {
-    !word.is_empty()
+/// A word usable as a variable name: a *literal* identifier (so `{script}`,
+/// `[sub]`, quoted words, and — via [`CommandWord::substituted`] — the
+/// run-time-computed `$ref` are all rejected).
+///
+/// The substitution check has to come from the token stream, not the text:
+/// the word's *content* spelling drops the `$`, so `set $n 1` would otherwise
+/// read as a definition of a variable called `n` and silence a genuine
+/// warning about it.
+fn is_bare_var_word(word: &CommandWord) -> bool {
+    !word.substituted
+        && !word.text.is_empty()
         && word
+            .text
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
 }
 
-fn push_out_var(word: &str, out: &mut Vec<String>) {
+fn push_out_var(word: &CommandWord, out: &mut Vec<String>) {
     if is_bare_var_word(word) {
-        let normalised = normalise_var_name(word);
+        let normalised = normalise_var_name(&word.text);
         if !normalised.is_empty() && !out.iter().any(|v| v == normalised) {
             out.push(normalised.to_owned());
         }
     }
 }
 
-/// Out-vars written by the builtin named by `words[0]`, appended to `out`.
-fn cmd_substitution_out_vars(words: &[String], out: &mut Vec<String>) {
-    match words.first().map(String::as_str) {
-        // `catch SCRIPT ?resultVar? ?optionsVar?`
-        Some("catch") => {
-            if let Some(w) = words.get(2) {
-                push_out_var(w, out);
-            }
-            if let Some(w) = words.get(3) {
-                push_out_var(w, out);
-            }
-            // The SCRIPT body (words[1]) runs in the current scope, so variables
-            // it assigns are (maybe) set once the catch completes — e.g.
-            // `if {![catch {set x 1}]} { puts $x }` (tclsh prints 1, so the read
-            // is safe). Recover the body's writes too.
-            if let Some(body) = words.get(1) {
-                catch_body_out_vars(body, out);
-            }
+/// Out-vars written by the command named by `words[0]`, appended to `out`.
+///
+/// Registry-first: the write positions come from
+/// [`CommandRegistry::arg_indices_for_role`]`(…, `[`ArgRole::VarWrite`]`)`,
+/// which is the same machinery the analyser's out-var handling and W210's
+/// suppression harvest already consult.  It answers for every command the
+/// registry knows — `catch` / `scan` / `gets` / `regexp` as before, plus
+/// `set` / `append` / `lappend` / `incr` / `lset` / `regsub` / `lassign` /
+/// `binary scan` / `dict update` / `array set` / … — so
+/// `if {[set idx [lsearch $l foo]] > -1} {puts $idx}` no longer looks
+/// read-before-set (issue #923 idx 49; tclsh 9.0.4 / 8.6.14 both print the
+/// index).
+///
+/// Bodies that run in the *caller's own* frame
+/// ([`CommandRegistry::plain_body_arg_indices`] — `catch`'s script, and any
+/// other `Plain` body) are descended into as well: their assignments are
+/// (maybe) set once the substitution completes.  A `Structural` body
+/// (`uplevel`, `namespace eval`, `proc`) writes somewhere else entirely and
+/// is never harvested.
+///
+/// Destroyers ([`Traits::DESTROYS_VARIABLE`] — `unset`) are skipped: an
+/// `unset` in a condition removes a variable rather than defining one, and
+/// claiming it as a def would mask a genuine W213.
+///
+/// Suppress-only: over-collection avoids false warnings, under-collection
+/// leaves the status quo.
+fn cmd_substitution_out_vars(
+    words: &[CommandWord],
+    registry: &CommandRegistry,
+    out: &mut Vec<String>,
+    depth: u32,
+) {
+    // Native-stack safety net (issue #996): `catch {catch {catch …}}` nests
+    // body text inside one word, so the bracket-text cap applies. Past it,
+    // stop harvesting — under-collection is the safe direction here.
+    if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        return;
+    }
+    let Some((cmd_word, arg_words)) = words.split_first() else {
+        return;
+    };
+    let cmd = &cmd_word.text;
+    if registry
+        .get(cmd)
+        .is_some_and(|s| s.traits.contains(Traits::DESTROYS_VARIABLE))
+    {
+        return;
+    }
+    let args: Vec<&str> = arg_words.iter().map(|w| w.text.as_str()).collect();
+    for idx in registry.arg_indices_for_role(cmd, &args, ArgRole::VarWrite) {
+        if let Some(w) = arg_words.get(idx) {
+            push_out_var(w, out);
         }
-        // `scan STRING FORMAT ?varName ...?`
-        Some("scan") => {
-            for w in words.iter().skip(3) {
-                push_out_var(w, out);
-            }
+    }
+    for idx in registry.plain_body_arg_indices(cmd, &args) {
+        // The word's *content* spelling already has the enclosing braces
+        // stripped, so it is the body script text as written.  A body reached
+        // through a substitution (`catch $script`) is unknown text and
+        // contributes nothing.
+        if let Some(body) = arg_words.get(idx).filter(|w| !w.substituted) {
+            script_text_out_vars_at(&body.text, registry, out, depth);
         }
-        // `gets channelId ?varName?` writes the line into `varName` in the
-        // current scope (e.g. `while {[gets $fp line] >= 0} {…}`).
-        Some("gets") => {
-            if let Some(w) = words.get(2) {
-                push_out_var(w, out);
-            }
-        }
-        // `regexp ?switches? EXP STRING ?matchVar subVar ...?`
-        Some("regexp") => {
-            let mut i = 1;
-            while i < words.len() && words[i].starts_with('-') {
-                if words[i] == "--" {
-                    i += 1;
-                    break;
-                }
-                // `-start` consumes a value; every other regexp switch is a
-                // valueless flag.
-                if words[i] == "-start" {
-                    i += 1;
-                }
-                i += 1;
-            }
-            // Skip EXP and STRING; the remaining words are out-vars.
-            for w in words.iter().skip(i + 2) {
-                push_out_var(w, out);
-            }
-        }
-        _ => {}
     }
 }
 
-/// Out-vars assigned by the *body* of a `catch {SCRIPT}` — direct
-/// `set`/`append`/`lappend`/`incr` targets plus nested command-substitution
-/// writers (`gets`/`scan`/`regexp`/`catch`). Suppress-only: keeps a read of a
-/// catch-body-assigned variable *after* the catch from looking
-/// read-before-set. Over-collection here is safe (it only avoids false
-/// warnings); a body whose error precedes the assignment is the conservative
-/// stance read-before-set already takes for command substitutions.
-fn catch_body_out_vars(body_word: &str, out: &mut Vec<String>) {
-    // The body is usually a single braced word; strip the braces to recover the
-    // script text. A non-braced body (e.g. a bare command) is scanned as-is.
-    let body = body_word
-        .strip_prefix('{')
-        .and_then(|s| s.strip_suffix('}'))
-        .unwrap_or(body_word);
-    script_text_out_vars(body, out);
-}
-
-/// Out-vars assigned by a run of **script text** — direct
-/// `set`/`append`/`lappend`/`incr` targets plus nested command-substitution
-/// writers (`gets`/`scan`/`regexp`/`catch`).
+/// Out-vars assigned by a run of **script text**.
 ///
-/// Shared by [`catch_body_out_vars`] (a `catch` body word, braces already
-/// stripped) and the analyser's read-before-set suppression for a
+/// Shared by [`cmd_substitution_out_vars`]'s `Plain`-body descent (a `catch`
+/// script) and the analyser's read-before-set suppression for a
 /// [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`] call whose words the
 /// lowering left as an opaque barrier (`eval set l2 hello` — issue #1051).
 /// Both need the same answer from the same text, so they ask once here.
 ///
 /// Suppress-only: over-collection is safe (it only avoids false warnings),
 /// under-collection merely leaves the status quo.
-pub(crate) fn script_text_out_vars(body: &str, out: &mut Vec<String>) {
-    // First-arg-writer membership is the registry's
-    // `writes_first_arg_variable` query (cached default registry — the set
-    // is core Tcl in every dialect); over-collection stays safe per the
-    // suppress-only contract above.
-    let registry = tcl_registry::cache::registry_for_dialect("tcl8.6");
-    for words in tokenise_to_command_words(body) {
-        match words.first() {
-            // Direct assignment commands write their first argument.
-            Some(cmd) if registry.writes_first_arg_variable(cmd) => {
-                if let Some(w) = words.get(1) {
-                    push_out_var(w, out);
-                }
-            }
-            // Nested command-sub writers (`gets`/`scan`/`regexp`/`catch`).
-            _ => cmd_substitution_out_vars(&words, out),
-        }
+pub(crate) fn script_text_out_vars(body: &str, registry: &CommandRegistry, out: &mut Vec<String>) {
+    script_text_out_vars_at(body, registry, out, 0);
+}
+
+fn script_text_out_vars_at(
+    body: &str,
+    registry: &CommandRegistry,
+    out: &mut Vec<String>,
+    depth: u32,
+) {
+    for words in tokenise_command_words(body) {
+        cmd_substitution_out_vars(&words, registry, out, depth + 1);
     }
 }
 
@@ -541,46 +537,47 @@ fn collect_expr_commands_at(expr: &ExprNode, out: &mut Vec<String>, depth: u32) 
 }
 
 /// Tokenise source text into a flat list of words (single command).
-fn tokenise_to_words(source: &str) -> Vec<String> {
-    let sm = SourceMap::new(source);
-    let lexer = Lexer::new(source);
-    let Ok(tokens) = lexer.tokenise_all() else {
-        return Vec::new();
-    };
+fn tokenise_to_words(source: &str) -> Vec<CommandWord> {
+    tokenise_command_words(source)
+        .into_iter()
+        .next()
+        .unwrap_or_default()
+}
 
-    let mut words = Vec::new();
-    let mut prev_is_sep = true;
-    for tok in &tokens {
-        match tok.kind {
-            TokenType::Sep | TokenType::Eol | TokenType::Eof | TokenType::Comment => {
-                prev_is_sep = true;
-            }
-            _ => {
-                let text = sm.token_text(*tok);
-                if prev_is_sep {
-                    words.push(text.to_owned());
-                } else if let Some(last) = words.last_mut() {
-                    last.push_str(text);
-                } else {
-                    words.push(text.to_owned());
-                }
-                prev_is_sep = false;
-            }
-        }
-    }
-    words
+/// One word of a tokenised command, in both spellings its consumers need.
+///
+/// The lexer's `token_text` strips a token's `$` / `${` / `[` / `{` / `"`
+/// prefix, which is what a name-harvesting caller wants (`{set x 1}` → the
+/// script text) but which erases the distinction that decides whether a word
+/// *is* a name: `set $x 1` and `set x 1` both reduce to `["set", "x", "1"]`.
+/// Carrying both spellings plus the two quoting facts lets every consumer ask
+/// its own question of one tokenisation.
+#[derive(Debug, Clone)]
+pub(crate) struct CommandWord {
+    /// Concatenated token **content** — `$x` → `x`, `{s}` → `s`.
+    pub text: String,
+    /// Concatenated **verbatim** source spelling — `$x` stays `$x`.  A
+    /// delimited token's closer is one past its span (the inner-end
+    /// convention), so a braced word reads back as `{s` — enough to answer
+    /// "does the name position substitute?", not enough to re-parse.
+    pub raw: String,
+    /// Some constituent token is a `$` / `[` substitution, so the word's
+    /// value is not its source text.
+    pub substituted: bool,
+    /// The word is a single brace-quoted token (`{…}`): Tcl leaves its
+    /// content literal, so a `$` inside is source text, not a substitution.
+    pub braced_literal: bool,
 }
 
 /// Tokenise source text into a list of commands, each a list of words.
-fn tokenise_to_command_words(source: &str) -> Vec<Vec<String>> {
+pub(crate) fn tokenise_command_words(source: &str) -> Vec<Vec<CommandWord>> {
     let sm = SourceMap::new(source);
-    let lexer = Lexer::new(source);
-    let Ok(tokens) = lexer.tokenise_all() else {
+    let Ok(tokens) = Lexer::new(source).tokenise_all() else {
         return Vec::new();
     };
 
     let mut commands = Vec::new();
-    let mut words: Vec<String> = Vec::new();
+    let mut words: Vec<CommandWord> = Vec::new();
     let mut prev_is_sep = true;
 
     for tok in &tokens {
@@ -595,13 +592,21 @@ fn tokenise_to_command_words(source: &str) -> Vec<Vec<String>> {
                 prev_is_sep = true;
             }
             _ => {
-                let text = sm.token_text(*tok);
-                if prev_is_sep {
-                    words.push(text.to_owned());
-                } else if let Some(last) = words.last_mut() {
-                    last.push_str(text);
-                } else {
-                    words.push(text.to_owned());
+                let substituted = matches!(tok.kind, TokenType::Var | TokenType::Cmd);
+                match words.last_mut() {
+                    Some(last) if !prev_is_sep => {
+                        last.text.push_str(sm.token_text(*tok));
+                        last.raw.push_str(sm.text(tok.span));
+                        last.substituted |= substituted;
+                        // A compound word (`{a}$b`) is no longer literal.
+                        last.braced_literal = false;
+                    }
+                    _ => words.push(CommandWord {
+                        text: sm.token_text(*tok).to_owned(),
+                        raw: sm.text(tok.span).to_owned(),
+                        substituted,
+                        braced_literal: tok.kind == TokenType::Str,
+                    }),
                 }
                 prev_is_sep = false;
             }
@@ -795,7 +800,25 @@ mod tests {
     #[test]
     fn tokenise_simple_command() {
         let words = tokenise_to_words("set x 1");
-        assert_eq!(words, vec!["set", "x", "1"]);
+        let texts: Vec<&str> = words.iter().map(|w| w.text.as_str()).collect();
+        assert_eq!(texts, vec!["set", "x", "1"]);
+        assert!(words.iter().all(|w| !w.substituted));
+    }
+
+    #[test]
+    fn tokenise_keeps_both_spellings_and_the_substitution_flag() {
+        let words = tokenise_to_words("set $x {a $b}");
+        let texts: Vec<&str> = words.iter().map(|w| w.text.as_str()).collect();
+        let raws: Vec<&str> = words.iter().map(|w| w.raw.as_str()).collect();
+        // Content drops the `$`; raw keeps it. A delimited token's closer is
+        // one past its span, so the braced word's raw spelling stops at `b`.
+        assert_eq!(texts, vec!["set", "x", "a $b"]);
+        assert_eq!(raws, vec!["set", "$x", "{a $b"]);
+        assert_eq!(
+            words.iter().map(|w| w.substituted).collect::<Vec<_>>(),
+            vec![false, true, false]
+        );
+        assert!(words[2].braced_literal, "`{{a $b}}` is a literal word");
     }
 
     #[test]
@@ -824,5 +847,97 @@ mod tests {
             d.contains(&"x".to_string()),
             "should find set's VarWrite; got {d:?}"
         );
+    }
+
+    /// Out-vars a condition-embedded `[cmd …]` contributes, as
+    /// [`condition_command_out_vars`] sees them.
+    fn cond_out_vars(cmd_text: &str) -> Vec<String> {
+        let registry = tcl_registry::cache::registry_for_dialect("tcl8.6");
+        let expr = ExprNode::Command {
+            text: format!("[{cmd_text}]"),
+            start: 0,
+            end: 0,
+        };
+        condition_command_out_vars(&expr, registry)
+    }
+
+    /// Contract for issue #923 audit idx 49: the registry's
+    /// `ArgRole::VarWrite` query must answer for every command the deleted
+    /// `catch` / `scan` / `gets` / `regexp` name list covered.
+    #[test]
+    fn registry_query_covers_the_deleted_hardcoded_four() {
+        for (cmd_text, expected) in [
+            ("catch {error x} msg opts", vec!["msg", "opts"]),
+            ("scan $t {%d %d} a b", vec!["a", "b"]),
+            ("gets $fp line", vec!["line"]),
+            ("regexp {(a)(b)} $s m p q", vec!["m", "p", "q"]),
+            // The switch-skipping the hand-rolled `regexp` loop did by hand
+            // is the registry resolver's job now.
+            ("regexp -nocase -- $re $s m", vec!["m"]),
+        ] {
+            let got = cond_out_vars(cmd_text);
+            for name in &expected {
+                assert!(
+                    got.iter().any(|v| v == name),
+                    "`{cmd_text}` must still yield `{name}`; got {got:?}"
+                );
+            }
+        }
+    }
+
+    /// …and it exceeds that list: commands the hardcoded four never covered,
+    /// each verified against tclsh 9.0.4 / 8.6.14 first.
+    #[test]
+    fn registry_query_exceeds_the_deleted_hardcoded_four() {
+        for (cmd_text, expected) in [
+            // `proc bar {lst} {if {[set idx [lsearch $lst foo]] > -1} {puts $idx}}`
+            // `bar {a foo b}` → 1
+            ("set idx [lsearch $lst foo]", vec!["idx"]),
+            // `proc loopy {} {set i 0; while {[incr i] < 3} {puts $i}}` → 1 2
+            ("incr i", vec!["i"]),
+            // `proc lass {lst} {lassign $lst a b; puts "$a-$b"}`
+            // `lass {1 2}` → 1-2
+            ("lassign $lst a b", vec!["a", "b"]),
+            // `proc binscan {} {binary scan "AB" H2H2 hi lo; puts "$hi $lo"}`
+            // → 41 42
+            ("binary scan $d H2H2 hi lo", vec!["hi", "lo"]),
+            // `regsub` writes its result variable.
+            ("regsub $re $s $r out", vec!["out"]),
+        ] {
+            let got = cond_out_vars(cmd_text);
+            for name in &expected {
+                assert!(
+                    got.iter().any(|v| v == name),
+                    "`{cmd_text}` must yield `{name}`; got {got:?}"
+                );
+            }
+        }
+    }
+
+    /// A `Plain` body (`catch`'s script) runs in the caller's own frame, so
+    /// its writes are harvested; a destroyer is not a definition.
+    #[test]
+    fn condition_out_vars_descends_plain_bodies_but_skips_destroyers() {
+        let got = cond_out_vars("catch {set inner 1} msg");
+        assert!(got.iter().any(|v| v == "inner"), "got {got:?}");
+        assert!(got.iter().any(|v| v == "msg"), "got {got:?}");
+
+        // tclsh 9.0.4 / 8.6.14:
+        // `proc t {} {if {[catch {unset gone}]} {puts $gone}}`
+        // `catch {t} err` → 1, err → `can't read "gone": no such variable`
+        let got = cond_out_vars("catch {unset gone}");
+        assert!(
+            !got.iter().any(|v| v == "gone"),
+            "`unset` destroys rather than defines; got {got:?}"
+        );
+    }
+
+    /// A dynamic target contributes no *name* — `push_out_var` only accepts a
+    /// bare identifier, so `set $n 1` in a condition stays silent rather than
+    /// inventing a def called `n`.
+    #[test]
+    fn condition_out_vars_ignores_a_dynamic_target() {
+        let got = cond_out_vars("set $n 1");
+        assert!(got.is_empty(), "got {got:?}");
     }
 }

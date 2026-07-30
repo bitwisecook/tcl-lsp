@@ -135,6 +135,52 @@ memory-SSA (`compiler/memory_ssa.py`).  Memory-SSA versions each
 store/load to aliased locations and builds alias sets, enabling
 alias-aware optimisation and taint tracking.
 
+### The dynamic-name barrier
+
+Name-level SSA can only answer "is `x` defined here?" and "is this store to
+`x` ever read?" while every access in the function *spells its target out*.
+Tcl lets a program compute the name (`set $switch {}`, `lappend out [set
+$name]`, `unset $n`), and the lowering deliberately declines to guess: such a
+call stays a generic `Call` with an empty `defs` list.  Nothing in the SSA
+graph then records that the name space was touched.
+
+`rust/tcl-compiler/src/dynamic_names.rs` supplies the missing fact as a
+per-function summary, `DynamicNameBarrier`, carried on `FunctionUnit`:
+
+| flag | set by | what stops being provable |
+|---|---|---|
+| `writes` | a `VarWrite`-role argument whose name substitutes (`set $v 1`, `array set $a {…}`, `global $n`) | "`x` was never defined in this function" |
+| `destroys` | the same, on a `DESTROYS_VARIABLE` command (`unset $n`) | "this parameter certainly exists" |
+| `reads` | a `VarRead`-role argument whose name substitutes (`[set $v]`, `parray $a`), or a `PERFORMS_SUBSTITUTION` command over a non-braced template (`subst $tmpl`) | "this store is never read" |
+
+Three points of design matter:
+
+- **Flags, not a name set.**  A computed name can land anywhere, so
+  enumerating candidates would be both unsound and unbounded.  The whole
+  lattice is three bits, computed in one flow-insensitive walk, so each
+  consumer pays `O(1)`.
+- **The roles come from the registry.**  `ArgRole::VarWrite` /
+  `ArgRole::VarRead` / the two traits are the only membership tests; the
+  module names no command.
+- **What is *not* a dynamic name.**  `a($k)` is a run-time element of the
+  statically named array `a` (the [place model](../compiler/memory-ssa.md)
+  already tracks that), and `${ns}::tail` binds its static tail whatever the
+  namespace resolves to.  Treating either as a whole-name clobber would
+  silence array and namespace diagnostics wholesale.
+
+Consumers and the direction each abstains in:
+
+| consumer | flag | abstention |
+|---|---|---|
+| `sccp::existence_constant_branches` → I230, O101 | `writes` (absent fold), `destroys` (present fold) | do not fold |
+| read-before-set → W210 | `writes` | stay silent |
+| dead store / unused → W211, W220 | `reads` | stay silent |
+| `optimiser::elimination` → O109, O126 | `reads` | do not eliminate |
+
+`eval $body` / `uplevel 1 $body` are deliberately **out of scope**: they run
+arbitrary code, a strictly larger blindness than a computed name, and lower to
+`Statement::Barrier` where the per-consumer barrier rules already apply.
+
 ## Related docs
 
 - [Examples 5–9 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-5-if-x--set-y-10-)

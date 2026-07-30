@@ -851,11 +851,24 @@ fn collect_constant_branches(
 /// Scope-alias locals (`global` / `variable` / `upvar` / `namespace
 /// upvar` bindings) are never folded — their existence tracks the
 /// linked out-of-frame variable.
+///
+/// `dynamic_names` carries the function's
+/// [dynamic-name barrier](crate::dynamic_names) and gates each direction
+/// independently (issue #923 audit idx 1):
+///
+/// - a **dynamic write** (`set $switch {}`) can define *any* name, so the
+///   "never defined here, therefore absent" fold is no longer provable;
+/// - a **dynamic destroy** (`unset $n`) can remove *any* name, so even the
+///   "it's a parameter, therefore present" fold is no longer provable.
+///
+/// Both abstain by declining the fold, which silences I230 and leaves O101
+/// with nothing to fold — say less rather than say something wrong.
 #[must_use]
 pub fn existence_constant_branches<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     params: &HashSet<&str, S>,
     registry: &tcl_registry::CommandRegistry,
+    dynamic_names: crate::dynamic_names::DynamicNameBarrier,
 ) -> Vec<ConstantBranch> {
     let mut out = Vec::new();
     if cfg.blocks.values().any(|b| {
@@ -934,11 +947,20 @@ pub fn existence_constant_branches<S: std::hash::BuildHasher>(
             continue;
         }
         let exists = if params.contains(var.as_str()) {
-            if unset.contains(var.as_str()) {
+            // A literal `unset x` already blocks this; a computed
+            // `unset $n` can name the parameter just as well
+            // (tclsh 9.0.4 / 8.6.14: `proc f {p n} {unset $n; info exists p}`
+            // → `0` for `f hello p`), so the barrier blocks it too.
+            if unset.contains(var.as_str()) || dynamic_names.destroys {
                 continue;
             }
             true
         } else if !defined.contains(&var) {
+            // `set $switch {}` may have defined exactly this name — the
+            // argparse idiom the fold used to call unreachable.
+            if dynamic_names.writes {
+                continue;
+            }
             false
         } else {
             continue;

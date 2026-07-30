@@ -103,6 +103,7 @@ pub mod dataflow_graph;
 pub mod dead_stores;
 pub mod def_use;
 mod depth_guard;
+pub mod dynamic_names;
 pub mod execution_intent;
 // The `expr` AST + Pratt parser now live in the shared `tcl-syntax` crate
 // (consumed by both the compiler and the runtime port). Re-exported under the
