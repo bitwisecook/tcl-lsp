@@ -78,6 +78,24 @@ file builds for itself with `lappend auto_path [file dirname [file dirname
 count — literals, `~`, `[info script]`, `[file dirname …]`, `[file join …]`.
 A path built from a variable resolves to nothing rather than to a guess.
 
+Three details of that search path follow Tcl exactly rather than
+approximately:
+
+- **`set` assigns a list, `lappend` appends words.** `set auto_path {/o/p1
+  /o/p2}` names *two* directories, and `{/o/with space}` inside it names
+  *one*; `lappend auto_path a b` names two, while `lappend auto_path {p q}`
+  names the single directory `p q`.
+- **Paths are Tcl slash form on every host.** `[file dirname [info script]]`
+  resolves against the file's own directory on Windows too — `C:\repo\pkg`
+  and `\\server\share\pkg` fold like `/repo/pkg` does, and `..` never climbs
+  out of a drive or a UNC share. A *drive-relative* `C:lib` names a
+  per-drive working directory nothing static can know, so it abstains.
+- **A version constraint picks the release Tcl would load.** With 1.5 and 2.3
+  both on the search path, `package require widget 2.0` navigates into 2.3 —
+  `package vsatisfies` semantics (`2.0` means up to but excluding the next
+  major), highest satisfying release wins. An unconstrained require still
+  answers the first provider found.
+
 ## Failure modes
 
 - Definition not found after proc lookup or namespace resolution changes.
@@ -91,7 +109,13 @@ A path built from a variable resolves to nothing rather than to a guess.
 - `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs` (cross-file namespace
   variables, cross-file class-reference arguments)
 - `rust/tcl-lsp-server/src/lib.rs` unit tests
-  (`definition_resolves_through_a_document_auto_path_package`)
+  (`definition_resolves_through_a_document_auto_path_package`,
+  `set_auto_path_puts_every_list_element_on_the_search_path`,
+  `a_versioned_require_indexes_the_release_it_asks_for`)
+- `rust/tcl-compiler/src/auto_path_eval.rs` (`mod tests`) — the list-arity and
+  slash-form path rules
+- `rust/tcl-lsp-core/src/package_resolver/tests.rs`
+  (`resolve_picks_the_highest_release_satisfying_the_constraint`)
 
 ## Screenshots
 

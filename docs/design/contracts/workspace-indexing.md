@@ -39,12 +39,13 @@ the one where it does not.
 ## Derived views and their invalidation
 
 `WorkspaceIndex::generation()` is bumped by `add_document` /
-`remove_document`.  A consumer that derives a whole-index view must memoise
-it on that counter rather than rebuilding per request — the workspace
+`remove_document`, and every derived cache is dropped with it.  A whole-index
+derived view belongs *on the index*, built lazily and invalidated by that same
+mutation hook, rather than rebuilt per request by its consumer — the workspace
 command-name set the cross-file unknown-command pass consults
-(`Backend::workspace_known_command_names`) is the reference example: ~20 000
-names on a 400-file / 10 000-proc workspace, ~7 ms to build, ~120 ns to
-serve from the memo.
+(`WorkspaceIndex::command_names`) is the reference example: ~20 000 names on a
+400-file / 10 000-proc workspace, ~7 ms to build, ~120 ns to serve from the
+cache.
 
 ## Decision rules / contracts
 
@@ -54,12 +55,20 @@ serve from the memo.
 4. A new index table must carry a *cross-document identity*, not a
    per-document one; if a symbol kind only has meaning inside its own file,
    it does not belong here.
-5. Any whole-index derived view is memoised on `generation()`.
+5. Any whole-index derived view lives on the index, built lazily and dropped
+   by the same mutation hook that bumps `generation()`.
 6. The extensions the background scan indexes, the
    `workspace/didChangeWatchedFiles` registration, and the `willRename` /
    `didRename` filter all come from the one `TCL_SOURCE_EXTENSIONS` list —
    a file the scan indexes but the watcher ignores goes stale on the next
    external edit.
+7. Search-path and package facts follow real Tcl arity and version rules, not
+   convenient approximations. `set auto_path` assigns a **list** (each element
+   one directory, a braced element with spaces still one) while `lappend`
+   appends one directory per argument word; path arithmetic runs in Tcl's
+   slash form so a native Windows `[info script]` resolves against its own
+   directory; and a `package require NAME VERSION` selects the highest release
+   satisfying `package vsatisfies`, not whichever was discovered first.
 
 ## File-path anchors
 
@@ -85,9 +94,13 @@ serve from the memo.
 - `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs`
 - `rust/tcl-lsp-server/tests/e2e/issue923_class_refs.rs`
 - `rust/tcl-lsp-server/src/lib.rs` unit tests
-  (`workspace_known_names_are_memoised_on_the_index_generation`,
-  `watcher_and_rename_globs_cover_every_indexed_extension`,
-  `document_auto_path_mutation_feeds_the_package_database`)
+  (`watcher_and_rename_globs_cover_every_indexed_extension`,
+  `document_auto_path_mutation_feeds_the_package_database`,
+  `set_auto_path_puts_every_list_element_on_the_search_path`,
+  `a_versioned_require_indexes_the_release_it_asks_for`)
+- `rust/tcl-lsp-core/src/workspace_index.rs`
+  (`command_names_are_cached_until_the_index_changes`)
+- `rust/tcl-compiler/src/auto_path_eval.rs` (`mod tests`)
 
 ## Discoverability
 

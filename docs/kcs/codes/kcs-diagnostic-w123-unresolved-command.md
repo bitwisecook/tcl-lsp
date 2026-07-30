@@ -113,7 +113,11 @@ Always on, needing no setting: a command an installed library auto-loads
 (`tclIndex`), and a command defined by a package the file `package
 require`s. The package's `pkgIndex.tcl` is found on the search path,
 including the one the file builds for itself with `lappend auto_path [file
-dirname [file dirname [info script]]]`.
+dirname [file dirname [info script]]]`. That search path follows Tcl's own
+rules: `set auto_path {…}` contributes one directory per **list element**
+(`lappend` one per argument word), the path arithmetic is Tcl slash form so a
+Windows `[info script]` resolves against its own directory, and a versioned
+`package require NAME 2.0` reads the release `package vsatisfies` would pick.
 
 Off by default, opt in with `tclLsp.features.crossFileResolution`: every
 `proc` and class the **workspace** defines, whether or not anything links

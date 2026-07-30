@@ -1303,13 +1303,41 @@ pub struct QualifiedVarRef {
     pub span: Span,
 }
 
+/// Which `auto_path` mutation wrote an [`AutoPathEntry`].
+///
+/// The two forms differ in **arity**, so a consumer must not read them alike
+/// (verified against `tclsh8.6` / `tclsh9.0`):
+///
+/// | Written | `llength $auto_path` gains |
+/// |---------|----------------------------|
+/// | `lappend auto_path a b` | 2 — one element per argument *word* |
+/// | `lappend auto_path {p q}` | 1 — the word `p q`, spaces and all |
+/// | `set auto_path {/o/p1 /o/p2}` | 2 — the right-hand side is a *list* |
+/// | `set auto_path {/o/a {/o/w s} /o/b}` | 3 — the braced element stays one |
+///
+/// [`crate::auto_path_eval::evaluate_auto_path_entry`] is the consumer that
+/// applies the distinction; it is the only supported way to turn one of these
+/// records into directories.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AutoPathForm {
+    /// `lappend auto_path WORD …` — one record per argument word, and that
+    /// word is exactly one directory however many spaces it contains.
+    Append,
+    /// `set auto_path LIST` — one record holding the *whole* right-hand side,
+    /// which is a Tcl list and may therefore name several directories.
+    Assign,
+}
+
 /// `auto_path` mutation record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AutoPathEntry {
-    /// Raw path text as written.
+    /// Raw path text as written.  One directory for [`AutoPathForm::Append`];
+    /// a Tcl *list* of them for [`AutoPathForm::Assign`].
     pub raw_path: String,
     /// Span of the path argument.
     pub range: Span,
+    /// Which mutation wrote this record — see [`AutoPathForm`].
+    pub form: AutoPathForm,
 }
 
 /// One parameter declared inside a ``# tcl-lsp: stub NAME {ARGS}``

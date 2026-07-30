@@ -199,9 +199,16 @@ pub struct SignatureNamespaceExport {
 
 /// An `auto_path` mutation recorded by the signature scanner.
 ///
-/// Covers both `lappend auto_path …` and `set auto_path …` forms.
-/// Each path element gets one record; resolution to absolute paths
-/// happens later in the analyser pipeline.
+/// Covers both `lappend auto_path …` and `set auto_path …` forms.  One record
+/// per argument **word**; resolution to absolute paths happens later in the
+/// analyser pipeline.
+///
+/// Note that a word is not always one directory: `set auto_path` assigns a
+/// Tcl *list*, so its single word may name several.  The analyser's own
+/// [`crate::analyser::types::AutoPathEntry`] tags which form wrote it, and
+/// [`crate::auto_path_eval::evaluate_auto_path_entry`] applies the
+/// distinction; this scanner-side record is raw text with no such tag, so a
+/// consumer must not read it as a directory list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignatureAutoPathEntry {
     /// Verbatim path-element text as reconstructed by the segmenter.

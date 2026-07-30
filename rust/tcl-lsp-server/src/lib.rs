@@ -4403,14 +4403,14 @@ impl Backend {
             let resolver = self.package_resolver.read().await;
             let mut files: Vec<PathBuf> = Vec::new();
             for req in &analysis.package_requires {
-                // No version constraint: `resolve` then answers the
-                // first-discovered provider, matching Tcl's `auto_path`-order
-                // semantics.  A `package require NAME VERSION` still resolves —
-                // a workspace holding two versions of one package is a
-                // pathological case this tier deliberately does not adjudicate,
-                // and answering the first provider is what the auto-load tier
-                // does too.
-                for f in resolver.resolve(&req.name, None) {
+                // The document's own constraint decides which release is
+                // indexed: `package require widget 2.0` against a workspace
+                // holding 1.5 and 2.3 must navigate into 2.3 (`package
+                // vsatisfies` semantics — see `PackageResolver::resolve`), not
+                // whichever directory the scan happened to read first.  `None`
+                // when the require carried no version, which keeps the
+                // unconstrained case on the first-discovered provider.
+                for f in resolver.resolve(&req.name, req.version.as_deref()) {
                     if !files.contains(&f) {
                         files.push(f);
                     }
@@ -13474,6 +13474,15 @@ fn extend_resolver_with_document_auto_paths(
 /// The directories one document's `auto_path` mutations statically resolve to
 /// — see [`extend_resolver_with_document_auto_paths`] for the rationale and
 /// the abstention rule.  `uri` supplies `[info script]`.
+///
+/// One record can name several directories (`set auto_path` assigns a *list*),
+/// so the fold is
+/// [`tcl_compiler::auto_path_eval::evaluate_auto_path_entry`] rather than the
+/// single-expression evaluator — it owns both the list grammar and the
+/// slash-form path arithmetic that keeps a native Windows `[info script]`
+/// (`C:\repo\user.tcl`, which is what `Uri::to_file_path` yields there)
+/// resolving against its own directory.  It returns slash form, which
+/// `PathBuf` accepts on every host.
 fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf> {
     if analysis.auto_path_entries.is_empty() {
         return Vec::new();
@@ -13486,15 +13495,16 @@ fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf>
         if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {
             break;
         }
-        let Some(folded) = tcl_compiler::auto_path_eval::evaluate_auto_path_expr(
-            &entry.raw_path,
-            file_path.to_str(),
-        ) else {
-            continue;
-        };
-        let dir = PathBuf::from(folded);
-        if !dirs.contains(&dir) {
-            dirs.push(dir);
+        for folded in
+            tcl_compiler::auto_path_eval::evaluate_auto_path_entry(entry, file_path.to_str())
+        {
+            if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {
+                break;
+            }
+            let dir = PathBuf::from(folded);
+            if !dirs.contains(&dir) {
+                dirs.push(dir);
+            }
         }
     }
     dirs
@@ -16730,6 +16740,120 @@ mod tests {
         assert!(
             locs[0].uri.as_str().ends_with("mypix.tcl"),
             "unexpected target: {:?}",
+            locs[0].uri,
+        );
+    }
+
+    /// PR #1086 finding 2 — TP: `set auto_path` assigns a **list**, so every
+    /// element becomes a search directory; TN: a brace-quoted element holding
+    /// a space stays exactly one directory.
+    ///
+    /// Oracle (`tclsh8.6` 8.6.14 / `tclsh9.0` 9.0.4) on this layout: with
+    /// `set auto_path {…/p1 …/p2 {…/with space}}`, `llength $auto_path` is 3
+    /// and `package require` finds `alpha`, `beta` **and** `spaced`.
+    #[tokio::test]
+    async fn set_auto_path_puts_every_list_element_on_the_search_path() {
+        let ws = TmpWs::new("autopath-set");
+        for (dir, pkg) in [("p1", "alpha"), ("p2", "beta"), ("with space", "spaced")] {
+            ws.write(
+                &format!("reporoot/{dir}/pkgIndex.tcl"),
+                &format!("package ifneeded {pkg} 1.0 [list source [file join $dir {pkg}.tcl]]\n"),
+            );
+            ws.write(
+                &format!("reporoot/{dir}/{pkg}.tcl"),
+                &format!("package provide {pkg} 1.0\nproc ::{pkg}::go {{}} {{}}\n"),
+            );
+        }
+        let root = ws.0.join("reporoot");
+        let root_s = root.to_str().unwrap();
+        ws.write(
+            "reporoot/examples/user.tcl",
+            &format!(
+                "set auto_path {{{root_s}/p1 {root_s}/p2 {{{root_s}/with space}}}}\n\
+                 package require alpha\npackage require beta\npackage require spaced\n"
+            ),
+        );
+
+        let backend = test_backend();
+        // Root is `examples/` only, so nothing but the assignment can reach
+        // the three package directories.
+        let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
+        *backend.workspace_folders.lock().await = vec![narrow_root];
+        backend.scan_workspace_folders().await;
+
+        let resolver = backend.package_resolver.read().await;
+        for pkg in ["alpha", "beta"] {
+            assert!(
+                resolver.provides(pkg),
+                "`set auto_path` names {pkg}'s directory as one list element, \
+                 so it must be searched — the whole right-hand side is not one \
+                 space-containing path",
+            );
+        }
+        assert!(
+            resolver.provides("spaced"),
+            "a brace-quoted element is ONE directory, spaces and all, and must \
+             still be searched",
+        );
+    }
+
+    /// PR #1086 finding 3 — TP: with two releases of one package on the search
+    /// path, the document's own `package require NAME VERSION` decides which
+    /// one go-to-definition navigates into.
+    ///
+    /// Oracle (`tclsh8.6` / `tclsh9.0`, `widget` 1.5 and 2.3 both on
+    /// `auto_path`): `package require widget 2.0` loads **2.3**.
+    #[tokio::test]
+    async fn a_versioned_require_indexes_the_release_it_asks_for() {
+        let ws = TmpWs::new("pkgver");
+        for (dir, ver, marker) in [("v1", "1.5", "OLD"), ("v2", "2.3", "NEW")] {
+            ws.write(
+                &format!("reporoot/{dir}/pkgIndex.tcl"),
+                &format!(
+                    "package ifneeded widget {ver} [list source [file join $dir widget.tcl]]\n"
+                ),
+            );
+            ws.write(
+                &format!("reporoot/{dir}/widget.tcl"),
+                &format!(
+                    "package provide widget {ver}\n\
+                     proc ::widget::render {{}} {{ return {marker} }}\n"
+                ),
+            );
+        }
+        let root = ws.0.join("reporoot");
+        let root_s = root.to_str().unwrap();
+        // `v1` is listed first, so a first-provider-wins resolve would answer
+        // 1.5 — the bug this pins.
+        let user_src = format!(
+            "set auto_path {{{root_s}/v1 {root_s}/v2}}\n\
+             package require widget 2.0\n\
+             ::widget::render\n"
+        );
+        ws.write("reporoot/examples/user.tcl", &user_src);
+
+        let backend = test_backend();
+        let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
+        *backend.workspace_folders.lock().await = vec![narrow_root];
+        backend.scan_workspace_folders().await;
+
+        let user_uri = Uri::from_file_path(ws.0.join("reporoot/examples/user.tcl")).unwrap();
+        register(&backend, &user_uri, &user_src).await;
+        let locs = backend
+            .compute_definition(
+                &user_uri,
+                Position {
+                    line: 2,
+                    character: 4,
+                },
+            )
+            .await
+            .unwrap_or_default();
+        assert_eq!(locs.len(), 1, "expected one definition, got: {locs:?}");
+        assert!(
+            locs[0].uri.as_str().contains("/v2/"),
+            "`package require widget 2.0` selects 2.3, so definition must land \
+             in v2/widget.tcl, got: {:?}",
             locs[0].uri,
         );
     }

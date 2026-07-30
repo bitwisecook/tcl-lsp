@@ -5480,6 +5480,11 @@ impl Analyser {
     /// packages discovered at runtime can register commands the static
     /// analyser can't see, so W123 unknown-command diagnostics
     /// suppress on the document.
+    ///
+    /// `lappend` appends **one list element per argument word**, so this
+    /// records one [`AutoPathForm::Append`] entry per word and each is a whole
+    /// directory — `lappend auto_path {p q}` names the single directory
+    /// `p q`, not two.  Contrast [`Self::handle_auto_path_set`].
     pub fn handle_auto_path_lappend(&mut self, args: &[String], arg_tokens: &[Token]) {
         if args.first().map(String::as_str) != Some("auto_path") {
             return;
@@ -5493,6 +5498,7 @@ impl Analyser {
                 .push(super::types::AutoPathEntry {
                     raw_path: path.clone(),
                     range: tok.span,
+                    form: super::types::AutoPathForm::Append,
                 });
         }
         self.result.has_dynamic_providers = true;
@@ -5503,6 +5509,14 @@ impl Analyser {
     /// Dispatched from the [`tcl_registry::hooks::AnalyserHookId::Set`]
     /// arm; see [`Self::handle_auto_path_lappend`] for why any
     /// ``auto_path`` mutation flips ``has_dynamic_providers``.
+    ///
+    /// The right-hand side is assigned as a **list**, so the one record this
+    /// pushes may name several directories and is tagged
+    /// [`AutoPathForm::Assign`] to say so.  The split is deliberately *not*
+    /// done here: the record keeps the source word verbatim (its `range` is
+    /// the whole argument), and
+    /// [`crate::auto_path_eval::evaluate_auto_path_entry`] applies the list
+    /// grammar at consumption.
     pub fn handle_auto_path_set(&mut self, args: &[String], arg_tokens: &[Token]) {
         if args.first().map(String::as_str) != Some("auto_path") || args.len() < 2 {
             return;
@@ -5513,6 +5527,7 @@ impl Analyser {
                 .push(super::types::AutoPathEntry {
                     raw_path: args[1].clone(),
                     range: tok.span,
+                    form: super::types::AutoPathForm::Assign,
                 });
             self.result.has_dynamic_providers = true;
         }

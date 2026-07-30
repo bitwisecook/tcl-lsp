@@ -778,25 +778,49 @@ impl PackageResolver {
     /// Resolve a `package require NAME ?VERSION?` to its implementation files.
     ///
     /// With no version constraint, the first-discovered provider's files are
-    /// returned (Tcl `auto_path`-order semantics). With a version, an entry
-    /// whose version equals or is prefixed by the request is preferred. Empty
-    /// when the package is unknown to the scanned paths.
+    /// returned. Empty when the package is unknown to the scanned paths.
+    ///
+    /// A constraint is evaluated with **`package vsatisfies` semantics**
+    /// ([`tcl_dialect::version_satisfies`], the same implementation
+    /// the bytecode VM and the `pkgIndex.tcl` guard evaluation use), and the
+    /// *highest* satisfying release wins — both verified against `tclsh8.6`
+    /// and `tclsh9.0`:
+    ///
+    /// | Written | Means | 1.5 | 2.3 |
+    /// |---------|-------|-----|-----|
+    /// | `2.0`   | `[2.0, 3)` — up to but excluding the next major | no | yes |
+    /// | `2.0-`  | `[2.0, ∞)` | no | yes |
+    /// | `2.0-2.2` | `[2.0, 2.2)` | no | no |
+    ///
+    /// With 1.5 and 2.3 both present, `package require widget 2.0` loads 2.3 —
+    /// so this returns 2.3's files. String prefixing would have missed it.
+    ///
+    /// Two bounds, both deliberate:
+    ///
+    /// * `-exact` is **not** modelled. The flag is parsed and dropped when the
+    ///   requirement is recorded (`SignaturePackageRequire` carries no
+    ///   `exact`), so `package require -exact widget 2.0` reads here as the
+    ///   ranged `2.0` and resolves 2.3, where real Tcl would error. For a
+    ///   navigation tier that is a generous answer rather than a wrong one.
+    /// * An **unconstrained** require answers the first-discovered provider,
+    ///   while Tcl picks the highest available. Left as-is so the common
+    ///   single-version workspace keeps its `auto_path`-order behaviour.
     #[must_use]
     pub fn resolve(&self, name: &str, version: Option<&str>) -> Vec<PathBuf> {
         let Some(infos) = self.packages.get(name) else {
             return Vec::new();
         };
-        if let Some(ver) = version {
-            for info in infos {
-                if info.version == ver || info.version.starts_with(ver) {
-                    return info.source_files.clone();
-                }
-            }
-            return Vec::new();
-        }
+        let Some(req) = version else {
+            return infos
+                .first()
+                .map(|i| i.source_files.clone())
+                .unwrap_or_default();
+        };
         infos
-            .first()
-            .map(|i| i.source_files.clone())
+            .iter()
+            .filter(|info| tcl_dialect::version_satisfies(&info.version, req))
+            .max_by(|a, b| tcl_dialect::compare_versions(&a.version, &b.version))
+            .map(|info| info.source_files.clone())
             .unwrap_or_default()
     }
 
