@@ -461,6 +461,15 @@ partial — §3's `65dda01`; idx 68, high — §3's `134c31c`; idx 70, high —
 idx 95, high — §3's `ef36c73`; idx 94, high — §3's `959bca8`),
 **62 remaining**.
 
+**2026-07-30 update — PR A3 (`claude/commandregistry-compiler-fixes-tshu8d-mathfunc`)
+fixed six more, all tier 2:** idx 24, idx 30, idx 48, idx 54, idx 103, and
+idx 104 — see the "tier-2 findings fixed by PR A3" subsection after the
+tier-2 table for what each fix does and which of the audit's claims were
+already stale. idx 81 was **re-verified as already fixed** by the
+mathfunc-aware W123 / W002 work that landed on `rust` after the audit ran
+(`is_mathfunc_call` + `is_known_mathfunc_in_dialect`) and is counted with
+them. That makes **30 fixed, 55 remaining**.
+
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
 strings in the raw data — same corpus), tomato 7, pix 8.
@@ -683,19 +692,19 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 
 | feature | count | idx (severity) |
 |---|---|---|
-| tclOO | 10 | 15, 16, 34, 35, 36, 53, 54, 55, 96, 97 (all medium) |
+| tclOO | 10 | 15, 16, 34, 35, 36, 53, ~~54~~ **FIXED**, 55, 96, 97 (all medium) |
 | namespaces | 8 | 3, 19, 43, 44, 64, 65, 75, 85 (all medium) |
 | tricky_indirection | 7 | 0, 1, 2, 14, 49, 50, 51 (all medium) |
 | upvar | 7 | 7, 22, 57, 58, 59, 98, 99 (all medium) |
-| proc_args | 7 | 11, 28, 37, 62, 67, 78, 104 (all medium) |
-| tcl_mathop | 4 | 30, 80, 81, 103 (all medium) |
+| proc_args | 7 | 11, 28, 37, 62, 67, 78, ~~104~~ **FIXED** (all medium) |
+| tcl_mathop | 4 | ~~30~~ **FIXED**, 80, ~~81~~ **ALREADY FIXED**, ~~103~~ **FIXED** (all medium) |
 | package_loading | 3 | 4, 42, 72 (all medium) |
 | source | 3 | 27, 41, 102 (all medium) |
-| tracing | 3 | 47, 48, 92 (all medium) |
+| tracing | 3 | 47, ~~48~~ **FIXED**, 92 (all medium) |
 | rename | 2 | 5, 45 (all medium) |
 | aliasing | 2 | 21, 89 (all medium) |
 | uplevel | 2 | 38 (medium), 100 (low) |
-| eval | 1 | 24 (medium) |
+| eval | 1 | ~~24~~ **FIXED** (medium) |
 | autoindex | 1 | 73 (medium) |
 | safe_interp | 1 | 91 (medium) |
 
@@ -705,6 +714,26 @@ lsp_output, root_cause_hint) is in
 the same playbook as every fix already landed: re-confirm against current
 code and a real tclsh oracle → registry-driven fix reusing §4's mechanisms
 → TP/FP/TN/FN unit tests + lsp_e2e test → validation gates → commit.
+
+#### Tier-2 findings fixed by PR A3 (2026-07-30)
+
+Landed together on `claude/commandregistry-compiler-fixes-tshu8d-mathfunc`
+alongside issue #974 (`expr` math functions in hover / completion) and issue
+#1054 (hover type inference built without the document's dialect), because the
+mathfunc findings share one root cause with #974 and the word-recognition ones
+share one shared helper. Regression coverage for all of them is
+`rust/tcl-lsp-core/tests/mathfunc_and_word_recognition.rs` (27 TP/FP/TN cases)
+plus new `rust/tcl-lsp-server/tests/e2e/{hover,completion}.rs` cases.
+
+| idx | what was wrong | what changed |
+|---|---|---|
+| 24 (eval) | The cursor-word scan matched a `$level`-shaped substring inside an inert `#` comment or a brace-quoted data word Tcl emits verbatim, and hover / go-to-definition / find-references / rename resolved it to a real declaration — contradicting the LSP's own semantic tokens and its own W220. | New `tcl-lsp-core/src/inert_text.rs` holds two **conservative** inertness proofs: `offset_in_comment` (a `#` in command position, quote-aware) and `offset_in_data_brace` (a braced argument word whose registry `ArgRole` does not `carries_script`, descending through the ones that do). Both answer "inert" only when the position provably is, so no genuine reference can be lost. Consumed through one new shared helper, `definition::lookup_var_read_at`, wired into hover, definition, references, document-highlights, and prepare-rename. The finding's *secondary* claim (a W210 false positive on `uplevel N set $var value`) is a separate analyser gap and is **not** covered here. |
+| 30 (tcl_mathop) | Find-references returned 0 locations at a `tcl::mathfunc` `NAME(…)` call site while a query from the declaration worked (asymmetric); hover never resolved there at all; and a **bare** call to a `tcl::mathfunc`-namespaced proc wrongly resolved, on code tclsh rejects outright. | `resolve_proc_target_at` now resolves a mathfunc cursor through the analyser's own `is_mathfunc_call` invocation record (which already carries the settled `{ns}::tcl::mathfunc::NAME` two-candidate resolution), so references / rename / call-hierarchy / linked-editing all agree with definition and hover. The bare-call false positive is gone: `fallback_proc_by_simple_name` skips a `tcl::mathfunc` namespace, per `tcl_registry::mathfunc::is_in_mathfunc_namespace` (oracle: `li {10 20 30} 1` → `invalid command name "li"` on 8.6 and 9.0). |
+| 48 (tracing) | Hover / references / definition returned nothing with the cursor on a variable's bare **declaring** token (`cmd` in `foreach cmd $tracecmds`, a `set` left-hand side). | **Already fixed** on `rust` by idx 9's `var_def_at_declaration_offset` work; re-verified and pinned with regression tests for both the real corpus shape and the trivial isolation the finding gives. |
+| 54 (tclOO) | `${ns}::setdef` — the literal `::setdef` fragment after a substitution was read as a genuinely *absolute* name, so resolution looked for a global proc called `::setdef` and every consumer reported nothing. | The one shared word-bounding rule (`hover::word_char_bounds` → new `word_char_bounds_kinded`) now reports a word as the **residual tail of a computed name** when the left scan stopped on a `}` / `]` and the word starts `::`; `find_word_span_at_position` returns the name it spells (`setdef`) with the span narrowed past the `::`, so ordinary namespace-aware resolution finds it *and* rename cannot eat the separator. `WORD_DELIMS` is deliberately unchanged — a **single** colon is an ordinary Tcl name character (oracle: `set a:b 42`, `proc p:q {x} …`, `set arr(k:1) v`, `dict get $d x:y` all work on 8.6 and 9.0), so adding `:` to the delimiter set would have been wrong. |
+| 81 (tcl_mathop) | Every built-in `expr` math function drew a false `W123 Unknown command`, several with actively-wrong "did you mean" fixes. | **Already fixed** on `rust` after the audit ran: `SignatureCommandInvocation::is_mathfunc_call` plus `is_known_mathfunc_in_dialect` gate the W123 check. Verified, not re-fixed. |
+| 103 (tcl_mathop) | Zero `CommandSpec` entries for `tcl::mathfunc::*`, so the generic per-dispatch-site W002 availability check was blind to the plain-command spelling. | The registry data (`tcl-registry/src/commands/tcl/mathfunc_generated.rs`) **already landed** on `rust`. What PR A3 adds is the query layer the LSP needed on top of it — `tcl-registry/src/mathfunc.rs` — and a test pinning that both qualified spellings exist and gate correctly (`isinf` 9.0+, the command table itself 8.5+ per TIP 232). |
+| 104 (proc_args) | A proc parameter's own name token and its **default-value literal** both resolved to an unrelated same-named command (`{destroy destroy}` in `tk.tcl`'s `::tk::RestoreFocusGrab` showed Tk's `destroy` documentation). | The name token was already answered by idx 9's declaration-offset search; the remaining data words are now guarded generally by `definition::offset_is_in_parameter_list` (the region between a proc's / method's name token and its body), consulted by both hover and go-to-definition. A parameter list holds no command references at all, so the guard needs no per-command knowledge. |
 
 ### 6c. Broader mandate coverage check
 

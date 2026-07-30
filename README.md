@@ -483,7 +483,19 @@ through every `my <property>` dispatch inside the class body — properties
 have no `$obj property` dispatch shape or inheritance model, so this is a
 class-local scan. Expr math functions resolve to their backing proc, so a
 `proc ::tcl::mathfunc::foo` is found (and renamed) from every `foo(...)`
-used inside `expr`.
+used inside `expr` — symmetrically, whether the query starts at the
+declaration or at a call site, and honouring C Tcl's caller-namespace-first
+dispatch (a `proc` in `::ns::tcl::mathfunc` wins inside `::ns`, and an
+unrelated global `proc foo` never does). Conversely, a proc that lives only in
+a `tcl::mathfunc` namespace is *not* reachable as a bare command — real Tcl
+raises `invalid command name` — so a bare call to it resolves to nothing.
+
+Hover and completion read the same registry data. Hovering a bare `sin(1.0)`
+inside `expr` shows what `::tcl::mathfunc::sin` shows, a user override shows
+the overriding proc, and completing inside any expression argument (`expr`,
+an `if` / `while` condition, a `for` test — whichever arguments the command
+registry marks as expressions) offers the math functions your Tcl version
+has, under their bare names.
 
 A `constructor` or `destructor` is invoked positionally
 (`ClassName new`/`create`/`destroy`), never dispatched by name, so it has no
