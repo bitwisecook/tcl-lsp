@@ -41,6 +41,49 @@ fn crate_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
+/// A short, filesystem-safe key derived from `path`'s absolute form —
+/// stable across repeated runs against the same checkout, but distinct per
+/// checkout, so two concurrently-building checkouts of this repository
+/// (e.g. isolated agent worktrees, each with their own `rust/tcl-compiler`,
+/// `rust/tcl-registry`, … under a *different* absolute path) never share
+/// the same scratch project / target directory. Sharing one would corrupt
+/// artefacts exactly the way AGENTS.md's "parallel worktrees" section
+/// describes for a shared `CARGO_TARGET_DIR`: cargo's unit hashing does not
+/// disambiguate same-named workspace members built from different checkout
+/// paths, so one checkout's build can silently link another's rlib.
+/// Mirrors the same checkout-hashed pattern
+/// `editors/vscode/src/test/runTest.ts` uses for its user-data dir.
+fn checkout_key(path: &Path) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    path.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
+}
+
+#[test]
+fn checkout_key_is_stable_and_distinguishes_checkouts() {
+    let a = checkout_key(Path::new("/home/user/tcl-lsp"));
+    let b = checkout_key(Path::new("/home/user/tcl-lsp"));
+    assert_eq!(a, b, "the same checkout path must hash to the same key");
+
+    let c = checkout_key(Path::new(
+        "/home/user/tcl-lsp/.claude/worktrees/some-other-agent",
+    ));
+    assert_ne!(
+        a, c,
+        "two different checkout paths must hash to different keys, so \
+         concurrent worktrees never collide on the same scratch dir"
+    );
+
+    // Filesystem-safe: plain lowercase hex, no path separators or other
+    // characters a directory-name component would need to escape.
+    assert!(
+        a.chars().all(|c| c.is_ascii_hexdigit()),
+        "key must be plain hex: {a:?}"
+    );
+}
+
 fn have_node() -> bool {
     Command::new("node")
         .arg("--version")
@@ -165,9 +208,13 @@ fn vm_coroutines_run_on_wasm32() {
         return;
     }
 
-    // A stable scratch dir keeps the (large) wasm dependency build cached between
-    // runs; only this crate's source changing forces a rebuild.
-    let dir = std::env::temp_dir().join("tcl_vm_wasm_coro");
+    // A stable, checkout-keyed scratch dir (see `checkout_key`) keeps the
+    // (large) wasm dependency build cached between repeated runs against
+    // the SAME checkout — only this crate's source changing forces a
+    // rebuild — while keeping two checkouts building concurrently (e.g.
+    // isolated agent worktrees) from sharing one `Cargo.toml`/`target/`,
+    // which would corrupt each other's artefacts.
+    let dir = std::env::temp_dir().join(format!("tcl_vm_wasm_coro-{}", checkout_key(&crate_dir())));
     let src = dir.join("src");
     std::fs::create_dir_all(&src).expect("create crate dir");
     std::fs::write(dir.join("Cargo.toml"), cargo_toml()).expect("write Cargo.toml");

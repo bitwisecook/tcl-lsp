@@ -603,8 +603,11 @@ fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// tail's list-element quoting reuses the crate's canonical
 /// [`list::append_list_element`] (`TclScanElement`/`TclConvertElement` — the
 /// same helper the list type's own string rep uses), and the two-part concat
-/// reuses `tcl_cmd_core::list::trim_concat_element` (`Tcl_ConcatObj`'s
-/// backslash-aware right trim + drop-empty-part rule): a whitespace-padded
+/// reuses [`list::trim_concat_element_bytes`] (`Tcl_ConcatObj`'s
+/// backslash-aware right trim + drop-empty-part rule, operating on raw
+/// bytes — this runtime's Tcl strings are arbitrary byte slices, not
+/// necessarily UTF-8, so a lossy `&str` round-trip here would mangle a
+/// non-UTF-8 script byte instead of passing it through): a whitespace-padded
 /// script is trimmed, and an all-whitespace script contributes no leading
 /// separator (the tail becomes the whole command).
 fn inscope_script(script: *mut TclObj, tail: &[*mut TclObj]) -> Vec<u8> {
@@ -619,12 +622,11 @@ fn inscope_script(script: *mut TclObj, tail: &[*mut TclObj]) -> Vec<u8> {
         }
         list::append_list_element(&mut tail_list, &obj_bytes(a), i == 0);
     }
-    let script_str = String::from_utf8_lossy(&script_bytes);
-    let trimmed = tcl_cmd_core::list::trim_concat_element(&script_str);
+    let trimmed = list::trim_concat_element_bytes(&script_bytes);
     if trimmed.is_empty() {
         return tail_list;
     }
-    let mut out = trimmed.as_bytes().to_vec();
+    let mut out = trimmed.to_vec();
     out.push(b' ');
     out.extend_from_slice(&tail_list);
     out
@@ -1603,6 +1605,71 @@ mod tests {
             assert_eq!(i.result_bytes(), b"a\"b");
 
             i.eval_str(b"unset v1 v2 v3");
+        });
+    }
+
+    #[test]
+    fn inscope_non_utf8_script_treats_both_arms_consistently() {
+        // The script is a raw-byte *value* holding a non-UTF-8 byte
+        // (`0x80`) — produced via `binary format`'s `c` (raw byte)
+        // directive, not a `\xHH` escape (which substitutes a *Unicode
+        // code point* and this runtime stores as valid UTF-8, `0xC2 0x80`
+        // — not a genuinely invalid byte, so it would not exercise the
+        // bug).
+        //
+        // `namespace inscope`/`eval` scripts are themselves re-parsed as a
+        // fresh script (`parse::parse_script` — see its doc comment: "the
+        // UTF-8 internal-rep invariant"), so a script value that is not
+        // valid UTF-8 parses to no commands and evaluates as a harmless
+        // no-op (`Code::Ok`, empty result) — a separate, pre-existing
+        // `parse_script` limitation this fix does not touch, and unrelated
+        // to `list::append_list_element`'s (byte-exact, unaffected)
+        // quoting of the tail.
+        //
+        // What the fix DOES change: before it, the tail arm converted the
+        // script half to `&str` via `String::from_utf8_lossy`, silently
+        // replacing the invalid byte with the *valid*-UTF-8 3-byte U+FFFD
+        // sequence — so the composed script could flip from "not valid
+        // UTF-8" (parses to nothing, `Code::Ok`, empty) to "accidentally
+        // valid UTF-8" (parses fine, dispatches to a different,
+        // non-existent command, `Code::Error`) purely because a tail arg
+        // was appended. The zero-tail and tail arms must treat the exact
+        // same script bytes identically; [`list::trim_concat_element_bytes`]
+        // never performs that lossy conversion, so both arms agree here.
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(b"set name [binary format a3c cmd 128]"),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                [b'c', b'm', b'd', 0x80],
+                "binary format should produce the raw 0x80 byte"
+            );
+
+            assert_eq!(
+                i.eval_str(b"namespace inscope :: $name"),
+                Code::Ok,
+                "zero-tail arm"
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"",
+                "zero-tail arm: an invalid-UTF-8 script is a harmless no-op"
+            );
+
+            assert_eq!(
+                i.eval_str(b"namespace inscope :: $name extra"),
+                Code::Ok,
+                "tail arm must agree with the zero-tail arm, not error on a mangled name"
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"",
+                "tail arm: must stay a no-op, exactly like the zero-tail arm"
+            );
+
+            i.eval_str(b"unset name");
         });
     }
 }

@@ -225,6 +225,37 @@ fn is_ws(c: u8) -> bool {
     matches!(c, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
 }
 
+/// Byte-oriented, backslash-aware trim for one `Tcl_ConcatObj` part —
+/// same semantics as `tcl_cmd_core::list::trim_concat_element`
+/// (`TclTrimLeft`/`TclTrimRight`: the right trim keeps a trailing
+/// whitespace byte escaped by an odd run of backslashes), but operating
+/// directly on bytes rather than `&str`. This runtime treats Tcl strings
+/// as arbitrary byte slices — not necessarily UTF-8 — so a caller
+/// concatenating raw command/argument bytes (e.g. `namespace inscope`'s
+/// script half, `cmd_namespace::inscope_script`) must not round-trip
+/// through `String::from_utf8_lossy`, which would mangle a non-UTF-8 byte
+/// into the 3-byte U+FFFD replacement sequence and change the value.
+#[must_use]
+pub(crate) fn trim_concat_element_bytes(s: &[u8]) -> &[u8] {
+    let mut start = 0;
+    while start < s.len() && is_ws(s[start]) {
+        start += 1;
+    }
+    let mut end = s.len();
+    while end > start && is_ws(s[end - 1]) {
+        let backslashes = s[start..end - 1]
+            .iter()
+            .rev()
+            .take_while(|&&b| b == b'\\')
+            .count();
+        if backslashes % 2 == 1 {
+            break; // escaped whitespace: part of the element.
+        }
+        end -= 1;
+    }
+    &s[start..end]
+}
+
 /// Append `elem` to `buf` in canonical Tcl list-element form. Faithful port of
 /// `TclScanElement`/`TclConvertElement` (`tclUtil.c`) in the **COMPAT** build
 /// configuration Tcl 9.0.3 ships, which picks among four renderings:
