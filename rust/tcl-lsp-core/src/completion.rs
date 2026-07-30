@@ -583,6 +583,20 @@ pub fn completions(
 
     let usage = document_usage_counts(analysis);
     let mut items = proc_completions(analysis, &partial, &usage);
+    // Inside an `expr` expression argument the bare `expr` math functions are
+    // in scope (issue #974 defect 2) — before this they were offered nowhere
+    // at all, so `expr {si` surfaced only unrelated `simulation::*` procs.
+    // The context test is registry-driven (`ArgRole::Expr`); see
+    // `crate::expr_context`.
+    if let Some(registry) = registry
+        && crate::expr_context::expr_arg_context_at(source, line, character, registry)
+    {
+        items.extend(math_function_completions(
+            registry,
+            tcl_dialect::DialectProfile::by_name(dialect),
+            &partial,
+        ));
+    }
     if let Some(registry) = registry {
         // Tk commands are dialect-gated to Tcl/`tk` already, but they are also
         // only *present* once the Tk package is loaded — the `tk` dialect (a
@@ -1793,6 +1807,49 @@ fn builtin_completions(
                 kind: CompletionKind::Function,
                 detail: spec.map(|s| command_detail(s, profile)),
                 sort_text: Some(builtin_sort_text(name, count)),
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: spec
+                    .and_then(|s| s.hover.as_ref())
+                    .map(|h| h.summary.to_owned()),
+            }
+        })
+        .collect()
+}
+
+/// `expr` math-function completions (issue #974 defect 2) — the bare names
+/// (`sin`, `max`, …) that are callable *only* inside an expression.
+///
+/// Sourced from the registry's own `::tcl::mathfunc::*` specs
+/// ([`CommandRegistry::math_function_names`] / `math_function_spec`), which
+/// are themselves derived from `tcl_syntax::expr::mathfunc` — one canonical
+/// table, no second list here — and gated on the profile's `expr`-grammar
+/// version, so `max` never appears under `tcl8.4` and `gamma` only under
+/// `tcl9.1`.
+///
+/// Ranked in the local-symbol tier (`A000_…`, alongside the most-used local
+/// procs and ahead of the `B…` built-ins) because at this position they are
+/// the candidates that can actually be called: an ordinary command is
+/// reachable inside an expression only through a `[…]` substitution, which is
+/// a different cursor context.
+fn math_function_completions(
+    registry: &CommandRegistry,
+    profile: &'static tcl_dialect::DialectProfile,
+    partial: &str,
+) -> Vec<CompletionItem> {
+    registry
+        .math_function_names(profile)
+        .into_iter()
+        .filter(|name| partial.is_empty() || name.starts_with(partial))
+        .map(|name| {
+            let spec = registry.math_function_spec(name, profile);
+            CompletionItem {
+                label: name.to_owned(),
+                insert_text: name.to_owned(),
+                kind: CompletionKind::Function,
+                detail: Some("expr math function".to_owned()),
+                sort_text: Some(format!("A000_{name}")),
                 is_snippet: false,
                 filter_text: None,
                 text_edit: None,

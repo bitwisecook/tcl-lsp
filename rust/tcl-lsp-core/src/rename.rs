@@ -191,8 +191,13 @@ pub fn prepare_rename(
     // Variable?
     if let Some(var_name) = find_var_at_position(source, line, character) {
         let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-        if let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
+        // A `$name`-shaped substring in a comment or a data brace is not a
+        // reference, so it is not renameable either (issue #923 idx 24; see
+        // `lookup_var_read_at`).
+        if let Some(var_def) = crate::definition::lookup_var_read_at(
             &analysis.global_scope,
+            source,
+            "",
             byte_offset,
             &var_name,
             analysis.ns_var_global_fallback(),
