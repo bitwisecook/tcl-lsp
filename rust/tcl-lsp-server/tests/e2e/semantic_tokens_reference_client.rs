@@ -40,11 +40,52 @@
 //! If any of these fail, the server itself is losing track and the bug is
 //! (partly) ours. As long as they pass, the server tracks correctly and the
 //! elisp harness's eglot drift is upstream.
+//!
+//! # Content assertions vs latency assertions (issue #1082)
+//!
+//! These tests mix two kinds of claim, and they are load-sensitive in opposite
+//! ways. Keeping them apart is what makes the file deterministic under CPU
+//! contention without retiring anything it proves:
+//!
+//! * **Content** — "the tokens equal a cold reopen", "the viewport converges on
+//!   the enriched tier". These must hold on any machine, however slow. Their
+//!   only timing element is the *barrier* that waits for the server to get
+//!   there, and a barrier that expires early turns a correct server into a
+//!   failed content test. Two rules follow. First, wait on an explicit
+//!   **progress signal** rather than a stack of wall-clock polls: the server
+//!   logs `semantic_tokens.{full,range}_convergence.settled (uri=…, refresh=…)`
+//!   the instant a request's coarse-vs-enriched decision is made, so a waiter
+//!   keys on that (the #1072 pattern) instead of racing the debounced
+//!   `workspace/semanticTokens/refresh` that only *sometimes* follows it.
+//!   Second, every remaining backstop in the harness is multiplied by the
+//!   machine's measured capacity (`common::load_factor`), so it stays a hang
+//!   guard rather than a speed test.
+//!
+//! * **Latency** — issue #829's guarantee that a cold/large file's *first*
+//!   token response is never starved behind the whole-file analysis. This is a
+//!   real promise about the server's design and deleting or `#[ignore]`-ing it
+//!   would retire it, but as a wall-clock absolute it is a claim about the
+//!   *machine*, not the server. These assertions therefore go through
+//!   [`LatencyBudget`], which measures this very server's no-op round-trip
+//!   first and scales the budget by the measured scheduling capacity — so a
+//!   quiet machine still enforces the tight original bound, while a loaded one
+//!   tests the same guarantee in the currency of the capacity it actually has.
+//!   The one thing that never happens is a plain widening of the constant.
+//!
+//! A convergence *round* is therefore: request tokens, await the settled
+//! marker, and — when it reports `refresh=true` — await the refresh and
+//! re-request, exactly as an editor would. A marker reporting `refresh=false`
+//! after a coarse response means the enriched read was cancelled (the
+//! diagnostics worker's cross-file evidence sync writes salsa inputs, which
+//! cancels in-flight reads); the loop simply re-races. That is a genuine
+//! source of non-determinism the old fixed `await_server_request` deadline
+//! could only absorb by being generous, and it is why these tests hung
+//! precisely when the machine was slow enough for the two to overlap.
 
 use crate::common::helpers::{SemToken, decode_semantic_tokens};
-use crate::common::{Lsp, unique_uri};
+use crate::common::{LatencyBudget, Lsp, unique_uri};
 use serde_json::{Value, json};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// A local mirror of a document's text plus its LSP version, so the test can
 /// send spec-correct incremental `didChange` ranges and know the exact text
@@ -223,11 +264,22 @@ fn first_divergence(server: &[SemToken], truth: &[SemToken]) -> String {
     "identical".to_owned()
 }
 
+/// Backstop for settling one of this file's deliberately-pathological
+/// documents (`generate_big_tcl(600)` is ~6000 lines).
+///
+/// A full debug-build analysis of that much Tcl, on a machine already running
+/// the rest of the suite in parallel, is legitimately tens of seconds — so the
+/// harness default stops being a hang guard here and becomes a bet on how many
+/// cores this test happened to get. This is not a latency budget: nothing is
+/// asserted by its size, and the guarantee about *response* latency lives in
+/// [`LatencyBudget`], which is a separate, measured thing.
+const BIG_DOC_SETTLE: Duration = Duration::from_mins(3);
+
 /// The tokens a cold reopen of `text` produces — the ground truth for what the
 /// server *should* be serving after any edit sequence that lands on `text`.
 fn cold_tokens(lsp: &mut Lsp, text: &str) -> Vec<SemToken> {
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, text);
+    lsp.open_ready_timeout(&uri, text, BIG_DOC_SETTLE);
     let raw = lsp.semantic_tokens(&uri);
     lsp.close_document(&uri);
     decode_semantic_tokens(&raw)
@@ -244,7 +296,7 @@ fn cold_range_tokens(
     end: (u32, u32),
 ) -> Vec<SemToken> {
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, text);
+    lsp.open_ready_timeout(&uri, text, BIG_DOC_SETTLE);
     let raw = lsp.semantic_tokens_range(&uri, start, end);
     lsp.close_document(&uri);
     decode_semantic_tokens(&raw)
@@ -282,6 +334,142 @@ fn assert_tracks(lsp: &mut Lsp, mirror: &Mirror, client: &mut SemtokState, label
         "[{label}] reference client drifted after applying full/delta — {}",
         first_divergence(&client_tokens, &truth)
     );
+}
+
+/// The outcome of driving a cold document to its settled enriched token stream
+/// (see [`converge_via_refresh`]).
+struct Convergence {
+    /// The token stream the last request returned.
+    tokens: Vec<SemToken>,
+    /// How many convergence rounds were needed.
+    rounds: usize,
+    /// How many settled markers reported `refresh=true` — i.e. how many times
+    /// the server decided the served (coarse) stream was worth replacing.
+    refresh_decisions: usize,
+    /// How many `workspace/semanticTokens/refresh` requests actually reached
+    /// the client.
+    refreshes: usize,
+    /// How many rounds settled with the enriched read cancelled or already
+    /// equal to what was served (`refresh=false`).
+    no_refresh_decisions: usize,
+}
+
+/// What a single convergence round asks for: `full` or a fixed viewport.
+#[derive(Clone, Copy)]
+enum Tier {
+    Full,
+    Range { start: (u32, u32), end: (u32, u32) },
+}
+
+impl Tier {
+    /// The settled-marker needle the server logs for this request kind.
+    fn settled_marker(self) -> &'static str {
+        match self {
+            Self::Full => "semantic_tokens.full_convergence.settled",
+            Self::Range { .. } => "semantic_tokens.range_convergence.settled",
+        }
+    }
+
+    fn request(self, lsp: &mut Lsp, uri: &str) -> Vec<SemToken> {
+        match self {
+            Self::Full => decode_semantic_tokens(&lsp.semantic_tokens(uri)),
+            Self::Range { start, end } => {
+                decode_semantic_tokens(&lsp.semantic_tokens_range(uri, start, end))
+            }
+        }
+    }
+}
+
+/// Drive `uri` to the settled enriched stream the way a conformant client does,
+/// reporting what the server needed to get there.
+///
+/// Each round: snapshot the request/log cursors, ask for tokens, and — if they
+/// are not yet `truth` — **await the convergence continuation's settled
+/// marker**. That marker is the explicit progress signal this loop is built on
+/// (#1072): it is logged the instant the coarse-vs-enriched decision for that
+/// request is made, whatever the decision was, so the loop never has to guess
+/// whether a refresh is still coming. When the marker says `refresh=true` the
+/// refresh request must then actually arrive (asserted — that is the mechanism
+/// under test); when it says `refresh=false` the enriched read was cancelled by
+/// a concurrent salsa write, or matched what was served, and the loop re-races.
+///
+/// `budget` bounds the whole loop. It is a hang guard: every round makes real
+/// progress against an explicit signal, so reaching it means the server never
+/// converged at all.
+fn converge_via_refresh(
+    lsp: &mut Lsp,
+    uri: &str,
+    tier: Tier,
+    truth: &[SemToken],
+    budget: Duration,
+) -> Convergence {
+    let deadline = Instant::now() + budget;
+    let mut out = Convergence {
+        tokens: Vec::new(),
+        rounds: 0,
+        refresh_decisions: 0,
+        refreshes: 0,
+        no_refresh_decisions: 0,
+    };
+    loop {
+        let req_since = lsp.server_request_cursor();
+        let log_since = lsp.notification_cursor();
+        out.tokens = tier.request(lsp, uri);
+        out.rounds += 1;
+        if same_tokens(&out.tokens, truth) {
+            return out;
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        assert!(
+            !remaining.is_zero(),
+            "[{}] never converged on the enriched stream after {} rounds \
+             ({} refresh decisions, {} refreshes delivered, {} rounds whose enriched read was \
+             cancelled or already equal) — {}",
+            tier.settled_marker(),
+            out.rounds,
+            out.refresh_decisions,
+            out.refreshes,
+            out.no_refresh_decisions,
+            first_divergence(&out.tokens, truth),
+        );
+        // A round can legitimately settle *without* a marker: the enriched
+        // reads land inside the budget but the document has no salsa handles
+        // (a `did_close` racing the two separate `db_files` reads), so the
+        // coarse tier is served with no continuation at all. That is not a
+        // failure, just a round that made no progress — re-request rather than
+        // give up, and let the outer deadline be the only hang guard.
+        let Some(settled) = lsp.try_await_log(
+            &[tier.settled_marker(), uri],
+            remaining.min(Duration::from_secs(20)),
+            log_since,
+        ) else {
+            out.no_refresh_decisions += 1;
+            continue;
+        };
+        if settled.contains("refresh=true") {
+            out.refresh_decisions += 1;
+            // The decision is made, so the debounced refresh is already
+            // scheduled: this can only expire if the refresh path itself is
+            // broken, which is exactly the regression worth failing on.
+            lsp.await_server_request(
+                "workspace/semanticTokens/refresh",
+                deadline.saturating_duration_since(Instant::now()),
+                req_since,
+            );
+            out.refreshes += 1;
+        } else if settled.contains("enriched=cancelled") || settled.contains("outcome=cancelled") {
+            // Nothing was compared — a concurrent salsa write killed the read.
+            // The next request re-races it, so go round again.
+            out.no_refresh_decisions += 1;
+        } else {
+            // The server has settled and is asking for nothing further: this
+            // stream is final. If it still differs from the truth that is a
+            // genuine content divergence, which the caller reports — spinning
+            // here would only turn it into an unhelpful timeout.
+            out.no_refresh_decisions += 1;
+            return out;
+        }
+    }
 }
 
 /// Open `uri` with `text`, seed the reference client from the first `full`.
@@ -470,6 +658,9 @@ fn reference_client_tracks_rapid_fire_bursts() {
 #[test]
 fn large_file_latency_and_correctness() {
     let mut lsp = Lsp::tcl();
+    // Measured before anything is opened, so the no-op sample times an idle
+    // server rather than one mid-analysis (see [`LatencyBudget`]).
+    let budget = LatencyBudget::probe(&mut lsp, Duration::from_secs(2));
     let uri = unique_uri("tcl");
     let big = generate_big_tcl(600); // ~5200 lines.
     let line_count = big.lines().count();
@@ -507,11 +698,7 @@ fn large_file_latency_and_correctness() {
     let edit_ms = t_edit.elapsed().as_millis();
 
     // Settle and assert correctness against a cold reopen.
-    lsp.await_diagnostics_version(
-        &uri,
-        Some(mirror.version),
-        std::time::Duration::from_secs(30),
-    );
+    lsp.await_diagnostics_version(&uri, Some(mirror.version), BIG_DOC_SETTLE);
     let truth = cold_tokens(&mut lsp, &mirror.text);
     let after = decode_semantic_tokens(&edit_full);
     assert!(
@@ -530,11 +717,20 @@ fn large_file_latency_and_correctness() {
     // the token path (the issue #333 latency the reporter feels as a "hang").
     // Debug builds are ~10-20x slower than the shipped release binary, so this
     // strict gate only runs for release builds; debug runs just print timings.
+    //
+    // The 2s bound is what an unloaded machine is held to; on a contended one
+    // the same claim is made against the capacity that machine actually has
+    // (see [`LatencyBudget`]) rather than against the wall clock, so an
+    // O(n^2) regression still fails while CPU starvation does not.
     if cfg!(not(debug_assertions)) {
+        let elapsed = std::time::Duration::from_millis(
+            u64::try_from(edit_ms).expect("post-edit latency fits u64"),
+        );
         assert!(
-            edit_ms < 2000,
+            budget.allows(elapsed),
             "post-edit semanticTokens/full took {edit_ms}ms on {line_count} lines \
-             (release) — unexpectedly slow (issue #333 latency regression?)"
+             (release) — unexpectedly slow (issue #333 latency regression?); {}",
+            budget.report(),
         );
     }
 }
@@ -554,6 +750,7 @@ fn large_file_latency_and_correctness() {
 #[test]
 fn large_file_first_semantic_tokens_response_is_prompt() {
     let mut lsp = Lsp::tcl();
+    let budget = LatencyBudget::probe(&mut lsp, Duration::from_secs(10));
     let uri = unique_uri("tcl");
     let big = generate_big_tcl(600); // ~6000 lines.
     let line_count = big.lines().count();
@@ -576,14 +773,18 @@ fn large_file_first_semantic_tokens_response_is_prompt() {
     );
     // Generous, environment-tolerant bound (unlike the release-only strict
     // gate above): the whole point of the fast-path/coarse-fallback design is
-    // that first-response latency stops scaling with file size or system
-    // load, so this holds in debug builds and under CI contention too — not
-    // just release.
+    // that first-response latency stops scaling with file size, so this holds
+    // in debug builds too — not just release. Under CPU contention the same
+    // claim is measured against this machine's own capacity rather than the
+    // wall clock (see [`LatencyBudget`]): the guarantee is not that the
+    // response takes under ten seconds on any hardware, it is that it does not
+    // wait for the whole-file analysis.
     assert!(
-        elapsed < std::time::Duration::from_secs(10),
+        budget.allows(elapsed),
         "first semanticTokens/full on a {line_count}-line cold file took \
          {elapsed:?} — semantic tokens must never be starved behind the \
-         whole-file analysis (issue #829)",
+         whole-file analysis (issue #829); {}",
+        budget.report(),
     );
 }
 
@@ -596,6 +797,7 @@ fn large_file_range_semantic_tokens_response_is_prompt() {
     // compute their query to completion with no fast-path budget, unlike
     // `semantic_tokens_full`'s race against `SEMANTIC_TOKENS_FAST_PATH_BUDGET`).
     let mut lsp = Lsp::tcl();
+    let budget = LatencyBudget::probe(&mut lsp, Duration::from_secs(10));
     let uri = unique_uri("tcl");
     let big = generate_big_tcl(600); // ~6000 lines.
     let line_count = big.lines().count();
@@ -630,10 +832,11 @@ fn large_file_range_semantic_tokens_response_is_prompt() {
         toks.len(),
     );
     assert!(
-        elapsed < std::time::Duration::from_secs(10),
+        budget.allows(elapsed),
         "first semanticTokens/range on a {line_count}-line cold file took \
          {elapsed:?} — a viewport request must never be starved behind the \
-         whole-file analysis (issue #829)",
+         whole-file analysis (issue #829); {}",
+        budget.report(),
     );
 }
 
@@ -648,7 +851,6 @@ fn large_file_range_semantic_tokens_response_is_prompt() {
 #[test]
 fn large_file_semantic_tokens_refresh_delivers_enriched_result() {
     let mut lsp = Lsp::tcl();
-    let uri = unique_uri("tcl");
     // `generate_big_tcl` alone uses no construct the enriched tier treats
     // differently from the coarse one (no `regexp`, no object dispatch), so
     // the coarse and enriched streams would be byte-identical regardless of
@@ -661,43 +863,56 @@ fn large_file_semantic_tokens_refresh_delivers_enriched_result() {
         "{}\nproc ::bench::regex_check {{}} {{\n    set my_re \".*abc\"\n    regexp $my_re $s\n}}\n",
         generate_big_tcl(600)
     );
-    lsp.open_document_lang(&uri, &big, "tcl", 1);
 
-    let since = lsp.server_request_cursor();
-    let first = decode_semantic_tokens(&lsp.semantic_tokens(&uri));
+    // Compute the enriched truth from a settled separate document *before* the
+    // document under test exists. Opening (or closing) any document mutates the
+    // salsa `Project` (`set_files`), which cancels an in-flight convergence
+    // continuation — so computing the truth *after* the first request, as this
+    // test used to, could cancel the very enriched read whose refresh it then
+    // waited fifteen seconds for. That window widens with machine load, which
+    // is exactly the shape of the flake in issue #1082. Done up front it cannot
+    // interfere. (The range twin below has always done it this way.)
     let truth = cold_tokens(&mut lsp, &big);
 
-    if same_tokens(&first, &truth) {
+    let uri = unique_uri("tcl");
+    lsp.open_document_lang(&uri, &big, "tcl", 1);
+
+    let converged = converge_via_refresh(
+        &mut lsp,
+        &uri,
+        Tier::Full,
+        &truth,
+        // A hang guard only: every round waits on the settled marker, so this
+        // expires solely if the server never makes a convergence decision.
+        Duration::from_mins(1),
+    );
+
+    // `converge_via_refresh` has already asserted that every `refresh=true`
+    // decision produced a real `workspace/semanticTokens/refresh`. The content
+    // claim is asserted unconditionally: however the tiers raced, a settled
+    // document must serve the fully enriched stream.
+    assert!(
+        same_tokens(&converged.tokens, &truth),
+        "after workspace/semanticTokens/refresh, a re-request must return the \
+         fully enriched tokens — {}",
+        first_divergence(&converged.tokens, &truth)
+    );
+    if converged.refreshes == 0 {
         // The race was won this run (fast machine / the debounced diagnostics
-        // worker happened to prime the analysis first): the first response
-        // was already fully enriched, so there is nothing to refresh.
-        // `large_file_first_semantic_tokens_response_is_prompt`'s measured
-        // headroom (release cold ~110ms vs. a 40ms budget) makes this branch
-        // rare; when it does happen there is nothing left to assert here —
-        // the tiering mechanism itself is covered deterministically by
-        // tcl-lsp-db's `semantic_tokens_retags_constant_regex_source_true_positive`
-        // and `semantic_tokens_shares_incremental_analysis_with_diagnostics`.
+        // worker happened to prime the analysis first): the first response was
+        // already fully enriched, so there was nothing to refresh. The tiering
+        // mechanism itself is covered deterministically by tcl-lsp-db's
+        // `semantic_tokens_retags_constant_regex_source_true_positive` and
+        // `semantic_tokens_shares_incremental_analysis_with_diagnostics`.
         eprintln!(
             "large_file_semantic_tokens_refresh_delivers_enriched_result: \
              fast path won the race, refresh not exercised this run"
         );
-        return;
     }
-
-    lsp.await_server_request(
-        "workspace/semanticTokens/refresh",
-        std::time::Duration::from_secs(15),
-        since,
-    );
-
-    // After the refresh, a fresh request must return the fully enriched
-    // stream — the loop actually converges, not just "some refresh fired".
-    let after_refresh = decode_semantic_tokens(&lsp.semantic_tokens(&uri));
-    assert!(
-        same_tokens(&after_refresh, &truth),
-        "after workspace/semanticTokens/refresh, a re-request must return the \
-         fully enriched tokens — {}",
-        first_divergence(&after_refresh, &truth)
+    eprintln!(
+        "large_file_semantic_tokens_refresh_delivers_enriched_result: converged in {} rounds \
+         ({} refreshes; {} rounds settled with a cancelled/equal enriched read)",
+        converged.rounds, converged.refreshes, converged.no_refresh_decisions,
     );
 }
 
@@ -734,38 +949,42 @@ fn large_file_range_semantic_tokens_converges_via_refresh() {
 
     let uri = unique_uri("tcl");
     lsp.open_document_lang(&uri, &big, "tcl", 1);
-    let since = lsp.server_request_cursor();
-    let first = decode_semantic_tokens(&lsp.semantic_tokens_range(&uri, start, end));
+
+    let converged = converge_via_refresh(
+        &mut lsp,
+        &uri,
+        Tier::Range { start, end },
+        &truth,
+        // A hang guard only — see the `_full` twin.
+        Duration::from_mins(1),
+    );
     assert!(
-        !first.is_empty(),
+        !converged.tokens.is_empty(),
         "the cold range must still serve the coarse tier immediately"
     );
 
-    if same_tokens(&first, &truth) {
+    // After the refresh, a re-request converges on the enriched viewport — the
+    // range loop actually converges, not just "some refresh fired". Asserted
+    // however the tiers raced.
+    assert!(
+        same_tokens(&converged.tokens, &truth),
+        "after workspace/semanticTokens/refresh, the re-requested range must be \
+         the enriched tier — {}",
+        first_divergence(&converged.tokens, &truth)
+    );
+    if converged.refreshes == 0 {
         // The race was won this run — the cold viewport was already enriched, so
-        // there is nothing to converge. Rare on a ~6000-line file (cold enriched
-        // ≫ the 40ms budget); the tiering itself is covered deterministically in
-        // tcl-lsp-db.
+        // there was nothing to converge. The tiering itself is covered
+        // deterministically in tcl-lsp-db.
         eprintln!(
             "large_file_range_semantic_tokens_converges_via_refresh: \
              fast path won the race, refresh not exercised this run"
         );
-        return;
     }
-
-    lsp.await_server_request(
-        "workspace/semanticTokens/refresh",
-        std::time::Duration::from_secs(20),
-        since,
-    );
-    // After the refresh, a re-request converges on the enriched viewport — the
-    // range loop actually converges, not just "some refresh fired".
-    let after = decode_semantic_tokens(&lsp.semantic_tokens_range(&uri, start, end));
-    assert!(
-        same_tokens(&after, &truth),
-        "after workspace/semanticTokens/refresh, the re-requested range must be \
-         the enriched tier — {}",
-        first_divergence(&after, &truth)
+    eprintln!(
+        "large_file_range_semantic_tokens_converges_via_refresh: converged in {} rounds \
+         ({} refreshes; {} rounds settled with a cancelled/equal enriched read)",
+        converged.rounds, converged.refreshes, converged.no_refresh_decisions,
     );
 }
 
@@ -802,23 +1021,32 @@ fn range_semantic_tokens_no_spurious_refresh_when_converged() {
         "the cold range must still serve the coarse tier immediately"
     );
 
-    // Deterministic readiness via message passing — not a fixed sleep.  A cold
-    // 600-proc file cannot compile+analyse inside the 40ms fast-path budget, so
-    // the range is served the coarse tier and a convergence continuation is
-    // detached (#844 Gap 4).  That continuation logs
-    // `[timing] semantic_tokens.range_convergence.settled (uri=…, refresh=…)`
-    // the instant it has made its coarse-vs-enriched decision — whether or not it
-    // asked for a refresh.  Wait for exactly that line: the decision is then
-    // provably complete, so a converged viewport that (correctly) fired no refresh
-    // is distinguishable from one whose continuation simply had not run yet.  The
-    // timeout is only a backstop against a total hang, never the synchronisation.
+    // Deterministic readiness via message passing — not a fixed sleep.  Every
+    // range request logs
+    // `[timing] semantic_tokens.range_convergence.settled (uri=…, refresh=…, outcome=…)`
+    // once its convergence decision is final, so waiting for exactly that line
+    // makes "settled without a refresh" distinguishable from "the decision has
+    // not been made yet".  The timeout is only a backstop against a total hang,
+    // never the synchronisation.
+    //
+    // `outcome` says which shape the run took.  The one under test is
+    // `compared`: the cold 600-proc file overran the 40ms fast-path budget, the
+    // coarse tier was served, and the detached continuation (#844 Gap 4) diffed
+    // it against the recomputed enriched viewport.  A loaded machine can instead
+    // reach `no-analysis` (the document is not yet in the salsa db when the
+    // request lands) or `cancelled`, and a very quick one `served-enriched` —
+    // none of which run the compare.  The refresh assertion below is asserted in
+    // *every* case, because "no spurious refresh" must hold on all of them; the
+    // outcome is reported so a run that did not exercise the compare is visible
+    // rather than silently vacuous.
     let settled = lsp.await_log(
         &["semantic_tokens.range_convergence.settled", uri.as_str()],
-        std::time::Duration::from_secs(20),
+        Duration::from_secs(20),
         log_since,
     );
-    // The continuation records its decision in the marker itself: `refresh=false`
-    // means it did *not* call `request_refresh_coalesced`, so no debounced
+    eprintln!("range_semantic_tokens_no_spurious_refresh_when_converged: {settled}");
+    // The decision is recorded in the marker itself: `refresh=false` means
+    // `request_refresh_coalesced` was not called, so no debounced
     // `workspace/semanticTokens/refresh` can ever fire for this request.  This is
     // the primary, race-free guard against the spurious-refresh regression.
     assert!(

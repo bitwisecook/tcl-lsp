@@ -1224,28 +1224,31 @@ mod tests {
     /// through this runtime's namespace tree — the anti-drift gate for
     /// `Namespaces::home_of`.
     ///
-    /// `vector_script` wraps every call in `if {[catch {…} __r]} {…}`
-    /// (`tcl-syntax`'s shared script renderer), so this test needs `if` —
-    /// which `builtins::install` only registers under `have_tommath`
-    /// (issue #1058). Without libtommath vendored, every vector fails
-    /// identically with `invalid command name "if"`, which is a build
-    /// environment gap, not a dispatch regression — ignore with the
-    /// real reason instead of failing on a mundane cause.
-    #[cfg_attr(
-        not(have_tommath),
-        ignore = "libtommath not vendored; if/while/for/expr unavailable (issue #1058)"
-    )]
+    /// Issue #1058: this used to be skipped whenever libtommath was not
+    /// vendored, because the shared `vector_script` renderer captures the
+    /// call with `if {[catch {…} __r]} {…}` and `builtins::install` only
+    /// registers `if`/`while`/`for` under `have_tommath` — so the whole
+    /// gate reported `invalid command name "if"` on the first vector and
+    /// was ignored. That is a *capture-script* dependency, not a dispatch
+    /// one: nothing about command resolution needs the numeric tower.
+    ///
+    /// So the capture is composed here from the tower-free half of the
+    /// renderer (`vector_setup` + `vector_call`) with `set` and `catch`
+    /// standing in for `if` — `set __r -` then `catch {set __r [call]}`
+    /// leaves the dispatched name in `__r`, or `-` when the call raised,
+    /// which is exactly what the `if` form computes. The vectors now run in
+    /// **every** build of this crate, tower or no tower, and the skip is
+    /// gone.
     #[test]
     fn dispatch_matches_every_conformance_vector() {
-        use tcl_syntax::naming::conformance::{vector_script, vectors};
+        use tcl_syntax::naming::conformance::{vector_call, vector_setup, vectors};
         for v in vectors() {
-            let script = vector_script(&v);
-            // Drop the trailing `puts $__r` — this harness reads the
-            // variable back instead of capturing stdout.
-            let body = script
-                .strip_suffix("puts $__r\n")
-                .expect("vector_script ends with puts")
-                .to_string();
+            let script = format!(
+                "{}set __r -\ncatch {{set __r [{}]}}\n",
+                vector_setup(&v),
+                vector_call(&v),
+            );
+            let body = script.clone();
             counters::reset();
             {
                 let mut i = Interp::new();
@@ -1518,12 +1521,87 @@ mod tests {
         });
     }
 
+    // -- braced defining word (issue #1058) -----------------------------------
+    //
+    // #1058 read the conformance gate's `invalid command name "if"` as the
+    // *braced* proc name in `proc {p} {} {…}` corrupting the command table —
+    // "the builtin `if` stops resolving after a proc is defined via a braced
+    // name word". It does not: the braces are word quoting, the parser strips
+    // them, and `define_proc` never sees them. The error was only ever the
+    // tower-gated `if` being absent from a libtommath-less build (see
+    // `dispatch_matches_every_conformance_vector`, which now runs without it).
+    //
+    // These pin the real behaviour directly, in the tower-free command shapes
+    // the hypothesis was about, so the claim stays verifiable in *every* build
+    // rather than only where the numeric tower happens to be linked.
+
+    #[test]
+    fn braced_defining_word_defines_the_unbraced_name() {
+        leak_free(|i| {
+            // Real Tcl defines a command literally named `p`: the braces quote
+            // the word, they are not part of the name.
+            assert_eq!(i.eval_str(b"proc {p} {} { return {::p} }"), Code::Ok);
+            assert_eq!(i.eval_str(b"::p"), Code::Ok, "absolute call must dispatch");
+            assert_eq!(i.result_bytes(), b"::p");
+            assert_eq!(i.eval_str(b"p"), Code::Ok, "bare call must dispatch");
+            assert_eq!(i.result_bytes(), b"::p");
+            assert_eq!(i.eval_str(b"namespace which -command ::p"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::p");
+            // ... and no command named with the braces survives anywhere.
+            assert_eq!(i.eval_str(b"namespace which -command {{p}}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"");
+        });
+    }
+
+    #[test]
+    fn braced_defining_word_leaves_builtin_dispatch_intact() {
+        leak_free(|i| {
+            // The #1058 hypothesis in its strongest form: after defining a proc
+            // through a braced name word, *unrelated builtins* must still
+            // resolve. Only tower-free builtins are exercised so this holds in
+            // a libtommath-less build too — the exact configuration the issue
+            // was reported from.
+            assert_eq!(i.eval_str(b"proc {p} {} { return {::p} }"), Code::Ok);
+            assert_eq!(i.eval_str(b"set __x 1"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            assert_eq!(i.eval_str(b"catch {::nosuch} __e"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            assert_eq!(i.eval_str(b"llength [list a b c]"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"3");
+            assert_eq!(i.eval_str(b"string length abcd"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"4");
+            // The global command table still holds the builtins by name.
+            assert_eq!(i.eval_str(b"namespace which -command ::set"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::set");
+            i.eval_str(b"unset __x");
+            i.eval_str(b"unset __e");
+        });
+    }
+
+    #[test]
+    fn braced_defining_word_binds_in_the_current_namespace() {
+        leak_free(|i| {
+            // The same quoting rule inside a namespace: `proc {q}` in `::ns`
+            // binds `::ns::q`, resolvable bare from inside and absolutely from
+            // outside, with the global table untouched.
+            assert_eq!(
+                i.eval_str(b"namespace eval ns { proc {q} {} { return {::ns::q} } }"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"::ns::q"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::ns::q");
+            assert_eq!(i.eval_str(b"namespace eval ns { q }"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::ns::q");
+            assert_eq!(i.eval_str(b"namespace which -command ::q"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"");
+        });
+    }
+
     // -- namespace inscope (issue #1058's twin of #1056/#1067) -----------------
     //
     // These avoid `if`/`while`/`for`/`expr` (and anything else `have_tommath`-
     // gated) entirely, so they run identically with or without the bignum
-    // tower — unlike `dispatch_matches_every_conformance_vector` above, which
-    // genuinely needs `if`.
+    // tower.
 
     #[test]
     fn inscope_zero_tail_args_evaluates_script_verbatim() {

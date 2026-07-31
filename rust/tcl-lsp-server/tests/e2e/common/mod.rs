@@ -33,6 +33,30 @@
 //! Not every helper is used by every test file, so `#![allow(dead_code)]` at the
 //! module level keeps unused-in-this-binary helpers from warning (each
 //! integration-test binary compiles this module independently).
+//!
+//! # Wall-clock barriers are scaled by measured capacity, never widened
+//!
+//! Every `await_*` / `request_timeout` deadline here is a *hang backstop*, not
+//! an assertion: the thing being asserted is content (tokens match a cold
+//! reopen, diagnostics carry the right codes), and the barrier only exists so a
+//! genuinely wedged server fails instead of blocking forever. A fixed
+//! wall-clock backstop is therefore wrong in one direction only — on a machine
+//! the OS is giving a fraction of a core, a correct server misses it and a
+//! *content* test fails as a *timeout*.
+//!
+//! So the backstops are multiplied by [`load_factor`], a measured probe of how
+//! much capacity this process is actually getting (see its docs). On an
+//! unloaded machine the factor is `1.0` and every deadline is exactly what it
+//! reads in the source; under contention it grows with the contention, so the
+//! barrier keeps guarding against hangs without turning scheduling delay into a
+//! false failure. This is deliberately *not* the same thing as raising the
+//! constants: the constants stay honest, and a quiet machine keeps the tight
+//! bound.
+//!
+//! Genuine latency *guarantees* (issue #829's fast-tier promises) are a
+//! different matter and use [`LatencyBudget`], which additionally measures the
+//! server's own no-op round-trip so the guarantee is expressed relative to the
+//! machine's demonstrated capacity rather than a wall-clock absolute.
 
 #![allow(dead_code)]
 
@@ -77,38 +101,29 @@ const BARRIER_TIMEOUT_MARKER: &str = "LATENCY-BARRIER-TIMEOUT";
 /// rather than a hang. If the probe finds the scheduler healthy it says so,
 /// redirecting the investigation toward a real server-latency regression.
 fn latency_barrier_timeout_note() -> String {
-    // Sample how late the scheduler wakes us from a short, known sleep. On an
-    // unloaded machine `actual ≈ target` (a few percent over, from timer
-    // granularity); under heavy oversubscription the wake is delayed many-fold.
-    // Median of a handful of samples so one unlucky context switch can't skew
-    // the verdict. This runs only on the already-failing path, so its ~100 ms
-    // cost is irrelevant.
-    const TARGET: Duration = Duration::from_millis(20);
-    const SAMPLES: usize = 5;
-    let mut ratios = [0f64; SAMPLES];
-    for r in &mut ratios {
-        let t = Instant::now();
-        std::thread::sleep(TARGET);
-        *r = t.elapsed().as_secs_f64() / TARGET.as_secs_f64();
-    }
-    ratios.sort_by(|a, b| a.partial_cmp(b).expect("sleep ratios are finite"));
-    let median = ratios[SAMPLES / 2];
+    // Sample how late the scheduler wakes us from a short, known sleep, and how
+    // oversubscribed the run queue is, *right now*. This runs only on the
+    // already-failing path, so the probe's ~100 ms cost is irrelevant — and it
+    // deliberately re-measures rather than reading the cached `load_factor()`,
+    // because what matters here is the machine's state at the moment of giving
+    // up.
+    let dilation = sleep_dilation();
+    let pressure = run_queue_pressure();
 
-    // >=2.5x late is far outside timer-granularity noise and only happens when
-    // the OS cannot schedule this thread promptly — i.e. the runner is starved.
-    let verdict = if median >= 2.5 {
+    let verdict = if dilation >= STARVATION_RATIO || pressure >= STARVATION_RATIO {
         format!(
-            "PROBE: CPU STARVATION CONFIRMED — a {TARGET:?} sleep is waking {median:.1}x late \
-             right now, so the OS is denying this test process CPU. The barrier above expired on \
-             scheduling delay, NOT a server hang or a buffer-tracking bug. This is the known \
-             flake: re-run the job."
+            "PROBE: CPU STARVATION CONFIRMED — a {PROBE_SLEEP:?} sleep is waking {dilation:.1}x \
+             late and the run queue is {pressure:.1}x oversubscribed right now, so the OS is \
+             denying this test process CPU. Note that the barrier had ALREADY been stretched by \
+             the measured load factor before it expired (see `scaled_timeout`), so this is a \
+             machine that got slower *during* the wait — or a genuinely wedged server."
         )
     } else {
         format!(
-            "PROBE: could not confirm starvation — a {TARGET:?} sleep woke {median:.1}x late, \
-             within normal timer noise. The runner looks healthy *now*; if this repeats with a \
-             healthy probe, suspect a real server-latency regression (a hang/deadlock or a \
-             genuinely slow analysis), not CPU starvation."
+            "PROBE: could not confirm starvation — a {PROBE_SLEEP:?} sleep woke {dilation:.1}x \
+             late with the run queue {pressure:.1}x oversubscribed, both within normal noise. The \
+             runner looks healthy *now*, and the barrier was already load-scaled, so suspect a \
+             real server-latency regression (a hang/deadlock or a genuinely slow analysis)."
         )
     };
 
@@ -116,12 +131,228 @@ fn latency_barrier_timeout_note() -> String {
         "\n\n{BARRIER_TIMEOUT_MARKER} — this is a TIMEOUT (the server did not respond in time), \
          NOT an oracle/content divergence (those fail with \"diverged\" / \"alignment broke\").\n\
          {verdict}\n\
-         CONTEXT: the latency-sensitive e2e stress tests are isolated into the single-slot \
-         `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other; \
-         the dedicated `lsp-e2e` CI job runs them isolated and stays green. A timeout seen only in \
-         the *unisolated* `rust-tests` job (which runs them amid the full parallel suite) is the \
-         known CPU-starvation flake."
+         CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity \
+         factor (`load_factor`), so a merely-busy machine should not reach this message; the \
+         latency-sensitive stress tests are additionally isolated into the single-slot \
+         `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other."
     )
+}
+
+/// How late a short sleep must wake before the scheduler counts as starving
+/// this process. Timer granularity alone puts a 20 ms sleep a few percent over;
+/// anything at or beyond this multiple only happens when the OS cannot run this
+/// thread promptly. Shared by [`load_factor`] and the timeout footer so both
+/// speak about starvation in the same units.
+const STARVATION_RATIO: f64 = 2.5;
+
+/// Sleep length the scheduling probe samples.
+const PROBE_SLEEP: Duration = Duration::from_millis(20);
+
+/// How many samples the scheduling probe takes (median wins, so one unlucky
+/// context switch cannot skew the verdict).
+const PROBE_SAMPLES: usize = 5;
+
+/// How long a measured [`load_factor`] stays valid before it is re-sampled.
+/// The probe costs ~`PROBE_SAMPLES * PROBE_SLEEP`, so caching keeps it off the
+/// per-barrier path in a suite that opens hundreds of documents while still
+/// tracking load that arrives (or leaves) mid-run.
+const LOAD_FACTOR_TTL: Duration = Duration::from_secs(1);
+
+/// Cached `(sampled_at, factor)` for [`load_factor`].
+static LOAD_FACTOR_CACHE: Mutex<Option<(Instant, f64)>> = Mutex::new(None);
+
+/// Median of `PROBE_SAMPLES` short sleeps, as a multiple of the requested
+/// duration. `≈1.0` when the OS wakes us on time; many-fold when it does not.
+///
+/// Self-normalising by construction — it is a ratio of a measured wake against
+/// the duration we asked for, so it needs no calibrated "quiet machine"
+/// constant and means the same thing on every host.
+fn sleep_dilation() -> f64 {
+    let mut ratios = [0f64; PROBE_SAMPLES];
+    for r in &mut ratios {
+        let t = Instant::now();
+        std::thread::sleep(PROBE_SLEEP);
+        *r = t.elapsed().as_secs_f64() / PROBE_SLEEP.as_secs_f64();
+    }
+    ratios.sort_by(|a, b| a.partial_cmp(b).expect("sleep ratios are finite"));
+    ratios[PROBE_SAMPLES / 2]
+}
+
+/// Run-queue oversubscription: runnable threads per usable CPU. `≤1.0` when
+/// there is a core available for every thread that wants one; `4.0` when four
+/// threads are contending for every core — in which case CPU-bound work takes
+/// about four times as long, which is precisely the correction a barrier needs.
+///
+/// Complements [`sleep_dilation`]: a sleeping thread is often woken promptly
+/// even on a busy box, so scheduling latency under-reports pure *throughput*
+/// starvation — which is what a CPU-bound analysis actually loses to. Neither
+/// needs a calibrated "fast machine" constant.
+///
+/// Reads both numbers `/proc/loadavg` offers and takes the larger: the 1-minute
+/// average (which lags — it under-reports the start of a heavy test suite) and
+/// the instantaneous runnable count from the `running/total` field (which is
+/// noisy but immediate). Returns `0.0` where `/proc/loadavg` does not exist
+/// (non-Linux), leaving the sleep probe as the sole signal.
+fn run_queue_pressure() -> f64 {
+    let Ok(raw) = std::fs::read_to_string("/proc/loadavg") else {
+        return 0.0;
+    };
+    let fields: Vec<&str> = raw.split_whitespace().collect();
+    let one_minute = fields
+        .first()
+        .and_then(|f| f.parse::<f64>().ok())
+        .unwrap_or(0.0);
+    // Field 4 is `runnable/total`; the numerator counts threads that are
+    // currently runnable, this one included.
+    let runnable = fields
+        .get(3)
+        .and_then(|f| f.split('/').next())
+        .and_then(|f| f.parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let cpus = std::thread::available_parallelism().map_or(1.0, |n| {
+        f64::from(u32::try_from(n.get()).unwrap_or(u32::MAX))
+    });
+    one_minute.max(runnable) / cpus
+}
+
+/// How much slower than an unloaded machine this process is currently being
+/// run, as a multiplier `≥ 1.0`.
+///
+/// The maximum of two independent, calibration-free measurements — scheduling
+/// latency ([`sleep_dilation`]) and run-queue oversubscription
+/// ([`run_queue_pressure`]) — so either kind of starvation is caught: a cgroup
+/// CPU cap that throttles wakeups, or a machine with more runnable threads than
+/// cores. Neither needs a "what is fast" constant, which is the point: the
+/// factor means the same thing on a laptop, a CI runner, and a container.
+///
+/// Cached for [`LOAD_FACTOR_TTL`] so a barrier-heavy suite pays for the probe
+/// at most once a second.
+#[must_use]
+pub fn load_factor() -> f64 {
+    let mut cache = LOAD_FACTOR_CACHE.lock().unwrap();
+    if let Some((sampled_at, factor)) = *cache
+        && sampled_at.elapsed() < LOAD_FACTOR_TTL
+    {
+        return factor;
+    }
+    let factor = sleep_dilation().max(run_queue_pressure()).max(1.0);
+    *cache = Some((Instant::now(), factor));
+    factor
+}
+
+/// Scale a wall-clock hang backstop by the machine's measured capacity.
+///
+/// See the module docs: barriers guard against a wedged server, and a starved
+/// runner must not be mistaken for one.
+#[must_use]
+pub fn scaled_timeout(base: Duration) -> Duration {
+    base.mul_f64(load_factor())
+}
+
+/// A latency assertion that keeps its teeth on a quiet machine and stays
+/// deterministic on a loaded one.
+///
+/// Some e2e assertions are not content checks with a hang backstop but genuine
+/// **latency guarantees** — issue #829's promise that the first
+/// `semanticTokens/full` (or `/range`) response is never starved behind the
+/// whole-file analysis. Deleting them, or widening them until they cannot fail,
+/// would retire the guarantee. Keeping them as wall-clock absolutes makes them
+/// fail on a machine that simply has no CPU to give.
+///
+/// So the limit is the larger of two relative statements:
+///
+/// * `base × load_factor()` — the quiet-machine budget, stretched by the
+///   measured starvation ([`load_factor`]); and
+/// * `NOOP_ROUND_TRIPS × noop` — where `noop` is this very server's measured
+///   round-trip for a request that does no analysis. That expresses the
+///   guarantee in the machine's own currency: "answering a cold viewport may
+///   cost at most N trivial round-trips", which is exactly the property #829 is
+///   about (the token path must not scale with the analysis) and is meaningful
+///   whatever the host's absolute speed.
+///
+/// The no-op sample is taken **before** the measured operation (so it reflects
+/// a server that is up and idle, not one mid-analysis); the scheduling factor
+/// is sampled both before and at assertion time, and the larger wins, so load
+/// that arrives during the operation still counts.
+pub struct LatencyBudget {
+    base: Duration,
+    /// Median no-op round-trip, measured before the timed operation.
+    noop: Duration,
+    /// Scheduling factor measured before the timed operation.
+    factor_before: f64,
+}
+
+impl LatencyBudget {
+    /// How many no-op round-trips the guarded operation may cost.
+    ///
+    /// Chosen so that on a quiet machine `NOOP_ROUND_TRIPS × noop` is
+    /// comfortably *below* every `base` this is used with — i.e. the tight
+    /// absolute budget is what actually governs there, and the no-op term only
+    /// takes over once the machine is slow enough that the absolute number has
+    /// stopped describing it.
+    const NOOP_ROUND_TRIPS: u32 = 500;
+
+    /// Samples taken for the no-op round-trip (median wins).
+    const NOOP_SAMPLES: usize = 5;
+
+    /// Measure the machine's current capacity against `base`, the budget this
+    /// guarantee holds to on an unloaded machine.
+    pub fn probe(lsp: &mut Lsp, base: Duration) -> Self {
+        let mut samples = Vec::with_capacity(Self::NOOP_SAMPLES);
+        for _ in 0..Self::NOOP_SAMPLES {
+            let started = Instant::now();
+            // `getEffectiveConfig` is the cheapest real round-trip the server
+            // offers: it reads settled configuration and touches neither the
+            // document store nor the analyser, so what it times is the
+            // client → event loop → handler → client path itself.
+            let _ = lsp.effective_config("");
+            samples.push(started.elapsed());
+        }
+        samples.sort_unstable();
+        Self {
+            base,
+            noop: samples[samples.len() / 2],
+            factor_before: load_factor(),
+        }
+    }
+
+    /// The limit `elapsed` is held to, re-sampling the scheduling factor so
+    /// load that arrived during the timed operation is accounted for.
+    #[must_use]
+    pub fn limit(&self) -> Duration {
+        let factor = self.factor_before.max(load_factor());
+        self.base
+            .mul_f64(factor)
+            .max(self.noop * Self::NOOP_ROUND_TRIPS)
+    }
+
+    /// Whether `elapsed` honours the guarantee on this machine.
+    #[must_use]
+    pub fn allows(&self, elapsed: Duration) -> bool {
+        elapsed < self.limit()
+    }
+
+    /// A wall-clock backstop for an `await_*` barrier that belongs to the same
+    /// guarded operation, so the barrier can never expire *before* the budget
+    /// it is meant to let the operation reach.
+    #[must_use]
+    pub fn backstop(&self, base: Duration) -> Duration {
+        scaled_timeout(base).max(self.limit())
+    }
+
+    /// Why the budget is what it is, for a failure message.
+    #[must_use]
+    pub fn report(&self) -> String {
+        format!(
+            "budget={:?} (base={:?} x scheduling factor {:.1}, floor {} no-op round-trips \
+             x {:?}); a loaded machine stretches the budget, it does not remove it",
+            self.limit(),
+            self.base,
+            self.factor_before.max(load_factor()),
+            Self::NOOP_ROUND_TRIPS,
+            self.noop,
+        )
+    }
 }
 
 /// Process-wide counter so `unique_uri` never collides across tests in one
@@ -305,7 +536,7 @@ impl Lsp {
     /// Poll `getEffectiveConfig` until every key of `requested` is reflected in
     /// the server's applied config.
     fn settle_config(&mut self, requested: &Value) {
-        let deadline = Instant::now() + DEFAULT_TIMEOUT;
+        let deadline = Instant::now() + scaled_timeout(DEFAULT_TIMEOUT);
         loop {
             let effective = self.effective_config("");
             if config_reflected(requested, &effective) {
@@ -313,8 +544,9 @@ impl Lsp {
             }
             assert!(
                 Instant::now() < deadline,
-                "requested config was not applied within {DEFAULT_TIMEOUT:?}\n  \
+                "requested config was not applied within {:?} (load-scaled)\n  \
                  requested: {requested}\n  effective: {effective}{}",
+                scaled_timeout(DEFAULT_TIMEOUT),
                 latency_barrier_timeout_note()
             );
             std::thread::sleep(Duration::from_millis(10));
@@ -435,7 +667,7 @@ impl Lsp {
         msg["params"] = params;
         self.send(&msg);
 
-        let deadline = Instant::now() + timeout;
+        let deadline = Instant::now() + scaled_timeout(timeout);
         loop {
             {
                 let mut responses = self.shared.responses.lock().unwrap();
@@ -517,9 +749,35 @@ impl Lsp {
     /// Like [`Lsp::open_ready`] but with an explicit `languageId` (e.g.
     /// `"tcl-irule"` for iRules, `"tk"` for Tk, `"bigip"` for BIG-IP config).
     pub fn open_ready_lang(&mut self, uri: &str, text: &str, language_id: &str) -> Vec<Value> {
+        self.open_ready_lang_timeout(uri, text, language_id, DEFAULT_TIMEOUT)
+    }
+
+    /// [`Lsp::open_ready`] with an explicit barrier backstop.
+    ///
+    /// [`DEFAULT_TIMEOUT`] sizes the barrier for an ordinary test document —
+    /// tens of lines, analysed in milliseconds — where 30 s is unmistakably a
+    /// hang guard. A handful of tests open *thousands* of lines, and a full
+    /// debug-build analysis of one of those, on a machine already running the
+    /// rest of the suite in parallel, is legitimately tens of seconds: there the
+    /// default stops being a hang guard and becomes a bet on how many cores the
+    /// test happened to get. Those call sites pass their own backstop rather
+    /// than the whole harness inheriting a number sized for the worst case.
+    /// (Load scaling still applies on top — see the module docs.)
+    pub fn open_ready_timeout(&mut self, uri: &str, text: &str, timeout: Duration) -> Vec<Value> {
+        self.open_ready_lang_timeout(uri, text, "tcl", timeout)
+    }
+
+    /// [`Lsp::open_ready_lang`] with an explicit barrier backstop.
+    pub fn open_ready_lang_timeout(
+        &mut self,
+        uri: &str,
+        text: &str,
+        language_id: &str,
+        timeout: Duration,
+    ) -> Vec<Value> {
         self.open_document_lang(uri, text, language_id, 1);
-        let diags = self.await_diagnostics_version(uri, Some(1), DEFAULT_TIMEOUT);
-        self.await_log(&["workspace_state.update", uri], DEFAULT_TIMEOUT, 0);
+        let diags = self.await_diagnostics_version(uri, Some(1), timeout);
+        self.await_log(&["workspace_state.update", uri], timeout, 0);
         diags
     }
 
@@ -596,7 +854,7 @@ impl Lsp {
         timeout: Duration,
         settled: impl Fn(&[Value]) -> bool,
     ) -> Vec<Value> {
-        let deadline = Instant::now() + timeout;
+        let deadline = Instant::now() + scaled_timeout(timeout);
         let mut notes = self.shared.notifications.lock().unwrap();
         loop {
             let mut latest: Option<Vec<Value>> = None;
@@ -648,7 +906,7 @@ impl Lsp {
         version: Option<i64>,
         timeout: Duration,
     ) -> Vec<Value> {
-        let deadline = Instant::now() + timeout;
+        let deadline = Instant::now() + scaled_timeout(timeout);
         let mut notes = self.shared.notifications.lock().unwrap();
         loop {
             let mut matched: Option<Vec<Value>> = None;
@@ -700,7 +958,26 @@ impl Lsp {
     /// Block until a `window/logMessage` whose text contains all `needles`
     /// (searching entries at index `since` onward). Returns the message text.
     pub fn await_log(&self, needles: &[&str], timeout: Duration, since: usize) -> String {
-        let deadline = Instant::now() + timeout;
+        self.try_await_log(needles, timeout, since)
+            .unwrap_or_else(|| {
+                panic!(
+                    "no window/logMessage containing all of {needles:?} within {timeout:?}{}",
+                    latency_barrier_timeout_note()
+                )
+            })
+    }
+
+    /// Like [`Lsp::await_log`] but returns `None` on timeout instead of
+    /// panicking, for callers that can make progress another way when the
+    /// marker does not arrive — e.g. a convergence loop that simply re-issues
+    /// its request rather than failing on a round the server never settled.
+    pub fn try_await_log(
+        &self,
+        needles: &[&str],
+        timeout: Duration,
+        since: usize,
+    ) -> Option<String> {
+        let deadline = Instant::now() + scaled_timeout(timeout);
         let mut notes = self.shared.notifications.lock().unwrap();
         loop {
             for note in notes.iter().skip(since) {
@@ -713,18 +990,12 @@ impl Lsp {
                     .and_then(Value::as_str)
                     .unwrap_or("");
                 if needles.iter().all(|n| msg.contains(n)) {
-                    return msg.to_owned();
+                    return Some(msg.to_owned());
                 }
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
-                // Release the notifications lock before the (sleeping) probe so
-                // the reader thread isn't blocked while we diagnose the timeout.
-                drop(notes);
-                panic!(
-                    "no window/logMessage containing all of {needles:?} within {timeout:?}{}",
-                    latency_barrier_timeout_note()
-                );
+                return None;
             }
             let (guard, _) = self
                 .shared
@@ -737,7 +1008,7 @@ impl Lsp {
 
     /// Block until a notification with `method` arrives; return it.
     pub fn await_notification(&self, method: &str, timeout: Duration) -> Value {
-        let deadline = Instant::now() + timeout;
+        let deadline = Instant::now() + scaled_timeout(timeout);
         let mut notes = self.shared.notifications.lock().unwrap();
         loop {
             if let Some(note) = notes
@@ -786,7 +1057,7 @@ impl Lsp {
         timeout: Duration,
         since: usize,
     ) -> Option<Value> {
-        let deadline = Instant::now() + timeout;
+        let deadline = Instant::now() + scaled_timeout(timeout);
         let mut reqs = self.shared.server_requests.lock().unwrap();
         loop {
             if let Some(req) = reqs
@@ -887,6 +1158,71 @@ impl Lsp {
             json!({ "textDocument": { "uri": uri } }),
         )
     }
+    /// `semanticTokens/full` for `uri`, converged onto the **settled enriched**
+    /// stream the way a conformant editor does.
+    ///
+    /// A bare `semantic_tokens` call races
+    /// `SEMANTIC_TOKENS_FAST_PATH_BUDGET`: when the enriched (SSA/SCCP-informed)
+    /// computation overruns 40 ms the server answers from the cheap coarse tier
+    /// and pushes `workspace/semanticTokens/refresh` once the enriched stream
+    /// lands. That is correct server behaviour and an editor re-requests — but a
+    /// *test* that asserts on enrichment (a regex source retagged, a user-class
+    /// method resolved) and reads only the first response is asserting on
+    /// whichever tier happened to win, i.e. on how much CPU the machine had.
+    /// Those tests pass on a quiet box and fail under parallel load, which is
+    /// not a server defect (issue #1082).
+    ///
+    /// So this converges the way the client contract says to, driven by the
+    /// server's own settled marker rather than by sleeps: request, wait for the
+    /// convergence decision to be logged, and re-request when it says a refresh
+    /// was warranted (or when it says the enriched read was cancelled outright,
+    /// in which case nothing was compared and the next request re-races).
+    /// Returns the last response, so a genuine content divergence is still
+    /// reported by the caller's assertion rather than hanging here.
+    pub fn semantic_tokens_settled(&mut self, uri: &str) -> Value {
+        let deadline = Instant::now() + scaled_timeout(DEFAULT_TIMEOUT);
+        loop {
+            let req_since = self.server_request_cursor();
+            let log_since = self.notification_cursor();
+            let response = self.semantic_tokens(uri);
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return response;
+            }
+            // The server logs the marker for *every* `full` request, so this
+            // arrives promptly whichever tier answered — no fixed grace, no
+            // wall-clock guess. A miss means the server stopped talking.
+            let Some(settled) = self.try_await_log(
+                &["semantic_tokens.full_convergence.settled", uri],
+                remaining,
+                log_since,
+            ) else {
+                return response;
+            };
+            if settled.contains("refresh=true") {
+                // The refresh is already scheduled; wait for it so the
+                // re-request below sees the landed enriched stream.
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if self
+                    .try_await_server_request(
+                        "workspace/semanticTokens/refresh",
+                        remaining,
+                        req_since,
+                    )
+                    .is_none()
+                {
+                    return response;
+                }
+            } else if !settled.contains("enriched=cancelled") {
+                // Settled with the enriched stream in hand (`landed`) or with
+                // no analysis to converge to (`no-analysis`): this response is
+                // final.
+                return response;
+            }
+            // Otherwise the enriched read was cancelled — loop and re-race.
+        }
+    }
+
     pub fn semantic_tokens_range(
         &mut self,
         uri: &str,
@@ -1040,7 +1376,7 @@ impl Lsp {
             "workspace/didChangeConfiguration",
             json!({ "settings": {} }),
         );
-        let deadline = Instant::now() + DEFAULT_TIMEOUT;
+        let deadline = Instant::now() + scaled_timeout(DEFAULT_TIMEOUT);
         let mut last = Value::Null;
         while Instant::now() < deadline {
             last = self.effective_config(settle_uri);
@@ -1050,7 +1386,8 @@ impl Lsp {
             std::thread::sleep(Duration::from_millis(50));
         }
         panic!(
-            "config did not settle within {DEFAULT_TIMEOUT:?}; last: {last}{}",
+            "config did not settle within {:?} (load-scaled); last: {last}{}",
+            scaled_timeout(DEFAULT_TIMEOUT),
             latency_barrier_timeout_note()
         );
     }
@@ -1217,7 +1554,9 @@ fn auto_reply(msg: &Value, shared: &Arc<Shared>) {
 
 #[cfg(test)]
 mod tests {
-    use super::{BARRIER_TIMEOUT_MARKER, latency_barrier_timeout_note};
+    use super::{
+        BARRIER_TIMEOUT_MARKER, Duration, latency_barrier_timeout_note, load_factor, scaled_timeout,
+    };
 
     /// The footer every barrier timeout carries must keep classifying the
     /// failure as a *timeout* (not an oracle divergence), render the live
@@ -1240,8 +1579,32 @@ mod tests {
             "note must render the live scheduling-health probe verdict; got:\n{note}"
         );
         assert!(
-            note.contains("heavy-lsp-e2e") && note.contains("rust-tests"),
-            "note must point at the nextest isolation and the unisolated job; got:\n{note}"
+            note.contains("heavy-lsp-e2e"),
+            "note must point at the nextest isolation; got:\n{note}"
+        );
+        assert!(
+            note.contains("load_factor"),
+            "note must say the barrier was already load-scaled, so a reader does not \
+             re-derive 'just widen the timeout'; got:\n{note}"
+        );
+    }
+
+    /// The measured capacity factor must never *shrink* a barrier: a machine
+    /// that is faster than the constants assume still gets exactly the deadline
+    /// the source says, and a slower one gets proportionally more. (Regression
+    /// guard: a factor below 1 would silently tighten every deadline in the
+    /// harness and manufacture the flakes this exists to remove.)
+    #[test]
+    fn load_factor_never_tightens_a_barrier() {
+        let factor = load_factor();
+        assert!(
+            factor >= 1.0,
+            "the capacity factor must be a multiplier >= 1, got {factor}"
+        );
+        let base = Duration::from_secs(30);
+        assert!(
+            scaled_timeout(base) >= base,
+            "a scaled barrier must never be shorter than the constant it scales"
         );
     }
 }
