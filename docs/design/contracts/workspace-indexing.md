@@ -68,14 +68,35 @@ question about the *call*, not the import, and the same shared decision
 function the same-document resolver uses
 (`tcl_lsp_core::namespace_import::alias_live_at`) answers it for both tiers.
 
-Two abstentions are deliberate here.  A removal in a **different document**
-from the call has no static load order and revokes nothing — the same
-unordered-event rule the `-clear` tombstones follow.  And within one document
-the removal is ordered by a plain offset comparison rather than
-`in_effect_within`, because the index stores an enclosing-body span per
-*import* row, not per invocation, and building one per call site would be
-O(procs × invocations) at index time; the missing fact can only make a removal
-look not-yet-run, i.e. keep answering, never invent one.
+Ordering is per document on **both** sides of the comparison: an install
+whose document differs from the call's is passed unordered too, because a byte
+offset in the importing file and one in the calling file are unrelated numbers
+— comparing them let a `namespace forget` in the caller revoke a cross-file
+import purely because its local offset happened to be larger (issue #1116
+finding 1).  Unordered, the shared function keeps the alias.
+
+Three further points are deliberate.  A removal in a **different document**
+from the call revokes nothing, the same unordered-event rule the `-clear`
+tombstones follow.  Within one document the removal is ordered by a plain
+offset comparison rather than `in_effect_within`, because the index stores an
+enclosing-body span per *import* row, not per invocation, and building one per
+call site would be O(procs × invocations) at index time; the missing fact can
+only make a removal look not-yet-run, i.e. keep answering, never invent one.
+And **destroying** the source command is not treated as a slot event on a
+timeline at all — the command object is gone workspace-wide — so it revokes
+wherever it is written.
+
+The **exact**-import link tier runs the same decision function with no call
+site (`WildcardImportIndex::link_alias_live`, issue #1116 finding 2): the
+question a link answers is "does this alias exist for navigation", so every
+recorded removal counts as having run and the ordering that remains is the
+removal's position relative to the *import* — a forget or a redefinition of
+the imported name in the import's own document revokes the link when written
+after it, one before it is undone by the import, and one in another document
+revokes nothing.  A non-`-force` exact import also conflicts with an earlier
+exact import of the same name from a **different** source in the same document
+(`earlier_conflicting_link`), matching the glob tier's
+`conflicting_alias_at`.
 
 Resolution follows **import chains**: when the hop's source namespace does not
 itself define the name, the walk continues from there, bounded by

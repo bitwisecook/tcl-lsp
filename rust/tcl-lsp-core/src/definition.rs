@@ -2561,26 +2561,76 @@ fn live_import_over_candidates<'c>(
     None
 }
 
+/// One ordered event on an importing namespace's `word` slot, as the
+/// same-document tier sees it.
+///
+/// The four things that can happen to `<importing_ns>::<word>` over the life
+/// of a script. Folding them in order answers both questions
+/// [`live_import_at`] asks: *what did this namespace already hold when import
+/// I ran?* (the non-`-force` conflict) and *what does it hold at the call?*
+#[derive(Debug, Clone, Copy)]
+enum SlotEvent<'a> {
+    /// A `namespace import` covering `word` whose export snapshot passed.
+    Import {
+        at: u32,
+        source_ns: &'a str,
+        forced: bool,
+    },
+    /// A `namespace forget` covering `word`; `source_ns` is `None` for the
+    /// simple pattern form, which matches whatever the alias was imported
+    /// from.
+    Forget { at: u32, source_ns: Option<&'a str> },
+    /// A `proc` / class declaration of `<importing_ns>::<word>` — the
+    /// namespace's *own* command of that name.
+    Declare { at: u32 },
+    /// A destroying `rename <source_ns>::<word> {}` — the command object the
+    /// alias holds is gone.
+    Destroy { at: u32, source_ns: &'a str },
+}
+
+impl SlotEvent<'_> {
+    fn at(self) -> u32 {
+        match self {
+            SlotEvent::Import { at, .. }
+            | SlotEvent::Forget { at, .. }
+            | SlotEvent::Declare { at }
+            | SlotEvent::Destroy { at, .. } => at,
+        }
+    }
+}
+
+/// Whether a forget event covers an alias taken from `source_ns`.
+fn forget_covers(forget_source: Option<&str>, source_ns: &str) -> bool {
+    forget_source
+        .is_none_or(|src| src.trim_start_matches("::") == source_ns.trim_start_matches("::"))
+}
+
 /// The source namespace of the import alias `importing_ns` holds for `word`
 /// **at `call_off`**, or `None` when it holds none — the same-document
 /// binding of the shared lifecycle decision
 /// [`crate::namespace_import::alias_live_at`] (issue #1103).
 ///
 /// An import edge is a link with a lifecycle, not a standing name-visibility
-/// fact. Four events bear on it, all oracle-confirmed byte-identically on
-/// tclsh 9.0.4 and 8.6.14:
+/// fact. Everything that writes the `<importing_ns>::<word>` slot is an event
+/// on one ordered log ([`SlotEvent`]); all of it is oracle-confirmed
+/// byte-identically on tclsh 9.0.4 and 8.6.14:
 ///
 /// 1. **The import installs it** — gated by the source namespace's export
 ///    snapshot at the import's own position
 ///    ([`exported_at_import`], issue #1027).
 /// 2. **A conflict makes it install nothing.** Without `-force`, importing
 ///    onto a name the target namespace already holds raises `can't import
-///    command "p": already exists`; the local command survives and
-///    `namespace origin` still answers the local. Such an import is declined
-///    here. (Modelling the *error* — that the rest of that script never runs
-///    — is deliberately out of scope; only the "installed nothing" half is
-///    modelled.) With `-force` the import wins instead, which is what
-///    [`ImportQuery::ForcedShadow`] selects for.
+///    command "p": already exists`; the existing command survives and
+///    `namespace origin` still answers it. "Already holds" covers a local
+///    `proc`/class **and a live alias from a different source**: with `::dst`
+///    already importing `::A::*`, a later unforced `namespace import ::B::*`
+///    fails with exactly that error and leaves `namespace origin ::dst::p` →
+///    `::A::p` (oracle). Re-importing from the *same* source is a silent
+///    no-op instead, so it is not a conflict. With `-force` the import wins
+///    and replaces whichever of the two was there (oracle: `origin` → `::B::p`),
+///    which is what [`ImportQuery::ForcedShadow`] selects for. (Modelling the
+///    *error* — that the rest of that script never runs — is deliberately out
+///    of scope; only the "installed nothing" half is modelled.)
 /// 3. **`namespace forget` removes it** — `namespace forget ::src::p`, or the
 ///    simple form `namespace forget p`, and a later bare call is `invalid
 ///    command name`.
@@ -2591,6 +2641,14 @@ fn live_import_over_candidates<'c>(
 ///    link. That asymmetry is `indirection`'s own
 ///    rename-captures-object-identity rule, which is why only the *deletion*
 ///    appears here.
+/// 5. **Redefining the imported name removes it.** A `proc ::dst::p` written
+///    after the import silently recreates `::dst::p` as an ordinary command:
+///    oracle (9.0.4 / 8.6.14, `namespace import -force ::src::*` then `proc
+///    ::dst::p`) — the redefinition raises no error, `::dst::p` runs the new
+///    body, `namespace origin ::dst::p` becomes `::dst::p`, and `::src::p`
+///    is untouched. A call written *between* the import and the redefinition
+///    still reaches `::src::p`, so this is an ordered event like every other,
+///    not a file-wide fact.
 ///
 /// Ordering is [`indirection::in_effect`] — the same "had this statement
 /// run?" primitive the export snapshot and the `rename` / `interp alias`
@@ -2606,12 +2664,111 @@ fn live_import_at(
     query: ImportQuery,
 ) -> Option<String> {
     use crate::namespace_import::{AliasEvent, AliasEventKind};
-    let visible = |at: u32| indirection::in_effect(analysis, at, call_off);
-    // The install events: every import of this namespace whose pattern covers
-    // `word`, whose source had exported it, and which a conflict did not
-    // reduce to a no-op.
-    let mut latest: Option<(u32, &str)> = None;
+    let events = slot_events(analysis, importing_ns, word, query);
+    // Which imports actually install something: an unforced import onto a
+    // slot the namespace already holds (a local declaration, or a live alias
+    // from a *different* source) raises `already exists` and binds nothing.
+    // Decided by folding the log in order, each import judged by what the
+    // slot held when *it* ran — the same question the call-site gate below
+    // asks at its own point.
+    let mut held: Option<&str> = None;
+    let mut declared = false;
     let mut installs: Vec<(u32, &str)> = Vec::new();
+    let mut latest: Option<(u32, &str)> = None;
+    for ev in &events {
+        match *ev {
+            SlotEvent::Declare { .. } => {
+                declared = true;
+                held = None;
+            }
+            SlotEvent::Forget { source_ns, .. } => {
+                if held.is_some_and(|src| forget_covers(source_ns, src)) {
+                    held = None;
+                }
+            }
+            SlotEvent::Destroy { source_ns, .. } => {
+                if held == Some(source_ns) {
+                    held = None;
+                }
+            }
+            SlotEvent::Import {
+                at,
+                source_ns,
+                forced,
+            } => {
+                let conflicts = declared || held.is_some_and(|current| current != source_ns);
+                if !forced && conflicts {
+                    continue;
+                }
+                held = Some(source_ns);
+                // A `-force` import replaces whatever was there, including a
+                // local declaration.
+                declared = false;
+                installs.push((at, source_ns));
+                // The latest install wins the source namespace. Deliberately
+                // *not* filtered against `call_off`: whether a call written
+                // before its own import should stop resolving is the
+                // separate, still-open leniency #1104 item 1 — see
+                // `crate::namespace_import::alias_live_at`.
+                if latest.is_none_or(|(best, _)| at > best) {
+                    latest = Some((at, source_ns));
+                }
+            }
+        }
+    }
+    let (_, source_ns) = latest?;
+    // Only the winning source's own installs order against its removals: an
+    // import of the same name from a *different* namespace is a different
+    // edge, and letting it out-date this edge's forget would resurrect it.
+    let mut log = events
+        .iter()
+        .filter_map(|ev| match *ev {
+            SlotEvent::Import {
+                at, source_ns: s, ..
+            } if s == source_ns => installs
+                .iter()
+                .any(|&(i, _)| i == at)
+                .then_some(AliasEvent {
+                    kind: AliasEventKind::Install,
+                    at: Some(at),
+                }),
+            SlotEvent::Forget { at, source_ns: s } if forget_covers(s, source_ns) => {
+                Some(AliasEvent {
+                    kind: AliasEventKind::Remove,
+                    at: Some(at),
+                })
+            }
+            SlotEvent::Destroy { at, source_ns: s } if s == source_ns => Some(AliasEvent {
+                kind: AliasEventKind::Remove,
+                at: Some(at),
+            }),
+            SlotEvent::Declare { at } => Some(AliasEvent {
+                kind: AliasEventKind::Remove,
+                at: Some(at),
+            }),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .into_iter();
+    crate::namespace_import::alias_live_at(&mut log, &|at| {
+        indirection::in_effect(analysis, at, call_off)
+    })
+    .then(|| source_ns.to_owned())
+}
+
+/// Every [`SlotEvent`] bearing on `<importing_ns>::<word>` in this document,
+/// in source order.
+///
+/// Ordering the four record kinds against each other once, here, is what lets
+/// [`live_import_at`] answer the conflict question and the call-site question
+/// with the same log instead of two ad-hoc scans.
+fn slot_events<'a>(
+    analysis: &'a AnalysisResult,
+    importing_ns: &str,
+    word: &str,
+    query: ImportQuery,
+) -> Vec<SlotEvent<'a>> {
+    let mut events: Vec<SlotEvent<'a>> = Vec::new();
     for imp in analysis
         .namespace_imports
         .iter()
@@ -2632,85 +2789,45 @@ fn live_import_at(
         {
             continue;
         }
-        if !imp.forced && local_command_in_effect_at(analysis, importing_ns, word, at) {
-            continue;
-        }
-        installs.push((at, source_ns));
-        // The latest install wins the source namespace — a second import of
-        // the same name from elsewhere replaces the first alias, exactly as a
-        // second `namespace import` re-snapshots the export list. Deliberately
-        // *not* filtered by `visible`: whether a call written before its own
-        // import should stop resolving is the separate, still-open leniency
-        // #1104 item 1 — see `crate::namespace_import::alias_live_at`.
-        if latest.is_none_or(|(best, _)| at > best) {
-            latest = Some((at, source_ns));
+        events.push(SlotEvent::Import {
+            at,
+            source_ns,
+            forced: imp.forced,
+        });
+        // The source command's own destruction, ordered against this edge.
+        if let Some(&at) = analysis
+            .destroyed_commands
+            .get(&tcl_syntax::naming::qualify(source_ns, word))
+        {
+            events.push(SlotEvent::Destroy { at, source_ns });
         }
     }
-    let (_, source_ns) = latest?;
-    let removals = analysis
+    for f in analysis
         .namespace_forgets
         .iter()
-        .filter(|f| {
-            f.ns == importing_ns
-                && f.source_ns.as_deref().is_none_or(|src| {
-                    src.trim_start_matches("::") == source_ns.trim_start_matches("::")
-                })
-                && tcl_syntax::glob::string_match(&f.pattern, word)
-        })
-        .map(|f| AliasEvent {
-            kind: AliasEventKind::Remove,
-            at: Some(f.range.start()),
-        })
+        .filter(|f| f.ns == importing_ns && tcl_syntax::glob::string_match(&f.pattern, word))
+    {
+        events.push(SlotEvent::Forget {
+            at: f.range.start(),
+            source_ns: f.source_ns.as_deref(),
+        });
+    }
+    let qualified = tcl_syntax::naming::qualify(importing_ns, word);
+    for at in analysis
+        .proc_declarations(&qualified)
+        .map(|p| p.name_span.start())
         .chain(
             analysis
-                .destroyed_commands
-                .get(&tcl_syntax::naming::qualify(source_ns, word))
-                .map(|&at| AliasEvent {
-                    kind: AliasEventKind::Remove,
-                    at: Some(at),
-                }),
-        );
-    // Only the winning source's own installs order against its removals: an
-    // import of the same name from a *different* namespace is a different
-    // edge, and letting it out-date this edge's forget would resurrect it.
-    let mut events = installs
-        .iter()
-        .filter(|(_, ns)| *ns == source_ns)
-        .map(|&(at, _)| AliasEvent {
-            kind: AliasEventKind::Install,
-            at: Some(at),
-        })
-        .chain(removals);
-    crate::namespace_import::alias_live_at(&mut events, &visible).then(|| source_ns.to_owned())
-}
-
-/// Whether `importing_ns` already holds its own command named `word` by the
-/// time the import at `import_at` runs — the conflict a non-`-force`
-/// `namespace import` aborts on (case 2 of [`live_import_at`]).
-///
-/// A definition written *after* the import is not a conflict: the import
-/// succeeds and the later `proc` simply replaces the alias, which the
-/// ordinary namespace lookup already answers. So every declaration is
-/// order-gated by [`indirection::in_effect`] — the same "had this statement
-/// run?" primitive the rest of this module uses — rather than tested for mere
-/// presence. (`AnalysisResult::proc_def_in_effect_at` answers a different
-/// question — *which* of several declarations a call captured — and
-/// deliberately falls back to the winner when none precedes the offset, so it
-/// cannot serve as an existence gate here.)
-fn local_command_in_effect_at(
-    analysis: &AnalysisResult,
-    importing_ns: &str,
-    word: &str,
-    import_at: u32,
-) -> bool {
-    let qualified = tcl_syntax::naming::qualify(importing_ns, word);
-    analysis
-        .proc_declarations(&qualified)
-        .any(|p| indirection::in_effect(analysis, p.name_span.start(), import_at))
-        || analysis
-            .all_classes
-            .get(&qualified)
-            .is_some_and(|c| indirection::in_effect(analysis, c.name_span.start(), import_at))
+                .all_classes
+                .get(&qualified)
+                .map(|c| c.name_span.start()),
+        )
+    {
+        events.push(SlotEvent::Declare { at });
+    }
+    events.sort_by_key(|ev| ev.at());
+    events.dedup_by_key(|ev| (ev.at(), std::mem::discriminant(ev)));
+    events
 }
 
 /// Whether `source_ns` had exported `word` by the time the `namespace import`
@@ -3844,17 +3961,125 @@ mod tests {
     }
 
     #[test]
-    fn a_local_defined_after_the_import_is_not_a_conflict() {
-        // FP guard — the conflict is judged at the *import's* position: a
-        // `proc` written after it simply replaces the alias, which the
-        // ordinary namespace lookup answers, and must not retroactively make
-        // the import a no-op for calls sitting between the two.
-        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\n";
+    fn a_local_defined_after_the_import_is_not_a_conflict_but_does_end_the_alias() {
+        // The three-phase ordering (issue #1116 finding 3). The conflict is
+        // judged at the *import's* position, so a `proc` written after it does
+        // not retroactively make the import a no-op — a call between the two
+        // still reaches `::src::p`. But the `proc` *does* recreate
+        // `::dst::p` as an ordinary command, silently, so a call after it
+        // reaches the local one. Oracle (9.0.4 / 8.6.14, byte-identical):
+        //   namespace eval ::dst {namespace import ::src::*}
+        //   ::dst::p                    → SRC   ; origin → ::src::p
+        //   namespace eval ::dst {proc p {} {return LOCAL}}    (rc 0, silent)
+        //   ::dst::p                    → LOCAL ; origin → ::dst::p
+        //   ::src::p                    → SRC   (untouched)
+        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\np\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\n";
         let analysis = analyse(src);
-        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
+        // TP — between the import and the redefinition, the alias is live.
+        let between = at_first(src, "\np\n") + 1;
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", between);
         assert!(
             hit.is_some_and(|p| p.qualified_name == "::src::p"),
             "a later local definition is not a conflict at the import: {hit:?}"
+        );
+        // TN — after it, the alias is gone and the local command is what the
+        // ordinary namespace lookup answers.
+        let after = after_last(src, "return LOCAL }");
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "dst", "p", after).is_none(),
+            "redefining the imported name ends the alias"
+        );
+        let hit = resolve_called_proc(&analysis, src, "::dst", "p", after, None);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::dst::p"),
+            "after the redefinition the call reaches the local proc: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_redefinition_ends_a_forced_import_shadow() {
+        // TN, issue #1116 finding 3 — the same rule reached through
+        // `forced_import_shadows`, which is what made this a P2: with the
+        // shadow stuck on, `definition` / `hover` / `signature_help` skipped
+        // the valid local definition and answered the import source forever.
+        // Oracle: `proc ::dst::p` after `namespace import -force ::src::*`
+        // returns LOCAL2 with `namespace origin ::dst::p` → `::dst::p`.
+        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    proc p {} { return LOCAL2 }\n}\n";
+        let analysis = analyse(src);
+        let between = at_first(src, "namespace import -force")
+            + u32::try_from("namespace import -force ::src::*".len()).expect("tiny");
+        let hit = resolve_called_proc(&analysis, src, "::dst", "p", between, None);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::src::p"),
+            "between the forced import and the redefinition the source wins: {hit:?}"
+        );
+        let after = after_last(src, "return LOCAL2 }");
+        let hit = resolve_called_proc(&analysis, src, "::dst", "p", after, None);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::dst::p"),
+            "the redefinition ends the forced shadow: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_live_alias_is_an_import_conflict_for_a_different_source() {
+        // TN, issue #1116 finding 4 (CRITICAL) — with `::dst` already
+        // importing `::A::*`, a later *unforced* `namespace import ::B::*`
+        // fails and changes nothing. Oracle (9.0.4 / 8.6.14):
+        //   namespace eval ::dst {namespace import ::A::*}   ; origin → ::A::p
+        //   namespace eval ::dst {namespace import ::B::*}
+        //     → can't import command "p": already exists
+        //   ::dst::p → AP ; origin → ::A::p
+        // Before this, both imports entered the install set and the *newest*
+        // won, resolving later calls to `::B::p`.
+        let src = "namespace eval A {\n    proc p {} { return AP }\n    namespace export p\n}\nnamespace eval B {\n    proc p {} { return BP }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::A::*\n}\nnamespace eval dst {\n    namespace import ::B::*\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::A::p"),
+            "the failed second import leaves the first alias in place: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_forced_import_from_a_second_source_replaces_the_first_alias() {
+        // TP, the other half of finding 4 — with `-force` the second import
+        // wins (oracle: `::dst::p` → BP, `namespace origin` → `::B::p`).
+        let src = "namespace eval A {\n    proc p {} { return AP }\n    namespace export p\n}\nnamespace eval B {\n    proc p {} { return BP }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::A::*\n}\nnamespace eval dst {\n    namespace import -force ::B::*\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::B::p"),
+            "a `-force` import replaces a live alias too: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_forget_lets_the_next_unforced_import_install() {
+        // FN guard for finding 4 — the conflict is the *live* alias, not the
+        // fact that one was ever installed. Oracle: forgetting `::A::p` first
+        // makes the unforced `::B::*` import succeed (`origin` → `::B::p`).
+        let src = "namespace eval A {\n    proc p {} { return AP }\n    namespace export p\n}\nnamespace eval B {\n    proc p {} { return BP }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::A::*\n}\nnamespace eval dst {\n    namespace forget ::A::p\n}\nnamespace eval dst {\n    namespace import ::B::*\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::B::p"),
+            "after the forget the next unforced import installs: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_re_import_from_the_same_source_is_not_a_conflict() {
+        // FN guard — re-importing the *same* thing is a silent no-op, not the
+        // `already exists` error (oracle: rc 0, `origin` still `::A::p`), so
+        // the second import must not be treated as conflicting with the alias
+        // it would reinstall.
+        let src = "namespace eval A {\n    proc p {} { return AP }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::A::*\n}\nnamespace eval dst {\n    namespace import ::A::*\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::A::p"),
+            "a same-source re-import stays live: {hit:?}"
         );
     }
 

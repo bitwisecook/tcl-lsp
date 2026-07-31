@@ -157,12 +157,24 @@ not change the rule, and must not grow bespoke resolution logic. Every
     reinstates the alias.
   - **`-force` decides the conflict.** Importing onto a name the target
     namespace already holds aborts (`can't import command "p": already
-    exists`) and installs nothing — the local command survives and `namespace
-    origin` still answers it; with `-force` the import silently replaces the
-    local command and `namespace origin` answers the source. Statically the
-    "installed nothing" / "replaced the local" halves are both modelled; the
-    error's *control-flow* consequence (nothing after it in that script runs)
-    is deliberately out of scope.
+    exists`) and installs nothing — the existing command survives and
+    `namespace origin` still answers it; with `-force` the import silently
+    replaces it and `namespace origin` answers the source. "Already holds"
+    covers a local `proc`/class **and a live alias from a different source**:
+    with `::dst` importing `::A::*`, a later unforced `namespace import ::B::*`
+    raises the same error and leaves `origin` at `::A::p`, while `-force`
+    makes it `::B::p` and a preceding `namespace forget` lets the unforced one
+    through (all pinned). Re-importing from the *same* source is a silent
+    no-op, not a conflict (pinned). Statically the "installed nothing" /
+    "replaced what was there" halves are both modelled; the error's
+    *control-flow* consequence (nothing after it in that script runs) is
+    deliberately out of scope.
+  - **Redefining the imported name ends the alias.** A `proc ::dst::p` written
+    after the import silently recreates `::dst::p` as an ordinary command:
+    no error, `::dst::p` runs the new body, `namespace origin ::dst::p`
+    becomes `::dst::p`, and `::src::p` is untouched (pinned). It is an
+    ordered event like every other — a call written *between* the import and
+    the redefinition still reaches the source.
   - **A source *delete* kills the alias, a source *rename* does not.**
     `rename ::src::p {}` makes `::dst::p` an `invalid command name`, while
     `rename ::src::p ::src::pp` leaves it working and merely moves the origin
@@ -184,10 +196,16 @@ not change the rule, and must not grow bespoke resolution logic. Every
   leading option word was consumed", never as a `-force` name match. Both tiers
   answer through one shared decision function
   (`tcl_lsp_core::namespace_import::alias_live_at`), under the same
-  `in_effect` / `in_effect_within` order rule as the export snapshot. Removals
-  abstain toward *keeping* the alias: one in another file has no static load
-  order and revokes nothing, and one written inside a proc/class body is
-  conditional and is not published at all.
+  `in_effect` / `in_effect_within` order rule as the export snapshot, and it
+  gates the **exact**-import link the same way it gates a glob lookup.
+  Byte offsets order events only *within* one document, so a cross-file event
+  — an install as much as a removal — is passed unordered rather than compared
+  against an unrelated file's numbering. Removals then abstain toward
+  *keeping* the alias: one in another file revokes nothing, and one written
+  inside a proc/class body is conditional and is not published at all. The one
+  exception is **destroying the source command**, which is not a slot event on
+  a timeline but the disappearance of the command object workspace-wide: it
+  revokes a link regardless of where it is written.
 - **`unknown` / `namespace unknown`** fire only after the full candidate
   walk (path included) misses. `namespace unknown` handlers are
   **per-namespace, NOT inherited** by children; the global namespace's

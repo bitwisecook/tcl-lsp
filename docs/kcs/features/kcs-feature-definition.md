@@ -81,8 +81,13 @@ Re-running the import after a forget brings the alias back.
 Importing onto a name the target namespace already has is an error unless the
 import carries `-force`, and the failed import installs nothing — so a bare
 call still reaches the *local* definition, and Go to Definition stays on it.
-With `-force` the import replaces the local command, and from that point on
-the same bare call jumps to the **source** instead.
+"Already has" includes a name it imported earlier from somewhere else: a
+second unforced import of the same name from a different namespace fails too,
+and navigation keeps answering the first source. With `-force` the import
+replaces whatever was there, and from that point on the same bare call jumps
+to the **source** instead — until a `proc` of that name is written, which
+silently takes the name back and sends navigation to the new local
+definition.
 
 Imports chain. When `::A` imports `::B::*` and `::B` had imported `::C::*`
 (and re-exported), a bare call in `::A` runs `::C`'s body, and Go to Definition
