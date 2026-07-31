@@ -661,6 +661,20 @@ impl Lsp {
 
     /// Like [`Lsp::request`] with an explicit timeout.
     pub fn request_timeout(&mut self, method: &str, params: Value, timeout: Duration) -> Value {
+        let resp = self.request_response(method, params, timeout);
+        if let Some(err) = resp.get("error") {
+            panic!("{method} -> error {err}");
+        }
+        resp.get("result").cloned().unwrap_or(Value::Null)
+    }
+
+    /// The whole JSON-RPC response object, `error` included.
+    ///
+    /// [`Lsp::request`] panics on an error response, which is right for every
+    /// request that must succeed — but the rename **safety gate** answers a
+    /// refusal *as* an error (a `null` result would read as "nothing to
+    /// rename here"), so its tests need the error itself.
+    pub fn request_response(&mut self, method: &str, params: Value, timeout: Duration) -> Value {
         let id = self.next_id;
         self.next_id += 1;
         let mut msg = json!({ "jsonrpc": "2.0", "id": id, "method": method });
@@ -672,10 +686,7 @@ impl Lsp {
             {
                 let mut responses = self.shared.responses.lock().unwrap();
                 if let Some(resp) = responses.remove(&id) {
-                    if let Some(err) = resp.get("error") {
-                        panic!("{method} -> error {err}");
-                    }
-                    return resp.get("result").cloned().unwrap_or(Value::Null);
+                    return resp;
                 }
             }
             assert!(
@@ -1299,6 +1310,16 @@ impl Lsp {
         let mut params = Self::doc_pos(uri, line, ch);
         params["newName"] = json!(new_name);
         self.request("textDocument/rename", params)
+    }
+    /// The rename request's JSON-RPC `error` object, or `null` when the
+    /// request succeeded — the wire view of a safety-gate refusal.
+    pub fn rename_error(&mut self, uri: &str, line: u32, ch: u32, new_name: &str) -> Value {
+        let mut params = Self::doc_pos(uri, line, ch);
+        params["newName"] = json!(new_name);
+        self.request_response("textDocument/rename", params, REQUEST_TIMEOUT)
+            .get("error")
+            .cloned()
+            .unwrap_or(Value::Null)
     }
     pub fn folding_range(&mut self, uri: &str) -> Value {
         self.request(

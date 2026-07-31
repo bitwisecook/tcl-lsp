@@ -622,8 +622,8 @@ impl Analyser {
         // `all_classes` (in body/source order, so last-assignment-wins matches
         // the whole-file walk).  `instance_classes` carries no spans, so no
         // rebasing is needed.
-        for (cmd, args) in frag.instances {
-            self.record_instance_creation(&cmd, &args);
+        for (cmd, args, creation_ns) in frag.instances {
+            self.record_instance_creation(&cmd, &args, &creation_ns);
         }
     }
 
@@ -726,9 +726,10 @@ pub struct BodyFragment {
         Vec<super::types::CodeFix>,
         tcl_lexer::Span,
     )>,
-    /// Captured `TclOO` instance-creation candidates (`(command, args)`); the graft
-    /// replays them against the shell's full `all_classes`.
-    instances: Vec<(String, Vec<String>)>,
+    /// Captured `TclOO` instance-creation candidates (`(command, args, creation
+    /// namespace)`); the graft replays them against the shell's full
+    /// `all_classes`.
+    instances: Vec<(String, Vec<String>, String)>,
 }
 
 /// Analyse one `proc` **or method** body as an isolated unit at **offset 0** — a

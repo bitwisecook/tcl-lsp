@@ -301,47 +301,58 @@ pub fn rename(
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
 ) -> Vec<TextEdit> {
+    rename_with_diagnosis(
+        source, dialect, line, character, new_name, analysis, registry,
+    )
+    .unwrap_or_default()
+}
+
+/// [`rename`], but reporting *why* a rename was refused.
+///
+/// `Err(refusal)` means the cursor names a real, resolvable symbol whose
+/// rename cannot be completed soundly — the safety gate
+/// ([`crate::rename_safety`]) proved the edit set would change what the
+/// program does.  The server turns that into an LSP error response carrying
+/// the reason, so the editor tells the user instead of silently applying a
+/// partial edit set.  `Ok(vec![])` keeps its existing meaning: no renameable
+/// symbol here, or a shape / collision gate said no.
+///
+/// The distinction matters because the two answers must not be conflated: an
+/// empty edit set falls through to the server's cross-document and
+/// workspace-resolved rename branches, and a *refusal* must not.
+pub fn rename_with_diagnosis(
+    source: &str,
+    dialect: &str,
+    line: u32,
+    character: u32,
+    new_name: &str,
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+) -> Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal> {
     // Shape gate first — applies to every rename target.
     if !is_safe_symbol_name(new_name) {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let line_index = LineIndex::new(source);
-
-    if let Some(var_name) = find_var_at_position(source, line, character) {
-        return rename_var(
-            source,
-            line,
-            character,
-            new_name,
-            analysis,
-            &line_index,
-            &var_name,
-        );
-    }
-
-    // Definition / same-cell write site: the cursor sits on a `set x` /
-    // `variable x` declaration, a proc/method parameter, or a `catch`
-    // result-var (no `$`), so the `$ref` scan above missed it. Resolve via
-    // `var_def_at_declaration_offset`'s byte-offset span search (see its
-    // own doc for why the ordinary scope-chain walk can't reach a
-    // parameter's own declaring token).
-    let def_byte = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if let Some(var_def) =
-        crate::definition::var_def_at_declaration_offset(&analysis.global_scope, def_byte)
+    // Safety gate: when the cursor names a `TclOO` member, refuse outright if
+    // any dispatch of it in this document cannot be proved safe to rewrite.
+    // Checked before any edit is built so a hazard can never leak a partial
+    // edit set (issue #923 idx 79).
+    if let Some(refusal) =
+        method_rename_refusal(source, dialect, line, character, analysis, &line_index)
     {
-        return rename_var(
-            source,
-            line,
-            character,
-            new_name,
-            analysis,
-            &line_index,
-            &var_def.name,
-        );
+        return Err(refusal);
     }
+
+    if let Some(edits) =
+        rename_variable_at(source, line, character, new_name, analysis, &line_index)
+    {
+        return Ok(edits);
+    }
+    let def_byte = crate::definition::byte_offset_at(&line_index, source, line, character);
 
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
 
     if let Some(edits) = rename_proc(
@@ -353,7 +364,7 @@ pub fn rename(
         registry,
         &line_index,
     ) {
-        return edits;
+        return Ok(edits);
     }
     if let Some(edits) = rename_class(
         source,
@@ -364,7 +375,7 @@ pub fn rename(
         registry,
         &line_index,
     ) {
-        return edits;
+        return Ok(edits);
     }
     if let Some(edits) = rename_itcl_class_proc(
         source,
@@ -374,7 +385,7 @@ pub fn rename(
         analysis,
         &line_index,
     ) {
-        return edits;
+        return Ok(edits);
     }
     // `$obj method` external call site — when the cursor sits
     // on the method-name token of an instance-method call and
@@ -399,7 +410,7 @@ pub fn rename(
             &line_index,
         )
     {
-        return edits;
+        return Ok(edits);
     }
     // Method rename — match `word` against any class's methods
     // / classmethods / properties at the cursor's byte offset.
@@ -413,9 +424,74 @@ pub fn rename(
         cursor_offset,
         &line_index,
     ) {
-        return edits;
+        return Ok(edits);
     }
-    Vec::new()
+    Ok(Vec::new())
+}
+
+/// The safety refusal for a `TclOO` member rename anchored at the cursor, if
+/// any — the single in-document entry point to [`crate::rename_safety`].
+///
+/// Resolves the cursor to a member and its whole override family exactly the
+/// way the rename itself does ([`method_rename_target`] + [`override_family`]),
+/// so the gate is asked about precisely the declarations the edit set would
+/// rewrite — never a wider or narrower set.
+fn method_rename_refusal(
+    source: &str,
+    dialect: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Option<crate::rename_safety::RenameRefusal> {
+    let (seed_class, method, is_classmethod) =
+        method_rename_target(source, line, character, analysis)?;
+    let family = override_family(analysis, &seed_class, &method);
+    if family.is_empty() {
+        return None;
+    }
+    crate::rename_safety::method_rename_hazard(
+        source,
+        dialect,
+        analysis,
+        crate::rename_safety::MethodRenameTarget {
+            family: &family,
+            method: &method,
+            is_classmethod,
+        },
+        line_index,
+    )
+}
+
+/// The variable-rename edits for a cursor that names one, or `None` when it
+/// names no variable at all.
+///
+/// Two cursor shapes, both variables: a `$ref` occurrence, and a *declaration
+/// / same-cell write* token with no `$` (a `set x` / `variable x`, a
+/// proc/method parameter, a `catch` result-var).  The second needs
+/// `var_def_at_declaration_offset`'s byte-offset span search — a parameter's
+/// own declaring token sits textually *before* its scope's body span even
+/// starts, so the ordinary scope-chain walk never reaches it (see that
+/// function's own doc).
+fn rename_variable_at(
+    source: &str,
+    line: u32,
+    character: u32,
+    new_name: &str,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Option<Vec<TextEdit>> {
+    let name = if let Some(var_name) = find_var_at_position(source, line, character) {
+        var_name
+    } else {
+        let def_byte = crate::definition::byte_offset_at(line_index, source, line, character);
+        crate::definition::var_def_at_declaration_offset(&analysis.global_scope, def_byte)?
+            .name
+            .clone()
+    };
+    Some(rename_var(
+        source, line, character, new_name, analysis, line_index, &name,
+    ))
 }
 
 /// Rename `method` across the class identified by `class_q` **and every
@@ -1279,6 +1355,122 @@ pub fn workspace_symbol_rename_edits(
         index,
         "",
     ))
+}
+
+/// Every edit renaming the **namespace-variable cell** `cell` to `new_name`
+/// within `source` — one document's share of the workspace-wide rename the
+/// cross-document tier drives.
+///
+/// `cell` is a `::`-rooted qualified name
+/// ([`crate::definition::qualified_variable_cell_at`] is the single entry
+/// point that decides which cell a cursor names, shared with go-to-definition
+/// / hover / find-references so the four cannot disagree).  Three occurrence
+/// kinds are rewritten, and they are the complete static set for a namespace
+/// cell:
+///
+/// * the **namespace-scoped declaration(s)** this document holds — the
+///   `variable v` / `set v …` sitting directly in a `namespace eval` body,
+///   read off the scope tree via `namespace_variables` rather than re-derived;
+/// * every **alias** Tcl treats as the same cell — a `variable v` / `global v`
+///   / `namespace upvar ns v local` inside a proc or method body, plus all its
+///   *unqualified* reads, unioned by
+///   [`crate::definition::linked_var_reference_spans`] over `VarDef::link_target`
+///   (the analyser's analogue of Tcl's `VAR_LINK`).  Missing these is what
+///   makes a naive "declaration + qualified occurrences" rename break a
+///   program: `namespace eval ns { proc p {} { variable v; puts $v } }`
+///   keeps working only if that `variable v` and its `$v` are renamed too;
+/// * every **`::`-qualified occurrence** (`$::ns::v`, `set app::ns::v 1`) —
+///   `analysis.qualified_var_refs`, the same table the workspace index's
+///   cross-document reference set is built from.
+///
+/// Deliberately *not* rewritten: an unqualified `$v` that is not an alias of
+/// this cell.  A bare name means whatever the local scope chain supplies,
+/// which is a per-document question this cell's identity cannot answer.
+///
+/// The result is unsorted and deduplicated by range; the caller merges it
+/// with the other documents' shares.
+#[must_use]
+pub fn namespace_variable_rename_edits(
+    source: &str,
+    analysis: &AnalysisResult,
+    cell: &str,
+    new_name: &str,
+) -> Vec<TextEdit> {
+    if !is_safe_symbol_name(new_name) {
+        return Vec::new();
+    }
+    let target = cell.trim_start_matches("::");
+    // Collision gate, the in-document half of the workspace one the server
+    // applies: renaming onto a cell this document already declares would
+    // merge two distinct variables into one.  Same discipline (and same
+    // "answer nothing" shape) as the single-document variable rename's own
+    // scope-chain collision check.
+    let new_cell = match cell.rfind("::") {
+        Some(idx) => format!("{}::{new_name}", &cell[..idx]),
+        None => format!("::{new_name}"),
+    };
+    if tcl_compiler::analyser::lookup_var_by_qualified_name(&analysis.global_scope, &new_cell)
+        .is_some()
+    {
+        return Vec::new();
+    }
+    let line_index = LineIndex::new(source);
+    let mut spans: Vec<tcl_lexer::Span> = Vec::new();
+    for (qualified, var) in tcl_compiler::analyser::namespace_variables(&analysis.global_scope) {
+        if qualified.trim_start_matches("::") != target {
+            continue;
+        }
+        spans.push(var.definition_span);
+        spans.extend(crate::definition::linked_var_reference_spans(
+            &analysis.global_scope,
+            var,
+        ));
+    }
+    collect_cell_alias_spans(&analysis.global_scope, target, &mut spans);
+    for vref in &analysis.qualified_var_refs {
+        if vref.qualified_name.trim_start_matches("::") == target {
+            spans.push(vref.span);
+        }
+    }
+    let mut edits: Vec<TextEdit> = spans
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .map(|s| TextEdit {
+            range: span_to_range(source, &line_index, var_ref_edit_span(source, s)),
+            new_text: build_var_ref_replacement(source, s, new_name),
+        })
+        .collect();
+    dedup_edits(&mut edits);
+    edits
+}
+
+/// Every declaration + reference span of a variable *aliasing* `target` (a
+/// `::`-rooted cell) anywhere in the scope tree — a proc-local `variable v` /
+/// `global v` / `namespace upvar` and all its unqualified uses.
+///
+/// The namespace-scoped declaration walk above only sees namespace and global
+/// scopes, so an alias declared inside a proc or method body (the ordinary way
+/// a namespace variable is used) is invisible to it; without this the
+/// cross-document rename would rewrite the declaration and leave every
+/// `variable v; … $v` body naming a cell that no longer exists.
+fn collect_cell_alias_spans(
+    scope: &tcl_compiler::analyser::Scope,
+    target: &str,
+    out: &mut Vec<tcl_lexer::Span>,
+) {
+    for var in scope.variables.values() {
+        if var
+            .link_target
+            .as_deref()
+            .is_some_and(|t| t.trim_start_matches("::") == target)
+        {
+            out.push(var.definition_span);
+            out.extend(var.references.iter().copied());
+        }
+    }
+    for child in &scope.children {
+        collect_cell_alias_spans(child, target, out);
+    }
 }
 
 /// Extend a `${name}` reference span to cover its own closing
@@ -2868,5 +3060,210 @@ mod tests {
             lines.contains(&1) && lines.contains(&5),
             "expected decl (l1) + `my speak` in inheriting subclass (l5); got {edits:?}",
         );
+    }
+
+    /// TP — the `export` list is part of the rename.
+    ///
+    /// Oracle (tclsh 9.0.4 and 8.6.16, identical): with `method Foo` +
+    /// `export Foo`, `[$a Foo]` prints `foo`.  Rename `Foo` → `Bar` touching
+    /// only the declaration and the call site, leaving `export Foo` behind,
+    /// and both interpreters answer
+    /// `unknown method "Bar": must be destroy` — the renamed method is no
+    /// longer exported.  A `method` whose name begins with an upper-case
+    /// letter is unexported by default (probed on 9.0.4: `$a Foo` errors,
+    /// `$a bar` works), which is exactly why the corpus writes the list.
+    #[test]
+    fn tp_rename_method_rewrites_its_export_list() {
+        let src = "oo::class create A {\n    method Foo {} { return 1 }\n    export Foo\n}\nset a [A new]\nputs [$a Foo]\n";
+        let analysis = analyse(src);
+        let edits = rename(src, "tcl8.6", 1, 12, "Bar", &analysis, None);
+        let applied = apply_edits(src, &edits);
+        assert!(
+            applied.contains("export Bar"),
+            "the export list must be renamed with the method: {applied}"
+        );
+        assert!(
+            !applied.contains("Foo"),
+            "no stale name may survive: {applied}"
+        );
+    }
+
+    /// TP — an `export` written in a separate `oo::define` block is found
+    /// through the definer grammar, not the class's own body span.
+    #[test]
+    fn tp_rename_method_rewrites_an_export_in_a_separate_oo_define_block() {
+        let src = "oo::class create A {\n    method Foo {} { return 1 }\n}\noo::define A {\n    export Foo\n}\n";
+        let analysis = analyse(src);
+        let edits = rename(src, "tcl8.6", 1, 12, "Bar", &analysis, None);
+        let applied = apply_edits(src, &edits);
+        assert!(
+            applied.contains("export Bar"),
+            "an `oo::define` export list must rename too: {applied}"
+        );
+    }
+
+    /// TP + TN, issue #981's object-command half.
+    ///
+    /// Oracle (tclsh 9.0.4 / 8.6.16, identical): `::a::Factory create rex`
+    /// and `::b::Widget create rex` bind two different commands; `rex make`
+    /// inside `::a` prints `a-made` and inside `::b` prints `b-made`, and
+    /// `::a::rex make` / `::b::rex make` both work from the top level.
+    /// Renaming `::b::Widget::make` → `produce` and also rewriting `::a`'s
+    /// call site makes both interpreters fail with
+    /// `unknown method "produce": must be destroy or make` at `rex produce`
+    /// inside `::a` — which is exactly what the LSP emitted before this fix.
+    #[test]
+    fn tn_object_command_dispatch_is_scoped_to_its_creation_namespace() {
+        let src = "namespace eval ::a {\n\
+                   \x20   oo::class create Factory {\n\
+                   \x20       method make {} { return \"a-made\" }\n\
+                   \x20   }\n\
+                   \x20   Factory create rex\n\
+                   \x20   puts [rex make]\n\
+                   }\n\
+                   namespace eval ::b {\n\
+                   \x20   oo::class create Widget {\n\
+                   \x20       method make {} { return \"b-made\" }\n\
+                   \x20   }\n\
+                   \x20   Widget create rex\n\
+                   \x20   puts [rex make]\n\
+                   }\n";
+        let analysis = analyse(src);
+        // Cursor on `make` in `::b::Widget`'s declaration.
+        let edits = rename(src, "tcl8.6", 9, 15, "produce", &analysis, None);
+        let applied = apply_edits(src, &edits);
+        assert!(
+            applied.contains("method produce {} { return \"b-made\" }"),
+            "::b's declaration must rename: {applied}"
+        );
+        assert!(
+            applied.contains("method make {} { return \"a-made\" }"),
+            "::a's declaration must be untouched: {applied}"
+        );
+        // `::a`'s own call site must survive verbatim; `::b`'s must rename.
+        let a_call = applied
+            .split("namespace eval ::b")
+            .next()
+            .expect("split keeps the ::a half");
+        assert!(
+            a_call.contains("puts [rex make]"),
+            "::a's `rex make` must not be rewritten (issue #981): {applied}"
+        );
+        assert!(
+            applied
+                .split("namespace eval ::b")
+                .nth(1)
+                .is_some_and(|b| b.contains("puts [rex produce]")),
+            "::b's own `rex make` must rename (the finding's lost-site half): {applied}"
+        );
+    }
+
+    /// TP — the namespace-variable cell's declaration, its proc-local
+    /// `variable` alias, that alias's unqualified reads, and every qualified
+    /// occurrence rename as one unit.
+    ///
+    /// Oracle (tclsh 9.0.4 / 8.6.16, identical): the script prints `1` before
+    /// and after the complete rename; renaming only the declaration and the
+    /// qualified read leaves `p` reading a cell that no longer exists.
+    #[test]
+    fn tp_namespace_variable_rename_covers_declaration_alias_and_qualified_use() {
+        let src = "namespace eval ::ns {\n\
+                   \x20   variable v 1\n\
+                   \x20   proc p {} {\n\
+                   \x20       variable v\n\
+                   \x20       return $v\n\
+                   \x20   }\n\
+                   }\n\
+                   puts $::ns::v\n\
+                   puts [::ns::p]\n";
+        let analysis = analyse(src);
+        let edits = namespace_variable_rename_edits(src, &analysis, "::ns::v", "total");
+        let applied = apply_edits(src, &edits);
+        assert!(applied.contains("variable total 1"), "{applied}");
+        assert!(applied.contains("        variable total\n"), "{applied}");
+        assert!(applied.contains("return $total"), "{applied}");
+        assert!(applied.contains("puts $::ns::total"), "{applied}");
+        assert!(
+            !applied.contains("$v\n"),
+            "no stale read may survive: {applied}"
+        );
+    }
+
+    /// TN — a same-tailed cell in a *different* namespace is a different
+    /// variable and must be untouched (`$other::v` never searches enclosing
+    /// namespaces; tclsh 9.0.4 / 8.6.16 keep the two independent).
+    #[test]
+    fn tn_namespace_variable_rename_leaves_a_same_tailed_sibling_cell_alone() {
+        let src = "namespace eval ::a {\n    variable v 1\n}\n\
+                   namespace eval ::b {\n    variable v 2\n}\n\
+                   puts $::a::v\nputs $::b::v\n";
+        let analysis = analyse(src);
+        let edits = namespace_variable_rename_edits(src, &analysis, "::a::v", "total");
+        let applied = apply_edits(src, &edits);
+        assert!(applied.contains("puts $::a::total"), "{applied}");
+        assert!(
+            applied.contains("puts $::b::v"),
+            "::b's cell must survive: {applied}"
+        );
+        assert!(
+            applied.contains("namespace eval ::b {\n    variable v 2\n}"),
+            "::b's declaration must survive: {applied}"
+        );
+    }
+
+    /// FP guard — renaming a cell onto a name the same namespace already
+    /// declares would merge two distinct variables, so the whole rename
+    /// answers nothing (the same discipline the single-document variable
+    /// rename's scope-chain collision check applies).
+    #[test]
+    fn fp_namespace_variable_rename_refuses_a_collision_in_its_own_namespace() {
+        let src =
+            "namespace eval ::ns {\n    variable v 1\n    variable total 2\n}\nputs $::ns::v\n";
+        let analysis = analyse(src);
+        assert!(
+            namespace_variable_rename_edits(src, &analysis, "::ns::v", "total").is_empty(),
+            "renaming `v` onto the existing `total` must produce no edits"
+        );
+    }
+
+    /// TN — an unqualified local that merely shares the tail name is not the
+    /// cell, so it is not renamed.
+    #[test]
+    fn tn_namespace_variable_rename_leaves_an_unrelated_local_alone() {
+        let src = "namespace eval ::ns {\n    variable v 1\n}\n\
+                   proc other {} {\n    set v 9\n    return $v\n}\n\
+                   puts $::ns::v\n";
+        let analysis = analyse(src);
+        let edits = namespace_variable_rename_edits(src, &analysis, "::ns::v", "total");
+        let applied = apply_edits(src, &edits);
+        assert!(
+            applied.contains("set v 9"),
+            "the proc local must survive: {applied}"
+        );
+        assert!(applied.contains("return $v"), "{applied}");
+        assert!(applied.contains("puts $::ns::total"), "{applied}");
+    }
+
+    /// FP guard, end of the in-document path: the idx-79 shape refuses with a
+    /// reason rather than emitting the declaration-only edit set that broke
+    /// the program on both interpreters.
+    #[test]
+    fn fp_rename_refuses_the_untracked_receiver_dispatch() {
+        let src = "oo::class create Vector3d {\n\
+                   \x20   variable _x\n\
+                   \x20   constructor {args} {\n\
+                   \x20       set other [lindex $args 0]\n\
+                   \x20       set _x [$other X]\n\
+                   \x20   }\n\
+                   \x20   method X {} { return $_x }\n\
+                   }\n";
+        let analysis = analyse(src);
+        let err = rename_with_diagnosis(src, "tcl8.6", 6, 11, "GetX", &analysis, None)
+            .expect_err("idx 79's shape must refuse");
+        assert!(err.reason.contains("not tracked"), "{}", err.reason);
+        assert!(err.range.is_some(), "the refusal must point at the site");
+        // And the plain entry point must produce no edits at all — never a
+        // partial set.
+        assert!(rename(src, "tcl8.6", 6, 11, "GetX", &analysis, None).is_empty());
     }
 }

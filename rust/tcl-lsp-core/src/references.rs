@@ -75,11 +75,15 @@
 //!   rule (current namespace, then `namespace path`, then global — see
 //!   [`CommandReceivers::class_head_matches`]), so two classes sharing a
 //!   simple name in different namespaces are never cross-linked (issue
-//!   #981).  A `CLASS create NAME` **object command** is still matched by
-//!   text: the analyser records instance-command names unqualified
-//!   (`AnalysisResult::created_instance_commands`), so two same-named object
-//!   commands in different namespaces are already indistinguishable in the
-//!   data this scanner reads — qualifying them is an analyser-shape change.
+//!   #981).  A `CLASS create NAME` **object command** now resolves the same
+//!   way: the analyser records each creation site's namespace
+//!   (`AnalysisResult::instance_command_bindings`), so `::a::Factory create
+//!   rex` binds `::a::rex` and `::b::Widget create rex` binds `::b::rex`, and
+//!   a bare `rex make` reaches whichever its own namespace resolves to — the
+//!   object-command half of #981, closed by PR C3.  An object command bound
+//!   by a *registry* object factory (a Tk widget path, a tcllib naming
+//!   factory) carries no creating user class, so it keeps the bare-name
+//!   match; it has no class identity to mis-attribute in the first place.
 //! * An **explicit** `namespace import ::a::Factory` is followed: the imported
 //!   name is a real command in the importing namespace, so it joins the
 //!   resolver's `exists` universe and resolves through to the source command
@@ -1135,7 +1139,7 @@ pub(crate) fn collect_member_bodies(
 /// [`collect_member_bodies`], which mixes both (used only where the caller
 /// has no per-table dispatch-scope concern of its own, e.g. `rename`'s
 /// property scan).
-fn collect_member_bodies_scoped(
+pub(crate) fn collect_member_bodies_scoped(
     cd: &tcl_compiler::analyser::types::ClassDef,
     is_classmethod: bool,
 ) -> Vec<tcl_lexer::Span> {
@@ -1284,6 +1288,13 @@ pub(crate) fn method_references_for_class(
         method,
         is_classmethod,
     ));
+    // Definition-body words that *name* the member — `export m` / `unexport m`
+    // / `filter m` / `deletemethod m` (the registry's
+    // `MemberRefKind::Method` members).  These are references, and rewriting
+    // them is load-bearing: an `export` left naming the old name leaves the
+    // renamed method unexported and every call to it fails (tclsh 9.0.4 /
+    // 8.6.16 alike).
+    call_spans.extend(member_reference_spans(source, dialect, class_def, method));
     Some((decl_span, call_spans))
 }
 
@@ -2054,17 +2065,56 @@ fn dispatch_receivers<'a>(
     // (so `NAME` is a command, dispatched bare as `NAME method`, not `$NAME
     // method`).  A `set v [CLASS new]` receiver is a *variable* only and never
     // enters this set, so a bare `v method` is (correctly) not matched.
+    //
+    // A name the analyser recorded a *namespace-qualified* binding for is
+    // matched by resolving the written head against the call site's own
+    // namespace (issue #981).  The bare-name set below is kept only for names
+    // with no such binding — the registry object-factories (Tk widget paths,
+    // tcllib naming factories) and the external-package `create NAME` shape,
+    // neither of which carries a creating user class to attribute a dispatch
+    // to in the first place.
+    let bound_tails: FxHashSet<&str> = analysis
+        .instance_command_bindings
+        .iter()
+        .filter_map(|b| {
+            std::str::from_utf8(tcl_syntax::naming::written_command_tail(
+                b.qualified_name.as_bytes(),
+            ))
+            .ok()
+        })
+        .collect();
     let mut receivers = CommandReceivers {
         object_commands: var_set
             .iter()
             .copied()
-            .filter(|name| analysis.created_instance_commands.contains(*name))
+            .filter(|name| {
+                analysis.created_instance_commands.contains(*name) && !bound_tails.contains(*name)
+            })
             .map(str::to_owned)
             .collect(),
         class_targets: FxHashSet::default(),
         class_tails: FxHashSet::default(),
+        object_command_targets: FxHashSet::default(),
+        object_command_tails: FxHashSet::default(),
+        object_command_universe: analysis
+            .instance_command_bindings
+            .iter()
+            .map(|b| b.qualified_name.clone())
+            .collect(),
         import_aliases: explicit_import_aliases(analysis),
     };
+    // A `classmethod` never dispatches on an instance, so object commands are
+    // only receivers for a plain `method` — the same rule that leaves
+    // `var_set` empty above.
+    if !is_classmethod {
+        for binding in &analysis.instance_command_bindings {
+            if binding.class_q == class_q
+                || hierarchy.method_target(&binding.class_q, method) == Some(class_q)
+            {
+                receivers.add_object_command_target(&binding.qualified_name);
+            }
+        }
+    }
     // A `classmethod` dispatches on the *class's own* command (`Factory
     // make`) — never on an instance: TclOO's `classmethod` sugar puts the
     // method on the class object's own class, which no instance's MRO
@@ -2244,15 +2294,40 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
 ///   `b-made` there, `invalid command name "Factory"` where no candidate
 ///   exists, and the global class where only that exists).
 ///
-/// * `object_commands` — the instance-command names bound by `CLASS create
-///   NAME`.  These stay an exact text match: the analyser records them
-///   unqualified (`AnalysisResult::created_instance_commands` is a set of
-///   bare names with no creation namespace, and `instance_classes` keeps one
-///   binding per bare name), so two same-named object commands in different
-///   namespaces are already indistinguishable in the data this scanner
-///   reads.  Qualifying them is an analyser-shape change, not a scanner one.
+/// * `object_command_targets` — the object commands bound by `CLASS create
+///   NAME`, by the **qualified** name the creation site's namespace produced
+///   (`AnalysisResult::instance_command_bindings`).  Matched by the same
+///   namespace resolution as `class_targets`, so `::a::Factory create rex`
+///   and `::b::Widget create rex` are two commands, not one name (issue
+///   #981's object-command half).
+///
+/// * `object_commands` — the residual bare-name set, for instance commands
+///   with **no** qualified binding: those bound by a registry object factory
+///   (a Tk widget path, a tcllib naming factory) or by an unresolved
+///   external-package `create NAME`.  Neither records a creating user class,
+///   so there is no class identity to mis-attribute; an exact text match is
+///   all the data supports and all it needs to.
 struct CommandReceivers {
     class_targets: FxHashSet<String>,
+    /// The `::`-rooted **qualified** names of the object commands (`CLASS
+    /// create NAME`) whose creating class dispatches the method — matched by
+    /// resolving a written head against the call site's own namespace, the
+    /// same rule `class_targets` uses.  Populated from
+    /// [`tcl_compiler::analyser::AnalysisResult::instance_command_bindings`],
+    /// which records the creation site's namespace (issue #981's
+    /// object-command half): `::a::Factory create rex` binds `::a::rex` and
+    /// `::b::Widget create rex` binds `::b::rex`, and a bare `rex make`
+    /// reaches whichever of the two its own namespace resolves to — never
+    /// both, as the bare-name set below could not help doing.
+    object_command_targets: FxHashSet<String>,
+    /// Simple (tail) names of every entry in `object_command_targets` — the
+    /// same cheap pre-filter `class_tails` is for `class_targets`.
+    object_command_tails: FxHashSet<String>,
+    /// Every qualified object-command name the document binds, whatever class
+    /// bound it — the `exists` universe for the resolution above, so a
+    /// sibling namespace's same-named object command properly *shadows*
+    /// rather than being invisible.
+    object_command_universe: FxHashSet<String>,
     /// Simple (tail) names of every entry in `class_targets` — the cheap
     /// pre-filter that keeps the namespace resolution off every command head
     /// in the document.
@@ -2313,7 +2388,61 @@ impl CommandReceivers {
     }
 
     fn has_any(&self) -> bool {
-        !self.class_targets.is_empty() || !self.object_commands.is_empty()
+        !self.class_targets.is_empty()
+            || !self.object_commands.is_empty()
+            || !self.object_command_targets.is_empty()
+    }
+
+    /// Register an object command bound by `CLASS create NAME`, by the
+    /// qualified name the creation site's namespace produced.
+    fn add_object_command_target(&mut self, qualified_name: &str) {
+        if let Ok(tail) = std::str::from_utf8(tcl_syntax::naming::written_command_tail(
+            qualified_name.as_bytes(),
+        )) {
+            self.object_command_tails.insert(tail.to_owned());
+        }
+        self.object_command_targets
+            .insert(qualified_name.to_owned());
+    }
+
+    /// Whether the bare head `raw`, written at byte offset `offset`, is one of
+    /// the object commands in `object_command_targets` — resolved the way Tcl
+    /// resolves it, from the namespace lexically in effect there.
+    ///
+    /// The `exists` universe is every object command the document binds plus
+    /// its procs and classes, so a same-named object command in a nearer
+    /// namespace shadows a farther one exactly as it would at runtime
+    /// (`Factory create rex` in `::a` and `Widget create rex` in `::b`:
+    /// tclsh 9.0.4 / 8.6.16 dispatch `rex make` inside `::a` to `::a::rex`
+    /// and inside `::b` to `::b::rex`).
+    fn object_command_head_matches(
+        &self,
+        analysis: &AnalysisResult,
+        raw: &str,
+        offset: u32,
+    ) -> bool {
+        if self.object_command_targets.is_empty() {
+            return false;
+        }
+        let Ok(tail) =
+            std::str::from_utf8(tcl_syntax::naming::written_command_tail(raw.as_bytes()))
+        else {
+            return false;
+        };
+        if !self.object_command_tails.contains(tail) {
+            return false;
+        }
+        let namespace = crate::definition::namespace_context_at(
+            &analysis.global_scope,
+            offset,
+            &analysis.namespace_overrides,
+        );
+        crate::definition::resolved_command_name(analysis, &namespace, raw, &|candidate| {
+            self.object_command_universe.contains(candidate)
+                || analysis.all_classes.contains_key(candidate)
+                || analysis.all_procs.contains_key(candidate)
+        })
+        .is_some_and(|winner| self.object_command_targets.contains(&winner))
     }
 
     /// Whether the bare head `raw`, written at byte offset `offset`, is a
@@ -2404,6 +2533,9 @@ impl ObjMethodScan<'_> {
     /// dispatch this scan is looking for.
     fn command_receiver_matches(&self, raw: &str, offset: u32) -> bool {
         self.receivers.object_commands.contains(raw)
+            || self
+                .receivers
+                .object_command_head_matches(self.analysis, raw, offset)
             || self
                 .receivers
                 .class_head_matches(self.analysis, raw, offset)
@@ -2516,7 +2648,7 @@ fn scan_obj_method_region(
 /// refuses to descend into it, so every re-scanned body needs the braces
 /// stripped first.  Out-of-bounds / empty input is returned unchanged — the
 /// caller is expected to bounds-check before segmenting.
-fn strip_outer_braces(source: &str, span: tcl_lexer::Span) -> (usize, usize) {
+pub(crate) fn strip_outer_braces(source: &str, span: tcl_lexer::Span) -> (usize, usize) {
     let mut start = span.start() as usize;
     let mut end = span.end() as usize;
     if start >= source.len() || end > source.len() || start > end {
@@ -2630,7 +2762,7 @@ pub(crate) fn nested_dispatch_regions(
 ///
 /// Registry-driven throughout: which arguments are bodies, and whether they
 /// are same-frame, comes from the command's spec, never from its name.
-fn frame_shifted_dispatch_regions(
+pub(crate) fn frame_shifted_dispatch_regions(
     source: &str,
     dialect: &str,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
@@ -2677,6 +2809,157 @@ fn frame_shifted_dispatch_regions(
         let (start, end) = (body.start() as usize, body.end() as usize);
         if start < end && end <= source.len() {
             regions.push((start, end));
+        }
+    }
+    regions
+}
+/// Every nested script region a **rename-safety** scan must also visit from
+/// one segmented command: the union of the same-frame set
+/// ([`nested_dispatch_regions`]) and the frame-shifted set
+/// ([`frame_shifted_dispatch_regions`]).
+///
+/// The reference scan keeps the two apart because a `$var` receiver's bare
+/// name stops naming the enclosing frame's variable across a frame shift.
+/// The safety gate has no such distinction to make: it is asking "is there a
+/// dispatch anywhere in this document that this rename cannot account for",
+/// and a hazard written inside a `namespace eval` / `uplevel` / `apply` body
+/// is every bit as unrewritable as one written beside it.
+pub(crate) fn dispatch_scan_regions(
+    source: &str,
+    dialect: &str,
+    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+) -> Vec<(usize, usize)> {
+    let mut regions = nested_dispatch_regions(source, dialect, cmd);
+    regions.extend(frame_shifted_dispatch_regions(source, dialect, cmd));
+    regions
+}
+
+/// Every word inside `class_def`'s definition body that **references**
+/// `method` as a method name — the registry's
+/// [`tcl_registry::definer::MemberRefKind::Method`] members (`export m`, `unexport m`,
+/// `filter m`, `deletemethod m`, `renamemethod from to`).
+///
+/// These are genuine references to the member, and load-bearing ones: an
+/// `export` naming a method that no longer exists leaves the *renamed*
+/// method unexported, so `$obj NewName` fails at run time (`unknown method
+/// "Bar": must be destroy` — tclsh 9.0.4 and 8.6.16, identical).  A rename
+/// that rewrote only the declaration and the call sites therefore broke the
+/// program; rewriting these words is what keeps it running.
+///
+/// Which member keywords carry method references is **registry data** (the
+/// definer's `definition_body` grammar, read through
+/// [`crate::oo_body::member_ref_indices`]), so this walker names no member
+/// keyword and works for `TclOO`, snit, and itcl alike.
+///
+/// Regions scanned: the class's own recorded body, plus every definition-body
+/// argument in the document whose definer call names this class (an
+/// `oo::define Cls { export m }` block written apart from the class's own
+/// `create`).
+pub(crate) fn member_reference_spans(
+    source: &str,
+    dialect: &str,
+    class_def: &tcl_compiler::analyser::types::ClassDef,
+    method: &str,
+) -> Vec<tcl_lexer::Span> {
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    let registry = tcl_registry::registry_for_dialect(dialect);
+    let Some(grammar) = registry
+        .get(&class_def.metaclass)
+        .and_then(|spec| spec.definition_body)
+    else {
+        return Vec::new();
+    };
+    let mut regions: Vec<(usize, usize)> = Vec::new();
+    if !class_def.body_span.is_empty() {
+        let (start, end) = strip_outer_braces(source, class_def.body_span);
+        if start < end {
+            regions.push((start, end));
+        }
+    }
+    regions.extend(definition_body_regions_naming(source, dialect, class_def));
+    let mut out: Vec<tcl_lexer::Span> = Vec::new();
+    let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
+    for (start, end) in regions {
+        if start >= end || end > source.len() {
+            continue;
+        }
+        let commands = segment_commands_with_offset_and_config(
+            &source[start..end],
+            u32::try_from(start).unwrap_or(0),
+            tcl_lexer::LexerConfig::for_dialect(dialect),
+        );
+        for cmd in &commands {
+            let Some(keyword) = cmd.texts.first() else {
+                continue;
+            };
+            let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
+            let Some((kind, indices)) = crate::oo_body::member_ref_indices(grammar, keyword, &args)
+            else {
+                continue;
+            };
+            if kind != tcl_registry::definer::MemberRefKind::Method {
+                continue;
+            }
+            for idx in indices {
+                if args.get(idx) != Some(&method) {
+                    continue;
+                }
+                let Some(tok) = cmd.argv.get(idx + 1) else {
+                    continue;
+                };
+                if seen.insert((tok.span.start(), tok.span.end())) {
+                    out.push(tok.span);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The definition-body argument regions of every top-level definer call in
+/// `source` that names `class_def` — `oo::define Cls { … }` and the class's
+/// own `oo::class create Cls { … }`.
+///
+/// Definer recognition is [`crate::oo_body::outer_definition_grammar`]
+/// (registry `definition_body` data); the *target* is matched on the class
+/// name text, which is a class name, not a command-name special case.
+fn definition_body_regions_naming(
+    source: &str,
+    dialect: &str,
+    class_def: &tcl_compiler::analyser::types::ClassDef,
+) -> Vec<(usize, usize)> {
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    let registry = tcl_registry::registry_for_dialect(dialect);
+    let commands = segment_commands_with_offset_and_config(
+        source,
+        0,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    );
+    let qualified = tcl_syntax::naming::normalise_qualified_name(&class_def.qualified_name);
+    let mut regions: Vec<(usize, usize)> = Vec::new();
+    for cmd in &commands {
+        let Some(keyword) = cmd.texts.first() else {
+            continue;
+        };
+        let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
+        if crate::oo_body::outer_definition_grammar(keyword, &args, registry).is_none() {
+            continue;
+        }
+        let body_indices =
+            registry.arg_indices_for_role(keyword, &args, tcl_registry::ArgRole::Body);
+        for idx in body_indices {
+            let names_class = args.iter().take(idx).any(|w| {
+                *w == class_def.name || tcl_syntax::naming::normalise_qualified_name(w) == qualified
+            });
+            if !names_class {
+                continue;
+            }
+            if let Some(tok) = cmd.argv.get(idx + 1) {
+                let (start, end) = strip_outer_braces(source, tok.span);
+                if start < end {
+                    regions.push((start, end));
+                }
+            }
         }
     }
     regions
@@ -2828,7 +3111,7 @@ fn cmd_substitution_regions(
 /// Strip a `$name` / `${name}` decoration to the bare variable
 /// name.  Returns `None` when the text isn't a `$`-prefixed
 /// reference.
-fn strip_var_decoration(raw: &str) -> Option<&str> {
+pub(crate) fn strip_var_decoration(raw: &str) -> Option<&str> {
     let rest = raw.strip_prefix('$')?;
     let inner = rest
         .strip_prefix('{')

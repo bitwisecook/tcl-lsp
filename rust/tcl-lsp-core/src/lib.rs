@@ -72,6 +72,7 @@ pub mod package_resolver;
 pub mod refactor;
 pub mod references;
 pub mod rename;
+pub mod rename_safety;
 pub mod selection_range;
 pub mod semantic_tokens;
 pub mod signature_help;

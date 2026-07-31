@@ -36,6 +36,30 @@ The `variable_refs` rows come from `qualified_var_refs`, which the analyser
 cell resolves in the recording document: the cross-file case is precisely
 the one where it does not.
 
+### The variable tier's rename half
+
+Go-to-definition, hover, and find-references answer a namespace variable
+*from the index alone* — an exact qualified-name match, no other document
+read.  **Rename cannot**, and the difference is contractual, not an
+optimisation gap: the index deliberately holds only namespace-scoped
+declarations and qualified occurrences, while a rename must also rewrite the
+`variable v` / `global v` / `namespace upvar` **aliases** inside proc and
+method bodies and every unqualified `$v` they enable.  Those are proc-scope
+bindings — a per-document identity, so by rule 4 above they do not belong in
+the index — but they name the very same cell, and leaving them behind breaks
+the program.
+
+So the rename tier uses the index only to pick *which documents to visit*
+(`variable_definitions_qualified`, `variable_refs_of`, and
+`documents_in_namespace` — every document declaring anything directly in the
+cell's namespace, since an unqualified alias can only be written there), then
+re-analyses each and computes its share with
+`tcl_lsp_core::rename::namespace_variable_rename_edits`, which reads
+`VarDef::link_target` for the alias union.  A document in that namespace that
+computes a variable name (`set $n 1`, `variable $n`) refuses the whole rename
+(`tcl_lsp_core::rename_safety::namespace_variable_rename_hazard`) rather than
+emitting an edit set that silently misses it.
+
 ## Derived views and their invalidation
 
 `WorkspaceIndex::generation()` is bumped by `add_document` /
@@ -79,6 +103,9 @@ cache.
   `extend_resolver_with_document_auto_paths`, `ensure_library_indexed`)
 - `rust/tcl-compiler/src/analyser/scope.rs` (`namespace_variables`,
   `attach_qualified_var_references`)
+- `rust/tcl-lsp-core/src/rename.rs` (`namespace_variable_rename_edits`)
+- `rust/tcl-lsp-core/src/rename_safety.rs`
+  (`namespace_variable_rename_hazard`)
 
 ## Failure modes
 
@@ -92,6 +119,9 @@ cache.
 
 - `rust/tcl-lsp-core/src/workspace_index.rs` (`mod tests`)
 - `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs`
+- `rust/tcl-lsp-server/tests/e2e/rename_safety.rs` (the variable tier's
+  rename half: TP cross-document, FN-guard proc-local alias, TN sibling
+  namespace, FP-guard computed variable name)
 - `rust/tcl-lsp-server/tests/e2e/issue923_class_refs.rs`
 - `rust/tcl-lsp-server/src/lib.rs` unit tests
   (`watcher_and_rename_globs_cover_every_indexed_extension`,

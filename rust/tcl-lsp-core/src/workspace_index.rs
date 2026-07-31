@@ -1406,6 +1406,52 @@ impl WorkspaceIndex {
             .collect()
     }
 
+    /// Every document holding an indexed symbol declared **directly in**
+    /// `namespace` — a proc, a class, or a namespace variable whose parent
+    /// namespace is exactly it.
+    ///
+    /// The candidate set a namespace-variable *rename* must visit.  An
+    /// unqualified alias of `::ns::v` (`variable v` inside a proc, and every
+    /// bare `$v` it enables) is invisible to both variable tables — it is a
+    /// proc-scope binding, deliberately not indexed — but it can only be
+    /// written in a document that has code in `::ns`, and such a document
+    /// always declares something there.  Visiting those documents and
+    /// recomputing their edits from their own analysis is what keeps a
+    /// cross-document namespace-variable rename from leaving `variable v; …
+    /// $v` bodies naming a cell that no longer exists.
+    #[must_use]
+    pub fn documents_in_namespace(&self, namespace: &str) -> Vec<String> {
+        let target = namespace.trim_start_matches("::");
+        let parent_matches = |qualified: &str| -> bool {
+            let bare = qualified.trim_start_matches("::");
+            match bare.rfind("::") {
+                Some(idx) => &bare[..idx] == target,
+                None => target.is_empty(),
+            }
+        };
+        let mut uris: Vec<String> = self
+            .procs
+            .iter()
+            .filter(|p| parent_matches(&p.qualified_name))
+            .map(|p| p.uri.clone())
+            .chain(
+                self.classes
+                    .iter()
+                    .filter(|c| parent_matches(&c.qualified_name))
+                    .map(|c| c.uri.clone()),
+            )
+            .chain(
+                self.variables
+                    .iter()
+                    .filter(|v| parent_matches(&v.qualified_name))
+                    .map(|v| v.uri.clone()),
+            )
+            .collect();
+        uris.sort();
+        uris.dedup();
+        uris
+    }
+
     /// Occurrence (read / write) sites naming the namespace variable
     /// `qualified_name`, excluding any in `exclude_uri`.  The reference-side
     /// twin of [`Self::variable_definitions_qualified`], matched the same

@@ -1056,6 +1056,27 @@ pub struct AnalysisResult {
     /// holds one of these names — must not be flagged as an unknown command
     /// (W123) or a stray non-literal command word (W307).  Issue #777.
     pub created_instance_commands: std::collections::HashSet<String>,
+    /// **Namespace-qualified** object-command bindings — one record per
+    /// `CLASS create NAME` site whose `CLASS` resolves to a user class.
+    ///
+    /// `created_instance_commands` above keeps only the bare name as written,
+    /// which is namespace-blind: `::a::Factory create rex` and `::b::Widget
+    /// create rex` are two *different* commands (tclsh 9.0.4 / 8.6.16 both run
+    /// `rex make` inside `::a` against `::a::rex` and inside `::b` against
+    /// `::b::rex`, and both object commands coexist), but a bare-name set
+    /// cannot tell them apart — so find-references and rename cross-linked the
+    /// two, and a rename of one class's method rewrote the other's call site
+    /// (issue #981, object-command half).
+    ///
+    /// Each record carries the qualified command name the creation site's own
+    /// namespace produces and the qualified name of the creating class, so the
+    /// dispatch scanner can resolve a written head against the call site's
+    /// lexical namespace instead of comparing text.  A `Vec`, not a map: two
+    /// creations of the same bare name in different namespaces are both real,
+    /// and two creations of the same *qualified* name by different classes are
+    /// a genuine ambiguity the rename safety gate refuses on rather than
+    /// silently resolving last-write-wins.
+    pub instance_command_bindings: Vec<InstanceCommandBinding>,
     /// Names dropped from [`Self::instance_classes`] because a *registry*
     /// object-factory binding (Tk widget path, tcllib naming factory) saw
     /// the same name bound to two different classes somewhere in the file
@@ -1315,6 +1336,20 @@ pub struct QualifiedVarRef {
     pub qualified_name: String,
     /// Byte span of the name token as written.
     pub span: Span,
+}
+
+/// One `CLASS create NAME` object-command binding, namespace-qualified.
+///
+/// See [`AnalysisResult::instance_command_bindings`] for why the bare-name
+/// set it accompanies is not enough.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstanceCommandBinding {
+    /// The object command's `::`-rooted qualified name — the creation site's
+    /// own namespace applied to `NAME` as written (an already-qualified
+    /// `NAME` is used as written).
+    pub qualified_name: String,
+    /// The `::`-rooted qualified name of the class whose `create` bound it.
+    pub class_q: String,
 }
 
 /// Which `auto_path` mutation wrote an [`AutoPathEntry`].
