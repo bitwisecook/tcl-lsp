@@ -3183,6 +3183,61 @@ mod tests {
     }
 
     #[test]
+    fn an_import_inside_a_body_sees_a_later_top_level_export() {
+        // TP — the same-document half of the ordering rule the workspace tier
+        // must match (PR #1102 review finding 1, pinned on both sides so they
+        // cannot drift): the import runs only when `setup` is called, by which
+        // time the whole file — including the `namespace export` written below
+        // it — has loaded. Oracle (tclsh 8.6.14 / 9.0.4): `::app::setup;
+        // ::app::run` → `HELP`.
+        //
+        // `indirection::in_effect` already said so here; the workspace tier's
+        // plain offset compare did not, which is what the review caught.
+        let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    proc setup {} { namespace import ::src::* }\n}\nnamespace eval src {\n    namespace export p\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p");
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::src::p"),
+            "a body-local import observes a top-level export written later in \
+             the same file: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn an_export_in_the_importing_body_itself_stays_ordered() {
+        // FN guard for the leniency above: the "whole file loads first"
+        // exception does not extend to a statement of the *same* body, where
+        // the offsets are in genuine execution order. Oracle: `proc setup {}
+        // {namespace import ::src::*; namespace eval ::src {namespace export
+        // p}}` then `::dst::setup` leaves `::dst::p` an invalid command name.
+        let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    proc setup {} { namespace import ::src::* ; namespace eval ::src { namespace export p } }\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p");
+        assert!(
+            hit.is_none(),
+            "an export written after the import in the same body has not run \
+             yet: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_command_named_like_the_export_flag_is_exportable() {
+        // TP — the user-visible consequence of consuming only one `-clear`
+        // (PR #1102 review finding 3): `namespace export -clear -clear`
+        // exports a command genuinely *named* `-clear`, and a wildcard import
+        // then binds it. Oracle (tclsh 8.6.14 / 9.0.4): `namespace export`
+        // returns `-clear`, and `info commands ::dst::*` lists `::dst::-clear`.
+        // Consuming both words as flags dropped the export entirely.
+        let src = "namespace eval src {\n    proc -clear {} { return DC }\n    namespace export -clear -clear\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "-clear");
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::src::-clear"),
+            "the second `-clear` is an export pattern, not a second flag: {hit:?}"
+        );
+    }
+
+    #[test]
     fn exact_namespace_import_resolves_source_proc_in_document() {
         // FP guard / bonus TP — a plain (non-glob) `namespace import
         // ::Foo::bar` must keep working through the same in-document path

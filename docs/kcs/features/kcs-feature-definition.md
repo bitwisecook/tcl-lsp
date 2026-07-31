@@ -56,9 +56,17 @@ nothing through that import). A second, later `namespace import` takes its own
 snapshot, so it can pick up a name the first one could not. Export patterns
 are glob *patterns*, not command references — `namespace export get*` covers
 `getX` and not `setX`, and `namespace export p` written before `proc p` still
-exports it. Ordering only exists inside one document; when the import and the
-export are in different files, nothing fixes which loads first, so navigation
-keeps answering rather than guessing a revocation.
+exports it. The same gate applies to an *exact* `namespace import ::src::p`:
+real Tcl silently binds nothing when `p` is not exported, so neither does
+navigation.
+
+Ordering follows the same load-order rule renames and aliases do. An import
+written **inside a proc or method body** sees every top-level statement of its
+own file, wherever written — the file loads before any body runs — so an
+export further down the file still counts; an export written after the import
+*in that same body* does not. Ordering only exists inside one document; when
+the import and the export are in different files, nothing fixes which loads
+first, so navigation keeps answering rather than guessing a revocation.
 
 A proc declared twice in one file is two definitions of one command. A call
 between the two jumps to the **first** header, a call after both jumps to

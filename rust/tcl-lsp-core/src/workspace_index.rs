@@ -358,6 +358,40 @@ pub struct WorkspaceCommandLink {
     /// unconditional (top-level) alias/rename/import still counts as
     /// existing.
     pub nested: bool,
+    /// For a link introduced by an **exact** `namespace import ::src::p`: the
+    /// export snapshot the import must pass before it installs anything.
+    /// `None` for an `interp alias` / `rename` link, and for a *conjectured*
+    /// import — neither is gated by `namespace export`.
+    ///
+    /// An exact import is no less gated than a glob one: real Tcl installs
+    /// **no** alias, silently, when `p` is not exported at the moment the
+    /// import runs (oracle tclsh 8.6.14 / 9.0.4 — `namespace eval ::src {proc
+    /// p {} {}}; namespace eval ::dst {namespace import ::src::p}` leaves
+    /// `info commands ::dst::*` empty and raises no error; with `namespace
+    /// export p` first it binds). Recording the site here, rather than
+    /// resolving the gate when the link is created, is what keeps the answer
+    /// correct across edits: the export usually lives in a *different*
+    /// document, re-indexed independently of this one, so a decision frozen
+    /// at creation time would go stale the moment that file changes (issue
+    /// #1027). [`WorkspaceIndex::live_command_links`] applies it against the
+    /// current index, cached per [`WorkspaceIndex::generation`].
+    pub import_gate: Option<WorkspaceImportGate>,
+}
+
+/// The export-snapshot condition an exact `namespace import` link must satisfy
+/// to be installed at all — see [`WorkspaceCommandLink::import_gate`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceImportGate {
+    /// The pattern's source namespace, with leading `::` (`::src` for
+    /// `::src::p`).
+    pub source_ns: String,
+    /// The bare name the import binds (`p`).
+    pub name: String,
+    /// Byte offset of the import's pattern word within the link's own `uri`.
+    pub at: u32,
+    /// Span of the innermost proc/class body containing the import; `None` at
+    /// load level. See [`WorkspaceGlobImport::enclosing_body`].
+    pub enclosing_body: Option<Span>,
 }
 
 /// One wildcard `namespace import NS::*` recorded in the index.
@@ -396,6 +430,43 @@ pub struct WorkspaceGlobImport {
     /// loads first is not a static fact — so
     /// [`WildcardImportIndex::exports_name_at`] only compares within one URI.
     pub at: u32,
+    /// Span of the innermost proc/class **body** containing this import,
+    /// within [`Self::uri`]; `None` when the import is at load level.
+    ///
+    /// Ordering an event against this import is not a plain offset compare:
+    /// an import written *inside a body* observes every top-level statement
+    /// of its own file, wherever written, because the whole file loads before
+    /// any body runs. This is the one fact
+    /// [`tcl_compiler::analyser::indirection::in_effect`] reads out of an
+    /// `AnalysisResult`, stored per row so the cross-document tier can apply
+    /// that identical rule via
+    /// [`tcl_compiler::analyser::indirection::in_effect_within`] instead of a
+    /// weaker `at <= import_at` — which rejected such an export and lost a
+    /// real imported alias.
+    pub enclosing_body: Option<Span>,
+}
+
+impl WorkspaceGlobImport {
+    /// This import's site, for the export-snapshot gate.
+    fn site(&self) -> ImportSite<'_> {
+        ImportSite {
+            uri: &self.uri,
+            at: self.at,
+            enclosing_body: self.enclosing_body,
+        }
+    }
+}
+
+impl WorkspaceImportGate {
+    /// This gate's import site, for the export-snapshot query. `uri` is the
+    /// owning link's document — the gate itself does not duplicate it.
+    fn site<'a>(&self, uri: &'a str) -> ImportSite<'a> {
+        ImportSite {
+            uri,
+            at: self.at,
+            enclosing_body: self.enclosing_body,
+        }
+    }
 }
 
 /// One `namespace export` **event** recorded in the index.
@@ -468,6 +539,7 @@ pub struct WorkspaceIndex {
     namespace_exports: Vec<WorkspaceNamespaceExport>,
     generation: u64,
     command_names: CommandNameCache,
+    live_links: LiveLinkCache,
 }
 
 /// Lazily-built cache of [`WorkspaceIndex::command_names`], reset by every
@@ -481,6 +553,30 @@ pub struct WorkspaceIndex {
 struct CommandNameCache(std::sync::OnceLock<Arc<HashSet<String>>>);
 
 impl Clone for CommandNameCache {
+    fn clone(&self) -> Self {
+        Self(std::sync::OnceLock::new())
+    }
+}
+
+/// Lazily-built parallel mask over [`WorkspaceIndex::command_links`]: `true`
+/// where the link is actually installed.
+///
+/// An `interp alias` / `rename` link always is; an **exact** `namespace
+/// import` link is only installed when its
+/// [`WorkspaceCommandLink::import_gate`] passes against the whole current
+/// index (the export it depends on typically lives in another document).
+/// That makes liveness a function of the *entire* index, not of the link's
+/// own document — so, per the workspace-indexing contract's "a whole-index
+/// derived view lives on the index, built lazily and dropped by the same
+/// mutation hook that bumps `generation()`" rule, it is cached here rather
+/// than recomputed per consumer, and dropped by
+/// [`WorkspaceIndex::invalidate`]. Deciding it eagerly at link-creation time
+/// would instead freeze a cross-document answer that goes stale as soon as
+/// the exporting file is edited.
+#[derive(Debug, Default)]
+struct LiveLinkCache(std::sync::OnceLock<Arc<Vec<bool>>>);
+
+impl Clone for LiveLinkCache {
     fn clone(&self) -> Self {
         Self(std::sync::OnceLock::new())
     }
@@ -549,6 +645,78 @@ impl WorkspaceIndex {
     fn invalidate(&mut self) {
         self.generation = self.generation.wrapping_add(1);
         self.command_names = CommandNameCache::default();
+        self.live_links = LiveLinkCache::default();
+    }
+
+    /// The command name-links that are actually installed — every `interp
+    /// alias` / `rename` link, plus each exact `namespace import` link whose
+    /// [`WorkspaceCommandLink::import_gate`] its source namespace's export
+    /// timeline admits (issue #1027).
+    ///
+    /// Every consumer of `command_links` that answers "does this name exist /
+    /// what does it reach" goes through here, so an import Tcl never
+    /// installed cannot leak into definition, references, or the existence
+    /// oracle through one of them. The mask is built once per
+    /// [`Self::generation`] ([`LiveLinkCache`]); this call is then a `Vec` of
+    /// borrows, the same order of cost as the `HashMap`/`HashSet` each caller
+    /// already builds.
+    ///
+    /// The gate only fires for a source namespace the workspace can actually
+    /// *observe* ([`Self::observable_namespaces`]).  `namespace import
+    /// ::msgcat::mc` names a namespace that lives in an installed package, not
+    /// in any indexed document: the index holds no export declaration for it
+    /// and never will, so treating that silence as "not exported" would revoke
+    /// a real command and hand W123 a fresh false positive on every bare `mc`
+    /// call.  Absence of an export is evidence only where the definitions are
+    /// visible too — otherwise this abstains and keeps the link, the same
+    /// abstain-toward-silence rule the unknown-command pass follows.
+    fn live_command_links(&self) -> Vec<&WorkspaceCommandLink> {
+        let mask = Arc::clone(self.live_links.0.get_or_init(|| {
+            let wci = WildcardImportIndex::build(self);
+            let observable = self.observable_namespaces();
+            Arc::new(
+                self.command_links
+                    .iter()
+                    .map(|l| {
+                        l.import_gate.as_ref().is_none_or(|g| {
+                            !observable.contains(g.source_ns.trim_start_matches("::"))
+                                || wci.exports_name_at(&g.source_ns, &g.name, g.site(&l.uri))
+                        })
+                    })
+                    .collect(),
+            )
+        }));
+        self.command_links
+            .iter()
+            .zip(mask.iter())
+            .filter_map(|(link, &live)| live.then_some(link))
+            .collect()
+    }
+
+    /// The `::`-stripped namespaces the workspace can say anything about: one
+    /// that owns an indexed proc or class, or that declares a `namespace
+    /// export` somewhere.
+    ///
+    /// The discriminator between "this namespace does not export the name"
+    /// (a fact) and "this namespace is not in the workspace at all" (no
+    /// information) — see [`Self::live_command_links`].
+    fn observable_namespaces(&self) -> HashSet<&str> {
+        fn owning_ns(qualified: &str) -> &str {
+            qualified
+                .trim_start_matches("::")
+                .rsplit_once("::")
+                .map_or("", |(ns, _)| ns)
+        }
+        self.procs
+            .iter()
+            .map(|p| owning_ns(&p.qualified_name))
+            .chain(self.classes.iter().map(|c| owning_ns(&c.qualified_name)))
+            .chain(
+                self.namespace_exports
+                    .iter()
+                    .map(|e| e.ns.trim_start_matches("::")),
+            )
+            .collect()
     }
 
     /// Add (or refresh) one document's proc / class definitions.
@@ -692,6 +860,7 @@ impl WorkspaceIndex {
                         source_ns: source_ns.to_owned(),
                         tail_pattern: tail_pattern.to_owned(),
                         at: imp.range.start(),
+                        enclosing_body: analysis.innermost_definition_body_span(imp.range.start()),
                     });
                 }
                 continue;
@@ -699,12 +868,33 @@ impl WorkspaceIndex {
             let Some(tail) = imp.pattern.rsplit("::").find(|s| !s.is_empty()) else {
                 continue;
             };
+            // An exact import is export-gated exactly like a glob one — real
+            // Tcl silently installs nothing when the name is not exported at
+            // the import's own position (issue #1027; oracle on
+            // `WorkspaceCommandLink::import_gate`). Two shapes stay ungated:
+            // a pattern with no source namespace (`namespace import ::p` —
+            // the same empty-`source_ns` case the glob branch above skips),
+            // and a *conjectured* import, which is inferred from a tcllib
+            // `<NS>::import <ALIAS>` wrapper rather than read off a real
+            // `namespace import` word, so there is no export declaration for
+            // it to have passed and gating it would drop the idiom entirely.
+            let import_gate = (!imp.conjectured)
+                .then(|| imp.pattern.rsplit_once("::"))
+                .flatten()
+                .filter(|(source_ns, _)| !source_ns.is_empty())
+                .map(|(source_ns, _)| WorkspaceImportGate {
+                    source_ns: source_ns.to_owned(),
+                    name: tail.to_owned(),
+                    at: imp.range.start(),
+                    enclosing_body: analysis.innermost_definition_body_span(imp.range.start()),
+                });
             self.command_links.push(WorkspaceCommandLink {
                 uri: uri.to_owned(),
                 linked_qname: tcl_syntax::naming::qualify(&imp.ns, tail),
                 target_qname: normalise_qualified_name(&imp.pattern),
                 target_span: Some(imp.range),
                 nested: analysis.offset_is_inside_any_definition_body(imp.range.start()),
+                import_gate,
             });
         }
         // `interp alias {} a {} ::mod::helper` binds `a` to `::mod::helper`;
@@ -727,6 +917,7 @@ impl WorkspaceIndex {
                 target_qname: normalise_qualified_name(&alias.target),
                 target_span: None,
                 nested,
+                import_gate: None,
             });
         }
         // `rename OLD NEW` makes `NEW` run what `OLD` denoted.  The recorded
@@ -746,6 +937,7 @@ impl WorkspaceIndex {
                 target_qname: normalise_qualified_name(old),
                 target_span: None,
                 nested,
+                import_gate: None,
             });
         }
     }
@@ -1594,8 +1786,8 @@ impl WorkspaceIndex {
     /// The command name-link map (`::`-stripped `linked → immediate target`)
     /// used to chase an import / alias / rename to the command it names.
     fn command_link_map(&self) -> std::collections::HashMap<&str, &str> {
-        self.command_links
-            .iter()
+        self.live_command_links()
+            .into_iter()
             .map(|l| {
                 (
                     l.linked_qname.trim_start_matches("::"),
@@ -1649,8 +1841,8 @@ impl WorkspaceIndex {
         exclude_uri: &str,
     ) -> Vec<(String, Span)> {
         let target = qualified_name.trim_start_matches("::");
-        self.command_links
-            .iter()
+        self.live_command_links()
+            .into_iter()
             .filter(|l| l.uri != exclude_uri)
             .filter(|l| l.target_qname.trim_start_matches("::") == target)
             .filter_map(|l| l.target_span.map(|sp| (l.uri.clone(), sp)))
@@ -1747,8 +1939,8 @@ impl WorkspaceIndex {
                 .iter()
                 .any(|c| c.qualified_name.trim_start_matches("::") == target)
             || self
-                .command_links
-                .iter()
+                .live_command_links()
+                .into_iter()
                 .any(|l| !l.nested && l.linked_qname.trim_start_matches("::") == target)
     }
 
@@ -1770,8 +1962,8 @@ impl WorkspaceIndex {
             .collect();
         if include_links {
             names.extend(
-                self.command_links
-                    .iter()
+                self.live_command_links()
+                    .into_iter()
                     .map(|l| l.linked_qname.trim_start_matches("::")),
             );
         }
@@ -1851,7 +2043,7 @@ impl WorkspaceIndex {
                 if !tcl_syntax::glob::string_match(&imp.tail_pattern, word) {
                     continue;
                 }
-                if !wci.exports_name_at(&imp.source_ns, word, &imp.uri, imp.at) {
+                if !wci.exports_name_at(&imp.source_ns, word, imp.site()) {
                     continue;
                 }
                 let target = format!("{}::{word}", imp.source_ns);
@@ -1907,20 +2099,40 @@ impl<'a> WildcardImportIndex<'a> {
     /// document has no static order relative to this import (nothing fixes
     /// which file loads first), so it is passed unordered and the shared
     /// function abstains toward continuing to resolve.
-    fn exports_name_at(&self, ns: &str, name: &str, import_uri: &str, import_at: u32) -> bool {
+    fn exports_name_at(&self, ns: &str, name: &str, site: ImportSite<'_>) -> bool {
         self.exports_by_ns.get(ns).is_some_and(|exports| {
             let mut events = exports
                 .iter()
                 .map(|e| crate::namespace_import::ExportEvent {
                     pattern: e.pattern.as_str(),
                     clears: e.clears,
-                    at: (e.uri == import_uri).then_some(e.at),
+                    at: (e.uri == site.uri).then_some(e.at),
                 });
             crate::namespace_import::exported_at_import_site(&mut events, name, &|at| {
-                at <= import_at
+                tcl_compiler::analyser::indirection::in_effect_within(
+                    at,
+                    site.at,
+                    site.enclosing_body,
+                )
             })
         })
     }
+}
+
+/// Where a `namespace import` sits, as the export-snapshot gate needs to see
+/// it: the document, the offset, and the innermost proc/class body containing
+/// it (`None` at load level).
+///
+/// The body span is what makes the workspace tier's ordering rule the *same*
+/// rule the same-document tier applies rather than a weaker offset compare —
+/// see [`WorkspaceGlobImport::enclosing_body`] and
+/// [`tcl_compiler::analyser::indirection::in_effect_within`]. Carried as one
+/// value so no caller can pass two of the three and silently drop the third.
+#[derive(Debug, Clone, Copy)]
+struct ImportSite<'a> {
+    uri: &'a str,
+    at: u32,
+    enclosing_body: Option<Span>,
 }
 
 #[cfg(test)]
@@ -2607,6 +2819,181 @@ mod tests {
             &["::app::helper".to_string(), "::helper".to_string()],
         );
         assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
+    }
+
+    #[test]
+    fn wildcard_import_inside_a_body_sees_a_later_top_level_export() {
+        // TP, PR #1102 review finding 1 — a plain `at <= import_at` predicate
+        // is *weaker* than the same-document tier's
+        // `indirection::in_effect`, and rejected this real alias. The import
+        // sits in `::app::setup`'s body; the `namespace export` is written
+        // further down the *same file* but at load level, so loading `app.tcl`
+        // runs the export before `setup` can ever be called.
+        //
+        // Oracle (tclsh 8.6.14 / 9.0.4): with `::mymod::helper` defined
+        // elsewhere, `namespace eval ::app {proc setup {} {namespace import
+        // ::mymod::*}; proc run {} {helper}}` followed by `namespace eval
+        // ::mymod {namespace export helper}`, then `::app::setup; ::app::run`
+        // → `HELP`.
+        let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    proc setup {} { namespace import ::mymod::* }\n    proc run {} { helper }\n}\nnamespace eval ::mymod {\n    namespace export helper\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+        );
+        assert_eq!(
+            resolved.as_deref(),
+            Some("::mymod::helper"),
+            "an import inside a body observes every top-level statement of \
+             its own file, wherever written",
+        );
+    }
+
+    #[test]
+    fn wildcard_import_inside_a_body_still_refuses_an_export_in_that_same_body() {
+        // FN guard for the leniency above (PR #1102 review finding 1): the
+        // "whole file loads first" exception does **not** extend to a
+        // statement of the *same* body — there the offsets are in genuine
+        // execution order. Oracle: `proc setup {} {namespace import ::m::*;
+        // namespace eval ::m {namespace export helper}}` then `::a::setup`
+        // leaves `::a::helper` an `invalid command name`.
+        let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    proc setup {} { namespace import ::mymod::* ; namespace eval ::mymod { namespace export helper } }\n    proc run {} { helper }\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+        );
+        assert!(
+            resolved.is_none(),
+            "an export written after the import in the same body is a later \
+             statement of the running script: {resolved:?}",
+        );
+    }
+
+    // Exact (non-glob) `namespace import` is export-gated too — PR #1102
+    // review finding 2. Real Tcl silently installs nothing when the name is
+    // not exported at the import's own position (oracle: `namespace eval
+    // ::m {proc helper {} {}}; namespace eval ::a {namespace import
+    // ::m::helper}` leaves `info commands ::a::*` empty and raises no error).
+
+    #[test]
+    fn exact_import_of_an_unexported_name_installs_no_link() {
+        // FP guard (CRITICAL) — `::mymod` never exports `helper`, so the
+        // exact import binds nothing: no `::app::helper` exists, the bare
+        // call is not a reference to the source, and the pattern token is not
+        // a link span. Before the gate, `index_command_links` created the
+        // link unconditionally.
+        let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::helper\n    proc run {} { helper }\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        assert!(
+            !index.workspace_command_exists("::app::helper"),
+            "an unexported exact import installs no command",
+        );
+        assert!(
+            index
+                .linked_invocations_of("::mymod::helper", "file:///mymod.tcl")
+                .is_empty(),
+            "the bare call reaches nothing, so it is no reference",
+        );
+        assert!(
+            index
+                .link_target_spans("::mymod::helper", "file:///mymod.tcl")
+                .is_empty(),
+            "a link that was never installed has no target span",
+        );
+    }
+
+    #[test]
+    fn exact_import_ignores_an_export_written_after_it() {
+        // FP guard, direction B for the exact form — the export lands after
+        // the import in the same file, so real Tcl still binds nothing
+        // (oracle: `info commands ::a5::*` empty).
+        let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::helper\n    proc run {} { helper }\n}\nnamespace eval ::mymod {\n    namespace export helper\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        assert!(!index.workspace_command_exists("::app::helper"));
+    }
+
+    #[test]
+    fn exact_import_survives_a_later_export_clear() {
+        // TP, direction A for the exact form — the `-clear` runs after the
+        // import, so the alias it already installed stays.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::helper\n    proc run {} { helper }\n}\nnamespace eval ::mymod {\n    namespace export -clear\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        assert!(index.workspace_command_exists("::app::helper"));
+        let refs = index.linked_invocations_of("::mymod::helper", "file:///mymod.tcl");
+        assert_eq!(refs.len(), 1, "{refs:?}");
+    }
+
+    #[test]
+    fn exact_import_from_an_unseen_namespace_keeps_its_link() {
+        // Abstention guard (CRITICAL for W123 silence) — `::msgcat` lives in
+        // an installed package, not in any indexed document, so the index
+        // holds no export declaration for it and never will. Treating that
+        // silence as "not exported" would revoke `::app::mc` and hand the
+        // unknown-command pass a false positive on every bare `mc` call. The
+        // gate only fires where the workspace can see the namespace's own
+        // definitions or exports.
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::msgcat::mc\n    proc run {} { mc hello }\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([("file:///app.tcl", &app)]);
+        assert!(
+            index.workspace_command_exists("::app::mc"),
+            "an import from a namespace the workspace cannot observe must not \
+             be gated away",
+        );
+    }
+
+    #[test]
+    fn alias_and_rename_links_are_never_export_gated() {
+        // TN — only a `namespace import` link carries an export snapshot.
+        // `interp alias` and `rename` introduce a name with no reference to
+        // any export list, and must keep working unchanged.
+        let lib = analyse("proc ::mymod::helper {} {}\n");
+        let app = analyse(
+            "interp alias {} ::app::a {} ::mymod::helper\nrename ::mymod::helper ::mymod::gone\n",
+        );
+        let index =
+            WorkspaceIndex::from_documents([("file:///lib.tcl", &lib), ("file:///app.tcl", &app)]);
+        assert!(
+            index.workspace_command_exists("::app::a"),
+            "an interp alias is not gated by any namespace export",
+        );
+        assert!(
+            index.workspace_command_exists("::mymod::gone"),
+            "a rename is not gated by any namespace export",
+        );
     }
 
     #[test]

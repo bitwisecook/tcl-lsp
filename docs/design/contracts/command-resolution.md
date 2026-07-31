@@ -127,12 +127,21 @@ not change the rule, and must not grow bespoke resolution logic. Every
   name, never `::`-qualified (`namespace export ::foo` is an error —
   pinned), and are not references to commands: `namespace export p` before
   `proc p` still exports it (pinned). A non-glob `namespace import` of an
-  unexported name is a silent no-op, not an error (pinned); importing onto
-  an existing command errors unless `-force` (pinned). Statically the
-  analyser records these as an ordered event log
+  unexported name is a silent no-op, not an error (pinned) — so the **exact**
+  form is snapshot-gated exactly like the glob one; importing onto
+  an existing command errors unless `-force` (pinned). Both subcommands
+  consume at most **one** leading flag word: a second `-clear` is an ordinary
+  export pattern (and `-clear` is then a genuinely importable command name),
+  a second — or trailing — `-force` is an import pattern that aborts the
+  script, and neither flag abbreviates (`-c` / `-f` are patterns, not
+  options) — all pinned, and declared as
+  `SubCommand::max_leading_option_words`. Statically the
+  analyser records exports as an ordered event log
   (`SignatureNamespaceExport`, with `-clear` tombstones) and both LSP tiers
   answer through one shared decision function
-  (`tcl_lsp_core::namespace_import::exported_at_import_site`). Issue #1027.
+  (`tcl_lsp_core::namespace_import::exported_at_import_site`), under one
+  shared execution-order rule (`analyser::indirection::in_effect` /
+  `in_effect_within`). Issue #1027.
 - **`unknown` / `namespace unknown`** fire only after the full candidate
   walk (path included) misses. `namespace unknown` handlers are
   **per-namespace, NOT inherited** by children; the global namespace's

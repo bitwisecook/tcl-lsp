@@ -321,6 +321,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace export ?-clear? ?pattern pattern ...?",
         return_type: Some(TclType::List),
         options: EXPORT_OPTIONS,
+        // `NamespaceExportCmd` compares `objv[1]` against `-clear` once and
+        // never again, so a second `-clear` is an ordinary export *pattern*
+        // (tclsh 8.6.14/9.0.4: `namespace export -clear -clear p` leaves
+        // `-clear p` exported, and `-clear` is then a genuinely importable
+        // command name). Likewise `namespace export a -clear` exports both —
+        // the flag is only ever the first word.
+        max_leading_option_words: Some(1),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceExport),
         // Publishes this namespace's commands for another unit to
         // `namespace import`, so the exported names have callers this file
@@ -359,6 +366,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace import ?-force? ?pattern pattern ...?",
         return_type: Some(TclType::List),
         options: IMPORT_OPTIONS,
+        // As for `export`: `NamespaceImportCmd` consumes at most one leading
+        // `-force`. A second one is read as an import pattern and aborts the
+        // script (tclsh 8.6.14/9.0.4: `namespace import -force -force
+        // ::src::*` → `no namespace specified in import pattern "-force"`),
+        // as does a trailing one (`namespace import ::src::p -force`).
+        max_leading_option_words: Some(1),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceImport),
         // Deliberately NOT `LOADS_EXTERNAL_UNIT`: `namespace import
         // ::lib::*` is just as often an intra-file convenience over a

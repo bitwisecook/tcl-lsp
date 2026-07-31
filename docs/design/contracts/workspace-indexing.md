@@ -33,6 +33,26 @@ same-document resolver in `definition.rs` decide through the one shared
 function `tcl_lsp_core::namespace_import::exported_at_import_site`, so they
 cannot disagree about what an import site sees.
 
+Ordering within a document is **not** a plain offset comparison. A
+`glob_imports` row also stores the innermost proc/class body containing the
+import (`enclosing_body`), so the tier applies
+`tcl_compiler::analyser::indirection::in_effect_within` — the same rule
+`in_effect` applies same-file: an import inside a body observes every
+*top-level* statement of its own file, wherever written, because the whole
+file loads before any body runs, while a statement of that same body stays
+ordered by offset.
+
+The gate is not limited to glob imports.  An **exact** `namespace import
+::src::p` installs nothing at all when `p` is not exported at that point, so
+the `command_links` row it produces carries an `import_gate` and is only
+*live* while the snapshot admits it.  Liveness is a function of the whole
+index — the export usually lives in another document — so it is a lazily-built
+whole-index derived view (rule 5 below), rebuilt per `generation()` and read
+through `WorkspaceIndex::live_command_links`.  Deciding it when the link is
+created would freeze a cross-document answer that goes stale as soon as the
+exporting file is edited.  `interp alias` / `rename` links, and imports merely
+*conjectured* from a tcllib `<NS>::import <ALIAS>` wrapper, carry no gate.
+
 The variable tables are deliberately narrower than the proc/class ones.  A
 namespace variable has one cell in one namespace, so `$::ns::v` in any
 document names the same thing as `variable v` inside `namespace eval ns`,

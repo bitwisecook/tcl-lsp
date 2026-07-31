@@ -5304,15 +5304,11 @@ impl Analyser {
         if args.is_empty() {
             return;
         }
-        // Skip the subcommand word + any leading flag the registry declares
-        // for `namespace import` (`-force`). Read from the spec rather than
-        // matched by name here: which words are options of this subcommand is
-        // command-level knowledge, and it lives in the registry
-        // (`IMPORT_OPTIONS` in `tcl-registry`'s `namespace_` module).
-        let mut idx = 1;
-        while idx < args.len() && self.namespace_subcommand_flag("import", &args[idx]) {
-            idx += 1;
-        }
+        // Skip the subcommand word + the leading flag words the registry says
+        // `namespace import` consumes (`-force`, at most one). Both facts are
+        // read from the spec rather than matched by name or bounded by a
+        // literal here — see [`Self::namespace_leading_flag_words`].
+        let mut idx = 1 + self.namespace_leading_flag_words("import", &args[1..]);
         // `namespace import` imports into the namespace current at the call —
         // the command-resolution namespace, so an import inside
         // `proc ::ns::p {}` lands in `::ns` (issue #923 idx 85).
@@ -5397,13 +5393,19 @@ impl Analyser {
         // As for `import`: the exporting namespace is the one current at the
         // call, not the lexically enclosing one (issue #923 idx 85).
         let exporting_ns = self.command_resolution_namespace(scope_path);
-        // Which leading words are flags is registry data (`EXPORT_OPTIONS`),
-        // not a name match here. `-clear` is the only one, and it lands as a
-        // tombstone event at its own token so the ordering survives.
-        while idx < args.len()
-            && idx < arg_tokens.len()
-            && self.namespace_subcommand_flag("export", &args[idx])
-        {
+        // Which leading words are flags — and how many of them the command
+        // consumes — is registry data (`EXPORT_OPTIONS` plus
+        // `max_leading_option_words`), not a name match or a loop bound here.
+        // `-clear` is the only option and at most one is consumed, so a
+        // second `-clear` falls through to the pattern loop below and is
+        // recorded as the export pattern real Tcl treats it as. Each consumed
+        // flag lands as a tombstone event at its own token so the ordering
+        // survives.
+        let flag_words = self.namespace_leading_flag_words("export", &args[1..]);
+        for _ in 0..flag_words {
+            if idx >= args.len() || idx >= arg_tokens.len() {
+                break;
+            }
             self.result.namespace_exports.push(
                 crate::signature_scan::types::SignatureNamespaceExport {
                     ns: exporting_ns.clone(),
@@ -5432,31 +5434,56 @@ impl Analyser {
         }
     }
 
-    /// Whether `word` is a leading **flag** option the registry declares for
-    /// `namespace SUB` in the active dialect profile.
+    /// How many of `args`' leading words `namespace SUB` consumes as option
+    /// flags, entirely from registry data: a word that matches a declared
+    /// flag option of that subcommand, capped by the subcommand's declared
+    /// [`tcl_registry::SubCommand::max_leading_option_words`].
     ///
-    /// `namespace import`'s `-force` and `namespace export`'s `-clear` are
-    /// the two that matter here; both are pure flags (they consume no value
-    /// word), so a caller that skips them advances by exactly one. Reading
-    /// the option set from the spec — the same route
-    /// [`Self::handle_namespace_ensemble`] takes for `-command`/`-map` — is
-    /// what keeps this argument-role knowledge in the registry rather than as
-    /// a literal in the walker.
+    /// `args` is the word list *after* the subcommand word.
     ///
-    /// `false` when no registry is attached (the analyser runs registry-less
-    /// in some unit tests): a flagless read then treats `-clear` as an
-    /// ordinary pattern, which is inert — no command is named `-clear`.
-    fn namespace_subcommand_flag(&self, sub: &str, word: &str) -> bool {
+    /// Two registry facts, no literal in the walker:
+    ///
+    /// - **Which** words are flags — `namespace import`'s `-force` and
+    ///   `namespace export`'s `-clear` (`IMPORT_OPTIONS` / `EXPORT_OPTIONS`).
+    ///   Matching is exact (`OptionSpec::matches`, canonical name or declared
+    ///   alias), never the generic unique-prefix rule, because both
+    ///   subcommands hand-parse with `strcmp` in C: oracle (tclsh 8.6.14 /
+    ///   9.0.4) `namespace export -c p` exports `-c` and `p`, and `namespace
+    ///   import -f ::src::p` aborts with `no namespace specified in import
+    ///   pattern "-f"`.
+    /// - **How many** — one, declared as `max_leading_option_words`. A second
+    ///   `-clear` is an ordinary export pattern (and `-clear` is a perfectly
+    ///   valid, importable command name); a second `-force` is an import
+    ///   pattern that aborts the script.
+    ///
+    /// The scan also stops at the first non-flag word, which is what makes
+    /// `namespace export a -clear` export both (the flag is only ever the
+    /// first word — oracle-verified).
+    ///
+    /// `0` when no registry is attached (the analyser runs registry-less in
+    /// some unit tests): a flagless read then treats `-clear` as an ordinary
+    /// pattern, which is inert — nothing else records a command by that name.
+    fn namespace_leading_flag_words(&self, sub: &str, args: &[String]) -> usize {
         use tcl_registry::ProfileQueries;
-        self.registry
+        let Some((spec, sub_spec)) = self
+            .registry
             .and_then(|r| r.get("namespace"))
             .and_then(|spec| spec.subcommand(sub).map(|s| (spec, s)))
-            .is_some_and(|(spec, s)| {
-                self.profile
-                    .available_sub_option_specs(spec, s)
+        else {
+            return 0;
+        };
+        let options = self.profile.available_sub_option_specs(spec, sub_spec);
+        let cap = sub_spec
+            .max_leading_option_words
+            .map_or(usize::MAX, usize::from);
+        args.iter()
+            .take(cap)
+            .take_while(|w| {
+                options
                     .iter()
-                    .any(|o| o.matches(word) && !o.takes_value())
+                    .any(|o| o.matches(w.as_str()) && !o.takes_value())
             })
+            .count()
     }
 
     /// Handle `namespace unknown HANDLER` — installing a per-namespace
@@ -6835,6 +6862,99 @@ mod tests {
             events,
             vec![("bar", false, 7), ("", true, 18), ("baz", false, 25)]
         );
+    }
+
+    #[test]
+    fn handle_namespace_export_consumes_only_one_clear_flag() {
+        // PR #1102 review finding 3 — `NamespaceExportCmd` compares `objv[1]`
+        // against `-clear` once, so a *second* `-clear` is an ordinary export
+        // pattern. Oracle (tclsh 8.6.14 / 9.0.4): `namespace export -clear
+        // -clear p` leaves exactly `-clear p` exported, and a command really
+        // named `-clear` is then importable through `namespace import
+        // ::src::*`. Consuming every matching word instead recorded two
+        // tombstones and silently dropped the `-clear` export.
+        let mut a = Analyser::new();
+        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.handle_namespace_export_command(
+            &[
+                "export".to_string(),
+                "-clear".to_string(),
+                "-clear".to_string(),
+                "p".to_string(),
+            ],
+            &[
+                esc_tok(span(0, 6)),
+                esc_tok(span(7, 13)),
+                esc_tok(span(14, 20)),
+                esc_tok(span(21, 22)),
+            ],
+            &[],
+        );
+        let events: Vec<(&str, bool)> = a
+            .result
+            .namespace_exports
+            .iter()
+            .map(|e| (e.pattern.as_str(), e.clears))
+            .collect();
+        assert_eq!(events, vec![("", true), ("-clear", false), ("p", false)]);
+    }
+
+    #[test]
+    fn handle_namespace_export_flag_after_a_pattern_is_a_pattern() {
+        // The flag is only ever the *first* word: oracle `namespace export a
+        // -clear` → `namespace export` returns `a -clear`.
+        let mut a = Analyser::new();
+        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.handle_namespace_export_command(
+            &["export".to_string(), "a".to_string(), "-clear".to_string()],
+            &[
+                esc_tok(span(0, 6)),
+                esc_tok(span(7, 8)),
+                esc_tok(span(9, 15)),
+            ],
+            &[],
+        );
+        let events: Vec<(&str, bool)> = a
+            .result
+            .namespace_exports
+            .iter()
+            .map(|e| (e.pattern.as_str(), e.clears))
+            .collect();
+        assert_eq!(events, vec![("a", false), ("-clear", false)]);
+    }
+
+    #[test]
+    fn handle_namespace_import_consumes_only_one_force_flag() {
+        // Symmetric to the export case: `namespace import -force -force
+        // ::src::*` reads the second `-force` as an import *pattern* (and
+        // aborts with `no namespace specified in import pattern "-force"`,
+        // tclsh 8.6.14/9.0.4). Only the first is skipped as a flag, so the
+        // second is recorded as the pattern word it is — one whose empty
+        // source namespace both wildcard resolvers already decline.
+        let mut a = Analyser::new();
+        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.handle_namespace_import_command(
+            &[
+                "import".to_string(),
+                "-force".to_string(),
+                "-force".to_string(),
+                "::src::*".to_string(),
+            ],
+            &[
+                esc_tok(span(0, 6)),
+                esc_tok(span(7, 13)),
+                esc_tok(span(14, 20)),
+                esc_tok(span(21, 29)),
+            ],
+            &[],
+        );
+        let patterns: Vec<&str> = a
+            .result
+            .namespace_imports
+            .iter()
+            .map(|i| i.pattern.as_str())
+            .collect();
+        assert_eq!(patterns, vec!["::-force", "::src::*"]);
     }
 
     #[test]

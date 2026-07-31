@@ -63,14 +63,31 @@
 //! same-document resolver (`definition.rs` / `references.rs`) and the
 //! cross-document one (`workspace_index.rs`) both call it, so they cannot
 //! disagree about the semantics — the same "one entry point" discipline
-//! `qualified_variable_cell_at` uses. What *is* tier-specific is the primitive
+//! `qualified_variable_cell_at` uses. It gates **every** `namespace import`,
+//! glob or exact: an exact `namespace import ::src::p` of a name `::src` has
+//! not exported silently installs nothing in real Tcl (oracle: `info commands
+//! ::dst::*` stays empty and no error is raised), so the cross-document
+//! `WorkspaceCommandLink` an exact import produces is only live while this
+//! function admits it (`WorkspaceIndex::live_command_links`).
+//!
+//! What *is* tier-specific is the primitive
 //! "had this event already run when the import executed?", which the caller
 //! supplies as `visible`:
 //!
 //! - Same document: `analyser::indirection::in_effect`, so a declaration
 //!   inside a proc body is judged by the same load-order rule the rename /
 //!   alias timeline uses.
-//! - Cross-document, same file as the import: a plain offset comparison.
+//! - Cross-document, same file as the import:
+//!   `analyser::indirection::in_effect_within` — the *identical* rule, stated
+//!   over the two facts the index stores per row (the import's offset and the
+//!   innermost proc/class body containing it). A plain offset comparison is
+//!   **not** good enough and was a real tier divergence (PR #1102 review): an
+//!   import written inside a body genuinely observes a top-level export
+//!   written later in the same file, because the whole file loads before any
+//!   body runs — oracle (tclsh 8.6.14 / 9.0.4), `namespace eval ::app {proc
+//!   setup {} {namespace import ::mymod::*}; proc run {} {helper}}` followed
+//!   by `namespace eval ::mymod {namespace export helper}`, then
+//!   `::app::setup; ::app::run` → `HELP`.
 //! - **Different file from the import: not ordered at all.** Which file loads
 //!   first is not a static fact, so such an event is passed with
 //!   [`ExportEvent::at`] `None`, and this module abstains toward the safer

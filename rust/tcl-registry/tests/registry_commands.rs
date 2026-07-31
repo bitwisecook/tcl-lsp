@@ -849,6 +849,44 @@ fn proc_body_is_structural() {
     assert_eq!(proc.arg_role_at(2), Some(ArgRole::Body));
 }
 
+/// `namespace export ?-clear?` and `namespace import ?-force?` hand-parse a
+/// single optional leading flag in C (`NamespaceExportCmd` /
+/// `NamespaceImportCmd`, `tclNamesp.c`), so exactly one leading option word is
+/// consumed and every further word is positional however it is spelled.
+///
+/// Oracle (tclsh 8.6.14 / 9.0.4): `namespace export -clear -clear p` leaves
+/// `-clear p` exported — and `namespace import ::src::*` then binds a genuine
+/// `::dst::-clear` command — while `namespace import -force -force ::src::*`
+/// aborts with `no namespace specified in import pattern "-force"`.
+/// `namespace export a -clear` exports both, so the flag is only ever the
+/// first word. Consumers read the limit from here rather than bounding a loop
+/// of their own (PR #1102 review finding 3).
+///
+/// registry-metadata: `max_leading_option_words`.
+#[test]
+fn namespace_export_and_import_consume_one_leading_option_word() {
+    let (reg, _) = reg_and_set("tcl8.6");
+    let spec = reg.get("namespace").expect("namespace registered");
+    for (sub, flag) in [("export", "-clear"), ("import", "-force")] {
+        let s = spec
+            .subcommand(sub)
+            .unwrap_or_else(|| panic!("namespace {sub} registered"));
+        assert_eq!(
+            s.max_leading_option_words,
+            Some(1),
+            "namespace {sub} consumes exactly one leading option word",
+        );
+        assert!(
+            s.options.iter().any(|o| o.name == flag && !o.takes_value()),
+            "namespace {sub} declares {flag} as a flag",
+        );
+        // The cap is what the shared leading-option walk applies: a second
+        // occurrence is an ordinary argument word, not a second flag.
+        assert_eq!(s.leading_option_word_count(&[flag, flag, "p"]), 1);
+        assert_eq!(s.leading_option_word_count(&["p", flag]), 0);
+    }
+}
+
 /// `test_exported_short_name_resolves_via_registry_property` — `tcltest::test`
 /// declares it is namespace-exported (so the bare `test` can resolve to it).
 ///
