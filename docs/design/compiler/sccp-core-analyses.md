@@ -34,6 +34,46 @@ SCCP walks the SSA graph and propagates:
 - Phi nodes: `phi(CONST("42"), CONST("99"))` → `OVERDEFINED`
 - Loop-carried values: always `OVERDEFINED` (value changes per iteration)
 
+### Escaping names
+
+A name that is not a private local of the frame is forced `OVERDEFINED`
+regardless of what is assigned to it, so anything derived from it is
+`OVERDEFINED` too. Three sources feed the escaping set:
+
+- the per-function [`var_observability`](../../../rust/tcl-compiler/src/var_observability.rs)
+  alias/trace lattice — `global`, `variable`, `my variable`, `upvar`,
+  `namespace upvar`, and any name under a `trace`;
+- whole-module facts the caller supplies (`extra_global_escaping`): for the
+  **top-level** body, every name some other procedure declares `global`;
+- for a **`TclOO` method** body, when the *propagation pass* asks for one:
+  the class's instance variables — the class-level `variable` declarations
+  plus the method's own (`MethodDef::instance_vars`). An instance variable is
+  object state that outlives the method frame: the constructor or any other
+  method may have written it, and a `my …` dispatch may rewrite it between two
+  reads. This is the same escaping classification `elimination.rs` feeds
+  through its cross-event channel to stop an instance-state write being
+  deleted as a dead store; before issue #1097 the two passes disagreed, and
+  `propagation.rs` had to keep variable propagation switched off wholesale for
+  method bodies as a result.
+
+  This one is a **propagation-only view**: `propagation.rs`
+  (`oo_method_constants`) re-runs `sccp_with_extra_escaping` for the method
+  rather than the unit's shared `FunctionUnit::sccp` being built that way,
+  because other consumers legitimately read facts an instance variable
+  carries — the object-collection element typing of issue #797 harvests
+  `dict set pins $k [Pin new]` out of exactly such a name, and widening the
+  shared lattice erases it. Re-running (rather than filtering the projected
+  map) is what makes derived names (`set a $ivar ; set b $a`) drop out too.
+
+What survives the projection for a method body is therefore a provably
+method-local name, which no `my` / `next` / `[self …]` dispatch can reach.
+`propagation.rs` adds one further whole-module gate on top: if any method body
+in the module can reach its *caller's* frame (`VarObservability::has_caller_frame_alias`,
+or an `EVALUATES_IN_SHIFTED_FRAME` call), no method body's locals are
+propagated — a proc callee that does this is modelled per call site by
+`detect_upvar_procs`, but a method reached through `my` is not, because the
+dispatch does not name it.
+
 ### Constant branch detection
 
 When a `CFGBranch` condition evaluates to a constant:

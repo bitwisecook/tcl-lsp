@@ -287,6 +287,38 @@ impl VarObservability<'_> {
         }
         names
     }
+
+    /// True when *any* name in this body is ever bound to a **caller** frame
+    /// (`EscapeFlag::UPVAR` — `upvar N>=1`, but not `global` / `variable` /
+    /// `namespace upvar`, which reach a namespace rather than the caller).
+    ///
+    /// The question a caller asks with this is not "is this variable safe" but
+    /// "can this body reach into the locals of whoever called it" — the
+    /// property that decides whether a *sibling* body's private locals survive
+    /// a dispatch to this one.  `propagation.rs` uses it as the whole-module
+    /// gate on `TclOO` method-body variable propagation (issue #1097): a proc
+    /// callee that does this is already modelled per-call-site by
+    /// `cfg_builder::detect_upvar_procs`, but a method reached through `my` /
+    /// `next` / an object dispatch is not, so the conservative answer is to
+    /// switch the propagation off module-wide when any method body could do it.
+    #[must_use]
+    pub fn has_caller_frame_alias(&self) -> bool {
+        for block in &self.ordered_blocks {
+            let mut state = self.block_entry.get(block).cloned().unwrap_or_default();
+            if state.values().any(|f| f.contains(EscapeFlag::UPVAR)) {
+                return true;
+            }
+            if let Some(blk) = self.cfg.blocks.get(block) {
+                for stmt in &blk.statements {
+                    stmt_gen(stmt, &mut state, self.registry);
+                    if state.values().any(|f| f.contains(EscapeFlag::UPVAR)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
 }
 
 fn collect_traced(state: &State, names: &mut std::collections::HashSet<String>) {
@@ -447,6 +479,39 @@ mod tests {
 
     fn cu(src: &str) -> CompilationUnit {
         CompilationUnit::build_for(src, &registry(), false)
+    }
+
+    #[test]
+    fn has_caller_frame_alias_separates_upvar_from_namespace_aliases() {
+        let reg = registry();
+        // `upvar 1` reaches the *caller's* locals — the property
+        // `propagation.rs` gates method-body variable propagation on.
+        let c = cu("proc ::p {} { upvar 1 base b\nset b 1 }");
+        let fu = c.function("::p").unwrap();
+        assert!(analyse_var_observability(&fu.cfg, &reg).has_caller_frame_alias());
+        // `global` / `variable` reach a *namespace*, not a caller frame, so
+        // they must not trip the gate — otherwise every ordinary class body
+        // would disable propagation.
+        for src in [
+            "proc ::q {} { global g\nset g 1 }",
+            "proc ::r {} { variable v\nset v 1 }",
+            "proc ::s {} { namespace upvar ::ns n n\nset n 1 }",
+            "proc ::t {} { set x 1 }",
+        ] {
+            let c = cu(src);
+            let name = format!(
+                "::{}",
+                src.split_whitespace()
+                    .nth(1)
+                    .unwrap()
+                    .trim_start_matches("::")
+            );
+            let fu = c.function(&name).unwrap();
+            assert!(
+                !analyse_var_observability(&fu.cfg, &reg).has_caller_frame_alias(),
+                "{src} must not report a caller-frame alias"
+            );
+        }
     }
 
     #[test]

@@ -1067,3 +1067,158 @@ fn folding_self_class_does_not_disturb_the_rest_of_the_method_body() {
             .collect::<Vec<_>>(),
     );
 }
+
+// ===========================================================================
+// Issues #1096 / #1097 — completing the ticklecharts `${ns}::setdef` chain.
+//
+// #1096 put `const_fold` callbacks on `namespace qualifiers` / `namespace
+// tail` (pure string splitting at the last `::`, oracle-pinned byte-identical
+// on tclsh 9.0.4 and 8.6.14 — see `tcl-registry`'s `namespace_` unit tests and
+// the `differential_fold` matrix).  #1097 ported `elimination.rs`'s
+// instance-variable escaping model into the propagation lattice, so a
+// provably method-local variable propagates inside a method body while object
+// state still does not.
+// ===========================================================================
+
+#[test]
+fn namespace_qualifiers_and_tail_fold_over_the_self_class_frame_constant() {
+    // TP, the chain's second hop in one step: the O129 fold resolves the
+    // nested `[self class]` from the method frame first, then runs
+    // `qualifiers` on the resulting constant.  Oracle:
+    //   namespace qualifiers ::ticklecharts::Gauge -> ::ticklecharts
+    assert_eq!(
+        o129(
+            "oo::class create ::ticklecharts::Gauge {\n    method m {} { set ns [namespace qualifiers [self class]] }\n}\n"
+        ),
+        vec!["::ticklecharts".to_string()],
+    );
+    // TP, the sibling subcommand.  Oracle:
+    //   namespace tail ::ticklecharts::Gauge -> Gauge
+    assert_eq!(
+        o129(
+            "oo::class create ::ticklecharts::Gauge {\n    method m {} { set n [namespace tail [self class]] }\n}\n"
+        ),
+        vec!["Gauge".to_string()],
+    );
+    // TP outside `TclOO` entirely — the fold is a registry fact about a pure
+    // string operation, not an OO one.
+    assert_eq!(
+        o129("proc ::f {} { set ns [namespace qualifiers ::a::b::c] }\n"),
+        vec!["::a::b".to_string()],
+    );
+}
+
+#[test]
+fn namespace_qualifiers_abstains_on_a_dynamic_argument() {
+    // TN — an unprovable argument leaves the call alone.  `$x` is never
+    // assigned, so it is not a constant and `literal_words` bails.
+    assert!(
+        o129("proc ::f {x} { set ns [namespace qualifiers $x] }\n").is_empty(),
+        "a dynamic argument must not fold",
+    );
+    // TN — a *nested* substitution that itself does not fold bails the whole
+    // fold rather than folding half of it.
+    assert!(
+        o129("proc ::f {} { set ns [namespace qualifiers [gets stdin]] }\n").is_empty(),
+        "an unfoldable nested substitution must not fold",
+    );
+    // TN — a module that rebinds `namespace` no longer has the builtin's
+    // semantics to fold with.
+    assert!(
+        o129("rename namespace ns_orig\nproc ::f {} { set ns [namespace qualifiers ::a::b] }\n")
+            .is_empty(),
+        "a rebound `namespace` must not fold",
+    );
+}
+
+#[test]
+fn method_local_variable_propagates_into_the_fold_chain() {
+    // TP (#1097). `base` is a method local: the class declares no instance
+    // variable, nothing aliases it, so the propagation lattice may carry its
+    // value into the `namespace qualifiers` argument.  Before #1097 the
+    // method-body walk carried no constants map at all, so this folded
+    // nothing.
+    let r = o129(
+        "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        set base ::ticklecharts::Gauge\n        set ns [namespace qualifiers $base]\n    }\n}\n",
+    );
+    assert!(
+        r.contains(&"::ticklecharts".to_string()),
+        "the `$base` hop must fold, got {r:?}",
+    );
+    // TP — the same for a `[string …]` fold over a method-local, the other
+    // example issue #1097 lists.
+    let r = o129(
+        "oo::class create ::A {\n    method m {} {\n        set s abcde\n        puts [string length $s]\n    }\n}\n",
+    );
+    assert!(r.contains(&"5".to_string()), "got {r:?}");
+    // TP — plain `$var` propagation inside a method body (O100), the other
+    // half of what #1097 switched on.
+    let r = repls(
+        "oo::class create ::A {\n    method m {} {\n        set v 42\n        puts $v\n    }\n}\n",
+        "O100",
+    );
+    assert_eq!(r, vec!["42".to_string()], "got {r:?}");
+}
+
+#[test]
+fn an_instance_variable_never_propagates_inside_a_method_body() {
+    // TN (#1097's whole point). `ns` here is *object state* — declared by the
+    // class's `variable ns`, so the constructor or any other method may have
+    // written it and `my …` may rewrite it between the two statements.  The
+    // frame-constant `[self class]` still folds (it reads no variable), but
+    // the `[namespace qualifiers $ns]` hop must not.
+    let r = o129(
+        "oo::class create ::ticklecharts::Gauge {\n    variable ns\n    method m {} {\n        set ns [self class]\n        set q [namespace qualifiers $ns]\n    }\n}\n",
+    );
+    assert_eq!(
+        r,
+        vec!["::ticklecharts::Gauge".to_string()],
+        "only the frame constant may fold, got {r:?}",
+    );
+    // TN — the same via a method-local `my variable` declaration.
+    let r = o129(
+        "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        my variable ns\n        set ns [self class]\n        set q [namespace qualifiers $ns]\n    }\n}\n",
+    );
+    assert_eq!(
+        r,
+        vec!["::ticklecharts::Gauge".to_string()],
+        "a `my variable` alias must bar propagation, got {r:?}",
+    );
+    // TN — plain O100 `$var` propagation must not touch object state
+    // either: `my bump` can rewrite `n` between the write and the read, which
+    // is exactly the miscompile issue #1097 opens with.
+    assert!(
+        repls(
+            "oo::class create ::C {\n    variable n\n    method bump {} { incr n }\n    method m {} {\n        set n 1\n        my bump\n        puts $n\n    }\n}\n",
+            "O100",
+        )
+        .is_empty(),
+        "an instance variable must not propagate through a `my` dispatch",
+    );
+    // TN — an ordinary `variable` declaration inside the body.
+    let r = o129(
+        "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        variable ns\n        set ns [self class]\n        set q [namespace qualifiers $ns]\n    }\n}\n",
+    );
+    assert_eq!(
+        r,
+        vec!["::ticklecharts::Gauge".to_string()],
+        "a `variable` alias must bar propagation, got {r:?}",
+    );
+}
+
+#[test]
+fn a_method_that_can_reach_its_caller_frame_bars_method_local_propagation() {
+    // TN (#1097's barrier). `helper` aliases its *caller's* local `base`, and
+    // it is reached by `my helper` — a dispatch the CFG's upvar-callee table
+    // cannot see, because the call does not name it.  So no method body's
+    // locals may be propagated in this module.  The frame constant still
+    // folds: it reads no variable.
+    let r = o129(
+        "oo::class create ::ticklecharts::Gauge {\n    method helper {} { upvar 1 base b\n        set b ::hijacked }\n    method m {} {\n        set base [self class]\n        my helper\n        set ns [namespace qualifiers $base]\n    }\n}\n",
+    );
+    assert_eq!(
+        r,
+        vec!["::ticklecharts::Gauge".to_string()],
+        "a caller-frame-reaching method must bar propagation, got {r:?}",
+    );
+}
