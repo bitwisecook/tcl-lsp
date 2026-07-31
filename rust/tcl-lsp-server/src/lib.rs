@@ -4295,6 +4295,31 @@ impl Backend {
             .retain(|queued| queued != uri);
     }
 
+    /// Retire every trace of a path a `workspace/didRenameFiles` moved away
+    /// from (#1146).
+    ///
+    /// The old path no longer exists on disk, so it is treated exactly as
+    /// [`LanguageServer::did_change_watched_files`] treats a `DELETED` file:
+    /// dropping only the `workspace_index` entry left its salsa `SourceFile` in
+    /// the `Project` — so the renamed file's procedures were counted twice in
+    /// cross-file resolution, and the old URI's whole memo chain, pull-cache
+    /// entry, semantic-token baseline and class analysis survived every rename
+    /// for the process's life.  The empty publish is what removes the client's
+    /// Problems entry for the dead path.
+    async fn retire_renamed_uri(&self, uri: &Uri) {
+        self.workspace_index
+            .write()
+            .await
+            .remove_document(uri.as_str());
+        self.db_remove_source(uri).await;
+        self.last_semantic_tokens.lock().await.remove(uri);
+        self.workspace_class_analyses.lock().await.remove(uri);
+        self.evict_diag_slot(uri).await;
+        // Publishes the empty set and drops the pull-cache + closed-generation
+        // entries, matching the watched-file DELETED branch's badge clear.
+        self.clear_closed_diagnostics(uri).await;
+    }
+
     /// Release `uri`'s diagnostics slot when its document closes (#1144).
     ///
     /// With no worker draining it the slot is dropped outright.  With one
@@ -12145,9 +12170,9 @@ impl LanguageServer for Backend {
     }
 
     /// `workspace/didRenameFiles`: after the client applies a
-    /// rename on disk, refresh the workspace index — drop the old URI's
-    /// entries and re-index the renamed file from its new path so
-    /// cross-document features (including future renames) stay current.
+    /// rename on disk, refresh the workspace — retire the old URI entirely
+    /// and re-index the renamed file from its new path so cross-document
+    /// features (including future renames) stay current.
     async fn did_rename_files(&self, params: RenameFilesParams) {
         // Same workspace-file-ops gate as `will_rename_files`.
         if !self
@@ -12160,10 +12185,7 @@ impl LanguageServer for Backend {
         }
         for f in &params.files {
             if let Ok(old_url) = Uri::from_str(&f.old_uri) {
-                self.workspace_index
-                    .write()
-                    .await
-                    .remove_document(old_url.as_str());
+                self.retire_renamed_uri(&old_url).await;
             }
             if let Ok(new_url) = Uri::from_str(&f.new_uri) {
                 self.reindex_index_from_disk(&new_url).await;
@@ -23953,8 +23975,49 @@ mod tests {
     async fn did_rename_reindexes_moved_document() {
         let backend = test_backend();
         let old = Uri::from_str("file:///gone.tcl").unwrap();
-        register(&backend, &old, "proc helper {} {}\n").await;
+        let src = "proc helper {} {}\n";
+        register(&backend, &old, src).await;
+        // A renamed-away path is not an open buffer — the client moved the file
+        // on disk — so drop the live document `register` seeded and stand the
+        // rest of the old URI's per-URI state up as a real session would have.
+        backend.documents.lock().await.remove(&old);
+        backend
+            .db_set_source(&old, src.to_owned(), "tcl8.6".to_owned())
+            .await;
+        let old_file = *backend
+            .db_files
+            .lock()
+            .await
+            .get(&old)
+            .expect("precondition: the old URI has a salsa source");
+        backend
+            .last_semantic_tokens
+            .lock()
+            .await
+            .insert(old.clone(), ("st-1".to_owned(), Vec::new()));
+        backend.workspace_class_analyses.lock().await.insert(
+            old.clone(),
+            WorkspaceClassAnalysis {
+                fingerprint: (0, 0),
+                analysis: Arc::default(),
+            },
+        );
+        backend
+            .diag_slots
+            .lock()
+            .await
+            .insert(old.clone(), DiagSlot::default());
+        backend.pull_diag_cache.lock().await.insert(
+            old.clone(),
+            PullDiagEntry {
+                result_id: next_pull_diag_result_id(),
+                revision: 0,
+                diagnostics: Vec::new(),
+            },
+        );
+        backend.closed_diag_gen.lock().await.insert(old.clone(), 3);
         assert_eq!(backend.workspace_index.read().await.procs().len(), 1);
+
         let params = RenameFilesParams {
             files: vec![tower_lsp_server::ls_types::FileRename {
                 old_uri: old.to_string(),
@@ -23964,9 +24027,48 @@ mod tests {
             }],
         };
         backend.did_rename_files(params).await;
+
         // The old document's proc is gone from the index.
-        let index = backend.workspace_index.read().await;
-        assert!(index.procs().iter().all(|p| p.uri != old.as_str()));
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .procs()
+                .iter()
+                .all(|p| p.uri != old.as_str()),
+        );
+        // #1146: and out of the salsa db, so the renamed file's procedures are
+        // not counted twice in cross-file resolution (and the old URI's memo
+        // chain is not retained for the process's life).
+        assert!(
+            !backend.db_files.lock().await.contains_key(&old),
+            "the old URI's salsa SourceFile must be dropped",
+        );
+        let project_holds_old = {
+            let db = backend.db.lock().await;
+            backend
+                .db_project
+                .lock()
+                .await
+                .is_some_and(|project| project.files(&*db).contains(&old_file))
+        };
+        assert!(
+            !project_holds_old,
+            "the old URI must leave the salsa Project file set",
+        );
+        // …along with every per-URI cache keyed on the dead path, and its badge.
+        assert!(!backend.pull_diag_cache.lock().await.contains_key(&old));
+        assert!(!backend.closed_diag_gen.lock().await.contains_key(&old));
+        assert!(!backend.diag_slots.lock().await.contains_key(&old));
+        assert!(!backend.last_semantic_tokens.lock().await.contains_key(&old));
+        assert!(
+            !backend
+                .workspace_class_analyses
+                .lock()
+                .await
+                .contains_key(&old)
+        );
     }
 
     #[tokio::test]
