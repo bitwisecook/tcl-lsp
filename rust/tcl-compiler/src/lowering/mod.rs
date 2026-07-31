@@ -660,6 +660,20 @@ pub struct Lowerer<'r> {
     pub module: Module,
     /// Command alias table built during lowering.
     aliases: CommandAliasMap,
+    /// `class qualified name -> every instance variable declared for it`,
+    /// accumulated across **all** of that class's definition blocks (issue
+    /// #1096/#1097 review, finding 1).
+    ///
+    /// A class's state is not confined to the block that created it: `oo::class
+    /// create C { method m … }` followed by `oo::define C { variable x }`
+    /// makes `x` instance state for `m`, which was extracted before the
+    /// declaration was seen.  Each block's [`Self::extract_oo_methods`] run
+    /// computes only its *own* block's declarations, so the union is
+    /// accumulated here and merged into every method of the class by
+    /// [`Self::extract_oo_methods_pass`] once all blocks have been walked.
+    /// Declaring `variable x` anywhere makes it instance state for every
+    /// method of that class, so the union is order-free.
+    class_instance_vars: HashMap<String, HashSet<String>>,
     /// Event handler occurrence counts (for `when` numbering).
     when_counts: HashMap<String, u32>,
     /// Monotonic counter for synthetic *body unit* names (`apply` lambdas and
@@ -774,6 +788,7 @@ impl<'r> Lowerer<'r> {
         Self {
             module: Module::default(),
             aliases: CommandAliasMap::new(),
+            class_instance_vars: HashMap::new(),
             when_counts: HashMap::new(),
             body_unit_count: 0,
             in_namespace_eval: false,
@@ -2334,6 +2349,19 @@ impl<'r> Lowerer<'r> {
             let proc_ns = proc_namespace(qname);
             self.walk_for_oo_methods(&body.statements, &proc_ns);
         }
+        // Every definition block for every class has now been walked, so the
+        // per-class instance-variable union is complete.  Merge it into each
+        // method: a method extracted from an early block must still see state
+        // a later `oo::define` block declared for its class, or a consumer
+        // reading `MethodDef::instance_vars` (the optimiser's method-body
+        // propagation gate, `elimination.rs`'s dead-store protection) would
+        // treat object state as a private local.  Order-free by construction —
+        // the union does not depend on which block was walked first.
+        for method in self.module.methods.values_mut() {
+            if let Some(class_vars) = self.class_instance_vars.get(&method.class_name) {
+                method.instance_vars.extend(class_vars.iter().cloned());
+            }
+        }
     }
 
     /// Recursive walk for `oo::class` / `oo::define` definition
@@ -2466,20 +2494,17 @@ impl<'r> Lowerer<'r> {
         let segments =
             segment_commands_with_offset_and_config(body_text, body_content_offset, self.config);
 
-        // Class-level instance-variable declarations (`variable a b
-        // ...`) are auto-linked into every method. The TclOO
-        // class-body `variable` slot is names-only (`variable a b c`
-        // declares three instance vars — verified vs tclsh 9.0 — NOT
-        // name/value pairs), so every literal trailing word is a name.
-        let mut class_ivars: HashSet<String> = HashSet::new();
-        for seg in &segments {
-            if !seg.is_partial && seg.texts.len() >= 2 && seg.texts[0] == "variable" {
-                for nm in &seg.texts[1..] {
-                    if is_instance_var_name(nm) {
-                        class_ivars.insert(normalise_var_name(nm).to_string());
-                    }
-                }
-            }
+        let class_ivars = class_level_instance_vars(&segments);
+        // This block sees only its own declarations; a sibling `oo::define`
+        // block may declare more state for the same class, and may be walked
+        // *after* the methods that use it.  Accumulate the whole-class union
+        // for `extract_oo_methods_pass`'s merge — see
+        // [`Self::class_instance_vars`].
+        if !class_ivars.is_empty() {
+            self.class_instance_vars
+                .entry(class_qname.clone())
+                .or_default()
+                .extend(class_ivars.iter().cloned());
         }
 
         for seg in &segments {
@@ -2577,6 +2602,28 @@ impl<'r> Lowerer<'r> {
             );
         }
     }
+}
+
+/// The instance variables one class-definition body declares at class level.
+///
+/// The `TclOO` class-body `variable` slot is names-only (`variable a b c`
+/// declares three instance vars — verified against tclsh 9.0 — NOT
+/// name/value pairs), so every literal trailing word is a name.  These are
+/// auto-linked into every method of the class; a *sibling* definition block
+/// may declare more, which is why the caller accumulates a per-class union
+/// rather than using this result directly.
+fn class_level_instance_vars(segments: &[crate::segmenter::SegmentedCommand]) -> HashSet<String> {
+    let mut out = HashSet::new();
+    for seg in segments {
+        if !seg.is_partial && seg.texts.len() >= 2 && seg.texts[0] == "variable" {
+            for nm in &seg.texts[1..] {
+                if is_instance_var_name(nm) {
+                    out.insert(normalise_var_name(nm).to_string());
+                }
+            }
+        }
+    }
+    out
 }
 
 // Public API

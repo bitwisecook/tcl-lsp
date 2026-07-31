@@ -158,6 +158,19 @@ pub struct UpvarInfo {
     /// The same script may **read** any caller-frame name, so no store in
     /// the caller can be proved dead across the call.
     pub caller_frame_opaque_reads: bool,
+    /// Caller-side source words of alias pairs whose **local** side is
+    /// dynamic (`upvar 1 x $dst` records `x`), as written — so a
+    /// wholly-dynamic pair records its source word verbatim.
+    ///
+    /// Deliberately *not* part of [`Self::is_empty`]'s summary contract, and
+    /// no caller-side resolver reads it: the maps above answer "which
+    /// caller-frame name does my local `x` alias?", and a dynamic local side
+    /// gives that question no key to hang off (the caller-side path widens
+    /// through `crate::dynamic_names` instead).  It exists for the strictly
+    /// structural question [`reaches_caller_frame`] asks — "can this body
+    /// reach its caller's frame at all?" — where an alias nobody can name
+    /// counts every bit as much as a nameable one.
+    pub unnameable_local_aliases: BTreeSet<String>,
 }
 
 impl UpvarInfo {
@@ -335,6 +348,36 @@ fn resolve_frame_args(spec: FrameEffectSpec, args: &[String]) -> (FrameLevel, &[
     (level, &args[taken..])
 }
 
+/// True when `body` can reach the **caller's** frame — through an `upvar`
+/// alias (whatever the dynamism of either side of the pair), an `uplevel`
+/// script that runs there, or a level this analysis cannot place.
+///
+/// The strictly structural counterpart to [`collect_upvar_targets`], which
+/// answers the richer question "*which* caller-frame names, through which
+/// local?" and therefore drops what it cannot name.  Two shapes are dropped
+/// there and must not be dropped here:
+///
+/// * `upvar 1 $src b` — a dynamic **source**.  When `src` is a parameter this
+///   lands in `param_targets`; otherwise it sets
+///   `has_unresolvable_caller_target`.  Both are already visible through
+///   [`UpvarInfo::is_empty`].
+/// * `upvar 1 x $dst` — a dynamic **local**, which the summary skips outright
+///   because it has no key to file the alias under.  That is the gap
+///   [`UpvarInfo::unnameable_local_aliases`] closes.
+///
+/// A dynamic name makes an alias *more* dangerous, never exempt, so this
+/// deliberately reads the whole summary rather than any one bucket.
+///
+/// Consumed by the optimiser's `TclOO` method-body propagation gate, which
+/// must decide whether a *sibling* body's private locals can survive a `my` /
+/// `next` dispatch to this one — a call the CFG's upvar-callee table cannot
+/// model, because the dispatch never names its target.
+#[must_use]
+pub fn reaches_caller_frame(body: &Script, params: &[String]) -> bool {
+    let info = collect_upvar_targets(body, params);
+    !info.is_empty() || !info.unnameable_local_aliases.is_empty()
+}
+
 /// Collect the per-proc frame-effect summary from a proc body.
 ///
 /// `params` is the proc's parameter list (used to gate
@@ -481,7 +524,11 @@ fn record_upvar_call(
         i += 2;
         if !is_literal_name(dst) {
             // Dynamic destination — can't classify.  Caller-side
-            // analysis falls back to the dynamic-barrier path.
+            // analysis falls back to the dynamic-barrier path.  The alias
+            // is still real, so record the structural fact for
+            // [`reaches_caller_frame`]; the resolvable buckets, and
+            // therefore every existing consumer, are untouched.
+            info.unnameable_local_aliases.insert(src.to_string());
             continue;
         }
         if is_literal_name(src) {

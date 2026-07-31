@@ -117,12 +117,18 @@ oo::class create ::A {
 }
 ```
 
-One further whole-module gate: if **any** method body in the module can reach
-its caller's frame (an `upvar 1`, or an `uplevel`), no method body's locals are
-propagated at all. A proc callee that does this is modelled per call site, but
-a method reached through `my` / `next` / an object dispatch is not — the
-dispatch does not name it — so the conservative answer is to switch the
-propagation off module-wide.
+One further whole-module gate, on the principle that an incomplete picture of
+what a `my` / `next` dispatch can do means no method body's locals are
+propagated anywhere in the module. It fires when any method body can reach its
+caller's frame (an `upvar` at any level above the current one, or an `uplevel`
+— counted whatever the dynamism of the names involved, since a computed name is
+more dangerous, not less), or when any method was redefined (the lowering keeps
+only the first body, so a replacement is invisible to every scan). A proc
+callee that reaches its caller is modelled per call site; a method reached
+through `my` is not, because the dispatch does not name it. `global` /
+`variable` / `namespace upvar` reach a namespace rather than a caller frame and
+deliberately do not trip the gate. See the "evidence rules" section of
+`docs/design/compiler/sccp-core-analyses.md`.
 
 ## Safety conditions
 
@@ -146,7 +152,8 @@ Toggle the optimiser profile in your editor settings. See the
 ## File-path anchors
 
 - `rust/tcl-compiler/src/optimiser/propagation.rs` — `fold_builtin_cmd_subst_raw`, and `run_oo_method_folds` / `oo_frame_for` / `oo_context_fact_fold` / `oo_method_constants` / `methods_reach_caller_frames` for the method-frame half
-- `rust/tcl-compiler/src/var_observability.rs` — `VarObservability::has_caller_frame_alias`
+- `rust/tcl-compiler/src/cfg_builder/upvar_info.rs` — `reaches_caller_frame` (the barrier's caller-frame evidence)
+- `rust/tcl-compiler/src/lowering/mod.rs` — `Lowerer::class_instance_vars` (per-class instance-variable union across definition blocks)
 - `rust/tcl-registry/src/commands/tcl/namespace_.rs` — `fold_qualifiers` / `fold_tail` and the oracle table
 - `rust/tcl-registry/src/spec.rs` — `CommandSpec::oo_context_facts`, `OoContextFact` (with the oracle transcript)
 - `rust/tcl-registry/src/commands/tcl/oo_self.rs` — `self`'s declaration

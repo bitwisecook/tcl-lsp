@@ -909,45 +909,59 @@ fn oo_frame_for(
     })
 }
 
-/// Whether *any* `TclOO` method body in this module can reach into the local
-/// frame of whoever called it — an `upvar N>=1` alias
-/// ([`crate::var_observability::VarObservability::has_caller_frame_alias`]) or
-/// a [`Traits::EVALUATES_IN_SHIFTED_FRAME`](tcl_registry::Traits) call
-/// (`uplevel`).
+/// Whether the module supplies **incomplete evidence** about what a `my` /
+/// `next` / object dispatch out of a method body can do to that body's private
+/// locals — the whole-module gate on method-body variable propagation (issue
+/// #1097, hardened by the #1096/#1097 review's three findings).
 ///
-/// The whole-module gate on method-body variable propagation (issue #1097).  A
-/// *proc* callee that does this is modelled per-call-site — the CFG builder
-/// widens the caller's defs at every call to a name in
+/// A *proc* callee is modelled per call site: the CFG builder widens the
+/// caller's defs at every call to a name in
 /// [`crate::cfg_builder::detect_upvar_procs`]'s table, and method CFGs are
-/// built with that table threaded in — but a **method** reached through `my`,
-/// `next`, or an object dispatch is not in that table and cannot be, since the
-/// dispatch does not name it.  So `method a {} {set ns X; my b; use $ns}` with
-/// `method b {} {upvar 1 ns n; set n Y}` would silently mis-propagate.
-/// Abstain-toward-no-fold: when any method body could do it, no method body's
-/// locals are propagated.
+/// built with that table threaded in.  A **method** reached through `my`,
+/// `next`, or an object dispatch is not in that table and cannot be, because
+/// the dispatch never names its target.  So the barrier has to be answered
+/// from whole-module evidence instead, and the governing rule is: *when the
+/// evidence is incomplete, widen to abstention.*  Two sources make it
+/// incomplete:
+///
+/// * **A method body that can reach its caller's frame.**
+///   [`reaches_caller_frame`](crate::cfg_builder::upvar_info::reaches_caller_frame)
+///   is the complete structural query — it counts an `upvar` alias whatever
+///   the dynamism of either side of the pair, an `uplevel` script running in
+///   the caller, and any level it cannot place.  It is deliberately *not*
+///   `var_observability`'s per-variable alias lattice: that route
+///   (`upvar_local_declaration_indices`) skips a pair when either side starts
+///   with `$`, so `method helper {src} {upvar 1 $src b; set b 2}` — which
+///   mutates its caller's variable on every call — read as "no caller-frame
+///   alias".  A dynamic name makes an alias *more* dangerous, never exempt.
+///   Oracle (identical on tclsh 9.0.4 and 8.6.14): that helper, called from
+///   `method m {} {set x 1; set src x; my helper $src; puts $x}`, prints `2`.
+///
+/// * **A method that was redefined.**  The lowering keeps the *first* body and
+///   records only the name in [`crate::ir::Module::redefined_methods`], so a
+///   replacement body is invisible to every scan above — including the
+///   caller-frame query, which would be inspecting the wrong body.  An
+///   initially-empty helper later redefined as `{upvar 1 x y; set y 2}` is
+///   otherwise undetectable.  Oracle (9.0.4 and 8.6.14): prints `2`.
+///
+///   Scoped to the whole module rather than to the redefined method's own
+///   class on purpose: `my` dispatches along the MRO, so a replaced method in
+///   a *superclass* is reachable from a subclass's body, and a per-class kill
+///   switch would miss exactly that.  Redefinition is rare, so the precision
+///   cost is small and the soundness argument does not depend on an MRO the
+///   optimiser does not compute here.
 ///
 /// Flow-insensitive and whole-module for the same reason
 /// [`crate::command_binding::ModuleCommandMutations::trusts`] is: the dispatch
 /// order between methods is not statically known.
-fn methods_reach_caller_frames(cu: &CompilationUnit, registry: &CommandRegistry) -> bool {
-    use tcl_registry::Traits;
-    cu.methods.values().any(|fu| {
-        if crate::var_observability::analyse_var_observability(&fu.cfg, registry)
-            .has_caller_frame_alias()
-        {
-            return true;
-        }
-        fu.cfg.blocks.values().any(|blk| {
-            blk.statements.iter().any(|stmt| {
-                let (Statement::Call { .. } | Statement::Barrier { .. }) = stmt else {
-                    return false;
-                };
-                registry
-                    .get(stmt.canonical_command_or_source())
-                    .is_some_and(|s| s.traits.contains(Traits::EVALUATES_IN_SHIFTED_FRAME))
-            })
-        })
-    })
+fn method_dispatch_evidence_is_incomplete(cu: &CompilationUnit) -> bool {
+    if !cu.ir_module.redefined_methods.is_empty() {
+        return true;
+    }
+    cu.ir_module
+        .methods
+        .values()
+        .any(|m| crate::cfg_builder::upvar_info::reaches_caller_frame(&m.body, &m.params))
 }
 
 /// The method-local constants a method body may propagate, or an empty map
@@ -1025,10 +1039,10 @@ fn oo_method_constants(
 /// empty because the propagation lattice had no model of which names are
 /// object state; [`oo_method_constants`] is that model.
 fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    let Some(registry) = ctx.registry else {
+    if ctx.registry.is_none() {
         return;
-    };
-    let allow_locals = !methods_reach_caller_frames(cu, registry);
+    }
+    let allow_locals = !method_dispatch_evidence_is_incomplete(cu);
     // Sorted so the emitted rewrite order is deterministic across runs
     // (`ir_module.methods` is a `HashMap`).
     let mut qnames: Vec<&String> = cu.ir_module.methods.keys().collect();
