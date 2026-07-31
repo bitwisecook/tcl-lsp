@@ -2185,6 +2185,86 @@ mod tests {
     }
 
     #[test]
+    fn obj_method_completion_survives_a_self_scoped_unexport_of_the_same_name() {
+        // Issue #1098 — the user-visible symptom of the un-sided visibility
+        // flip: a class-object-side `unexport bark` also un-exported the
+        // instance method of the same name, and instance completion (which
+        // keeps only `visibility == "public"`) then dropped `bark` entirely.
+        // Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
+        //   oo::class create C { method m {} {return inst-m}
+        //                        self { method m {} {return class-m}
+        //                               unexport m } }
+        //   info class methods ::C  -> m        (instance side still exported)
+        //   [::C new] m             -> inst-m   (still dispatches)
+        let src = "oo::class create Dog {\n    method bark {} {}\n    self {\n        method bark {} {}\n        unexport bark\n    }\n}\nset d [Dog new]\n$d \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$d ` on line 8.
+        let items = completions(src, 8, 3, &analysis, Some(&registry), None, "tcl9.0");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"bark"),
+            "a `self`-scoped unexport must not hide the instance method: {labels:?}",
+        );
+    }
+
+    #[test]
+    fn class_command_completion_honours_a_self_scoped_unexport() {
+        // Issue #1098, the class-side half. A `self`-scoped `unexport` used to
+        // be ignored outright (the abstention #1095 pinned), so the class
+        // command still offered a member `::Counter m` rejects at runtime;
+        // routing the flip to the class-object side makes it honour it.
+        let hidden = "oo::class create Counter {\n    self {\n        method m {} {}\n        unexport m\n    }\n}\nCounter \n";
+        let shown =
+            "oo::class create Counter {\n    self {\n        method m {} {}\n    }\n}\nCounter \n";
+        let registry = CommandRegistry::build_default();
+        for (src, line, want) in [(hidden, 6, false), (shown, 5, true)] {
+            let analysis = analyse(src);
+            let items = completions(src, line, 8, &analysis, Some(&registry), None, "tcl9.0");
+            let offered = items
+                .iter()
+                .any(|i| i.label == "m" && i.detail.as_deref().unwrap_or("").contains("::Counter"));
+            assert_eq!(offered, want, "{src}");
+        }
+    }
+
+    #[test]
+    fn class_command_completion_ignores_an_unwrapped_unexport() {
+        // Issue #1098, the mirror direction (and a real false positive the
+        // un-sided setter caused): an *unwrapped* `unexport` acts on the
+        // instance side, so a class-object-side member of that name keeps its
+        // exported state. Oracle: `oo::class create E2 { self { method
+        // onlyclass {} {…} } }; oo::define E2 { unexport onlyclass }` leaves
+        // `info object methods ::E2` -> onlyclass and `::E2 onlyclass` -> oc.
+        let src = "oo::class create Counter {\n    self {\n        method onlyclass {} {}\n    }\n}\noo::define Counter {\n    unexport onlyclass\n}\nCounter \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 8, 8, &analysis, Some(&registry), None, "tcl9.0");
+        assert!(
+            items.iter().any(|i| i.label == "onlyclass"),
+            "an instance-side unexport must not hide a class-side method: {:?}",
+            items.iter().map(|i| &i.label).collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_omits_an_unwrapped_deleted_method() {
+        // Issue #1101 — the same provider, destructive half. An unwrapped
+        // `deletemethod` removes the instance method in real Tcl, so offering
+        // it would complete a name the interpreter does not have.
+        let src = "oo::class create Dog {\n    method bark {} {}\n    method sit {} {}\n    deletemethod bark\n}\nset d [Dog new]\n$d \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 6, 3, &analysis, Some(&registry), None, "tcl9.0");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"sit"), "sibling missing: {labels:?}");
+        assert!(
+            !labels.contains(&"bark"),
+            "deleted method must not be offered: {labels:?}",
+        );
+    }
+
+    #[test]
     fn obj_method_completion_filters_by_partial() {
         let src = "oo::class create Dog {\n    method bark {} {}\n    method beg {} {}\n    method sit {} {}\n}\nset d [Dog new]\n$d b\n";
         let analysis = analyse(src);

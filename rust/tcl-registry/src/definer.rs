@@ -71,6 +71,65 @@ pub enum MemberRefKind {
     Method,
 }
 
+/// Which of a retracting member's arguments name members it **removes**.
+///
+/// `deletemethod a b` removes every name it is given; `renamemethod OLD NEW`
+/// removes only `OLD` — `NEW` is the name the member *arrives* under, so a
+/// consumer that treated it as retracted would suppress a live member (and,
+/// across documents, one another file legitimately declares).  Keeping the
+/// shape as registry data means the walker never learns that `renamemethod`'s
+/// second word is special by matching the keyword.
+///
+/// Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
+///
+/// ```tcl
+/// oo::class create ::I3 { method old {} {…} ; renamemethod old new }
+/// info class methods ::I3    ;# -> new       (`new` is live, `old` is gone)
+/// [::I3 new] new             ;# -> o
+/// ::I3 old                   ;# -> unknown method "old"
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberRetraction {
+    /// Every argument names a member that is removed (`deletemethod a b`).
+    EveryArgument,
+    /// Only the first argument is removed; the rest name the result
+    /// (`renamemethod OLD NEW`).
+    FirstArgument,
+}
+
+/// The visibility a member word imposes on the members its arguments name.
+///
+/// The sibling of [`MemberSpec::retraction`] for the *other* kind
+/// of effect a [`MemberRefKind::Method`] member can have on a member it names:
+/// `deletemethod` / `renamemethod` remove it, `export` / `unexport` change
+/// whether it is callable from outside, and `filter` does neither.  Keeping it
+/// as registry data means a consumer never matches `"export"` / `"unexport"` by
+/// name, so a definition grammar for another class system can declare an
+/// equivalent member word and every consumer picks it up unchanged.
+///
+/// Oracle for the `TclOO` pair, byte-identical on tclsh 9.0.4 and 8.6.14:
+///
+/// ```tcl
+/// oo::class create ::F1 { method m {} {…} ; unexport m }
+/// info class methods ::F1                 ;# -> {}          (not callable)
+/// info class methods ::F1 -all -private   ;# -> … m …       (still defined)
+/// [::F1 new] m                            ;# -> unknown method "m"
+/// oo::class create ::H1 { self { method lower {} {…} ; unexport lower ; export lower } }
+/// info object methods ::H1                ;# -> lower       (last writer wins)
+/// ```
+///
+/// Naming a member that does not exist on the side the word is scoped to is a
+/// **silent no-op**, not the hard error a retracting word raises: `oo::class
+/// create ::E { method onlyinst {} {…} } ; oo::define ::E { self unexport
+/// onlyinst }` succeeds and leaves `onlyinst` exported on the instance side.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberVisibility {
+    /// The named members become callable from outside the object (`export`).
+    Exported,
+    /// The named members become callable only through `my` (`unexport`).
+    Unexported,
+}
+
 /// One member sub-keyword of a definition body, with the argument roles a
 /// walker should apply to its call.  `arg_roles` indices are 0-based *after*
 /// the member keyword itself (`method NAME PARAMS BODY` →
@@ -105,8 +164,8 @@ pub struct MemberSpec {
     /// not exist in the 8.6 `TclOO` definition grammar — so a document using it
     /// under an older core is flagged rather than silently accepted.
     pub dialects: Option<crate::dialects::DialectSet>,
-    /// Whether this member **removes** the members its arguments name, rather
-    /// than merely referring to them.
+    /// How this member **removes** the members its arguments name, or `None`
+    /// when it merely refers to them.
     ///
     /// Distinguishes `deletemethod m` / `renamemethod old new` from the other
     /// [`MemberRefKind::Method`] members (`export` / `unexport` / `filter`),
@@ -132,7 +191,22 @@ pub struct MemberSpec {
     /// `oo::class create ::C3 { self { deletemethod ghost ; method ghost {} {…} } }`
     /// fails with `method ghost does not exist` and no class is created at all
     /// (same on both interpreters), as does deleting a never-declared name.
-    pub retracts_named_members: bool,
+    ///
+    /// Which arguments a retracting member removes is [`MemberRetraction`]:
+    /// `deletemethod` removes every name it is given, `renamemethod` only its
+    /// first.
+    pub retraction: Option<MemberRetraction>,
+    /// The visibility this member imposes on the members its arguments name,
+    /// or `None` when it has no visibility effect.
+    ///
+    /// The other half of the "what does this member word do to a method it
+    /// names" question [`Self::retraction`] answers: `export` /
+    /// `unexport` carry a [`MemberVisibility`], `deletemethod` /
+    /// `renamemethod` retract, and `filter` — the third
+    /// [`MemberRefKind::Method`] member — does neither, merely referring.  A
+    /// consumer that records members reads this instead of matching the
+    /// keyword, so the effect travels with the grammar.
+    pub visibility_effect: Option<MemberVisibility>,
 }
 
 impl MemberSpec {
@@ -147,7 +221,8 @@ impl MemberSpec {
             kind: MemberKind::Flat,
             wrapper_block_body: false,
             dialects: None,
-            retracts_named_members: false,
+            retraction: None,
+            visibility_effect: None,
         }
     }
 
@@ -163,7 +238,8 @@ impl MemberSpec {
             kind: MemberKind::Flat,
             wrapper_block_body: false,
             dialects: None,
-            retracts_named_members: false,
+            retraction: None,
+            visibility_effect: None,
         }
     }
 
@@ -178,7 +254,8 @@ impl MemberSpec {
             kind: MemberKind::Flat,
             wrapper_block_body: false,
             dialects: None,
-            retracts_named_members: false,
+            retraction: None,
+            visibility_effect: None,
         }
     }
 
@@ -194,7 +271,8 @@ impl MemberSpec {
             kind: MemberKind::Flat,
             wrapper_block_body: false,
             dialects: None,
-            retracts_named_members: false,
+            retraction: None,
+            visibility_effect: None,
         }
     }
 
@@ -211,7 +289,8 @@ impl MemberSpec {
             kind: MemberKind::Wrapper,
             wrapper_block_body: false,
             dialects: None,
-            retracts_named_members: false,
+            retraction: None,
+            visibility_effect: None,
         }
     }
 
@@ -231,7 +310,8 @@ impl MemberSpec {
             kind: MemberKind::Wrapper,
             wrapper_block_body: true,
             dialects: None,
-            retracts_named_members: false,
+            retraction: None,
+            visibility_effect: None,
         }
     }
 
@@ -245,11 +325,19 @@ impl MemberSpec {
     }
 
     /// Mark this member as one that **retracts** the members its arguments
-    /// name (a builder over the constructors above) — see
-    /// [`Self::retracts_named_members`].
+    /// name (a builder over the constructors above) — see [`Self::retraction`].
     #[must_use]
-    const fn retracting(mut self) -> Self {
-        self.retracts_named_members = true;
+    const fn retracting(mut self, retraction: MemberRetraction) -> Self {
+        self.retraction = Some(retraction);
+        self
+    }
+
+    /// Mark this member as one that sets the **visibility** of the members its
+    /// arguments name (a builder over the constructors above) — see
+    /// [`Self::visibility_effect`].
+    #[must_use]
+    const fn visibility(mut self, effect: MemberVisibility) -> Self {
+        self.visibility_effect = Some(effect);
         self
     }
 
@@ -264,7 +352,8 @@ impl MemberSpec {
             kind: MemberKind::FlagKeyed,
             wrapper_block_body: false,
             dialects: None,
-            retracts_named_members: false,
+            retraction: None,
+            visibility_effect: None,
         }
     }
 
@@ -401,9 +490,11 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     MemberSpec::all_refs("superclass", MemberRefKind::Class),
     MemberSpec::all_refs("mixin", MemberRefKind::Class),
     MemberSpec::all_refs("filter", MemberRefKind::Method),
-    MemberSpec::all_refs("export", MemberRefKind::Method),
-    MemberSpec::all_refs("unexport", MemberRefKind::Method),
-    MemberSpec::all_refs("deletemethod", MemberRefKind::Method).retracting(),
+    MemberSpec::all_refs("export", MemberRefKind::Method).visibility(MemberVisibility::Exported),
+    MemberSpec::all_refs("unexport", MemberRefKind::Method)
+        .visibility(MemberVisibility::Unexported),
+    MemberSpec::all_refs("deletemethod", MemberRefKind::Method)
+        .retracting(MemberRetraction::EveryArgument),
     // `forward NAME cmd ?arg…?` declares NAME as a method; the word after it
     // (`cmd`) is the delegated command's name — a first-class command
     // reference the walker records so navigation reaches it, exactly like the
@@ -413,7 +504,8 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     // `renamemethod FROM TO` — both name methods.
     // Both words name methods; the FROM word is retracted (and the TO word is
     // a member this walker does not record), so the whole call retracts.
-    MemberSpec::all_refs("renamemethod", MemberRefKind::Method).retracting(),
+    MemberSpec::all_refs("renamemethod", MemberRefKind::Method)
+        .retracting(MemberRetraction::FirstArgument),
     MemberSpec::keyword_only("definitionnamespace").with_dialects(TCL90_MEMBERS),
     // Structurally irregular — a nested-member wrapper (`self method …`) and a
     // flag-keyed body form (`property … -get/-set …`); their body indices come
@@ -518,3 +610,44 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     members: ITCL_MEMBERS,
     implicit_vars: &["this"],
 };
+
+#[cfg(test)]
+mod tests {
+    use super::{MemberRetraction, MemberVisibility, TCLOO_GRAMMAR};
+
+    /// Every `TclOO` member word that *names* a method carries the effect it has
+    /// on that method as registry data, so no consumer matches the keyword.
+    /// Split three ways, all pinned against tclsh 9.0.4 / 8.6.14 (identical):
+    ///   `export` / `unexport` change visibility and remove nothing;
+    ///   `deletemethod` / `renamemethod` remove and change no visibility;
+    ///   `filter` does neither — it merely refers.
+    #[test]
+    fn method_naming_members_declare_their_effect() {
+        let want = [
+            ("export", Some(MemberVisibility::Exported), None),
+            ("unexport", Some(MemberVisibility::Unexported), None),
+            ("deletemethod", None, Some(MemberRetraction::EveryArgument)),
+            ("renamemethod", None, Some(MemberRetraction::FirstArgument)),
+            ("filter", None, None),
+        ];
+        for (keyword, visibility, retraction) in want {
+            let m = TCLOO_GRAMMAR
+                .member(keyword)
+                .unwrap_or_else(|| panic!("`{keyword}` is a TclOO member"));
+            assert_eq!(m.visibility_effect, visibility, "{keyword} visibility");
+            assert_eq!(m.retraction, retraction, "{keyword} retraction");
+        }
+    }
+
+    /// TN for the flags: a member that declares or recurses must carry neither
+    /// effect, or a walker keyed on them would retract / re-export real
+    /// declarations.
+    #[test]
+    fn declaring_members_carry_no_member_effect() {
+        for keyword in ["method", "constructor", "destructor", "variable", "forward"] {
+            let m = TCLOO_GRAMMAR.member(keyword).expect("member exists");
+            assert_eq!(m.visibility_effect, None, "{keyword}");
+            assert_eq!(m.retraction, None, "{keyword}");
+        }
+    }
+}

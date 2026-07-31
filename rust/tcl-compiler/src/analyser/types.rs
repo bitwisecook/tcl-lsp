@@ -626,6 +626,38 @@ pub struct PropertyDef {
     pub has_setter: bool,
 }
 
+/// Which of a class's two method tables a definition-body member word acts on.
+///
+/// `TclOO` keeps the members a class gives its *instances* ([`ClassDef::methods`])
+/// and the members defined on the class *object* itself
+/// ([`ClassDef::class_methods`], what `self …` targets) in separate tables, and
+/// every member word is scoped to exactly one of them: an unwrapped
+/// `deletemethod` / `unexport` in a class body acts on the instance side, the
+/// same word under `self` acts on the class-object side, and neither reaches
+/// across.  Naming the side explicitly is what stops a class-side `unexport m`
+/// from also un-exporting an identically-named instance method (issue #1098),
+/// and what lets a cross-document retraction record which table it removes from
+/// (issue #1101).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MemberSide {
+    /// [`ClassDef::methods`] — what instances of the class dispatch.
+    Instance,
+    /// [`ClassDef::class_methods`] — what the class object itself dispatches
+    /// (`self method …`, `self { … }`).
+    ClassObject,
+}
+
+impl MemberSide {
+    /// The [`ClassDef`] method table this side names.
+    #[must_use]
+    pub fn table(self, class_def: &mut ClassDef) -> &mut HashMap<String, MethodDef> {
+        match self {
+            Self::Instance => &mut class_def.methods,
+            Self::ClassObject => &mut class_def.class_methods,
+        }
+    }
+}
+
 /// Class definition record.
 ///
 /// The structural fields (`superclasses`, `mixins`, `methods`,
@@ -672,7 +704,29 @@ pub struct ClassDef {
     /// Methods explicitly exported via ``export``.
     pub exports: HashSet<String>,
     /// Methods explicitly unexported via ``unexport``.
+    ///
+    /// Kept **mutually exclusive** with [`Self::exports`] — each set records the
+    /// last explicit writer for a name, and the cross-file consumer
+    /// (`workspace_index::method_dispatch_chain`) reads any `exports` entry as
+    /// decisive, so a name left in both would advertise a method the interpreter
+    /// rejects.
     pub unexports: HashSet<String>,
+    /// Members this record **retracts** (`deletemethod` / `renamemethod`)
+    /// without itself declaring them — a *tombstone* for a cross-document
+    /// consumer, keyed by member name and the side the retracting word was
+    /// scoped to.
+    ///
+    /// A retraction of a member the same document declares needs no tombstone:
+    /// it already removed the entry from that side's table, and the order within
+    /// one body is known. What cannot be modelled locally is
+    /// `oo::class create ::C { method m … }` in one file and
+    /// `oo::define ::C { deletemethod m }` in another: the second file's
+    /// [`Self::via_define`] stub finds nothing to remove, so without this the
+    /// workspace goes on advertising and resolving `m` even though sourcing the
+    /// extension deletes it (issue #1101 review). Cross-file *order* is
+    /// unprovable, so the tombstone is unordered — exactly as a cross-file
+    /// `oo::define ::C { method extra … }` is an unordered addition today.
+    pub retracted_members: Vec<(String, MemberSide)>,
     /// Names genuinely bareword-callable from any method body of this
     /// class, because ``link`` (``oo::Helpers::link``) installed a
     /// per-object-namespace alias — keyed by the alias name, valued by
@@ -731,6 +785,7 @@ impl Default for ClassDef {
             filters: Vec::new(),
             exports: HashSet::new(),
             unexports: HashSet::new(),
+            retracted_members: Vec::new(),
             linked_members: HashMap::new(),
             doc: String::new(),
             via_define: false,

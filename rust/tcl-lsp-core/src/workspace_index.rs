@@ -76,8 +76,8 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::analyser::class_hierarchy::{build_tail_index, resolve_class_name};
+use tcl_compiler::analyser::{AnalysisResult, MemberSide};
 use tcl_lexer::Span;
 
 /// One proc definition recorded in the workspace index.
@@ -135,6 +135,18 @@ pub struct WorkspaceClass {
     pub exports: Vec<String>,
     /// Methods this record explicitly `unexport`s.
     pub unexports: Vec<String>,
+    /// Members this record **retracts** (`deletemethod` / `renamemethod`)
+    /// without declaring them itself — the cross-document tombstones of
+    /// [`tcl_compiler::analyser::ClassDef::retracted_members`].
+    ///
+    /// A `via_define` stub in another file has no local method table to remove
+    /// from, so without these the workspace keeps advertising a method that
+    /// sourcing the extension deletes (issue #1101 review). Applied as an
+    /// unordered fact, the mirror of the way a cross-file `oo::define ::C {
+    /// method extra … }` is an unordered addition: cross-file load order is not
+    /// knowable from the index, and a retraction of a member the *same*
+    /// document declares never becomes a tombstone in the first place.
+    pub retracted_members: Vec<(String, MemberSide)>,
     /// `true` when this record is a cross-file `oo::define` extension stub
     /// rather than the class's own `oo::class create` site (see
     /// [`tcl_compiler::analyser::ClassDef::via_define`]).  Go-to-definition
@@ -1006,6 +1018,7 @@ impl WorkspaceIndex {
                 methods,
                 exports: sorted_names(&class_def.exports),
                 unexports: sorted_names(&class_def.unexports),
+                retracted_members: class_def.retracted_members.clone(),
                 via_define: class_def.via_define,
                 metaclass: class_def.metaclass.clone(),
             });
@@ -1606,6 +1619,24 @@ impl WorkspaceIndex {
             let any_unexports = records
                 .iter()
                 .any(|c| c.unexports.iter().any(|e| e == method));
+            // A `deletemethod` / `renamemethod` in *another* document's
+            // `oo::define` stub really removes the member (issue #1101 review):
+            //   a.tcl  oo::class create ::C { method m {} {…} }
+            //   b.tcl  oo::define ::C { deletemethod m }
+            //   [::C new] m  ->  unknown method "m"     (9.0.4 / 8.6.14)
+            // so the whole chain for the name is empty, exactly as it is for a
+            // method no record defines. The union is taken per class — a
+            // subclass cannot retract an inherited member (real Tcl: `method …
+            // does not exist`), so a retraction never reaches past the record's
+            // own `class_q`. Only the instance side matters here;
+            // `instance_method` never answers with a class-side member.
+            if records.iter().any(|c| {
+                c.retracted_members
+                    .iter()
+                    .any(|(n, side)| n == method && *side == MemberSide::Instance)
+            }) {
+                continue;
+            }
             for record in records {
                 let Some(m) = record.instance_method(method) else {
                     continue;
@@ -2963,8 +2994,130 @@ mod tests {
     use tcl_compiler::analyser::Analyser;
 
     fn analyse(source: &str) -> AnalysisResult {
+        analyse_as(source, "tcl8.6")
+    }
+
+    fn analyse_as(source: &str, dialect: &str) -> AnalysisResult {
         let mut a = Analyser::new();
-        a.analyse(source, "tcl8.6").clone()
+        a.analyse(source, dialect).clone()
+    }
+
+    #[test]
+    fn cross_file_define_stub_retraction_removes_the_method_from_dispatch() {
+        // Issue #1101 review. A cross-file `oo::define` stub is already an
+        // additive channel — a `method extra` written in b.tcl dispatches on a
+        // class created in a.tcl — so a `deletemethod` written the same way has
+        // to travel too, or the workspace advertises a method that sourcing the
+        // extension deletes. Oracle, byte-identical on tclsh 9.0.4 / 8.6.14:
+        //   oo::class create ::C { method m {} {…} }
+        //   oo::define ::C { method extra {} {…} }
+        //   oo::define ::C { deletemethod m }
+        //   info class methods ::C  ->  extra
+        //   [::C new] m             ->  unknown method "m": must be destroy or extra
+        //   [::C new] extra         ->  2
+        let a = analyse("oo::class create ::C { method m {} { return 1 } }\n");
+        let b = analyse("oo::define ::C { method extra {} { return 2 } }\n");
+        let d = analyse("oo::define ::C { deletemethod m }\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///d.tcl", &d),
+        ]);
+        // TP: the additive half still resolves (the channel this rides on).
+        let extra = index.method_dispatch_chain("::C", "extra", MethodAccess::External);
+        assert_eq!(
+            extra.iter().map(|c| c.uri.as_str()).collect::<Vec<_>>(),
+            ["file:///b.tcl"],
+            "the cross-file additive channel must keep working",
+        );
+        // TP: the retraction now travels the same way.
+        assert!(
+            index
+                .method_dispatch_chain("::C", "m", MethodAccess::External)
+                .is_empty(),
+            "a cross-file `deletemethod` must remove the method from dispatch",
+        );
+        // …and from internal (`my`) dispatch too — the member is gone, not
+        // merely unexported.
+        assert!(
+            index
+                .method_dispatch_chain("::C", "m", MethodAccess::Internal)
+                .is_empty(),
+        );
+    }
+
+    #[test]
+    fn a_same_document_retraction_does_not_cancel_another_document() {
+        // TN for the tombstone's scope. A retraction of a member the *same*
+        // document declares is applied locally and leaves no tombstone, so a
+        // second document that declares the name keeps it — cross-file order is
+        // not knowable, and suppressing it would be an unsupported guess.
+        let a = analyse(
+            "oo::class create ::C {}\noo::define ::C { method m {} { return 1 }\n deletemethod m }\n",
+        );
+        let b = analyse("oo::define ::C { method m {} { return 2 } }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert_eq!(
+            index
+                .method_dispatch_chain("::C", "m", MethodAccess::External)
+                .iter()
+                .map(|c| c.uri.as_str())
+                .collect::<Vec<_>>(),
+            ["file:///b.tcl"],
+        );
+    }
+
+    #[test]
+    fn a_cross_file_retraction_does_not_reach_an_inherited_provider() {
+        // TN. Deleting a subclass's own override falls back to the superclass's
+        // method rather than erasing the name — and deleting a member the
+        // subclass never declared is a hard error, so a retraction never
+        // crosses a class boundary. Oracle (9.0.4 / 8.6.14, identical):
+        //   oo::class create B { method m {} {return base-m} }
+        //   oo::class create D { superclass B; method m {} {return derived-m} }
+        //   oo::define D { deletemethod m } ; [D new] m  ->  base-m
+        //   oo::define D2 { deletemethod m }             ->  method m does not exist
+        let b = analyse("oo::class create ::B { method m {} { return 1 } }\n");
+        let d = analyse("oo::class create ::D {\n superclass ::B\n method m {} { return 2 }\n}\n");
+        let x = analyse("oo::define ::D { deletemethod m }\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///b.tcl", &b),
+            ("file:///d.tcl", &d),
+            ("file:///x.tcl", &x),
+        ]);
+        assert_eq!(
+            index
+                .method_dispatch_chain("::D", "m", MethodAccess::External)
+                .iter()
+                .map(|c| c.uri.as_str())
+                .collect::<Vec<_>>(),
+            ["file:///b.tcl"],
+            "the superclass's own `m` must still provide the dispatch entry",
+        );
+    }
+
+    #[test]
+    fn a_superseded_export_does_not_outrank_the_last_unexport() {
+        // Issue #1101 review finding 3. `method m {} {}; export m; unexport m`
+        // leaves `m` unexported in real Tcl ([L1 new] m -> unknown method,
+        // 9.0.4 / 8.6.14) — but this chain reads *any* `exports` entry as
+        // decisive, so recording the name in both sets made cross-file
+        // go-to-definition treat a runtime-inaccessible method as public.
+        // Covers the unwrapped spelling and the `private` one Codex cited, in
+        // both writer orders.
+        for (body, dialect, callable) in [
+            ("export m\nunexport m", "tcl8.6", false),
+            ("unexport m\nexport m", "tcl8.6", true),
+            // `private` is a 9.0-only member word.
+            ("private export m\nprivate unexport m", "tcl9.0", false),
+            ("private unexport m\nprivate export m", "tcl9.0", true),
+        ] {
+            let src = format!("oo::class create ::C {{ method m {{}} {{ return 1 }}\n{body} }}\n");
+            let a = analyse_as(&src, dialect);
+            let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
+            let chain = index.method_dispatch_chain("::C", "m", MethodAccess::External);
+            assert_eq!(!chain.is_empty(), callable, "{body}");
+        }
     }
 
     /// A call site at the end of `uri` — the offset only matters to the

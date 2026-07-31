@@ -389,6 +389,70 @@ fn self_block_deleted_member_is_absent_from_the_outline() {
 }
 
 #[test]
+fn unwrapped_deleted_member_is_absent_from_the_outline() {
+    // Issue #1101 — TP, end to end and the user-visible symptom. An
+    // *unwrapped* `deletemethod` (no `self` / `private` wrapper, straight in
+    // an `oo::define` body) really removes the instance method, so a retained
+    // outline entry navigates to a name the interpreter does not have. Oracle
+    // (tclsh 9.0.4 / 8.6.14, identical):
+    //   oo::class create ::I4 { method gone {} {…} ; method kept {} {…} }
+    //   oo::define ::I4 { deletemethod gone }
+    //   info class methods ::I4  ->  kept
+    //   [::I4 new] gone          ->  unknown method "gone"
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create Counter {\n",
+            "    method gone {} { return 1 }\n",
+            "    method kept {} { return 2 }\n",
+            "}\n",
+            "oo::define Counter {\n",
+            "    deletemethod gone\n",
+            "}\n",
+        ),
+    );
+    let syms = top(&mut lsp, &uri);
+    let kids = children(&syms[0]);
+    let names: Vec<&str> = kids.iter().map(name).collect();
+    assert_eq!(
+        names,
+        ["kept"],
+        "stale deleted member in outline: {names:?}"
+    );
+}
+
+#[test]
+fn unwrapped_delete_does_not_reach_the_class_side_of_the_outline() {
+    // Issue #1101 — TN, end to end. The unwrapped word is instance-scoped, so
+    // a class-object-side member of the same name keeps its outline entry.
+    // (Real Tcl makes the cross-side spelling a hard definition-aborting
+    // error — `method cm does not exist` — so nothing is lost by keeping it.)
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create Counter {\n",
+            "    self {\n",
+            "        method cm {} { return 1 }\n",
+            "    }\n",
+            "}\n",
+            "oo::define Counter {\n",
+            "    deletemethod cm\n",
+            "}\n",
+        ),
+    );
+    let syms = top(&mut lsp, &uri);
+    let kids = children(&syms[0]);
+    assert!(
+        kids.iter().any(|c| name(c) == "cm"),
+        "class-side member wrongly retracted: {kids:?}",
+    );
+}
+
+#[test]
 fn self_introspection_inside_a_method_body_adds_no_symbol() {
     // Issue #1081 — TN, end to end. `self class` / `self object` in a method
     // body are introspection calls, not definer members: the outline must show
