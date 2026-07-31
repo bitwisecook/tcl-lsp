@@ -2962,6 +2962,36 @@
             "italic": true
           }
         }
+      },
+      "[tcl]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl-irule]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl-iapp]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl-apl]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl-synopsys]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl-cadence]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl-xilinx]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl-quartus]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl-mentor]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl-expect]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
       }
     },
     "configuration": [
