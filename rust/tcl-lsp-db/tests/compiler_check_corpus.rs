@@ -136,6 +136,48 @@ fn compiler_check_memo_matches_uncached_init() {
     );
 }
 
+/// Focused regression for issue #1117 — the exact file the `cc_diff` repro
+/// names.  `generalClasses.tcl` is ~140 KB of `TclOO`: almost all of its code
+/// lives in *method* bodies, which are not procedures and so never reach
+/// `proc_taint_solve`'s `analysable_functions` loop.  That query's top-up over
+/// `analysable_methods_and_body_units` used to run only `shimmer_family_checks`
+/// instead of the whole `function_nontaint_checks` family, so the memoised path
+/// reported 20 fewer `O100`/`O105`/`O106` hints than the direct build.  The
+/// procedural `tmp/tcl*/library` + `tcllib` sweep below cannot see this: those
+/// trees define practically no `TclOO` methods.
+///
+/// Corpus-gated (`experiments/corpus/fetch_corpus.sh`), so it skips when the
+/// checkout is absent, exactly like the `tmp/` fixtures above.
+#[test]
+fn compiler_check_memo_matches_uncached_tcloo_corpus() {
+    let dialect = "tcl8.6";
+    let path = repo_root().join("experiments/corpus/georgtree/SpiceGenTcl/src/generalClasses.tcl");
+    let Ok(src) = std::fs::read_to_string(&path) else {
+        eprintln!("skip: {} not present", path.display());
+        return;
+    };
+    let db = TclDatabase::default();
+    let file = SourceFile::new(&db, src.clone(), dialect.to_owned(), None);
+    let got = compiler_check_diagnostics(&db, file, default_config(&db));
+    let registry = db.registry(dialect);
+    let want = compiler_check_diagnostics_uncached(&src, registry, dialect, None, None);
+    assert_eq!(
+        got.checks.len(),
+        want.checks.len(),
+        "generalClasses.tcl check count diverges (memo {} vs uncached {}) — #1117",
+        got.checks.len(),
+        want.checks.len()
+    );
+    assert_eq!(
+        got.checks, want.checks,
+        "generalClasses.tcl checks diverge (memo vs uncached) — #1117"
+    );
+    assert_eq!(
+        got.optimisations, want.optimisations,
+        "generalClasses.tcl optimisations diverge (memo vs uncached)"
+    );
+}
+
 #[test]
 #[ignore = "slow corpus sweep (~100s over tmp/); run with --ignored"]
 fn compiler_check_memo_matches_uncached_over_corpus() {
