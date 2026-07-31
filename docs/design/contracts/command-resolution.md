@@ -168,8 +168,12 @@ not change the rule, and must not grow bespoke resolution logic. Every
     raises the same error and leaves `origin` at `::A::p`, while `-force`
     makes it `::B::p` and a preceding `namespace forget` lets the unforced one
     through (all pinned). Re-importing from the *same* source is a silent
-    no-op, not a conflict (pinned). Statically the "installed nothing" /
-    "replaced what was there" halves are both modelled; the error's
+    no-op, not a conflict (pinned). Which of the two ran first is **load
+    order**, not written order: a body-local `namespace import ::B::x` loses to
+    a top-level `namespace import ::A::*` written below it, because the file
+    loads before any body runs — `namespace origin ::dst::x` → `::A::x` and the
+    body's import raises `already exists` (pinned). Statically the "installed
+    nothing" / "replaced what was there" halves are both modelled; the error's
     *control-flow* consequence (nothing after it in that script runs) is
     deliberately out of scope.
   - **Redefining the imported name ends the alias.** A `proc ::dst::p` written

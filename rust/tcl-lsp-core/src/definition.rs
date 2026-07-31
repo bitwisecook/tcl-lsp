@@ -2784,11 +2784,42 @@ fn live_import_at(
 }
 
 /// Every [`SlotEvent`] bearing on `<importing_ns>::<word>` in this document,
-/// in source order.
+/// in **execution** order.
 ///
 /// Ordering the four record kinds against each other once, here, is what lets
 /// [`live_import_at`] answer the conflict question and the call-site question
 /// with the same log instead of two ad-hoc scans.
+///
+/// # Why not source order
+///
+/// The whole file loads — running every top-level statement — before any
+/// proc/class body runs, so a top-level statement written *below* a
+/// body-local one still happens first. That is the same load-order rule
+/// [`indirection::in_effect`] states pointwise; sorted here it is the total
+/// order the conflict fold needs. Oracle, byte-identical on tclsh 8.6.14 and
+/// 9.0.4:
+///
+/// ```tcl
+/// namespace eval ::A { proc x {} {return A}; namespace export x }
+/// namespace eval ::B { proc x {} {return B}; namespace export x }
+/// namespace eval ::dst { proc p {} { namespace import ::B::x } }
+/// namespace eval ::dst { namespace import ::A::* }
+/// namespace origin ::dst::x   ;# → ::A::x
+/// ::dst::p                    ;# → can't import command "x": already exists
+/// namespace origin ::dst::x   ;# → ::A::x   (unchanged)
+/// ```
+///
+/// Folding that log in raw offset order got *both* halves wrong: it let the
+/// body-local `::B` import install, and then conflicted the top-level `::A`
+/// one away. Within one tier — all top level, or all inside one body — the
+/// key degenerates to the offset comparison it replaces, so genuinely
+/// sequenced statements are unaffected. Two events in *different* bodies have
+/// no static order either way; they keep their offset order, as before.
+///
+/// The workspace tier reaches the same answer through
+/// `WildcardImportIndex::conflicting_alias_at`, which asks
+/// [`indirection::in_effect_within`] per candidate rather than sorting a log —
+/// same rule, stated over the facts each tier holds.
 fn slot_events<'a>(
     analysis: &'a AnalysisResult,
     importing_ns: &str,
@@ -2867,7 +2898,18 @@ fn slot_events<'a>(
     {
         events.push(SlotEvent::Declare { at });
     }
-    events.sort_by_key(|ev| ev.at());
+    // Load level first, then bodies — see the doc comment. The key is the one
+    // the cross-document tier compares its two import sites with, so neither
+    // can drift. `sort_by_cached_key` because the body test is a scan of the
+    // recorded definition bodies, so it must run once per event, not once per
+    // comparison. Equal offsets imply equal body-ness, so the dedup below
+    // still sees its duplicates adjacent.
+    events.sort_by_cached_key(|ev| {
+        crate::namespace_import::load_order(
+            ev.at(),
+            analysis.offset_is_inside_any_definition_body(ev.at()),
+        )
+    });
     events.dedup_by_key(|ev| (ev.at(), std::mem::discriminant(ev)));
     events
 }
@@ -4419,6 +4461,48 @@ mod tests {
         assert!(
             hit.is_some_and(|p| p.qualified_name == "::B::p"),
             "a `-force` import replaces a live alias too: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_body_local_import_conflicts_with_a_later_top_level_import() {
+        // TN (CRITICAL) — the in-document twin of the workspace tier's own
+        // check: which import installs is decided in *execution* order, not
+        // written order. Oracle, byte-identical on tclsh 8.6.14 and 9.0.4:
+        //
+        //   namespace eval ::dst { proc p {} { namespace import ::B::x } }
+        //   namespace eval ::dst { namespace import ::A::* }
+        //   namespace origin ::dst::x  -> ::A::x
+        //   ::dst::p                   -> can't import command "x": already exists
+        //   namespace origin ::dst::x  -> ::A::x   (unchanged)
+        //
+        // The whole file loads before any body runs, so the top-level `::A`
+        // import owns the name and the body-local `::B` one installs nothing.
+        // Folding the slot log in raw offset order got both halves wrong: it
+        // installed `::B` and then conflicted `::A` away.
+        let src = "namespace eval A {\n    proc p {} { return AP }\n    namespace export p\n}\nnamespace eval B {\n    proc p {} { return BP }\n    namespace export p\n}\nnamespace eval dst {\n    proc runner {} { namespace import ::B::p }\n}\nnamespace eval dst {\n    namespace import ::A::*\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::A::p"),
+            "the top-level import runs first and the body-local one installs \
+             nothing: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_later_import_in_the_same_body_still_loses_to_the_earlier_one() {
+        // TN guard — inside one body the offsets *are* execution order again.
+        // Oracle: `proc q {} { namespace import ::A::* ; namespace import
+        // ::B::p }` → the first succeeds, the second raises `already exists`,
+        // `namespace origin` stays `::A::p`.
+        let src = "namespace eval A {\n    proc p {} { return AP }\n    namespace export p\n}\nnamespace eval B {\n    proc p {} { return BP }\n    namespace export p\n}\nnamespace eval dst {\n    proc q {} { namespace import ::A::* ; namespace import ::B::p }\n}\n";
+        let analysis = analyse(src);
+        let call = after_last(src, "namespace import ::B::p");
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", call);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::A::p"),
+            "the second import of the same body installs nothing: {hit:?}"
         );
     }
 

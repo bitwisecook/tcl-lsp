@@ -119,6 +119,21 @@ kind made the rule directional).  A same-source re-import is a silent no-op,
 never a conflict, and two imports in different documents have no static load
 order and do not conflict at all.
 
+"Earlier" is **load order**, not byte offset
+(`tcl_lsp_core::namespace_import::load_order`, shared with the same-document
+tier's slot-log fold): a load-level statement runs before every body of its
+file however far below it is written, a body-local one never counts as having
+run at load level, and within one tier the key degenerates to the offset
+comparison it replaces.  A raw offset test let a body-local import install over
+a top-level one written after it — oracle (8.6.14 / 9.0.4): with `proc p {}
+{namespace import ::B::x}` in `::dst` followed by a top-level `namespace import
+::A::*`, `namespace origin ::dst::x` is `::A::x` and `::dst::p` raises `can't
+import command "x": already exists`.  This is deliberately *not*
+`in_effect_within`, the primitive the lifecycle checks use: that one counts an
+event in a body that may never run, which is the safe direction for a removal
+and the unsafe one for a conflict — it would make both imports above cancel
+each other and the name resolve nowhere.
+
 A pattern rooted at the global namespace (`namespace import ::p`,
 `namespace import ::*`) splits to an *empty* source namespace, which both tiers
 once read as "no source" and skipped — the last import shape that bypassed the

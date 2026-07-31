@@ -2944,6 +2944,29 @@ impl<'a> WildcardImportIndex<'a> {
     /// would drop an alias Tcl really installed. A **same-source** re-import
     /// is a silent no-op (oracle), never a conflict — which is also what stops
     /// an import from conflicting with itself.
+    ///
+    /// Within that document the order is
+    /// [`crate::namespace_import::load_order`], shared with the same-document
+    /// resolver's slot-log fold. A raw `other.at < site.at` was wrong for
+    /// exactly the shape this whole family exists to model: a **body-local**
+    /// import is not ordered against a top-level import of its own file by
+    /// offset at all, because the file loads — running every top-level
+    /// statement, imports included — before any body runs, so the top-level
+    /// one owns the name however far below it is written (oracle transcript on
+    /// `load_order`). The offset comparison saw `::A` written *later* and let
+    /// the body-local `::B` import install, so navigation answered a source
+    /// the program never reaches.
+    ///
+    /// It is deliberately **not**
+    /// [`tcl_compiler::analyser::indirection::in_effect_within`], the
+    /// primitive the lifecycle check below runs on: that one is lenient about
+    /// events in bodies that may never run, which is the safe direction for a
+    /// *removal* and the unsafe one for a conflict — applied here it made the
+    /// two imports above cancel each other and the name resolve nowhere.
+    /// [`crate::namespace_import::load_order`] carries the reasoning.
+    ///
+    /// Self-exclusion survives the swap for free: an import's own key is never
+    /// less than itself, so it still cannot conflict with itself.
     fn conflicting_alias_at(
         &self,
         ns: &str,
@@ -2951,11 +2974,13 @@ impl<'a> WildcardImportIndex<'a> {
         name: &str,
         site: ImportSite<'_>,
     ) -> bool {
+        use crate::namespace_import::load_order;
         let call = CallSite {
             uri: site.uri,
             at: site.at,
             enclosing_body: site.enclosing_body,
         };
+        let here = load_order(site.at, site.enclosing_body.is_some());
         let mut earlier = self
             .imports_by_ns
             .get(ns)
@@ -2975,7 +3000,7 @@ impl<'a> WildcardImportIndex<'a> {
             );
         earlier.any(|(other_source, other_site)| {
             other_site.uri == site.uri
-                && other_site.at < site.at
+                && load_order(other_site.at, other_site.enclosing_body.is_some()) < here
                 && !ns_eq(other_source, source_ns)
                 && self.exports_name_at(other_source, name, other_site)
                 && self.alias_live_at(ns, other_source, name, other_site, call)
@@ -4623,6 +4648,110 @@ mod tests {
             ("file:///dst.tcl", &dst),
         ]);
         assert_eq!(index.resolve_command_target("::dst::p"), "::B::p");
+    }
+
+    #[test]
+    fn a_body_local_import_conflicts_with_a_later_top_level_import() {
+        // TN (CRITICAL) — the conflict check must order the two imports the
+        // way they *run*, not the way they are written. Oracle, byte-identical
+        // on tclsh 8.6.14 and 9.0.4:
+        //
+        //   namespace eval ::A { proc x {} {return A}; namespace export x }
+        //   namespace eval ::B { proc x {} {return B}; namespace export x }
+        //   namespace eval ::dst { proc p {} { namespace import ::B::x } }
+        //   namespace eval ::dst { namespace import ::A::* }
+        //   namespace origin ::dst::x  -> ::A::x   (after load)
+        //   ::dst::p                   -> can't import command "x": already exists
+        //   namespace origin ::dst::x  -> ::A::x   (unchanged)
+        //
+        // The whole file loads before any body runs, so the top-level `::A`
+        // glob import owns the name by the time `p`'s body-local `::B` import
+        // executes — and that one installs nothing. A plain offset compare
+        // sees `::A` written *later* and lets `::B` install.
+        let (a, b) = two_exporting_sources();
+        let dst = analyse(
+            "namespace eval ::dst {\n    proc runner {} { namespace import ::B::p }\n}\nnamespace eval ::dst {\n    namespace import ::A::*\n}\np\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///dst.tcl", &dst),
+        ]);
+        assert_ne!(
+            index.resolve_command_target("::dst::p"),
+            "::B::p",
+            "the body-local import runs after the top-level one and installs nothing",
+        );
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "p",
+                    &["::dst::p".to_string(), "::p".to_string()],
+                    call_from("file:///dst.tcl"),
+                )
+                .as_deref(),
+            Some("::A::p"),
+            "the top-level glob import is the edge the name really has",
+        );
+    }
+
+    #[test]
+    fn a_top_level_import_is_not_conflicted_by_a_later_top_level_one() {
+        // TN guard — at load level the offsets *are* execution order, so the
+        // first import still wins and the second is the one that installs
+        // nothing. Oracle (8.6.14 / 9.0.4): after `namespace import ::A::*`
+        // then `namespace import ::B::p`, the second raises `can't import
+        // command "p": already exists` and `namespace origin ::dst::p` stays
+        // `::A::p`. Making the check body-aware must not reorder these.
+        let (a, b) = two_exporting_sources();
+        let dst = analyse(
+            "namespace eval ::dst {\n    namespace import ::A::*\n}\nnamespace eval ::dst {\n    namespace import ::B::p\n}\np\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///dst.tcl", &dst),
+        ]);
+        assert_ne!(index.resolve_command_target("::dst::p"), "::B::p");
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "p",
+                    &["::dst::p".to_string(), "::p".to_string()],
+                    call_from("file:///dst.tcl"),
+                )
+                .as_deref(),
+            Some("::A::p"),
+        );
+    }
+
+    #[test]
+    fn a_later_import_in_the_same_body_has_not_run_yet() {
+        // TN guard, the other half — inside one body the offsets are genuine
+        // execution order again. Oracle (8.6.14 / 9.0.4): `proc q {} {
+        // namespace import ::A::* ; namespace import ::B::p }` → the first
+        // succeeds, the second raises `already exists`, origin stays `::A::p`.
+        // So the *first* must not be conflicted away by the second.
+        let (a, b) = two_exporting_sources();
+        let dst = analyse(
+            "namespace eval ::dst {\n    proc q {} { namespace import ::A::* ; namespace import ::B::p }\n}\np\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///dst.tcl", &dst),
+        ]);
+        assert_ne!(index.resolve_command_target("::dst::p"), "::B::p");
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "p",
+                    &["::dst::p".to_string(), "::p".to_string()],
+                    call_from("file:///dst.tcl"),
+                )
+                .as_deref(),
+            Some("::A::p"),
+        );
     }
 
     #[test]

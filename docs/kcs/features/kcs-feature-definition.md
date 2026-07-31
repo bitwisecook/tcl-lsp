@@ -104,7 +104,10 @@ call still reaches the *local* definition, and Go to Definition stays on it.
 second unforced import of the same name from a different namespace fails too,
 and navigation keeps answering the first source — whichever way round the two
 were spelled, `namespace import ::A::*` then `namespace import ::B::p` or the
-other way about. With `-force` the import
+other way about. "First" is the order they *run*, not the order they are
+written: an import inside a proc body loses to a top-level import of the same
+name anywhere in that file, even one written below it, because the file loads
+before any body runs. With `-force` the import
 replaces whatever was there, and from that point on the same bare call jumps
 to the **source** instead — until a `proc` of that name is written, which
 silently takes the name back and sends navigation to the new local

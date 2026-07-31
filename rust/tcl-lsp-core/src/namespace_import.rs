@@ -210,6 +210,63 @@ pub fn exported_at_import_site(
     ordered_match || unordered_match
 }
 
+/// The **load-order** position of a statement in its own document: `false`
+/// (load level) sorts before `true` (inside a proc/class body), and within
+/// each tier by byte offset. `load_order(a) < load_order(b)` reads "a had
+/// definitely already run when b ran".
+///
+/// # Why the import-conflict rule needs its own order
+///
+/// [`alias_live_at`]'s query point is a *call*, and its ordering primitive is
+/// [`tcl_compiler::analyser::indirection::in_effect_within`], which is
+/// deliberately **lenient**: an event in some other proc's body counts as
+/// having run, because whether that proc was called is not statically
+/// decidable. For a removal that is the safe direction — the conservative
+/// answer is that the alias may be gone.
+///
+/// The conflict question inverts the sign. A conflict *cancels an install*, so
+/// the same leniency invents conflicts and drops aliases the program really
+/// has: applied to
+/// `namespace eval ::dst {proc p {} {namespace import ::B::x}}` followed by a
+/// top-level `namespace import ::A::*`, it makes each import cancel the other
+/// and the name resolves nowhere, where real Tcl binds `::A::x`. What the
+/// conflict rule needs is the *strict* reading — "did this definitely already
+/// run" — which is exactly load order:
+///
+/// | event | query | ran before? |
+/// |---|---|---|
+/// | load level | load level | by offset |
+/// | load level | inside a body | **yes**, wherever written — the file loads first |
+/// | inside a body | load level | **no** — that body may never run |
+/// | same body | same body | by offset |
+///
+/// Two statements in *different* bodies have no static order at all; they keep
+/// their offset order, which is what both tiers did before and what the
+/// enclosing abstentions already assume.
+///
+/// Both tiers order conflicts through this one function — the same-document
+/// resolver by sorting its slot log with it (`definition::slot_events`), the
+/// cross-document one by comparing two sites with it
+/// (`WildcardImportIndex::conflicting_alias_at`) — so neither can drift from
+/// the other, exactly as they share [`exported_at_import_site`] and
+/// [`alias_live_at`].
+///
+/// Oracle for every row, byte-identical on tclsh 8.6.14 and 9.0.4:
+///
+/// ```tcl
+/// namespace eval ::A { proc x {} {return A}; namespace export x }
+/// namespace eval ::B { proc x {} {return B}; namespace export x }
+/// namespace eval ::dst { proc p {} { namespace import ::B::x } }
+/// namespace eval ::dst { namespace import ::A::* }
+/// namespace origin ::dst::x   ;# → ::A::x
+/// ::dst::p                    ;# → can't import command "x": already exists
+/// namespace origin ::dst::x   ;# → ::A::x   (unchanged)
+/// ```
+#[must_use]
+pub fn load_order(at: u32, body_local: bool) -> (bool, u32) {
+    (body_local, at)
+}
+
 /// What one lifecycle event does to an import edge — see [`AliasEvent`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AliasEventKind {
@@ -501,6 +558,38 @@ mod tests {
     fn no_events_means_not_exported() {
         let mut evs = [].into_iter();
         assert!(!exported_at_import_site(&mut evs, "p", &before(20)));
+    }
+
+    // ---- load order, for the conflict rule --------------------------------
+
+    #[test]
+    fn load_order_is_the_strict_did_this_already_run_relation() {
+        const LOAD: bool = false;
+        const BODY: bool = true;
+        let ran_before =
+            |e: (u32, bool), q: (u32, bool)| load_order(e.0, e.1) < load_order(q.0, q.1);
+        // Two load-level statements: plain offset order.
+        assert!(ran_before((10, LOAD), (20, LOAD)));
+        assert!(!ran_before((20, LOAD), (10, LOAD)));
+        // A load-level statement runs before *any* body, however far below it
+        // is written — the whole file loads before any body runs.
+        assert!(ran_before((900, LOAD), (10, BODY)));
+        assert!(ran_before((10, LOAD), (900, BODY)));
+        // …and a body-local statement never counts as having run at load
+        // level, because that body may never be entered. This is where the
+        // lenient `in_effect_within` differs, and why the conflict rule
+        // cannot use it: it would invent a conflict and drop a real alias.
+        assert!(!ran_before((10, BODY), (900, LOAD)));
+        assert!(tcl_compiler::analyser::indirection::in_effect_within(
+            10, 900, None
+        ));
+        // Inside one body the offsets are genuine execution order again.
+        assert!(ran_before((10, BODY), (20, BODY)));
+        assert!(!ran_before((20, BODY), (10, BODY)));
+        // Nothing runs before itself — which is what excludes an import from
+        // conflicting with itself, at either level.
+        assert!(!ran_before((10, LOAD), (10, LOAD)));
+        assert!(!ran_before((10, BODY), (10, BODY)));
     }
 
     // ---- the import edge's own lifecycle (issue #1103) -------------------
