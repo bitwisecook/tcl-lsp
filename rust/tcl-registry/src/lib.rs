@@ -102,7 +102,8 @@ pub mod prelude {
     pub use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
     pub use crate::command_table::CommandTableEffect;
     pub use crate::definer::{
-        DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberRefKind, MemberSpec,
+        DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberRefKind, MemberRetraction,
+        MemberSpec, MemberVisibility,
     };
     pub use crate::dialects::DialectSet;
     pub use crate::events::EventRequires;

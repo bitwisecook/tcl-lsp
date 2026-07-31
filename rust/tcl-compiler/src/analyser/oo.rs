@@ -52,11 +52,15 @@
 
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::arg_role::ArgRole;
-use tcl_registry::definer::{DefinitionBodyGrammar, MemberRefKind, MemberSpec};
+use tcl_registry::definer::{
+    DefinitionBodyGrammar, MemberRefKind, MemberRetraction, MemberSpec, MemberVisibility,
+};
 
 use super::scope::scope_at_mut;
 use super::state::Analyser;
-use super::types::{ClassDef, MethodDef, PropertyDef, Scope, ScopeKind, UnknownProcInfo};
+use super::types::{
+    ClassDef, MemberSide, MethodDef, PropertyDef, Scope, ScopeKind, UnknownProcInfo,
+};
 use super::utils::{param_name_spans_for_token, parse_param_list};
 use crate::ir::{Module, Statement, SwitchMode};
 use crate::signature_scan::types::ParamDef;
@@ -1841,7 +1845,7 @@ fn apply_oo_private(
     retract_named_members(member, inner_args, class_def, MemberSide::Instance);
     // `private unexport m` / `private { … export m … }` flip the *instance*
     // side, exactly as the unwrapped spelling does (oracle below).
-    apply_visibility_member(inner_subcmd, inner_args, class_def, MemberSide::Instance);
+    apply_visibility_member(member, inner_args, class_def, MemberSide::Instance);
     match inner_subcmd {
         "method" => {
             if let Some(md) =
@@ -1866,35 +1870,6 @@ fn apply_oo_private(
     }
 }
 
-/// Which of a class's two method tables a definition-body word acts on.
-///
-/// `TclOO` keeps the members a class gives its *instances* (`ClassDef::methods`)
-/// and the members defined on the class *object* itself (`ClassDef::class_methods`,
-/// what `self …` targets) in separate tables, and every member word is scoped to
-/// exactly one of them: an unwrapped `deletemethod` / `unexport` in a class body
-/// acts on the instance side, the same word under `self` acts on the class-object
-/// side, and neither reaches across. Passing the side explicitly is what stops a
-/// class-side `unexport m` from also un-exporting an identically-named instance
-/// method (issue #1098).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum MemberSide {
-    /// `ClassDef::methods` — what instances of the class dispatch.
-    Instance,
-    /// `ClassDef::class_methods` — what the class object itself dispatches
-    /// (`self method …`, `self { … }`).
-    ClassObject,
-}
-
-impl MemberSide {
-    /// The `ClassDef` method table this side names.
-    fn table(self, class_def: &mut ClassDef) -> &mut std::collections::HashMap<String, MethodDef> {
-        match self {
-            Self::Instance => &mut class_def.methods,
-            Self::ClassObject => &mut class_def.class_methods,
-        }
-    }
-}
-
 /// Drop every member named by a *retracting* member word (`deletemethod m`,
 /// `self renamemethod old new`, `private deletemethod m`) from `side`'s method
 /// table.
@@ -1907,14 +1882,15 @@ impl MemberSide {
 /// that does not exist — a false positive; dropping the renamed-to name is a
 /// false negative, which is the direction this campaign abstains toward.
 ///
-/// Which member words retract is registry data
-/// ([`MemberSpec::retracts_named_members`]), never a keyword matched here —
+/// Which member words retract, and *which of their arguments* they retract, is
+/// registry data ([`MemberSpec::retraction`]), never a keyword matched here —
 /// the sibling [`MemberRefKind::Method`] members (`export` / `unexport` /
-/// `filter`) name a method without removing it and must not retract.
+/// `filter`) name a method without removing it and must not retract, and
+/// `renamemethod OLD NEW` retracts only `OLD` ([`MemberRetraction`]).
 ///
 /// Source order needs no tracking: real Tcl makes retracting a
 /// not-yet-declared member a hard error that aborts the whole definition (see
-/// the oracle on [`MemberSpec::retracts_named_members`]), so the only legal
+/// the oracle on [`MemberSpec::retraction`]), so the only legal
 /// order is declare-then-retract, and a body that violates it never creates a
 /// class for us to describe. That holds for the *unwrapped* spelling too, and
 /// across sides — `oo::class create ::C { self { method cm {} {…} } }` then
@@ -1922,64 +1898,82 @@ impl MemberSide {
 /// (the instance side has no `cm`) and leaves the class-object side's `cm`
 /// intact, on both tclsh 9.0.4 and 8.6.14. So a cross-side retraction never
 /// reaches a live document either.
+///
+/// A name this record does **not** declare leaves a *tombstone* in
+/// [`ClassDef::retracted_members`] instead: that is the cross-document shape —
+/// `oo::class create ::C { method m … }` in one file, `oo::define ::C {
+/// deletemethod m }` in another — where the second file's `via_define` stub has
+/// nothing local to remove, and dropping the retraction on the floor leaves the
+/// workspace advertising a method that sourcing the extension deletes (issue
+/// #1101 review). A retraction of a member the same document declares needs no
+/// tombstone: it removed the entry outright, the order within one body is known,
+/// and exporting it would wrongly cancel a *different* document's redeclaration
+/// of the name, which no ordering evidence supports.
 fn retract_named_members(
     member: &MemberSpec,
     names: &[String],
     class_def: &mut ClassDef,
     side: MemberSide,
 ) {
-    if !member.retracts_named_members {
+    let Some(retraction) = member.retraction else {
         return;
-    }
-    let table = side.table(class_def);
+    };
+    let names = match retraction {
+        MemberRetraction::EveryArgument => names,
+        MemberRetraction::FirstArgument => &names[..names.len().min(1)],
+    };
     for name in names {
-        table.remove(name);
+        if side.table(class_def).remove(name).is_none() {
+            class_def.retracted_members.push((name.clone(), side));
+        }
     }
 }
 
-/// The recorded visibility a member keyword imposes on the members it names,
-/// or `None` when the keyword is not a visibility word at all.
+/// Apply a member word's **visibility effect** — `export` / `unexport` — to the
+/// members it names, scoped to `side`.
 ///
-/// The one place this pairing is spelled out: `apply_oo_subcommand`'s unwrapped
-/// arms and both wrapper routers (`apply_oo_self` / `apply_oo_private`) share it
-/// so the three spellings of the same word cannot drift apart. The registry
-/// supplies the *layout* (`all_args_ref: Method` — every argument names a
-/// method) and marks which method-naming words retract
-/// ([`MemberSpec::retracts_named_members`]); which of the remaining ones export
-/// versus unexport is analyser-local field routing, the same way
-/// `collect_method_body` routes `method` / `classmethod` by keyword.
-fn visibility_effect(keyword: &str) -> Option<&'static str> {
-    match keyword {
-        "export" => Some("public"),
-        "unexport" => Some("unexported"),
-        _ => None,
-    }
-}
-
-/// Apply a visibility member word (`export` / `unexport`) scoped to `side`.
+/// A no-op for a member carrying no effect: which words set visibility is
+/// registry data ([`MemberSpec::visibility_effect`]), never a keyword matched
+/// here, exactly as [`MemberSpec::retraction`] decides which words
+/// retract. The sibling [`MemberRefKind::Method`] member `filter` names a method
+/// and does neither, so it falls through untouched, and a definition grammar for
+/// another class system gets the same handling by declaring the effect on its
+/// own member word.
 ///
-/// A no-op for every other keyword. On the instance side the names also join
-/// the class-level `exports` / `unexports` sets, which consumers read as the
-/// *instance*-side export state (`workspace_index`'s effective-export union over
-/// `instance_method`, `rename_safety`'s "the class declares this name" test);
-/// a class-object-side flip must not enter them or it would silently re-state an
+/// On the instance side the names also update the class-level `exports` /
+/// `unexports` sets, which consumers read as the *instance*-side export state
+/// (`workspace_index::method_dispatch_chain`'s effective-export union over
+/// `instance_method`, `rename_safety`'s "the class declares this name" test); a
+/// class-object-side flip must not enter them or it would silently re-state an
 /// unrelated instance method's export bit.
+///
+/// The two sets are maintained **mutually exclusive**, because each is a record
+/// of the *last* writer for the name and the union consumer reads any `exports`
+/// entry as decisive: `method m {} {…} ; export m ; unexport m` must leave `m`
+/// in `unexports` alone, or cross-file dispatch would keep advertising a method
+/// that `[C new] m` rejects with `unknown method "m"` (tclsh 9.0.4 / 8.6.14).
 fn apply_visibility_member(
-    keyword: &str,
+    member: &MemberSpec,
     names: &[String],
     class_def: &mut ClassDef,
     side: MemberSide,
 ) {
-    let Some(visibility) = visibility_effect(keyword) else {
+    let Some(effect) = member.visibility_effect else {
         return;
     };
+    let visibility = match effect {
+        MemberVisibility::Exported => "public",
+        MemberVisibility::Unexported => "unexported",
+    };
     if side == MemberSide::Instance {
-        let bucket = if visibility == "public" {
-            &mut class_def.exports
-        } else {
-            &mut class_def.unexports
+        let (set, cleared) = match effect {
+            MemberVisibility::Exported => (&mut class_def.exports, &mut class_def.unexports),
+            MemberVisibility::Unexported => (&mut class_def.unexports, &mut class_def.exports),
         };
-        bucket.extend(names.iter().cloned());
+        for name in names {
+            set.insert(name.clone());
+            cleared.remove(name);
+        }
     }
     set_member_visibility(class_def, names, visibility, side);
 }
@@ -2037,7 +2031,7 @@ fn apply_oo_self(
     // `oo::class create E { method onlyinst {} {…} }; oo::define E { self
     // unexport onlyinst }` succeeds and leaves `onlyinst` exported on the
     // instance side. Restricting the flip to this side reproduces both.
-    apply_visibility_member(inner_subcmd, inner_args, class_def, MemberSide::ClassObject);
+    apply_visibility_member(member, inner_args, class_def, MemberSide::ClassObject);
     if !matches!(inner_subcmd, "method" | "classmethod") {
         return;
     }
@@ -2170,7 +2164,7 @@ pub(super) fn apply_oo_subcommand(
     // `renamemethod old new` — written with no `self` / `private` wrapper acts
     // on the instance side, so the class must not keep describing what it
     // deleted (issue #1101). Which words retract is registry data
-    // ([`MemberSpec::retracts_named_members`]), never a keyword matched here;
+    // ([`MemberSpec::retraction`]), never a keyword matched here;
     // the wrapped spellings route to their wrapper's own side in
     // [`apply_oo_self`] / [`apply_oo_private`]. Neither `deletemethod` nor
     // `renamemethod` has a declaring arm in the match below, so this is their
@@ -2184,8 +2178,18 @@ pub(super) fn apply_oo_subcommand(
     //   oo::class create ::I4 { method gone {} {…} }
     //   oo::define ::I4 { deletemethod gone }
     //   info class methods ::I4   ;# -> (empty)
+    //
+    // Its sibling registry effect — the visibility a member word imposes
+    // (`export` / `unexport`, [`MemberSpec::visibility_effect`]) — is applied
+    // the same way and on the same side, so neither word needs an arm of its
+    // own below: unwrapped, both act on the **instance** side only.
+    // `oo::class create E2 { self { method onlyclass {} {…} } }` then
+    // `oo::define E2 { unexport onlyclass }` leaves the class-object side's
+    // `onlyclass` exported and dispatchable on 9.0.4 and 8.6.14 alike
+    // (issue #1098).
     if let Some(m) = member {
         retract_named_members(m, sub_args, class_def, MemberSide::Instance);
+        apply_visibility_member(m, sub_args, class_def, MemberSide::Instance);
     }
 
     match subcmd {
@@ -2251,16 +2255,6 @@ pub(super) fn apply_oo_subcommand(
         }
         "filter" => {
             class_def.filters = sub_args.to_vec();
-        }
-        // Flip already-recorded members to exported / unexported (last explicit
-        // state wins; a later re-`method` resets to the default —
-        // tclsh 9.0.4-pinned). Unwrapped, both act on the **instance** side
-        // only: `oo::class create E2 { self { method onlyclass {} {…} } }`
-        // then `oo::define E2 { unexport onlyclass }` leaves the class-object
-        // side's `onlyclass` exported and dispatchable on 9.0.4 and 8.6.14
-        // alike (issue #1098).
-        "export" | "unexport" => {
-            apply_visibility_member(subcmd, sub_args, class_def, MemberSide::Instance);
         }
         "property" => {
             extract_property_defs(sub_args, sub_tokens, class_def);
@@ -3676,6 +3670,143 @@ mod tests {
         let c = r.all_classes.get("::C").expect("::C recorded");
         assert!(!c.methods.contains_key("old"));
         assert!(!c.methods.contains_key("new"));
+        // …and the *destination* name leaves no cross-document tombstone: the
+        // rename creates `new`, it does not delete it, so another document's
+        // `method new` must survive. Registry data decides which arguments a
+        // retracting word removes (`MemberRetraction::FirstArgument`).
+        assert!(
+            !c.retracted_members
+                .iter()
+                .any(|(n, _)| n == "new" || n == "old"),
+            "a locally-declared retraction needs no tombstone: {:?}",
+            c.retracted_members,
+        );
+    }
+
+    #[test]
+    fn a_retraction_of_a_locally_declared_member_leaves_no_tombstone() {
+        // TN for the cross-document channel. Within one document the member is
+        // removed outright and the order is known, so exporting a tombstone
+        // would wrongly cancel a *different* document's redeclaration of the
+        // name — no ordering evidence supports that.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { method gone {} { return g } }\n\
+             oo::define ::C { deletemethod gone }",
+            "tcl9.0",
+        );
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(!c.methods.contains_key("gone"));
+        assert!(c.retracted_members.is_empty(), "{:?}", c.retracted_members);
+    }
+
+    #[test]
+    fn a_stub_retraction_of_an_undeclared_member_leaves_a_tombstone() {
+        // TP for the cross-document channel (issue #1101 review). This document
+        // is the `oo::define ::C { deletemethod m }` half of a two-file program:
+        // it has no local `m` to remove, so the removal has to travel as a
+        // tombstone or the workspace keeps advertising a method that sourcing
+        // this file deletes. The side travels with it — a `self`-scoped
+        // retraction tombstones the class-object side.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::define ::C { deletemethod m }\n\
+             oo::define ::D { self deletemethod cm }",
+            "tcl9.0",
+        );
+        assert_eq!(
+            r.all_classes["::C"].retracted_members,
+            vec![("m".to_string(), MemberSide::Instance)],
+        );
+        assert_eq!(
+            r.all_classes["::D"].retracted_members,
+            vec![("cm".to_string(), MemberSide::ClassObject)],
+        );
+    }
+
+    #[test]
+    fn a_stub_renamemethod_tombstones_only_the_source_name() {
+        // TN for the tombstone's shape: `renamemethod old new` removes `old` and
+        // *creates* `new` (oracle: `info class methods ::I3` -> new, and
+        // `[::I3 new] new` answers), so tombstoning `new` would suppress a live
+        // member another document legitimately declares. Which arguments a
+        // retracting word removes is registry data
+        // ([`MemberRetraction::FirstArgument`]), not a keyword match here.
+        let mut a = Analyser::new();
+        let r = a.analyse("oo::define ::C { renamemethod old new }", "tcl9.0");
+        assert_eq!(
+            r.all_classes["::C"].retracted_members,
+            vec![("old".to_string(), MemberSide::Instance)],
+        );
+    }
+
+    #[test]
+    fn visibility_sets_keep_only_the_last_writer() {
+        // Issue #1101 review finding 3. `exports` / `unexports` each record the
+        // *last* explicit writer for a name, and the cross-file consumer
+        // (`workspace_index::method_dispatch_chain`) reads any `exports` entry
+        // as decisive — so a name must never sit in both. Oracle, identical on
+        // tclsh 9.0.4 and 8.6.14:
+        //   oo::class create L1 { method m {} {…}; export m; unexport m }
+        //   info class methods ::L1  ->            ;  [L1 new] m -> unknown method
+        //   oo::class create L2 { method m {} {…}; unexport m; export m }
+        //   info class methods ::L2  -> m          ;  [L2 new] m -> 1
+        // Every spelling that writes the sets is covered: unwrapped (which had
+        // the same double-entry bug before this change) and `private`-scoped.
+        for (body, last, want_vis) in [
+            ("export m\nunexport m", "unexports", "unexported"),
+            ("unexport m\nexport m", "exports", "public"),
+            (
+                "private export m\nprivate unexport m",
+                "unexports",
+                "unexported",
+            ),
+            ("private unexport m\nprivate export m", "exports", "public"),
+            (
+                "private { export m }\nprivate { unexport m }",
+                "unexports",
+                "unexported",
+            ),
+        ] {
+            let src = format!("oo::class create ::C {{ method m {{}} {{ return 1 }}\n{body} }}");
+            let mut a = Analyser::new();
+            let r = a.analyse(&src, "tcl9.0");
+            let c = r.all_classes.get("::C").expect("::C recorded");
+            let (winner, loser) = if last == "exports" {
+                (&c.exports, &c.unexports)
+            } else {
+                (&c.unexports, &c.exports)
+            };
+            assert!(winner.contains("m"), "{body}: {last} must hold `m`");
+            assert!(
+                !loser.contains("m"),
+                "{body}: the superseded set still holds `m` — cross-file dispatch \
+                 reads any `exports` entry as decisive",
+            );
+            assert_eq!(c.methods["m"].visibility, want_vis, "{body}");
+        }
+    }
+
+    #[test]
+    fn a_self_scoped_visibility_word_never_touches_the_instance_sets() {
+        // TN for the same sets: they are the *instance*-side record, so a
+        // class-object-side flip must stay out of them entirely (in either
+        // direction) — otherwise it would re-state an unrelated instance
+        // method's export bit cross-file.
+        let src = "oo::class create ::C {\n\
+                   method m {} { return 1 }\n\
+                   self { method m {} { return 2 }\n\
+                   unexport m\n\
+                   export m\n\
+                   }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(c.exports.is_empty(), "{:?}", c.exports);
+        assert!(c.unexports.is_empty(), "{:?}", c.unexports);
+        assert_eq!(c.methods["m"].visibility, "public");
+        assert_eq!(c.class_methods["m"].visibility, "public");
     }
 
     #[test]
