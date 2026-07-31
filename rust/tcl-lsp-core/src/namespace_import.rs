@@ -16,8 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The per-import-site export snapshot: the one decision both wildcard-import
-//! tiers ask.
+//! The import edge: the per-import-site export snapshot that decides whether
+//! it is installed, and the lifecycle log that decides whether it is still
+//! there — the two decisions both wildcard-import tiers ask.
 //!
 //! `namespace import ::src::*` does not create a standing subscription to
 //! `::src`'s export list — it creates *aliases*, once, for the names exported
@@ -95,6 +96,39 @@
 //!   go-to-definition / find-references, the pre-#1027 behaviour), while an
 //!   unordered `-clear` does **not** revoke anything (revoking on a guess
 //!   would silently drop real references).
+//!
+//! # The edge has a lifetime, not just a birth
+//!
+//! Installing the alias is only the first event on it (issue #1103). The same
+//! ordered-log discipline answers the second question — *does this namespace
+//! still hold the alias here?* — in [`alias_live_at`]:
+//!
+//! - **`namespace forget` removes it.** `namespace forget ::src::p` (or the
+//!   simple form `namespace forget p`) makes a later bare call `invalid
+//!   command name`.
+//! - **Deleting the source command removes it.** The alias holds the command
+//!   *object*, so `rename ::src::p {}` kills `::dst::p` as well — while a
+//!   plain `rename ::src::p ::src::pp` leaves it working (only `namespace
+//!   origin` moves) and a redefinition of the source is seen straight through
+//!   the link. That asymmetry is exactly
+//!   `tcl_compiler::analyser::indirection`'s
+//!   rename-captures-object-identity rule, which is why this module models
+//!   the deletion and not the rename.
+//! - **A conflict means it was never installed at all.** Without `-force`,
+//!   importing onto a name the target namespace already holds raises `can't
+//!   import command "p": already exists`; with `-force` it silently replaces
+//!   the local command, and a later bare call reaches the source
+//!   (`namespace origin` → `::src::p`). The install/no-install half is
+//!   modelled; the error's control-flow consequence (the rest of that script
+//!   never running) deliberately is not.
+//! - **Chains are edges of edges.** `::A` importing `::B::*` where `::B`
+//!   imported `::C::*` makes `::A::p` run `::C`'s body, and a forget anywhere
+//!   along the chain kills the whole thing. The tiers follow the chain while
+//!   every hop is provable, bounded by the same
+//!   `indirection::MAX_COMMAND_NAME_HOPS` cap the rename / alias walk uses.
+//!
+//! Every one of those rows is oracle-confirmed byte-identically on tclsh
+//! 9.0.4 and 8.6.14; the transcripts sit on the individual items.
 
 use tcl_syntax::glob::string_match;
 
@@ -174,6 +208,127 @@ pub fn exported_at_import_site(
     let ordered_match =
         latest_match.is_some_and(|m| cleared_through.is_none_or(|cleared| m > cleared));
     ordered_match || unordered_match
+}
+
+/// What one lifecycle event does to an import edge — see [`AliasEvent`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AliasEventKind {
+    /// A `namespace import` **installed** the alias. The caller has already
+    /// applied the export snapshot ([`exported_at_import_site`]) and the
+    /// pattern match, so this event says only "an import ran here".
+    Install,
+    /// The alias was **removed**: a `namespace forget`, or the deletion of
+    /// the source command the alias holds (`rename ::src::p {}`).
+    Remove,
+}
+
+/// One event on an import edge's own lifecycle, as either tier sees it.
+///
+/// The installing/removing counterpart of [`ExportEvent`], on the same kind of
+/// ordered, append-only log and read by the same "latest visible event wins"
+/// rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AliasEvent {
+    /// What the event does.
+    pub kind: AliasEventKind,
+    /// Byte offset of the event *when it is ordered relative to the query
+    /// point* — i.e. when both are in the same document. `None` when the two
+    /// sit in different files, whose relative load order is not a static
+    /// fact.
+    pub at: Option<u32>,
+}
+
+/// Whether the importing namespace still holds a live imported alias at the
+/// query point, given every lifecycle event that bears on it (issue #1103).
+///
+/// `namespace import` does not create a permanent name. `namespace forget`
+/// takes the alias away again, and so does deleting the source command the
+/// alias holds — both oracle-confirmed byte-identically on tclsh 9.0.4 and
+/// 8.6.14:
+///
+/// ```tcl
+/// namespace eval ::src { proc p {} {return P}; namespace export p }
+/// namespace eval ::dst { namespace import ::src::* }
+/// namespace eval ::dst { p }                        ;# → P
+/// namespace eval ::dst { namespace forget ::src::p }
+/// namespace eval ::dst { p }                        ;# → invalid command name "p"
+/// ```
+///
+/// ```tcl
+/// namespace eval ::src { proc p {} {return P}; namespace export p }
+/// namespace eval ::dst { namespace import ::src::* }
+/// rename ::src::p {}
+/// ::dst::p                                          ;# → invalid command name "::dst::p"
+/// ```
+///
+/// A *re*name is deliberately **not** a removal: the alias holds the command
+/// object, not the name, so `rename ::src::p ::src::pp` leaves `::dst::p`
+/// working (only `namespace origin ::dst::p` moves, to `::src::pp`), and a
+/// redefinition of the source is seen straight through the link. That is the
+/// same rename-captures-object-identity rule
+/// [`tcl_compiler::analyser::indirection`] already applies to `rename` /
+/// `interp alias`, which is why this module carries no rename event kind.
+///
+/// # The rule
+///
+/// Symmetric with [`exported_at_import_site`], and for the same reason: the
+/// latest in-effect [`AliasEventKind::Remove`] wins over every install before
+/// it, and an install *after* that removal reinstates the alias (a re-import
+/// after a forget genuinely does — oracle: re-running `namespace import
+/// ::src::*` after a `namespace forget` makes the bare call work again).
+/// Unordered events — from a different file, where no static load order
+/// exists — abstain toward *answering*: an unordered install counts, an
+/// unordered removal revokes nothing, exactly as an unordered `-clear` does
+/// not revoke an export.
+///
+/// # What `removal_in_effect` does and does not gate
+///
+/// `removal_in_effect` decides, for a **removal** at the given offset,
+/// whether it had already run at the query point. Both tiers pass the
+/// order-gating primitive they already use for the export snapshot
+/// ([`tcl_compiler::analyser::indirection::in_effect`] /
+/// [`tcl_compiler::analyser::indirection::in_effect_within`]), so "has run by
+/// here" cannot mean two things.
+///
+/// It deliberately does **not** filter installs. Whether a bare call written
+/// *before* its own `namespace import` should stop resolving is a separate,
+/// still-open leniency (issue #1104 item 1: the workspace tier has no
+/// call-site body span to apply the identical rule with, so gating only
+/// in-document would make the two tiers disagree — the divergence the shared
+/// decision function exists to prevent). Installs still carry their offsets,
+/// because a removal revokes only the installs *before* it; they are simply
+/// not dropped for being later than the call.
+///
+/// With no install at all the answer is `false`: nothing put the alias there.
+/// Callers that have already proven an import matches (pattern, export
+/// snapshot, conflict rule) pass it as an [`AliasEventKind::Install`].
+///
+/// Single pass, two running maxima, no allocation — the same shape and the
+/// same cost as [`exported_at_import_site`], which it runs beside.
+#[must_use]
+pub fn alias_live_at(
+    events: &mut dyn Iterator<Item = AliasEvent>,
+    removal_in_effect: &dyn Fn(u32) -> bool,
+) -> bool {
+    let mut installed: Option<u32> = None;
+    let mut removed: Option<u32> = None;
+    let mut unordered_install = false;
+    for ev in events {
+        let Some(at) = ev.at else {
+            unordered_install |= ev.kind == AliasEventKind::Install;
+            continue;
+        };
+        match ev.kind {
+            AliasEventKind::Install => installed = installed.max(Some(at)),
+            AliasEventKind::Remove => {
+                if removal_in_effect(at) {
+                    removed = removed.max(Some(at));
+                }
+            }
+        }
+    }
+    let ordered_live = installed.is_some_and(|i| removed.is_none_or(|r| i > r));
+    ordered_live || unordered_install
 }
 
 #[cfg(test)]
@@ -335,5 +490,106 @@ mod tests {
     fn no_events_means_not_exported() {
         let mut evs = [].into_iter();
         assert!(!exported_at_import_site(&mut evs, "p", &before(20)));
+    }
+
+    // ---- the import edge's own lifecycle (issue #1103) -------------------
+
+    fn install(at: u32) -> AliasEvent {
+        AliasEvent {
+            kind: AliasEventKind::Install,
+            at: Some(at),
+        }
+    }
+
+    fn remove(at: u32) -> AliasEvent {
+        AliasEvent {
+            kind: AliasEventKind::Remove,
+            at: Some(at),
+        }
+    }
+
+    fn unordered_event(kind: AliasEventKind) -> AliasEvent {
+        AliasEvent { kind, at: None }
+    }
+
+    /// `removal_in_effect` for a call at `call_at`: plain textual order.
+    fn ran_before(call_at: u32) -> impl Fn(u32) -> bool {
+        move |at| at < call_at
+    }
+
+    #[test]
+    fn an_import_with_no_removal_is_live() {
+        let mut evs = [install(10)].into_iter();
+        assert!(alias_live_at(&mut evs, &ran_before(20)));
+    }
+
+    #[test]
+    fn nothing_installed_means_no_alias() {
+        let mut evs = [remove(10)].into_iter();
+        assert!(!alias_live_at(&mut evs, &ran_before(20)));
+    }
+
+    #[test]
+    fn a_forget_after_the_import_kills_the_alias() {
+        // import @10, `namespace forget` @15, call @20.
+        let mut evs = [install(10), remove(15)].into_iter();
+        assert!(!alias_live_at(&mut evs, &ran_before(20)));
+    }
+
+    #[test]
+    fn a_forget_after_the_call_leaves_it_alive() {
+        // import @10, call @20, `namespace forget` @30 — the call runs first.
+        let mut evs = [install(10), remove(30)].into_iter();
+        assert!(alias_live_at(&mut evs, &ran_before(20)));
+    }
+
+    #[test]
+    fn a_re_import_after_a_forget_reinstates_the_alias() {
+        let mut evs = [install(10), remove(15), install(17)].into_iter();
+        assert!(alias_live_at(&mut evs, &ran_before(20)));
+    }
+
+    #[test]
+    fn the_latest_removal_wins_over_an_earlier_install() {
+        // Two forgets; the alias is dead from the first one that follows the
+        // last install.
+        let mut evs = [install(10), remove(12), remove(15)].into_iter();
+        assert!(!alias_live_at(&mut evs, &ran_before(20)));
+    }
+
+    #[test]
+    fn an_install_later_than_the_call_still_counts() {
+        // Whether a call written *before* its own import resolves is #1104
+        // item 1's still-open leniency: this function must not decide it, so
+        // an install at 30 with the call at 20 still installs.
+        let mut evs = [install(30)].into_iter();
+        assert!(alias_live_at(&mut evs, &ran_before(20)));
+        // …but a removal between them is still a removal.
+        let mut evs = [install(30), remove(10)].into_iter();
+        assert!(alias_live_at(&mut evs, &ran_before(20)));
+    }
+
+    #[test]
+    fn an_unordered_removal_revokes_nothing() {
+        // A `namespace forget` in another file: no static load order, so
+        // navigation keeps answering rather than dropping a real alias.
+        let mut evs = [install(10), unordered_event(AliasEventKind::Remove)].into_iter();
+        assert!(alias_live_at(&mut evs, &ran_before(20)));
+    }
+
+    #[test]
+    fn an_unordered_install_counts() {
+        let mut evs = [unordered_event(AliasEventKind::Install)].into_iter();
+        assert!(alias_live_at(&mut evs, &ran_before(20)));
+        // …and survives an ordered removal, for the same reason an ordered
+        // `-clear` cannot revoke an unordered export.
+        let mut evs = [unordered_event(AliasEventKind::Install), remove(5)].into_iter();
+        assert!(alias_live_at(&mut evs, &ran_before(20)));
+    }
+
+    #[test]
+    fn no_events_at_all_means_no_alias() {
+        let mut evs = [].into_iter();
+        assert!(!alias_live_at(&mut evs, &ran_before(20)));
     }
 }

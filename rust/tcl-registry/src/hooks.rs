@@ -305,6 +305,13 @@ pub enum AnalyserHookId {
     /// (`Tcl_Export`, `tclNamesp.c`), so an unexported sibling command
     /// must stay unresolved through the import.
     NamespaceExport,
+    /// `namespace forget ?pattern ...?` — records the removal of an
+    /// imported alias. The counterpart of [`Self::NamespaceImport`]: an
+    /// import edge has a lifecycle, and `namespace forget` ends it, so a
+    /// bare call after the forget raises `invalid command name` (issue
+    /// #1103, oracle tclsh 8.6.14 / 9.0.4). Recorded as an ordered event
+    /// beside `namespace export`'s `-clear` tombstones.
+    NamespaceForget,
     /// `namespace path {ns ...}` — records the namespace's
     /// command-resolution search path.
     NamespacePath,

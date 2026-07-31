@@ -335,6 +335,7 @@ fn bindings_from_call(
         ctx.source,
         &ctx.namespace,
         head_text,
+        head.span.start(),
         ctx.registry,
     ) else {
         return;

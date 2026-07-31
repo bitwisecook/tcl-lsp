@@ -635,7 +635,15 @@ fn unresolved_method_outgoing_calls(
         // method body's commands resolve there), with the deterministic
         // simple-name fallback — not a namespace-blind `any` scan.
         let class_ns = tcl_syntax::naming::key_holder_and_tail(&class_def.qualified_name).0;
-        if crate::definition::resolve_called_proc(analysis, source, class_ns, &head, None).is_some()
+        if crate::definition::resolve_called_proc(
+            analysis,
+            source,
+            class_ns,
+            &head,
+            span.start(),
+            None,
+        )
+        .is_some()
         {
             continue;
         }
@@ -1067,9 +1075,14 @@ fn method_outgoing_calls(
         // simple-name fallback, never a namespace-blind `p.name == head`
         // first-hit scan that could edge the hierarchy to an arbitrary
         // same-named proc in an unrelated namespace.
-        if let Some(proc_def) =
-            crate::definition::resolve_called_proc(analysis, source, class_ns, &head, None)
-        {
+        if let Some(proc_def) = crate::definition::resolve_called_proc(
+            analysis,
+            source,
+            class_ns,
+            &head,
+            span.start(),
+            None,
+        ) {
             let qname = &proc_def.qualified_name;
             let entry = by_target
                 .entry(CallItemKey::for_proc(qname, proc_def))

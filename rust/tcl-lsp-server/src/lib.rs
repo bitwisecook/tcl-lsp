@@ -5112,7 +5112,22 @@ impl Backend {
         {
             let index = self.workspace_index.read().await;
             let registry = tcl_registry::registry_for_dialect(&analysis.dialect);
+            // A live `namespace import -force` has *replaced* the importing
+            // namespace's own command of this name, so no candidate naming it
+            // may settle the call — the call reaches the import's source,
+            // which the wildcard-import tier below resolves (issue #1103).
+            // Applied here because this is a separate resolver from
+            // `resolve_called_proc`, which already applies the same rule.
+            let forced_shadow = core_definition::forced_import_shadows_call(
+                analysis,
+                &inv.name,
+                &inv.resolution_candidates,
+                offset_u32,
+            );
             if let Some(cand) = inv.resolution_candidates.iter().find(|cand| {
+                if forced_shadow {
+                    return false;
+                }
                 let cand = cand.as_str();
                 // A candidate naming a real registry builtin only counts a
                 // same-file or cross-file proc definition when that
@@ -5163,9 +5178,14 @@ impl Backend {
             // `definition::resolve_called_proc` / `resolve_class_target_at`
             // already apply in-document, extended here to a source
             // namespace defined in another file.)
-            if let Some(target) =
-                index.resolve_wildcard_import(&inv.name, &inv.resolution_candidates)
-            {
+            if let Some(target) = index.resolve_wildcard_import(
+                &inv.name,
+                &inv.resolution_candidates,
+                core_workspace_index::CallSite {
+                    uri: uri.as_str(),
+                    at: inv.range.start(),
+                },
+            ) {
                 return vec![target];
             }
         }

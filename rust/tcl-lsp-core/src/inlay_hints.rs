@@ -940,7 +940,7 @@ fn lookup_proc<'a>(
         cmd_off,
         &analysis.namespace_overrides,
     );
-    crate::definition::resolve_called_proc(analysis, source, &ns, name, registry)
+    crate::definition::resolve_called_proc(analysis, source, &ns, name, cmd_off, registry)
 }
 
 /// Walk a single segmented command, emit a hint per argument
