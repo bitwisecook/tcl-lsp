@@ -3626,6 +3626,65 @@ mod tests {
         assert_eq!(got.optimisations, want.optimisations);
     }
 
+    /// Issue #1129 — `[info exists x]` where `x` is `TclOO` instance state
+    /// must not fold on **either** compiler-check path.
+    ///
+    /// A class-level `variable x` binds `x` in every method frame with no
+    /// binding command in the body, so the existence fold saw a
+    /// never-defined local and produced an "always false" constant branch —
+    /// an `O100` hint (and its `I230` twin) on code that runs.  Oracle,
+    /// identical on tclsh 9.0.4 and 8.6.14: `oo::class create C { variable x;
+    /// constructor {} { set x 1 }; method m {} { puts [info exists x] } }`
+    /// then `[C new] m` → `1`.
+    ///
+    /// The 17 corpus false positives were identical on the memoised and the
+    /// cold path (a fold-logic bug, not a memoisation one), so this pins both
+    /// halves: the instance-variable guard yields no `O100` anywhere, a
+    /// non-instance local in the same body still does, and the two paths
+    /// agree byte-for-byte.
+    #[test]
+    fn instance_variable_existence_guard_does_not_fold_on_either_check_path() {
+        let dialect = "tcl8.6";
+        let src = "oo::class create C {\n\
+                       variable x\n\
+                       constructor {} { set x 1 }\n\
+                       method m {} {\n\
+                           if {[info exists x]} { puts got }\n\
+                           if {[info exists zzz]} { puts never }\n\
+                       }\n\
+                   }\n";
+
+        let db = TclDatabase::default();
+        let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
+        let got = compiler_check_diagnostics(&db, file, cfg(&db));
+        let registry = db.registry(dialect);
+        let want = compiler_check_diagnostics_uncached(src, registry, dialect, None, None);
+
+        // The O100 message names CFG blocks, not the source condition, so
+        // identify the folded guard by slicing the span out of the source.
+        let folded = |ds: &[CompilerCheck]| -> Vec<String> {
+            ds.iter()
+                .filter(|d| d.code == DiagCode::O100)
+                .map(|d| src[d.span.start() as usize..d.span.end() as usize].to_owned())
+                .collect()
+        };
+        assert_eq!(
+            got.checks, want.checks,
+            "memoised and cold compiler checks must agree on the instance-var fold"
+        );
+        let hints = folded(&got.checks);
+        assert_eq!(
+            hints.len(),
+            1,
+            "exactly the never-set `zzz` guard may fold, got {hints:?}"
+        );
+        assert!(
+            hints[0].contains("zzz") && !hints[0].contains("exists x"),
+            "the folded guard must be `zzz`, not the instance variable, got {hints:?}"
+        );
+        assert_eq!(folded(&want.checks), hints, "cold path must match");
+    }
+
     /// The #1117 top-up must also **invalidate**: an edit inside a `TclOO`
     /// method body has to move the memoised path's O1xx hints with it (and drop
     /// them when the construct goes away), not serve a stale `proc_taint_solve`

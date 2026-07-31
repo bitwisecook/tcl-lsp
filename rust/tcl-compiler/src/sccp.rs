@@ -835,50 +835,12 @@ fn collect_constant_branches(
     constant_branches
 }
 
-/// Fold `[info exists X]` / `[array exists X]`
-/// if-conditions into [`ConstantBranch`] entries for the two
-/// false-positive-free cases — a parameter always exists (`true`); a
-/// never-defined non-parameter never exists (`false`).  `![info exists
-/// X]` flips the value.
-///
-/// SCCP itself can't fold these (the predicate is an opaque
-/// `ExprNode::Command`, and SCCP has neither parameter nor existence
-/// facts), so this runs as a post-pass with the proc's `params`.  The
-/// result feeds both the analyser's I230 (constant condition) and the
-/// optimiser's O101 (constant-branch fold / DCE).  Only simple local
-/// names are folded, and only in functions free of opaque barriers (an
-/// unknown command could `unset` or `upvar`-define the variable).
-/// Scope-alias locals (`global` / `variable` / `upvar` / `namespace
-/// upvar` bindings) are never folded — their existence tracks the
-/// linked out-of-frame variable.
-///
-/// `dynamic_names` carries the function's
-/// [dynamic-name barrier](crate::dynamic_names) and gates each direction
-/// independently (issue #923 audit idx 1):
-///
-/// - a **dynamic write** (`set $switch {}`) can define *any* name, so the
-///   "never defined here, therefore absent" fold is no longer provable;
-/// - a **dynamic destroy** (`unset $n`) can remove *any* name, so even the
-///   "it's a parameter, therefore present" fold is no longer provable.
-///
-/// Both abstain by declining the fold, which silences I230 and leaves O101
-/// with nothing to fold — say less rather than say something wrong.
-#[must_use]
-pub fn existence_constant_branches<S: std::hash::BuildHasher>(
-    cfg: &CfgFunction,
-    params: &HashSet<&str, S>,
-    registry: &tcl_registry::CommandRegistry,
-    dynamic_names: crate::dynamic_names::DynamicNameBarrier,
-) -> Vec<ConstantBranch> {
-    let mut out = Vec::new();
-    if cfg.blocks.values().any(|b| {
-        b.statements
-            .iter()
-            .any(|s| matches!(s, Statement::Barrier { .. }))
-    }) {
-        return out;
-    }
-    // Vars defined / unset anywhere in the function.
+/// Every variable name the function assigns, and every name it `unset`s by
+/// literal — the two whole-body facts [`existence_constant_branches`] folds
+/// against.  A `Call`'s `defs` cover the commands that define a name without
+/// an assignment statement (`global` / `variable` / `upvar`, `regexp -inline`
+/// match vars, …).
+fn scan_defined_and_unset(cfg: &CfgFunction) -> (FxHashSet<String>, FxHashSet<&str>) {
     let mut defined: FxHashSet<String> = FxHashSet::default();
     let mut unset: FxHashSet<&str> = FxHashSet::default();
     for block in cfg.blocks.values() {
@@ -910,6 +872,116 @@ pub fn existence_constant_branches<S: std::hash::BuildHasher>(
             }
         }
     }
+    (defined, unset)
+}
+
+/// The entry facts one function frame contributes to the existence fold
+/// ([`existence_constant_branches`]), sourced from the typed IR for whichever
+/// kind of body it is — a [`crate::ir::Procedure`], a
+/// [`crate::ir::MethodDef`], or neither (the top level, a lambda).
+///
+/// Bundled rather than passed positionally so a new fact reaches both
+/// consumers of the fold — the analyser's I230 and the optimiser's O101 — by
+/// construction: the two build the same struct from the same IR, so they
+/// cannot drift (they did, on method parameters — issue #1129).
+#[derive(Clone, Copy, Default)]
+pub struct ExistenceFrame<'a> {
+    /// The body's formal parameter names: bound on entry, so they exist.
+    /// Empty for the top level and for any body with no parameter list.
+    pub params: &'a [String],
+    /// Names auto-bound to out-of-frame *object* storage on entry — a
+    /// `TclOO` method body's [`crate::ir::MethodDef::instance_vars`].
+    /// `None` for every body kind that has none.
+    pub object_state: Option<&'a HashSet<String>>,
+}
+
+/// Fold `[info exists X]` / `[array exists X]`
+/// if-conditions into [`ConstantBranch`] entries for the two
+/// false-positive-free cases — a parameter always exists (`true`); a
+/// never-defined non-parameter never exists (`false`).  `![info exists
+/// X]` flips the value.
+///
+/// SCCP itself can't fold these (the predicate is an opaque
+/// `ExprNode::Command`, and SCCP has neither parameter nor existence
+/// facts), so this runs as a post-pass with the frame's own facts.  The
+/// result feeds both the analyser's I230 (constant condition) and the
+/// optimiser's O101 (constant-branch fold / DCE).  Only simple local
+/// names are folded, and only in functions free of opaque barriers (an
+/// unknown command could `unset` or `upvar`-define the variable).
+/// Scope-alias locals (`global` / `variable` / `upvar` / `namespace
+/// upvar` bindings) are never folded — their existence tracks the
+/// linked out-of-frame variable.
+///
+/// `dynamic_names` carries the function's
+/// [dynamic-name barrier](crate::dynamic_names) and gates each direction
+/// independently (issue #923 audit idx 1):
+///
+/// - a **dynamic write** (`set $switch {}`) can define *any* name, so the
+///   "never defined here, therefore absent" fold is no longer provable;
+/// - a **dynamic destroy** (`unset $n`) can remove *any* name, so even the
+///   "it's a parameter, therefore present" fold is no longer provable.
+///
+/// Both abstain by declining the fold, which silences I230 and leaves O101
+/// with nothing to fold — say less rather than say something wrong.
+///
+/// [`ExistenceFrame::object_state`] carries the frame's *auto-bound*
+/// out-of-frame names — a `TclOO` method body's
+/// [`crate::ir::MethodDef::instance_vars`] (issue
+/// #1129).  A class-level `variable x` declaration binds `x` in **every**
+/// method's frame with no `variable` statement in the body itself, so
+/// [`crate::optimiser::elimination::scan_scope_aliases`] (which only sees the
+/// body's own commands) cannot find it — the name looks like a never-defined
+/// local and the fold used to call it "always absent".  It is not: existence
+/// is per-instance runtime state, set by whichever method or constructor
+/// assigned it first.  tclsh 9.0.4 and 8.6.14 agree:
+///
+/// ```tcl
+/// oo::class create C { variable x; constructor {} { set x 1 }
+///                      method m {} { info exists x } }   ;# [C new] m → 1
+/// oo::class create D { variable x
+///                      method m {} { info exists x } }   ;# [D new] m → 0
+/// oo::class create F { variable x; method setit {} { set x 42 }
+///                      method m {} { info exists x } }
+/// set f [F new]; $f m   ;# → 0
+/// $f setit; $f m        ;# → 1
+/// ```
+///
+/// The declaration alone does not create the variable, but *any earlier call
+/// on the same instance* may have — a dynamic fact no per-method analysis can
+/// decide, so these names join `aliased` and never fold either way.
+///
+/// A method parameter that *collides* with an instance-variable name is the
+/// exception, and still folds `true`: the parameter shadows the class-level
+/// declaration completely, and writes through it never reach object state
+/// (again identical on 9.0.4 and 8.6.14).
+///
+/// ```tcl
+/// oo::class create A { variable x; constructor {} { set x 42 }
+///                      method m {x} { set r [info exists x]; set x 9; return $r }
+///                      method peek {} { return $x } }
+/// set a [A new]; $a m hello   ;# → 1
+/// $a peek                     ;# → 42, untouched by the method's `set x 9`
+/// ```
+///
+/// This also holds for a *defaulted* parameter called with no argument
+/// (`method m {{x def}} …` → `info exists x` is 1 and `$x` is `def`), and
+/// when the instance variable was never assigned at all.
+#[must_use]
+pub fn existence_constant_branches(
+    cfg: &CfgFunction,
+    frame: ExistenceFrame<'_>,
+    registry: &tcl_registry::CommandRegistry,
+    dynamic_names: crate::dynamic_names::DynamicNameBarrier,
+) -> Vec<ConstantBranch> {
+    let mut out = Vec::new();
+    if cfg.blocks.values().any(|b| {
+        b.statements
+            .iter()
+            .any(|s| matches!(s, Statement::Barrier { .. }))
+    }) {
+        return out;
+    }
+    let (defined, unset) = scan_defined_and_unset(cfg);
     // Locals bound to out-of-frame storage (`global` / `variable` / `upvar` /
     // `namespace upvar`): whether such a name exists depends on the *linked*
     // variable, which this function cannot see, so its existence query must
@@ -921,7 +993,40 @@ pub fn existence_constant_branches<S: std::hash::BuildHasher>(
     // `::safe::CheckInterp` guard shape (safe.tcl:109).  The scanner also
     // returns `trace` targets, which only widens the skip — conservative,
     // never a false fold.
-    let aliased = crate::optimiser::elimination::scan_scope_aliases(cfg, registry);
+    let mut aliased = crate::optimiser::elimination::scan_scope_aliases(cfg, registry);
+    // Object state is aliased the same way, minus a visible binding command:
+    // `TclOO` links every class-level `variable` declaration into each method
+    // frame at entry, so the body's own command scan cannot see it (#1129).
+    //
+    // A formal parameter of the same name is the one exception: it shadows the
+    // class-level declaration outright, so the name is an ordinary local that
+    // always exists and must keep folding `true`.  tclsh 9.0.4 / 8.6.14 agree
+    // — the parameter wins completely, and writes to it do **not** reach
+    // object state:
+    //
+    //   oo::class create A { variable x; constructor {} { set x 42 }
+    //                        method m {x} { set r [info exists x]  ;# → 1
+    //                                       set x 9; return $r }
+    //                        method peek {} { return $x } }
+    //   set a [A new]; $a m hello   ;# → 1  ($x inside m is "hello")
+    //   $a peek                     ;# → 42, unchanged by `set x 9`
+    //
+    // Only the *object-state* half yields to parameters.  The
+    // command-derived aliases keep full precedence: an explicit `global` /
+    // `variable` / `upvar` / `namespace upvar` / `my variable` on a name that
+    // is already a parameter is a runtime error on both runtimes (`variable
+    // "x" already exists`), so it never legally co-occurs, while a variable
+    // *trace* on a parameter does — and a trace callback can unset its own
+    // target, which is exactly why `scan_scope_aliases` includes trace
+    // targets and why they must go on abstaining.
+    if let Some(instance_vars) = frame.object_state {
+        aliased.extend(
+            instance_vars
+                .iter()
+                .filter(|name| !frame.params.iter().any(|p| p == *name))
+                .cloned(),
+        );
+    }
     for block in cfg.blocks.values() {
         let Some(Terminator::Branch {
             condition,
@@ -946,7 +1051,7 @@ pub fn existence_constant_branches<S: std::hash::BuildHasher>(
         if aliased.contains(var.as_str()) {
             continue;
         }
-        let exists = if params.contains(var.as_str()) {
+        let exists = if frame.params.iter().any(|p| p == &var) {
             // A literal `unset x` already blocks this; a computed
             // `unset $n` can name the parameter just as well
             // (tclsh 9.0.4 / 8.6.14: `proc f {p n} {unset $n; info exists p}`

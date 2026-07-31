@@ -5578,6 +5578,273 @@ fn info_exists_fold_survives_unrelated_scope_alias() {
     );
 }
 
+// `info exists` over TclOO instance state (issue #1129)
+//
+// Oracle, tclsh 9.0.4 (TclOO 1.3.1) and tclsh 8.6.14 (TclOO 1.1.0), identical
+// on both:
+//
+// ```tcl
+// oo::class create C { variable x; constructor {} { set x 1 }
+//                      method m {} { puts [info exists x] } }
+// [C new] m                                            ;# → 1
+// oo::class create D { variable x
+//                      method m {} { puts [info exists x] } }
+// [D new] m                                            ;# → 0
+// oo::class create F { variable x; method setit {} { set x 42 }
+//                      method m {} { puts [info exists x] } }
+// set f [F new]; $f m ;# → 0     $f setit; $f m        ;# → 1
+// oo::class create G { variable a; constructor {} { set b 7 } }
+// oo::define G { variable b; method m {} {
+//     puts [list a [info exists a] b [info exists b]] } }
+// [G new] m                                            ;# → a 0 b 1
+// ```
+//
+// So a class-level `variable` declaration does *not* create the variable —
+// but any earlier method call on the same instance may have, which is a
+// per-instance runtime fact no per-method fold can decide.  Abstain.
+
+#[test]
+fn info_exists_does_not_fold_instance_var_assigned_in_constructor() {
+    // FP guard — `[C new] m` prints 1 on both runtimes, but the fold saw no
+    // assignment to `x` inside `m`'s own body and called the guard always
+    // false.
+    let codes = codes_for(
+        "oo::class create C {\n variable x\n constructor {} { set x 1 }\n \
+         method m {} { if {[info exists x]} { puts hi } }\n}\n",
+    );
+    assert!(
+        !codes.contains(&"I230".to_string()),
+        "an instance variable assigned in the constructor must not fold; got {codes:?}",
+    );
+}
+
+#[test]
+fn info_exists_does_not_fold_instance_var_assigned_in_sibling_method() {
+    // FP guard — existence depends on call order on the instance
+    // (`$f m` → 0 before `$f setit`, → 1 after), so neither direction folds.
+    let codes = codes_for(
+        "oo::class create F {\n variable x\n method setit {} { set x 42 }\n \
+         method m {} { if {[info exists x]} { puts hi } }\n}\n",
+    );
+    assert!(
+        !codes.contains(&"I230".to_string()),
+        "an instance variable a sibling method assigns must not fold; got {codes:?}",
+    );
+}
+
+#[test]
+fn info_exists_does_not_fold_instance_var_declared_in_later_define_block() {
+    // FP guard, cross-definition-block shape (#1131): `variable b` is declared
+    // by an `oo::define` block that lowering may walk *after* the method that
+    // queries it.  `MethodDef::instance_vars` is the per-class union precisely
+    // so this is order-free — the fold must abstain either way.
+    let codes = codes_for(
+        "oo::class create G {\n variable a\n constructor {} { set b 7 }\n}\n\
+         oo::define G {\n variable b\n \
+         method m {} { if {[info exists b]} { puts hi } }\n}\n",
+    );
+    assert!(
+        !codes.contains(&"I230".to_string()),
+        "an instance variable declared in a later oo::define block must not fold; got {codes:?}",
+    );
+}
+
+#[test]
+fn info_exists_does_not_fold_my_variable_local_in_method() {
+    // FP guard — `my variable x` binds the object's variable into the method
+    // frame; existence is the object's, not the frame's.  Already covered by
+    // the registry-driven scope-alias skip (`my variable` resolves through the
+    // spec's own `ArgRole::VarWrite` resolver), pinned here so the TclOO
+    // shape cannot regress with the rest of #1129.
+    let codes = codes_for(
+        "oo::class create E {\n method m {} { my variable x\n \
+         if {[info exists x]} { puts hi } }\n}\n",
+    );
+    assert!(
+        !codes.contains(&"I230".to_string()),
+        "a `my variable` local must not fold; got {codes:?}",
+    );
+}
+
+#[test]
+fn info_exists_still_folds_never_set_non_instance_local_in_method() {
+    // TP guard — the abstention is name-scoped, not a blanket "no folds in
+    // method bodies": `zzz` is neither instance state nor a parameter nor ever
+    // assigned, so it still folds false exactly as it would inside a proc.
+    let codes = codes_for(
+        "oo::class create C {\n variable x\n constructor {} { set x 1 }\n \
+         method m {} { if {[info exists zzz]} { puts hi } }\n}\n",
+    );
+    assert!(
+        codes.contains(&"I230".to_string()),
+        "a never-set non-instance local in a method body must still fold; got {codes:?}",
+    );
+}
+
+#[test]
+fn info_exists_folds_true_not_false_for_method_parameter() {
+    // The second false-positive shape of #1129, found while building the
+    // fix: the analyser looked a body's parameters up in
+    // `ir_module.procedures`, which a *method*'s qualified name is never in
+    // (methods live in `ir_module.methods`), so every method parameter read
+    // as a never-defined local and the guard folded **always false** —
+    // `[C new] m x` runs the `then` arm on both tclsh 9.0.4 and 8.6.14.
+    // The optimiser's copy of the fold never had this bug
+    // (`build_method_units` always passed `MethodDef::params`), so the two
+    // consumers disagreed; both now read the same `MethodDef`.
+    let mut a = Analyser::new();
+    a.emit_cfg_ssa_diagnostics(
+        "oo::class create C {\n method m {p} { if {[info exists p]} { puts hi } }\n}\n",
+    );
+    let i230: Vec<&str> = a
+        .result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::I230)
+        .map(|d| d.message.as_str())
+        .collect();
+    assert_eq!(i230.len(), 1, "a method parameter must fold; got {i230:?}");
+    assert!(
+        i230[0].contains("always true"),
+        "a method parameter exists at entry — the fold must be true, got {i230:?}",
+    );
+}
+
+/// Every I230 message emitted for `src`, in emission order.
+fn i230_messages(src: &str) -> Vec<String> {
+    let mut a = Analyser::new();
+    a.emit_cfg_ssa_diagnostics(src);
+    a.result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::I230)
+        .map(|d| d.message.clone())
+        .collect()
+}
+
+#[test]
+fn info_exists_folds_true_for_method_parameter_shadowing_an_instance_var() {
+    // Codex P2 on PR #1175, finding A — confirmed against the oracle.  A
+    // formal parameter whose name collides with a class-level `variable`
+    // declaration **shadows** it outright: the name is an ordinary local that
+    // always exists, and writes through it never reach object state.  So the
+    // instance-variable abstention must not swallow it.
+    //
+    // tclsh 9.0.4 (TclOO 1.3.1) and 8.6.14 (TclOO 1.1.0), identical:
+    //
+    //   oo::class create A1 { variable x; constructor {} { set x 42 }
+    //                         method m {x} { set r [list [info exists x] $x]
+    //                                        set x 9; return $r }
+    //                         method peek {} { list [info exists x] $x } }
+    //   set a [A1 new]; $a m hello  ;# → exists 1 value hello
+    //   $a peek                     ;# → exists 1 value 42   (`set x 9` did
+    //                                                         not reach it)
+    //
+    // and with the instance variable never assigned, the parameter still
+    // binds (`A2 in-method: exists 1 value hello`, `A2 after m: 0`).
+    let msgs = i230_messages(
+        "oo::class create A {\n variable x\n constructor {} { set x 42 }\n \
+         method m {x} { if {[info exists x]} { puts hi } }\n}\n",
+    );
+    assert_eq!(
+        msgs.len(),
+        1,
+        "the shadowing parameter must still fold; got {msgs:?}",
+    );
+    assert!(
+        msgs[0].contains("always true"),
+        "a parameter shadowing an instance variable always exists — the fold \
+         must be true, got {msgs:?}",
+    );
+}
+
+#[test]
+fn info_exists_still_abstains_on_the_non_shadowed_instance_vars() {
+    // Companion control for the shadowing case: shadowing is per-name.  `x`
+    // is shadowed by the parameter and folds; the sibling instance variable
+    // `y`, which nothing in this method binds, must keep abstaining.
+    let msgs = i230_messages(
+        "oo::class create A {\n variable x y\n constructor {} { set x 42 }\n \
+         method m {x} {\n if {[info exists x]} { puts hi }\n \
+         if {[info exists y]} { puts ho }\n }\n}\n",
+    );
+    assert_eq!(
+        msgs.len(),
+        1,
+        "only the shadowed name may fold; got {msgs:?}",
+    );
+    assert!(msgs[0].contains("always true"), "got {msgs:?}");
+}
+
+#[test]
+fn info_exists_frame_facts_survive_a_proc_method_qname_collision() {
+    // Codex P2 on PR #1175, finding B — confirmed against the oracle.  A
+    // `TclOO` method and a namespace procedure can carry the same qualified
+    // name, so the per-function dispatcher must take its frame identity from
+    // the caller (which knows the map it is walking) rather than probing
+    // `ir_module.procedures` / `.methods` by name.
+    //
+    // tclsh 9.0.4 and 8.6.14, identical — note `oo::class create C` does not
+    // create namespace `::C`, so the procedure needs `namespace eval` first:
+    //
+    //   oo::class create C { variable x; constructor {} { set x 42 }
+    //                        method m {p} { list method [info exists p] $p $x } }
+    //   namespace eval ::C {}
+    //   proc ::C::m {q} { list proc [info exists q] $q [info exists x] }
+    //   [C new] m hello   ;# → method 1 hello 42
+    //   ::C::m world      ;# → proc 1 world 0
+    //
+    // Both frames are wholly separate: the procedure sees none of the class's
+    // instance state. Pre-fix the name probe gave the *method* the
+    // procedure's parameter list (so its own `[info exists p]` folded "always
+    // false") and gave the *procedure* the class's instance variables (so it
+    // abstained on `x`, a name it fully owns as a never-set local).
+    let msgs = i230_messages(
+        "oo::class create C {\n variable x\n constructor {} { set x 42 }\n \
+         method m {p} { if {[info exists p]} { puts inmethod } }\n}\n\
+         namespace eval ::C {}\n\
+         proc ::C::m {q} {\n if {[info exists q]} { puts inproc }\n \
+         if {[info exists x]} { puts nope }\n}\n",
+    );
+    // Method: `p` is its own parameter → always true.
+    // Proc: `q` is its own parameter → always true; `x` is a never-set local
+    // of the *procedure* (the class's instance state is not in scope there)
+    // → always false.
+    assert_eq!(
+        msgs.len(),
+        3,
+        "each frame must fold its own three guards; got {msgs:?}",
+    );
+    assert_eq!(
+        msgs.iter().filter(|m| m.contains("always true")).count(),
+        2,
+        "both parameter guards must fold true; got {msgs:?}",
+    );
+    assert_eq!(
+        msgs.iter().filter(|m| m.contains("always false")).count(),
+        1,
+        "the procedure's never-set `x` must fold false — it is not object \
+         state in a procedure frame; got {msgs:?}",
+    );
+}
+
+#[test]
+fn info_exists_folds_true_for_an_apply_lambda_parameter() {
+    // Follow-on from finding B's remedy: the lambda loop now hands the
+    // dispatcher the body unit's own `Procedure` rather than letting it probe
+    // `ir_module.procedures` for a key that map never holds, so a lambda's
+    // parameters reach the fold like a proc's.  A lambda is an anonymous
+    // procedure with a fresh frame whose bound names are exactly its
+    // parameter list — tclsh 9.0.4 / 8.6.14: `apply {{a} {info exists a}} 1`
+    // → 1.
+    let msgs = i230_messages("apply {{a} { if {[info exists a]} { puts hi } }} 1\n");
+    assert_eq!(msgs.len(), 1, "a lambda parameter must fold; got {msgs:?}");
+    assert!(
+        msgs[0].contains("always true"),
+        "a lambda parameter exists at entry, got {msgs:?}",
+    );
+}
+
 #[test]
 fn analyse_w307_suppressed_for_known_class_constructor_chain() {
     // ``[Dog new] bark`` — ``Dog`` is a user class so
