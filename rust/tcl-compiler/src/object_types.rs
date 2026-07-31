@@ -86,7 +86,7 @@ pub struct OwnerSpan {
 /// | map | key | widening risk | safe for |
 /// |---|---|---|---|
 /// | [`Self::any_scope`] | bare name | same name in two procs collides | highlighting, navigation (labelled) |
-/// | [`Self::by_scope`] | `(owner, name)` | none beyond the union join | edits, references, rename, refusal gates |
+/// | [`Self::by_scope`] | `(owner, name)` | none: sources resolve in their own scope | edits, references, rename, refusal gates |
 /// | [`Self::collections`] | bare name | cross-scope union (deliberate — the #797 bridge) | highlighting, collection dispatch |
 /// | [`Self::returns_object`] | proc qname | none (one return type per proc) | factory-call typing |
 /// | [`Self::global_object_cells`] | `::`-qualified name | none (the name *is* the cell) | cross-document index seeds |
@@ -101,6 +101,19 @@ pub struct ObjectHandleFacts {
     /// *callee*, a constructor-parameter edge in the *constructor*, and a
     /// class instance variable in the *class* (unioned across its methods —
     /// that union is the interprocedural bridge issue #797 needs).
+    ///
+    /// **Scoped propagation, not just scoped keying.**  Every variable *read*
+    /// an edge resolves is resolved in the reading unit's own scope (falling
+    /// back to its class for an instance variable, and to nothing otherwise) —
+    /// never through [`Self::any_scope`].  Keying the output alone would be
+    /// unsound: after `proc a {} { set x [Pin new] }`, the alias in
+    /// `proc b {} { set x 0; set y $x }` would read `a`'s `x` and record
+    /// `(::b, y) → ::Pin`, a false *singleton* in the map the rename edits and
+    /// the "provably a different class" refusal gate treat as authoritative.
+    /// Cross-*unit* edges are unaffected, because their source is not a scoped
+    /// variable read: a proc-return edge's source is the callee's return type,
+    /// and a parameter edge resolves its argument in the caller before binding
+    /// the parameter in the callee.
     pub by_scope: HashMap<(String, String), HashSet<String>>,
     /// Owning-scope extents, sorted by start (then by end descending) for the
     /// binary search in [`Self::owner_at`].  One entry per procedure and
@@ -381,6 +394,19 @@ struct OwnerIndex {
 }
 
 impl OwnerIndex {
+    /// A shared index that owns nothing — the scan context a
+    /// [`FactMode::AnyScopeOnly`] build carries, which never consults it.
+    /// Mirrors [`crate::compilation_unit::ModuleTraceFacts::none`]'s
+    /// "immutable empty, handed out for any lifetime" shape.
+    fn shared_empty() -> &'static Self {
+        static EMPTY: std::sync::OnceLock<OwnerIndex> = std::sync::OnceLock::new();
+        EMPTY.get_or_init(|| Self {
+            method_class: HashMap::new(),
+            class_instance_vars: HashMap::new(),
+            spans: Vec::new(),
+        })
+    }
+
     fn build(cu: &CompilationUnit, mode: FactMode) -> Self {
         let mut method_class: HashMap<String, String> = HashMap::new();
         let mut class_instance_vars: HashMap<String, HashSet<String>> = HashMap::new();
@@ -564,9 +590,13 @@ fn propagate_object_flow<'a>(
     };
 
     // Bounded fixpoint: a handful of rounds cover realistic alias/call chains
-    // without risking a runaway on a cyclic call graph.
+    // without risking a runaway on a cyclic call graph.  Both facts advance in
+    // the same walk, each reading back only its own map — the union stays the
+    // union it always was, and the scope-keyed map only ever grows from
+    // sources resolved in their owning scope.
+    let scoped = (sink.mode == FactMode::Full).then_some(sink.owners);
     for _ in 0..6 {
-        let bindings = scan_flow_edges(cu, registry, &sink.facts.any_scope, &index);
+        let bindings = scan_flow_edges(cu, registry, &sink.facts, scoped, &index);
         sink.stats.rounds += 1;
         let mut changed = false;
         for binding in bindings {
@@ -576,29 +606,31 @@ fn propagate_object_flow<'a>(
                 ObjectFlowEdge::ProcParam => sink.stats.param_bindings += 1,
                 ObjectFlowEdge::CtorParam => sink.stats.ctor_param_bindings += 1,
             }
-            // Convergence is decided by the union alone, so the scope-keyed
-            // twin can never change the number of rounds (nor, therefore,
-            // `any_scope`'s contents).
             let entry = sink
                 .facts
                 .any_scope
                 .entry(binding.name.clone())
                 .or_default();
-            let mut fresh = false;
-            for c in &binding.classes {
-                fresh |= entry.insert(c.clone());
+            for c in &binding.union_classes {
+                changed |= entry.insert(c.clone());
             }
-            changed |= fresh;
-            if sink.mode == FactMode::Full {
+            if sink.mode == FactMode::Full && !binding.scoped_classes.is_empty() {
                 let owner = sink
                     .owners
                     .owner_for(&binding.owner, &binding.name)
                     .to_owned();
-                sink.facts
+                let entry = sink
+                    .facts
                     .by_scope
                     .entry((owner, binding.name))
-                    .or_default()
-                    .extend(binding.classes);
+                    .or_default();
+                // The scope-keyed fact can still be growing after the union has
+                // settled (it lags by the round its source needed), so it drives
+                // the loop too.  Extra rounds cannot change `any_scope`: unioning
+                // a converged fixpoint with itself is a no-op.
+                for c in binding.scoped_classes {
+                    changed |= entry.insert(c);
+                }
             }
         }
         if !changed {
@@ -620,11 +652,43 @@ struct FlowIndex<'a> {
 /// One type-propagation edge's product: the classes `name` gains, and the unit
 /// the edge binds that name **in** (the assigning unit for an alias / return,
 /// the callee for a parameter, the constructor for a constructor parameter).
+///
+/// The two class sets are the two facts the module maintains, and they are
+/// **not** the same set:
+///
+/// * `union_classes` resolves the edge's source against the scope-blind
+///   [`ObjectHandleFacts::any_scope`] map, and feeds it back — the deliberate,
+///   documented highlight-grade imprecision this module has always had.
+/// * `scoped_classes` resolves the edge's source *in the scope that owns it*
+///   and feeds [`ObjectHandleFacts::by_scope`].  Empty means "no evidence in
+///   the owning scope", which is the whole point: a `set y $x` in one proc
+///   must not read a same-named `x` bound in another (issue #994 C5a review —
+///   a false singleton in the narrow map is a wrong rename, not a missed one).
 struct Binding {
     owner: String,
     name: String,
-    classes: HashSet<String>,
+    union_classes: HashSet<String>,
+    scoped_classes: HashSet<String>,
     kind: ObjectFlowEdge,
+}
+
+/// The two class sets one edge yields — see [`Binding`].
+struct EdgeClasses {
+    union: HashSet<String>,
+    scoped: HashSet<String>,
+}
+
+impl EdgeClasses {
+    /// An edge whose source is **unit-independent** (a callee's return type, a
+    /// literal `[Class new]` argument): both facts agree, because there is no
+    /// variable read to scope.
+    fn unscoped(class: &str) -> Self {
+        let one: HashSet<String> = std::iter::once(class.to_owned()).collect();
+        Self {
+            union: one.clone(),
+            scoped: one,
+        }
+    }
 }
 
 /// One round of the VTA-lite fixpoint: scan every statement, reading current
@@ -634,7 +698,8 @@ struct Binding {
 fn scan_flow_edges(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    out: &HashMap<String, HashSet<String>>,
+    facts: &ObjectHandleFacts,
+    scoped: Option<&OwnerIndex>,
     index: &FlowIndex,
 ) -> Vec<Binding> {
     let FlowIndex {
@@ -676,11 +741,19 @@ fn scan_flow_edges(
     let units = std::iter::once(&cu.top_level)
         .chain(cu.procedures.values())
         .chain(cu.methods.values());
+    // A `FactMode::AnyScopeOnly` build has no scope-keyed fact to maintain, so
+    // it never pays for the scoped lookups; the empty index only satisfies the
+    // shared context type.
+    let owners: &OwnerIndex = scoped.unwrap_or_else(|| OwnerIndex::shared_empty());
+    let by_scope = scoped.map(|_| &facts.by_scope);
     for fu in units {
         let ctx = ScanContext {
             ctor_params,
-            out,
+            out: &facts.any_scope,
+            by_scope,
+            owners,
             registry,
+            unit: &fu.name,
         };
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
@@ -754,14 +827,16 @@ fn scan_assign_edges(
     bindings: &mut Vec<Binding>,
 ) {
     let v = site.value.trim();
-    // Aliasing edge: `set A $B` copies B's classes to A.
+    // Aliasing edge: `set A $B` copies B's classes to A.  `B` is read *in this
+    // unit*, so the scope-keyed fact resolves it here and nowhere else.
     if let Some(src) = deref_arg_var(v)
         && let Some(classes) = ctx.out.get(src).filter(|s| !s.is_empty())
     {
         bindings.push(Binding {
             owner: site.unit.to_owned(),
             name: site.name.to_owned(),
-            classes: classes.clone(),
+            union_classes: classes.clone(),
+            scoped_classes: ctx.scoped_classes(src),
             kind: ObjectFlowEdge::Alias,
         });
     }
@@ -778,10 +853,15 @@ fn scan_assign_edges(
         .get(cmd.as_str())
         .or_else(|| returns.get(qualified.as_str()))
     {
+        // A legitimately cross-scope flow: the source is the *callee's* return
+        // type, not a variable read, so there is no scope to confuse and both
+        // facts take it.
+        let classes = EdgeClasses::unscoped(class);
         bindings.push(Binding {
             owner: site.unit.to_owned(),
             name: site.name.to_owned(),
-            classes: std::iter::once((*class).to_owned()).collect(),
+            union_classes: classes.union,
+            scoped_classes: classes.scoped,
             kind: ObjectFlowEdge::ProcReturn,
         });
     }
@@ -811,11 +891,14 @@ fn emit_proc_param_bindings(
         if pname == "args" {
             break;
         }
-        if let Some(classes) = arg_classes(arg, ctx.out, ctx.registry) {
+        // Also legitimately cross-scope: the argument is resolved in the
+        // *caller* (`ctx.unit`) and the parameter is bound in the callee.
+        if let Some(classes) = arg_classes(arg, ctx) {
             bindings.push(Binding {
                 owner: callee.to_owned(),
                 name: pname.clone(),
-                classes,
+                union_classes: classes.union,
+                scoped_classes: classes.scoped,
                 kind: ObjectFlowEdge::ProcParam,
             });
         }
@@ -831,11 +914,38 @@ struct CtorCall<'a> {
 
 /// The read-only context one scan round resolves an argument's classes
 /// against.
+///
+/// `out` is the scope-blind union; `by_scope` (present only in
+/// [`FactMode::Full`]) is the scope-keyed map the *narrow* fact is resolved
+/// through.  `unit` is the [`FunctionUnit`] the statement being scanned lives
+/// in — the scope a `$var` read in it resolves against.
 #[derive(Clone, Copy)]
 struct ScanContext<'a> {
     ctor_params: &'a HashMap<&'a str, (&'a str, &'a [String])>,
     out: &'a HashMap<String, HashSet<String>>,
+    by_scope: Option<&'a HashMap<(String, String), HashSet<String>>>,
+    owners: &'a OwnerIndex,
     registry: &'a CommandRegistry,
+    unit: &'a str,
+}
+
+impl ScanContext<'_> {
+    /// The classes `var` holds **in the unit being scanned** — the owning
+    /// unit's binding, or its class's when `var` is one of that class's
+    /// instance variables (the cross-method bridge issue #797 needs).
+    ///
+    /// Empty when there is no binding in that scope, which is exactly what
+    /// stops one unit's `x` from flowing into another's.
+    fn scoped_classes(&self, var: &str) -> HashSet<String> {
+        let Some(by_scope) = self.by_scope else {
+            return HashSet::new();
+        };
+        let owner = self.owners.owner_for(self.unit, var);
+        by_scope
+            .get(&(owner.to_owned(), var.to_owned()))
+            .cloned()
+            .unwrap_or_default()
+    }
 }
 
 /// Bind a constructor's parameters to the object classes of its arguments for a
@@ -875,11 +985,12 @@ fn emit_ctor_param_bindings(
         if pname == "args" {
             break;
         }
-        if let Some(classes) = arg_classes(arg, ctx.out, ctx.registry) {
+        if let Some(classes) = arg_classes(arg, ctx) {
             bindings.push(Binding {
                 owner: (*ctor_unit).to_owned(),
                 name: pname.clone(),
-                classes,
+                union_classes: classes.union,
+                scoped_classes: classes.scoped,
                 kind: ObjectFlowEdge::CtorParam,
             });
         }
@@ -889,18 +1000,22 @@ fn emit_ctor_param_bindings(
 /// The object classes an argument denotes: a tracked `$var` handle, or a direct
 /// `[Class new]` registry constructor.  `None` when the argument is not a known
 /// object.
-fn arg_classes(
-    arg: &str,
-    out: &HashMap<String, HashSet<String>>,
-    registry: &CommandRegistry,
-) -> Option<HashSet<String>> {
-    if let Some(classes) = deref_arg_var(arg)
-        .and_then(|v| out.get(v))
-        .filter(|s| !s.is_empty())
+///
+/// A `$var` argument is resolved twice — blind for the union fact, and in
+/// `ctx`'s own unit for the scope-keyed fact.  A literal constructor argument
+/// is unit-independent, so both agree.  `by_scope` is a subset of `any_scope`
+/// per name by construction, so an empty union implies an empty scoped set and
+/// the blind lookup can gate both.
+fn arg_classes(arg: &str, ctx: ScanContext) -> Option<EdgeClasses> {
+    if let Some(var) = deref_arg_var(arg)
+        && let Some(classes) = ctx.out.get(var).filter(|s| !s.is_empty())
     {
-        return Some(classes.clone());
+        return Some(EdgeClasses {
+            union: classes.clone(),
+            scoped: ctx.scoped_classes(var),
+        });
     }
-    constructor_class(arg, registry).map(|c| std::iter::once(c.to_string()).collect())
+    constructor_class(arg, ctx.registry).map(EdgeClasses::unscoped)
 }
 
 /// The variable name a `$name` / `${name}` argument dereferences, or `None` for
@@ -1611,6 +1726,112 @@ mod tests {
                 facts.by_scope
             );
         }
+    }
+
+    #[test]
+    fn by_scope_does_not_import_another_units_binding_through_an_alias() {
+        // FP guard (Codex review of #1127).  `x` is a `::Pin` in `::a` and a
+        // plain integer in `::b`.  `any_scope` unions the two — that is its
+        // documented, deliberate imprecision — but the alias `set y $x` inside
+        // `::b` must resolve `x` **in `::b`**, where there is no object.  A
+        // `(::b, y) → ::Pin` entry would be a false *singleton* in the map
+        // C5b's rename edits and the "provably a different class" refusal gate
+        // read as authoritative: it would rewrite an unrelated integer.
+        let (_r, facts) = facts_for(
+            "oo::class create Pin { method cfg {args} {} }\n\
+             proc a {} { set x [Pin new] }\n\
+             proc b {} { set x 0\n set y $x }\n",
+        );
+        assert_eq!(
+            scoped(&facts, "::a", "x"),
+            vec!["::Pin".to_owned()],
+            "the seed itself must still be scope-keyed to ::a"
+        );
+        assert!(
+            scoped(&facts, "::b", "y").is_empty(),
+            "`y` in ::b aliases ::b's own integer `x`, not ::a's Pin; \
+             by_scope must not import the other unit's binding (any_scope \
+             legitimately unions it: {:?})",
+            facts.any_scope.get("y")
+        );
+        assert!(
+            scoped(&facts, "::b", "x").is_empty(),
+            "::b's `x` is an integer; by_scope must not bind it"
+        );
+    }
+
+    #[test]
+    fn by_scope_alias_within_one_unit_still_propagates() {
+        // TP twin of the guard above: the same alias edge, both ends in the
+        // same unit, must still bind.
+        let (_r, facts) = facts_for(
+            "oo::class create Pin { method cfg {args} {} }\n\
+             proc c {} { set p [Pin new]\n set q $p\n $q cfg }\n",
+        );
+        assert_eq!(
+            scoped(&facts, "::c", "q"),
+            vec!["::Pin".to_owned()],
+            "an alias whose source is bound in the *same* unit must propagate; \
+             by_scope={:?}",
+            facts.by_scope
+        );
+    }
+
+    #[test]
+    fn by_scope_instance_var_alias_reads_the_class_owner() {
+        // The #797 bridge under scoped propagation: `engine` is written in the
+        // constructor and read in another method.  The source lookup for
+        // `set m $engine` inside `::Car::go` must fall back to the *class*
+        // owner, or the bridge the design is built on would break.
+        let (_r, facts) = facts_for(
+            "oo::class create Motor { method spin {args} {} }\n\
+             oo::class create Car {\n\
+               variable engine\n\
+               constructor {e} { set engine $e }\n\
+               method go {} { set m $engine\n $m spin }\n\
+             }\n\
+             set mo [Motor new]\n\
+             set c [Car new $mo]\n",
+        );
+        assert_eq!(
+            scoped(&facts, "::Car", "engine"),
+            vec!["::Motor".to_owned()],
+            "the class-owned instance variable must still bind"
+        );
+        assert_eq!(
+            scoped(&facts, "::Car::go", "m"),
+            vec!["::Motor".to_owned()],
+            "reading a class-owned instance variable from a method must resolve \
+             through the class owner; by_scope={:?}",
+            facts.by_scope
+        );
+    }
+
+    #[test]
+    fn by_scope_cross_unit_call_edges_still_bind() {
+        // The two legitimately cross-scope edges must survive the scoped
+        // source resolution: a proc-return edge (the source is the callee's
+        // return type, which is unit-independent) and a proc-parameter edge
+        // (the argument is resolved in the *caller*, bound in the callee).
+        let (_r, facts) = facts_for(
+            "oo::class create Pin { method cfg {args} {} }\n\
+             proc make {} { set p [Pin new]\n return $p }\n\
+             proc connect {dev} { $dev cfg }\n\
+             proc drive {} { set q [make]\n connect $q }\n",
+        );
+        assert_eq!(
+            scoped(&facts, "::drive", "q"),
+            vec!["::Pin".to_owned()],
+            "the proc-return edge binds in the assigning unit; by_scope={:?}",
+            facts.by_scope
+        );
+        assert_eq!(
+            scoped(&facts, "::connect", "dev"),
+            vec!["::Pin".to_owned()],
+            "the proc-parameter edge reads the argument in ::drive and binds \
+             the parameter in ::connect; by_scope={:?}",
+            facts.by_scope
+        );
     }
 
     #[test]

@@ -1159,8 +1159,12 @@ pub struct AnalysisResult {
     ///
     /// **Which map to read.**  `by_scope` is keyed by the owning unit and is
     /// the *narrow* map: it never merges a `chart` in one proc with a `chart`
-    /// in another.  `any_scope` is the union across every scope and is the
-    /// *wide* map.  So:
+    /// in another.  That holds through the *propagation*, not just the keying —
+    /// every variable read an edge resolves is resolved in the reading unit's
+    /// own scope (or its class, for an instance variable), so one proc's
+    /// binding can never reach another's same-named local and leave a false
+    /// singleton behind.  `any_scope` is the union across every scope and is
+    /// the *wide* map — deliberately imprecise, and unchanged.  So:
     ///
     /// | consumer | map | why |
     /// |---|---|---|

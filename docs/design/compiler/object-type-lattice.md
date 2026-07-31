@@ -73,6 +73,39 @@ intraprocedurally on real TclOO corpora. Keying instance variables by class
 reproduces the bridge while still refusing to merge a `chart` local in one
 proc with a `chart` local in another.
 
+### Scoped propagation, not just scoped keying
+
+Owner attribution decides where a binding is *written*. It is not enough on
+its own: the edge's **source** must be resolved in the scope that owns it
+too, or the narrow map inherits the wide map's collisions. After
+
+```tcl
+proc a {} { set x [Pin new] }
+proc b {} { set x 0; set y $x }
+```
+
+resolving `b`'s `set y $x` against the union would find `a`'s `x` and record
+`(::b, y) → ::Pin` — a **false singleton** in the map C5b's rename edits and
+the "provably a different class" refusal gate treat as authoritative. That is
+the R2 wrong-rewrite hazard `by_scope` exists to prevent, so the fixpoint
+resolves each edge's source through `by_scope` itself:
+
+| edge | source | resolved in |
+|---|---|---|
+| aliasing | the read variable | the **reading unit** (then its class, for an instance variable; then nothing) |
+| proc return | the callee's return type | nowhere — it is not a variable read, so it is unit-independent |
+| proc parameter | the call-site argument | the **caller**, bound in the callee |
+| constructor parameter | the call-site argument | the **caller**, bound in the constructor |
+
+The two lower rows are genuine cross-scope flows and are unaffected: what is
+excluded is only a name-keyed variable *read* resolving through another
+unit's binding.
+
+Both facts advance in one walk, each reading back only its own map, so
+`any_scope` stays exactly the union it has always been — the module's
+documented highlight-grade heuristic, which semantic tokens and the existing
+compiler consumers still read.
+
 `classes_in_scope(offset, var)` implements the consumer-side lookup: the
 owning unit's key first, the enclosing class's key second.
 `owner_spans` carries one entry per proc and method plus a whole-file entry
@@ -95,7 +128,7 @@ decided by what a wrong answer costs:
 
 | consumer | map | why |
 |---|---|---|
-| rename edits, find-references | `by_scope` only | widening rewrites an unrelated variable — a wrong edit, not a missed one |
+| rename edits, find-references | `by_scope` only | widening rewrites an unrelated variable — a wrong edit, not a missed one (and see "Scoped propagation" above: the narrowness must survive the fixpoint, not just the key) |
 | definition, type-definition, hover | `by_scope`, then `any_scope` labelled as a guess | a wrong jump is recoverable; a missing one is not |
 | semantic tokens / highlighting | either | colour-only, and the union is what shipped before |
 | "provably a *different* class, so refuse/skip" gates | `by_scope` singletons only | widening turns an abstention into a false certainty, silencing a refusal that protects the user |
