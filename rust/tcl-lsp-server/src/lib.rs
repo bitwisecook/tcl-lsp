@@ -9930,12 +9930,21 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
             return Ok(None);
         };
+        // BIG-IP config documents fold on their stanza tree rather than the
+        // Tcl brace walk (which, on non-Tcl config text, finds only comment
+        // blocks and leaves every stanza unfoldable) — the folding twin of
+        // the outline split in `document_symbol`.
+        let bigip = Self::is_bigip_dialect(&doc.dialect);
         let registry = self.registry_for_dialect(&doc.dialect).await;
         // Pure-CPU tokenise/segment work; run on a worker so a parser panic
         // is contained as a JSON-RPC error rather than unwinding the event
         // loop (defence in depth).
         let ranges = tokio::task::spawn_blocking(move || {
-            tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, registry)
+            if bigip {
+                core_bigip::folding_ranges(&doc.text)
+            } else {
+                tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, registry)
+            }
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -11103,6 +11112,7 @@ impl LanguageServer for Backend {
                         CoreWorkspaceSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
                         CoreWorkspaceSymbolKind::Constant => SymbolKind::CONSTANT,
                         CoreWorkspaceSymbolKind::Operator => SymbolKind::OPERATOR,
+                        CoreWorkspaceSymbolKind::Event => SymbolKind::EVENT,
                     },
                     tags: None,
                     deprecated: None,
@@ -14796,6 +14806,7 @@ fn lift_symbol_kind(k: CoreSymbolKind) -> SymbolKind {
         CoreSymbolKind::Constant => SymbolKind::CONSTANT,
         CoreSymbolKind::Operator => SymbolKind::OPERATOR,
         CoreSymbolKind::Module => SymbolKind::MODULE,
+        CoreSymbolKind::Event => SymbolKind::EVENT,
     }
 }
 

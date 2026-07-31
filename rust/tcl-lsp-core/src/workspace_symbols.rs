@@ -49,6 +49,8 @@ pub enum WorkspaceSymbolKind {
     Constant,
     /// A named `tcltest::customMatch` mode — a custom result matcher.
     Operator,
+    /// An iRules `when EVENT { … }` event handler.
+    Event,
 }
 
 impl From<tcl_registry::DefinedSymbolKind> for WorkspaceSymbolKind {
@@ -58,6 +60,7 @@ impl From<tcl_registry::DefinedSymbolKind> for WorkspaceSymbolKind {
             tcl_registry::DefinedSymbolKind::Test => Self::Test,
             tcl_registry::DefinedSymbolKind::Constraint => Self::Constant,
             tcl_registry::DefinedSymbolKind::Matcher => Self::Operator,
+            tcl_registry::DefinedSymbolKind::Event => Self::Event,
         }
     }
 }

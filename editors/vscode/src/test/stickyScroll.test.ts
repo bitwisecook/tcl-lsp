@@ -28,9 +28,11 @@ import { getDocUri, activate, pollUntil } from "./helper";
 // the extension was installed (issue #1122).  For Tcl code the outline is
 // definitions only — a script whose top level is `if` / `for` / `foreach`
 // contributes nothing sticky, so sticky scroll goes blank.  Our folding
-// ranges cover exactly those blocks, so Tcl code languages default to the
-// folding-provider model.  BIG-IP config is the opposite shape (a rich
-// stanza outline, almost no folds) and stays on the outline model.
+// ranges cover exactly those blocks, so Tcl languages default to the
+// folding-provider model.  BIG-IP config needs it for a different reason:
+// its outline is a synthesised `module → kind → object` tree whose module
+// and kind nodes select the line of their *first* child, so the outline
+// model pins the first `ltm` stanza in the file no matter where you scroll.
 //
 // The version-pinned dialects (`tcl8.4`, `tcl9.0`, …) are excluded because a
 // language id containing a `.` cannot be used as a configuration override
@@ -39,9 +41,7 @@ import { getDocUri, activate, pollUntil } from "./helper";
 // override in the same `configurationDefaults` block.  See the
 // "dotted language ids" test below.
 const DOTTED_LANGUAGE_IDS = [...TCL_LANGUAGE_IDS].filter((id) => id.includes("."));
-const STICKY_FOLDING_LANGUAGES = [...TCL_LANGUAGE_IDS].filter(
-  (id) => id !== "tcl-bigip" && !id.includes("."),
-);
+const STICKY_FOLDING_LANGUAGES = [...TCL_LANGUAGE_IDS].filter((id) => !id.includes("."));
 
 suite("Sticky Scroll", () => {
   const stickyModelFor = (languageId: string): string | undefined =>
@@ -71,11 +71,41 @@ suite("Sticky Scroll", () => {
     }
   });
 
-  test("'tcl-bigip' keeps the outline model", () => {
-    // The BIG-IP outline is the stanza tree (module → kind → object) and is
-    // far richer than the handful of folds a `.conf` produces, so the
-    // default chain is already the right one there.
-    assert.strictEqual(stickyModelFor("tcl-bigip"), "outlineModel");
+  test("BIG-IP config stanzas fold, so sticky scroll has real lines to pin", async () => {
+    // A `.conf` is not Tcl, so it used to produce only comment folds and the
+    // folding model would have had nothing to stick.  Folding now runs off
+    // the stanza tree, at every nesting depth.
+    await activate(getDocUri("folding.tcl"));
+
+    const doc = await vscode.workspace.openTextDocument({
+      language: "tcl-bigip",
+      content: [
+        "ltm virtual /Common/www_vs {",
+        "    destination /Common/1.2.3.4:80",
+        "    profiles {",
+        "        /Common/http {",
+        "        }",
+        "    }",
+        "}",
+        "",
+      ].join("\n"),
+    });
+    await vscode.window.showTextDocument(doc);
+
+    const ranges = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeFoldingRangeProvider", doc.uri),
+      (r) => Array.isArray(r) && r.length > 0,
+      { timeout: 10_000, label: "BIG-IP folding ranges present" },
+    )) as vscode.FoldingRange[];
+    const spans = ranges.map((r) => [r.start, r.end]).sort((a, b) => a[0] - b[0]);
+    assert.deepStrictEqual(
+      spans,
+      [
+        [0, 5],
+        [2, 4],
+      ],
+      `stanza and nested profiles block should fold, got ${JSON.stringify(ranges)}`,
+    );
   });
 
   test("control-flow-only Tcl has no sticky outline but does have folds", async () => {

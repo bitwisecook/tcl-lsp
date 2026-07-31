@@ -901,6 +901,25 @@ fn tcltest_test_is_namespace_exported() {
 /// `test_when_body_is_structural` — iRules `when` body runs in the dispatcher's
 /// frame, not the caller's.
 ///
+/// `when` declares its event name (argument 0) as a navigable definition, so
+/// the document-symbol / workspace-symbol providers list event handlers the
+/// way they list a `proc` — registry data, not a command-name check.
+///
+/// f5-dialect + registry-metadata.
+#[test]
+fn when_defines_its_event_as_an_outline_symbol() {
+    use tcl_registry::DefinedSymbolKind;
+    let (reg, ds) = reg_and_set("f5-irules");
+    let sym = reg
+        .defines_symbol("when", ds)
+        .expect("when should declare a symbol definer");
+    assert_eq!(sym.name_arg, 0, "the event name is the first argument");
+    assert_eq!(sym.kind, DefinedSymbolKind::Event);
+    // Every `when` call binds a handler — there is no getter form to gate on.
+    assert_eq!(sym.requires_arg, None);
+    assert!(reg.commands_defining_symbols().contains(&"when"));
+}
+
 /// f5-dialect + registry-metadata.
 #[test]
 fn when_body_is_structural() {

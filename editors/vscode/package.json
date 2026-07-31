@@ -2975,6 +2975,9 @@
       "[tcl-apl]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },
+      "[tcl-bigip]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
       "[tcl-synopsys]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },

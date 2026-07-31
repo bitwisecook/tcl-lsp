@@ -190,4 +190,29 @@ suite("Document Symbols", () => {
     assert.ok(names.includes(":"), `the ':' proc appears in the outline: ${names}`);
     assert.ok(names.includes("a:b"), `the 'a:b' proc appears in the outline: ${names}`);
   });
+
+  // An iRule's structure is its `when` blocks.  They carried no outline
+  // symbol at all, so the outline, breadcrumbs and Cmd+Shift+O listed only
+  // whatever variables the handlers happened to set.
+  test("lists iRules event handlers as Event symbols", async () => {
+    const uri = getDocUri("dialect.irul");
+    await activate(uri);
+
+    const symbols = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", uri),
+      (r) => {
+        const syms = r as (vscode.DocumentSymbol[] | vscode.SymbolInformation[]) | undefined;
+        return !!syms && syms.some((s) => s.name === "HTTP_REQUEST");
+      },
+      { timeout: 10_000, label: "iRules event-handler symbol" },
+    )) as vscode.DocumentSymbol[] | vscode.SymbolInformation[];
+
+    const handler = symbols.find((s) => s.name === "HTTP_REQUEST");
+    assert.ok(handler, `Should list the HTTP_REQUEST handler, got: ${symbols.map((s) => s.name)}`);
+    assert.strictEqual(
+      handler.kind,
+      vscode.SymbolKind.Event,
+      "event handler should have Event kind",
+    );
+  });
 });

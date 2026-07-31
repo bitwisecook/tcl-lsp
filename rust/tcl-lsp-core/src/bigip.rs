@@ -46,6 +46,7 @@ use tcl_lexer::LineIndex;
 use tcl_registry::bigip::BigipRegistry;
 
 use crate::document_symbols::{DocumentSymbol, LineRange, SymbolKind};
+use crate::folding::{FoldKind, FoldingRange};
 
 /// Canonical BIG-IP configuration file names, matched by basename
 /// (not extension).
@@ -252,6 +253,128 @@ fn object_types_by_module(
 /// One grouped outline leaf: object name, its range, and the header's
 /// start byte (used only to sort entries within a kind group).
 type Entry = (String, LineRange, usize);
+
+/// Compute folding ranges for a BIG-IP config.
+///
+/// A `.conf` is not Tcl source, so the Tcl folding walk finds nothing in it
+/// beyond comment blocks: every stanza — `ltm virtual … { … }` and each of
+/// its nested `profiles { … }` / `records { … }` sub-blocks — stays
+/// unfoldable.  This is the config-shaped equivalent: a brace-balanced scan
+/// that folds every multi-line `{ … }` region at any depth, plus the same
+/// comment-block folds the Tcl provider emits.
+///
+/// The embedded Tcl inside an `ltm rule` body folds through the same scan —
+/// its `when` / `if` / `foreach` blocks are brace regions like any other.
+///
+/// Regions are properly nested by construction (they come off a brace
+/// stack), so no overlap normalisation is needed.  The end line is the line
+/// *before* the closing brace, matching the Tcl provider so the `}` stays
+/// visible when a region is collapsed.
+#[must_use]
+pub fn folding_ranges(source: &str) -> Vec<FoldingRange> {
+    if source.is_empty() {
+        return Vec::new();
+    }
+    let line_index = LineIndex::new(source);
+    let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
+    let mut ranges: Vec<FoldingRange> = Vec::new();
+
+    for (open, close) in brace_regions(source) {
+        let (Ok(open), Ok(close)) = (u32::try_from(open), u32::try_from(close)) else {
+            continue;
+        };
+        let start_line = line_index.line_at(open);
+        // The closing brace's own line stays visible, so the fold ends on
+        // the line above it — a single-line `{ … }` folds to nothing.
+        let Some(end_line) = line_index.line_at(close).checked_sub(1) else {
+            continue;
+        };
+        if end_line <= start_line || !seen.insert((start_line, end_line)) {
+            continue;
+        }
+        ranges.push(FoldingRange {
+            start_line,
+            end_line,
+            kind: FoldKind::Region,
+        });
+    }
+
+    crate::folding::collect_comment_folds(source, &mut seen, &mut ranges);
+    ranges.sort_by_key(|r| (r.start_line, std::cmp::Reverse(r.end_line)));
+    ranges
+}
+
+/// Every `{ … }` region in `source`, at any nesting depth, as
+/// `(open-brace offset, close-brace offset)` pairs.
+///
+/// Iterative (a brace stack, not recursion), so a pathologically nested
+/// config cannot overflow the native stack.  Quoted spans, backslash
+/// escapes and whole-line `#` comments are skipped so a brace inside one
+/// does not unbalance the scan — the same structural bytes
+/// [`extract_blocks`] respects, applied at every depth rather than only at
+/// the top level.  Unbalanced input degrades quietly: an unmatched `{` is
+/// dropped with the stack, an unmatched `}` is ignored.
+fn brace_regions(source: &str) -> Vec<(usize, usize)> {
+    let bytes = source.as_bytes();
+    let length = bytes.len();
+    let mut stack: Vec<usize> = Vec::new();
+    let mut regions: Vec<(usize, usize)> = Vec::new();
+    let mut pos = 0;
+    // Whether only whitespace has been seen so far on the current line —
+    // a `#` there opens a comment, a `#` anywhere else is ordinary text
+    // (BIG-IP descriptions and iRule string literals both contain them).
+    let mut line_blank_so_far = true;
+
+    while pos < length {
+        match bytes[pos] {
+            b'\n' => {
+                line_blank_so_far = true;
+                pos += 1;
+            }
+            b' ' | b'\t' | b'\r' => pos += 1,
+            b'#' if line_blank_so_far => {
+                while pos < length && bytes[pos] != b'\n' {
+                    pos += 1;
+                }
+            }
+            b'\\' => {
+                // A backslash-newline continues the logical line, but the
+                // *physical* next line still starts fresh for `#` purposes.
+                line_blank_so_far = bytes.get(pos + 1) == Some(&b'\n');
+                pos += 2;
+            }
+            b'"' => {
+                line_blank_so_far = false;
+                pos += 1;
+                while pos < length && bytes[pos] != b'"' {
+                    if bytes[pos] == b'\\' {
+                        pos += 1;
+                    }
+                    pos += 1;
+                }
+                pos += 1;
+            }
+            b'{' => {
+                line_blank_so_far = false;
+                stack.push(pos);
+                pos += 1;
+            }
+            b'}' => {
+                line_blank_so_far = false;
+                if let Some(open) = stack.pop() {
+                    regions.push((open, pos));
+                }
+                pos += 1;
+            }
+            _ => {
+                line_blank_so_far = false;
+                pos += 1;
+            }
+        }
+    }
+
+    regions
+}
 
 /// Build a `module → kind → object` outline for a BIG-IP config.
 ///
@@ -528,5 +651,90 @@ ltm rule /Common/r {
     #[test]
     fn empty_source_yields_no_symbols() {
         assert!(document_symbols("").is_empty());
+    }
+
+    /// `(start_line, end_line)` pairs for every region fold, in order.
+    fn regions(source: &str) -> Vec<(u32, u32)> {
+        folding_ranges(source)
+            .into_iter()
+            .filter(|r| r.kind == FoldKind::Region)
+            .map(|r| (r.start_line, r.end_line))
+            .collect()
+    }
+
+    #[test]
+    fn folds_stanzas_and_their_nested_blocks() {
+        // `ltm pool` (11..15) wraps `members` (12..14) wraps the member
+        // stanza — which is single-line and so folds to nothing.
+        let folds = regions(SAMPLE);
+        assert!(folds.contains(&(11, 14)), "pool stanza missing: {folds:?}");
+        assert!(
+            folds.contains(&(12, 13)),
+            "members block missing: {folds:?}"
+        );
+        // Every region nests properly: no partial overlaps.
+        for (i, a) in folds.iter().enumerate() {
+            for b in &folds[i + 1..] {
+                let disjoint = b.0 > a.1 || a.0 > b.1;
+                let nested = (a.0 <= b.0 && b.1 <= a.1) || (b.0 <= a.0 && a.1 <= b.1);
+                assert!(disjoint || nested, "partial overlap {a:?} / {b:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn folds_tcl_inside_an_embedded_rule() {
+        // The `ltm rule` body is Tcl; its `when` block is a brace region
+        // like any other, so it folds through the same scan.
+        let folds = regions(SAMPLE);
+        assert!(folds.contains(&(16, 19)), "rule stanza missing: {folds:?}");
+        assert!(folds.contains(&(17, 18)), "when block missing: {folds:?}");
+    }
+
+    #[test]
+    fn single_line_block_does_not_fold() {
+        // `1.2.3.4:80 { }` opens and closes on one line — nothing to hide.
+        assert!(regions("ltm pool /Common/p {\n    1.2.3.4:80 { }\n}\n").contains(&(0, 1)));
+        assert!(regions("x { }\n").is_empty());
+    }
+
+    #[test]
+    fn braces_in_comments_and_strings_do_not_unbalance_the_scan() {
+        let source = "\
+# a stray { in a comment
+ltm virtual /Common/v {
+    description \"unbalanced } in a string\"
+    destination /Common/1.2.3.4:80
+}
+";
+        assert_eq!(regions(source), vec![(1, 3)]);
+    }
+
+    #[test]
+    fn unbalanced_input_degrades_quietly() {
+        // An unclosed stanza yields no fold rather than a bogus one, and a
+        // stray closer is ignored.
+        assert!(regions("ltm pool /Common/p {\n    members {\n").is_empty());
+        assert_eq!(
+            regions("}\nltm pool /Common/p {\n    a 1\n}\n"),
+            vec![(1, 2)]
+        );
+    }
+
+    #[test]
+    fn comment_blocks_fold_like_the_tcl_provider() {
+        let source = "# one\n# two\n# three\nltm node /Common/n {\n    address 1.2.3.4\n}\n";
+        let folds = folding_ranges(source);
+        assert!(
+            folds
+                .iter()
+                .any(|r| r.kind == FoldKind::Comment && (r.start_line, r.end_line) == (0, 2)),
+            "{folds:?}"
+        );
+    }
+
+    #[test]
+    fn empty_source_yields_no_folds() {
+        assert!(folding_ranges("").is_empty());
     }
 }
