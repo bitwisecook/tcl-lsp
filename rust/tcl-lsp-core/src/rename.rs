@@ -746,12 +746,31 @@ pub fn method_target_with_access_in_workspace(
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
-    index: Option<&crate::workspace_index::WorkspaceIndex>,
+    index: Option<(&crate::workspace_index::WorkspaceIndex, &str)>,
 ) -> Option<(String, String, bool, crate::workspace_index::MethodAccess)> {
     use crate::workspace_index::MethodAccess;
     let line_index = LineIndex::new(source);
     let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    // A bare receiver word resolves like any other command word — against the
+    // namespace in effect where it is written, then the global one, then
+    // through whatever `namespace import` has made reachable there. Both facts
+    // are read off the cursor, so the server only has to hand over the index
+    // and the document's URI (issue #1178 review).
+    let receiver_ns = crate::definition::namespace_context_at(
+        &analysis.global_scope,
+        cursor,
+        &analysis.namespace_overrides,
+    );
+    let workspace = index.map(|(index, uri)| crate::definition::WorkspaceReceiver {
+        index,
+        namespace: &receiver_ns,
+        call: crate::workspace_index::CallSite {
+            uri,
+            at: cursor,
+            enclosing_body: analysis.innermost_definition_body_span(cursor),
+        },
+    });
     if let Some((inst, method, is_dollar)) =
         crate::definition::instance_method_at_cursor(source, line, character)
         && method == word
@@ -786,7 +805,7 @@ pub fn method_target_with_access_in_workspace(
             && crate::definition::receiver_method_bucket(analysis, &inst, is_dollar)
                 == crate::definition::MethodBucket::Class
             && let Some(class_q) = crate::definition::classmethod_dispatch_class_in_workspace(
-                analysis, &inst, &method, index,
+                analysis, &inst, &method, workspace,
             )
         {
             return Some((class_q, method, true, MethodAccess::External));

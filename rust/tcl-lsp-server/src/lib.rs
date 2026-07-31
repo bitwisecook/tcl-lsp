@@ -5609,7 +5609,7 @@ impl Backend {
             pos.line,
             pos.character,
             &oracle,
-            Some(&index),
+            Some((&index, uri.as_str())),
         )
     }
 

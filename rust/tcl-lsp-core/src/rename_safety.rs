@@ -110,7 +110,7 @@
 //! this file.
 
 use rustc_hash::FxHashSet;
-use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::analyser::{AnalysisResult, MemberSide};
 use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_lexer::{LineIndex, Span, TokenType};
 
@@ -223,7 +223,32 @@ fn renamed_member_would_abort(
         let Some(class_def) = analysis.all_classes.get(class_q) else {
             continue;
         };
-        for moved in &class_def.renamed_members {
+        // A `renamemethod` acts on exactly one of the class's two method
+        // tables, and so does the member being renamed — so a move on the
+        // *other* side is not evidence about this rename at all. Without this
+        // filter an instance-side `renamemethod old same` refused an unrelated
+        // class-side `self method same` -> `old`, which real Tcl runs happily
+        // (issue #1178 review). Oracle, byte-identical on 9.0.4 and 8.6.14:
+        //
+        //   oo::class create ::P2 { method old {} { return inst-old }
+        //                           renamemethod old same
+        //                           self { method old {} { return cls-old } } }
+        //   info class methods ::P2   ;# -> same    [::P2 new] same -> inst-old
+        //   info object methods ::P2  ;# -> old     ::P2 old        -> cls-old
+        //
+        // The `W315` consumer of these same records needs no equivalent filter:
+        // the walker builds each record at its own move site, against that
+        // side's table only, so it never sees the other side's names.
+        let target_side = if target.is_classmethod {
+            MemberSide::ClassObject
+        } else {
+            MemberSide::Instance
+        };
+        for moved in class_def
+            .renamed_members
+            .iter()
+            .filter(|moved| moved.side == target_side)
+        {
             // The cursor is on the moved member itself: renaming it rewrites
             // this `renamemethod`'s destination word.
             if moved.destination == target.method
@@ -1073,6 +1098,82 @@ mod tests {
         assert_eq!(
             hazard_to(src, &["::C"], "new", false, "sib", "tcl9.0"),
             None
+        );
+    }
+
+    /// TN (CRITICAL, issue #1178 review): the hazard is **side-local**. An
+    /// instance-side `renamemethod old same` says nothing about a
+    /// class-object-side `same`, so renaming that class-side member to `old` is
+    /// legal and must not be refused. Oracle, byte-identical on tclsh 9.0.4 and
+    /// 8.6.14 — the post-edit body creates the class and both members dispatch:
+    ///
+    /// ```tcl
+    /// oo::class create ::P2 { method old {} { return inst-old }
+    ///                         renamemethod old same
+    ///                         self { method old {} { return cls-old } } }
+    /// info class methods ::P2   ;# -> same        [::P2 new] same -> inst-old
+    /// info object methods ::P2  ;# -> old         ::P2 old        -> cls-old
+    /// ```
+    #[test]
+    fn tn_an_instance_side_move_does_not_gate_a_class_side_rename() {
+        let src = "oo::class create C {\n\
+                   \x20   method old {} { return 1 }\n\
+                   \x20   renamemethod old same\n\
+                   \x20   self { method same {} { return 2 } }\n\
+                   }\n";
+        assert_eq!(
+            hazard_to(src, &["::C"], "same", true, "old", "tcl9.0"),
+            None,
+            "an instance-side move must not refuse a class-side rename",
+        );
+    }
+
+    /// TN, the mirror: a class-object-side move says nothing about an
+    /// instance-side member of the same name.
+    #[test]
+    fn tn_a_class_side_move_does_not_gate_an_instance_side_rename() {
+        let src = "oo::class create C {\n\
+                   \x20   self { method old {} { return 1 }\n\
+                   \x20          renamemethod old same }\n\
+                   \x20   method same {} { return 2 }\n\
+                   }\n";
+        assert_eq!(
+            hazard_to(src, &["::C"], "same", false, "old", "tcl9.0"),
+            None,
+            "a class-side move must not refuse an instance-side rename",
+        );
+    }
+
+    /// TP control for the pair above: on the **same** side the refusal still
+    /// fires, so the side filter narrowed the arm rather than disabling it.
+    #[test]
+    fn tp_the_side_filter_keeps_the_same_side_refusal() {
+        let src = "oo::class create C {\n\
+                   \x20   self { method old {} { return 1 }\n\
+                   \x20          renamemethod old same }\n\
+                   }\n";
+        let reason = hazard_to(src, &["::C"], "same", true, "old", "tcl9.0")
+            .expect("a class-side move must still gate a class-side rename");
+        assert!(
+            reason.contains("cannot rename method to itself"),
+            "{reason}"
+        );
+    }
+
+    /// TN: the mirror arm is side-local too — an instance-side sibling renamed
+    /// into a *class-side* move's destination collides with nothing.
+    #[test]
+    fn tn_the_mirror_arm_is_side_local() {
+        let src = "oo::class create C {\n\
+                   \x20   self { method old {} { return 1 }\n\
+                   \x20          method sib {} { return 2 }\n\
+                   \x20          renamemethod old new }\n\
+                   \x20   method sib {} { return 3 }\n\
+                   }\n";
+        assert_eq!(
+            hazard_to(src, &["::C"], "sib", false, "new", "tcl9.0"),
+            None,
+            "an instance-side `sib` is not the class-side move's blocker",
         );
     }
 

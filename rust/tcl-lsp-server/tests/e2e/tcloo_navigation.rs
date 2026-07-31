@@ -1055,3 +1055,121 @@ fn tn_renaming_a_moved_member_onto_an_earlier_deleted_name_is_allowed() {
         "`sib` was deleted before the rename, so it is free: {edits:?}"
     );
 }
+
+// Issue #1178 review — a bare receiver resolves like any other command word:
+// against the namespace in effect where it is written, then the global one,
+// then through `namespace import`.  A literal `C`/`::C` match missed the
+// relative spelling, which is how a namespaced class is normally called.
+
+/// TP: `namespace eval ::a { C cm }` in a pure consumer must reach `::a::C`
+/// declared in another document.  Oracle (9.0.4 / 8.6.14): the call answers
+/// `a-C-cm`.
+#[test]
+fn tp_pure_consumer_resolves_a_relatively_named_namespaced_class() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(
+        &decl,
+        "namespace eval ::a {\n    oo::class create C {\n        self { method cm {} { return 1 } }\n    }\n}\n",
+    );
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(&consumer, "namespace eval ::a {\n    C cm\n}\n");
+    assert_eq!(
+        locations(&lsp.definition(&consumer, 1, 7))
+            .iter()
+            .map(|l| l.uri.as_str())
+            .collect::<Vec<_>>(),
+        [decl.as_str()],
+        "a relatively-named namespaced class must resolve cross-file",
+    );
+}
+
+/// TN (CRITICAL): with **both** `::a::C` and a global `::C` indexed, a call
+/// inside `::a` resolves the inner one — Tcl's current-namespace-first rule.
+/// Oracle: inside `::a` the call answers `a-C-cm`, at global scope `global-C-cm`
+/// (identical on 9.0.4 and 8.6.14).
+#[test]
+fn tn_an_inner_namespaced_class_shadows_the_global_one() {
+    let mut lsp = Lsp::tcl();
+    let inner = unique_uri("tcl");
+    lsp.open_ready(
+        &inner,
+        "namespace eval ::a {\n    oo::class create C {\n        self { method cm {} { return 1 } }\n    }\n}\n",
+    );
+    let global = unique_uri("tcl");
+    lsp.open_ready(
+        &global,
+        "oo::class create ::C {\n    self { method cm {} { return 2 } }\n}\n",
+    );
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(&consumer, "namespace eval ::a {\n    C cm\n}\nC cm\n");
+    assert_eq!(
+        locations(&lsp.definition(&consumer, 1, 7))
+            .iter()
+            .map(|l| l.uri.as_str())
+            .collect::<Vec<_>>(),
+        [inner.as_str()],
+        "inside ::a the inner class must win",
+    );
+    assert_eq!(
+        locations(&lsp.definition(&consumer, 3, 3))
+            .iter()
+            .map(|l| l.uri.as_str())
+            .collect::<Vec<_>>(),
+        [global.as_str()],
+        "at global scope the global class must win",
+    );
+}
+
+/// TP: a class made reachable by `namespace import` resolves under the
+/// imported name.  Oracle: `namespace eval ::user { namespace import ::lib::* ;
+/// W cm }` answers `lib-W-cm` on both interpreters.
+#[test]
+fn tp_pure_consumer_resolves_an_imported_class() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(
+        &decl,
+        "namespace eval ::lib {\n    oo::class create W {\n        self { method cm {} { return 1 } }\n    }\n    namespace export W\n}\n",
+    );
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(
+        &consumer,
+        "namespace eval ::user {\n    namespace import ::lib::*\n    W cm\n}\n",
+    );
+    assert_eq!(
+        locations(&lsp.definition(&consumer, 2, 7))
+            .iter()
+            .map(|l| l.uri.as_str())
+            .collect::<Vec<_>>(),
+        [decl.as_str()],
+        "an imported class must resolve through the import",
+    );
+}
+
+/// TN (the C7 invariant): an import that has **not run yet** at the call's own
+/// site binds nothing, so the call must not resolve.  Oracle, identical on
+/// 9.0.4 and 8.6.14:
+///
+/// ```tcl
+/// namespace eval ::u1 { W cm ; namespace import ::lib::* }
+/// ;# -> invalid command name "W"
+/// ```
+#[test]
+fn tn_a_not_yet_run_import_does_not_resolve_the_receiver() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(
+        &decl,
+        "namespace eval ::lib {\n    oo::class create W {\n        self { method cm {} { return 1 } }\n    }\n    namespace export W\n}\n",
+    );
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(
+        &consumer,
+        "namespace eval ::u1 {\n    W cm\n    namespace import ::lib::*\n}\n",
+    );
+    assert!(
+        locations(&lsp.definition(&consumer, 1, 7)).is_empty(),
+        "a call written before its import must not resolve",
+    );
+}

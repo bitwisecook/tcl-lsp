@@ -1186,7 +1186,7 @@ pub(crate) fn classmethod_dispatch_class_in_workspace(
     analysis: &AnalysisResult,
     receiver: &str,
     method: &str,
-    index: Option<&crate::workspace_index::WorkspaceIndex>,
+    workspace: Option<WorkspaceReceiver<'_>>,
 ) -> Option<String> {
     let Some(named) = analysis
         .all_classes
@@ -1194,7 +1194,7 @@ pub(crate) fn classmethod_dispatch_class_in_workspace(
         .find(|cd| cd.name == receiver || cd.qualified_name == receiver)
     else {
         // No local record for the receiver at all — the pure-consumer shape.
-        return index.and_then(|index| workspace_classmethod_class(index, receiver, method));
+        return workspace.and_then(|w| workspace_classmethod_class(&w, receiver, method));
     };
     if named.class_methods.contains_key(method) {
         return Some(named.qualified_name.clone());
@@ -1207,7 +1207,7 @@ pub(crate) fn classmethod_dispatch_class_in_workspace(
     // is none: this document may hold only an `oo::define C { … }` extension
     // while the `self method` lives in the class's own file. Same workspace
     // tier as the no-local-record case above.
-    index.and_then(|index| workspace_classmethod_class(index, receiver, method))
+    workspace.and_then(|w| workspace_classmethod_class(&w, receiver, method))
 }
 
 /// The class an *inherited* `classmethod` resolves to, using this document's
@@ -1238,28 +1238,97 @@ fn local_inherited_classmethod(
         .map(|_| provider_q.to_string())
 }
 
+/// Where a bare receiver word was written, with the workspace tier to resolve
+/// it against — everything the cross-file classmethod arm needs to reach a
+/// class this document never mentions.
+#[derive(Clone, Copy)]
+pub(crate) struct WorkspaceReceiver<'a> {
+    /// The workspace index.
+    pub index: &'a crate::workspace_index::WorkspaceIndex,
+    /// The `::`-prefixed namespace in effect at the cursor
+    /// ([`namespace_context_at`]).
+    pub namespace: &'a str,
+    /// The call's own site — its offset and enclosing body span — so
+    /// import resolution is gated the way the interpreter orders it.
+    pub call: crate::workspace_index::CallSite<'a>,
+}
+
 /// The qualified class a bare `receiver method` names, decided from the
 /// **workspace index** — the tier that knows a class this document never
 /// mentions.
 ///
-/// Resolution of the written receiver goes through
-/// [`WorkspaceIndex::classes_named`], which matches an exact or `::`-prefixed
-/// spelling and deliberately declines a bare tail guess, so an ambiguous name
-/// shared by two namespaces abstains rather than manufacturing a link — the
-/// same discipline the analyser's own cross-file class resolution uses.
+/// The receiver is resolved the way Tcl resolves any command word, not by a
+/// bare-name match: [`tcl_syntax::naming::bareword_resolution_candidates`] is
+/// the canonical encoding of `Tcl_FindCommand`'s order (current namespace
+/// first, then the global one), so `namespace eval ::a { C cm }` reaches
+/// `::a::C` and — when only a global `::C` exists — falls through to it. A
+/// literal `C`/`::C` check missed the relative spelling entirely, which is the
+/// shape a namespaced class is normally *called* in (issue #1178 review).
 ///
-/// Membership is decided by [`WorkspaceIndex::class_method_dispatch_chain`]
-/// rather than by reading `WorkspaceClass::class_method` here, so the
-/// `self method`-is-not-inherited rule, the class-side export union and the
-/// class-side retraction tombstones are all applied exactly once, in the walk
-/// both this and the resolver share.
+/// Two tiers, in Tcl's own order:
+///
+/// 1. **Lexical.** The first candidate naming an indexed class that carries the
+///    member wins, so an inner `::a::C` shadows a global `::C` rather than
+///    racing it.
+/// 2. **Import-mediated.** `namespace import` makes a class reachable under a
+///    name no candidate spells. Both spellings are asked through the machinery
+///    that already models them — an exact import is a `WorkspaceCommandLink`
+///    ([`WorkspaceIndex::resolve_command_target`]) and a glob one is resolved
+///    per call ([`WorkspaceIndex::resolve_wildcard_import`]) — so the import
+///    lifecycle and ordering rules come for free rather than being restated
+///    here. That includes the invariant that an import which has not run at
+///    this call's site does not resolve.
+///
+/// The two-classes-one-name abstention applies at each tier: guessing between
+/// them is the namespace-blind match issue #981 removed.
 fn workspace_classmethod_class(
-    index: &crate::workspace_index::WorkspaceIndex,
+    workspace: &WorkspaceReceiver<'_>,
     receiver: &str,
     method: &str,
 ) -> Option<String> {
-    let mut candidates = index
-        .classes_named(receiver)
+    let index = workspace.index;
+    let candidates =
+        tcl_syntax::naming::bareword_resolution_candidates(workspace.namespace, receiver);
+    // Tier 1 — lexical, in Tcl's resolution order.
+    for cand in &candidates {
+        if let Some(hit) = class_side_member_owner(index, cand, method) {
+            return Some(hit);
+        }
+    }
+    // Tier 2 — import-mediated. An exact `namespace import ::a::C` records a
+    // fixed link, a glob one is decided per call; ask each through its own
+    // existing resolver.
+    for cand in &candidates {
+        let linked = index.resolve_command_target(cand);
+        if linked != *cand
+            && let Some(hit) = class_side_member_owner(index, &linked, method)
+        {
+            return Some(hit);
+        }
+    }
+    let imported = index.resolve_wildcard_import(receiver, &candidates, workspace.call)?;
+    class_side_member_owner(index, &imported, method)
+}
+
+/// The qualified name of the class `candidate` names, when the workspace has
+/// exactly one such class and its **class-object side** carries `method`.
+///
+/// Membership goes through [`WorkspaceIndex::class_method_dispatch_chain`]
+/// rather than reading `WorkspaceClass::class_method` here, so the
+/// `self method`-is-not-inherited rule, the class-side export union and the
+/// class-side retraction tombstones are applied exactly once, in the walk this
+/// and the resolver share. [`MethodAccess::Internal`] is deliberate: this asks
+/// *"is there a class-side member of this name at all"*, a question about the
+/// tables, not about the caller's access — which is applied afterwards by the
+/// resolver, and is what lets a `self unexport`ed member classify here and then
+/// correctly resolve to nothing.
+fn class_side_member_owner(
+    index: &crate::workspace_index::WorkspaceIndex,
+    candidate: &str,
+    method: &str,
+) -> Option<String> {
+    let mut named = index
+        .classes_named(candidate)
         .into_iter()
         .map(|c| c.qualified_name.clone())
         .collect::<std::collections::BTreeSet<_>>()
@@ -1267,8 +1336,8 @@ fn workspace_classmethod_class(
     // Exactly one indexed class may answer: two same-named classes leave the
     // receiver genuinely ambiguous, and guessing one is the namespace-blind
     // match issue #981 removed.
-    let class_q = candidates.next()?;
-    if candidates.next().is_some() {
+    let class_q = named.next()?;
+    if named.next().is_some() {
         return None;
     }
     (!index
