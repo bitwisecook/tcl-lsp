@@ -917,18 +917,37 @@ impl Analyser {
     /// is `None` (outside an active `analyse` run, e.g. a unit-
     /// test harness) we skip the inference rather than pay the
     /// cost of a fresh `build_default` on every proc.
+    ///
+    /// Returns the trait map together with
+    /// [`ProcDef::caller_frame_params`](super::types::ProcDef::caller_frame_params)
+    /// — the strictly narrower "this parameter's value names a variable in the
+    /// *immediate caller's* frame" fact, which the trait map alone cannot
+    /// answer because it records no frame level.  Computed here, from the same
+    /// body text and the same dialect config, so the two can never be derived
+    /// from different views of the proc.
     fn infer_proc_param_traits(
         &self,
         params: &[crate::signature_scan::types::ParamDef],
         body_text: &str,
-    ) -> std::collections::HashMap<String, std::collections::HashSet<super::types::ProcArgTrait>>
-    {
+    ) -> (
+        std::collections::HashMap<String, std::collections::HashSet<super::types::ProcArgTrait>>,
+        std::collections::HashSet<String>,
+    ) {
         let Some(registry) = self.registry else {
-            return std::collections::HashMap::new();
+            return (
+                std::collections::HashMap::new(),
+                std::collections::HashSet::new(),
+            );
         };
         let overlay = self.stub_overlay.as_ref();
         let param_names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
         let config = self.lexer_config();
+        let caller_frame_params = super::param_traits::caller_frame_upvar_params(
+            &param_names,
+            body_text,
+            registry,
+            config,
+        );
         let shallow = super::param_traits::infer_param_traits_with_config(
             &param_names,
             body_text,
@@ -936,7 +955,7 @@ impl Analyser {
             overlay,
             config,
         );
-        if self.deep_param_traits {
+        let traits = if self.deep_param_traits {
             let deep = super::param_traits::infer_param_traits_deep_with_config(
                 &param_names,
                 body_text,
@@ -947,7 +966,8 @@ impl Analyser {
             super::param_traits::merge_traits(shallow, deep)
         } else {
             shallow
-        }
+        };
+        (traits, caller_frame_params)
     }
 
     /// **W113** — a `proc` name shadows a built-in command.
@@ -1215,7 +1235,7 @@ impl Analyser {
         }
 
         let body_text = &args[2];
-        let param_traits = self.infer_proc_param_traits(&params, body_text);
+        let (param_traits, caller_frame_params) = self.infer_proc_param_traits(&params, body_text);
 
         let proc = ProcDef {
             name: simple,
@@ -1225,6 +1245,7 @@ impl Analyser {
             body_span,
             doc,
             param_traits,
+            caller_frame_params,
         };
 
         // Register globally and in the current scope. ``scope.procs``
@@ -1464,7 +1485,8 @@ impl Analyser {
         combined_params.extend(opt_locals.iter().cloned());
 
         let body_text = &args[2];
-        let param_traits = self.infer_proc_param_traits(&combined_params, body_text);
+        let (param_traits, caller_frame_params) =
+            self.infer_proc_param_traits(&combined_params, body_text);
 
         let proc = ProcDef {
             name: simple,
@@ -1474,6 +1496,7 @@ impl Analyser {
             body_span,
             doc,
             param_traits,
+            caller_frame_params,
         };
 
         self.register_proc_definition(&qualified, &proc, name_span);
@@ -9030,6 +9053,7 @@ mod tests {
                 body_span: span(0, 0),
                 doc: String::new(),
                 param_traits: std::collections::HashMap::new(),
+                caller_frame_params: std::collections::HashSet::new(),
             },
         );
         let resolved = a.resolve_proc_call("a::b", &[]);
@@ -9056,6 +9080,7 @@ mod tests {
                     body_span: span(0, 0),
                     doc: String::new(),
                     param_traits: std::collections::HashMap::new(),
+                    caller_frame_params: std::collections::HashSet::new(),
                 },
             );
         }

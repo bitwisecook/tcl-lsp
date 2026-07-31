@@ -398,6 +398,20 @@ pub struct ProcDef {
     /// body walk.  Empty when no traits inferred (parameter
     /// unused, or proc body wasn't statically scannable).
     pub param_traits: HashMap<String, std::collections::HashSet<ProcArgTrait>>,
+    /// Parameters whose *value* names a variable in the **immediate caller's**
+    /// frame — the `upvar 1 $param local` shape, and only that one.
+    ///
+    /// Strictly narrower than the [`ProcArgTrait::VarWrite`] /
+    /// [`ProcArgTrait::VarRead`] entries in [`Self::param_traits`], which say
+    /// a parameter's value is used as a variable *name* through an `upvar`
+    /// but not which frame the alias lands in.  `upvar 0` aliases the
+    /// callee's own frame, `upvar #0` the global one, `upvar 2` the caller's
+    /// caller — none of them creates anything in the calling frame, so a
+    /// call-site consumer (hover / go-to-definition / find-references on a
+    /// caller-frame variable) must intersect the two rather than trust the
+    /// trait alone.  Populated by
+    /// [`super::param_traits::caller_frame_upvar_params`].
+    pub caller_frame_params: std::collections::HashSet<String>,
 }
 
 /// A lightweight *named definition* introduced by a registry

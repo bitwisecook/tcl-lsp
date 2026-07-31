@@ -396,18 +396,27 @@ fn position_definition(
         analysis,
     } = ctx;
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        return Some(
-            lookup_var_read_at(
-                &analysis.global_scope,
+        if let Some(var_def) = lookup_var_read_at(
+            &analysis.global_scope,
+            source,
+            "",
+            cursor_off,
+            &var_name,
+            analysis.ns_var_global_fallback(),
+        ) {
+            return Some(vec![span_to_range(
                 source,
-                "",
-                cursor_off,
-                &var_name,
-                analysis.ns_var_global_fallback(),
-            )
-            .map(|var_def| vec![span_to_range(source, line_index, var_def.definition_span)])
-            .unwrap_or_default(),
-        );
+                line_index,
+                var_def.definition_span,
+            )]);
+        }
+        // Nothing in this frame assigns it — a callee may create it here
+        // through `upvar`, and then the call-site word that names it *is*
+        // the creating write, the nearest thing the frame has to a
+        // declaration (issue #923 audit idx 58).
+        return Some(caller_frame_definition(
+            source, line_index, analysis, cursor_off, &var_name,
+        ));
     }
     let param_position = parameter_list_position_at(analysis, source, cursor_off);
     if param_position != ParamListPosition::Computed
@@ -429,6 +438,32 @@ fn position_definition(
         );
     }
     (param_position == ParamListPosition::LiteralData).then(Vec::new)
+}
+
+/// Go-to-definition target for a **caller-frame** variable read: the call-site
+/// word whose callee creates the variable here through `upvar`.
+///
+/// Empty when no call site binds the name — the `$`-led read then abstains
+/// rather than falling through to bareword resolution, which is what made an
+/// unrelated same-named method look like the answer (issue #923 audit idx 58).
+fn caller_frame_definition(
+    source: &str,
+    line_index: &LineIndex,
+    analysis: &AnalysisResult,
+    cursor_off: u32,
+    name: &str,
+) -> Vec<LspRange> {
+    let bindings = crate::caller_frame::caller_frame_bindings(
+        analysis,
+        source,
+        "",
+        Some(tcl_registry::registry_for_dialect("")),
+        cursor_off,
+        name,
+    );
+    crate::caller_frame::primary_binding(&bindings)
+        .map(|binding| vec![span_to_range(source, line_index, binding.arg_span)])
+        .unwrap_or_default()
 }
 
 /// Go-to-definition for an instance-method call site (`$obj method` /

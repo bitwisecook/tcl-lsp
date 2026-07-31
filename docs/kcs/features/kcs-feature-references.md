@@ -85,10 +85,50 @@ the `my lookup` call inside `get`. On the `get` method name it returns the
 declaration plus the `[$s get k]` dispatch — even though that call is inside a
 double-quoted string.
 
+### Caller-frame variables
+
+A call-by-name helper writes its caller's variable through `upvar`, so the
+name appears twice in two different shapes — once bare, as the argument that
+names it, and once with a `$`, as the read:
+
+```tcl
+proc setdef {varName} { upvar 1 $varName target; set target "default" }
+proc build {} {
+    setdef options       ;# the bare word names the variable
+    return $options      ;# and this reads it
+}
+```
+
+Find All References treats both as one variable, so asking from either the
+bare `options` on the `setdef` line or the `$options` read returns the same
+two locations. Linking them is the point of the idiom — without it the bare
+word looks unrelated to every read it feeds. Occurrences Tcl never
+substitutes (inside a comment, or inside a brace-quoted data word) are left
+out, exactly as they are for an ordinary variable.
+
+Turning declarations off (`includeDeclaration: false`) drops only the call
+sites that **create** the variable. A helper that upvar-*reads* its caller's
+variable without writing it (`peek options`) creates nothing, so that call
+site is an ordinary reference and stays in the list.
+
+Calls written inside an `if`, `while`, `foreach`, `catch` or `switch` body run
+in the same frame and are found; calls inside a nested `proc`, an `apply`
+lambda, a `namespace eval` or an `uplevel` body run in a different frame and
+are not. Only `upvar 1` (or an omitted level) reaches the caller's frame at
+all — `upvar 0`, `upvar #0` and `upvar 2` name other frames, so a call to a
+helper using one of those binds nothing here.
+
+When nothing binds the name, Find All References returns nothing rather than
+falling back to a command or method of the same name — a `$`-led token can
+only ever be the variable.
+
 ## File-path anchors
 
 - `rust/tcl-lsp-core/src/references.rs` (`find_obj_method_call_sites` —
   instance dispatch plus a classmethod's own-class-command dispatch)
+- `rust/tcl-lsp-core/src/caller_frame.rs` (caller-frame variables — the
+  call-site word and the reads it feeds, shared with Hover and Go to
+  Definition)
 - `rust/tcl-lsp-core/src/definition.rs` (shared namespace-aware resolvers)
 - `rust/tcl-compiler/src/analyser/oo.rs` (`record_member_command_references` —
   `superclass` / `mixin` / `inherit` / `forward` as command references)

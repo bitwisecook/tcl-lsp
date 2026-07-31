@@ -970,36 +970,39 @@ pub mod conformance {
         out
     }
 
-    /// Render a vector as a runnable Tcl script whose **output** is the
-    /// dispatched command's qualified name, or `-` on
-    /// `invalid command name`.
+    /// `run(ns_key, body)`: a command string that evaluates `body` inside
+    /// `ns_key`, built by nesting `namespace eval {tail} {…}` from the root
+    /// down.
     ///
-    /// Each defined command becomes a proc returning its own qualified
-    /// name; the call runs inside `namespace eval {ns}` after any
-    /// `namespace path` is applied.  Shared by the tclsh pin test, the
-    /// bytecode-VM conformance test, and the WASM-runtime conformance
-    /// test, so all three execute byte-identical scripts.
-    #[must_use]
-    pub fn vector_script(v: &ResolutionVector) -> String {
-        use std::fmt::Write as _;
-        // Namespace / definition fields are **constructed keys** (see the
-        // vector-file header): a key may hold a colon-named segment
-        // (`":::"` is the namespace — or proc — named `:`; `"::"` names the
-        // empty-string `{}` proc), which has no absolute written spelling
-        // (issue #934).  Everything is therefore created *relatively*,
-        // descending the key's holder chain one `namespace eval` at a time
-        // with brace-quoted tails.
-        //
-        // `run(ns_key, body)`: a command string that evaluates `body` inside
-        // `ns_key`, built by nesting `namespace eval {tail} {…}` from the
-        // root down.
-        fn run(ns_key: &str, body: &str) -> String {
-            if ns_key.is_empty() || ns_key == "::" {
-                return body.to_owned();
-            }
-            let (holder, tail) = crate::naming::key_holder_and_tail(ns_key);
-            run(holder, &format!("namespace eval {{{tail}}} {{ {body} }}"))
+    /// Namespace / definition fields are **constructed keys** (see the vector
+    /// -file header): a key may hold a colon-named segment (`":::"` is the
+    /// namespace — or proc — named `:`; `"::"` names the empty-string `{}`
+    /// proc), which has no absolute written spelling (issue #934).  Everything
+    /// is therefore created *relatively*, descending the key's holder chain one
+    /// `namespace eval` at a time with brace-quoted tails.
+    fn run(ns_key: &str, body: &str) -> String {
+        if ns_key.is_empty() || ns_key == "::" {
+            return body.to_owned();
         }
+        let (holder, tail) = crate::naming::key_holder_and_tail(ns_key);
+        run(holder, &format!("namespace eval {{{tail}}} {{ {body} }}"))
+    }
+
+    /// The **setup** half of a vector's script: create every namespace it
+    /// mentions, define each command as a proc returning its own qualified
+    /// name, and apply the `namespace path`.
+    ///
+    /// Split out from [`vector_script`] so a backend can pair it with its own
+    /// result capture.  The runtime port needs exactly that: its `if` is gated
+    /// on the bignum tower being linked, so the `if`-based capture
+    /// [`vector_script`] uses made the whole conformance gate unrunnable in a
+    /// tower-less build — which is what issue #1058's `invalid command name
+    /// "if"` actually was.  Every command emitted here (`namespace`, `proc`,
+    /// `return`) is tower-free, so a backend that can only manage
+    /// `set`/`catch` can still run all the vectors.
+    #[must_use]
+    pub fn vector_setup(v: &ResolutionVector) -> String {
+        use std::fmt::Write as _;
         let mut script = String::new();
         // Every namespace referenced anywhere must exist up front: the call
         // namespace, each path entry, and each definition's holder.
@@ -1032,10 +1035,33 @@ pub mod conformance {
                 run(&v.ns, &format!("namespace path [list {entries}]")),
             );
         }
+        script
+    }
+
+    /// The **call** half of a vector's script: the call text as written,
+    /// evaluated in the vector's current namespace.  Pair with
+    /// [`vector_setup`].
+    #[must_use]
+    pub fn vector_call(v: &ResolutionVector) -> String {
+        run(&v.ns, &v.call)
+    }
+
+    /// Render a vector as a runnable Tcl script whose **output** is the
+    /// dispatched command's qualified name, or `-` on
+    /// `invalid command name`.
+    ///
+    /// [`vector_setup`] plus an `if`/`catch` capture and a `puts`.  Shared by
+    /// the tclsh pin test and every backend that has a full command set, so all
+    /// of them execute byte-identical scripts.  A backend without `if` composes
+    /// [`vector_setup`] and [`vector_call`] itself instead.
+    #[must_use]
+    pub fn vector_script(v: &ResolutionVector) -> String {
+        use std::fmt::Write as _;
+        let mut script = vector_setup(v);
         let _ = writeln!(
             script,
             "if {{[catch {{{}}} __r]}} {{ set __r - }}",
-            run(&v.ns, &v.call),
+            vector_call(v),
         );
         script.push_str("puts $__r\n");
         script

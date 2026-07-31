@@ -243,28 +243,30 @@ fn handle_uplevel(args: &[String], state: &mut EscapeState) {
         return;
     }
     let first = &args[0];
-    let no_dash = first.trim_start_matches('-');
-    let is_level_literal = (!no_dash.is_empty() && no_dash.chars().all(|c| c.is_ascii_digit()))
-        || (first.starts_with('#') && first[1..].chars().all(|c| c.is_ascii_digit()));
-    if !is_level_literal {
+    // The level word's grammar is registry data
+    // ([`tcl_registry::frame_effect::FrameLevel`]), not a local digit sniff:
+    // C Tcl reads `+0`, `-0`, `#-0`, `0x0`, and `" 0"` as level 0 too, and a
+    // sniff that missed them sent a provably-safe body down the pessimistic
+    // path.
+    let Some(level) = tcl_registry::frame_effect::FrameLevel::parse(first) else {
         state.record_barrier(Barrier::with_detail(
             BarrierKind::Upvar,
             format!("uplevel {first}"),
         ));
         return;
-    }
+    };
     // `uplevel 0` runs the body in the *current* frame, so a `set x` inside it
     // name-writes our proc's local `x` exactly like `eval`. Walk it the same
     // way and escape every name it touches. Treating `0` as global-safe like
     // `#0` wrongly whitelists our own frame (RUST_ISSUE_073).
-    if first == "0" {
+    if level.is_current_frame() {
         handle_eval(&args[1..], state);
         return;
     }
     // Only `uplevel #0` (global scope) is safe: our locals aren't visible
     // there, so a literal body can't touch them. Any other level runs in a
     // different caller frame — handled pessimistically.
-    if first != "#0" {
+    if !level.is_global_frame() {
         state.record_barrier(Barrier::with_detail(
             BarrierKind::Upvar,
             format!("uplevel {first}"),

@@ -395,7 +395,10 @@ impl SemanticTokensRefreshCtx {
     /// this only decides whether a refresh is worth asking for. Best-effort:
     /// a client without `workspace/semanticTokens/refresh` support rejects the
     /// request, which is harmless.
-    async fn deliver_if_changed(&self, uri: &Uri, data: &[u32]) {
+    ///
+    /// Returns whether a refresh was asked for, so the caller can record that
+    /// decision in its settled marker.
+    async fn deliver_if_changed(&self, uri: &Uri, data: &[u32]) -> bool {
         let changed = {
             let cache = self.last_semantic_tokens.lock().await;
             cache.get(uri).is_none_or(|(_, cached)| cached != data)
@@ -403,6 +406,17 @@ impl SemanticTokensRefreshCtx {
         if changed {
             self.request_refresh_coalesced();
         }
+        changed
+    }
+
+    /// Emit the `full` convergence continuation's settled marker.
+    async fn log_full_convergence_settled(
+        &self,
+        uri: &Uri,
+        refreshed: bool,
+        enriched: FullSettleOutcome,
+    ) {
+        log_full_convergence_settled(&self.client, uri, refreshed, enriched).await;
     }
 
     /// Coalesce concurrent refresh asks into one debounced
@@ -437,6 +451,74 @@ impl SemanticTokensRefreshCtx {
             pending.store(false, std::sync::atomic::Ordering::Release);
             let _ = client.semantic_tokens_refresh().await;
         });
+    }
+}
+
+/// Emit the settled marker for a `semanticTokens/full` request that was served
+/// the coarse tier.
+///
+/// The twin of the `semantic_tokens.range_convergence.settled` line
+/// [`Backend::spawn_range_convergence`] logs, and it exists for the same
+/// reason: an observer needs a message-passing signal that the
+/// coarse-vs-enriched decision for *this* request has been made, rather than a
+/// fixed sleep or a wall-clock race against the debounced
+/// `workspace/semanticTokens/refresh` that only *sometimes* follows it.
+/// `refresh=` records the outcome, so "decided not to refresh" is
+/// distinguishable from "the continuation has not run yet".
+///
+/// **Every** path that serves the coarse tier emits it, including the one where
+/// the enriched read was cancelled outright (a concurrent edit, or another
+/// document mutating the salsa `Project`) and no continuation is detached at
+/// all — otherwise the signal would be missing exactly when a waiter most needs
+/// to learn that nothing further is coming.
+///
+/// `enriched=` says what became of the enriched stream, which `refresh=false`
+/// alone cannot express: `landed` (it materialised, and either matched what was
+/// served or has been refreshed), `cancelled` (a concurrent salsa write killed
+/// the read, so nothing was compared and a re-request will re-race), or
+/// `no-analysis` (the document has no salsa input, so the response was computed
+/// enriched from a fresh unit and there is nothing to converge to).
+async fn log_full_convergence_settled(
+    client: &Client,
+    uri: &Uri,
+    refreshed: bool,
+    enriched: FullSettleOutcome,
+) {
+    client
+        .log_message(
+            MessageType::LOG,
+            format!(
+                "[timing] semantic_tokens.full_convergence.settled \
+                 (uri={}, refresh={refreshed}, enriched={})",
+                uri.as_str(),
+                enriched.as_str(),
+            ),
+        )
+        .await;
+}
+
+/// What became of the enriched stream behind a `semanticTokens/full` response
+/// (see [`log_full_convergence_settled`]).
+#[derive(Clone, Copy)]
+enum FullSettleOutcome {
+    /// The enriched stream materialised — served directly, or delivered by the
+    /// detached continuation.
+    Landed,
+    /// The enriched read was cancelled by a concurrent salsa write, so nothing
+    /// was compared; a re-request re-races it.
+    Cancelled,
+    /// The document has no salsa input, so the response was computed enriched
+    /// from a freshly-built unit + analysis.
+    NoAnalysis,
+}
+
+impl FullSettleOutcome {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Landed => "landed",
+            Self::Cancelled => "cancelled",
+            Self::NoAnalysis => "no-analysis",
+        }
     }
 }
 
@@ -3748,16 +3830,28 @@ impl Backend {
         // mis-colours the file rather than merely under-colouring it.  Both
         // lexers are cheap and pure — line-oriented — so neither needs salsa
         // memoisation.
+        //
+        // Both settle immediately with `no-analysis`: neither goes through the
+        // Tcl compilation unit, so there is no enriched tier to converge to and
+        // an observer waiting on the marker must not be left waiting. *Every*
+        // exit from this function emits the marker exactly once — that
+        // completeness is the whole value of the signal.
         if is_apl_source(uri, &doc.language_id) {
             // The iApps registry: an APL `[ … ]` bracket expression is iApp Tcl.
             let registry = self.registry_for_dialect(IAPPS_DIALECT).await;
-            return Ok(core_semantic_tokens::apl_full(&doc.text, registry).data);
+            let data = core_semantic_tokens::apl_full(&doc.text, registry).data;
+            log_full_convergence_settled(&self.client, uri, false, FullSettleOutcome::NoAnalysis)
+                .await;
+            return Ok(data);
         }
         if Self::is_bigip_dialect(&doc.dialect) {
             // The iRules registry, not the BIG-IP one: a `ltm rule { … }` body is
             // iRules code embedded in the config, and is walked as such.
             let registry = self.registry_for_dialect(IRULES_DIALECT).await;
-            return Ok(core_semantic_tokens::bigip_conf_full(&doc.text, registry).data);
+            let data = core_semantic_tokens::bigip_conf_full(&doc.text, registry).data;
+            log_full_convergence_settled(&self.client, uri, false, FullSettleOutcome::NoAnalysis)
+                .await;
+            return Ok(data);
         }
 
         let Some(mut enriched) = self.db_semantic_tokens(uri).await else {
@@ -3767,7 +3861,7 @@ impl Backend {
             // unit and analysis fresh so regex-source highlighting and
             // user-class object-method resolution still apply, matching the
             // salsa path below.
-            return tokio::task::spawn_blocking(move || {
+            let data = tokio::task::spawn_blocking(move || {
                 let cu = tcl_compiler::compilation_unit::CompilationUnit::build_for_dialect(
                     &text, registry, false, &dialect,
                 );
@@ -3786,13 +3880,25 @@ impl Backend {
                 code: jsonrpc::ErrorCode::InternalError,
                 message: format!("semantic_tokens worker panicked: {err}").into(),
                 data: None,
-            });
+            })?;
+            log_full_convergence_settled(&self.client, uri, false, FullSettleOutcome::NoAnalysis)
+                .await;
+            return Ok(data);
         };
 
         tokio::select! {
             biased;
             result = &mut enriched => {
                 if let Ok(Some(tokens)) = result {
+                    // The enriched tier won the race and is being served as-is:
+                    // settled, nothing to converge to.
+                    log_full_convergence_settled(
+                        &self.client,
+                        uri,
+                        false,
+                        FullSettleOutcome::Landed,
+                    )
+                    .await;
                     return Ok(tokens.data);
                 }
                 // A genuine salsa cancellation (a concurrent edit landed) or a
@@ -3802,6 +3908,18 @@ impl Backend {
                 // this read has already scheduled its own diagnostics run,
                 // which will prime a fresh enriched result for the next
                 // request.
+                //
+                // Settle explicitly: the coarse tier is about to be served and
+                // *no* continuation is detached on this path, so without the
+                // marker an observer waiting for the convergence decision would
+                // wait for something that is never coming.
+                log_full_convergence_settled(
+                    &self.client,
+                    uri,
+                    false,
+                    FullSettleOutcome::Cancelled,
+                )
+                .await;
             }
             () = tokio::time::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => {
                 // Too slow for a synchronous first paint. Detach a
@@ -3815,9 +3933,19 @@ impl Backend {
                 };
                 let uri = uri.clone();
                 tokio::spawn(async move {
-                    if let Ok(Some(tokens)) = enriched.await {
-                        refresh_ctx.deliver_if_changed(&uri, &tokens.data).await;
-                    }
+                    // Settle either way — including on a cancelled read — so a
+                    // waiter can key on the marker instead of racing the
+                    // debounced refresh that only *sometimes* follows.
+                    let (refreshed, outcome) = match enriched.await {
+                        Ok(Some(tokens)) => (
+                            refresh_ctx.deliver_if_changed(&uri, &tokens.data).await,
+                            FullSettleOutcome::Landed,
+                        ),
+                        _ => (false, FullSettleOutcome::Cancelled),
+                    };
+                    refresh_ctx
+                        .log_full_convergence_settled(&uri, refreshed, outcome)
+                        .await;
                 });
             }
         }
@@ -8557,7 +8685,8 @@ impl Backend {
             // Both `None` ⇒ the reads were cancelled by a concurrent edit, which
             // schedules its own token refresh — nothing to converge. Every other
             // path makes the coarse-vs-enriched decision below.
-            let refreshed = if cu.is_none() && analysis.is_none() {
+            let cancelled = cu.is_none() && analysis.is_none();
+            let refreshed = if cancelled {
                 false
             } else {
                 let enriched = tokio::task::spawn_blocking(move || {
@@ -8587,18 +8716,73 @@ impl Backend {
             // signal that lets a test assert on the *absence* of a
             // `workspace/semanticTokens/refresh` deterministically instead of racing
             // a fixed sleep. `refresh=` records the outcome for observability.
-            refresh_ctx
-                .client
-                .log_message(
-                    MessageType::LOG,
-                    format!(
-                        "[timing] semantic_tokens.range_convergence.settled \
-                         (uri={uri}, refresh={refreshed})"
-                    ),
-                )
-                .await;
+            let outcome = if cancelled {
+                RangeSettleOutcome::Cancelled
+            } else {
+                RangeSettleOutcome::Compared
+            };
+            log_range_convergence_settled(&refresh_ctx.client, &uri, refreshed, outcome).await;
         });
     }
+}
+
+/// What a `semanticTokens/range` request's convergence decision amounted to,
+/// recorded in the settled marker (see [`log_range_convergence_settled`]).
+#[derive(Clone, Copy)]
+enum RangeSettleOutcome {
+    /// The coarse tier was served and the detached continuation compared it
+    /// against the recomputed enriched viewport — the #844 Gap 4 path proper.
+    Compared,
+    /// The coarse tier was served but the enriched reads were cancelled (a
+    /// concurrent edit, or another document mutating the salsa `Project`), so
+    /// nothing was compared.
+    Cancelled,
+    /// Both enriched reads landed inside the fast-path budget, so the response
+    /// *was* the enriched viewport and there is nothing to converge to.
+    ServedEnriched,
+    /// The document has no compilation-unit / analysis handles at all (an
+    /// unindexed buffer, or a `did_close` racing the two reads), so there is no
+    /// enriched tier for this request to converge to.
+    NoAnalysis,
+}
+
+impl RangeSettleOutcome {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Compared => "compared",
+            Self::Cancelled => "cancelled",
+            Self::ServedEnriched => "served-enriched",
+            Self::NoAnalysis => "no-analysis",
+        }
+    }
+}
+
+/// Emit the settled marker for a `semanticTokens/range` request.
+///
+/// Logged for **every** range request, not just the ones that detach a
+/// convergence continuation. A waiter that keys on this marker to learn a
+/// request's convergence decision would otherwise wait forever on the paths
+/// that never detach one — a viewport served the enriched tier directly, or an
+/// unindexed buffer with no analysis to converge to — which are exactly the
+/// paths a cold or heavily-loaded server takes. `outcome=` says which case it
+/// was, so an observer can tell "compared and found equal" from "never
+/// compared".
+async fn log_range_convergence_settled(
+    client: &Client,
+    uri: &str,
+    refreshed: bool,
+    outcome: RangeSettleOutcome,
+) {
+    client
+        .log_message(
+            MessageType::LOG,
+            format!(
+                "[timing] semantic_tokens.range_convergence.settled \
+                 (uri={uri}, refresh={refreshed}, outcome={})",
+                outcome.as_str()
+            ),
+        )
+        .await;
 }
 
 impl LanguageServer for Backend {
@@ -10248,6 +10432,17 @@ impl LanguageServer for Backend {
             .non_tcl_range_tokens(&params.text_document.uri, &doc, core_range)
             .await
         {
+            // Settle here too: an APL / BIG-IP viewport never touches the Tcl
+            // compilation unit, so there is no enriched tier to converge to —
+            // and an observer waiting on the marker must not be left waiting for
+            // a decision that will never be made.
+            log_range_convergence_settled(
+                &self.client,
+                params.text_document.uri.as_str(),
+                false,
+                RangeSettleOutcome::NoAnalysis,
+            )
+            .await;
             return Ok(Some(SemanticTokensRangeResult::Tokens(LspSemanticTokens {
                 result_id: None,
                 data: lift_semantic_token_data(&tokens.data),
@@ -10259,6 +10454,11 @@ impl LanguageServer for Backend {
         // timeout `pending` carries the still-running reads to the #844 Gap 4
         // convergence continuation below (see `race_range_enriched_reads`).
         let (cached_cu, cached_analysis, pending) = self.race_range_enriched_reads(uri).await;
+        // Distinguishes the two no-continuation cases for the settled marker
+        // below: the enriched reads landed inside the budget (so this response
+        // *is* the enriched viewport), versus the document having no analysis
+        // handles at all.
+        let served_enriched = cached_cu.is_some() || cached_analysis.is_some();
         // Pure-CPU tokenisation on a worker so a parser panic is contained
         // as a JSON-RPC error.
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
@@ -10296,6 +10496,18 @@ impl LanguageServer for Backend {
                 },
                 pending,
             );
+        } else {
+            // No continuation to detach, so settle here instead: this request's
+            // convergence decision is already final and an observer waiting on
+            // the marker must not be left waiting for a continuation that will
+            // never run. Which of the two no-continuation cases it was is
+            // recorded in `outcome`.
+            let outcome = if served_enriched {
+                RangeSettleOutcome::ServedEnriched
+            } else {
+                RangeSettleOutcome::NoAnalysis
+            };
+            log_range_convergence_settled(&self.client, uri.as_str(), false, outcome).await;
         }
 
         Ok(Some(SemanticTokensRangeResult::Tokens(LspSemanticTokens {

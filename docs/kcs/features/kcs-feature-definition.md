@@ -96,15 +96,52 @@ approximately:
   major), highest satisfying release wins. An unconstrained require still
   answers the first provider found.
 
+### Caller-frame variables
+
+A variable can be created by the procedure you call rather than by the code
+you are reading — that is what `upvar` is for:
+
+```tcl
+proc setdef {varName} { upvar 1 $varName target; set target "default" }
+proc build {} {
+    setdef options       ;# this word creates `options` in build's frame
+    return $options
+}
+```
+
+There is no `set options` to jump to, so Go to Definition on `$options` goes
+to the call-site word `options` on the `setdef` line — the creating write, and
+the word you would rename. It works from either end: the same jump target is
+reported whether the cursor is on the `$options` read or on the bare word
+itself.
+
+The creating call may sit inside an `if`, `while`, `foreach`, `catch` or
+`switch` body — those run in the frame they are written in, so the jump still
+works. A call inside a nested `proc`, an `apply` lambda, a `namespace eval` or
+an `uplevel` body creates that frame's variable instead, and is not a
+definition here.
+
+When nothing binds the name, Go to Definition reports no location rather than
+guessing. A `$`-led read never resolves to a command, proc, or method of the
+same name — Tcl keeps those in a separate table from variables.
+
 ## Failure modes
 
 - Definition not found after proc lookup or namespace resolution changes.
 - A cross-file namespace variable stops resolving when the declaring file is
   no longer in the workspace index (it was closed *and* is outside every
   workspace folder).
+- A callee that binds a *literal* caller-side name (`upvar 1 options options`)
+  names it nowhere at the call site, so there is no word to jump to.
+- A callee whose `upvar` level is not `1` (`upvar 0`, `upvar #0`, `upvar 2`)
+  aliases some other frame, so its call site defines nothing where you are
+  reading and no location is reported.
 
 ## Test anchors
 
+- `tests/test_definition.py`
+- `rust/tcl-lsp-server/tests/e2e/navigation.rs` — the caller-frame cases
+- `rust/tcl-lsp-core/src/caller_frame.rs` — unit tests for the binding scan
 - `rust/tcl-lsp-core/src/definition.rs` (`mod tests`)
 - `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs` (cross-file namespace
   variables, cross-file class-reference arguments)

@@ -61,7 +61,13 @@ fn modifiers(lsp: &Lsp) -> Vec<String> {
 
 /// Decode `uri`'s semantic tokens, mapping each type index to its legend name.
 fn typed(lsp: &mut Lsp, legend: &[String], uri: &str) -> Vec<TypedToken> {
-    let raw = lsp.semantic_tokens(uri);
+    // Converged, not first-response: several tests here assert on the
+    // *enriched* tier (regex-source retagging, user-class method resolution),
+    // which the server may legitimately deliver a refresh late when the 40 ms
+    // fast-path budget loses. Reading only the first response makes those
+    // assertions a bet on how much CPU the machine had — see
+    // `Lsp::semantic_tokens_settled` (issue #1082).
+    let raw = lsp.semantic_tokens_settled(uri);
     decode_semantic_tokens(&raw)
         .into_iter()
         .map(|t| TypedToken {

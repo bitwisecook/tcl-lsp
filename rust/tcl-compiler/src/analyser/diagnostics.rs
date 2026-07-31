@@ -375,7 +375,7 @@ impl Analyser {
             }
         }
 
-        self.emit_method_body_diagnostics(cu, registry, &cbn_proc_index, &traced_globals);
+        self.emit_fresh_frame_body_diagnostics(cu, registry, &cbn_proc_index, &traced_globals);
 
         // Cross-function post-pass: resolve $var-as-command sites
         // collected during the walk.
@@ -456,6 +456,68 @@ impl Analyser {
                     .cloned()
                     .collect()
             });
+            let mut cross_event_vars = known_bound.clone();
+            cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
+                &fu.cfg,
+                cbn_proc_index,
+            ));
+            cross_event_vars.extend(traced_globals.iter().cloned());
+            self.emit_cfg_ssa_diagnostics_for_function_full(
+                fu,
+                &cu.ir_module,
+                &known_bound,
+                &cross_event_vars,
+            );
+            self.emit_channel_diagnostics(fu, registry);
+        }
+    }
+
+    /// The CFG/SSA dataflow family over every body that runs in a **fresh
+    /// frame** but is not a named procedure — a `TclOO`/snit method body and
+    /// an `apply` lambda body.  Both have a closed set of names bound at
+    /// entry, which is what the read-before-set family needs to be sound.
+    fn emit_fresh_frame_body_diagnostics(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+        cbn_proc_index: &crate::interprocedural::ProcIndex,
+        traced_globals: &HashSet<String>,
+    ) {
+        self.emit_method_body_diagnostics(cu, registry, cbn_proc_index, traced_globals);
+        self.emit_lambda_body_diagnostics(cu, registry, cbn_proc_index, traced_globals);
+    }
+
+    /// The same CFG/SSA dataflow family over an `apply` **lambda body**.
+    ///
+    /// A lambda is an anonymous procedure: C Tcl gives it a fresh frame whose
+    /// only bound names are its parameter list, so a read of anything else is
+    /// the same error a `proc` body's unbound read is (tclsh 9.0.4 / 8.6.14,
+    /// identical: `set x 7; apply {{} {puts $x}}` →
+    /// `can't read "x": no such variable`).  The enclosing frame's scan skips
+    /// the lambda literal entirely
+    /// ([`crate::ssa::structural_body_indices`]), so this loop is what keeps
+    /// the *body's* own genuine unbound reads visible — without it, moving the
+    /// literal out of the caller's frame would trade a false positive on the
+    /// lambda's parameters for a false negative on its body (issue #1070).
+    ///
+    /// Restricted to [`crate::ir::Module::lambda_body_units`]: a
+    /// `namespace eval` body unit shares its namespace's variables with every
+    /// other body that opens it, so it has no closed-frame guarantee to read
+    /// this family against.
+    fn emit_lambda_body_diagnostics(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+        cbn_proc_index: &crate::interprocedural::ProcIndex,
+        traced_globals: &HashSet<String>,
+    ) {
+        for qname in &cu.ir_module.lambda_body_units {
+            let (Some(fu), Some(ir_proc)) =
+                (cu.body_units.get(qname), cu.ir_module.body_units.get(qname))
+            else {
+                continue;
+            };
+            let known_bound: HashSet<String> = ir_proc.params.iter().cloned().collect();
             let mut cross_event_vars = known_bound.clone();
             cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
                 &fu.cfg,
