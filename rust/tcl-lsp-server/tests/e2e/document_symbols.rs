@@ -375,7 +375,7 @@ fn self_introspection_inside_a_method_body_adds_no_symbol() {
     );
     let syms = top(&mut lsp, &uri);
     let kids = children(&syms[0]);
-    let names: Vec<&str> = kids.iter().map(|c| name(c)).collect();
+    let names: Vec<&str> = kids.iter().map(name).collect();
     assert_eq!(names, ["whoami"], "unexpected outline members: {names:?}");
 }
 

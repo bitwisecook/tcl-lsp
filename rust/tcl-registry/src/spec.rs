@@ -146,6 +146,66 @@ impl Default for BytePayloadSpec {
     }
 }
 
+/// A compile-time-constant fact about the **enclosing `TclOO` method frame**
+/// that an introspection keyword answers with.
+///
+/// Declared per keyword word on [`CommandSpec::oo_context_facts`], so a
+/// consumer folding `[self class]` reads registry data rather than matching
+/// the command name or the subcommand word.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OoContextFact {
+    /// The class that **defines** the currently executing method
+    /// implementation — what `self class` returns.
+    ///
+    /// The source fixes it: it is the class whose definition body lexically
+    /// encloses the method, and it stays that class through inheritance,
+    /// mixins, and `next`.  Oracle, byte-identical on tclsh 9.0.4 and 8.6.16:
+    ///
+    /// ```tcl
+    /// oo::class create ::A { method m {} { self class } }
+    /// [::A new] m                       ;# -> ::A
+    /// oo::class create ::B { superclass ::A }
+    /// [::B new] m                       ;# -> ::A   (the definer, not the receiver)
+    /// oo::define ::B { method n {} { self class } }
+    /// [::B new] n                       ;# -> ::B
+    /// oo::class create ::M { method mx {} { self class } }
+    /// oo::define ::B { mixin ::M } ; [::B new] mx
+    ///                                   ;# -> ::M   (a mixin still reports its definer)
+    /// oo::class create ::S { method q {} { list S:[self class] } }
+    /// oo::class create ::T { superclass ::S
+    ///                        method q {} { list T:[self class] {*}[next] } }
+    /// [::T new] q                       ;# -> T:::T S:::S  (per chain link)
+    /// oo::class create ::E { constructor {} { self class } }   ;# ctor -> ::E
+    /// oo::class create ::G { method real {} {return real}
+    ///                        method filt args { list [self class] {*}[next {*}$args] }
+    ///                        filter filt }
+    /// [::G new] real                    ;# -> ::G real       (a filter is a method)
+    /// namespace eval ::N { oo::class create C { method m {} { self class } } }
+    /// [::N::C new] m                    ;# -> ::N::C
+    /// ```
+    ///
+    /// Two shapes make it **not** a source constant.  A consumer must abstain
+    /// on both — the first is not even a value:
+    ///
+    /// ```tcl
+    /// # (1) The implementation is not defined by a class: an `oo::objdefine`
+    /// #     instance method, or a method on the class object itself
+    /// #     (`self method` / `classmethod`).  `self class` raises.
+    /// oo::objdefine $obj { method p {} { self class } }
+    /// $obj p                ;# -> error: method not defined by a class
+    /// oo::class create ::U { self method cm {} { self class } }
+    /// ::U cm                ;# -> error: method not defined by a class
+    ///
+    /// # (2) The class command was renamed: `self class` answers with the
+    /// #     class's *current* name, not the one written at definition —
+    /// #     the same rename-captures-identity rule `indirection.rs` applies.
+    /// oo::class create ::R { method r {} { self class } }
+    /// set r [::R new] ; rename ::R ::R2
+    /// $r r                  ;# -> ::R2
+    /// ```
+    DefiningClass,
+}
+
 /// Metadata for a `TclOO` / megawidget class whose instances are dispatched as
 /// `$obj <method> …`.
 ///
@@ -784,6 +844,22 @@ pub struct CommandSpec {
     /// every ensemble whose subcommands are C `switch`-statement arms with
     /// no individually-callable backing command (`string`, `array`, …).
     pub implementation_namespace: Option<&'static str>,
+
+    /// Argument-0 keyword words whose value is a compile-time constant fixed
+    /// by the enclosing `TclOO` **method frame** rather than by the arguments
+    /// — `self`'s `class`, and nothing else in the registry today.
+    ///
+    /// This is what lets the optimiser answer `[self class]` from the class
+    /// whose definition body encloses the method without ever matching the
+    /// command or the word by name: it looks the invoked word up here and
+    /// asks the frame for the named [`OoContextFact`].  Empty (the default)
+    /// for every command whose result no method frame determines.
+    ///
+    /// Deliberately keyed on the *word*, not the command: `self`'s nine words
+    /// differ — only `class` names something the source fixes.  See
+    /// [`OoContextFact`] for the oracle transcript and the abstention shapes
+    /// the consumer must still apply on top of this declaration.
+    pub oo_context_facts: &'static [(&'static str, OoContextFact)],
 }
 
 /// Count the leading words of `args` that are declared options in
@@ -925,6 +1001,7 @@ impl CommandSpec {
         defines_command_at: None,
         context_gate: None,
         implementation_namespace: None,
+        oo_context_facts: &[],
     };
 
     /// Run this command's constant folder for `args` under the optimiser's

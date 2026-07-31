@@ -873,6 +873,10 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         lost.expr("case_list", spec.case_list.is_some()),
     );
     d.insert(
+        "oo_context_facts".into(),
+        lost.expr("oo_context_facts", !spec.oo_context_facts.is_empty()),
+    );
+    d.insert(
         "object_class".into(),
         lost.expr("object_class", spec.object_class.is_some()),
     );

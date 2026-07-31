@@ -833,6 +833,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "The `{pattern body …}` clause list the command takes as its final braced word.",
     ),
     f(
+        "oo_context_facts",
+        "TclOO context facts",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "&[(\"class\", OoContextFact::DefiningClass)]",
+        },
+        "Keyword words whose value the enclosing TclOO method frame fixes, so the optimiser can fold them.",
+    ),
+    f(
         "object_class",
         "Object class",
         ADVANCED,
