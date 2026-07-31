@@ -131,6 +131,39 @@ pub enum ArgRole {
     /// {…} $x]`) is recognised the same way, with no command-name check in
     /// the consumer.
     LambdaLiteral,
+    /// A word that names a **namespace** — `namespace children ::tomato`,
+    /// `namespace exists ::x`, `namespace delete ::a ::b`, `namespace eval
+    /// NS body`, `namespace inscope NS script`, `namespace upvar NS v local`.
+    ///
+    /// A first-class namespace **reference**: the compiler records the word
+    /// as a namespace occurrence so go-to-definition / hover / find-references
+    /// reach the `namespace eval` block(s) that declare it (issue #1088).
+    /// Namespaces are their own symbol space in Tcl — disjoint from commands
+    /// and from variables — so this is neither
+    /// [`Self::CommandName`] nor [`Self::VarRead`]; a consumer that treated a
+    /// namespace word as either would resolve `namespace exists ::tomato` to
+    /// an unrelated same-named proc.
+    ///
+    /// The word may be written **relative**, and then it roots against the
+    /// call site's own current namespace, exactly as Tcl resolves it
+    /// (tclsh 9.0.4 and 8.6.16, byte-identical: inside `namespace eval
+    /// ::outer`, `namespace exists inner` finds `::outer::inner` and the
+    /// global `namespace exists inner` does not).
+    ///
+    /// Deliberately **not** stamped on positions that merely *look* like
+    /// namespace words: `namespace qualifiers` / `namespace tail` take an
+    /// arbitrary string (`namespace tail a::b` answers `b` whether or not
+    /// `::a` exists), `namespace import` / `export` / `forget` take glob
+    /// **patterns**, `namespace origin` / `which` take command names, and
+    /// `namespace code` takes a script.
+    ///
+    /// Whether the named namespace has to *exist* is the subcommand's
+    /// business, not the role's: `namespace exists` probes (`0` for an
+    /// unknown name), while `namespace children` / `delete` error
+    /// (`namespace "::never" not found`, rc 1, on both interpreters). The
+    /// role carries navigation identity only, the same split
+    /// [`Self::CommandName`] / [`Self::CommandNameProbe`] draw for commands.
+    NamespaceName,
 }
 
 impl ArgRole {
@@ -156,6 +189,7 @@ impl ArgRole {
         Self::CommandName,
         Self::CommandNameProbe,
         Self::LambdaLiteral,
+        Self::NamespaceName,
     ];
 
     /// Whether an argument in this role carries **executable Tcl** that a
@@ -203,6 +237,7 @@ impl ArgRole {
             | Self::ScanFormat
             | Self::Channel
             | Self::Index
+            | Self::NamespaceName
             | Self::Keyword => false,
         }
     }

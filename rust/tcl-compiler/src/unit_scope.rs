@@ -740,8 +740,8 @@ fn record_call_site_evidence(
         // be walked with the caller's namespace: `namespace eval ::a { helper }`
         // calls `::a::helper`, never the caller's own `helper`
         // (tclsh8.6-confirmed; see `lowering`'s `register_body_unit` call for
-        // the same reasoning). Such a command carries an absolute `ArgRole::Name`
-        // naming that namespace, and lowering has already registered its body as
+        // the same reasoning). Such a command carries an absolute namespace
+        // name argument, and lowering has already registered its body as
         // a body unit whose qname encodes it — which
         // `build_extra_call_site_scan_contexts` scans with the *correct*
         // namespace. Recursing here as well would scan it a second time under
@@ -749,12 +749,19 @@ fn record_call_site_evidence(
         // namespace. Cross-file that is a false edge into another file's
         // procedure; in-unit it was merely invisible, because a bare global
         // `::helper` is rarely in a single file's own `known` set (issue #977).
-        if ctx
-            .registry
-            .arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::Name)
-            .into_iter()
-            .filter_map(|i| args.get(i))
-            .any(|name| name.starts_with("::"))
+        //
+        // Both name roles are consulted: `ArgRole::NamespaceName` is the
+        // precise one (`namespace eval` / `inscope`, issue #1088), while a
+        // generic `ArgRole::Name` still covers any other command whose
+        // symbolic name word is written absolutely.
+        if [
+            tcl_registry::ArgRole::NamespaceName,
+            tcl_registry::ArgRole::Name,
+        ]
+        .into_iter()
+        .flat_map(|role| ctx.registry.arg_indices_for_role(command, &arg_strs, role))
+        .filter_map(|i| args.get(i))
+        .any(|name| name.starts_with("::"))
         {
             continue;
         }

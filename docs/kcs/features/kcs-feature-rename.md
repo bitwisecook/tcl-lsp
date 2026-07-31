@@ -145,7 +145,13 @@ code. The gate refuses when:
   refused: each occurrence carries delimiters that are not part of the name,
   and whether the new name needs delimiters at all depends on the new name —
   rewriting the recorded span would yield `set q} 1`. Rename the cell by hand,
-  brackets and all.
+  brackets and all;
+- the cursor is on a **namespace name** (`namespace children ::tomato`, or
+  the name word of a `namespace eval` block). Renaming a namespace is not
+  supported: it would have to rewrite every qualified name declared beneath
+  it and every `namespace eval` block that reopens it. Rename says so rather
+  than quietly renaming a command or procedure that happens to share the
+  spelling, which is what an empty answer would have led to.
 
 The gate is checked across **every file the rename would edit** — the class's
 own file, every file defining or extending a class in its override family,

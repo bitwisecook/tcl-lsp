@@ -1106,6 +1106,12 @@ pub struct AnalysisResult {
     /// [`QualifiedVarRef`].  The cross-document variable reference set is
     /// built from these; an unqualified occurrence is never recorded.
     pub qualified_var_refs: Vec<QualifiedVarRef>,
+    /// Words naming a **namespace**, in source order — see [`NamespaceRef`].
+    /// Both the declaring `namespace eval` name tokens (`declares: true`) and
+    /// every other spelling of the same namespace, so go-to-definition /
+    /// hover / find-references treat a namespace as a first-class symbol
+    /// (issue #1088).
+    pub namespace_refs: Vec<NamespaceRef>,
     /// Byte spans where command resolution is pinned to a namespace by
     /// runtime context rather than lexical nesting (issue #923 idx 116):
     /// `apply {{params} body ns}` runs `body` in `ns`, not the namespace
@@ -1429,6 +1435,40 @@ pub struct QualifiedVarRef {
     pub qualified_name: String,
     /// Byte span of the name token as written.
     pub span: Span,
+}
+
+/// One occurrence of a word that **names a namespace** — every argument the
+/// registry marks [`tcl_registry::ArgRole::NamespaceName`] (`namespace
+/// children ::tomato`, `namespace exists ns`, `namespace delete ::a ::b`,
+/// `namespace eval NS body`, `namespace inscope NS script`, `namespace upvar
+/// NS v local`).
+///
+/// The namespace analogue of [`QualifiedVarRef`], and it exists for the same
+/// reason: the declaring `namespace eval` block routinely lives elsewhere —
+/// another block in the same file, or a sibling document — so the occurrence
+/// leaves no trace in the scope tree, which only records a namespace as a
+/// *container* ([`Scope`] with [`ScopeKind::Namespace`]) and never as a
+/// referenceable symbol (issue #1088).
+///
+/// Unlike the variable table this one records **relative** names too, because
+/// there is nothing per-document about them: a namespace word roots against
+/// the command-resolution namespace in effect at the occurrence, and that
+/// namespace is a lexical fact this document already knows. Pinned on tclsh
+/// 9.0.4 and 8.6.16, byte-identically: inside `namespace eval ::outer`,
+/// `namespace exists inner` answers `1` for `::outer::inner` while the same
+/// words at global scope answer `0`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NamespaceRef {
+    /// The `::`-rooted namespace the occurrence names, with a relative
+    /// spelling already rooted against the occurrence's own namespace.
+    pub qualified_name: String,
+    /// Byte span of the name token as written.
+    pub span: Span,
+    /// `true` when this occurrence is also a **declaring** site — the name
+    /// word of a [`tcl_registry::Traits::DECLARES_NAMESPACE`] command
+    /// (`namespace eval`).  Go-to-definition answers with these; the
+    /// reference set is everything else.
+    pub declares: bool,
 }
 
 /// One `CLASS create NAME` object-command binding, namespace-qualified.

@@ -57,8 +57,21 @@
 //! differential-audit findings idx 65 / 75 / 78).  An **unqualified**
 //! `$v` names whichever cell the local scope chain supplies, which is a
 //! per-document question with no statically-sound cross-file answer, so
-//! proc locals and bare occurrences are still not indexed.  Namespaces
-//! themselves are not indexed.
+//! proc locals and bare occurrences are still not indexed.
+//!
+//! **Namespaces** are indexed as first-class symbols too
+//! ([`WorkspaceNamespaceRef`], issue #1088): every word the registry marks
+//! [`tcl_registry::ArgRole::NamespaceName`] — the declaring `namespace eval`
+//! name token and every other spelling (`namespace children ::tomato`,
+//! `namespace exists ns`, `namespace delete ::a`, `namespace upvar ns v l`).
+//! This tier needs no qualified-only bound the way variables do: the analyser
+//! roots a relative namespace word against its own lexical namespace before
+//! recording it, so every indexed row names one namespace absolutely.  A
+//! **computed** target (`namespace eval $ns { … }`) is recorded nowhere — it
+//! names no static namespace — and a namespace brought into being only as an
+//! implicit parent (`namespace eval ::p::q::r {}` creates `::p` and `::p::q`
+//! on both interpreters) has no declaring row of its own, because its name is
+//! not written anywhere.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -309,6 +322,32 @@ pub struct WorkspaceVariableAlias {
     pub uri: String,
     /// `::`-rooted cell the alias binds to, e.g. `::ns::v`.
     pub qualified_name: String,
+}
+
+/// One occurrence of a word naming a **namespace**, recorded workspace-wide —
+/// the cross-document half of issue #1088, lifted verbatim from
+/// [`tcl_compiler::analyser::NamespaceRef`].
+///
+/// One table, not two, because a namespace's declaring site *is* one of its
+/// spellings: the `::tomato` of `namespace eval ::tomato { … }` is both the
+/// definition go-to-definition answers with and a word find-references
+/// reports.  [`Self::declares`] is the discriminator, and it is registry data
+/// ([`tcl_registry::Traits::DECLARES_NAMESPACE`]), not a spelling check.
+///
+/// Unlike [`WorkspaceVariable`] this table needs no qualified-only bound: the
+/// analyser roots a relative namespace word against its own lexical namespace
+/// before recording it, so every row already names one namespace absolutely,
+/// spellable from any document.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceNamespaceRef {
+    /// Document the occurrence is in.
+    pub uri: String,
+    /// `::`-rooted namespace the occurrence names.
+    pub qualified_name: String,
+    /// Byte span of the name token as written.
+    pub span: Span,
+    /// `true` for a declaring `namespace eval` name word.
+    pub declares: bool,
 }
 
 /// Whether a word carries a substitution marker, so its run-time text is not
@@ -635,6 +674,7 @@ pub struct WorkspaceIndex {
     variables: Vec<WorkspaceVariable>,
     variable_refs: Vec<WorkspaceVariableRef>,
     variable_aliases: Vec<WorkspaceVariableAlias>,
+    namespace_refs: Vec<WorkspaceNamespaceRef>,
     invocations: Vec<WorkspaceInvocation>,
     sources: Vec<WorkspaceSource>,
     package_requires: Vec<WorkspacePackageRequire>,
@@ -812,13 +852,6 @@ impl WorkspaceIndex {
             .collect()
     }
 
-    /// The `::`-stripped namespaces the workspace can say anything about: one
-    /// that owns an indexed proc or class, or that declares a `namespace
-    /// export` somewhere.
-    ///
-    /// The discriminator between "this namespace does not export the name"
-    /// (a fact) and "this namespace is not in the workspace at all" (no
-    /// information) — see [`Self::live_command_links`].
     /// Whether the workspace holds a real proc or class definition at
     /// `qualified_name` — the "already exists" side of a non-`-force`
     /// `namespace import` conflict.
@@ -837,6 +870,19 @@ impl WorkspaceIndex {
                 .any(|c| c.qualified_name.trim_start_matches("::") == target)
     }
 
+    /// The `::`-stripped namespaces the workspace can say anything about: one
+    /// that owns an indexed proc or class, that declares a `namespace export`
+    /// somewhere, or that an indexed `namespace eval` block declares.
+    ///
+    /// The discriminator between "this namespace does not export the name"
+    /// (a fact) and "this namespace is not in the workspace at all" (no
+    /// information) — see [`Self::live_command_links`].
+    ///
+    /// The declaring-block source (issue #1088) closes a hole the first two
+    /// leave: a `namespace eval ::ns { namespace import ::other::* }` block
+    /// that declares no proc, class, or export of its own *is* a namespace
+    /// the workspace can see, and treating it as unknown made the import gate
+    /// abstain where it had the evidence to decide.
     fn observable_namespaces(&self) -> HashSet<&str> {
         fn owning_ns(qualified: &str) -> &str {
             qualified
@@ -852,6 +898,12 @@ impl WorkspaceIndex {
                 self.namespace_exports
                     .iter()
                     .map(|e| e.ns.trim_start_matches("::")),
+            )
+            .chain(
+                self.namespace_refs
+                    .iter()
+                    .filter(|n| n.declares)
+                    .map(|n| n.qualified_name.trim_start_matches("::")),
             )
             .collect()
     }
@@ -917,6 +969,7 @@ impl WorkspaceIndex {
             });
         }
         self.index_variables(uri, analysis);
+        self.index_namespace_refs(uri, analysis);
         for inv in &analysis.command_invocations {
             self.invocations.push(WorkspaceInvocation {
                 uri: uri.to_owned(),
@@ -1024,6 +1077,25 @@ impl WorkspaceIndex {
                 uri: uri.to_owned(),
                 qualified_name: tcl_syntax::naming::normalise_qualified_name(&vref.qualified_name),
                 span: vref.span,
+            });
+        }
+    }
+
+    /// Lift a document's namespace-name occurrences
+    /// ([`tcl_compiler::analyser::AnalysisResult::namespace_refs`]) into the
+    /// workspace table, so `namespace children ::tomato` in one file reaches
+    /// the `namespace eval ::tomato { … }` in another (issue #1088).
+    ///
+    /// A straight copy: the analyser has already rooted relative spellings
+    /// and dropped computed ones, so there is no second resolution rule here
+    /// that could disagree with the in-document providers.
+    fn index_namespace_refs(&mut self, uri: &str, analysis: &AnalysisResult) {
+        for nref in &analysis.namespace_refs {
+            self.namespace_refs.push(WorkspaceNamespaceRef {
+                uri: uri.to_owned(),
+                qualified_name: tcl_syntax::naming::normalise_qualified_name(&nref.qualified_name),
+                span: nref.span,
+                declares: nref.declares,
             });
         }
     }
@@ -1144,6 +1216,7 @@ impl WorkspaceIndex {
         self.variables.retain(|v| v.uri != uri);
         self.variable_refs.retain(|v| v.uri != uri);
         self.variable_aliases.retain(|v| v.uri != uri);
+        self.namespace_refs.retain(|n| n.uri != uri);
         self.invocations.retain(|i| i.uri != uri);
         self.sources.retain(|s| s.uri != uri);
         self.package_requires.retain(|pr| pr.uri != uri);
@@ -1936,6 +2009,55 @@ impl WorkspaceIndex {
         uris.sort();
         uris.dedup();
         uris
+    }
+
+    /// Every indexed namespace-name occurrence.
+    #[must_use]
+    pub fn namespace_refs(&self) -> &[WorkspaceNamespaceRef] {
+        &self.namespace_refs
+    }
+
+    /// **Declaring** sites of the namespace `qualified_name` — the name word
+    /// of each `namespace eval` block that creates or extends it — excluding
+    /// any in `exclude_uri` (pass `""` to exclude nothing).
+    ///
+    /// A set, not an `Option`, and for a stronger reason than the variable
+    /// tier's: reopening a namespace is the *normal* way to build one, and
+    /// tclsh 9.0.4 / 8.6.16 agree byte-for-byte that two `namespace eval ::a
+    /// {}` blocks are one namespace (`info vars ::a::*` shows both blocks'
+    /// variables).  Every block is a real definition site.
+    ///
+    /// Exact-name matching only: the analyser already rooted every relative
+    /// spelling, so there is no candidate list to walk.
+    #[must_use]
+    pub fn namespace_declarations_qualified<'a>(
+        &'a self,
+        qualified_name: &str,
+        exclude_uri: &str,
+    ) -> Vec<&'a WorkspaceNamespaceRef> {
+        let target = qualified_name.trim_start_matches("::");
+        self.namespace_refs
+            .iter()
+            .filter(|n| n.declares && n.uri != exclude_uri)
+            .filter(|n| n.qualified_name.trim_start_matches("::") == target)
+            .collect()
+    }
+
+    /// Non-declaring occurrences of the namespace `qualified_name`, excluding
+    /// any in `exclude_uri` — the reference-side twin of
+    /// [`Self::namespace_declarations_qualified`].
+    #[must_use]
+    pub fn namespace_refs_of<'a>(
+        &'a self,
+        qualified_name: &str,
+        exclude_uri: &str,
+    ) -> Vec<&'a WorkspaceNamespaceRef> {
+        let target = qualified_name.trim_start_matches("::");
+        self.namespace_refs
+            .iter()
+            .filter(|n| !n.declares && n.uri != exclude_uri)
+            .filter(|n| n.qualified_name.trim_start_matches("::") == target)
+            .collect()
     }
 
     /// Occurrence (read / write) sites naming the namespace variable
@@ -3909,6 +4031,87 @@ mod tests {
             "with no colliding builtin, the nested definition still counts \
              (e.g. `namespace which -command` probes, W120 existence checks)",
         );
+    }
+
+    #[test]
+    fn namespace_declarations_and_refs_are_indexed_across_documents() {
+        // TP (issue #1088) — the declaring `namespace eval` blocks live in
+        // one document and the `namespace children ::mypkg` consumer in
+        // another; both spellings name the one namespace.  Oracle (tclsh
+        // 9.0.4 / 8.6.16, byte-identical): reopening `::mypkg` extends the
+        // same namespace, and `namespace children ::mypkg` lists its
+        // children rather than erroring.
+        let decl = analyse("namespace eval mypkg {}\nnamespace eval mypkg {}\n");
+        let user = analyse("set t [namespace children ::mypkg]\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///decl.tcl", &decl),
+            ("file:///user.tcl", &user),
+        ]);
+        assert_eq!(
+            index
+                .namespace_declarations_qualified("::mypkg", "")
+                .iter()
+                .map(|n| n.uri.as_str())
+                .collect::<Vec<_>>(),
+            vec!["file:///decl.tcl", "file:///decl.tcl"],
+            "both declaring blocks are definition sites",
+        );
+        assert_eq!(
+            index
+                .namespace_refs_of("::mypkg", "")
+                .iter()
+                .map(|n| n.uri.as_str())
+                .collect::<Vec<_>>(),
+            vec!["file:///user.tcl"],
+        );
+        // The declaring document is excluded on request, which is how the
+        // cross-document definition tier avoids re-reporting local answers.
+        assert!(
+            index
+                .namespace_declarations_qualified("::mypkg", "file:///decl.tcl")
+                .is_empty(),
+        );
+    }
+
+    #[test]
+    fn namespace_rows_are_dropped_with_their_document() {
+        // A re-index (`remove_document` then `add_document`) must not leave
+        // stale namespace rows behind — the same discipline every other
+        // table follows.
+        let a = analyse("namespace eval gone {}\n");
+        let mut index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
+        assert_eq!(
+            index.namespace_declarations_qualified("::gone", "").len(),
+            1
+        );
+        index.remove_document("file:///a.tcl");
+        assert!(
+            index
+                .namespace_declarations_qualified("::gone", "")
+                .is_empty()
+        );
+        assert!(index.namespace_refs().is_empty());
+    }
+
+    #[test]
+    fn a_relative_namespace_word_is_indexed_rooted() {
+        // TP — the analyser roots a relative spelling against its own
+        // namespace before the index sees it, so a sibling document can
+        // match it by exact qualified name.  Oracle: inside `namespace eval
+        // ::outer`, `namespace children inner` means `::outer::inner`; the
+        // same words at global scope mean `::inner` (both interpreters).
+        let a = analyse(
+            "namespace eval ::outer {\n    namespace eval inner {}\n    namespace children inner\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
+        assert_eq!(
+            index
+                .namespace_declarations_qualified("::outer::inner", "")
+                .len(),
+            1,
+        );
+        assert_eq!(index.namespace_refs_of("::outer::inner", "").len(), 1);
+        assert!(index.namespace_refs_of("::inner", "").is_empty());
     }
 
     #[test]

@@ -758,6 +758,13 @@ impl Analyser {
             // any arity check (it is introspected, not called).
             self.record_command_name_invocations(cmd_name, args, arg_tokens, scope_path);
 
+            // Record `ArgRole::NamespaceName` arguments (`namespace children
+            // ::tomato`, `namespace exists ns`, `namespace eval NS { … }`) as
+            // namespace occurrences, so a namespace name is a navigable
+            // symbol for go-to-definition / hover / find-references rather
+            // than an inert word (issue #1088).
+            self.record_namespace_name_references(cmd_name, args, arg_tokens, scope_path);
+
             // Run the per-command syntactic checks on commands nested inside
             // ``[…]`` substitutions — the main walk never descends a
             // substitution (it treats `[cmd …]` as a value), so a command
@@ -2130,6 +2137,82 @@ impl Analyser {
         }
     }
 
+    /// Record each [`tcl_registry::arg_role::ArgRole::NamespaceName`]
+    /// argument as a [`NamespaceRef`](super::types::NamespaceRef): a word
+    /// naming a namespace, which navigation must reach (issue #1088).
+    ///
+    /// A **relative** name roots against the call site's own
+    /// command-resolution namespace, which is what Tcl does — pinned on
+    /// tclsh 9.0.4 and 8.6.16, byte-identically: inside `namespace eval
+    /// ::outer`, `namespace exists inner` answers `1` (it means
+    /// `::outer::inner`) while the same words at global scope answer `0`.
+    /// A proc body's current namespace is its *defining* namespace, which is
+    /// exactly what [`Self::command_resolution_namespace`] reports.
+    ///
+    /// A dynamic word (`namespace eval $ns { … }`) names no static namespace
+    /// and is the **only** skip. The declaring flag comes from the registry's
+    /// [`tcl_registry::Traits::DECLARES_NAMESPACE`], never from the
+    /// subcommand's spelling: `namespace eval` declares, `namespace inscope`
+    /// — same argument layout, same analyser hook — does not.
+    ///
+    /// The **empty** literal is a real namespace name and is recorded like
+    /// any other relative one.  It needs no special case, because it *is* the
+    /// ordinary relative rule: `crate::naming::qualify` maps it to `::` at
+    /// global scope and to `::outer::` inside `namespace eval ::outer`, which
+    /// is exactly what tclsh 9.0.4 and 8.6.16 do (byte-identical). At global
+    /// scope `namespace exists {}` is `1`, `namespace children {}` equals
+    /// `namespace children ::`, `namespace inscope {} {namespace current}` is
+    /// `::`, and `namespace eval {} {…}` reopens the global namespace
+    /// (`namespace current` inside is `::`, and the variables it sets land in
+    /// `::`). Inside `namespace eval ::outer` the very same word means a
+    /// namespace that cannot exist: `namespace exists {}` is `0`, `namespace
+    /// children {}` fails `namespace "" not found in "::outer"`, and
+    /// `namespace eval {} {…}` fails `can't create namespace "": only global
+    /// namespace can have empty name`.  Recording it as `::outer::` — a name
+    /// nothing ever declares — makes navigation abstain there, which is the
+    /// right answer.
+    ///
+    /// A **whitespace-only** word is not empty and is not special either:
+    /// `namespace eval " " {…}` genuinely creates a namespace named `" "`,
+    /// which both interpreters list as `{:: }` among `namespace children ::`.
+    fn record_namespace_name_references(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        let Some(registry) = self.registry else {
+            return;
+        };
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let indices = registry.arg_indices_for_role(
+            cmd_name,
+            &arg_strs,
+            tcl_registry::arg_role::ArgRole::NamespaceName,
+        );
+        if indices.is_empty() {
+            return;
+        }
+        let declares = registry
+            .call_traits(cmd_name, &arg_strs)
+            .contains(tcl_registry::Traits::DECLARES_NAMESPACE);
+        let here = self.command_resolution_namespace(scope_path);
+        for idx in indices {
+            let (Some(name), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) else {
+                continue;
+            };
+            if crate::naming::is_dynamic_word(name) {
+                continue;
+            }
+            self.result.namespace_refs.push(super::types::NamespaceRef {
+                qualified_name: crate::naming::qualify(&here, name),
+                span: tok.span,
+                declares,
+            });
+        }
+    }
+
     /// `<ensemble> <subcommand> …` — when `resolved_cmd` names a known
     /// ensemble (a key in [`AnalysisResult::ensemble_subcommand_targets`])
     /// and the first actual argument is a static, non-`{*}`-expanded
@@ -2597,6 +2680,14 @@ impl Analyser {
         // the IRULE5005 emitter never sees it.  Matches the top-level
         // `process_command` ordering (proc-resolution after site recording).
         self.emit_proc_resolution_diagnostics(&cmd_name, args, cmd_tok, scope_path);
+        // A namespace-name argument nested in a `[…]` substitution names the
+        // same namespace a top-level one would — and this is the *dominant*
+        // real shape: `set targets [namespace children ::tomato]` is the very
+        // line issue #1088 was mined from.  The main walk treats `[…]` as an
+        // opaque value, so without this the occurrence would be invisible to
+        // go-to-definition / hover / find-references exactly where it matters
+        // most.
+        self.record_namespace_name_references(&cmd_name, args, arg_tokens, scope_path);
         // A `package require` nested in a `[…]` substitution still runs — the
         // guarded-optional-dependency idiom puts it exactly there
         // (`if {[catch {package require Tk} err]} { … fallback … }`), and the
