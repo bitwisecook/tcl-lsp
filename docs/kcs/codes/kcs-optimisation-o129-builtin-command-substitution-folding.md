@@ -76,10 +76,59 @@ static or not a value at all:
 - **A dynamic class name** (`oo::class create $nm { … }`), which the compiler
   never resolves to a class in the first place.
 
-The method-body fold carries no constants map, so it introduces no variable
-propagation inside a method: an instance variable is object state that outlives
-the frame and any `my …` call may rewrite it, which the per-function lattice
-does not model.
+## Chaining `[self class]` onward: `namespace qualifiers` / `namespace tail`
+
+`namespace qualifiers` and `namespace tail` split a *string* at its last `::`
+— pure string arithmetic that never consults the interpreter's namespace table
+— so they fold on any provably-constant word, including the `[self class]`
+value the fold resolves first. That makes the real-corpus ticklecharts idiom a
+single O129 rewrite:
+
+```tcl
+oo::class create ::ticklecharts::Gauge {
+    method render {} { set ns [namespace qualifiers [self class]] }
+}
+```
+
+becomes `set ns ::ticklecharts` (and `namespace tail` would give `Gauge`). The
+edge cases are pinned byte-identical on tclsh 9.0.4 and 8.6.14 — `:::` → `{}` /
+`{}`, `a:::b` → `a` / `b`, `::a::b::` → `::a::b` / `{}`, `::x:y` → `{}` /
+`x:y`, and the empty string → `{}` / `{}` — by a unit table in the registry and
+a `tclsh`-differential matrix replayed against both interpreters.
+
+## Variable propagation inside a method body
+
+The method-body walk now carries a constants map, but only over variables the
+compilation unit can prove are **method-local**. An instance variable is object
+state that outlives the frame: the constructor or any other method may have
+written it, and a `my …` dispatch may rewrite it between two statements here.
+So for this pass SCCP is re-run for the method with the class's instance
+variables (its `variable` declarations, plus any the method itself makes with
+`variable` / `my variable`) in its escaping set, which forces them — and
+everything derived from them — to `Overdefined`. What is left over is a
+private local, and a `my` / `next` / `[self …]` dispatch cannot reach it.
+
+```tcl
+oo::class create ::A {
+    variable n
+    method bump {} { incr n }
+    method m {} { set n 1 ; my bump ; puts $n }   ;# `$n` never folds
+    method k {} { set v 42  ; puts $v }           ;# `$v` folds to 42
+}
+```
+
+One further whole-module gate, on the principle that an incomplete picture of
+what a `my` / `next` dispatch can do means no method body's locals are
+propagated anywhere in the module. It fires when any method body can reach its
+caller's frame (an `upvar` at any level above the current one, or an `uplevel`
+— counted whatever the dynamism of the names involved, since a computed name is
+more dangerous, not less), or when any method was redefined (the lowering keeps
+only the first body, so a replacement is invisible to every scan). A proc
+callee that reaches its caller is modelled per call site; a method reached
+through `my` is not, because the dispatch does not name it. `global` /
+`variable` / `namespace upvar` reach a namespace rather than a caller frame and
+deliberately do not trip the gate. See the "evidence rules" section of
+`docs/design/compiler/sccp-core-analyses.md`.
 
 ## Safety conditions
 
@@ -102,7 +151,10 @@ Toggle the optimiser profile in your editor settings. See the
 
 ## File-path anchors
 
-- `rust/tcl-compiler/src/optimiser/propagation.rs` — `fold_builtin_cmd_subst_raw`, and `run_oo_method_folds` / `oo_frame_for` / `oo_context_fact_fold` for the method-frame half
+- `rust/tcl-compiler/src/optimiser/propagation.rs` — `fold_builtin_cmd_subst_raw`, and `run_oo_method_folds` / `oo_frame_for` / `oo_context_fact_fold` / `oo_method_constants` / `methods_reach_caller_frames` for the method-frame half
+- `rust/tcl-compiler/src/cfg_builder/upvar_info.rs` — `reaches_caller_frame` (the barrier's caller-frame evidence)
+- `rust/tcl-compiler/src/lowering/mod.rs` — `Lowerer::class_instance_vars` (per-class instance-variable union across definition blocks)
+- `rust/tcl-registry/src/commands/tcl/namespace_.rs` — `fold_qualifiers` / `fold_tail` and the oracle table
 - `rust/tcl-registry/src/spec.rs` — `CommandSpec::oo_context_facts`, `OoContextFact` (with the oracle transcript)
 - `rust/tcl-registry/src/commands/tcl/oo_self.rs` — `self`'s declaration
 

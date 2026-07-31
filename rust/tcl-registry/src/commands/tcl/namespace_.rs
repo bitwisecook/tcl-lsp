@@ -212,6 +212,87 @@ fn namespace_delete_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
         .collect()
 }
 
+/// Compile-time folds for `namespace qualifiers` / `namespace tail`
+/// (issue #1096), consumed by the optimiser's O129 general-builtin
+/// constant-fold path through the registry `const_fold` callbacks.
+///
+/// Both are **pure string operations**: `namespace.n` describes them as
+/// splitting a *string* at its last `::` separator, and neither consults the
+/// interpreter's namespace table — a name for a namespace that does not
+/// exist splits exactly the same way as one that does.  So the fold needs no
+/// namespace-existence check and is namespace-context-independent, which is
+/// what makes it sound to fire on any provably-constant word (including the
+/// `[self class]` frame constant the O129 path resolves first — that chain is
+/// the point of the issue).
+///
+/// The two functions are byte-exact ports of `NamespaceQualifiersCmd` /
+/// `NamespaceTailCmd` (`tclNamesp.c`), scanning bytes backwards for the last
+/// `::`.  Pinned against tclsh 9.0.4 and 8.6.14, byte-identical on every row
+/// (including the four edge cases issue #1096 tabulates), by the unit tests
+/// below and the `tclsh`-differential matrix in
+/// `tests/differential_fold.rs`.  Working on bytes is UTF-8-safe here because
+/// `:` is ASCII and can never occur inside a multi-byte sequence: every cut
+/// point is immediately before or after an ASCII `:`, hence always a char
+/// boundary.
+///
+/// Registered dialect-invariantly (`const_fold`, not `const_fold_versioned`):
+/// the C implementation of both subcommands is unchanged across 8.4-9.1 and
+/// the transcripts agree byte-for-byte.
+fn fold_qualifiers(args: &[&str]) -> Option<String> {
+    let [s] = args else {
+        return None;
+    };
+    let b = s.as_bytes();
+    // `NamespaceQualifiersCmd`: walk back from the terminator; on the first
+    // `::` step back over it plus any further run of `:`, and take everything
+    // to its left.  Falling off the front (no `::`, or nothing but colons
+    // before it) yields the empty string.
+    let mut p = b.len();
+    let mut end: Option<usize> = None;
+    while p > 0 {
+        p -= 1;
+        if b[p] == b':' && p > 0 && b[p - 1] == b':' {
+            // Step left to the start of the maximal `:` run this pair ends;
+            // the qualifier is everything before it, and nothing at all when
+            // the run reaches the front of the string.
+            let mut q = p - 1;
+            while q > 0 && b[q - 1] == b':' {
+                q -= 1;
+            }
+            if q > 0 {
+                end = Some(q);
+            }
+            break;
+        }
+    }
+    Some(end.map_or_else(String::new, |e| s[..e].to_owned()))
+}
+
+fn fold_tail(args: &[&str]) -> Option<String> {
+    let [s] = args else {
+        return None;
+    };
+    let b = s.as_bytes();
+    if b.is_empty() {
+        // `NamespaceTailCmd`'s `p` lands before the string start for the
+        // empty input and sets no result at all — the empty string.
+        return Some(String::new());
+    }
+    // The scan stops one short of the front (C's `while (--p > name)`), so a
+    // leading `::` is never treated as a separator: `namespace tail ::foo` is
+    // `foo`, but `namespace tail :` is `:`.
+    let mut p = b.len() - 1;
+    let mut start = 0usize;
+    while p > 0 {
+        if b[p] == b':' && b[p - 1] == b':' {
+            start = p + 1;
+            break;
+        }
+        p -= 1;
+    }
+    Some(s[start..].to_owned())
+}
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "children",
@@ -497,6 +578,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace qualifiers string",
         pure: true,
         return_type: Some(TclType::String),
+        // Pure string arithmetic on the word — see [`fold_qualifiers`].
+        const_fold: Some(fold_qualifiers),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -506,6 +589,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace tail string",
         pure: true,
         return_type: Some(TclType::String),
+        // Pure string arithmetic on the word — see [`fold_tail`].
+        const_fold: Some(fold_tail),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -625,5 +710,127 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         codegen_hook: Some(crate::hooks::CodegenHookId::Namespace),
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{fold_qualifiers, fold_tail};
+
+    /// The oracle table, transcribed from tclsh 9.0.4 and 8.6.14 (issue
+    /// #1096; the four edge rows the issue tabulates are the last four
+    /// here plus `:::`).  Both interpreters produced **byte-identical**
+    /// output for every row, so one table pins both.
+    ///
+    /// ```text
+    /// $ tclsh9.0 / tclsh8.6
+    /// namespace qualifiers ::a::b::c   -> ::a::b      tail -> c
+    /// namespace qualifiers a::b        -> a           tail -> b
+    /// namespace qualifiers c           -> {}          tail -> c
+    /// namespace qualifiers {}          -> {}          tail -> {}
+    /// namespace qualifiers ::          -> {}          tail -> {}
+    /// namespace qualifiers :::         -> {}          tail -> {}
+    /// namespace qualifiers a:::b       -> a           tail -> b
+    /// namespace qualifiers ::a::b::    -> ::a::b      tail -> {}
+    /// namespace qualifiers ::x:y       -> {}          tail -> x:y
+    /// namespace qualifiers ::foo       -> {}          tail -> foo
+    /// namespace qualifiers foo::       -> foo         tail -> {}
+    /// namespace qualifiers ::a::b::c:: -> ::a::b::c   tail -> {}
+    /// namespace qualifiers a           -> {}          tail -> a
+    /// namespace qualifiers :           -> {}          tail -> :
+    /// namespace qualifiers ::::        -> {}          tail -> {}
+    /// namespace qualifiers x::y::z     -> x::y        tail -> z
+    /// namespace qualifiers { a::b }    -> { a}        tail -> {b }
+    /// namespace qualifiers {a::b c::d} -> {a::b c}    tail -> d
+    /// namespace qualifiers a::         -> a           tail -> {}
+    /// namespace qualifiers ::a         -> {}          tail -> a
+    /// ```
+    const ORACLE: &[(&str, &str, &str)] = &[
+        ("::a::b::c", "::a::b", "c"),
+        ("a::b", "a", "b"),
+        ("c", "", "c"),
+        ("", "", ""),
+        ("::", "", ""),
+        (":::", "", ""),
+        ("a:::b", "a", "b"),
+        ("::a::b::", "::a::b", ""),
+        ("::x:y", "", "x:y"),
+        ("::foo", "", "foo"),
+        ("foo::", "foo", ""),
+        ("::a::b::c::", "::a::b::c", ""),
+        ("a", "", "a"),
+        (":", "", ":"),
+        ("::::", "", ""),
+        ("x::y::z", "x::y", "z"),
+        ("::ticklecharts::Gauge", "::ticklecharts", "Gauge"),
+        (" a::b ", " a", "b "),
+        ("a::b c::d", "a::b c", "d"),
+        ("a::", "a", ""),
+        ("::a", "", "a"),
+    ];
+
+    #[test]
+    fn qualifiers_and_tail_match_the_oracle_table() {
+        for &(input, want_q, want_t) in ORACLE {
+            assert_eq!(
+                fold_qualifiers(&[input]).as_deref(),
+                Some(want_q),
+                "namespace qualifiers {input:?}"
+            );
+            assert_eq!(
+                fold_tail(&[input]).as_deref(),
+                Some(want_t),
+                "namespace tail {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn folds_are_utf8_safe_on_multibyte_names() {
+        // `:` is ASCII, so it never appears inside a multi-byte sequence —
+        // every cut point is a char boundary.  Slicing bytes would panic if
+        // this were not so.
+        assert_eq!(fold_qualifiers(&["é::b"]).as_deref(), Some("é"));
+        assert_eq!(fold_tail(&["é::b"]).as_deref(), Some("b"));
+        assert_eq!(fold_qualifiers(&["a::é"]).as_deref(), Some("a"));
+        assert_eq!(fold_tail(&["a::é"]).as_deref(), Some("é"));
+        assert_eq!(fold_qualifiers(&["日本::語"]).as_deref(), Some("日本"));
+        assert_eq!(fold_tail(&["日本::語"]).as_deref(), Some("語"));
+    }
+
+    #[test]
+    fn folds_decline_on_a_wrong_argument_count() {
+        // Both subcommands are `arity: exact(1)`; a call tclsh would reject
+        // must not fold to a value.
+        assert_eq!(fold_qualifiers(&[]), None);
+        assert_eq!(fold_tail(&[]), None);
+        assert_eq!(fold_qualifiers(&["a", "b"]), None);
+        assert_eq!(fold_tail(&["a", "b"]), None);
+    }
+
+    #[test]
+    fn subcommands_carry_the_folds_through_the_registry() {
+        // Registry-level wiring: the optimiser reaches the fold through
+        // `SubCommand::run_const_fold`, never by calling the function
+        // directly.
+        let spec = super::spec();
+        let q = spec
+            .subcommands
+            .iter()
+            .find(|s| s.name == "qualifiers")
+            .expect("qualifiers subcommand");
+        let t = spec
+            .subcommands
+            .iter()
+            .find(|s| s.name == "tail")
+            .expect("tail subcommand");
+        assert_eq!(
+            q.run_const_fold(&["::a::b::c"], Some("tcl9.0")).as_deref(),
+            Some("::a::b")
+        );
+        assert_eq!(
+            t.run_const_fold(&["::a::b::c"], Some("tcl8.6")).as_deref(),
+            Some("c")
+        );
     }
 }

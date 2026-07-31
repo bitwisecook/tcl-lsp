@@ -203,6 +203,15 @@ pub enum OoContextFact {
     /// set r [::R new] ; rename ::R ::R2
     /// $r r                  ;# -> ::R2
     /// ```
+    ///
+    /// **Downstream of the fold.**  The folded class name is an ordinary
+    /// constant word, so it feeds the ordinary `const_fold` callbacks: this is
+    /// what makes the real-corpus ticklecharts chain
+    /// `set ns [namespace qualifiers [self class]] ; ${ns}::setdef …` resolve
+    /// in one step (issue #1096).  `namespace qualifiers` / `namespace tail`
+    /// are pure string operations — they split a string at its last `::` and
+    /// never consult the interpreter's namespace table — so no namespace has
+    /// to exist for the chain to be sound.
     DefiningClass,
 }
 

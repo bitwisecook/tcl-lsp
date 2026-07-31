@@ -909,22 +909,140 @@ fn oo_frame_for(
     })
 }
 
-/// Fold the command substitutions in every `TclOO` method body that the
-/// enclosing method frame makes constant — `[self class]`, and anything built
-/// purely out of it (`[namespace tail [self class]]` folds in one step, since
-/// the builtin fold resolves nested substitutions first).
+/// Whether the module supplies **incomplete evidence** about what a `my` /
+/// `next` / object dispatch out of a method body can do to that body's private
+/// locals — the whole-module gate on method-body variable propagation (issue
+/// #1097, hardened by the #1096/#1097 review's three findings).
 ///
-/// Deliberately narrower than [`run_function`]: it carries **no** constants
-/// map, so no `$var` is propagated inside a method body. An instance variable
-/// is object state that outlives the frame and can be rewritten by any `my …`
-/// call, and the per-function SCCP lattice does not model that — so the
-/// variable-propagation half of this pass stays off for methods (which is the
-/// status quo) while the frame-constant fold, which touches no variable at
-/// all, is switched on.
+/// A *proc* callee is modelled per call site: the CFG builder widens the
+/// caller's defs at every call to a name in
+/// [`crate::cfg_builder::detect_upvar_procs`]'s table, and method CFGs are
+/// built with that table threaded in.  A **method** reached through `my`,
+/// `next`, or an object dispatch is not in that table and cannot be, because
+/// the dispatch never names its target.  So the barrier has to be answered
+/// from whole-module evidence instead, and the governing rule is: *when the
+/// evidence is incomplete, widen to abstention.*  Two sources make it
+/// incomplete:
+///
+/// * **A method body that can reach its caller's frame.**
+///   [`reaches_caller_frame`](crate::cfg_builder::upvar_info::reaches_caller_frame)
+///   is the complete structural query — it counts an `upvar` alias whatever
+///   the dynamism of either side of the pair, an `uplevel` script running in
+///   the caller, and any level it cannot place.  It is deliberately *not*
+///   `var_observability`'s per-variable alias lattice: that route
+///   (`upvar_local_declaration_indices`) skips a pair when either side starts
+///   with `$`, so `method helper {src} {upvar 1 $src b; set b 2}` — which
+///   mutates its caller's variable on every call — read as "no caller-frame
+///   alias".  A dynamic name makes an alias *more* dangerous, never exempt.
+///   Oracle (identical on tclsh 9.0.4 and 8.6.14): that helper, called from
+///   `method m {} {set x 1; set src x; my helper $src; puts $x}`, prints `2`.
+///
+/// * **A method that was redefined.**  The lowering keeps the *first* body and
+///   records only the name in [`crate::ir::Module::redefined_methods`], so a
+///   replacement body is invisible to every scan above — including the
+///   caller-frame query, which would be inspecting the wrong body.  An
+///   initially-empty helper later redefined as `{upvar 1 x y; set y 2}` is
+///   otherwise undetectable.  Oracle (9.0.4 and 8.6.14): prints `2`.
+///
+///   Scoped to the whole module rather than to the redefined method's own
+///   class on purpose: `my` dispatches along the MRO, so a replaced method in
+///   a *superclass* is reachable from a subclass's body, and a per-class kill
+///   switch would miss exactly that.  Redefinition is rare, so the precision
+///   cost is small and the soundness argument does not depend on an MRO the
+///   optimiser does not compute here.
+///
+/// Flow-insensitive and whole-module for the same reason
+/// [`crate::command_binding::ModuleCommandMutations::trusts`] is: the dispatch
+/// order between methods is not statically known.
+fn method_dispatch_evidence_is_incomplete(cu: &CompilationUnit) -> bool {
+    if !cu.ir_module.redefined_methods.is_empty() {
+        return true;
+    }
+    cu.ir_module
+        .methods
+        .values()
+        .any(|m| crate::cfg_builder::upvar_info::reaches_caller_frame(&m.body, &m.params))
+}
+
+/// The method-local constants a method body may propagate, or an empty map
+/// when it may propagate none (issue #1097).
+///
+/// This is the port of `elimination.rs`'s escaping model into the propagation
+/// lattice.  `elimination.rs` already knows that a `TclOO` instance variable
+/// escapes the method frame — it feeds
+/// [`crate::ir::MethodDef::instance_vars`] through the same channel iRules
+/// cross-event state uses, so a state-mutating `set ivar …` is never deleted
+/// as a dead store.  The propagation lattice had no such model, which is why
+/// this walk used to carry an unconditionally empty constants map.
+///
+/// SCCP is therefore **re-run** for the method with those names in its
+/// escaping set, rather than the shared [`FunctionUnit::sccp`] being rebuilt
+/// that way: forcing them `Overdefined` also poisons everything *derived*
+/// from them (`set a $ivar ; set b $a`), which no filter on a projected map
+/// could do — but it is a deliberately propagation-only view.  The unit's own
+/// lattice stays as built, because other consumers read facts an instance
+/// variable legitimately carries (the object-collection element typing of
+/// issue #797 harvests `dict set pins $k [Pin new]` out of exactly such a
+/// name).
+///
+/// What survives the projection is provably method-local: a name the class
+/// never declares as state, never aliased by `variable` / `my variable` /
+/// `upvar` / `global` inside the body (the per-function
+/// [`crate::var_observability`] scan SCCP runs covers those), and not under a
+/// trace.  A `my …` / `next` / `[self …]` dispatch is then no longer a barrier
+/// for it: object state is the only thing such a dispatch can reach, and every
+/// name that names object state has already left the map.
+fn oo_method_constants(
+    ctx: &PassContext<'_>,
+    cu: &CompilationUnit,
+    qname: &str,
+    allow_locals: bool,
+) -> std::collections::HashMap<String, String> {
+    if !allow_locals {
+        return std::collections::HashMap::new();
+    }
+    let (Some(fu), Some(method), Some(registry)) = (
+        cu.methods.get(qname),
+        cu.ir_module.methods.get(qname),
+        ctx.registry,
+    ) else {
+        return std::collections::HashMap::new();
+    };
+    if fu.complexity_guarded {
+        return std::collections::HashMap::new();
+    }
+    let sccp = crate::sccp::sccp_with_extra_escaping(
+        &fu.cfg,
+        &fu.ssa,
+        None,
+        FoldPolicy::from_registry(registry),
+        &method.instance_vars,
+        crate::sccp::TraceInputs {
+            registry,
+            traced_variables: &cu.ir_module.traced_variables,
+            has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+        },
+    );
+    sccp_constants_from(&sccp, &fu.ssa)
+}
+
+/// Fold the command substitutions in every `TclOO` method body that the
+/// enclosing method frame makes constant — `[self class]`, anything built
+/// purely out of it (`[namespace qualifiers [self class]]` folds in one step,
+/// since the builtin fold resolves nested substitutions first), and — since
+/// issue #1097 — anything built out of a *provably method-local* variable as
+/// well.
+///
+/// Still deliberately narrower than [`run_function`]: no O103 static-proc-call
+/// fold and no `namespace`-relative chain resolution runs here.  What issue
+/// #1097 switched on is the constants map, which used to be unconditionally
+/// empty because the propagation lattice had no model of which names are
+/// object state; [`oo_method_constants`] is that model.
 fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     if ctx.registry.is_none() {
         return;
     }
+    let allow_locals = !method_dispatch_evidence_is_incomplete(cu);
     // Sorted so the emitted rewrite order is deterministic across runs
     // (`ir_module.methods` is a `HashMap`).
     let mut qnames: Vec<&String> = cu.ir_module.methods.keys().collect();
@@ -936,31 +1054,50 @@ fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let Some(frame) = oo_frame_for(method, &ctx.command_mutations) else {
             continue;
         };
-        walk_oo_script(ctx, &method.body, &frame, 0);
+        let constants = oo_method_constants(ctx, cu, qname, allow_locals);
+        walk_oo_script(ctx, &method.body, &frame, &constants, 0);
     }
 }
 
 /// `depth` is the nesting level of `script` — see
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`].
-fn walk_oo_script(ctx: &mut PassContext<'_>, script: &Script, frame: &OoFrame, depth: u32) {
+fn walk_oo_script(
+    ctx: &mut PassContext<'_>,
+    script: &Script,
+    frame: &OoFrame,
+    constants: &std::collections::HashMap<String, String>,
+    depth: u32,
+) {
     if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in &script.statements {
-        walk_oo_statement(ctx, stmt, frame, depth);
+        walk_oo_statement(ctx, stmt, frame, constants, depth);
     }
 }
 
 /// Visit one statement's command words for the frame-constant fold, then
 /// recurse into any nested body it carries.
-fn walk_oo_statement(ctx: &mut PassContext<'_>, stmt: &Statement, frame: &OoFrame, depth: u32) {
+fn walk_oo_statement(
+    ctx: &mut PassContext<'_>,
+    stmt: &Statement,
+    frame: &OoFrame,
+    constants: &std::collections::HashMap<String, String>,
+    depth: u32,
+) {
     match stmt {
         Statement::Call {
             tokens: Some(t), ..
         }
         | Statement::AssignValue {
             tokens: Some(t), ..
-        } => visit_oo_frame_folds(ctx, t, frame),
+        } => {
+            // O100 / O129-in-interpolation over the method-local constants
+            // (empty unless issue #1097's escaping model proved some name
+            // method-local), then the frame-constant cmd-sub folds.
+            visit_call_tokens(ctx, t, constants);
+            visit_oo_frame_folds(ctx, t, frame, constants);
+        }
         // `return [self class]` is the single most common shape of all, and a
         // `Return` carries no `CommandTokens` — only the whole statement span
         // and the raw value text. Rewrite the statement the way the sibling
@@ -970,40 +1107,40 @@ fn walk_oo_statement(ctx: &mut PassContext<'_>, stmt: &Statement, frame: &OoFram
             value: Some(raw),
             expr: None,
             ..
-        } => try_oo_frame_return_fold(ctx, *span, raw, frame),
+        } => try_oo_frame_return_fold(ctx, *span, raw, frame, constants),
         Statement::If {
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_oo_script(ctx, &c.body, frame, depth + 1);
+                walk_oo_script(ctx, &c.body, frame, constants, depth + 1);
             }
             if let Some(b) = else_body {
-                walk_oo_script(ctx, b, frame, depth + 1);
+                walk_oo_script(ctx, b, frame, constants, depth + 1);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_oo_script(ctx, init, frame, depth + 1);
-            walk_oo_script(ctx, next, frame, depth + 1);
-            walk_oo_script(ctx, body, frame, depth + 1);
+            walk_oo_script(ctx, init, frame, constants, depth + 1);
+            walk_oo_script(ctx, next, frame, constants, depth + 1);
+            walk_oo_script(ctx, body, frame, constants, depth + 1);
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
         | Statement::Foreach { body, .. }
-        | Statement::Block { body, .. } => walk_oo_script(ctx, body, frame, depth + 1),
+        | Statement::Block { body, .. } => walk_oo_script(ctx, body, frame, constants, depth + 1),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            walk_oo_script(ctx, body, frame, depth + 1);
+            walk_oo_script(ctx, body, frame, constants, depth + 1);
             for h in handlers {
-                walk_oo_script(ctx, &h.body, frame, depth + 1);
+                walk_oo_script(ctx, &h.body, frame, constants, depth + 1);
             }
             if let Some(fb) = finally_body {
-                walk_oo_script(ctx, fb, frame, depth + 1);
+                walk_oo_script(ctx, fb, frame, constants, depth + 1);
             }
         }
         Statement::Switch {
@@ -1011,11 +1148,11 @@ fn walk_oo_statement(ctx: &mut PassContext<'_>, stmt: &Statement, frame: &OoFram
         } => {
             for a in arms {
                 if let Some(body) = &a.body {
-                    walk_oo_script(ctx, body, frame, depth + 1);
+                    walk_oo_script(ctx, body, frame, constants, depth + 1);
                 }
             }
             if let Some(b) = default_body {
-                walk_oo_script(ctx, b, frame, depth + 1);
+                walk_oo_script(ctx, b, frame, constants, depth + 1);
             }
         }
         _ => {}
@@ -1024,11 +1161,15 @@ fn walk_oo_statement(ctx: &mut PassContext<'_>, stmt: &Statement, frame: &OoFram
 
 /// Report an `O129` for each single-token `[cmd …]` word of this command that
 /// the method frame folds to a constant.
-fn visit_oo_frame_folds(ctx: &mut PassContext<'_>, tokens: &CommandTokens, frame: &OoFrame) {
+fn visit_oo_frame_folds(
+    ctx: &mut PassContext<'_>,
+    tokens: &CommandTokens,
+    frame: &OoFrame,
+    constants: &std::collections::HashMap<String, String>,
+) {
     let Some(registry) = ctx.registry else {
         return;
     };
-    let no_constants = std::collections::HashMap::new();
     let mut rewrites: Vec<(tcl_lexer::Span, String)> = Vec::new();
     for (i, argv_span) in tokens.argv.iter().enumerate() {
         if !tokens.single_token_word.get(i).copied().unwrap_or(false) {
@@ -1043,7 +1184,7 @@ fn visit_oo_frame_folds(ctx: &mut PassContext<'_>, tokens: &CommandTokens, frame
         if let Some(folded) = try_o129_fold(
             registry,
             &ctx.command_mutations,
-            &no_constants,
+            constants,
             inner,
             ctx.dialect,
             Some(frame),
@@ -1071,6 +1212,7 @@ fn try_oo_frame_return_fold(
     span: tcl_lexer::Span,
     raw: &str,
     frame: &OoFrame,
+    constants: &std::collections::HashMap<String, String>,
 ) {
     let Some(registry) = ctx.registry else {
         return;
@@ -1082,11 +1224,10 @@ fn try_oo_frame_return_fold(
     else {
         return;
     };
-    let no_constants = std::collections::HashMap::new();
     let Some(folded) = try_o129_fold(
         registry,
         &ctx.command_mutations,
-        &no_constants,
+        constants,
         inner,
         ctx.dialect,
         Some(frame),
@@ -2795,12 +2936,25 @@ fn render_propagation_word(value: &str) -> String {
 }
 
 pub(super) fn sccp_constants_for(fu: &FunctionUnit) -> std::collections::HashMap<String, String> {
+    sccp_constants_from(&fu.sccp, &fu.ssa)
+}
+
+/// [`sccp_constants_for`]'s projection, over an explicitly-supplied lattice.
+///
+/// Split out so a caller that re-runs SCCP under a *wider* escaping set can
+/// project the result the same way — see [`oo_method_constants`], which does
+/// exactly that for a `TclOO` method body without disturbing the shared
+/// [`FunctionUnit`] lattice other consumers read.
+fn sccp_constants_from(
+    sccp: &crate::sccp::SccpResult,
+    ssa: &crate::ssa::SsaFunction,
+) -> std::collections::HashMap<String, String> {
     use super::helpers::literals::format_constant;
 
     let mut per_var: std::collections::HashMap<crate::ssa::Symbol, Vec<&ConstValue>> =
         std::collections::HashMap::new();
     let mut dirty: std::collections::HashSet<crate::ssa::Symbol> = std::collections::HashSet::new();
-    for ((sym, _ver), lv) in &fu.sccp.values {
+    for ((sym, _ver), lv) in &sccp.values {
         if dirty.contains(sym) {
             continue;
         }
@@ -2818,7 +2972,7 @@ pub(super) fn sccp_constants_for(fu: &FunctionUnit) -> std::collections::HashMap
             continue;
         }
         if let Some(text) = format_constant(first) {
-            out.insert(fu.ssa.var_name(sym).to_owned(), text);
+            out.insert(ssa.var_name(sym).to_owned(), text);
         }
     }
     out

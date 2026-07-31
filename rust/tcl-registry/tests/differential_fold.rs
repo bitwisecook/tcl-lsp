@@ -67,16 +67,24 @@ fn run_tcl(tclsh: &str, script: &str) -> Option<(bool, String)> {
     ))
 }
 
-/// Locate a `tclsh9.0` (or a `tclsh` reporting a `9.x` patchlevel) on `PATH`.
-fn find_tclsh9() -> Option<String> {
-    for cand in ["tclsh9.0", "tclsh"] {
+/// Locate a `tclsh<series>` (or a bare `tclsh` reporting that series'
+/// patchlevel) on `PATH` — e.g. `find_tclsh("9.")` for any 9.x,
+/// `find_tclsh("8.6")` for the 8.6 reference.
+fn find_tclsh(series: &str) -> Option<String> {
+    let versioned = format!("tclsh{}", series.trim_end_matches('.'));
+    for cand in [versioned.as_str(), "tclsh"] {
         if let Some((true, out)) = run_tcl(cand, "puts -nonewline [info patchlevel]")
-            && out.starts_with("9.")
+            && out.starts_with(series)
         {
             return Some(cand.to_string());
         }
     }
     None
+}
+
+/// Locate a `tclsh9.0` (or a `tclsh` reporting a `9.x` patchlevel) on `PATH`.
+fn find_tclsh9() -> Option<String> {
+    find_tclsh("9.")
 }
 
 /// The value `tclsh` computes for `[cmd]`, or `None` if tclsh raises (in
@@ -258,6 +266,58 @@ const FOLDABLE: &[Case] = &[
     ("scan", None, &["a(b)", "%s"]),
 ];
 
+/// `namespace qualifiers` / `namespace tail` (issue #1096) — pure string
+/// splitting at the last `::`, kept as its own matrix because it is also
+/// replayed against 8.6 by [`namespace_string_op_folds_match_tcl86`] to pin
+/// the version-invariant (`const_fold`, not `const_fold_versioned`)
+/// registration.
+const NAMESPACE_STRING_OPS: &[Case] = &[
+    ("namespace", Some("qualifiers"), &["::a::b::c"]),
+    ("namespace", Some("qualifiers"), &["a::b"]),
+    ("namespace", Some("qualifiers"), &["c"]),
+    ("namespace", Some("qualifiers"), &[""]),
+    ("namespace", Some("qualifiers"), &["::"]),
+    ("namespace", Some("qualifiers"), &[":::"]),
+    ("namespace", Some("qualifiers"), &["a:::b"]),
+    ("namespace", Some("qualifiers"), &["::a::b::"]),
+    ("namespace", Some("qualifiers"), &["::x:y"]),
+    ("namespace", Some("qualifiers"), &["::foo"]),
+    ("namespace", Some("qualifiers"), &["foo::"]),
+    ("namespace", Some("qualifiers"), &["::a::b::c::"]),
+    ("namespace", Some("qualifiers"), &["a"]),
+    ("namespace", Some("qualifiers"), &[":"]),
+    ("namespace", Some("qualifiers"), &["::::"]),
+    ("namespace", Some("qualifiers"), &["x::y::z"]),
+    ("namespace", Some("qualifiers"), &["::ticklecharts::Gauge"]),
+    ("namespace", Some("qualifiers"), &["a::b c::d"]),
+    ("namespace", Some("qualifiers"), &["a::"]),
+    ("namespace", Some("qualifiers"), &["::a"]),
+    // A name for a namespace that does not exist splits identically: the
+    // subcommands are string operations, never namespace lookups.
+    ("namespace", Some("qualifiers"), &["::never::here::x"]),
+    ("namespace", Some("tail"), &["::a::b::c"]),
+    ("namespace", Some("tail"), &["a::b"]),
+    ("namespace", Some("tail"), &["c"]),
+    ("namespace", Some("tail"), &[""]),
+    ("namespace", Some("tail"), &["::"]),
+    ("namespace", Some("tail"), &[":::"]),
+    ("namespace", Some("tail"), &["a:::b"]),
+    ("namespace", Some("tail"), &["::a::b::"]),
+    ("namespace", Some("tail"), &["::x:y"]),
+    ("namespace", Some("tail"), &["::foo"]),
+    ("namespace", Some("tail"), &["foo::"]),
+    ("namespace", Some("tail"), &["::a::b::c::"]),
+    ("namespace", Some("tail"), &["a"]),
+    ("namespace", Some("tail"), &[":"]),
+    ("namespace", Some("tail"), &["::::"]),
+    ("namespace", Some("tail"), &["x::y::z"]),
+    ("namespace", Some("tail"), &["::ticklecharts::Gauge"]),
+    ("namespace", Some("tail"), &["a::b c::d"]),
+    ("namespace", Some("tail"), &["a::"]),
+    ("namespace", Some("tail"), &["::a"]),
+    ("namespace", Some("tail"), &["::never::here::x"]),
+];
+
 #[test]
 fn registry_folds_match_tcl9() {
     let Some(tclsh) = find_tclsh9() else {
@@ -269,6 +329,32 @@ fn registry_folds_match_tcl9() {
     assert!(
         folded > 0,
         "no FOLDABLE case folded — the differential harness is not wired to the registry"
+    );
+    let ns_folded = check_matrix(&tclsh, &reg, NAMESPACE_STRING_OPS);
+    assert_eq!(
+        ns_folded,
+        NAMESPACE_STRING_OPS.len(),
+        "every `namespace qualifiers`/`tail` row must fold (issue #1096)"
+    );
+}
+
+/// The same matrix replayed against `tclsh8.6`.  `namespace qualifiers` /
+/// `tail` are registered as *version-invariant* folds, which is only sound if
+/// 8.6 and 9.0 agree on every row — this is the test that pins it, so a future
+/// divergence turns into a failure here rather than a wrong fold under an 8.6
+/// dialect.  Skips cleanly when no 8.6 interpreter is installed.
+#[test]
+fn namespace_string_op_folds_match_tcl86() {
+    let Some(tclsh) = find_tclsh("8.6") else {
+        eprintln!("skipping namespace_string_op_folds_match_tcl86: no tclsh8.6 on PATH");
+        return;
+    };
+    let reg = CommandRegistry::build_default();
+    let folded = check_matrix(&tclsh, &reg, NAMESPACE_STRING_OPS);
+    assert_eq!(
+        folded,
+        NAMESPACE_STRING_OPS.len(),
+        "every `namespace qualifiers`/`tail` row must fold identically on 8.6"
     );
 }
 

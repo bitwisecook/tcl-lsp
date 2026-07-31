@@ -34,6 +34,94 @@ SCCP walks the SSA graph and propagates:
 - Phi nodes: `phi(CONST("42"), CONST("99"))` → `OVERDEFINED`
 - Loop-carried values: always `OVERDEFINED` (value changes per iteration)
 
+### Escaping names
+
+A name that is not a private local of the frame is forced `OVERDEFINED`
+regardless of what is assigned to it, so anything derived from it is
+`OVERDEFINED` too. Three sources feed the escaping set:
+
+- the per-function [`var_observability`](../../../rust/tcl-compiler/src/var_observability.rs)
+  alias/trace lattice — `global`, `variable`, `my variable`, `upvar`,
+  `namespace upvar`, and any name under a `trace`;
+- whole-module facts the caller supplies (`extra_global_escaping`): for the
+  **top-level** body, every name some other procedure declares `global`;
+- for a **`TclOO` method** body, when the *propagation pass* asks for one:
+  the class's instance variables — the class-level `variable` declarations
+  plus the method's own (`MethodDef::instance_vars`). An instance variable is
+  object state that outlives the method frame: the constructor or any other
+  method may have written it, and a `my …` dispatch may rewrite it between two
+  reads. This is the same escaping classification `elimination.rs` feeds
+  through its cross-event channel to stop an instance-state write being
+  deleted as a dead store; before issue #1097 the two passes disagreed, and
+  `propagation.rs` had to keep variable propagation switched off wholesale for
+  method bodies as a result.
+
+  This one is a **propagation-only view**: `propagation.rs`
+  (`oo_method_constants`) re-runs `sccp_with_extra_escaping` for the method
+  rather than the unit's shared `FunctionUnit::sccp` being built that way,
+  because other consumers legitimately read facts an instance variable
+  carries — the object-collection element typing of issue #797 harvests
+  `dict set pins $k [Pin new]` out of exactly such a name, and widening the
+  shared lattice erases it. Re-running (rather than filtering the projected
+  map) is what makes derived names (`set a $ivar ; set b $a`) drop out too.
+
+What survives the projection for a method body is therefore a provably
+method-local name, which no `my` / `next` / `[self …]` dispatch can reach.
+
+#### The method-dispatch barrier and its evidence rules
+
+A *proc* callee is modelled per call site: the CFG builder widens the caller's
+defs at every call to a name in `cfg_builder::detect_upvar_procs`'s table. A
+**method** reached through `my`, `next`, or an object dispatch is not in that
+table and cannot be, because the dispatch never names its target. So
+`propagation.rs` answers the barrier from whole-module evidence
+(`method_dispatch_evidence_is_incomplete`), under one governing rule: **when
+the evidence is incomplete, the barrier widens to abstention** — no method
+body's locals are propagated anywhere in the module.
+
+Three evidence sources were found incomplete in review, each a would-be
+miscompile (the optimiser proposed folding `$x` to `1` where real Tcl prints
+`2`, byte-identical on tclsh 9.0.4 and 8.6.14):
+
+1. **Class state declared in another definition block.** `MethodDef::instance_vars`
+   used to hold only the declarations of the block a method was extracted
+   from, and `extract_oo_methods` builds a fresh set per block while keeping
+   the first body of any method it has already seen. So
+   `oo::class create C { method m {} {set x 1; my change; puts $x}; … }`
+   followed by `oo::define C { variable x }` left `m` believing `x` was a
+   private local. The lowering now accumulates a per-class union across every
+   definition block (`Lowerer::class_instance_vars`) and merges it into every
+   method of that class once all blocks are walked — order-free, since
+   declaring `variable x` anywhere makes it instance state for every method of
+   the class. This fixes `elimination.rs`'s dead-store protection at the same
+   time, which reads the same field.
+
+2. **A redefined method.** The lowering deliberately keeps the *first* body and
+   records only the name in `Module::redefined_methods`, so a replacement body
+   is invisible to every scan — including the caller-frame query below, which
+   would be inspecting the wrong body. An initially-empty helper later
+   redefined as `{upvar 1 x y; set y 2}` is otherwise undetectable. Any
+   non-empty `redefined_methods` therefore disables method-local propagation
+   module-wide. Not scoped to the redefined method's own class on purpose:
+   `my` dispatches along the MRO, so a replaced method in a *superclass* is
+   reachable from a subclass's body.
+
+3. **A caller-frame reach under a dynamic name.** The gate asks
+   `cfg_builder::upvar_info::reaches_caller_frame`, the strictly structural
+   query, *not* `var_observability`'s per-variable alias lattice. That route
+   (`upvar_local_declaration_indices`) skips an `upvar` pair when either side
+   starts with `$`, so `method helper {src} {upvar 1 $src b; set b 2}` — which
+   mutates its caller's variable on every call — read as "no caller-frame
+   alias". A dynamic name makes an alias *more* dangerous, never exempt.
+   `reaches_caller_frame` counts every bucket of `UpvarInfo` plus
+   `has_unnameable_local_alias`, the new flag covering `upvar 1 x $dst`, whose
+   alias the resolvable-buckets summary drops because it has no local name to
+   file it under.
+
+Rule 3's inverse matters too: `global` / `variable` / `namespace upvar` reach a
+*namespace*, not the caller's locals, and must **not** trip the barrier — or
+every ordinary class body would disable propagation.
+
 ### Constant branch detection
 
 When a `CFGBranch` condition evaluates to a constant:
