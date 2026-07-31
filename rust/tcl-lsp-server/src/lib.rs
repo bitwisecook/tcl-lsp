@@ -2766,6 +2766,14 @@ pub struct Backend {
 /// waits for its turn. Request handlers draw no ticket; they only wait for the
 /// edits already received ([`EditOrder::settled`]), so read concurrency is
 /// unaffected.
+///
+/// A turn covers the handler's **ordered mutations only** — the buffer splice,
+/// the salsa source, the index entry — and is handed on the moment they are
+/// committed, not when the handler returns (#1150). This is a *global* barrier:
+/// every request handler waits on it, so work a handler does after its
+/// mutations (a disk reindex, a closed-file republish, a dialect re-scan) must
+/// not sit inside the turn, or one document's close stalls every other
+/// document's hover.
 #[derive(Debug, Default)]
 struct EditOrder {
     next_ticket: std::sync::atomic::AtomicU64,
@@ -9970,7 +9978,7 @@ impl LanguageServer for Backend {
         // otherwise two rapid incremental edits splice out of order and corrupt
         // the buffer. The ticket must be drawn before the first await.
         let ticket = self.edit_order.take_ticket();
-        let _turn = self.edit_order.wait_turn(ticket).await;
+        let turn = self.edit_order.wait_turn(ticket).await;
         let uri = params.text_document.uri.clone();
         if params.content_changes.is_empty() {
             return;
@@ -10020,8 +10028,17 @@ impl LanguageServer for Backend {
             drop(docs);
             (dialect, language_id)
         };
-        self.schedule_diagnostics(uri.clone(), dialect.clone())
-            .await;
+        // The splice, the salsa source and the index entry are committed, so
+        // hand the ordering turn on before the tail below (#1150).  Everything
+        // after this point is order-insensitive — marking the diagnostics slot
+        // dirty (the worker reads the document's *current* state at drain time),
+        // and the dialect re-resolve, which re-reads the buffer under the
+        // `documents` lock before it commits anything.  Held across the tail,
+        // the ticket kept a whole-source `detect_dialect` scan and a full-text
+        // clone in front of every request handler's `edits_settled` and in front
+        // of the next keystroke.
+        drop(turn);
+        self.schedule_diagnostics(uri.clone(), dialect).await;
         // Re-resolve in-source dialect hints (a `# tcl-dialect:` directive, a
         // `#!…tclshX.Y` shebang, or `package require Tcl X.Y`) after the edit —
         // adding or changing one in an already-open buffer must take effect
@@ -10030,16 +10047,19 @@ impl LanguageServer for Backend {
         // only the source hint is edit-sensitive, so this is the sole case that
         // can change.  When it does, commit the new dialect and re-analyse.
         if language_id == "tcl" {
-            // Read the open buffer directly: `read_document` waits for this
-            // handler's own turn to finish (see `edits_settled`), so routing
-            // through it here would self-deadlock. The document is open — a
-            // closed one returned above.
-            let text = match self.documents.lock().await.get(&uri) {
-                Some(entry) => entry.text.clone(),
+            // Read the open buffer directly rather than through
+            // `read_document`, which would wait for edits this one no longer
+            // holds up and answer from a buffer this handler has already
+            // superseded.  The *current* dialect comes from the same read: with
+            // the turn handed on, a newer edit may have re-resolved it already,
+            // and comparing against this handler's own captured value would
+            // re-commit a dialect that is no longer news.
+            let (text, current_dialect) = match self.documents.lock().await.get(&uri) {
+                Some(entry) => (entry.text.clone(), entry.dialect.clone()),
                 None => return,
             };
             let new_dialect = self.dialect_for_open(&uri, &language_id, &text).await;
-            if new_dialect != dialect {
+            if new_dialect != current_dialect {
                 {
                     let mut docs = self.documents.lock().await;
                     let Some(entry) = docs.get_mut(&uri) else {
@@ -10143,7 +10163,7 @@ impl LanguageServer for Backend {
         // close can't be reordered ahead of an in-flight edit. The ticket must be
         // drawn before the first await.
         let ticket = self.edit_order.take_ticket();
-        let _turn = self.edit_order.wait_turn(ticket).await;
+        let turn = self.edit_order.wait_turn(ticket).await;
         let uri = &params.text_document.uri;
         {
             // Remove the live document + its index entry while holding
@@ -10171,6 +10191,21 @@ impl LanguageServer for Backend {
         // The workspace-class analysis memo is keyed by URI; a closed
         // document's entry would otherwise linger for the process's life.
         self.workspace_class_analyses.lock().await.remove(uri);
+        // Everything the ordering ticket exists to protect is now applied, so
+        // hand the turn on before the heavy tail below (#1150).  `EditOrder` is
+        // a *global* barrier — every request handler awaits `edits_settled`, and
+        // the next `did_change` waits for this ticket — so holding it across a
+        // disk read, a full uncached `Analyser::analyse`, an index rebuild and
+        // the closed-file diagnostics pipeline froze hover / completion /
+        // semantic tokens in *every* open document for the length of a close.
+        // None of that tail is an ordered buffer mutation: the document map,
+        // the index entry and the salsa source are already updated above, which
+        // is exactly what stops a close being reordered ahead of an in-flight
+        // edit.  Observable ordering is unchanged — the republish still happens
+        // after the mutations, on this same handler task — and both steps below
+        // re-check that the document is still closed under the `documents` lock,
+        // so a `did_open` that now wins the race still wins it.
+        drop(turn);
         // Re-index the file from disk rather than dropping it: the file still
         // exists on disk and was (or would be) part of the on-disk index, so
         // cross-document definition / references / rename / call-hierarchy — and
@@ -21899,6 +21934,146 @@ mod tests {
             .expect("read_document must resolve once the edit lands")
             .expect("reader task panicked");
         assert_eq!(text.as_deref(), Some("set x 2\n"));
+    }
+
+    /// Wait for the single document-sync handler under test to draw its
+    /// `EditOrder` ticket **and** hand it on, or give up.
+    ///
+    /// `edits_settled` alone cannot express this: called before the handler has
+    /// drawn its ticket it returns immediately and proves nothing, so the wait
+    /// is on the counters directly.
+    async fn one_edit_turn_released(backend: &Backend) -> bool {
+        use std::sync::atomic::Ordering;
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let order = &backend.edit_order;
+                if order.next_ticket.load(Ordering::Acquire) == 1
+                    && order.now_serving.load(Ordering::Acquire) == 1
+                {
+                    return;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .is_ok()
+    }
+
+    /// #1150: `did_close` must hand its `EditOrder` turn on as soon as the
+    /// ordered mutations are applied, rather than holding it across the disk
+    /// reindex and the closed-file republish.  The ticket is a *global*
+    /// barrier — every request handler awaits `edits_settled` and the next
+    /// `did_change` waits for the ticket itself — so a close that keeps it
+    /// across that tail freezes hover / completion / semantic tokens in every
+    /// open document for as long as the close takes.
+    ///
+    /// The `db` mutex stands in for the tail's cost: the ordered mutations (the
+    /// documents map, the index entry) never take it, and the reindex always
+    /// does, so holding it here pins the close inside its tail — with the turn
+    /// necessarily already handed on, or, before the fix, still held.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_close_hands_its_edit_turn_on_before_the_reindex_tail() {
+        let backend = Arc::new(test_backend());
+        let root = unique_scratch_dir("close-off-ticket");
+        let on_disk = root.join("closing.tcl");
+        std::fs::write(&on_disk, "proc foo {} {}\n").unwrap();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        register(&backend, &uri, "proc foo {} {}\n").await;
+
+        let db_held = backend.db.lock().await;
+        let closing = tokio::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_close(DidCloseTextDocumentParams {
+                        text_document: TextDocumentIdentifier { uri },
+                    })
+                    .await;
+            }
+        });
+
+        assert!(
+            one_edit_turn_released(&backend).await,
+            "did_close must release its turn before the reindex, which cannot \
+             run while the db lock is held",
+        );
+        assert!(
+            !backend.documents.lock().await.contains_key(&uri),
+            "the mutations the ticket covers must already be applied",
+        );
+        assert!(
+            !backend.closed_diag_gen.lock().await.contains_key(&uri),
+            "the closed republish is the tail; it must still be pending here",
+        );
+
+        drop(db_held);
+        tokio::time::timeout(std::time::Duration::from_secs(30), closing)
+            .await
+            .expect("the close must finish once its tail can take the db lock")
+            .expect("did_close panicked");
+        assert!(
+            backend.closed_diag_gen.lock().await.contains_key(&uri),
+            "the closed republish still lands, ordered after the mutations",
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// #1150, the edit side: `did_change` must hand its turn on once the splice,
+    /// the salsa source and the index entry are committed — not hold it across
+    /// the diagnostics scheduling and the whole-source `detect_dialect` re-scan.
+    ///
+    /// `diag_slots` stands in for that tail here: the ordered mutations never
+    /// take it and `schedule_diagnostics` takes it first thing, so a held
+    /// `diag_slots` lock pins the handler in its tail.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_change_hands_its_edit_turn_on_before_the_scheduling_tail() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/edited.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+
+        let slots_held = backend.diag_slots.lock().await;
+        let editing = tokio::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change(DidChangeTextDocumentParams {
+                        text_document: VersionedTextDocumentIdentifier { uri, version: 2 },
+                        content_changes: vec![TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text: "set x 2\n".to_owned(),
+                        }],
+                    })
+                    .await;
+            }
+        });
+
+        assert!(
+            one_edit_turn_released(&backend).await,
+            "did_change must release its turn before scheduling diagnostics",
+        );
+        assert_eq!(
+            backend
+                .documents
+                .lock()
+                .await
+                .get(&uri)
+                .map(|doc| doc.text.clone())
+                .as_deref(),
+            Some("set x 2\n"),
+            "the splice the ticket covers must already be committed",
+        );
+
+        drop(slots_held);
+        tokio::time::timeout(std::time::Duration::from_secs(30), editing)
+            .await
+            .expect("the edit must finish once its tail can take the diag_slots lock")
+            .expect("did_change panicked");
     }
 
     async fn register(backend: &Backend, uri: &Uri, src: &str) {
