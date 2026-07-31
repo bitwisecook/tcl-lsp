@@ -114,8 +114,15 @@ async fn completion_smoke() {
     client_write.write_all(frame(req).as_bytes()).await.unwrap();
 
     let mut response = String::new();
-    for _ in 0..5 {
-        let frame_body = read_frame(&mut reader).await;
+    // Scan to the id=2 response under a deadline, not a fixed frame count:
+    // the server interleaves log and diagnostics notifications on the same
+    // channel, and how many arrive first is not a contract.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while tokio::time::Instant::now() < deadline {
+        let Ok(frame_body) = tokio::time::timeout_at(deadline, read_frame(&mut reader)).await
+        else {
+            break;
+        };
         if frame_body.contains("\"id\":2") {
             response = frame_body;
             break;
@@ -123,7 +130,7 @@ async fn completion_smoke() {
     }
     assert!(
         !response.is_empty(),
-        "did not receive id=2 completion response within 5 frames",
+        "did not receive id=2 completion response within the deadline",
     );
     assert!(
         response.contains("\"greet\""),

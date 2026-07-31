@@ -474,6 +474,31 @@ fn published_at_least(frames: &[String], version: i64) -> bool {
         .any(|(v, _)| *v >= version)
 }
 
+/// Whether `frames` carries the server's `diagnostics.publish.enqueued` marker
+/// for [`ORDER_URI`] at or beyond `version`.
+///
+/// The marker is logged immediately *before* the publish it announces, down the
+/// same ordered channel, so a drain that stops here has read the commitment but
+/// not the publish — which is what lets the burst phase keep that publish in
+/// flight while it sends the next sub-burst.
+fn publish_announced_at_least(frames: &[String], version: i64) -> bool {
+    frames.iter().any(|f| {
+        if !f.contains("diagnostics.publish.enqueued") || !f.contains(ORDER_URI) {
+            return false;
+        }
+        f.split("version=")
+            .nth(1)
+            .and_then(|rest| {
+                rest.chars()
+                    .take_while(char::is_ascii_digit)
+                    .collect::<String>()
+                    .parse::<i64>()
+                    .ok()
+            })
+            .is_some_and(|v| v >= version)
+    })
+}
+
 /// Every version-tagged `publishDiagnostics` for `uri` in `frames`, in arrival
 /// order, paired with the raw frame.
 fn version_tagged_publishes(frames: &[String], uri: &str) -> Vec<(i64, String)> {
@@ -523,12 +548,57 @@ fn version_tagged_publishes(frames: &[String], uri: &str) -> Vec<(i64, String)> 
 ///   version-tagged publishes is a structural property of the phase, not a race
 ///   the machine can lose. Frames are kept as they are read, so the ordering
 ///   check still sees true arrival order.
-/// * **Phase B — no loss under backpressure.** A tight burst fired with the
-///   client deliberately not reading, so edits pile up on a worker that is
-///   already running and the transport genuinely queues. Here coalescing is
-///   expected and fine — what is asserted is that the *final* state is never
-///   dropped, which is drained for by its terminal signal (the final version's
-///   publish) rather than a fixed window.
+/// * **Phase B — two publishes provably in flight at once, and no loss under
+///   backpressure.** Phase A's barrier deliberately forbids concurrency, so the
+///   ordering assertion would otherwise only ever see a serialized stream
+///   (review of #1089). Phase B fires two sub-bursts with the client reading
+///   nothing of the publish stream, and gets its concurrency guarantee from a
+///   *pre-publish* marker rather than from out-racing the debounce with a sleep
+///   (review of #1100 — a single burst legitimately coalesces to one version,
+///   which makes monotonicity vacuous).
+///
+///   The server logs `[timing] diagnostics.publish.enqueued (uri=…, version=…)`
+///   immediately before enqueuing a publish, down the same ordered client
+///   channel. Draining up to that marker therefore proves the worker has
+///   committed to publishing that version while leaving the publish itself
+///   unread on the wire. Sub-burst 2 then goes out with nothing being read, so
+///   when its publish is enqueued sub-burst 1's is still queued: two distinct
+///   version-tagged publishes, produced concurrently, racing the read path.
+///   Coalescing *within* a sub-burst is expected and irrelevant — the
+///   assertions need two distinct versions across the two sub-bursts, and the
+///   barrier guarantees that, so the strengthened "≥2 distinct AND monotone"
+///   check cannot go vacuous and cannot flake. Both drains stop on a terminal
+///   signal, not a fixed window, so neither claim depends on the machine.
+///
+/// # What the ordering assertion does and does not prove (measured)
+///
+/// The pre-#1082 version of this test claimed that a fire-and-forget delivery
+/// regression "would reorder them". That claim was never true, and the claim —
+/// not the coverage — is what changed here. Measured against an actual
+/// regression patch (`cache_and_deliver` detaching the send into a
+/// `tokio::spawn`, releasing the `documents` lock before it):
+///
+/// * the pre-#1082 test passed 10/10, and this one passes 10/10;
+/// * six further burst shapes — current-thread *and* 4-worker multi-thread
+///   runtimes, transport buffers from 256 B to 64 KiB (so the send genuinely
+///   parks on backpressure), 6–12 unread edits, with and without a `did_close`
+///   chaser — never produced an out-of-order publish (0/20 non-monotone on the
+///   most aggressive shape).
+///
+/// That is structural, not luck: `tower-lsp-server`'s `Client` is a
+/// `futures::mpsc` channel drained by one forwarder task, each publish is a
+/// single `send`, and mpsc preserves send-initiation order across senders — so
+/// detaching the send cannot reorder version-tagged publishes. What the
+/// regression *does* change is which publishes survive the currency guard (it
+/// drops more intermediates), and that is indistinguishable from legitimate
+/// coalescing, so it cannot be asserted without reintroducing a load-dependent
+/// flake.
+///
+/// The ordering assertion is therefore kept as what it actually is — a cheap
+/// invariant over the real delivered stream, exercised over concurrently
+/// produced publishes in Phase B — and not advertised as the guard for the
+/// fire-and-forget regression. The guard for *that* is the invariant comment in
+/// `main.rs` and review of the delivery path.
 #[tokio::test]
 async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
     let (client_side, server_side) = tokio::io::duplex(65536);
@@ -593,15 +663,54 @@ async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
         );
     }
 
-    // Phase B — no loss under backpressure. A tight burst with the client
-    // deliberately NOT reading, so the edits pile onto a worker that is already
-    // running and the publishes queue in the transport. Coalescing here is
-    // expected; what must never happen is losing the final state.
-    let burst = [("set var 10\n", 8), ("set a 1 2 3 4 5\n", 9)];
-    for (text, version) in burst {
+    // Phase B — two publishes provably in flight at once, then no loss under
+    // backpressure.
+    //
+    // Sub-burst 1 is fired and then barriered on the server's *pre-publish*
+    // marker, not on the publish. Both travel the same ordered client channel
+    // and the marker is emitted first, so reading up to it proves the worker has
+    // committed to publishing that version while leaving the publish itself
+    // unread on the wire. Sub-burst 2 then goes out with the client reading
+    // nothing at all, so by the time its publish is enqueued sub-burst 1's is
+    // still sitting there: two version-tagged publishes in flight, produced
+    // concurrently, guaranteed structurally rather than by out-racing the 50 ms
+    // debounce with a sleep (review of #1100 — the previous single burst
+    // legitimately coalesced to one version, which made the monotonicity check
+    // vacuous).
+    //
+    // Within each sub-burst coalescing is expected and irrelevant: what the
+    // assertions need is two *distinct* versions across the two, and the
+    // marker barrier guarantees that — sub-burst 2's edits all post-date a
+    // committed publish, so the worker's next run necessarily publishes a
+    // higher version.
+    let first_burst_version = 8;
+    let sub_burst_one = [
+        ("set var 10\n", 8),
+        ("set var 10 10\n", 9),
+        ("set var 10\n", 10),
+    ];
+    for (text, version) in sub_burst_one {
         send_full_replace(&mut client_write, text, version).await;
     }
-    let final_version = burst[burst.len() - 1].1;
+    let committed = drain_until(&mut reader, &mut frames, ORDER_BACKSTOP, |f| {
+        publish_announced_at_least(f, first_burst_version)
+    })
+    .await;
+    assert!(
+        committed,
+        "no diagnostics.publish.enqueued marker at version >= {first_burst_version} within \
+         {ORDER_BACKSTOP:?} — the per-URI diagnostics worker stopped publishing: {frames:?}",
+    );
+
+    let sub_burst_two = [
+        ("set var 10 10\n", 11),
+        ("set var 10\n", 12),
+        ("set a 1 2 3 4 5\n", 13),
+    ];
+    for (text, version) in sub_burst_two {
+        send_full_replace(&mut client_write, text, version).await;
+    }
+    let final_version = sub_burst_two[sub_burst_two.len() - 1].1;
     let arrived = drain_until(&mut reader, &mut frames, ORDER_BACKSTOP, |f| {
         version_tagged_publishes(f, ORDER_URI)
             .iter()
@@ -609,7 +718,29 @@ async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
     })
     .await;
 
-    let publishes = version_tagged_publishes(&frames, ORDER_URI);
+    assert_delivery_invariants(&frames, first_burst_version, final_version, arrived);
+
+    let exit = r#"{"jsonrpc":"2.0","method":"exit","params":null}"#;
+    client_write
+        .write_all(frame(exit).as_bytes())
+        .await
+        .unwrap();
+    drop(client_write);
+    server.abort();
+}
+
+/// The two delivery invariants, checked over the frames both phases collected.
+///
+/// `arrived` is whether the Phase B drain reached `final_version`'s publish;
+/// `first_burst_version` separates Phase A's serialized stream from Phase B's
+/// concurrently produced one.
+fn assert_delivery_invariants(
+    frames: &[String],
+    first_burst_version: i64,
+    final_version: i64,
+    arrived: bool,
+) {
+    let publishes = version_tagged_publishes(frames, ORDER_URI);
     let versions: Vec<i64> = publishes.iter().map(|(v, _)| *v).collect();
 
     // Tripwire: a single publish makes the ordering `windows(2)` loop vacuous
@@ -621,12 +752,42 @@ async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
         "expected ≥2 version-tagged publishes to exercise delivery ordering, \
          got {versions:?}: {frames:?}",
     );
-    // 1) Ordering: never a lower version after a higher one.
+    // 1) Ordering: never a lower version after a higher one — over the whole
+    //    delivered stream, and (called out separately because it is the half
+    //    that observes *concurrently produced* publishes) over Phase B's.
     for pair in publishes.windows(2) {
         assert!(
             pair[0].0 <= pair[1].0,
-            "publishes must arrive in non-decreasing version order (a fire-and-forget \
-             delivery regression would reorder them): {versions:?}",
+            "publishes must arrive in non-decreasing version order: {versions:?}",
+        );
+    }
+    let burst_versions: Vec<i64> = versions
+        .iter()
+        .copied()
+        .filter(|v| *v >= first_burst_version)
+        .collect();
+    // Monotonicity over one repeated version is vacuous, so require the two
+    // distinct versions the marker barrier guarantees *before* checking their
+    // order (review of #1100). This is structural, not a race: sub-burst 2's
+    // edits were all sent after the server had committed to publishing
+    // sub-burst 1's version, so the worker's next run has to publish a higher
+    // one. Coalescing *within* a sub-burst is still free to collapse either
+    // side to a single publish.
+    let mut distinct: Vec<i64> = burst_versions.clone();
+    distinct.sort_unstable();
+    distinct.dedup();
+    assert!(
+        distinct.len() >= 2,
+        "the burst phase must deliver ≥2 distinct version-tagged publishes — with only \
+         {distinct:?} the ordering check below compares a version with itself and proves \
+         nothing (whole stream: {versions:?})",
+    );
+    for pair in burst_versions.windows(2) {
+        assert!(
+            pair[0] <= pair[1],
+            "the unread burst's publishes must arrive in non-decreasing version order — \
+             versions may skip (coalescing within a sub-burst is expected) but never go \
+             backwards: {burst_versions:?} (whole stream: {versions:?})",
         );
     }
     // 2) No loss of the final state: the last edit's version must arrive with
@@ -646,12 +807,4 @@ async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
         "the final publish must carry the final state's E003: {}",
         final_publish.1,
     );
-
-    let exit = r#"{"jsonrpc":"2.0","method":"exit","params":null}"#;
-    client_write
-        .write_all(frame(exit).as_bytes())
-        .await
-        .unwrap();
-    drop(client_write);
-    server.abort();
 }

@@ -127,8 +127,15 @@ async fn inlay_hints_default_off_returns_empty_list() {
 
     // Drain frames until we see id=2 (toss intervening log messages).
     let mut inlay_resp = String::new();
-    for _ in 0..5 {
-        let frame_body = read_frame(&mut reader).await;
+    // Scan to the id=2 response under a deadline, not a fixed frame count:
+    // the server interleaves log and diagnostics notifications on the same
+    // channel, and how many arrive first is not a contract.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while tokio::time::Instant::now() < deadline {
+        let Ok(frame_body) = tokio::time::timeout_at(deadline, read_frame(&mut reader)).await
+        else {
+            break;
+        };
         if frame_body.contains("\"id\":2") {
             inlay_resp = frame_body;
             break;
@@ -136,7 +143,7 @@ async fn inlay_hints_default_off_returns_empty_list() {
     }
     assert!(
         !inlay_resp.is_empty(),
-        "did not receive id=2 inlay response within 5 frames",
+        "did not receive id=2 inlay response within the deadline",
     );
     // Default-off contract: an empty list, not `null` and not populated hints.
     assert!(

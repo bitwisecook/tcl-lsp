@@ -83,7 +83,7 @@
 //! precisely when the machine was slow enough for the two to overlap.
 
 use crate::common::helpers::{SemToken, decode_semantic_tokens};
-use crate::common::{LatencyBudget, Lsp, unique_uri};
+use crate::common::{LatencyBudget, Lsp, scaled_timeout, unique_uri};
 use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 
@@ -275,6 +275,22 @@ fn first_divergence(server: &[SemToken], truth: &[SemToken]) -> String {
 /// [`LatencyBudget`], which is a separate, measured thing.
 const BIG_DOC_SETTLE: Duration = Duration::from_mins(3);
 
+/// How long one [`converge_via_refresh`] round may wait for its settled marker
+/// before the loop gives up on *that round* and re-requests.
+///
+/// Load-scaled inside `try_await_log`, and deliberately a small fraction of the
+/// (also load-scaled) outer convergence budget, so several rounds always fit
+/// whatever the machine's capacity factor turns out to be.
+const ROUND_SETTLE: Duration = Duration::from_secs(20);
+
+/// How long a `refresh=true` decision has to actually produce the
+/// `workspace/semanticTokens/refresh` request.
+///
+/// Its own budget rather than the convergence loop's leftover: the decision has
+/// already been logged, so this times the refresh path alone (load-scaled inside
+/// `await_server_request`).
+const REFRESH_ARRIVAL: Duration = Duration::from_secs(20);
+
 /// The tokens a cold reopen of `text` produces — the ground truth for what the
 /// server *should* be serving after any edit sequence that lands on `text`.
 fn cold_tokens(lsp: &mut Lsp, text: &str) -> Vec<SemToken> {
@@ -396,6 +412,27 @@ impl Tier {
 /// `budget` bounds the whole loop. It is a hang guard: every round makes real
 /// progress against an explicit signal, so reaching it means the server never
 /// converged at all.
+///
+/// # Scaling (review of #1089)
+///
+/// The outer deadline is `scaled_timeout(budget)`, not `budget`. Every wait
+/// *inside* the loop goes through a harness `await_*`/`try_await_*` helper,
+/// each of which multiplies its argument by [`common::load_factor`]
+/// internally. An unscaled outer deadline is therefore not merely tighter than
+/// the rounds it contains — it is inconsistent with them: on a machine where
+/// the factor is 4, one legitimate round-settle wait (capped at
+/// [`ROUND_SETTLE`]) already covers 80 s of a fixed 60 s outer budget, so a
+/// round that behaved perfectly could exhaust the loop.
+///
+/// For the same reason the post-decision refresh wait below gets its own fixed
+/// [`REFRESH_ARRIVAL`] budget rather than whatever is left of the outer one.
+/// Handing it the leftover made its deadline a function of how long the
+/// *previous* wait took: a round that legitimately consumed the budget left it
+/// zero, and `await_server_request(.., 0, ..)` fails instantly — recreating
+/// exactly the load-sensitive failure #1082 removed. Its own budget is the
+/// honest bound anyway: by the time `refresh=true` has been logged the
+/// debounced refresh is already scheduled, so what is being timed is the
+/// refresh path, not the convergence.
 fn converge_via_refresh(
     lsp: &mut Lsp,
     uri: &str,
@@ -403,7 +440,7 @@ fn converge_via_refresh(
     truth: &[SemToken],
     budget: Duration,
 ) -> Convergence {
-    let deadline = Instant::now() + budget;
+    let deadline = Instant::now() + scaled_timeout(budget);
     let mut out = Convergence {
         tokens: Vec::new(),
         rounds: 0,
@@ -440,7 +477,7 @@ fn converge_via_refresh(
         // give up, and let the outer deadline be the only hang guard.
         let Some(settled) = lsp.try_await_log(
             &[tier.settled_marker(), uri],
-            remaining.min(Duration::from_secs(20)),
+            remaining.min(ROUND_SETTLE),
             log_since,
         ) else {
             out.no_refresh_decisions += 1;
@@ -450,10 +487,12 @@ fn converge_via_refresh(
             out.refresh_decisions += 1;
             // The decision is made, so the debounced refresh is already
             // scheduled: this can only expire if the refresh path itself is
-            // broken, which is exactly the regression worth failing on.
+            // broken, which is exactly the regression worth failing on. Its own
+            // budget (load-scaled inside the helper), never the outer
+            // leftover — see this function's docs.
             lsp.await_server_request(
                 "workspace/semanticTokens/refresh",
-                deadline.saturating_duration_since(Instant::now()),
+                REFRESH_ARRIVAL,
                 req_since,
             );
             out.refreshes += 1;
