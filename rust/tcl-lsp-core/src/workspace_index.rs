@@ -283,6 +283,50 @@ pub struct WorkspaceVariableRef {
     pub span: Span,
 }
 
+/// One local **alias** of a namespace-qualified cell recorded in the index —
+/// a `variable v` / `global ::ns::v` / `namespace upvar ::ns v local` /
+/// `upvar #0 ::ns::v local`, wherever it is written.
+///
+/// The third variable table, and the only one that is not about a document's
+/// *own* namespace.  An alias binds a cell from an arbitrary scope in an
+/// arbitrary namespace: a global `proc p {} { namespace upvar ::ns v local;
+/// return $local }` binds `::ns::v` while declaring nothing in `::ns` and
+/// writing no qualified occurrence, so it appears in neither
+/// [`WorkspaceVariable`] nor [`WorkspaceVariableRef`] nor
+/// [`WorkspaceIndex::documents_in_namespace`].  Renaming `::ns::v` without
+/// visiting that document moves the declaration and leaves the alias bound to
+/// a cell that no longer exists — `can't read "local": no such variable` on
+/// tclsh 9.0.4 and 8.6.16 alike.
+///
+/// Unlike the other two tables this one *is* keyed on a proc-scope binding.
+/// That is not a widening of the index's bound: the fact recorded is the
+/// **qualified cell** the alias names, which is exactly as spellable from
+/// another document as a declaration is.  The local spelling is not recorded
+/// and stays a per-document question.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceVariableAlias {
+    /// Document the alias is written in.
+    pub uri: String,
+    /// `::`-rooted cell the alias binds to, e.g. `::ns::v`.
+    pub qualified_name: String,
+}
+
+/// Whether a word carries a substitution marker, so its run-time text is not
+/// the text as written.
+fn is_computed_word(word: &str) -> bool {
+    word.contains(['$', '['])
+}
+
+/// Whether an alias's recorded cell is **computed** rather than a fixed name.
+///
+/// `namespace upvar $ns v local` records the cell as written (`::$ns::v`) —
+/// the analyser keeps the substitution marker rather than inventing a name —
+/// so a marker anywhere in the cell is exactly the signal that this alias
+/// binds no statically-known variable.
+fn alias_cell_is_computed(cell: &str) -> bool {
+    is_computed_word(cell)
+}
+
 /// One `source FILE` reference recorded in the index.
 ///
 /// Tracks where a document loads another file so a file rename can
@@ -439,6 +483,7 @@ pub struct WorkspaceIndex {
     classes: Vec<WorkspaceClass>,
     variables: Vec<WorkspaceVariable>,
     variable_refs: Vec<WorkspaceVariableRef>,
+    variable_aliases: Vec<WorkspaceVariableAlias>,
     invocations: Vec<WorkspaceInvocation>,
     sources: Vec<WorkspaceSource>,
     package_requires: Vec<WorkspacePackageRequire>,
@@ -590,27 +635,7 @@ impl WorkspaceIndex {
                 metaclass: class_def.metaclass.clone(),
             });
         }
-        // Namespace-scoped variable declarations only — the compiler owns the
-        // "which frames hold a namespace's variable table" rule
-        // (`namespace_variables`, the enumerating twin of the single-name
-        // `lookup_var_in_namespace` the in-document providers use), so the
-        // index cannot drift from it.
-        for (qualified, var) in tcl_compiler::analyser::namespace_variables(&analysis.global_scope)
-        {
-            self.variables.push(WorkspaceVariable {
-                uri: uri.to_owned(),
-                name: var.name.clone(),
-                qualified_name: qualified,
-                name_span: var.definition_span,
-            });
-        }
-        for vref in &analysis.qualified_var_refs {
-            self.variable_refs.push(WorkspaceVariableRef {
-                uri: uri.to_owned(),
-                qualified_name: tcl_syntax::naming::normalise_qualified_name(&vref.qualified_name),
-                span: vref.span,
-            });
-        }
+        self.index_variables(uri, analysis);
         for inv in &analysis.command_invocations {
             self.invocations.push(WorkspaceInvocation {
                 uri: uri.to_owned(),
@@ -644,6 +669,47 @@ impl WorkspaceIndex {
             });
         }
         self.index_command_links(uri, analysis);
+    }
+
+    /// Lift a document's three **variable** tables: the namespace-scoped
+    /// declarations it holds, the qualified cells it *aliases*, and the
+    /// qualified occurrences it writes.
+    ///
+    /// The compiler owns both enumeration rules — `namespace_variables` (the
+    /// enumerating twin of the single-name `lookup_var_in_namespace` the
+    /// in-document providers use) and `variable_alias_links` (the enumerating
+    /// twin of `VarDef::link_target`) — so the index cannot drift from what a
+    /// single-document lookup would answer.
+    fn index_variables(&mut self, uri: &str, analysis: &AnalysisResult) {
+        for (qualified, var) in tcl_compiler::analyser::namespace_variables(&analysis.global_scope)
+        {
+            self.variables.push(WorkspaceVariable {
+                uri: uri.to_owned(),
+                name: var.name.clone(),
+                qualified_name: qualified,
+                name_span: var.definition_span,
+            });
+        }
+        // Only the *cell* is recorded, so a document aliasing one cell twenty
+        // times contributes one row: the question this table answers is "must
+        // the rename visit this document", not "where in it".
+        let mut aliased: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for link in tcl_compiler::analyser::variable_alias_links(&analysis.global_scope) {
+            aliased.insert(tcl_syntax::naming::normalise_qualified_name(link.cell));
+        }
+        for qualified_name in aliased {
+            self.variable_aliases.push(WorkspaceVariableAlias {
+                uri: uri.to_owned(),
+                qualified_name,
+            });
+        }
+        for vref in &analysis.qualified_var_refs {
+            self.variable_refs.push(WorkspaceVariableRef {
+                uri: uri.to_owned(),
+                qualified_name: tcl_syntax::naming::normalise_qualified_name(&vref.qualified_name),
+                span: vref.span,
+            });
+        }
     }
 
     /// Lift a document's `namespace import` / `interp alias` / `rename`
@@ -734,6 +800,7 @@ impl WorkspaceIndex {
         self.classes.retain(|c| c.uri != uri);
         self.variables.retain(|v| v.uri != uri);
         self.variable_refs.retain(|v| v.uri != uri);
+        self.variable_aliases.retain(|v| v.uri != uri);
         self.invocations.retain(|i| i.uri != uri);
         self.sources.retain(|s| s.uri != uri);
         self.package_requires.retain(|pr| pr.uri != uri);
@@ -1404,6 +1471,126 @@ impl WorkspaceIndex {
             .filter(|v| v.uri != exclude_uri)
             .filter(|v| v.qualified_name.trim_start_matches("::") == target)
             .collect()
+    }
+
+    /// Every document holding an indexed symbol declared **directly in**
+    /// `namespace` — a proc, a class, or a namespace variable whose parent
+    /// namespace is exactly it.
+    ///
+    /// One of the three candidate sources a namespace-variable *rename* must
+    /// visit, and the one that catches a document whose only stake in the
+    /// cell is an unqualified alias written *inside* the namespace
+    /// (`namespace eval ns { proc p {} { variable v; puts $v } }`): that
+    /// binding is proc-scope and deliberately not in either variable table,
+    /// but the enclosing `proc` is indexed as `::ns::p`.
+    ///
+    /// It is **not** sufficient on its own.  An alias can be written from any
+    /// namespace — a global `proc p {} { namespace upvar ::ns v local; … }`
+    /// declares nothing in `::ns` at all — which is what
+    /// [`Self::documents_aliasing_variable`] answers.  Both are needed;
+    /// neither subsumes the other.
+    #[must_use]
+    pub fn documents_in_namespace(&self, namespace: &str) -> Vec<String> {
+        let target = namespace.trim_start_matches("::");
+        let parent_matches = |qualified: &str| -> bool {
+            let bare = qualified.trim_start_matches("::");
+            match bare.rfind("::") {
+                Some(idx) => &bare[..idx] == target,
+                None => target.is_empty(),
+            }
+        };
+        let mut uris: Vec<String> = self
+            .procs
+            .iter()
+            .filter(|p| parent_matches(&p.qualified_name))
+            .map(|p| p.uri.clone())
+            .chain(
+                self.classes
+                    .iter()
+                    .filter(|c| parent_matches(&c.qualified_name))
+                    .map(|c| c.uri.clone()),
+            )
+            .chain(
+                self.variables
+                    .iter()
+                    .filter(|v| parent_matches(&v.qualified_name))
+                    .map(|v| v.uri.clone()),
+            )
+            .collect();
+        uris.sort();
+        uris.dedup();
+        uris
+    }
+
+    /// Every document holding a local **alias** of the cell `qualified_name`
+    /// — a `variable v` / `global ::ns::v` / `namespace upvar ::ns v local` /
+    /// `upvar #0 ::ns::v local`, written from any scope in any namespace.
+    ///
+    /// The candidate source that makes a namespace-variable rename's coverage
+    /// provable rather than presumed.  A document can bind `::ns::v` without
+    /// declaring anything in `::ns` and without writing a single qualified
+    /// occurrence of it, so it appears in neither variable table and in no
+    /// namespace listing; renaming the cell while leaving that document
+    /// unvisited leaves the alias bound to a cell that no longer exists.
+    ///
+    /// Matched the same exact way as the other two — one cell, one name, no
+    /// scope-chain search (see [`Self::variable_definitions_qualified`]).
+    /// Aliases whose cell is *computed* name no fixed cell and so match
+    /// nothing here; they are [`Self::documents_with_ambiguous_alias_of`]'s
+    /// business instead.
+    #[must_use]
+    pub fn documents_aliasing_variable(&self, qualified_name: &str) -> Vec<String> {
+        let target = qualified_name.trim_start_matches("::");
+        let mut uris: Vec<String> = self
+            .variable_aliases
+            .iter()
+            .filter(|a| !alias_cell_is_computed(&a.qualified_name))
+            .filter(|a| a.qualified_name.trim_start_matches("::") == target)
+            .map(|a| a.uri.clone())
+            .collect();
+        uris.sort();
+        uris.dedup();
+        uris
+    }
+
+    /// Every document holding an alias whose cell is **computed** and could
+    /// therefore be `qualified_name` — `namespace upvar $ns version local`,
+    /// `namespace upvar ::ns $v local`.
+    ///
+    /// The completeness proof for [`Self::documents_aliasing_variable`].  A
+    /// computed cell names no fixed variable, so no candidate scan can find
+    /// the alias and no edit can keep it consistent; renaming the cell anyway
+    /// leaves it bound to a variable that no longer exists (tclsh 9.0.4 /
+    /// 8.6.16 alike: `namespace eval mypkg { variable version 1 }` +
+    /// `namespace upvar $ns version local` prints `1`, and renaming
+    /// `version` to `release` gives `can't read "local": no such variable`).
+    /// A rename whose cell this could be is refused.
+    ///
+    /// The match is on whichever half is still written literally, so this
+    /// stays narrow: a computed *namespace* with a literal tail can only be
+    /// this cell if the tails agree, and a computed *tail* under a literal
+    /// namespace only if the namespaces do.  Both computed matches anything
+    /// in scope.
+    #[must_use]
+    pub fn documents_with_ambiguous_alias_of(&self, qualified_name: &str) -> Vec<String> {
+        let bare = qualified_name.trim_start_matches("::");
+        let (cell_ns, cell_tail) = bare.rsplit_once("::").unwrap_or(("", bare));
+        let mut uris: Vec<String> = self
+            .variable_aliases
+            .iter()
+            .filter(|a| alias_cell_is_computed(&a.qualified_name))
+            .filter(|a| {
+                let written = a.qualified_name.trim_start_matches("::");
+                let (ns, tail) = written.rsplit_once("::").unwrap_or(("", written));
+                let ns_could_match = is_computed_word(ns) || ns == cell_ns;
+                let tail_could_match = is_computed_word(tail) || tail == cell_tail;
+                ns_could_match && tail_could_match
+            })
+            .map(|a| a.uri.clone())
+            .collect();
+        uris.sort();
+        uris.dedup();
+        uris
     }
 
     /// Occurrence (read / write) sites naming the namespace variable
@@ -2683,6 +2870,64 @@ mod tests {
         assert!(
             index.workspace_command_exists_for_call("::set", false),
             "with no colliding builtin, the nested alias still counts",
+        );
+    }
+
+    /// TP (Codex review of PR #1091, finding 2) — a document whose only stake
+    /// in `::ns::v` is an alias written from *outside* `::ns` is found by the
+    /// alias table, and by nothing else.
+    ///
+    /// A global `proc p {} { namespace upvar ::ns v local; … }` declares
+    /// nothing in `::ns`, holds no namespace-scoped declaration of the cell,
+    /// and writes no qualified occurrence of it — so all three of the older
+    /// candidate sources miss it, while the alias it holds breaks the moment
+    /// the declaration moves without it (tclsh 9.0.4 / 8.6.16: `can't read
+    /// "local": no such variable`).
+    #[test]
+    fn indexes_a_cell_alias_written_from_another_namespace() {
+        let decl = analyse("namespace eval ns {\n    variable v 1\n}\n");
+        let aliaser =
+            analyse("proc p {} {\n    namespace upvar ::ns v local\n    return $local\n}\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///decl.tcl", &decl);
+        index.add_document("file:///aliaser.tcl", &aliaser);
+
+        assert_eq!(
+            index.documents_aliasing_variable("::ns::v"),
+            vec![
+                "file:///aliaser.tcl".to_string(),
+                "file:///decl.tcl".to_string()
+            ],
+            "both the `variable v` declaration and the out-of-namespace \
+             `namespace upvar` are aliases of the one cell",
+        );
+        assert!(
+            !index
+                .documents_in_namespace("::ns")
+                .contains(&"file:///aliaser.tcl".to_string()),
+            "the aliasing document declares nothing in ::ns — which is why \
+             the alias table is needed",
+        );
+        assert!(
+            index
+                .variable_refs_of("::ns::v", "")
+                .iter()
+                .all(|r| r.uri != "file:///aliaser.tcl"),
+            "and it writes no qualified occurrence either",
+        );
+    }
+
+    /// TN (same finding) — the alias table is keyed on the cell, so an alias
+    /// of a *different* cell never drags its document into another cell's
+    /// rename.
+    #[test]
+    fn cell_alias_index_does_not_match_a_different_cell() {
+        let other = analyse("proc p {} {\n    namespace upvar ::ns other local\n}\n");
+        let index = WorkspaceIndex::from_documents([("file:///other.tcl", &other)]);
+        assert!(index.documents_aliasing_variable("::ns::v").is_empty());
+        assert_eq!(
+            index.documents_aliasing_variable("::ns::other"),
+            vec!["file:///other.tcl".to_string()]
         );
     }
 

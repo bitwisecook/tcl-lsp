@@ -78,11 +78,74 @@ bare-callable command (only `my method` dispatches it), a method / property
 rename only ever rewrites `my`-dispatched sites — never an unrelated bare
 command invocation that happens to share the renamed name.
 
+Renaming a method also rewrites the class's own `export` / `unexport` /
+`filter` lists, which name methods rather than merely mentioning them.
+Leaving one behind is not cosmetic: a `TclOO` method whose name starts with
+an upper-case letter is *unexported* by default, so a class that writes
+`method Foo {} {...}` plus `export Foo` stops working the moment the two
+disagree — tclsh 9.0 and 8.6 both answer `unknown method "Bar": must be
+destroy` for the renamed method.
+
+Renaming a **namespace variable** written with a `::` qualifier
+(`$::ns::v`, `set app::ns::v 1`) renames the cell across the whole
+workspace: the `variable v` declaration wherever it lives, every
+`variable` / `global` / `namespace upvar` / `upvar #0` alias of it — in any
+file and any namespace, including a global proc that only does `namespace
+upvar ::ns v local` — and every qualified occurrence anywhere. An
+unqualified `$v` that is not such an alias is deliberately left alone: a bare
+name means whatever the local scope chain supplies, which is a per-file
+question the cell's identity cannot answer.
+
+Which *word* of an alias changes depends on which one names the cell.
+`variable v` and `global ::ns::v` name it with the very word that introduces
+the local alias, so renaming the cell renames that word **and** every
+unqualified `$v` it enables. `namespace upvar ::ns v local` names it one word
+earlier: only that `v` changes, and `local` (with all its reads) is left
+exactly as written, because the cell's name never determined it. Rewriting
+`local` instead would leave the alias pointing at the cell that was renamed
+away — `can't read "total": no such variable` on tclsh 9.0 and 8.6 alike.
+
 A method, a classmethod, and a property can share one name within the same
 class (rare, but each lives in its own independent table, so it's legal);
 renaming resolves to whichever declaration the cursor actually sits on
 rather than a fixed priority, so the rename never silently retargets a
 different member than the one you clicked.
+
+### When rename refuses
+
+Rename answers with an **error and a reason**, not a silent no-op, whenever
+it can see that no edit set would keep the program running. Precision is the
+point: a refused rename costs you a keystroke, a wrong one silently breaks
+code. The gate refuses when:
+
+- a member of the class you are renaming is dispatched on a **receiver whose
+  class is not tracked** — `$other X` where `$other` came from `lindex
+  $args 0`, a `dict get`, or any other value the source does not tie to a
+  constructor. The call may well reach the member you are renaming (real
+  `TclOO` code does exactly this in copy constructors), and nothing in the
+  source proves it does not;
+- a member name is **computed at run time** on a receiver of the class —
+  `$obj $m`, `my $m`. No edit can keep such a site consistent with a renamed
+  declaration;
+- two different classes bind the **same object command** (`Factory create
+  rex` and `Widget create rex` in one namespace), so which class a later
+  `rex make` reaches is a runtime fact;
+- an `export` / `unexport` / `filter` naming the member was recorded but its
+  word cannot be located to rewrite;
+- for a namespace variable: the new name would **collide** with a cell that
+  already exists, a file in that namespace **computes a variable name**
+  (`set $n 1`, `variable $n`) that might be this very cell, or a file
+  **aliases a cell computed at run time** (`namespace upvar $ns v local`)
+  that could be this one.
+
+The gate is checked across **every file the rename would edit** — the class's
+own file, every file defining or extending a class in its override family,
+and every file that merely *calls* the member. A dispatch it cannot account
+for in any of them refuses the whole rename, because a rename that is only
+partly safe is not safe at all.
+
+In each case, running **Find References** first shows you what rename can and
+cannot see.
 
 ## Failure modes
 
@@ -96,6 +159,14 @@ different member than the one you clicked.
   gets its value from a constant with no exact source spelling (for
   example a `foreach` list element), no edit set can keep that dispatch
   working, so the rename is refused outright.
+- The editor shows an error naming an untracked receiver, a computed member
+  name, an ambiguous object command, a computed variable name, or a computed
+  alias cell. That is
+  the safety gate above: the rename is refused deliberately, because the
+  edit set it could produce would change what the program does. Give the
+  receiver a spelling the analyser can follow (`set other [Vector3d new
+  ...]`) — or rename by hand, checking each site — rather than expecting a
+  partial edit set.
 
 ## Screenshots
 

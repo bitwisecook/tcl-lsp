@@ -82,6 +82,7 @@ use super::{Optimisation, PassContext};
 /// …) are skipped because substituting them as a bare word
 /// would change the command's interpretation.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
+    run_oo_method_folds(ctx, cu);
     run_function(ctx, cu, &cu.top_level, &cu.ir_module.top_level, "::");
     for (qname, fu) in &cu.procedures {
         let Some(proc) = cu.ir_module.procedures.get(qname) else {
@@ -854,6 +855,282 @@ fn simple_var_ref_matches(text: &str, var_name: &str) -> bool {
     normalise_var_name(&format!("${name}")) == normalise_var_name(&format!("${var_name}"))
 }
 
+/// The statically-proven facts about the `TclOO` method frame a body runs in
+/// (issue #1080).
+///
+/// Built once per method body by [`oo_frame_for`], which is where every
+/// abstention lives; by the time an `OoFrame` exists, each field is a value
+/// real `tclsh` would produce for every reachable invocation of that body.
+#[derive(Debug, Clone)]
+struct OoFrame {
+    /// The fully-qualified class that defines this implementation — the value
+    /// of [`tcl_registry::OoContextFact::DefiningClass`].
+    defining_class: String,
+}
+
+/// `method`'s provable frame facts, or `None` to abstain.
+///
+/// Folding direction is abstain-toward-no-fold: a wrong fold is a correctness
+/// bug, a missed fold only a lost optimisation. Three gates, each pinned to
+/// the oracle transcript on [`tcl_registry::OoContextFact::DefiningClass`]:
+///
+/// * **Class-object implementations.** `self class` *raises* ("method not
+///   defined by a class") inside an `oo::objdefine` instance method and inside
+///   a method on the class object (`self method` / `classmethod`) — there is
+///   no value to fold to. `oo::objdefine` never reaches here at all (the
+///   lowering's OO extraction only recognises the `oo::class`-family and
+///   `oo::define` definers), so the live gate is [`MethodKind::ClassMethod`].
+/// * **A class the source doesn't name.** The lowering already declines a
+///   dynamic class word, leaving an empty name; nothing to answer with.
+/// * **A renamed class command.** `rename ::R ::R2` makes `self class` answer
+///   `::R2` from bodies written under `::R` — the same rename-captures-identity
+///   rule `indirection.rs` applies. [`trusts_proc_binding`] is the
+///   whole-module, flow-insensitive query for "this name was never moved onto
+///   or vacated", which is exactly the property needed: a rename buried in a
+///   proc body still fires before some later method call.
+///
+/// [`trusts_proc_binding`]: crate::command_binding::ModuleCommandMutations::trusts_proc_binding
+fn oo_frame_for(
+    method: &crate::ir::MethodDef,
+    mutations: &crate::command_binding::ModuleCommandMutations,
+) -> Option<OoFrame> {
+    use crate::ir::MethodKind;
+    if method.kind == MethodKind::ClassMethod {
+        return None;
+    }
+    if method.class_name.is_empty() {
+        return None;
+    }
+    if !mutations.trusts_proc_binding(&method.class_name) {
+        return None;
+    }
+    Some(OoFrame {
+        defining_class: method.class_name.clone(),
+    })
+}
+
+/// Fold the command substitutions in every `TclOO` method body that the
+/// enclosing method frame makes constant — `[self class]`, and anything built
+/// purely out of it (`[namespace tail [self class]]` folds in one step, since
+/// the builtin fold resolves nested substitutions first).
+///
+/// Deliberately narrower than [`run_function`]: it carries **no** constants
+/// map, so no `$var` is propagated inside a method body. An instance variable
+/// is object state that outlives the frame and can be rewritten by any `my …`
+/// call, and the per-function SCCP lattice does not model that — so the
+/// variable-propagation half of this pass stays off for methods (which is the
+/// status quo) while the frame-constant fold, which touches no variable at
+/// all, is switched on.
+fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
+    if ctx.registry.is_none() {
+        return;
+    }
+    // Sorted so the emitted rewrite order is deterministic across runs
+    // (`ir_module.methods` is a `HashMap`).
+    let mut qnames: Vec<&String> = cu.ir_module.methods.keys().collect();
+    qnames.sort();
+    for qname in qnames {
+        let Some(method) = cu.ir_module.methods.get(qname) else {
+            continue;
+        };
+        let Some(frame) = oo_frame_for(method, &ctx.command_mutations) else {
+            continue;
+        };
+        walk_oo_script(ctx, &method.body, &frame, 0);
+    }
+}
+
+/// `depth` is the nesting level of `script` — see
+/// [`super::MAX_OPTIMISER_WALK_DEPTH`].
+fn walk_oo_script(ctx: &mut PassContext<'_>, script: &Script, frame: &OoFrame, depth: u32) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
+    for stmt in &script.statements {
+        walk_oo_statement(ctx, stmt, frame, depth);
+    }
+}
+
+/// Visit one statement's command words for the frame-constant fold, then
+/// recurse into any nested body it carries.
+fn walk_oo_statement(ctx: &mut PassContext<'_>, stmt: &Statement, frame: &OoFrame, depth: u32) {
+    match stmt {
+        Statement::Call {
+            tokens: Some(t), ..
+        }
+        | Statement::AssignValue {
+            tokens: Some(t), ..
+        } => visit_oo_frame_folds(ctx, t, frame),
+        // `return [self class]` is the single most common shape of all, and a
+        // `Return` carries no `CommandTokens` — only the whole statement span
+        // and the raw value text. Rewrite the statement the way the sibling
+        // `return`-terminator folds (O101 / O115) already do.
+        Statement::Return {
+            span,
+            value: Some(raw),
+            expr: None,
+            ..
+        } => try_oo_frame_return_fold(ctx, *span, raw, frame),
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            for c in clauses {
+                walk_oo_script(ctx, &c.body, frame, depth + 1);
+            }
+            if let Some(b) = else_body {
+                walk_oo_script(ctx, b, frame, depth + 1);
+            }
+        }
+        Statement::For {
+            init, next, body, ..
+        } => {
+            walk_oo_script(ctx, init, frame, depth + 1);
+            walk_oo_script(ctx, next, frame, depth + 1);
+            walk_oo_script(ctx, body, frame, depth + 1);
+        }
+        Statement::While { body, .. }
+        | Statement::Catch { body, .. }
+        | Statement::Foreach { body, .. }
+        | Statement::Block { body, .. } => walk_oo_script(ctx, body, frame, depth + 1),
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
+            walk_oo_script(ctx, body, frame, depth + 1);
+            for h in handlers {
+                walk_oo_script(ctx, &h.body, frame, depth + 1);
+            }
+            if let Some(fb) = finally_body {
+                walk_oo_script(ctx, fb, frame, depth + 1);
+            }
+        }
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
+            for a in arms {
+                if let Some(body) = &a.body {
+                    walk_oo_script(ctx, body, frame, depth + 1);
+                }
+            }
+            if let Some(b) = default_body {
+                walk_oo_script(ctx, b, frame, depth + 1);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Report an `O129` for each single-token `[cmd …]` word of this command that
+/// the method frame folds to a constant.
+fn visit_oo_frame_folds(ctx: &mut PassContext<'_>, tokens: &CommandTokens, frame: &OoFrame) {
+    let Some(registry) = ctx.registry else {
+        return;
+    };
+    let no_constants = std::collections::HashMap::new();
+    let mut rewrites: Vec<(tcl_lexer::Span, String)> = Vec::new();
+    for (i, argv_span) in tokens.argv.iter().enumerate() {
+        if !tokens.single_token_word.get(i).copied().unwrap_or(false) {
+            continue;
+        }
+        let Some(text) = tokens.argv_texts.get(i) else {
+            continue;
+        };
+        let Some(inner) = text.strip_prefix('[').and_then(|s| s.strip_suffix(']')) else {
+            continue;
+        };
+        if let Some(folded) = try_o129_fold(
+            registry,
+            &ctx.command_mutations,
+            &no_constants,
+            inner,
+            ctx.dialect,
+            Some(frame),
+        ) {
+            rewrites.push((*argv_span, folded));
+        }
+    }
+    for (span, folded) in rewrites {
+        ctx.report(Optimisation::new(
+            DiagCode::O129,
+            "Fold constant builtin command substitution",
+            full_word_span(ctx.source, span),
+            folded,
+        ));
+    }
+}
+
+/// `return [self class]` → `return ::TheClass`.
+///
+/// The whole statement is the rewrite target (a `Return` keeps no per-word
+/// tokens), so the replacement re-spells the `return` keyword — the same shape
+/// [`try_fold_return_terminator`]'s O101 / O115 rewrites emit.
+fn try_oo_frame_return_fold(
+    ctx: &mut PassContext<'_>,
+    span: tcl_lexer::Span,
+    raw: &str,
+    frame: &OoFrame,
+) {
+    let Some(registry) = ctx.registry else {
+        return;
+    };
+    let Some(inner) = raw
+        .trim()
+        .strip_prefix('[')
+        .and_then(|s| s.strip_suffix(']'))
+    else {
+        return;
+    };
+    let no_constants = std::collections::HashMap::new();
+    let Some(folded) = try_o129_fold(
+        registry,
+        &ctx.command_mutations,
+        &no_constants,
+        inner,
+        ctx.dialect,
+        Some(frame),
+    ) else {
+        return;
+    };
+    ctx.report(Optimisation::new(
+        DiagCode::O129,
+        "Fold constant builtin command substitution",
+        span,
+        format!("return {folded}"),
+    ));
+}
+
+/// Answer a command substitution from the enclosing method frame, when the
+/// registry declares that this command's invoked keyword *is* a frame fact.
+///
+/// Entirely registry-driven: the word is looked up in the spec's
+/// [`CommandSpec::oo_context_facts`](tcl_registry::CommandSpec::oo_context_facts)
+/// table, so no command or subcommand name appears here.  A call carrying
+/// anything other than exactly the one keyword word declines — a bare `[self]`
+/// (equivalent to `self object`, the receiving instance) has no entry, and
+/// neither does any word the table omits.
+fn oo_context_fact_fold(
+    spec: &tcl_registry::CommandSpec,
+    args: &[String],
+    frame: &OoFrame,
+) -> Option<String> {
+    if spec.oo_context_facts.is_empty() {
+        return None;
+    }
+    let [word] = args else {
+        return None;
+    };
+    let fact = spec
+        .oo_context_facts
+        .iter()
+        .find(|(w, _)| *w == word.as_str())
+        .map(|(_, f)| *f)?;
+    match fact {
+        tcl_registry::OoContextFact::DefiningClass => Some(frame.defining_class.clone()),
+    }
+}
+
 fn run_function(
     ctx: &mut PassContext<'_>,
     cu: &CompilationUnit,
@@ -1380,6 +1657,7 @@ fn parse_static_call_args(
         registry,
         &ctx.command_mutations,
         ctx.dialect,
+        None,
     )?;
     Some(
         words
@@ -1827,8 +2105,14 @@ fn visit_call_cmd_subst_folds(
         // needed). Checked before the O103 interproc bail so it fires
         // even when no interprocedural summary is available.
         if let Some(reg) = ctx.registry
-            && let Some(folded) =
-                try_o129_fold(reg, &ctx.command_mutations, constants, inner, ctx.dialect)
+            && let Some(folded) = try_o129_fold(
+                reg,
+                &ctx.command_mutations,
+                constants,
+                inner,
+                ctx.dialect,
+                None,
+            )
         {
             // `list` / `lindex` keep their historical diagnostic codes
             // (O116 / O118) for editor granularity; everything else reports
@@ -1970,8 +2254,9 @@ fn try_o129_fold(
     constants: &std::collections::HashMap<String, String>,
     inner: &str,
     dialect: Option<&str>,
+    oo: Option<&OoFrame>,
 ) -> Option<String> {
-    let folded = fold_builtin_cmd_subst_raw(registry, mutations, constants, inner, dialect)?;
+    let folded = fold_builtin_cmd_subst_raw(registry, mutations, constants, inner, dialect, oo)?;
     Some(render_propagation_word(&folded))
 }
 
@@ -1990,13 +2275,23 @@ fn fold_builtin_cmd_subst_raw(
     constants: &std::collections::HashMap<String, String>,
     inner: &str,
     dialect: Option<&str>,
+    oo: Option<&OoFrame>,
 ) -> Option<String> {
-    let words = literal_words(inner, constants, registry, mutations, dialect)?;
+    let words = literal_words(inner, constants, registry, mutations, dialect, oo)?;
     let (head, rest) = words.split_first()?;
     if !mutations.trusts(head) {
         return None;
     }
     let spec = registry.get(head)?;
+    // A keyword whose value the enclosing `TclOO` method frame fixes
+    // (`[self class]`) answers from the frame rather than from its arguments —
+    // it has no `const_fold`, because the value is not a function of the args.
+    // Only reachable when the caller proved a frame; `None` everywhere else.
+    if let Some(frame) = oo
+        && let Some(folded) = oo_context_fact_fold(spec, rest, frame)
+    {
+        return Some(folded);
+    }
     if spec.subcommands.is_empty() {
         let arg_refs: Vec<&str> = rest.iter().map(String::as_str).collect();
         spec.run_const_fold(&arg_refs, dialect)
@@ -2027,6 +2322,7 @@ fn literal_words(
     registry: &tcl_registry::CommandRegistry,
     mutations: &crate::command_binding::ModuleCommandMutations,
     dialect: Option<&str>,
+    oo: Option<&OoFrame>,
 ) -> Option<Vec<String>> {
     use tcl_lexer::{Lexer, SourceMap, TokenType};
 
@@ -2080,8 +2376,9 @@ fn literal_words(
                 // A `Cmd` token's text is already the bracket *interior*
                 // (`list a b c`, not `[list a b c]`), so fold it directly.
                 let nested = sm.token_text(*tok);
-                let folded =
-                    fold_builtin_cmd_subst_raw(registry, mutations, constants, nested, dialect)?;
+                let folded = fold_builtin_cmd_subst_raw(
+                    registry, mutations, constants, nested, dialect, oo,
+                )?;
                 words.push(folded);
                 prev_is_sep = false;
             }
@@ -2228,6 +2525,7 @@ fn visit_string_interpolation_cmd_subs(
                     constants,
                     cmd,
                     ctx.dialect,
+                    None,
                 ) {
                     // Reject a result that would re-introduce a
                     // substitution into the `"…"` context.

@@ -729,11 +729,11 @@ pub struct Analyser {
     /// Deferred `TclOO` instance-creation candidates (`set v [Cls new]` /
     /// `Cls create v`) captured by an isolated proc body, which has an *empty*
     /// `all_classes` and so can't resolve the (sibling) class.  Each is the raw
-    /// `(command, args)`; [`Self::graft_proc_body`] replays
+    /// `(command, args, creation namespace)`; [`Self::graft_proc_body`] replays
     /// `record_instance_creation` against the shell's full `all_classes` so the
     /// `instance_classes` map matches a whole-file walk.  `None` on the whole-file
     /// path (instances resolve inline).
-    pub(super) pending_instances: Option<Vec<(String, Vec<String>)>>,
+    pub(super) pending_instances: Option<Vec<(String, Vec<String>, String)>>,
     /// **Experimental probe flag.**  When `true`, the per-item path does *not*
     /// take the duplicate-definition fallback, to measure the residual
     /// divergence the duplicate fast-path must still close.  Defaults to `false`.

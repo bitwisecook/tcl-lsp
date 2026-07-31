@@ -206,6 +206,84 @@ suite("Rename Symbol", () => {
     );
   });
 
+  // Issue #923 finding idx 79 — the rename **safety gate**.
+  //
+  // `$other` in `Vector3d`'s copy constructor really is a `Vector3d` at run
+  // time (tclsh 9.0.4 / 8.6.16 both print `7 9 7 9` for this fixture), but it
+  // comes from `[lindex $args 0]` behind a runtime `info object isa` test, so
+  // the analyser has no class binding for it.  Renaming `X` used to emit an
+  // edit set touching only the declaration and the `export` list; applying it
+  // and re-running gives, on both interpreters:
+  //
+  //   unknown method "X": must be Get, GetX, Y or destroy
+  //       while executing
+  //   "$other X"
+  //
+  // The server now refuses with an LSP error, so VS Code surfaces the reason
+  // instead of quietly applying nothing.  This test is the editor-facing half:
+  // the command must *reject*, not resolve to an empty edit.
+  test("rename refuses a method dispatched on an untracked receiver", async () => {
+    const uri = getDocUri("renameUntrackedReceiver.tcl");
+    await activate(uri);
+
+    // `X` in `method X {} { return $_x }` — line 14 (0-based), col 11.
+    const pos = new vscode.Position(14, 11);
+
+    let rejected: unknown;
+    let resolved: vscode.WorkspaceEdit | undefined;
+    try {
+      resolved = (await vscode.commands.executeCommand(
+        "vscode.executeDocumentRenameProvider",
+        uri,
+        pos,
+        "GetX",
+      )) as vscode.WorkspaceEdit | undefined;
+    } catch (err) {
+      rejected = err;
+    }
+
+    assert.ok(
+      rejected !== undefined,
+      `the rename must be refused, not answered with ${JSON.stringify(
+        resolved?.entries().map(([u, edits]) => [u.path, edits.length]),
+      )}`,
+    );
+    assert.match(
+      String(rejected),
+      /not tracked/,
+      `the refusal must carry the gate's reason: ${String(rejected)}`,
+    );
+  });
+
+  // FN guard for the gate above: a member the untracked receiver never names
+  // still renames normally — over-refusal would make the feature unusable on
+  // any class with an internal `$var method` helper.
+  test("rename still applies for a member the untracked receiver never names", async () => {
+    const uri = getDocUri("renameUntrackedReceiver.tcl");
+    await activate(uri);
+
+    // `Get` in `method Get {} { ... }` — line 16 (0-based), col 11.
+    const pos = new vscode.Position(16, 11);
+
+    const edit = (await vscode.commands.executeCommand(
+      "vscode.executeDocumentRenameProvider",
+      uri,
+      pos,
+      "Fetch",
+    )) as vscode.WorkspaceEdit | undefined;
+
+    assert.ok(edit, "an unaffected member must still rename");
+    const docEntry = edit!.entries().find(([u]) => u.toString() === uri.toString());
+    assert.ok(docEntry, "Should include edits for renameUntrackedReceiver.tcl");
+    const lines = docEntry![1].map((te) => te.range.start.line);
+    assert.ok(
+      lines.includes(16) && lines.includes(17),
+      `the declaration (16) and its \`export\` word (17) must both rename; got ${JSON.stringify(
+        lines,
+      )}`,
+    );
+  });
+
   // Issue #923: renaming a class must rewrite every `superclass` site that
   // names it, or the inheritance graph is silently broken.  In `oo-shapes.tcl`
   // both `Dog` and `Cat` declare `superclass Animal`.

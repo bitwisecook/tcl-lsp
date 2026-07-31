@@ -431,6 +431,72 @@ pub fn namespace_variables(root: &Scope) -> Vec<(String, &VarDef)> {
     out
 }
 
+/// One local **alias** of a namespace/global cell: the cell it names, and the
+/// [`VarDef`] holding the alias.
+///
+/// See [`variable_alias_links`].
+#[derive(Debug, Clone, Copy)]
+pub struct VariableAliasLink<'a> {
+    /// The `::`-rooted cell the alias binds to (`VarDef::link_target`).
+    pub cell: &'a str,
+    /// The alias record itself — its [`VarDef::link_target_span`] is the word
+    /// a rename of `cell` must rewrite, and its own `definition_span` /
+    /// `references` are the local spelling.
+    pub var: &'a VarDef,
+}
+
+/// Every variable in `root` that **aliases** a namespace/global cell — a
+/// `variable v`, `global v`, `namespace upvar ns v local`, or `upvar #0 ::ns::v
+/// local` — paired with the cell it binds.
+///
+/// The alias counterpart of [`namespace_variables`], and the second half of
+/// the same rule: `namespace_variables` enumerates the cells a document
+/// *declares*, this enumerates the ones it *binds to*.  Unlike declarations,
+/// an alias can live in any scope and in any namespace — a global `proc p {}
+/// { namespace upvar ::ns v local; … }` binds `::ns::v` from `::`, declaring
+/// nothing in `::ns` and writing no qualified occurrence — so both consumers
+/// need this walk to answer completely:
+///
+/// * the workspace index, so a rename of `::ns::v` visits every document that
+///   binds the cell rather than only those declaring or spelling it
+///   (`WorkspaceIndex::documents_aliasing_variable`);
+/// * the rename itself, so the word naming the cell is the word rewritten.
+///
+/// Every scope kind is walked, precisely because a proc's locals are where
+/// aliases live.
+#[must_use]
+pub fn variable_alias_links(root: &Scope) -> Vec<VariableAliasLink<'_>> {
+    fn walk<'a>(node: &'a Scope, out: &mut Vec<VariableAliasLink<'a>>) {
+        for var in node.variables.values() {
+            if let Some(cell) = var.link_target.as_deref() {
+                out.push(VariableAliasLink { cell, var });
+            }
+        }
+        for child in &node.children {
+            walk(child, out);
+        }
+    }
+    let mut out = Vec::new();
+    walk(root, &mut out);
+    // `Scope::variables` is a `HashMap`, so the per-node order is the process
+    // hash seed's; sort by declaration span (then cell) for the same reason
+    // `namespace_variables` does — a stable, source-ordered index.
+    out.sort_by(|a, b| {
+        a.var
+            .definition_span
+            .start()
+            .cmp(&b.var.definition_span.start())
+            .then(
+                a.var
+                    .definition_span
+                    .end()
+                    .cmp(&b.var.definition_span.end()),
+            )
+            .then_with(|| a.cell.cmp(b.cell))
+    });
+    out
+}
+
 /// Bundles the field-disjoint borrows [`Analyser::finalise_invocation_resolutions`]'s
 /// call-site "is `qualified` known, for a call at `call_off`?" predicate
 /// needs, and the small body/enclosing-definition/liveness helpers it's
@@ -1677,6 +1743,7 @@ impl Analyser {
                 warn_if_unused,
                 array_indices: indices,
                 link_target: None,
+                link_target_span: None,
             };
             scope.variables.insert(base_owned.clone(), var.clone());
             let key = format!("{}::{base_owned}", scope.name);
@@ -1689,12 +1756,26 @@ impl Analyser {
     /// upvar` binding), so Find-References / Rename can unify every alias of the
     /// same cell.  A no-op if the variable wasn't defined (call after
     /// [`Self::define_var`]).
-    pub fn set_var_link_target(&mut self, name: &str, scope_path: &[usize], target: String) {
+    ///
+    /// `target_span` is the span of the **word that names the cell**, which is
+    /// not always the declaration word: `variable v` / `global ::ns::v` name
+    /// the cell with the very word that introduces the local alias, but
+    /// `namespace upvar ::ns v local` / `upvar #0 ::ns::v local` name it one
+    /// word earlier.  Recording it is what lets a rename of the cell rewrite
+    /// the right word — see [`VarDef::link_target_span`].
+    pub fn set_var_link_target(
+        &mut self,
+        name: &str,
+        scope_path: &[usize],
+        target: String,
+        target_span: Span,
+    ) {
         let base = crate::naming::normalise_var_name(name).to_string();
         if let Some(scope) = scope_at_mut(&mut self.result.global_scope, scope_path)
             && let Some(v) = scope.variables.get_mut(&base)
         {
             v.link_target = Some(target);
+            v.link_target_span = Some(target_span);
         }
     }
 
@@ -2495,6 +2576,7 @@ mod tests {
             warn_if_unused: false,
             array_indices: std::collections::BTreeSet::new(),
             link_target: None,
+            link_target_span: None,
         }
     }
 

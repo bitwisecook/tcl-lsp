@@ -876,3 +876,194 @@ fn emit_cmd_subst_arg_composite_and_special_forms() {
     // A bare `$name` form loads the scalar directly.
     assert_eq!(arg_ops(true, &["v"], "$v", false), vec![Op::LOAD_SCALAR1]);
 }
+
+// ===========================================================================
+// Issue #1080 — `[self class]` folds to the enclosing method's defining class.
+//
+// The value is a registry fact (`CommandSpec::oo_context_facts` maps `self`'s
+// `class` word to `OoContextFact::DefiningClass`), answered by the optimiser
+// from the class whose definition body encloses the method. Folding direction
+// is abstain-toward-no-fold, so each abstention gets its own TN below.
+//
+// Oracle, byte-identical on tclsh 9.0.4 and 8.6.16 — see
+// `OoContextFact::DefiningClass`'s doc comment for the full transcript.
+// ===========================================================================
+
+/// Every O129 replacement in `src`.
+fn o129(src: &str) -> Vec<String> {
+    repls(src, "O129")
+}
+
+#[test]
+fn self_class_folds_to_the_lexically_enclosing_class() {
+    // TP. Oracle: `oo::class create ::A { method m {} { self class } }` then
+    // `[::A new] m` -> ::A.
+    assert_eq!(
+        o129("oo::class create ::A {\n    method m {} { puts [self class] }\n}\n"),
+        vec!["::A".to_string()],
+    );
+    // TP, the `return` shape — the whole statement is the rewrite target.
+    assert_eq!(
+        o129("oo::class create ::A {\n    method m {} { return [self class] }\n}\n"),
+        vec!["return ::A".to_string()],
+    );
+    // TP, the `set` value position.
+    assert_eq!(
+        o129("oo::class create ::A {\n    method m {} { set c [self class]\n    puts $c }\n}\n"),
+        vec!["::A".to_string()],
+    );
+}
+
+#[test]
+fn self_class_folds_through_every_class_defining_shape() {
+    // TP. `oo::define` targets the class it names — oracle:
+    // `oo::define ::B { method n {} { self class } }` -> ::B, even for a
+    // subclass whose inherited method still answers with ::A.
+    assert_eq!(
+        o129("oo::class create ::B {}\noo::define ::B { method n {} { puts [self class] } }\n"),
+        vec!["::B".to_string()],
+    );
+    // TP. A relative class name inside `namespace eval` resolves the same way
+    // tclsh does — oracle: `namespace eval ::N { oo::class create C {…} }` and
+    // `[::N::C new] m` -> ::N::C.
+    assert_eq!(
+        o129(
+            "namespace eval ::N {\n    oo::class create C { method m {} { puts [self class] } }\n}\n"
+        ),
+        vec!["::N::C".to_string()],
+    );
+    // TP. Constructor and destructor bodies are class-defined implementations
+    // — oracle: both report ::E.
+    assert_eq!(
+        o129(
+            "oo::class create ::E {\n    constructor {} { puts [self class] }\n    destructor { puts [self class] }\n}\n"
+        ),
+        vec!["::E".to_string(), "::E".to_string()],
+    );
+}
+
+#[test]
+fn self_class_folds_inside_nested_bodies() {
+    // TP. The method-body walk recurses through control-flow bodies.
+    let r = o129(
+        "oo::class create ::A {\n    method m {} {\n        if {1} { puts [self class] }\n        foreach x {1 2} { puts [self class] }\n        while {0} { puts [self class] }\n    }\n}\n",
+    );
+    assert_eq!(r, vec!["::A".to_string(); 3], "got {r:?}");
+}
+
+#[test]
+fn self_class_abstains_on_a_class_object_method() {
+    // TN. Oracle: a method on the class *object* is not defined by a class, so
+    // `self class` RAISES rather than returning a name —
+    //   oo::class create ::U { self method cm {} { self class } }
+    //   ::U cm   ->  method not defined by a class
+    // Folding it to `::U` would invent a value the interpreter never produces.
+    assert!(
+        o129("oo::class create ::U {\n    classmethod cm {} { puts [self class] }\n}\n").is_empty(),
+    );
+    assert!(
+        o129("oo::class create ::U {\n    self method cm {} { puts [self class] }\n}\n").is_empty(),
+    );
+}
+
+#[test]
+fn self_class_abstains_when_the_class_command_is_renamed() {
+    // TN. Oracle: `self class` answers with the class's *current* name —
+    //   oo::class create ::R { method r {} { self class } }
+    //   set r [::R new] ; rename ::R ::R2 ; $r r   ->  ::R2
+    // so a module that renames the class anywhere must not fold to ::R. Same
+    // rename-captures-identity rule `indirection.rs` applies.
+    assert!(
+        o129("oo::class create ::R {\n    method r {} { puts [self class] }\n}\nrename ::R ::R2\n")
+            .is_empty(),
+    );
+    // The rename buried inside a proc body counts too: the whole-module query
+    // is flow-insensitive because the call order is not statically known.
+    assert!(
+        o129(
+            "oo::class create ::R {\n    method r {} { puts [self class] }\n}\nproc ::later {} { rename ::R ::R2 }\n"
+        )
+        .is_empty(),
+    );
+}
+
+#[test]
+fn self_class_abstains_when_self_itself_is_rebound() {
+    // TN. The generic builtin-fold trust gate: a module that redefines `self`
+    // no longer has `self`'s builtin semantics to fold with.
+    assert!(
+        o129(
+            "proc self {args} { return spoofed }\noo::class create ::A {\n    method m {} { puts [self class] }\n}\n"
+        )
+        .is_empty(),
+    );
+}
+
+#[test]
+fn the_other_self_words_never_fold() {
+    // TN. `object` / `namespace` name the receiving *instance* — a fresh
+    // `::oo::ObjNN` per `new`, never a source constant. Oracle:
+    //   oo::class create ::A { method m {} { list [self] [self object] \
+    //                                             [self namespace] } }
+    //   [::A new] m   ->  ::oo::Obj22 ::oo::Obj22 ::oo::Obj22
+    // and the chain words (`method`, `call`, `next`, `target`, `filter`,
+    // `caller`) are reshaped at run time by mixins, filters, and `next`.
+    for word in [
+        "",
+        "object",
+        "namespace",
+        "method",
+        "call",
+        "caller",
+        "filter",
+        "next",
+        "target",
+    ] {
+        let src =
+            format!("oo::class create ::A {{\n    method m {{}} {{ puts [self {word}] }}\n}}\n");
+        assert!(
+            o129(&src).is_empty(),
+            "`self {word}` must not fold: {:?}",
+            o129(&src),
+        );
+    }
+}
+
+#[test]
+fn self_class_outside_a_method_body_never_folds() {
+    // TN. `self` resolves only inside a method frame — oracle: at top level and
+    // in a plain proc it is not even a command
+    // (`invalid command name "self"`), so there is no frame to answer from and
+    // the fold must never reach these bodies.
+    assert!(o129("puts [self class]\n").is_empty());
+    assert!(o129("proc ::p {} { puts [self class] }\n").is_empty());
+}
+
+#[test]
+fn a_dynamic_class_name_leaves_self_class_alone() {
+    // TN. The lowering already declines a class word it cannot resolve
+    // statically, so no frame exists and nothing is claimed.
+    assert!(
+        o129("set nm ::F\noo::class create $nm { method m {} { puts [self class] } }\n").is_empty(),
+    );
+}
+
+#[test]
+fn folding_self_class_does_not_disturb_the_rest_of_the_method_body() {
+    // Blast-radius guard. The method-body walk carries no constants map, so it
+    // introduces no variable propagation inside a method — an instance
+    // variable is object state that outlives the frame and any `my …` call may
+    // rewrite it, which the per-function SCCP lattice does not model. Only the
+    // frame-constant fold fires here.
+    let src = "oo::class create ::A {\n    variable ivar\n    method m {} {\n        set ivar 1\n        my other\n        puts $ivar\n        puts [self class]\n    }\n    method other {} { set ivar 2 }\n}\n";
+    assert_eq!(o129(src), vec!["::A".to_string()]);
+    // No `$ivar` was propagated to a literal `1` anywhere.
+    assert!(
+        !opts(src).iter().any(|o| o.replacement == "1"),
+        "instance-variable propagation must stay off: {:?}",
+        opts(src)
+            .iter()
+            .map(|o| (o.code.as_str(), o.replacement.clone()))
+            .collect::<Vec<_>>(),
+    );
+}

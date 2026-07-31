@@ -2229,6 +2229,50 @@ mod unused_proc_parameters {
         assert_eq!(w214_names(src), ["token"].map(String::from).into());
     }
 
+    /// The proc FQNs W214 names, for `src`.
+    fn w214_procs(src: &str) -> std::collections::HashSet<String> {
+        of_code(src, D, "W214")
+            .into_iter()
+            .filter_map(|(m, _, _)| m.split('\'').nth(3).map(str::to_string))
+            .collect()
+    }
+
+    #[test]
+    fn nested_proc_is_named_by_its_defining_namespace() {
+        // Issue #1077. Oracle (tclsh 9.0.4 / 8.6.16, identical): a proc body
+        // runs in the namespace the proc is *defined* in, so `proc a::outer`'s
+        // body creates `::a::helper`, not the lexical `::helper`.
+        assert_eq!(
+            w214_procs(
+                "namespace eval ::a {}\nproc a::outer {} { proc helper {unusedp} { return 1 } }\n"
+            ),
+            ["::a::helper"].map(String::from).into(),
+        );
+        // The name word's own qualifier beats the enclosing `namespace eval`.
+        assert_eq!(
+            w214_procs(
+                "namespace eval ::e {}\nnamespace eval ::d {\n    proc ::e::o3 {} { proc h3 {unusedz} { return 1 } }\n}\n"
+            ),
+            ["::e::h3"].map(String::from).into(),
+        );
+    }
+
+    #[test]
+    fn unqualified_and_absolute_nested_names_keep_their_fqn() {
+        // TN pair for #1077 — the shapes where lexical and defining namespace
+        // already agreed must not move.
+        assert_eq!(
+            w214_procs("proc outer {} { proc inner {unusedq} { return 1 } }\n"),
+            ["::inner"].map(String::from).into(),
+        );
+        assert_eq!(
+            w214_procs(
+                "namespace eval ::a {}\nproc a::outer4 {} { proc ::abs {unusedq} { return 1 } }\n"
+            ),
+            ["::abs"].map(String::from).into(),
+        );
+    }
+
     #[test]
     fn unique_signature_still_fires() {
         assert_eq!(

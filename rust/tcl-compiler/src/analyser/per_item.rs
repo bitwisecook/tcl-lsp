@@ -622,8 +622,8 @@ impl Analyser {
         // `all_classes` (in body/source order, so last-assignment-wins matches
         // the whole-file walk).  `instance_classes` carries no spans, so no
         // rebasing is needed.
-        for (cmd, args) in frag.instances {
-            self.record_instance_creation(&cmd, &args);
+        for (cmd, args, creation_ns) in frag.instances {
+            self.record_instance_creation(&cmd, &args, &creation_ns);
         }
     }
 
@@ -726,9 +726,10 @@ pub struct BodyFragment {
         Vec<super::types::CodeFix>,
         tcl_lexer::Span,
     )>,
-    /// Captured `TclOO` instance-creation candidates (`(command, args)`); the graft
-    /// replays them against the shell's full `all_classes`.
-    instances: Vec<(String, Vec<String>)>,
+    /// Captured `TclOO` instance-creation candidates (`(command, args, creation
+    /// namespace)`); the graft replays them against the shell's full
+    /// `all_classes`.
+    instances: Vec<(String, Vec<String>, String)>,
 }
 
 /// Analyse one `proc` **or method** body as an isolated unit at **offset 0** — a
@@ -897,6 +898,10 @@ fn merge_one_var(
         // deferred proc body).
         if existing.link_target.is_none() {
             existing.link_target = v.link_target;
+            // The span of the word naming that cell travels with it — the two
+            // are one fact (see `VarDef::link_target_span`), so they must never
+            // be merged apart.
+            existing.link_target_span = v.link_target_span;
         }
     } else {
         dst.insert(k, v);
@@ -909,6 +914,12 @@ fn shift(s: tcl_lexer::Span, d: u32) -> tcl_lexer::Span {
 
 fn rebase_vardef(v: &mut super::types::VarDef, d: u32) {
     v.definition_span = shift(v.definition_span, d);
+    // The cell-naming word is a span into the same body and rebases with the
+    // rest; leaving it body-relative would point a rename at the wrong bytes
+    // of the whole document.
+    if let Some(span) = v.link_target_span {
+        v.link_target_span = Some(shift(span, d));
+    }
     for r in &mut v.references {
         *r = shift(*r, d);
     }

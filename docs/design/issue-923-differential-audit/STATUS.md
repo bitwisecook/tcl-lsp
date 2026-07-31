@@ -632,6 +632,144 @@ definitions when `crossFileResolution` is on, so the diagnostic stops
 contradicting go-to-definition on the very same span (idx 80). On top of PR C1b's idx 58 above, that makes
 **67 fixed, 18 remaining**.
 
+**2026-07-31 update — PR C3
+(`claude/commandregistry-compiler-fixes-tshu8d-rename`) fixed idx 79, the
+last open tier-1 finding — the rename safety gate for untracked receivers:**
+the finding's live half was always "renaming a member emits a `WorkspaceEdit`
+touching only the declaration, and applying it breaks the program". The two
+directions the previous session considered and rejected (broaden
+`lookup_class_member` to `$var method`; a `rename_blocked`-style gate) are
+resolved the second way, built as a first-class mechanism rather than a
+patch: `tcl-lsp-core`'s new
+[`rename_safety`](../../../rust/tcl-lsp-core/src/rename_safety.rs) module,
+whose refusals travel as an **LSP error with a precise reason** (a `null`
+result would read to the editor as "nothing renameable here" — exactly the
+wrong signal when the symbol *is* renameable but the rename would break the
+program). Four hazards refuse: an untracked-receiver dispatch of the renamed
+member (`$other X` where nothing binds `other` to a class — idx 79's own
+shape); a member name computed at run time on a receiver of the family
+(`$obj $m`, and `my $m` through the registry's own self-dispatch keyword); an
+object command bound by two different classes; and an `export` / `unexport` /
+`filter` recorded for the member whose word cannot be located to rewrite.
+Everything else renames as before — the over-refusal risk the earlier note
+flagged is bounded by three FN guards: a receiver tracked to an *unrelated*
+class is provably not this dispatch, an untracked receiver naming a
+*different* member is irrelevant, and a literal `my method` is exactly what
+the reference scan already rewrites.
+
+Two further faults were found and fixed while building the gate, both of the
+same "the emitted edit set breaks the program" family. First, **rename never
+rewrote the class's own `export` list** — and a `TclOO` method whose name
+starts with an upper-case letter is unexported by default (probed on 9.0.4:
+`oo::class create A { method Foo {} {return 1} }; [A new] Foo` errors
+`unknown method "Foo": must be destroy`), so `method Foo` + `export Foo`
+renamed to `Bar` left `Bar` unexported and every call to it failing
+(`unknown method "Bar": must be destroy`, identical on 8.6.16). That is why
+idx 79's own corpus file carries `export X Y Z Get` at all. The `export` /
+`unexport` / `filter` / `deletemethod` / `renamemethod` words are the
+registry's own [`MemberRefKind::Method`] members, so
+`references::member_reference_spans` collects them from the definer grammar
+with no member keyword named in the walker, and both find-references and
+rename read them from that one place. Second, **issue #981's object-command
+residual**: `created_instance_commands` was a bare-name set, so
+`::a::Factory create rex` and `::b::Widget create rex` were one name.
+tclsh 9.0.4 / 8.6.16 agree they are two coexisting commands (`rex make`
+prints `a-made` inside `::a` and `b-made` inside `::b`), and renaming
+`::b::Widget::make` while also rewriting `::a`'s `rex make` — what the server
+emitted — makes both interpreters fail `unknown method "produce": must be
+destroy or make`. The analyser now records the creation site's namespace
+(`AnalysisResult::instance_command_bindings`) and the dispatch scanner
+resolves a written head against the call site's own namespace with the same
+`command_resolution_candidates` rule PR #1063 applied to classmethods, fixing
+the cross-namespace false positive **and** the lost-own-site false negative
+in one step.
+
+The PR also wires **rename to the workspace namespace-variable tier** PR
+#1086 built the reference set for. The index alone cannot drive it: it holds
+namespace-scoped declarations and qualified occurrences, but a rename must
+also rewrite the `variable v` / `global v` / `namespace upvar` aliases inside
+proc bodies and their unqualified `$v` reads, which are proc-scope bindings
+the index deliberately does not carry. So the index picks *which documents to
+visit* (`documents_in_namespace`, new) and each is re-analysed and rewritten
+through `VarDef::link_target`. A collision with an existing cell, or a
+document in that namespace computing a variable name (a registry
+`ArgRole::VarWrite` / `VarRead` word that `names_a_dynamic_variable`),
+refuses. That makes **69 fixed, 16 remaining** — tier 1 is now **24 of 24**
+(idx 79 was its last open finding) and tier 2 stays 45 of 61.
+
+*Counts recomputed from the two priority tables themselves, not carried
+forward.* The running total the PR C2 paragraph above states (67 fixed / 18
+remaining) is one low against the tables it summarises: tier 1 already read
+23 fixed and tier 2's own header 45, i.e. 68 fixed / 17 remaining before this
+PR. The tables are the per-finding record and win; the arithmetic here is
+tier 1 24 + tier 2 45 = 69 of the 85 CONFIRMED, leaving 16 — all tier 2, and
+two of those (idx 22 / 98) are the PARTIALs PR C1b narrowed rather than
+untouched findings.
+
+**Residuals PR C3 first left open, then closed in review.** Codex's review of
+PR #1091 raised all three as P1 soundness holes rather than acceptable
+deferrals, and they were fixed in the same PR. Recorded here because the
+reasoning is the useful part:
+
+- **The gate's document set must equal the edit collector's** (issue #1092).
+  The gate originally scanned the request's own document plus the
+  override-family documents; the edit collector also rewrites *pure-consumer*
+  documents — ones that only call the method — through
+  `Backend::consumer_scan_plan`. A gate narrower than the collector is a
+  hollow guarantee: a hazard living only in a consumer document produced no
+  refusal while the declaration moved out from under the call. Both now
+  resolve their document set from the same `consumer_scan_plan` read, and the
+  gate scans each against the same workspace-class-oracle analysis the
+  consumer edit leg uses (memoised, so a document is analysed once between
+  them). Oracle, 9.0.4 / 8.6.16 identically: with `Dog::speak` renamed to
+  `bark` and a consumer's `[$who speak]` left behind, `unknown method
+  "speak": must be bark or destroy`, rc 1.
+- **Alias coverage is a fact, not an inference.** The candidate set was
+  presumed complete because "an unqualified alias can only be written in a
+  document with code in that namespace" — which is false: a *global* `proc p
+  {} { namespace upvar ::ns v local; return $local }` binds `::ns::v` while
+  declaring nothing in `::ns` and writing no qualified occurrence, so it sat
+  in none of the three sources. The compiler now enumerates alias links
+  (`analyser::variable_alias_links`) and the index records the qualified cell
+  each document binds (`documents_aliasing_variable`), so candidacy is looked
+  up rather than assumed. The one shape that cannot be indexed — an alias
+  whose *cell* is computed, `namespace upvar $ns v local` — refuses, matched
+  narrowly on whichever half of the cell is still literal. Oracle: renaming
+  `::mypkg::version` under such an alias gives `can't read "local": no such
+  variable`, rc 1.
+- **An alias's local spelling is not the cell's name.** The rename rewrote
+  each alias's *declaration* span, which for `namespace upvar ::ns v local`
+  is the `local` token — producing `namespace upvar ::ns v total; … $total`
+  and leaving the alias bound to the renamed-away cell (both interpreters:
+  `can't read "total": no such variable`, rc 1). `VarDef::link_target_span`
+  now records which word names the cell, and the rename splits on it:
+  `variable v` / `global ::ns::v` name the cell with their own declaration
+  word, so word and reads travel together; `namespace upvar` / `upvar #0`
+  name it one word earlier, so only that word changes. A same-*spelled*
+  `namespace upvar ::ns v v` takes the minimal edit — both interpreters
+  accept either answer, so the word whose meaning the rename does not change
+  is left alone.
+
+**Residuals still open after that review** (documented, not half-fixed):
+
+- **The gate's fan-out is only as complete as the index.** Its document set
+  is `consumer_scan_plan`'s, which is derived from `method_override_family` /
+  `method_inheritor_classes` / `documents_invoking_classes`. A consumer that
+  reaches an instance without invoking a family constructor in its own text —
+  one handed the object through a global, a `dict`, or a callback registered
+  elsewhere — is in none of those, so neither the edit collector nor the gate
+  sees it. Closing it needs cross-document instance provenance, which the
+  index does not model at all.
+- **A computed alias cell refuses workspace-wide, not per-site.** One
+  `namespace upvar $ns version local` anywhere blocks every rename of any
+  `…::version`. The narrow match (literal half must agree) keeps this from
+  being catastrophic, but a per-site provenance answer — the `rename_safe`
+  treatment `WorkspaceInvocation` already gets on the command side — would
+  refuse far less often.
+- **A level-crossing `upvar` with an assembled target** is caught by the
+  dynamic-name gate and refuses. Correct but blunt, and the same provenance
+  work would fix it.
+
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
 strings in the raw data — same corpus), tomato 7, pix 8.
@@ -641,7 +779,7 @@ namespaces 11, proc_args 10, upvar 7, source 6, tcl_mathop 5, rename 4,
 package_loading 3, uplevel 3, tracing 3, aliasing 2, safe_interp 2, eval 1,
 autoindex 1.
 
-#### Priority tier 1 — critical + high (24 findings, 23 already fixed)
+#### Priority tier 1 — critical + high (24 findings, all 24 fixed)
 
 Fix these first — each is either data-loss-risk (a rename that silently
 breaks the program, idx 61) or a full-zero-results failure of a core
@@ -671,7 +809,7 @@ not a substitute.
 | 71 | high | pix | source | **FIXED** (`2339d4a`) — find-references dropped every call site in the same document a query was issued from whenever that document has no local declaration (a proc reached only through a `source`d-in/sibling file); the `.test`-extension half was already fixed by idx 10. |
 | 76 | high | tomato | tclOO | **FIXED** (`0bde16e`) — the headline "wrong class guessed" hypothesis is REFUTED (correct abstention); tracing it found hover had no resolution path at all for a plain `my methodName` call, unlike already-working go-to-definition/references. |
 | 77 | high | tomato | tclOO | **FIXED** (`51a630f`) — the whole CFG/SSA dataflow diagnostic family (W210 and siblings) never ran on any TclOO/snit method body; the crash-causing unbound `$other` read now flags. |
-| 79 | high | tomato | proc_args | **INVESTIGATED, NOT FIXED** (session of 2026-07-23) — see the dedicated note right after this table for why: the audit's own "definition/hover resolve, references/rename don't" framing is now stale (idx 113 already narrowed `lookup_class_member` to require `link`, so definition/hover now *also* abstain on this shape), but the underlying rename-safety risk it flagged is still real and a sound fix needs receiver-type inference this campaign doesn't have. |
+| 79 | high | tomato | proc_args | **FIXED** (PR C3) — rename emitted a declaration-only `WorkspaceEdit` for a member also dispatched on an untracked receiver (`[$other X]` in a copy constructor); applying it broke the program on both interpreters. Now refused, with a precise LSP error, by the new `rename_safety` gate — plus two faults found alongside it: the `export` list was never renamed with the method, and issue #981's object-command dispatch was namespace-blind. See the dedicated note after this table. |
 | 84 | high | tk | namespaces | **PARTIALLY FIXED** (`7115bc8`) — `namespace ensemble configure` (as opposed to `create`) was invisible to the analyser, so the real `tk/library/systray.tcl` (and `print.tcl`/`fileicon.tcl`/`accessibility.tcl`) idiom of splicing `systray`/`sysnotify` onto the pre-existing `tk` ensemble drew 5 false W001s and risked wrong go-to-definition/hover navigation for the 2-word shape; both now fixed. The 3rd-word case (`tk systray create`/…) remains open — a separate, general, pre-existing limitation, not idx-84-specific; see the dedicated note after this table. |
 | 86 | high | tk | rename | **FIXED** (`99cf07f`) — `tk/library/accessibility.tcl`'s `foreach wtype {...} { rename ::$wtype ::tk::ac... }` loop-generated rename/proc targets weren't tracked (nor was a plain `proc ::$wtype {...}` outside any loop — `proc`'s name never attempted constant-folding at all); go-to-definition on a post-rename call fell through to the stale original, and the outline showed a garbled `${wtype}`-named entry. |
 | 90 | high | tk | safe_interp | **FIXED** (`7d476f5`) — `tcl::OptProc` (the `opt` package's automatic-option-parsing proc definer) had no `AnalyserHookId` at all, so `all_procs` kept a stub `{}`-arity `ProcDef` for every real call — false E003, and wrong hover/go-to-definition/references/document-symbol signature. |
@@ -745,9 +883,35 @@ session:
   false-positive risk as the first option, depending on how conservatively
   it's tuned.
 
-Left open for a future session with more room to design the safety-gate
-direction carefully — not attempted lightly, and not silently: this note is
-that record.
+**Resolved 2026-07-31 by PR C3** — the second direction, built properly.
+`tcl-lsp-core`'s new [`rename_safety`](../../../rust/tcl-lsp-core/src/rename_safety.rs)
+module is the gate, and the tuning worry the note raised is answered by
+making the *receiver's binding state*, not the mere presence of a `$var
+method` shape, the deciding fact:
+
+| receiver | member word | verdict | why |
+|---|---|---|---|
+| tracked to a family class | literal | rename | the reference scan already finds and rewrites the site |
+| tracked to an unrelated class | literal | rename | that dispatch provably reaches the other class's table |
+| **untracked** | literal, == the renamed member | **refuse** | may be this class; nothing proves it is not (idx 79's own `[$other X]`) |
+| untracked | literal, some other member | rename | cannot affect the member being renamed |
+| tracked to a family class | computed (`$m` / `[…]`) | **refuse** | no edit keeps `$obj $m` consistent with a renamed declaration |
+| `my` (registry self-dispatch keyword) | computed | **refuse** | same, from inside the class |
+
+So a class full of internal `$var method` helpers still renames freely
+whenever those receivers are bound (`set v [Cls new]`) or name a different
+member — the false-abstention case the note worried about — while the exact
+shape the finding is about refuses. Refusals travel as an **LSP error with
+the reason**, not a `null` result, so the editor tells the user rather than
+appearing to do nothing.
+
+Two adjacent faults surfaced while building it and are fixed in the same PR:
+the `export` list was never renamed with the method (an upper-case-named
+`TclOO` method is unexported by default, so `method Foo` + `export Foo`
+renamed to `Bar` left `Bar` unexported — `unknown method "Bar": must be
+destroy` on 9.0.4 and 8.6.16 alike; this is exactly why the corpus file
+carries `export X Y Z Get`), and issue #981's object-command dispatch was
+namespace-blind. See the PR C3 paragraph in the running ledger above.
 
 **idx 84, in detail (partially fixed — `CONFIGURE`-tracking landed, 3rd-word
 navigation deliberately deferred):** the finding's own repro is real:
