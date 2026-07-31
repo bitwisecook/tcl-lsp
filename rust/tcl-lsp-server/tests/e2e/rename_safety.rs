@@ -382,3 +382,230 @@ fn fp_namespace_variable_rename_refuses_beside_a_computed_variable_name() {
         "the refusal must say why, got {err}"
     );
 }
+
+// -- Codex review of PR #1091: fan-out coverage -------------------------
+
+// FP guard (finding 1, issue #1092): the hazard lives in a **pure-consumer**
+// document — one that neither defines nor extends any family class.  The
+// consumer leg of the edit collector visits it; the gate must too, or the
+// gate's guarantee is hollow: the declaration moves while `$who speak` keeps
+// naming a member that no longer exists.
+//
+// Oracle, tclsh 9.0.4 and 8.6.16 identically:
+//   before                        -> `direct   -> woof`, `indirect -> woof`,
+//                                    rc 0
+//   after renaming `speak` -> `bark` in the definer and at the tracked call
+//   site, with the consumer's `[$who speak]` left alone
+//                                 -> `direct   -> woof` then `unknown method
+//                                    "speak": must be bark or destroy` at
+//                                    `"$who speak"`, rc 1
+#[test]
+fn fp_rename_refuses_a_hazard_that_lives_only_in_a_consumer_document() {
+    let mut lsp = Lsp::tcl();
+    let definer = unique_uri("tcl");
+    lsp.open_ready(
+        &definer,
+        "oo::class create Dog {\n\
+         \x20   method speak {} { return \"woof\" }\n\
+         \x20   export speak\n\
+         }\n",
+    );
+    // Pure consumer: constructs a `Dog` (so the index lists it as a consumer
+    // document) and *also* dispatches on a receiver nothing binds to a class.
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(
+        &consumer,
+        "proc bark {who} {\n\
+         \x20   return [$who speak]\n\
+         }\n\
+         set d [Dog new]\n\
+         puts [$d speak]\n\
+         puts [bark $d]\n",
+    );
+
+    // Cursor on the `speak` of `method speak`, in the definer.
+    let err = lsp.rename_error(&definer, 1, 11, "bark");
+    let message = err
+        .get("message")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    assert!(
+        message.contains("not tracked"),
+        "a hazard in a consumer document must refuse the whole rename, got {err}"
+    );
+}
+
+// FN guard (same finding): consumer documents whose dispatches are all
+// tracked and literal must still rename.  The fan-out widened to reach them;
+// it must not start refusing on their account.
+//
+// Oracle (9.0.4 / 8.6.16): renaming `speak` -> `bark` throughout keeps
+// `direct -> woof` / `via   -> woof`, rc 0.
+#[test]
+fn fn_guard_rename_still_applies_across_tracked_consumer_documents() {
+    let mut lsp = Lsp::tcl();
+    let definer = unique_uri("tcl");
+    lsp.open_ready(
+        &definer,
+        "oo::class create Dog {\n\
+         \x20   method speak {} { return \"woof\" }\n\
+         \x20   export speak\n\
+         }\n",
+    );
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(
+        &consumer,
+        "set d [Dog new]\n\
+         puts [$d speak]\n",
+    );
+
+    let result = lsp.rename(&definer, 1, 11, "bark");
+    let edits = rename_edits(&result);
+    assert!(
+        edits.contains_key(&definer),
+        "the definer must be edited: {edits:?}"
+    );
+    assert!(
+        edits.contains_key(&consumer),
+        "the tracked consumer call site must be edited too: {edits:?}"
+    );
+    let texts = all_texts(&result);
+    assert!(
+        texts.iter().filter(|t| *t == "bark").count() >= 3,
+        "declaration, export, and the consumer call all rename: {texts:?}"
+    );
+}
+
+// TP (finding 2): a document whose only stake in the cell is an alias written
+// from **another namespace** is visited and rewritten.  A global `proc p {} {
+// namespace upvar ::ns v local; … }` declares nothing in `::ns` and writes no
+// qualified occurrence, so it is reached only through the index's alias
+// table.
+//
+// Oracle, tclsh 9.0.4 and 8.6.16 identically:
+//   before                        -> `p    -> 1`, `cell -> 1`, rc 0
+//   declaration renamed, alias left as `namespace upvar ::ns v local`
+//                                 -> `can't read "local": no such variable`
+//                                    at `"return $local"`, rc 1
+//   declaration renamed and the alias's target word rewritten to
+//   `namespace upvar ::ns total local`
+//                                 -> `p    -> 1`, `cell -> 1`, rc 0
+#[test]
+fn tp_namespace_variable_rename_reaches_an_alias_in_another_namespace() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(&decl, "namespace eval mypkg {\n    variable version 1\n}\n");
+    let aliaser = unique_uri("tcl");
+    lsp.open_ready(
+        &aliaser,
+        "proc show {} {\n\
+         \x20   namespace upvar ::mypkg version local\n\
+         \x20   return $local\n\
+         }\n",
+    );
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "puts $::mypkg::version\n");
+
+    let result = lsp.rename(&user, 0, 20, "release");
+    let edits = rename_edits(&result);
+    assert!(
+        edits.contains_key(&aliaser),
+        "the out-of-namespace aliasing document must be edited: {edits:?}"
+    );
+    let aliaser_texts: Vec<String> = edits
+        .get(&aliaser)
+        .into_iter()
+        .flatten()
+        .map(|e| {
+            e.get("newText")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(
+        aliaser_texts,
+        vec!["release".to_string()],
+        "exactly one edit there — the word naming the cell, not the local \
+         alias `local` nor its read: {aliaser_texts:?}"
+    );
+    let line: i64 = edits
+        .get(&aliaser)
+        .and_then(|e| e.first())
+        .and_then(|e| e.get("range"))
+        .and_then(|r| r.get("start"))
+        .and_then(|s| s.get("line"))
+        .and_then(Value::as_i64)
+        .unwrap_or(-1);
+    assert_eq!(line, 1, "the edit is on the `namespace upvar` line");
+}
+
+// FP guard (finding 2, completeness half): an alias whose *cell* is computed
+// (`namespace upvar $ns version local`) names no fixed variable, so no
+// candidate scan can find it and no edit can keep it consistent.  The rename
+// must refuse rather than move the declaration out from under it.
+//
+// Oracle, tclsh 9.0.4 and 8.6.16 identically:
+//   before                        -> `show -> 1`, `cell -> 1`, rc 0
+//   `variable version` renamed to `variable release`, the computed alias
+//   necessarily left as written
+//                                 -> `can't read "local": no such variable`
+//                                    at `"return $local"`, rc 1
+#[test]
+fn fp_namespace_variable_rename_refuses_beside_a_computed_alias_cell() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(&decl, "namespace eval mypkg {\n    variable version 1\n}\n");
+    let aliaser = unique_uri("tcl");
+    lsp.open_ready(
+        &aliaser,
+        "proc show {ns} {\n\
+         \x20   namespace upvar $ns version local\n\
+         \x20   return $local\n\
+         }\n",
+    );
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "puts $::mypkg::version\n");
+
+    let err = lsp.rename_error(&user, 0, 20, "release");
+    let message = err
+        .get("message")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    assert!(
+        message.contains("computed at run time"),
+        "the refusal must say why, got {err}"
+    );
+}
+
+// FN guard (same): a computed alias cell that provably is *not* this cell —
+// its literal tail names a different variable — must not block the rename.
+// Refusing on the mere presence of a `namespace upvar $ns … …` anywhere in
+// the workspace would make the tier unusable.
+#[test]
+fn fn_guard_namespace_variable_rename_ignores_a_computed_alias_of_another_cell() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(&decl, "namespace eval mypkg {\n    variable version 1\n}\n");
+    let aliaser = unique_uri("tcl");
+    lsp.open_ready(
+        &aliaser,
+        "proc show {ns} {\n\
+         \x20   namespace upvar $ns counter local\n\
+         \x20   return $local\n\
+         }\n",
+    );
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "puts $::mypkg::version\n");
+
+    let result = lsp.rename(&user, 0, 20, "release");
+    let edits = rename_edits(&result);
+    assert!(
+        edits.contains_key(&decl),
+        "a computed alias of `counter` says nothing about `version`: {edits:?}"
+    );
+    assert!(
+        !edits.contains_key(&aliaser),
+        "and it must not be edited: {edits:?}"
+    );
+}

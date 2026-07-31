@@ -303,6 +303,24 @@ pub struct VarDef {
     /// (the analyser analogue of Tcl's `VAR_LINK`).  `None` for an ordinary
     /// local or a directly-defined variable.
     pub link_target: Option<String>,
+    /// Span of the source word that **names** [`Self::link_target`] — the
+    /// word a rename of that cell must rewrite.
+    ///
+    /// For `variable v` and `global ::ns::v` this is the declaration word
+    /// itself, so it equals [`Self::definition_span`]: the local alias name
+    /// *is* the cell's (tail) name, and renaming the cell renames the local
+    /// spelling with it.
+    ///
+    /// For `namespace upvar ::ns v local` and `upvar #0 ::ns::v local` it is
+    /// a **different** word from the declaration: the cell is named by
+    /// `otherVar` (`v` / `::ns::v`), while `local` is an independent local
+    /// spelling that the cell's name does not determine.  Renaming the cell
+    /// must rewrite `otherVar` and leave `local` alone — rewriting `local`
+    /// instead re-points the alias at a cell that no longer exists (tclsh
+    /// 9.0.4 / 8.6.16 alike: `can't read "total": no such variable`).
+    ///
+    /// `None` whenever [`Self::link_target`] is `None`.
+    pub link_target_span: Option<Span>,
 }
 
 /// How a proc parameter is used inside the proc body.

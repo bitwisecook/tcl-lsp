@@ -89,12 +89,21 @@ destroy` for the renamed method.
 Renaming a **namespace variable** written with a `::` qualifier
 (`$::ns::v`, `set app::ns::v 1`) renames the cell across the whole
 workspace: the `variable v` declaration wherever it lives, every
-`variable` / `global` / `namespace upvar` alias of it inside a proc or
-method body *and* that alias's own unqualified `$v` reads, and every
-qualified occurrence in any file. An unqualified `$v` that is not such an
-alias is deliberately left alone — a bare name means whatever the local
-scope chain supplies, which is a per-file question the cell's identity
-cannot answer.
+`variable` / `global` / `namespace upvar` / `upvar #0` alias of it — in any
+file and any namespace, including a global proc that only does `namespace
+upvar ::ns v local` — and every qualified occurrence anywhere. An
+unqualified `$v` that is not such an alias is deliberately left alone: a bare
+name means whatever the local scope chain supplies, which is a per-file
+question the cell's identity cannot answer.
+
+Which *word* of an alias changes depends on which one names the cell.
+`variable v` and `global ::ns::v` name it with the very word that introduces
+the local alias, so renaming the cell renames that word **and** every
+unqualified `$v` it enables. `namespace upvar ::ns v local` names it one word
+earlier: only that `v` changes, and `local` (with all its reads) is left
+exactly as written, because the cell's name never determined it. Rewriting
+`local` instead would leave the alias pointing at the cell that was renamed
+away — `can't read "total": no such variable` on tclsh 9.0 and 8.6 alike.
 
 A method, a classmethod, and a property can share one name within the same
 class (rare, but each lives in its own independent table, so it's legal);
@@ -124,8 +133,16 @@ code. The gate refuses when:
 - an `export` / `unexport` / `filter` naming the member was recorded but its
   word cannot be located to rewrite;
 - for a namespace variable: the new name would **collide** with a cell that
-  already exists, or a file in that namespace **computes a variable name**
-  (`set $n 1`, `variable $n`) that might be this very cell.
+  already exists, a file in that namespace **computes a variable name**
+  (`set $n 1`, `variable $n`) that might be this very cell, or a file
+  **aliases a cell computed at run time** (`namespace upvar $ns v local`)
+  that could be this one.
+
+The gate is checked across **every file the rename would edit** — the class's
+own file, every file defining or extending a class in its override family,
+and every file that merely *calls* the member. A dispatch it cannot account
+for in any of them refuses the whole rename, because a rename that is only
+partly safe is not safe at all.
 
 In each case, running **Find References** first shows you what rename can and
 cannot see.
@@ -143,7 +160,8 @@ cannot see.
   example a `foreach` list element), no edit set can keep that dispatch
   working, so the rename is refused outright.
 - The editor shows an error naming an untracked receiver, a computed member
-  name, an ambiguous object command, or a computed variable name. That is
+  name, an ambiguous object command, a computed variable name, or a computed
+  alias cell. That is
   the safety gate above: the rename is refused deliberately, because the
   edit set it could produce would change what the program does. Give the
   receiver a spelling the analyser can follow (`set other [Vector3d new

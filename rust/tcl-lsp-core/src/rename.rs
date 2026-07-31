@@ -1372,13 +1372,13 @@ pub fn workspace_symbol_rename_edits(
 ///   `variable v` / `set v …` sitting directly in a `namespace eval` body,
 ///   read off the scope tree via `namespace_variables` rather than re-derived;
 /// * every **alias** Tcl treats as the same cell — a `variable v` / `global v`
-///   / `namespace upvar ns v local` inside a proc or method body, plus all its
-///   *unqualified* reads, unioned by
-///   [`crate::definition::linked_var_reference_spans`] over `VarDef::link_target`
-///   (the analyser's analogue of Tcl's `VAR_LINK`).  Missing these is what
-///   makes a naive "declaration + qualified occurrences" rename break a
-///   program: `namespace eval ns { proc p {} { variable v; puts $v } }`
-///   keeps working only if that `variable v` and its `$v` are renamed too;
+///   / `namespace upvar ns v local` inside a proc or method body, enumerated
+///   by [`tcl_compiler::analyser::variable_alias_links`] over
+///   `VarDef::link_target` (the analyser's analogue of Tcl's `VAR_LINK`).
+///   Missing these is what makes a naive "declaration + qualified
+///   occurrences" rename break a program: `namespace eval ns { proc p {} {
+///   variable v; puts $v } }` keeps working only if that `variable v` and its
+///   `$v` are renamed too;
 /// * every **`::`-qualified occurrence** (`$::ns::v`, `set app::ns::v 1`) —
 ///   `analysis.qualified_var_refs`, the same table the workspace index's
 ///   cross-document reference set is built from.
@@ -1386,6 +1386,12 @@ pub fn workspace_symbol_rename_edits(
 /// Deliberately *not* rewritten: an unqualified `$v` that is not an alias of
 /// this cell.  A bare name means whatever the local scope chain supplies,
 /// which is a per-document question this cell's identity cannot answer.
+///
+/// Also deliberately *not* rewritten: the **local spelling of a
+/// differently-named alias**.  `namespace upvar ::ns v local` names the cell
+/// in its `otherVar` word (`v`); `local` is an independent local name the
+/// cell's identity does not determine.  See
+/// [`cell_rename_spans`] for the rule and its oracle.
 ///
 /// The result is unsorted and deduplicated by range; the caller merges it
 /// with the other documents' shares.
@@ -1420,13 +1426,14 @@ pub fn namespace_variable_rename_edits(
         if qualified.trim_start_matches("::") != target {
             continue;
         }
+        // The declaration itself, plus its own unqualified reads in the
+        // namespace frame.  Aliases are *not* unioned in here — they are
+        // handled by `cell_rename_spans`, which knows which of an alias's
+        // words names the cell and which is merely a local spelling.
         spans.push(var.definition_span);
-        spans.extend(crate::definition::linked_var_reference_spans(
-            &analysis.global_scope,
-            var,
-        ));
+        spans.extend(var.references.iter().copied());
     }
-    collect_cell_alias_spans(&analysis.global_scope, target, &mut spans);
+    cell_rename_spans(&analysis.global_scope, target, &mut spans);
     for vref in &analysis.qualified_var_refs {
         if vref.qualified_name.trim_start_matches("::") == target {
             spans.push(vref.span);
@@ -1444,32 +1451,68 @@ pub fn namespace_variable_rename_edits(
     edits
 }
 
-/// Every declaration + reference span of a variable *aliasing* `target` (a
-/// `::`-rooted cell) anywhere in the scope tree — a proc-local `variable v` /
-/// `global v` / `namespace upvar` and all its unqualified uses.
+/// The spans a rename of the `::`-rooted cell `target` must rewrite in every
+/// variable *aliasing* it — a proc-local `variable v` / `global v` /
+/// `namespace upvar ns v local` / `upvar #0 ::ns::v local`, anywhere in the
+/// scope tree.
 ///
 /// The namespace-scoped declaration walk above only sees namespace and global
 /// scopes, so an alias declared inside a proc or method body (the ordinary way
 /// a namespace variable is used) is invisible to it; without this the
 /// cross-document rename would rewrite the declaration and leave every
 /// `variable v; … $v` body naming a cell that no longer exists.
-fn collect_cell_alias_spans(
+///
+/// # Which word an alias contributes
+///
+/// An alias binds a **local spelling** to a **cell**, and only one of the two
+/// words involved is determined by the cell's name.
+/// [`VarDef::link_target_span`](tcl_compiler::analyser::VarDef::link_target_span)
+/// says which word names the cell, and this walk splits on whether that is the
+/// declaration word itself:
+///
+/// * **Same word** — `variable v`, `global ::ns::v`.  The local spelling *is*
+///   the cell's tail name, so renaming the cell renames the declaration and
+///   every unqualified read with it.  Rewriting only some of them breaks the
+///   program: with `variable total` against a body still reading `$v`, tclsh
+///   9.0.4 and 8.6.16 both give `can't read "v": no such variable`.
+///
+/// * **Different words** — `namespace upvar ::ns v local`, `upvar #0 ::ns::v
+///   local`.  The cell is named by `otherVar`; `local` is an independent
+///   spelling the cell's name does not determine.  Only `otherVar` is
+///   rewritten, and `local` and all its reads are left exactly as written.
+///   Rewriting `local` instead — which is what the declaration span alone
+///   gives — produces `namespace upvar ::ns v total; … $total`, and both
+///   interpreters then fail `can't read "total": no such variable`, because
+///   the alias still points at the cell that was renamed away.
+///
+/// A same-*spelled* `namespace upvar ::ns v v` is the second case, not the
+/// first: its two `v`s are distinct words at distinct offsets, and the local
+/// one is still an independent spelling.  Both interpreters accept either
+/// answer (`namespace upvar ::ns total v; … $v` and `namespace upvar ::ns
+/// total total; … $total` both print `42` on 9.0.4 and 8.6.16), so the
+/// **minimal** edit is taken: rewrite the word that names the cell, and touch
+/// nothing whose meaning the rename does not change.
+fn cell_rename_spans(
     scope: &tcl_compiler::analyser::Scope,
     target: &str,
     out: &mut Vec<tcl_lexer::Span>,
 ) {
-    for var in scope.variables.values() {
-        if var
-            .link_target
-            .as_deref()
-            .is_some_and(|t| t.trim_start_matches("::") == target)
-        {
-            out.push(var.definition_span);
-            out.extend(var.references.iter().copied());
+    for link in tcl_compiler::analyser::variable_alias_links(scope) {
+        if link.cell.trim_start_matches("::") != target {
+            continue;
         }
-    }
-    for child in &scope.children {
-        collect_cell_alias_spans(child, target, out);
+        let var = link.var;
+        match var.link_target_span {
+            // The cell is named by a word other than the declaration: rewrite
+            // only that word, and leave the local spelling (and its reads)
+            // alone.
+            Some(span) if span != var.definition_span => out.push(span),
+            // Declaration word and cell-naming word are one and the same.
+            _ => {
+                out.push(var.definition_span);
+                out.extend(var.references.iter().copied());
+            }
+        }
     }
 }
 
@@ -3186,6 +3229,121 @@ mod tests {
         assert!(
             !applied.contains("$v\n"),
             "no stale read may survive: {applied}"
+        );
+    }
+
+    /// FP (Codex review of PR #1091, finding 3) — `namespace upvar ::ns v
+    /// local` names the cell in its *third* word; `local` is an independent
+    /// local spelling.  Rewriting the alias token and leaving the target word
+    /// behind re-points the alias at a cell that no longer exists.
+    ///
+    /// Oracle (tclsh 9.0.4 / 8.6.16, byte-identical):
+    ///   before                         -> `p -> 42`, `cell -> 42`, rc 0
+    ///   `namespace upvar ::ns v total; … $total` (alias rewritten, target
+    ///   word left)                     -> `can't read "total": no such
+    ///                                     variable` at `"expr {$total + 41}"`,
+    ///                                     rc 1
+    ///   `namespace upvar ::ns total local; … $local` (target word rewritten,
+    ///   local spelling kept)           -> `p -> 42`, `cell -> 42`, rc 0
+    #[test]
+    fn fp_namespace_variable_rename_keeps_a_differently_named_alias_spelling() {
+        let src = "namespace eval ::ns {\n    variable v 1\n}\n\
+                   proc p {} {\n\
+                   \x20   namespace upvar ::ns v local\n\
+                   \x20   set local [expr {$local + 41}]\n\
+                   \x20   return $local\n\
+                   }\n";
+        let analysis = analyse(src);
+        let edits = namespace_variable_rename_edits(src, &analysis, "::ns::v", "total");
+        let applied = apply_edits(src, &edits);
+        assert!(applied.contains("variable total 1"), "{applied}");
+        assert!(
+            applied.contains("namespace upvar ::ns total local"),
+            "the word naming the cell is the word rewritten: {applied}"
+        );
+        assert!(
+            applied.contains("set local [expr {$local + 41}]") && applied.contains("return $local"),
+            "the local spelling and its reads must survive verbatim: {applied}"
+        );
+        assert!(
+            !applied.contains("$total"),
+            "no read may be re-spelled to the cell's new name: {applied}"
+        );
+    }
+
+    /// TN (same finding) — a *same-spelled* `namespace upvar ::ns v v` is
+    /// still two independent words.  Both interpreters accept either answer
+    /// (`namespace upvar ::ns total v; … $v` and `namespace upvar ::ns total
+    /// total; … $total` both print `42` on 9.0.4 and 8.6.16), so the minimal
+    /// edit is taken: rewrite the word that names the cell, and leave the
+    /// local spelling — whose meaning the rename does not change — alone.
+    #[test]
+    fn tn_namespace_variable_rename_takes_the_minimal_edit_for_a_same_spelled_alias() {
+        let src = "namespace eval ::ns {\n    variable v 1\n}\n\
+                   proc p {} {\n\
+                   \x20   namespace upvar ::ns v v\n\
+                   \x20   return $v\n\
+                   }\n";
+        let analysis = analyse(src);
+        let edits = namespace_variable_rename_edits(src, &analysis, "::ns::v", "total");
+        let applied = apply_edits(src, &edits);
+        assert!(applied.contains("variable total 1"), "{applied}");
+        assert!(
+            applied.contains("namespace upvar ::ns total v"),
+            "only the cell-naming word changes: {applied}"
+        );
+        assert!(
+            applied.contains("return $v"),
+            "the local read is unaffected by the cell's name: {applied}"
+        );
+    }
+
+    /// TP (same finding) — `upvar #0 ::ns::v local` is the other
+    /// differently-named shape, and resolves the same way: the `otherVar`
+    /// word is qualified, so the rewrite must preserve its qualifier.
+    #[test]
+    fn tp_namespace_variable_rename_rewrites_a_global_upvar_target_word() {
+        let src = "namespace eval ::ns {\n    variable v 1\n}\n\
+                   proc p {} {\n\
+                   \x20   upvar #0 ::ns::v local\n\
+                   \x20   return $local\n\
+                   }\n";
+        let analysis = analyse(src);
+        let edits = namespace_variable_rename_edits(src, &analysis, "::ns::v", "total");
+        let applied = apply_edits(src, &edits);
+        assert!(applied.contains("variable total 1"), "{applied}");
+        assert!(
+            applied.contains("upvar #0 ::ns::total local"),
+            "the qualified target word keeps its qualifier: {applied}"
+        );
+        assert!(
+            applied.contains("return $local"),
+            "the local spelling survives: {applied}"
+        );
+    }
+
+    /// TP (same finding) — `global ::ns::v` is the *same*-word shape: its one
+    /// declaration word both names the cell and introduces the local alias
+    /// (whose name is the cell's tail), so the rename must rewrite the word
+    /// **and** every unqualified read it enables.
+    ///
+    /// Oracle (9.0.4 / 8.6.16): leaving the reads behind gives `can't read
+    /// "v": no such variable`.
+    #[test]
+    fn tp_namespace_variable_rename_rewrites_a_global_alias_and_its_reads() {
+        let src = "namespace eval ::ns {\n    variable v 1\n}\n\
+                   proc p {} {\n\
+                   \x20   global ::ns::v\n\
+                   \x20   return $v\n\
+                   }\n";
+        let analysis = analyse(src);
+        let edits = namespace_variable_rename_edits(src, &analysis, "::ns::v", "total");
+        let applied = apply_edits(src, &edits);
+        assert!(applied.contains("variable total 1"), "{applied}");
+        assert!(applied.contains("global ::ns::total"), "{applied}");
+        assert!(
+            applied.contains("return $total"),
+            "the local spelling is the cell's tail, so it travels: {applied}"
         );
     }
 

@@ -706,32 +706,69 @@ tier 1 24 + tier 2 45 = 69 of the 85 CONFIRMED, leaving 16 — all tier 2, and
 two of those (idx 22 / 98) are the PARTIALs PR C1b narrowed rather than
 untouched findings.
 
-**Residuals left open by PR C3, deliberately** (each needs a decision this PR
-declined to guess at):
+**Residuals PR C3 first left open, then closed in review.** Codex's review of
+PR #1091 raised all three as P1 soundness holes rather than acceptable
+deferrals, and they were fixed in the same PR. Recorded here because the
+reasoning is the useful part:
 
-- The **method-rename safety gate is scanned per document**, over the
-  request's own document plus every override-family document the index
-  names. A *pure-consumer* document — one that only calls the method and
-  declares no part of the class — is rewritten by the consumer leg but is not
-  scanned for hazards, so an untracked-receiver dispatch living only there
-  does not refuse. Completing it needs the consumer-scan plan
-  (`Backend::consumer_scan_plan`) to feed the gate the same document set it
-  feeds the edit collector.
-- **Namespace-variable rename across a `namespace eval` block that declares
-  nothing indexed.** `documents_in_namespace` finds a document by the procs /
-  classes / namespace variables it declares in the cell's namespace; a file
-  whose only content there is `namespace eval ns { puts $v }` (an alias-free
-  bare read, which is not the cell anyway) or an alias inside a `namespace
-  eval` that declares nothing else is not a candidate. Closing it needs the
-  index to record namespace *participation* as its own fact rather than
-  inferring it from declarations.
-- **`upvar` / `namespace upvar` reaching the cell from outside its
-  namespace.** `namespace upvar ::ns v local` writes a qualified occurrence
-  and is rewritten; a `upvar #0 ::ns::v local` likewise. A level-crossing
-  `upvar` whose target is assembled from a variable is caught by the dynamic-
-  name gate and refuses, which is correct but blunt — a per-site provenance
-  answer (the `rename_safe` treatment `WorkspaceInvocation` already gets on
-  the command side) would refuse far less often.
+- **The gate's document set must equal the edit collector's** (issue #1092).
+  The gate originally scanned the request's own document plus the
+  override-family documents; the edit collector also rewrites *pure-consumer*
+  documents — ones that only call the method — through
+  `Backend::consumer_scan_plan`. A gate narrower than the collector is a
+  hollow guarantee: a hazard living only in a consumer document produced no
+  refusal while the declaration moved out from under the call. Both now
+  resolve their document set from the same `consumer_scan_plan` read, and the
+  gate scans each against the same workspace-class-oracle analysis the
+  consumer edit leg uses (memoised, so a document is analysed once between
+  them). Oracle, 9.0.4 / 8.6.16 identically: with `Dog::speak` renamed to
+  `bark` and a consumer's `[$who speak]` left behind, `unknown method
+  "speak": must be bark or destroy`, rc 1.
+- **Alias coverage is a fact, not an inference.** The candidate set was
+  presumed complete because "an unqualified alias can only be written in a
+  document with code in that namespace" — which is false: a *global* `proc p
+  {} { namespace upvar ::ns v local; return $local }` binds `::ns::v` while
+  declaring nothing in `::ns` and writing no qualified occurrence, so it sat
+  in none of the three sources. The compiler now enumerates alias links
+  (`analyser::variable_alias_links`) and the index records the qualified cell
+  each document binds (`documents_aliasing_variable`), so candidacy is looked
+  up rather than assumed. The one shape that cannot be indexed — an alias
+  whose *cell* is computed, `namespace upvar $ns v local` — refuses, matched
+  narrowly on whichever half of the cell is still literal. Oracle: renaming
+  `::mypkg::version` under such an alias gives `can't read "local": no such
+  variable`, rc 1.
+- **An alias's local spelling is not the cell's name.** The rename rewrote
+  each alias's *declaration* span, which for `namespace upvar ::ns v local`
+  is the `local` token — producing `namespace upvar ::ns v total; … $total`
+  and leaving the alias bound to the renamed-away cell (both interpreters:
+  `can't read "total": no such variable`, rc 1). `VarDef::link_target_span`
+  now records which word names the cell, and the rename splits on it:
+  `variable v` / `global ::ns::v` name the cell with their own declaration
+  word, so word and reads travel together; `namespace upvar` / `upvar #0`
+  name it one word earlier, so only that word changes. A same-*spelled*
+  `namespace upvar ::ns v v` takes the minimal edit — both interpreters
+  accept either answer, so the word whose meaning the rename does not change
+  is left alone.
+
+**Residuals still open after that review** (documented, not half-fixed):
+
+- **The gate's fan-out is only as complete as the index.** Its document set
+  is `consumer_scan_plan`'s, which is derived from `method_override_family` /
+  `method_inheritor_classes` / `documents_invoking_classes`. A consumer that
+  reaches an instance without invoking a family constructor in its own text —
+  one handed the object through a global, a `dict`, or a callback registered
+  elsewhere — is in none of those, so neither the edit collector nor the gate
+  sees it. Closing it needs cross-document instance provenance, which the
+  index does not model at all.
+- **A computed alias cell refuses workspace-wide, not per-site.** One
+  `namespace upvar $ns version local` anywhere blocks every rename of any
+  `…::version`. The narrow match (literal half must agree) keeps this from
+  being catastrophic, but a per-site provenance answer — the `rename_safe`
+  treatment `WorkspaceInvocation` already gets on the command side — would
+  refuse far less often.
+- **A level-crossing `upvar` with an assembled target** is caught by the
+  dynamic-name gate and refuses. Correct but blunt, and the same provenance
+  work would fix it.
 
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label

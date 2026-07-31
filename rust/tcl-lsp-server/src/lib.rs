@@ -2809,6 +2809,9 @@ struct ConsumerScan {
     /// Qualified names of every class whose instances dispatch the method to
     /// the family — the override-family definers plus the pure inheritors.
     family: Vec<String>,
+    /// Documents **declaring** a family class — the definers' and pure
+    /// inheritors' own files.
+    family_uris: Vec<String>,
     /// Candidate consumer documents: those invoking a family constructor.
     consumer_uris: Vec<String>,
     /// Class names valid as a bare classmethod-dispatch head; empty for an
@@ -5583,6 +5586,13 @@ impl Backend {
         }
         family.sort();
         family.dedup();
+        let mut family_uris: Vec<String> = definers
+            .iter()
+            .chain(inheritors.iter())
+            .map(|wc| wc.uri.clone())
+            .collect();
+        family_uris.sort();
+        family_uris.dedup();
         let family_norm: std::collections::HashSet<&str> =
             family.iter().map(|s| s.trim_start_matches("::")).collect();
         // The index answers with a `HashSet`; sort so the per-document scan
@@ -5596,6 +5606,7 @@ impl Backend {
         drop(index);
         Some(ConsumerScan {
             family,
+            family_uris,
             consumer_uris,
             classmethod_cmd_names,
         })
@@ -5798,6 +5809,31 @@ impl Backend {
     /// bit as fatal as one in the request's own: the edit set spans all of
     /// them, so an unrewritable dispatch anywhere refuses the whole rename
     /// rather than half-applying it (issue #923 idx 79).
+    ///
+    /// # The gate's set is the edit collector's set
+    ///
+    /// Coverage comes from [`Self::consumer_scan_plan`] — the *same* index
+    /// read [`Self::cross_file_method_rename`] resolves its own document set
+    /// from — so the two can never diverge.  A gate narrower than the edit
+    /// collector is a hollow guarantee: a pure-consumer document that
+    /// dispatches the method on an untracked receiver is rewritten by the
+    /// consumer leg but, if never scanned, contributes no refusal, and the
+    /// declaration moves out from under a call that still names the old
+    /// member (issue #1092, Codex review of PR #1091).  The set is therefore
+    /// the definers' and pure inheritors' documents, every consumer document,
+    /// and the request's own.
+    ///
+    /// Each document is scanned against the **workspace-class oracle**
+    /// analysis, which is exactly what the consumer edit leg resolves its
+    /// call sites with — so a receiver the oracle types (and the edit
+    /// collector therefore rewrites) is not mistaken for an untracked one.
+    /// That analysis is memoised per document in
+    /// [`Self::analyse_with_workspace_classes`], so scanning a document here
+    /// and rewriting it there analyses it once between them, not twice.
+    ///
+    /// Falls back to the request's own document and the seed class when the
+    /// family is not indexed at all (a freshly-opened buffer): the gate still
+    /// applies to what the single-document rename would edit.
     async fn method_rename_refusal(
         &self,
         uri: &Uri,
@@ -5807,25 +5843,16 @@ impl Backend {
     ) -> Option<core_rename_safety::RenameRefusal> {
         let (seed_class, method, is_classmethod) =
             core_rename::method_rename_target(&doc.text, pos.line, pos.character, analysis)?;
-        let family: Vec<String> = {
-            let index = self.workspace_index.read().await;
-            let mut f: Vec<String> = index
-                .method_override_family(&seed_class, &method)
-                .into_iter()
-                .map(|c| c.qualified_name.clone())
-                .collect();
-            if !f.contains(&seed_class) {
-                f.push(seed_class.clone());
+        let plan = self
+            .consumer_scan_plan(&doc.dialect, &seed_class, &method, is_classmethod)
+            .await;
+        let (family, mut uris) = match plan {
+            Some(plan) => {
+                let mut uris = plan.family_uris;
+                uris.extend(plan.consumer_uris);
+                (plan.family, uris)
             }
-            f
-        };
-        let mut uris: Vec<String> = {
-            let index = self.workspace_index.read().await;
-            index
-                .method_override_family(&seed_class, &method)
-                .into_iter()
-                .map(|c| c.uri.clone())
-                .collect()
+            None => (vec![seed_class.clone()], Vec::new()),
         };
         uris.push(uri.as_str().to_owned());
         uris.sort();
@@ -5838,7 +5865,7 @@ impl Backend {
                 continue;
             };
             let target_analysis = self
-                .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
+                .analyse_with_workspace_classes(&parsed, &target_doc.text, &target_doc.dialect)
                 .await;
             if let Some(refusal) = core_rename_safety::method_rename_hazard(
                 &target_doc.text,
@@ -5870,13 +5897,20 @@ impl Backend {
     /// Every candidate document is re-analysed and its share of the edit set
     /// computed by [`core_rename::namespace_variable_rename_edits`], so a
     /// proc-local `variable v` alias and its unqualified `$v` reads are
-    /// rewritten alongside the declaration.  Candidates are the documents
-    /// declaring the cell, those naming it qualified, and those with any code
-    /// in its namespace ([`WorkspaceIndex::documents_in_namespace`]).
+    /// rewritten alongside the declaration.  Candidates come from four index
+    /// sources, and all four are needed — no one of them subsumes another:
+    /// the documents **declaring** the cell, those **naming it qualified**,
+    /// those with any code **in its namespace**
+    /// ([`WorkspaceIndex::documents_in_namespace`], which catches an
+    /// unqualified `variable v` alias written inside `::ns`), and those
+    /// **aliasing** it from anywhere at all
+    /// ([`WorkspaceIndex::documents_aliasing_variable`], which catches a
+    /// `namespace upvar ::ns v local` written from `::`).
     ///
     /// `Err` is a **refusal**, not a miss: the new name would collide with an
-    /// existing cell, or a candidate document computes a variable name that
-    /// might be this very cell.
+    /// existing cell, some document aliases a cell computed at run time that
+    /// might be this one, or a candidate document computes a variable name
+    /// that might be this very cell.
     async fn cross_document_variable_rename(
         &self,
         uri: &Uri,
@@ -5902,15 +5936,35 @@ impl Backend {
             let index = self.workspace_index.read().await;
             // Collision gate: the target cell already exists, so the rename
             // would silently merge two distinct namespace variables.
+            // A document that only *aliases* the target cell is proof it
+            // exists just as much as a declaration is, and merging onto it is
+            // just as destructive — so both tables gate the collision.
             if !index
                 .variable_definitions_qualified(&new_cell, "")
                 .is_empty()
+                || !index.documents_aliasing_variable(&new_cell).is_empty()
             {
                 return Err(core_rename_safety::RenameRefusal {
                     reason: format!(
                         "cannot rename `{cell}`: `{new_cell}` is already declared in this \
                          workspace, and renaming would merge two distinct namespace variables \
                          into one cell."
+                    ),
+                    range: None,
+                });
+            }
+            // Coverage gate: an alias whose cell is computed
+            // (`namespace upvar $ns version local`) names no fixed variable,
+            // so no candidate scan can find it and no edit can keep it
+            // consistent.  Refuse rather than rename out from under it.
+            if let Some(u) = index.documents_with_ambiguous_alias_of(&cell).first() {
+                return Err(core_rename_safety::RenameRefusal {
+                    reason: format!(
+                        "cannot rename `{cell}`: `{u}` aliases a namespace variable whose \
+                         cell is computed at run time, so this rename can neither prove \
+                         that alias names `{cell}` nor prove it does not. Renaming the \
+                         declaration would leave it bound to a variable that no longer \
+                         exists."
                     ),
                     range: None,
                 });
@@ -5926,6 +5980,11 @@ impl Backend {
                         .map(|v| v.uri.clone()),
                 )
                 .chain(index.documents_in_namespace(namespace))
+                // Documents that merely *bind* the cell — a global `proc p {}
+                // { namespace upvar ::ns v local; … }` sits in none of the
+                // three sources above, yet its alias breaks the moment the
+                // declaration moves without it.
+                .chain(index.documents_aliasing_variable(&cell))
                 .collect();
             c.push(uri.as_str().to_owned());
             c.sort();

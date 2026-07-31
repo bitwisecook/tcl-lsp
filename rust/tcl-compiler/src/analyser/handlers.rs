@@ -649,7 +649,10 @@ impl Analyser {
                 } else {
                     format!("::{name}")
                 };
-                self.set_var_link_target(local, scope_path, target);
+                // The declaration word *is* the cell's name here (`global v`
+                // / `global ::ns::v`), so a rename of the cell rewrites this
+                // very word — see `VarDef::link_target_span`.
+                self.set_var_link_target(local, scope_path, target, tok.span);
             }
         }
     }
@@ -694,7 +697,8 @@ impl Analyser {
                 } else {
                     format!("{ns_prefix}::{}", args[i])
                 };
-                self.set_var_link_target(local, scope_path, target);
+                // As with `global`, the declaration word names the cell.
+                self.set_var_link_target(local, scope_path, target, tok.span);
             }
             i += if i + 1 < args.len() { 2 } else { 1 };
         }
@@ -3761,8 +3765,13 @@ impl Analyser {
             // it rather than record the substitution text.
             if !crate::naming::is_dynamic_word(&args[i]) {
                 self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
-                if let Some(target) = Self::upvar_link_target(&args[i - 1], level) {
-                    self.set_var_link_target(&args[i], scope_path, target);
+                if let Some(target) = Self::upvar_link_target(&args[i - 1], level)
+                    && let Some(other_tok) = arg_tokens.get(i - 1)
+                {
+                    // `otherVar` (at `i - 1`) names the cell; `args[i]` is an
+                    // independent local spelling.  Renaming the cell must
+                    // rewrite the former, never the latter.
+                    self.set_var_link_target(&args[i], scope_path, target, other_tok.span);
                 }
             }
             i += 2;
@@ -3836,7 +3845,11 @@ impl Analyser {
                 } else {
                     format!("{target_ns}::{other}")
                 };
-                self.set_var_link_target(&args[i], scope_path, target);
+                if let Some(other_tok) = arg_tokens.get(i - 1) {
+                    // `otherVar` (at `i - 1`) names the cell, not the local
+                    // alias at `i` — see `VarDef::link_target_span`.
+                    self.set_var_link_target(&args[i], scope_path, target, other_tok.span);
+                }
             }
             i += 2;
         }

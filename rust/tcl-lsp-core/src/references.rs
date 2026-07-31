@@ -4004,6 +4004,7 @@ mod tests {
                 warn_if_unused: false,
                 array_indices: std::collections::BTreeSet::new(),
                 link_target: None,
+                link_target_span: None,
             },
         );
         let a = Result {

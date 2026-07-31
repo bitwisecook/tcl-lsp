@@ -49,16 +49,38 @@ bindings — a per-document identity, so by rule 4 above they do not belong in
 the index — but they name the very same cell, and leaving them behind breaks
 the program.
 
-So the rename tier uses the index only to pick *which documents to visit*
-(`variable_definitions_qualified`, `variable_refs_of`, and
-`documents_in_namespace` — every document declaring anything directly in the
-cell's namespace, since an unqualified alias can only be written there), then
-re-analyses each and computes its share with
+So the rename tier uses the index only to pick *which documents to visit*,
+then re-analyses each and computes its share with
 `tcl_lsp_core::rename::namespace_variable_rename_edits`, which reads
-`VarDef::link_target` for the alias union.  A document in that namespace that
-computes a variable name (`set $n 1`, `variable $n`) refuses the whole rename
-(`tcl_lsp_core::rename_safety::namespace_variable_rename_hazard`) rather than
-emitting an edit set that silently misses it.
+`VarDef::link_target` for the alias union.  Four candidate sources, and all
+four are load-bearing — no one of them subsumes another:
+
+| source | catches |
+| --- | --- |
+| `variable_definitions_qualified` | the documents declaring the cell |
+| `variable_refs_of` | the documents naming it qualified (`$::ns::v`) |
+| `documents_in_namespace` | an unqualified alias written *inside* `::ns` (`namespace eval ns { proc p {} { variable v; … } }`) — proc-scope, so not indexed itself, but its enclosing proc is |
+| `documents_aliasing_variable` | an alias written from *any other* namespace (a global `proc p {} { namespace upvar ::ns v local; … }`) — which declares nothing in `::ns` and writes no qualified occurrence, so all three of the above miss it |
+
+That last table is the one exception to rule 4's "proc locals are not
+indexed", and it is not really an exception: what is recorded is the
+**qualified cell** the alias names — as spellable from another document as a
+declaration is — never the local spelling, which stays a per-document
+question.  It exists because coverage has to be *provable*: without it a
+rename moves the declaration and the alias is left bound to a variable that
+no longer exists (tclsh 9.0.4 / 8.6.16 alike: `can't read "local": no such
+variable`).
+
+Two shapes refuse the rename outright rather than emit an edit set that
+silently misses something:
+
+- a candidate document that **computes a variable name** (`set $n 1`,
+  `variable $n`) — `tcl_lsp_core::rename_safety::namespace_variable_rename_hazard`;
+- any document that **aliases a computed cell** (`namespace upvar $ns v
+  local`) which could be this one — `documents_with_ambiguous_alias_of`.
+  A computed cell names no fixed variable, so it can be neither found by a
+  candidate scan nor rewritten.  The match stays narrow: whichever half of
+  the cell is still written literally must agree with the cell being renamed.
 
 ## Derived views and their invalidation
 
@@ -120,8 +142,9 @@ cache.
 - `rust/tcl-lsp-core/src/workspace_index.rs` (`mod tests`)
 - `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs`
 - `rust/tcl-lsp-server/tests/e2e/rename_safety.rs` (the variable tier's
-  rename half: TP cross-document, FN-guard proc-local alias, TN sibling
-  namespace, FP-guard computed variable name)
+  rename half: TP cross-document, TP out-of-namespace alias, FN-guard
+  proc-local alias, TN sibling namespace, FP-guard computed variable name,
+  FP-guard computed alias cell, FN-guard computed alias of another cell)
 - `rust/tcl-lsp-server/tests/e2e/issue923_class_refs.rs`
 - `rust/tcl-lsp-server/src/lib.rs` unit tests
   (`watcher_and_rename_globs_cover_every_indexed_extension`,
