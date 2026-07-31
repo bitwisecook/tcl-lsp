@@ -4095,6 +4095,7 @@ mod tests {
             warn_if_unused: false,
             array_indices: std::collections::BTreeSet::new(),
             link_target: None,
+            link_target_span: None,
         };
         let text = var_hover_text(&var_def, Some("int"), Some("tainted (from I/O)"));
         assert!(text.contains("**Inferred intrep**: int"), "{text}");

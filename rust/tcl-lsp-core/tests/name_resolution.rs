@@ -1134,6 +1134,53 @@ mod namespace_scoped_class_dispatch {
         assert_eq!(refs_at(src, 2, 15), vec![2, 5], "decl + `rex make`");
     }
 
+    /// TN + TP, the object-command half of #981 (closed by PR C3).
+    ///
+    /// `CLASS create NAME` binds `NAME` in the **creation site's** namespace,
+    /// so `::a::Factory create rex` and `::b::Widget create rex` are two
+    /// coexisting commands.  Oracle, identical on tclsh 9.0.4 and 8.6.16:
+    ///
+    /// ```text
+    /// in ::a -> a-made
+    /// in ::b -> b-made
+    /// global a: a-made        ;# ::a::rex make
+    /// global b: b-made        ;# ::b::rex make
+    /// ```
+    ///
+    /// Before this fix `created_instance_commands` was a flat bare-name set:
+    /// `::b::Widget::make` counted (and renamed) `::a`'s `rex make`, while
+    /// `::a::Factory::make` lost its own call site entirely to
+    /// last-write-wins.
+    #[test]
+    fn tn_object_command_dispatch_is_scoped_to_its_creation_namespace() {
+        let src = concat!(
+            "namespace eval ::a {\n",
+            "    oo::class create Factory {\n",
+            "        method make {} { return 1 }\n",
+            "    }\n",
+            "    Factory create rex\n",
+            "    rex make\n",
+            "}\n",
+            "namespace eval ::b {\n",
+            "    oo::class create Widget {\n",
+            "        method make {} { return 2 }\n",
+            "    }\n",
+            "    Widget create rex\n",
+            "    rex make\n",
+            "}\n",
+        );
+        assert_eq!(
+            refs_at(src, 2, 15),
+            vec![2, 5],
+            "::a::Factory::make: decl + its OWN `rex make`, never ::b's"
+        );
+        assert_eq!(
+            refs_at(src, 9, 15),
+            vec![9, 12],
+            "::b::Widget::make: decl + its OWN `rex make`, never ::a's"
+        );
+    }
+
     /// FN→TP: an **explicit** `namespace import` creates a real command in the
     /// importing namespace, so a bare dispatch through the imported name is a
     /// reference to the source class's method.  Post-#1047 this one scanner

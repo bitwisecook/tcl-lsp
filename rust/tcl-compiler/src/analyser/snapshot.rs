@@ -202,6 +202,7 @@ mod tests {
             warn_if_unused: true,
             array_indices: std::collections::BTreeSet::new(),
             link_target: None,
+            link_target_span: None,
         }
     }
 

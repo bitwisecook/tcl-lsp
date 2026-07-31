@@ -122,10 +122,24 @@ When nothing binds the name, Find All References returns nothing rather than
 falling back to a command or method of the same name — a `$`-led token can
 only ever be the variable.
 
+### Method-name references in a class body
+
+A method's references include the definition-body words that *name* it, not
+just the calls that dispatch it: `export m`, `unexport m`, `filter m`,
+`deletemethod m`, `renamemethod m n`. Those are the registry's own
+method-reference members, so the same list holds for `TclOO`, snit, and
+[incr Tcl] without the provider naming a keyword. They matter beyond
+completeness: a `TclOO` method whose name starts with an upper-case letter is
+unexported by default, so an `export` list that disagrees with its
+declaration is a broken class, and Rename rewrites those words for exactly
+that reason.
+
 ## File-path anchors
 
 - `rust/tcl-lsp-core/src/references.rs` (`find_obj_method_call_sites` —
-  instance dispatch plus a classmethod's own-class-command dispatch)
+  instance dispatch plus a classmethod's own-class-command dispatch;
+  `member_reference_spans` — `export` / `unexport` / `filter` method-name
+  words, from the definer grammar)
 - `rust/tcl-lsp-core/src/caller_frame.rs` (caller-frame variables — the
   call-site word and the reads it feeds, shared with Hover and Go to
   Definition)
@@ -171,14 +185,22 @@ only ever be the variable.
   guarded in the other direction too: `Factory make` there is itcl's
   instance-creation syntax (`ClassName instanceName`), never a class-proc
   dispatch, and is never counted as one.
-- A `CLASS create NAME` object command (`rex bark`) is matched by name text
-  alone. Two object commands called `rex` in different namespaces are one
-  name as far as the analyser is concerned — it records instance-command
-  names without their creating namespace — so a bare `rex bark` in either
-  namespace counts for whichever `rex` the analyser bound first. A
-  classmethod's own-class-command dispatch (`Factory make`) does **not**
-  have this problem: it is resolved against the call's own namespace, first
-  the current one and then the global one, exactly as Tcl resolves it.
+- A `CLASS create NAME` object command (`rex bark`) is resolved against the
+  call's own namespace, exactly like a classmethod's class-command dispatch
+  (`Factory make`). `CLASS create NAME` binds `NAME` in the *creation site's*
+  namespace, so `::a::Factory create rex` and `::b::Widget create rex` are
+  two different commands that coexist (tclsh 9.0 and 8.6 both dispatch `rex
+  make` inside `::a` to `::a::rex` and inside `::b` to `::b::rex`), and the
+  two are never cross-linked. This was issue #981's object-command half,
+  closed by PR C3: previously the two were one flat name, so references on
+  one class's method counted the other's call site and a rename rewrote it.
+  Object commands created by a *registry* object factory (a Tk widget path,
+  a tcllib naming factory) still match by bare name — those carry no
+  creating user class to attribute a dispatch to in the first place.
+- When two different classes bind the **same qualified** object command in
+  one namespace, which class a later `NAME method` reaches is a runtime
+  fact. References still report both call sites; **rename refuses**, with a
+  reason (see [Rename](kcs-feature-rename.md)).
 
 ## Test anchors
 
@@ -192,7 +214,8 @@ only ever be the variable.
   angle-bracketed method names; `itcl_class_proc_dispatch` — the
   colon-qualified [incr Tcl] class-proc TP/FP/TN matrix;
   `namespace_scoped_class_dispatch` — two same-named classes in different
-  namespaces are not cross-linked)
+  namespaces are not cross-linked, and (PR C3) two same-named `CLASS create
+  NAME` object commands in different namespaces are not either)
 - `rust/tcl-lsp-core/src/references.rs` (`mod tests`, including
   `references_for_property_includes_decl_and_my_dispatch_call_sites`,
   `references_disambiguates_property_and_method_sharing_a_name_by_cursor`,

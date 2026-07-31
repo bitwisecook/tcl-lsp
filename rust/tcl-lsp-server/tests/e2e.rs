@@ -81,6 +81,8 @@ mod recovery;
 mod references;
 #[path = "e2e/rename.rs"]
 mod rename;
+#[path = "e2e/rename_safety.rs"]
+mod rename_safety;
 #[path = "e2e/semantic_tokens.rs"]
 mod semantic_tokens;
 #[path = "e2e/semantic_tokens_reference_client.rs"]

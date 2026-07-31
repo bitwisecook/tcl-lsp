@@ -67,6 +67,7 @@ use tcl_lsp_core::minify as core_minify;
 use tcl_lsp_core::package_resolver::PackageResolver;
 use tcl_lsp_core::references as core_references;
 use tcl_lsp_core::rename as core_rename;
+use tcl_lsp_core::rename_safety as core_rename_safety;
 use tcl_lsp_core::selection_range as core_selection_range;
 use tcl_lsp_core::semantic_tokens as core_semantic_tokens;
 use tcl_lsp_core::signature_help::{
@@ -2808,6 +2809,9 @@ struct ConsumerScan {
     /// Qualified names of every class whose instances dispatch the method to
     /// the family — the override-family definers plus the pure inheritors.
     family: Vec<String>,
+    /// Documents **declaring** a family class — the definers' and pure
+    /// inheritors' own files.
+    family_uris: Vec<String>,
     /// Candidate consumer documents: those invoking a family constructor.
     consumer_uris: Vec<String>,
     /// Class names valid as a bare classmethod-dispatch head; empty for an
@@ -5582,6 +5586,13 @@ impl Backend {
         }
         family.sort();
         family.dedup();
+        let mut family_uris: Vec<String> = definers
+            .iter()
+            .chain(inheritors.iter())
+            .map(|wc| wc.uri.clone())
+            .collect();
+        family_uris.sort();
+        family_uris.dedup();
         let family_norm: std::collections::HashSet<&str> =
             family.iter().map(|s| s.trim_start_matches("::")).collect();
         // The index answers with a `HashSet`; sort so the per-document scan
@@ -5595,6 +5606,7 @@ impl Backend {
         drop(index);
         Some(ConsumerScan {
             family,
+            family_uris,
             consumer_uris,
             classmethod_cmd_names,
         })
@@ -5720,6 +5732,305 @@ impl Backend {
             by_uri: by_uri.into_iter().collect(),
             classmethod_cmd_names,
         }
+    }
+    /// The cross-file **override-family** method rename, or `None` when the
+    /// cursor names no method (or the family produced no edit).
+    ///
+    /// A method (re)defined up or down the hierarchy is one polymorphic name,
+    /// and the override family can span files, so this handles the current
+    /// document *and* every sibling that defines a family class uniformly —
+    /// the single-document family is incomplete when the connecting ancestor
+    /// lives in another file.  Falling through to the single-document path on
+    /// an empty result keeps an unpopulated index from regressing anything.
+    async fn method_family_rename_tier(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        pos: Position,
+        new_name: &str,
+    ) -> Option<std::collections::HashMap<Uri, Vec<TextEdit>>> {
+        if !core_rename::is_safe_symbol_name(new_name) {
+            return None;
+        }
+        let (seed_class, method, is_classmethod) =
+            core_rename::method_rename_target(&doc.text, pos.line, pos.character, analysis)?;
+        let changes = self
+            .cross_file_method_rename(uri, doc, &seed_class, &method, new_name, is_classmethod)
+            .await;
+        (!changes.is_empty()).then_some(changes)
+    }
+
+    /// The two rename tiers that answer *before* the ordinary in-document /
+    /// cross-document path, or `None` when neither applies.
+    ///
+    /// `Some(Err(..))` is a **refusal** carrying its own reason; `Some(Ok(..))`
+    /// is a complete namespace-variable edit set.  Split out of
+    /// [`Backend::rename`] so that handler stays inside the line budget.
+    async fn gated_rename_tiers(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        pos: Position,
+        new_name: &str,
+    ) -> Option<jsonrpc::Result<Option<WorkspaceEdit>>> {
+        // Safety gate: when the cursor names a `TclOO` member whose dispatch
+        // this rename cannot account for anywhere in the workspace, refuse
+        // with a precise reason instead of emitting a partial edit set that
+        // breaks the program once applied.
+        if core_rename::is_safe_symbol_name(new_name)
+            && let Some(refusal) = self.method_rename_refusal(uri, doc, analysis, pos).await
+        {
+            return Some(Err(rename_refusal_error(&refusal)));
+        }
+        // Namespace-variable tier: the cursor names a `::`-rooted cell, so
+        // rename it across every document that declares, aliases, or names it.
+        match self
+            .cross_document_variable_rename(uri, doc, analysis, pos, new_name)
+            .await
+        {
+            Err(refusal) => Some(Err(rename_refusal_error(&refusal))),
+            Ok(changes) if !changes.is_empty() => Some(Ok(Some(WorkspaceEdit {
+                changes: Some(changes),
+                document_changes: None,
+                change_annotations: None,
+            }))),
+            Ok(_) => None,
+        }
+    }
+
+    /// The rename **safety refusal** for the `TclOO` member at `pos`, if any —
+    /// checked across every document the rename would touch before a single
+    /// edit is built.
+    ///
+    /// The gate itself is [`core_rename_safety::method_rename_hazard`]; this
+    /// is the workspace fan-out.  A hazard in a *sibling* document is every
+    /// bit as fatal as one in the request's own: the edit set spans all of
+    /// them, so an unrewritable dispatch anywhere refuses the whole rename
+    /// rather than half-applying it (issue #923 idx 79).
+    ///
+    /// # The gate's set is the edit collector's set
+    ///
+    /// Coverage comes from [`Self::consumer_scan_plan`] — the *same* index
+    /// read [`Self::cross_file_method_rename`] resolves its own document set
+    /// from — so the two can never diverge.  A gate narrower than the edit
+    /// collector is a hollow guarantee: a pure-consumer document that
+    /// dispatches the method on an untracked receiver is rewritten by the
+    /// consumer leg but, if never scanned, contributes no refusal, and the
+    /// declaration moves out from under a call that still names the old
+    /// member (issue #1092, Codex review of PR #1091).  The set is therefore
+    /// the definers' and pure inheritors' documents, every consumer document,
+    /// and the request's own.
+    ///
+    /// Each document is scanned against the **workspace-class oracle**
+    /// analysis, which is exactly what the consumer edit leg resolves its
+    /// call sites with — so a receiver the oracle types (and the edit
+    /// collector therefore rewrites) is not mistaken for an untracked one.
+    /// That analysis is memoised per document in
+    /// [`Self::analyse_with_workspace_classes`], so scanning a document here
+    /// and rewriting it there analyses it once between them, not twice.
+    ///
+    /// Falls back to the request's own document and the seed class when the
+    /// family is not indexed at all (a freshly-opened buffer): the gate still
+    /// applies to what the single-document rename would edit.
+    async fn method_rename_refusal(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        pos: Position,
+    ) -> Option<core_rename_safety::RenameRefusal> {
+        let (seed_class, method, is_classmethod) =
+            core_rename::method_rename_target(&doc.text, pos.line, pos.character, analysis)?;
+        let plan = self
+            .consumer_scan_plan(&doc.dialect, &seed_class, &method, is_classmethod)
+            .await;
+        let (family, mut uris) = match plan {
+            Some(plan) => {
+                let mut uris = plan.family_uris;
+                uris.extend(plan.consumer_uris);
+                (plan.family, uris)
+            }
+            None => (vec![seed_class.clone()], Vec::new()),
+        };
+        uris.push(uri.as_str().to_owned());
+        uris.sort();
+        uris.dedup();
+        for u in uris {
+            let Ok(parsed) = Uri::from_str(&u) else {
+                continue;
+            };
+            let Some(target_doc) = self.read_document(&parsed).await else {
+                continue;
+            };
+            let target_analysis = self
+                .analyse_with_workspace_classes(&parsed, &target_doc.text, &target_doc.dialect)
+                .await;
+            if let Some(refusal) = core_rename_safety::method_rename_hazard(
+                &target_doc.text,
+                &target_doc.dialect,
+                &target_analysis,
+                core_rename_safety::MethodRenameTarget {
+                    family: &family,
+                    method: &method,
+                    is_classmethod,
+                },
+                &target_doc.line_index,
+            ) {
+                return Some(refusal);
+            }
+        }
+        None
+    }
+
+    /// Rename the **namespace variable** cell at `pos` across the workspace
+    /// (PR C3, completing the cross-document variable tier PR #1086 added for
+    /// go-to-definition / hover / find-references).
+    ///
+    /// The cell is resolved by the one shared entry point
+    /// ([`Self::qualified_variable_cell`]), which already applies the
+    /// inert-text gate every other provider applies — a `$::ns::v`-shaped
+    /// substring inside a comment or a brace-quoted data word substitutes
+    /// nothing and is not an occurrence.
+    ///
+    /// Every candidate document is re-analysed and its share of the edit set
+    /// computed by [`core_rename::namespace_variable_rename_edits`], so a
+    /// proc-local `variable v` alias and its unqualified `$v` reads are
+    /// rewritten alongside the declaration.  Candidates come from four index
+    /// sources, and all four are needed — no one of them subsumes another:
+    /// the documents **declaring** the cell, those **naming it qualified**,
+    /// those with any code **in its namespace**
+    /// ([`WorkspaceIndex::documents_in_namespace`], which catches an
+    /// unqualified `variable v` alias written inside `::ns`), and those
+    /// **aliasing** it from anywhere at all
+    /// ([`WorkspaceIndex::documents_aliasing_variable`], which catches a
+    /// `namespace upvar ::ns v local` written from `::`).
+    ///
+    /// `Err` is a **refusal**, not a miss: the new name would collide with an
+    /// existing cell, some document aliases a cell computed at run time that
+    /// might be this one, or a candidate document computes a variable name
+    /// that might be this very cell.
+    async fn cross_document_variable_rename(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        pos: Position,
+        new_name: &str,
+    ) -> Result<std::collections::HashMap<Uri, Vec<TextEdit>>, core_rename_safety::RenameRefusal>
+    {
+        let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
+            std::collections::HashMap::new();
+        let Some(cell) = Self::qualified_variable_cell(&doc.text, &analysis.dialect, analysis, pos)
+        else {
+            return Ok(changes);
+        };
+        if !core_rename::is_safe_symbol_name(new_name) {
+            return Ok(changes);
+        }
+        self.refresh_source_rehoming().await;
+        let namespace = cell.rsplit_once("::").map_or("::", |(ns, _)| ns);
+        let new_cell = format!("{namespace}::{new_name}");
+        let candidates: Vec<String> = {
+            let index = self.workspace_index.read().await;
+            // Collision gate: the target cell already exists, so the rename
+            // would silently merge two distinct namespace variables.
+            // A document that only *aliases* the target cell is proof it
+            // exists just as much as a declaration is, and merging onto it is
+            // just as destructive — so both tables gate the collision.
+            if !index
+                .variable_definitions_qualified(&new_cell, "")
+                .is_empty()
+                || !index.documents_aliasing_variable(&new_cell).is_empty()
+            {
+                return Err(core_rename_safety::RenameRefusal {
+                    reason: format!(
+                        "cannot rename `{cell}`: `{new_cell}` is already declared in this \
+                         workspace, and renaming would merge two distinct namespace variables \
+                         into one cell."
+                    ),
+                    range: None,
+                });
+            }
+            // Coverage gate: an alias whose cell is computed
+            // (`namespace upvar $ns version local`) names no fixed variable,
+            // so no candidate scan can find it and no edit can keep it
+            // consistent.  Refuse rather than rename out from under it.
+            if let Some(u) = index.documents_with_ambiguous_alias_of(&cell).first() {
+                return Err(core_rename_safety::RenameRefusal {
+                    reason: format!(
+                        "cannot rename `{cell}`: `{u}` aliases a namespace variable whose \
+                         cell is computed at run time, so this rename can neither prove \
+                         that alias names `{cell}` nor prove it does not. Renaming the \
+                         declaration would leave it bound to a variable that no longer \
+                         exists."
+                    ),
+                    range: None,
+                });
+            }
+            let mut c: Vec<String> = index
+                .variable_definitions_qualified(&cell, "")
+                .into_iter()
+                .map(|v| v.uri.clone())
+                .chain(
+                    index
+                        .variable_refs_of(&cell, "")
+                        .into_iter()
+                        .map(|v| v.uri.clone()),
+                )
+                .chain(index.documents_in_namespace(namespace))
+                // Documents that merely *bind* the cell — a global `proc p {}
+                // { namespace upvar ::ns v local; … }` sits in none of the
+                // three sources above, yet its alias breaks the moment the
+                // declaration moves without it.
+                .chain(index.documents_aliasing_variable(&cell))
+                .collect();
+            c.push(uri.as_str().to_owned());
+            c.sort();
+            c.dedup();
+            c
+        };
+        for u in candidates {
+            let Ok(parsed) = Uri::from_str(&u) else {
+                continue;
+            };
+            let Some(target_doc) = self.read_document(&parsed).await else {
+                continue;
+            };
+            let target_analysis = self
+                .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
+                .await;
+            if let Some(refusal) = core_rename_safety::namespace_variable_rename_hazard(
+                &target_doc.text,
+                &target_doc.dialect,
+                &target_analysis,
+                &cell,
+                &target_doc.line_index,
+            ) {
+                return Err(refusal);
+            }
+            let edits = core_rename::namespace_variable_rename_edits(
+                &target_doc.text,
+                &target_analysis,
+                &cell,
+                new_name,
+            );
+            if edits.is_empty() {
+                continue;
+            }
+            let bucket = changes.entry(parsed).or_default();
+            for e in edits {
+                let range = lift_lsp_range(e.range);
+                if !bucket.iter().any(|x| x.range == range) {
+                    bucket.push(TextEdit {
+                        range,
+                        new_text: e.new_text,
+                    });
+                }
+            }
+        }
+        Ok(changes)
     }
 
     /// Cross-file rename of a `TclOO` method across its override family.
@@ -11268,35 +11579,25 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        // Method rename → cross-file override-family path.  A method
-        // (re)defined up or down the hierarchy is one polymorphic name, and
-        // the override family can span files, so this handles the current
-        // document *and* every sibling that defines a family class
-        // uniformly (the single-document family is incomplete when the
-        // connecting ancestor lives in another file).  Falls through to the
-        // single-document path when the family is empty (e.g. the index is
-        // not yet populated) so nothing regresses.
-        if core_rename::is_safe_symbol_name(&new_name)
-            && let Some((seed_class, method, is_classmethod)) =
-                core_rename::method_rename_target(&doc.text, pos.line, pos.character, &analysis)
+        // The gated tiers, before any ordinary edit is built: the `TclOO`
+        // member safety gate (issue #923 idx 79 / #981) and the workspace
+        // namespace-variable rename (PR #1086's reference set, rename half).
+        if let Some(gated) = self
+            .gated_rename_tiers(&uri, &doc, &analysis, pos, &new_name)
+            .await
         {
-            let changes = self
-                .cross_file_method_rename(
-                    &uri,
-                    &doc,
-                    &seed_class,
-                    &method,
-                    &new_name,
-                    is_classmethod,
-                )
-                .await;
-            if !changes.is_empty() {
-                return Ok(Some(WorkspaceEdit {
-                    changes: Some(changes),
-                    document_changes: None,
-                    change_annotations: None,
-                }));
-            }
+            return gated;
+        }
+        // Method rename → cross-file override-family path.
+        if let Some(changes) = self
+            .method_family_rename_tier(&uri, &doc, &analysis, pos, &new_name)
+            .await
+        {
+            return Ok(Some(WorkspaceEdit {
+                changes: Some(changes),
+                document_changes: None,
+                change_annotations: None,
+            }));
         }
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
@@ -11705,6 +12006,20 @@ fn lift_lsp_range(r: CoreLspRange) -> Range {
             line: r.end_line,
             character: r.end_character,
         },
+    }
+}
+/// Turn a rename safety refusal into the LSP error response the editor shows.
+///
+/// A refusal is deliberately **not** a `null` result: `null` means "nothing to
+/// rename here" and lets the editor quietly do nothing, which is exactly the
+/// wrong signal when the symbol *is* renameable but the rename would break the
+/// program.  `InvalidRequest` with the gate's own reason puts that reason in
+/// front of the user (issue #923 idx 79).
+fn rename_refusal_error(refusal: &core_rename_safety::RenameRefusal) -> jsonrpc::Error {
+    jsonrpc::Error {
+        code: jsonrpc::ErrorCode::InvalidRequest,
+        message: refusal.reason.clone().into(),
+        data: None,
     }
 }
 

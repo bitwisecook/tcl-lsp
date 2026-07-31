@@ -797,7 +797,8 @@ impl Analyser {
             // `Cls create inst`) so the LSP providers can resolve
             // ``$v method`` / ``inst method`` call sites to the
             // object's class.
-            self.record_instance_creation(cmd_name, args);
+            let creation_ns = self.command_resolution_namespace(scope_path);
+            self.record_instance_creation(cmd_name, args, &creation_ns);
 
             // When the constructor's class head is a `$var` reference
             // instead of a literal bareword, defer to the flow-sensitive
@@ -3023,7 +3024,12 @@ impl Analyser {
     /// excluded because `oo::class` isn't a user class).
     /// Best-effort and not flow-sensitive: the last assignment
     /// to a given name wins.
-    pub(crate) fn record_instance_creation(&mut self, cmd_name: &str, args: &[String]) {
+    pub(crate) fn record_instance_creation(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        creation_ns: &str,
+    ) {
         // Registry `defines_command_at` — a spec-declared argument whose
         // literal value becomes a callable command name (`coroutine NAME cmd
         // …`, `interp create NAME`).  Registry data only, so it is recorded
@@ -3050,7 +3056,7 @@ impl Analyser {
             let shape_b = args.len() >= 2 && args[0] == "create";
             // A registry factory already bound above needs no user-class replay.
             if (shape_a || shape_b) && !bound_registry_factory {
-                pending.push((cmd_name.to_owned(), args.to_vec()));
+                pending.push((cmd_name.to_owned(), args.to_vec(), creation_ns.to_owned()));
             }
             return;
         }
@@ -3077,8 +3083,20 @@ impl Analyser {
                 // Known user class: record the object → class mapping (for
                 // `$obj method` / method validation) and the created command
                 // name.
-                self.result.instance_classes.insert(name.clone(), class_q);
+                self.result
+                    .instance_classes
+                    .insert(name.clone(), class_q.clone());
                 self.result.created_instance_commands.insert(name.clone());
+                // …plus the namespace-qualified binding the dispatch scanner
+                // needs to tell `::a::rex` from `::b::rex` (issue #981).
+                let qualified_name = crate::naming::qualify(creation_ns, name);
+                let binding = super::types::InstanceCommandBinding {
+                    qualified_name,
+                    class_q,
+                };
+                if !self.result.instance_command_bindings.contains(&binding) {
+                    self.result.instance_command_bindings.push(binding);
+                }
             } else if self.command_head_could_be_external_class(cmd_name) {
                 // Unknown (external-package) class: the `create NAME` idiom
                 // still binds a new command, so register the name to suppress
