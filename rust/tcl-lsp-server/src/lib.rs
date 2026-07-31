@@ -3533,6 +3533,27 @@ impl Backend {
         .flatten()
     }
 
+    /// Run the salsa `folding_ranges` query for `uri` on a worker thread,
+    /// reading the current `SourceFile` input. Returns `None` when the input
+    /// is absent or a concurrent edit cancels the read, so the caller can
+    /// fall back to a direct computation (behaviour preserved). Mirrors
+    /// [`Self::db_document_symbols`]; the BIG-IP dialect has no salsa query
+    /// (it folds on the stanza tree, not the Tcl analyser) and so never
+    /// calls this.
+    async fn db_folding_ranges(
+        &self,
+        uri: &Uri,
+    ) -> Option<Vec<tcl_lsp_core::folding::FoldingRange>> {
+        let file = (*self.db_files.lock().await).get(uri).copied()?;
+        let snapshot = self.db.lock().await.clone();
+        tokio::task::spawn_blocking(move || {
+            salsa::Cancelled::catch(|| tcl_lsp_db::folding_ranges(&snapshot, file)).ok()
+        })
+        .await
+        .ok()
+        .flatten()
+    }
+
     /// Resolve the salsa `AnalyserConfig` handle for `uri`, mirroring
     /// [`DiagInputs::capture_job`]: a folder that overrides the disabled-codes
     /// set / non-ASCII mode (and so has its own handle in `folder_db_configs`)
@@ -3705,7 +3726,7 @@ impl Backend {
         };
         tokio::task::spawn_blocking(move || {
             let mut analyser = Self::configured_analyser(disabled, na_mode, extra);
-            Arc::new(analyser.analyse(&text, &dialect).clone())
+            Arc::new(analyser.analyse(&text, &dialect))
         })
         .await
         .unwrap_or_default()
@@ -4442,7 +4463,7 @@ impl Backend {
                         let dialect = self.dialect_for_closed(uri, &text).await;
                         let (a_text, a_dialect) = (text.clone(), dialect.clone());
                         match tokio::task::spawn_blocking(move || {
-                            Analyser::new().analyse(&a_text, &a_dialect).clone()
+                            Analyser::new().analyse(&a_text, &a_dialect)
                         })
                         .await
                         {
@@ -4754,7 +4775,7 @@ impl Backend {
         // below).  Without this gate, an argument word that happens to
         // collide with a sibling proc/class name produces a
         // false-positive go-to-definition jump.
-        let on_command_head = position_is_command_head(&doc.text, pos, &analysis);
+        let on_command_head = position_is_command_head(&doc.text, pos, &analysis, &doc.line_index);
         // A namespace-name argument is answered here, in full, and never
         // reaches the tiers below.  Two reasons, both from the review of
         // #1088: the position is *definitive* (a proc or class of the same
@@ -7346,7 +7367,7 @@ impl Backend {
             let analysis = self
                 .cached_analysis(&doc_uri)
                 .await
-                .unwrap_or_else(|| Arc::new(Analyser::new().analyse(&source, &dialect).clone()));
+                .unwrap_or_else(|| Arc::new(Analyser::new().analyse(&source, &dialect)));
             let calls = core_call_hierarchy::incoming_calls_for_target(
                 &source, &analysis, simple, qualified, None,
             );
@@ -7765,7 +7786,7 @@ impl Backend {
             for _ in 0..4 {
                 let mut analyser =
                     Self::configured_analyser(disabled.clone(), na_mode, extra.clone());
-                let analysis = analyser.analyse(&source, &dialect).clone();
+                let analysis = analyser.analyse(&source, &dialect);
                 // First fix per safe diagnostic, sorted by start offset.
                 let mut fixes: Vec<(u32, u32, String, String, String)> = Vec::new();
                 for d in &analysis.diagnostics {
@@ -9293,11 +9314,9 @@ impl Backend {
                         .map(|seed| {
                             let mut analyser = Analyser::new();
                             if seed == "::" {
-                                analyser.analyse(&text, &dialect).clone()
+                                analyser.analyse(&text, &dialect)
                             } else {
-                                analyser
-                                    .analyse_with_source_namespace(&text, &dialect, seed)
-                                    .clone()
+                                analyser.analyse_with_source_namespace(&text, &dialect, seed)
                             }
                         })
                         .collect::<Vec<AnalysisResult>>()
@@ -9447,7 +9466,7 @@ impl Backend {
                 let dialect = folder_dialect_for(&uri, &folder_dialects)
                     .unwrap_or_else(|| default_dialect.clone());
                 let mut analyser = Analyser::new();
-                let analysis = analyser.analyse(&text, &dialect).clone();
+                let analysis = analyser.analyse(&text, &dialect);
                 out.push((uri, text, dialect, analysis));
             }
             (resolver, out)
@@ -10569,23 +10588,37 @@ impl LanguageServer for Backend {
         // blocks and leaves every stanza unfoldable) — the folding twin of
         // the outline split in `document_symbol`.
         let bigip = Self::is_bigip_dialect(&doc.dialect);
-        let registry = self.registry_for_dialect(&doc.dialect).await;
-        // Pure-CPU tokenise/segment work; run on a worker so a parser panic
-        // is contained as a JSON-RPC error rather than unwinding the event
-        // loop (defence in depth).
-        let ranges = tokio::task::spawn_blocking(move || {
-            if bigip {
-                core_bigip::folding_ranges(&doc.text)
-            } else {
+        let ranges = if bigip {
+            let text = doc.text.clone();
+            // Pure-CPU tokenise/segment work; run on a worker so a parser
+            // panic is contained as a JSON-RPC error rather than unwinding
+            // the event loop (defence in depth).
+            tokio::task::spawn_blocking(move || core_bigip::folding_ranges(&text))
+                .await
+                .map_err(|err| jsonrpc::Error {
+                    code: jsonrpc::ErrorCode::InternalError,
+                    message: format!("folding worker panicked: {err}").into(),
+                    data: None,
+                })?
+        } else if let Some(ranges) = self.db_folding_ranges(&params.text_document.uri).await {
+            // Served from the salsa query graph (memoised); avoids a fresh
+            // segmenter/registry walk on every request.
+            ranges
+        } else {
+            // Cold / cancelled fallback: compute directly so the request
+            // never returns empty due to a concurrent edit (behaviour
+            // preserved).
+            let registry = self.registry_for_dialect(&doc.dialect).await;
+            tokio::task::spawn_blocking(move || {
                 tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, registry)
-            }
-        })
-        .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("folding worker panicked: {err}").into(),
-            data: None,
-        })?;
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("folding worker panicked: {err}").into(),
+                data: None,
+            })?
+        };
         Ok(Some(ranges.into_iter().map(lift_folding_range).collect()))
     }
 
@@ -12763,7 +12796,7 @@ impl LanguageServer for Backend {
         // same gate `compute_definition` applies — otherwise an argument word
         // that happens to share a sibling proc's name would pop up that proc's
         // signature.  Computed here, while `analysis` is still in scope.
-        let on_command_head = position_is_command_head(&doc.text, pos, &analysis);
+        let on_command_head = position_is_command_head(&doc.text, pos, &analysis, &doc.line_index);
         // A namespace-name argument is answered here, in full, and never
         // reaches the tiers below — the position is definitive, and the
         // counts describe the whole workspace rather than just this document
@@ -12895,7 +12928,19 @@ fn materialise_selection_range(
 /// `character` is a UTF-16 code-unit offset. `None` when the line is
 /// out of range.
 fn line_col_to_byte_offset(source: &str, line: u32, col: u32) -> Option<usize> {
-    let index = tcl_lexer::LineIndex::new_lsp(source);
+    line_col_to_byte_offset_indexed(&tcl_lexer::LineIndex::new_lsp(source), source, line, col)
+}
+
+/// [`line_col_to_byte_offset`], but resolved through a caller-supplied
+/// `index` instead of rebuilding one — for a caller that already holds the
+/// document's persisted [`tcl_lexer::LineIndex`] (`DocumentState::line_index`),
+/// so a per-request lookup doesn't pay for a whole-document rescan.
+fn line_col_to_byte_offset_indexed(
+    index: &tcl_lexer::LineIndex,
+    source: &str,
+    line: u32,
+    col: u32,
+) -> Option<usize> {
     if line as usize >= index.line_count() {
         return None;
     }
@@ -12907,8 +12952,18 @@ fn line_col_to_byte_offset(source: &str, line: u32, col: u32) -> Option<usize> {
 /// invocations.  Used to gate the cross-document go-to-definition
 /// fallback so it only fires on call sites, not on argument words
 /// that happen to collide with a sibling proc/class name.
-fn position_is_command_head(source: &str, pos: Position, analysis: &AnalysisResult) -> bool {
-    let Some(offset) = line_col_to_byte_offset(source, pos.line, pos.character) else {
+///
+/// `index` is the caller's persisted [`tcl_lexer::LineIndex`]
+/// (`DocumentState::line_index`) — resolved through it rather than a fresh
+/// rebuild, since both hover and go-to-definition call this on every request.
+fn position_is_command_head(
+    source: &str,
+    pos: Position,
+    analysis: &AnalysisResult,
+    index: &tcl_lexer::LineIndex,
+) -> bool {
+    let Some(offset) = line_col_to_byte_offset_indexed(index, source, pos.line, pos.character)
+    else {
         return false;
     };
     analysis.command_invocations.iter().any(|inv| {
@@ -21945,6 +22000,7 @@ mod tests {
     fn command_head_gate_distinguishes_head_from_argument() {
         let src = "proc greet {x} {}\ngreet arg\n";
         let analysis = Analyser::new().analyse(src, "tcl8.6").clone();
+        let index = tcl_lexer::LineIndex::new_lsp(src);
         // `greet` at line 1 is a command head (the call site).
         assert!(position_is_command_head(
             src,
@@ -21953,6 +22009,7 @@ mod tests {
                 character: 2
             },
             &analysis,
+            &index,
         ));
         // `arg` at line 1 is an argument word, not a command head, so
         // the cross-document fallback must not fire on it.
@@ -21963,6 +22020,7 @@ mod tests {
                 character: 7
             },
             &analysis,
+            &index,
         ));
     }
 

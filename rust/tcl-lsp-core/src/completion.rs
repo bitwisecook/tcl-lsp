@@ -391,8 +391,9 @@ fn context_aware_completions(
     // the ensemble operations of a scoped command (`top ` → `set`/`get`/`enable`
     // /…) complete at word index 1.  Checked before the registry lookup because
     // a scoped head (`top`) is not a registered command.
+    let line_index = tcl_lexer::LineIndex::new(source);
     if word_idx == 1
-        && let Some(env) = scoped_env_at(analysis, source, line, character)
+        && let Some(env) = scoped_env_at(analysis, source, line, character, &line_index)
         && let Some(scoped) = env.command(&cmd)
         && !scoped.subcommands.is_empty()
     {
@@ -515,6 +516,28 @@ fn context_aware_completions(
     None
 }
 
+/// [`completions`]'s `$var` / `${var}` trigger branch, split out so the
+/// parent function stays under the line-count lint. `None` when the cursor
+/// isn't on a variable trigger — the caller falls through to the rest of the
+/// completion pipeline.
+fn variable_trigger_completions(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<Vec<CompletionItem>> {
+    let (trigger, partial) = variable_trigger(source, line, character)?;
+    Some(variable_completions(
+        source,
+        line,
+        character,
+        &analysis.global_scope,
+        &partial,
+        trigger,
+        analysis.ns_var_global_fallback(),
+    ))
+}
+
 /// Compute completions for a position in `source`.
 ///
 /// `analysis` is the pre-computed analyser result; the caller
@@ -549,18 +572,12 @@ pub fn completions(
     workspace: Option<&crate::workspace_index::WorkspaceIndex>,
     dialect: &str,
 ) -> Vec<CompletionItem> {
-    if let Some((trigger, partial)) = variable_trigger(source, line, character) {
-        return variable_completions(
-            source,
-            line,
-            character,
-            &analysis.global_scope,
-            &partial,
-            trigger,
-            analysis.ns_var_global_fallback(),
-        );
+    if let Some(items) = variable_trigger_completions(source, line, character, analysis) {
+        return items;
     }
     let partial = word_partial_at_position(source, line, character);
+    // Shared by the position lookups below instead of each rebuilding its own.
+    let line_index = tcl_lexer::LineIndex::new(source);
 
     // Context-aware completions — switch + subcommand + event-name.
     // All three require the caller-provided registry to look up
@@ -589,7 +606,7 @@ pub fn completions(
     // The context test is registry-driven (`ArgRole::Expr`); see
     // `crate::expr_context`.
     if let Some(registry) = registry
-        && crate::expr_context::expr_arg_context_at(source, line, character, registry)
+        && crate::expr_context::expr_arg_context_at(source, line, character, &line_index, registry)
     {
         items.extend(math_function_completions(
             registry,
@@ -604,7 +621,7 @@ pub fn completions(
         // that, a plain `.tcl` script must not be offered `button`/`pack`/… .
         let tk_loaded =
             dialect == "tk" || analysis.package_requires.iter().any(|req| req.name == "Tk");
-        let oo_frame = oo_frame_at(analysis, source, line, character);
+        let oo_frame = oo_frame_at(analysis, source, line, character, &line_index);
         items.extend(builtin_completions(
             registry, dialect, &partial, &usage, tk_loaded, analysis, oo_frame,
         ));
@@ -613,7 +630,7 @@ pub fn completions(
     // offer its command heads (`top`, `data`, `columns`, …) alongside the
     // ordinary command/proc set — a style body uses both scoped and core
     // commands.  Deduped by label so a scoped name never doubles a core one.
-    if let Some(env) = scoped_env_at(analysis, source, line, character) {
+    if let Some(env) = scoped_env_at(analysis, source, line, character, &line_index) {
         let present: FxHashSet<String> = items.iter().map(|i| i.label.clone()).collect();
         for item in scoped_command_completions(env, &partial) {
             if !present.contains(&item.label) {
@@ -687,7 +704,15 @@ pub fn completions(
     // the fragment, so any fragment that matches something today keeps
     // today's response byte-for-byte.
     if items.is_empty() {
-        items = fuzzy_command_fallback(source, line, character, analysis, registry, dialect);
+        items = fuzzy_command_fallback(
+            source,
+            line,
+            character,
+            analysis,
+            registry,
+            dialect,
+            &line_index,
+        );
     }
     items
 }
@@ -1553,9 +1578,9 @@ fn scoped_env_at(
     source: &str,
     line: u32,
     character: u32,
+    line_index: &tcl_lexer::LineIndex,
 ) -> Option<&'static tcl_registry::scoped::ScopedCommandEnv> {
-    let line_index = tcl_lexer::LineIndex::new(source);
-    let offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let offset = crate::definition::byte_offset_at(line_index, source, line, character);
     analysis
         .scoped_command_regions
         .iter()
@@ -1736,9 +1761,9 @@ fn oo_frame_at(
     source: &str,
     line: u32,
     character: u32,
+    line_index: &tcl_lexer::LineIndex,
 ) -> crate::oo_dispatch::OoFrame {
-    let line_index = tcl_lexer::LineIndex::new(source);
-    let offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let offset = crate::definition::byte_offset_at(line_index, source, line, character);
     crate::oo_dispatch::OoFrame::at(analysis, offset)
 }
 
@@ -2036,6 +2061,7 @@ fn fuzzy_command_fallback(
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
     dialect: &str,
+    line_index: &tcl_lexer::LineIndex,
 ) -> Vec<CompletionItem> {
     let partial = word_partial_at_position(source, line, character);
     if partial.chars().count() < MIN_FUZZY_FRAGMENT_CHARS {
@@ -2067,12 +2093,12 @@ fn fuzzy_command_fallback(
     if let Some(registry) = registry {
         let tk_loaded =
             dialect == "tk" || analysis.package_requires.iter().any(|req| req.name == "Tk");
-        let oo_frame = oo_frame_at(analysis, source, line, character);
+        let oo_frame = oo_frame_at(analysis, source, line, character, line_index);
         universe.extend(builtin_completions(
             registry, dialect, "", &usage, tk_loaded, analysis, oo_frame,
         ));
     }
-    if let Some(env) = scoped_env_at(analysis, source, line, character) {
+    if let Some(env) = scoped_env_at(analysis, source, line, character, line_index) {
         let present: FxHashSet<String> = universe.iter().map(|i| i.label.clone()).collect();
         universe.extend(
             scoped_command_completions(env, "")

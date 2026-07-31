@@ -3501,6 +3501,40 @@ mod tests {
         assert_eq!(got, expected);
     }
 
+    /// Folding served through salsa is memoised: a repeat request for the
+    /// same revision must not re-execute the tracked query — the property
+    /// `Backend::db_folding_ranges` relies on to avoid a fresh
+    /// segmenter/registry walk on every `textDocument/foldingRange`.
+    #[test]
+    fn folding_ranges_memoised_across_repeat_queries() {
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let db = {
+            let sink = Arc::clone(&log);
+            TclDatabase::with_event_logger(move |key| sink.lock().unwrap().push(key))
+        };
+        let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
+        let drain = || std::mem::take(&mut *log.lock().unwrap());
+        let executions = |events: &[String]| {
+            events
+                .iter()
+                .filter(|key| key.contains("folding_ranges"))
+                .count()
+        };
+
+        let _ = folding_ranges(&db, file);
+        assert_eq!(
+            executions(&drain()),
+            1,
+            "cold: one execution for the first request"
+        );
+        let _ = folding_ranges(&db, file);
+        assert_eq!(
+            executions(&drain()),
+            0,
+            "warm: memoised, no re-execution for a repeat request at the same revision"
+        );
+    }
+
     #[test]
     fn editing_text_recomputes() {
         use salsa::Setter as _;
