@@ -32,7 +32,7 @@
 
 pub mod config_ini;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -275,6 +275,19 @@ const WORKSPACE_WARM_MAX_CONCURRENCY: usize = 16;
 /// restores several tabs) would otherwise each fire their own workspace-wide
 /// refresh; this collapses a burst into one fire per window.
 const SEMANTIC_TOKENS_REFRESH_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// How many **closed** files keep a server-side diagnostics badge record
+/// (`pull_diag_cache` + `closed_diag_gen`) before the least-recently-published
+/// one is evicted (#1144).
+///
+/// #865 keeps a closed workspace file's Problems badge, but the cache had no
+/// bound: browsing a large tree retained a full `Vec<Diagnostic>` for every file
+/// the editor ever opened, for the process's life.  Every entry is re-derivable
+/// from disk, so evicting the oldest costs nothing but a recompute on reopen.
+/// Sized well above a realistic "recently visited" working set (VS Code's own
+/// Problems view is the consumer) yet far below the thousands of files a
+/// workspace walk touches.
+const CLOSED_DIAG_BADGE_CAP: usize = 512;
 
 /// What "still the current state" means for a diagnostics run at publish time,
 /// and therefore what the currency guard re-checks under the `documents` lock
@@ -1118,9 +1131,18 @@ async fn compute_base_analysis(
         let (a_text, a_dialect, a_disabled) =
             (text.to_owned(), dialect.to_owned(), disabled.clone());
         let a_extra = extra_commands.clone();
+        // The path- and release-keyed inputs `file_analysis_incremental` reads
+        // off the salsa `SourceFile` / `AnalyserConfig` (pkgIndex.tcl and
+        // tclpkg.tcl scoping; the BIG-IP library-version axis).  This branch is
+        // the **closed-file** tier since #1144, not just a rare fallback, so a
+        // closed file's badge must not lose them.
+        let a_path = uri.to_file_path().map(|p| p.display().to_string());
+        let a_bigip = config.bigip_version(&*db.lock().await).clone();
         let analysis = tokio::task::spawn_blocking(move || {
             Arc::new(
                 Backend::configured_analyser(a_disabled, non_ascii_mode, a_extra)
+                    .with_file_path(a_path)
+                    .with_bigip_version(a_bigip)
                     .analyse(&a_text, &a_dialect)
                     .clone(),
             )
@@ -1326,6 +1348,30 @@ async fn compute_compiler_diags(
     }
 }
 
+/// Release the worker's claim on `uri`'s slot.
+///
+/// A slot whose `latest_inputs` were cleared belongs to a document that is no
+/// longer open ([`Backend::evict_diag_slot`] clears them on close), so the slot
+/// itself is dropped; an open document keeps its slot, with `running` cleared so
+/// the next edit starts a fresh worker.
+///
+/// Dropping the slot is what bounds closed-file state (#1144): every URI ever
+/// scheduled used to keep a [`DiagInputs`] — per-URI clones of the disabled /
+/// extra-command / severity-override / entry-point sets — for the process's
+/// life, so browsing a workspace grew `diag_slots` without limit.  Retaining it
+/// bought nothing: `did_open` re-resolves the inputs unconditionally
+/// (`reschedule_diagnostics`, #104), so a reopened document never reads them.
+fn retire_slot(slots: &mut HashMap<Uri, DiagSlot>, uri: &Uri) {
+    let Some(slot) = slots.get_mut(uri) else {
+        return;
+    };
+    if slot.latest_inputs.is_none() {
+        slots.remove(uri);
+    } else {
+        slot.running = false;
+    }
+}
+
 /// The debounced, detached diagnostics worker for one document.
 ///
 /// A free function rather than an inline `tokio::spawn` body so it can
@@ -1350,16 +1396,15 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
                     slot.dirty = false;
                     slot.latest_inputs.clone()
                 } else {
-                    slot.running = false;
+                    retire_slot(&mut guard, &uri);
                     return;
                 }
             };
-            // `latest_inputs` is set alongside `dirty`, so this is `Some`;
-            // guard defensively and retire if it is somehow absent.
+            // `latest_inputs` is set alongside `dirty`, so this is `Some` unless
+            // `Backend::evict_diag_slot` cleared it while we were draining;
+            // either way there is nothing to analyse, so retire.
             let Some(inputs) = inputs else {
-                if let Some(slot) = slots.lock().await.get_mut(&uri) {
-                    slot.running = false;
-                }
+                retire_slot(&mut *slots.lock().await, &uri);
                 return;
             };
             // A document that has never had cross-file evidence set gets it
@@ -1379,11 +1424,15 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
                 Arc::clone(&inputs.workspace_index),
             );
             // Capture + analyse the document's current state.  If it is gone
-            // (closed) there is nothing to publish — retire.
+            // (closed) there is nothing to publish — retire, unless a `did_open`
+            // re-armed the slot in the meantime, in which case keep draining
+            // rather than orphaning its dirty bit with no worker behind it.
             let Some(job) = inputs.capture_job(&uri).await else {
                 let mut guard = slots.lock().await;
-                if let Some(slot) = guard.get_mut(&uri) {
-                    slot.running = false;
+                match guard.get(&uri) {
+                    Some(slot) if slot.dirty => continue,
+                    Some(_) => retire_slot(&mut guard, &uri),
+                    None => {}
                 }
                 return;
             };
@@ -2445,6 +2494,11 @@ pub struct Backend {
     /// so overlapping close / watched-change refreshes cannot let an older run
     /// publish stale diagnostics over a newer one — see [`DiagInputs::closed_diag_gen`].
     closed_diag_gen: Arc<Mutex<HashMap<Uri, u64>>>,
+    /// Publish order of the **closed** files that currently hold a badge record,
+    /// oldest first — the recency list backing [`CLOSED_DIAG_BADGE_CAP`] (#1144).
+    /// Only [`Backend::record_closed_diag_badge`] touches it, so an open
+    /// document's cache entry is never queued and never evicted.
+    closed_diag_order: Arc<Mutex<VecDeque<Uri>>>,
     /// Whether the client advertised pull-diagnostic support
     /// (`textDocument.diagnostic` client capability) at `initialize`.
     ///
@@ -2959,6 +3013,7 @@ impl Backend {
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
             closed_diag_gen: Arc::new(Mutex::new(HashMap::new())),
+            closed_diag_order: Arc::new(Mutex::new(VecDeque::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
@@ -4169,10 +4224,24 @@ impl Backend {
             language_id: String::new(),
             currency: DiagCurrency::ClosedFromDisk(generation),
             version: None,
-            file: Some(file),
+            // #1144: deliberately **not** `Some(file)`.  Routing a closed file
+            // through the salsa queries would memoise its whole deep compiler
+            // tier — the `compilation_unit` IR/CFG/SSA build behind
+            // `file_analysis_incremental` / `compiler_check_diagnostics` — and
+            // salsa cannot evict it, so every file the editor ever opened kept
+            // ~12 MB of compiler memos for the process's life (a workspace
+            // browse OOM-killed the server).  This run happens *inline* on every
+            // close, so it, not the debounced open path, is what pinned a memo
+            // chain for files the user merely glanced at.  The uncached pipeline
+            // computes the same per-file diagnostics and drops everything it
+            // built, keeping the closed tier bounded; the file's `SourceFile`
+            // input stays in the `Project` so its *lightweight* decls/signature
+            // queries keep serving open documents' cross-file resolution.
+            file: None,
             config,
         };
         run_diagnostics_core(inputs, uri, job).await;
+        self.record_closed_diag_badge(uri).await;
     }
 
     /// Resolve the dialect for a **closed** on-disk file the way
@@ -4218,6 +4287,72 @@ impl Backend {
         // Drop the closed-run generation too, so the map does not accumulate an
         // entry for a URI that no longer carries a badge.
         self.closed_diag_gen.lock().await.remove(uri);
+        // …and its place in the closed-badge recency list, so a cleared URI does
+        // not count against [`CLOSED_DIAG_BADGE_CAP`] (#1144).
+        self.closed_diag_order
+            .lock()
+            .await
+            .retain(|queued| queued != uri);
+    }
+
+    /// Release `uri`'s diagnostics slot when its document closes (#1144).
+    ///
+    /// With no worker draining it the slot is dropped outright.  With one
+    /// in flight the slot must stay — it is the worker's own liveness record —
+    /// so only the heavy [`DiagInputs`] are released and the dirty bit cleared;
+    /// [`retire_slot`] then drops the slot as the worker retires (and a
+    /// `did_open` racing in front of that re-arms it before the worker looks,
+    /// so nothing is orphaned).
+    async fn evict_diag_slot(&self, uri: &Uri) {
+        let mut slots = self.diag_slots.lock().await;
+        let Some(slot) = slots.get_mut(uri) else {
+            return;
+        };
+        if slot.running {
+            slot.latest_inputs = None;
+            slot.dirty = false;
+        } else {
+            slots.remove(uri);
+        }
+    }
+
+    /// Record that `uri` now carries a **closed**-file badge and evict the
+    /// oldest closed badges beyond [`CLOSED_DIAG_BADGE_CAP`] (#1144).
+    ///
+    /// Open documents are never queued here, so they are never evicted.  An
+    /// evicted URI only loses the server's *record* of its badge — the client
+    /// keeps the diagnostics it was last sent, and reopening the file (or a
+    /// watched-file change) recomputes them from disk — so #865's retained
+    /// badge survives; what stops growing is the per-URI `Vec<Diagnostic>` the
+    /// server would otherwise hold for every file the user ever opened.
+    async fn record_closed_diag_badge(&self, uri: &Uri) {
+        let evicted: Vec<Uri> = {
+            let mut order = self.closed_diag_order.lock().await;
+            order.retain(|queued| queued != uri);
+            order.push_back(uri.clone());
+            let mut evicted = Vec::new();
+            while order.len() > CLOSED_DIAG_BADGE_CAP {
+                if let Some(oldest) = order.pop_front() {
+                    evicted.push(oldest);
+                }
+            }
+            evicted
+        };
+        if evicted.is_empty() {
+            return;
+        }
+        let docs = self.documents.lock().await;
+        let mut cache = self.pull_diag_cache.lock().await;
+        let mut gens = self.closed_diag_gen.lock().await;
+        for uri in &evicted {
+            if docs.contains_key(uri) {
+                continue;
+            }
+            cache.remove(uri);
+            // Same lifetime as the cache entry — the generation only orders
+            // runs for a URI the server is still tracking.
+            gens.remove(uri);
+        }
     }
 
     /// Refresh the diagnostics of every **closed** file that currently carries a
@@ -9681,6 +9816,12 @@ impl LanguageServer for Backend {
                 .remove_document(uri.as_str());
             drop(docs);
         }
+        // Release the per-URI diagnostics slot (#1144).  The slot used to be
+        // kept deliberately, but the reason no longer holds: `did_open` re-
+        // resolves the inputs unconditionally (`reschedule_diagnostics`, #104),
+        // so a reopened document never reads the retained ones — while every
+        // browsed-and-closed file left its `DiagInputs` behind for good.
+        self.evict_diag_slot(uri).await;
         // Drop the cached semantic-token baseline so a reopened document starts
         // from a fresh `full` rather than diffing against a stale stream.
         self.last_semantic_tokens.lock().await.remove(uri);
@@ -18036,8 +18177,16 @@ mod tests {
     /// `LspService::new` and copy the wrapped `Client` into a
     /// fresh `Backend` with reset state.
     fn test_backend() -> Backend {
+        test_backend_over(tcl_lsp_db::TclDatabase::default())
+    }
+
+    /// [`test_backend`] over a caller-supplied query database, so a test can
+    /// supply one with an event logger attached and observe which salsa queries
+    /// a handler actually executes.  The `AnalyserConfig` input must be created
+    /// against the same database, which is why it cannot simply be swapped in
+    /// after the fact.
+    fn test_backend_over(db: tcl_lsp_db::TclDatabase) -> Backend {
         let (service, _socket) = tower_lsp_server::LspService::new(Backend::new);
-        let db = tcl_lsp_db::TclDatabase::default();
         let db_config = tcl_lsp_db::AnalyserConfig::new(
             &db,
             default_disabled_set().into_iter().collect(),
@@ -18082,6 +18231,7 @@ mod tests {
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
             closed_diag_gen: Arc::new(Mutex::new(HashMap::new())),
+            closed_diag_order: Arc::new(Mutex::new(VecDeque::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
@@ -18242,21 +18392,204 @@ mod tests {
         );
     }
 
+    /// #1144: `diag_slots` must shrink when a document closes.  Every URI ever
+    /// scheduled used to keep its slot — and with it a [`DiagInputs`] holding
+    /// per-URI clones of the disabled / extra-command / severity-override /
+    /// entry-point sets — for the process's life, so browsing a workspace grew
+    /// the map without bound.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn did_close_drops_the_diagnostics_slot() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///slot-drop.tcl").unwrap();
+        backend
+            .did_open(DidOpenTextDocumentParams {
+                text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "tcl".to_owned(),
+                    version: 1,
+                    text: "proc foo {} { set y 1 }\n".to_owned(),
+                },
+            })
+            .await;
+        assert!(
+            backend.diag_slots.lock().await.contains_key(&uri),
+            "sanity: opening a document schedules it, creating the slot",
+        );
+
+        backend
+            .did_close(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+            })
+            .await;
+
+        // The close releases the inputs immediately; the slot itself goes with
+        // them once the debounced worker that was draining the open buffer
+        // retires (`retire_slot`), so poll rather than assume an instant drop.
+        assert!(
+            wait_for(|| async { !backend.diag_slots.lock().await.contains_key(&uri) }).await,
+            "a closed document must not keep its diagnostics slot (#1144)",
+        );
+    }
+
+    /// #1144: the closed-file badge cache is bounded.  #865 keeps a closed
+    /// file's diagnostics, but every entry used to live for the process's life,
+    /// so browsing a large tree retained a `Vec<Diagnostic>` per file ever
+    /// opened.  Past [`CLOSED_DIAG_BADGE_CAP`] the least-recently-published
+    /// closed entry is evicted from both `pull_diag_cache` and `closed_diag_gen`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn closed_diag_badge_cache_is_capped() {
+        let backend = test_backend();
+        let uri_at = |i: usize| Uri::from_str(&format!("file:///browse/f{i}.tcl")).unwrap();
+        let total = CLOSED_DIAG_BADGE_CAP + 64;
+        for i in 0..total {
+            let uri = uri_at(i);
+            backend.pull_diag_cache.lock().await.insert(
+                uri.clone(),
+                PullDiagEntry {
+                    result_id: next_pull_diag_result_id(),
+                    revision: 0,
+                    diagnostics: Vec::new(),
+                },
+            );
+            backend.closed_diag_gen.lock().await.insert(uri.clone(), 1);
+            backend.record_closed_diag_badge(&uri).await;
+        }
+
+        let cache = backend.pull_diag_cache.lock().await;
+        assert_eq!(
+            cache.len(),
+            CLOSED_DIAG_BADGE_CAP,
+            "the closed-file badge cache must stop at the cap",
+        );
+        let gens = backend.closed_diag_gen.lock().await;
+        assert_eq!(
+            gens.len(),
+            CLOSED_DIAG_BADGE_CAP,
+            "the closed-run generations share the cache entry's lifetime",
+        );
+        // The oldest badge is gone; the newest is kept (least-recently-published
+        // eviction, not arbitrary).
+        assert!(!cache.contains_key(&uri_at(0)), "oldest badge evicted");
+        assert!(!gens.contains_key(&uri_at(0)), "oldest generation evicted");
+        assert!(cache.contains_key(&uri_at(total - 1)), "newest badge kept");
+    }
+
+    /// #1144: the inline closed-file republish must not memoise the deep
+    /// compiler tier.  `did_close` runs `run_diagnostics_core` synchronously for
+    /// every file the editor ever opened; routing that through the salsa
+    /// `SourceFile` pinned the file's `compilation_unit` (IR/CFG/SSA) and
+    /// `compiler_check_diagnostics` memos, which salsa cannot evict — the
+    /// unbounded term that OOM-killed the server on a workspace browse.  The
+    /// badge itself (#865) is unchanged: the same diagnostics, computed
+    /// uncached and thrown away.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn closed_file_republish_does_not_memoise_the_deep_compiler_tier() {
+        let root = unique_scratch_dir("close-no-deep-memo");
+        let on_disk = root.join("warn.tcl");
+        let src = "proc foo {} { set y 1 }\n";
+        std::fs::write(&on_disk, src).unwrap();
+        let executed: Arc<std::sync::Mutex<Vec<String>>> = Arc::default();
+        let sink = Arc::clone(&executed);
+        let backend = test_backend_over(tcl_lsp_db::TclDatabase::with_event_logger(move |key| {
+            sink.lock().unwrap().push(key);
+        }));
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        register(&backend, &uri, src).await;
+        backend
+            .db_set_source(&uri, src.to_owned(), "tcl8.6".to_owned())
+            .await;
+
+        backend
+            .did_close(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+            })
+            .await;
+
+        // The lightweight signature/decl queries a closed file still answers for
+        // open documents' cross-file resolution are fine; the deep tier is not.
+        let deep: Vec<String> = executed
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|key| {
+                [
+                    "compilation_unit",
+                    "compiler_check_diagnostics",
+                    "file_analysis_incremental",
+                ]
+                .iter()
+                .any(|query| key.contains(query))
+            })
+            .cloned()
+            .collect();
+        assert!(
+            deep.is_empty(),
+            "a closed file's republish must not build memoised deep-tier queries: {deep:?}",
+        );
+        // …and it still produces the badge #865 promises.
+        let cache = backend.pull_diag_cache.lock().await;
+        let entry = cache.get(&uri).expect("closed on-disk file keeps a badge");
+        assert!(
+            entry.diagnostics.iter().any(|d| matches!(
+                &d.code,
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W211"
+            )),
+            "the uncached closed tier must still carry the file's W211: {:?}",
+            entry.diagnostics,
+        );
+        drop(cache);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// #1144: an **open** document is exempt from the closed-badge cap — its
+    /// cache entry is owned by the open pipeline and must survive an eviction
+    /// sweep that happens to reach its URI.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn closed_diag_badge_cap_spares_reopened_documents() {
+        let backend = test_backend();
+        let reopened = Uri::from_str("file:///browse/reopened.tcl").unwrap();
+        backend.pull_diag_cache.lock().await.insert(
+            reopened.clone(),
+            PullDiagEntry {
+                result_id: next_pull_diag_result_id(),
+                revision: 0,
+                diagnostics: Vec::new(),
+            },
+        );
+        // Queued while closed, then reopened before the cap pushed it out.
+        backend.record_closed_diag_badge(&reopened).await;
+        backend.documents.lock().await.insert(
+            reopened.clone(),
+            DocumentState::new("set x 1\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        for i in 0..CLOSED_DIAG_BADGE_CAP {
+            let uri = Uri::from_str(&format!("file:///browse/g{i}.tcl")).unwrap();
+            backend.record_closed_diag_badge(&uri).await;
+        }
+
+        assert!(
+            backend.pull_diag_cache.lock().await.contains_key(&reopened),
+            "an open document's cache entry must survive the closed-badge sweep",
+        );
+    }
+
     /// #104 regression: reopening a document after the diagnostics master
     /// switch (`tclLsp.features.diagnostics`) was turned off *while the file
     /// was closed* must analyse under the current (off) switch and clear the
     /// squiggles — not republish the file's pre-toggle diagnostics.
     ///
-    /// Root cause: `did_close` retains the URI's [`DiagSlot`] (only the live
-    /// document and index entry are dropped), so `slot.latest_inputs` keeps the
-    /// `diagnostics_enabled = true` captured on the pre-close analysis. `did_open`
-    /// used to take the reuse-cached-inputs fast path (`schedule_diagnostics`,
-    /// `force_refresh = false`), so the reopen's worker drained under those stale
-    /// on-switch inputs and republished the diagnostics even though the master
-    /// switch was now off (the `test-ext` `#104` flake, which only lined up under
-    /// full-suite load). Opening a document is a config-context boundary, so it
-    /// now force-refreshes the inputs; the slot's post-reopen
-    /// `diagnostics_enabled` reflecting the *current* toggle proves it.
+    /// Root cause: `did_close` used to retain the URI's [`DiagSlot`] (only the
+    /// live document and index entry were dropped), so `slot.latest_inputs` kept
+    /// the `diagnostics_enabled = true` captured on the pre-close analysis.
+    /// `did_open` used to take the reuse-cached-inputs fast path
+    /// (`schedule_diagnostics`, `force_refresh = false`), so the reopen's worker
+    /// drained under those stale on-switch inputs and republished the diagnostics
+    /// even though the master switch was now off (the `test-ext` `#104` flake,
+    /// which only lined up under full-suite load). Opening a document is a
+    /// config-context boundary, so it now force-refreshes the inputs; the slot's
+    /// post-reopen `diagnostics_enabled` reflecting the *current* toggle proves
+    /// it.  (#1144 additionally releases the slot on close, so the stale inputs
+    /// are gone by then too — belt and braces for the same bug.)
     ///
     /// Asserted on the slot's captured inputs (set synchronously by
     /// `schedule_diagnostics_impl` before the worker spawns) rather than a
@@ -18292,9 +18625,9 @@ mod tests {
             "sanity: the initial open captures the master switch as on",
         );
 
-        // 2. Close the tab — the DiagSlot (with its now-stale inputs) is
-        //    retained, so the file keeps a badge (#865). The switch is still on
-        //    at close time, so the retained inputs are `true`.
+        // 2. Close the tab. The slot's captured inputs are released (#1144) —
+        //    either with the slot itself or, if its worker is still draining,
+        //    as a cleared `latest_inputs`. Nothing stale survives to be reused.
         backend
             .did_close(DidCloseTextDocumentParams {
                 text_document: TextDocumentIdentifier { uri: uri.clone() },
@@ -18302,13 +18635,13 @@ mod tests {
             .await;
         assert_eq!(
             captured_switch().await,
-            Some(true),
-            "did_close retains the DiagSlot with its (now-stale) on-switch inputs",
+            None,
+            "did_close must release the slot's captured inputs (#1144)",
         );
 
         // 3. Turn the diagnostics master switch off while the file is closed —
-        //    the toggle store changes, but nothing re-resolves the closed URI's
-        //    retained slot inputs.
+        //    the toggle store changes, and the closed URI holds no resolved
+        //    inputs to go stale.
         backend.feature_toggles.lock().await.apply(
             serde_json::json!({ "diagnostics": false })
                 .as_object()
@@ -20392,6 +20725,23 @@ mod tests {
         assert!(is_skipped_scan_dir(Path::new("/a/tmp")));
         assert!(!is_skipped_scan_dir(Path::new("/a/src")));
         assert!(!is_skipped_scan_dir(Path::new("/a/irules")));
+    }
+
+    /// Poll `cond` until it holds or ~2s elapse, reporting whether it held.
+    /// For assertions on state a detached background task settles (a debounced
+    /// diagnostics worker retiring, say) rather than the awaited call itself.
+    async fn wait_for<F, Fut>(mut cond: F) -> bool
+    where
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = bool>,
+    {
+        for _ in 0..200 {
+            if cond().await {
+                return true;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        false
     }
 
     /// Build a unique scratch directory under the system temp dir
