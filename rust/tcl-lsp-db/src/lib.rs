@@ -356,8 +356,31 @@ fn component_root(parent: &mut [usize], mut i: usize) -> usize {
     i
 }
 
-/// The procedures an *unenumerable* dispatch in `file` may reach — every proc
-/// declared by a file in the same `source`-connected component.
+/// The `source`-connected components of a project, each carrying the merged
+/// declarations of its members — the per-project half of
+/// [`file_dispatch_reach`].
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct DispatchComponents {
+    /// Component number of each project file, positionally aligned with
+    /// [`Project::files`].
+    component_of: Vec<usize>,
+    /// Per component, every procedure its member files declare.  Shared by
+    /// `Arc` with each member's [`file_dispatch_reach`], so a component is
+    /// merged once and stored once however many files belong to it.
+    procs: Vec<Arc<BTreeSet<String>>>,
+}
+
+impl DispatchComponents {
+    /// The procedures the file at `index` in [`Project::files`] may reach
+    /// through an unenumerable dispatch; `None` when `index` is past the file
+    /// set this was computed for.
+    #[must_use]
+    pub fn reach(&self, index: usize) -> Option<&Arc<BTreeSet<String>>> {
+        self.procs.get(*self.component_of.get(index)?)
+    }
+}
+
+/// Decompose the project into `source`-connected components once per revision.
 ///
 /// `set cmd [gets stdin]; $cmd dev` names a command this analysis cannot
 /// determine, so it is a caller of *something*. Which something is bounded by
@@ -375,15 +398,19 @@ fn component_root(parent: &mut [usize], mut i: usize) -> usize {
 /// library's unreadable dispatch silently fails to retract its sourcing file's
 /// seeds — the hole this replaces.
 ///
+/// **Why this is a project query rather than per-file work** (issue #1148): the
+/// union-find is over the whole `source` graph and the merge visits every
+/// component member's [`file_decls`], so computing it inside
+/// [`file_dispatch_reach`] cost `O(N)` *per file* — `O(N²)` `String` clones and
+/// path-map inserts across a project, which a signature edit re-paid in full
+/// because it invalidates every file's reach at once. Hoisted here it is paid
+/// once, and each file's reach becomes an `Arc` clone.
+///
 /// Depends only on signature-level facts ([`file_link_targets`],
 /// [`file_decls`]), so it sits behind the same firewall as the rest of the
 /// cross-file layer.
 #[salsa::tracked]
-pub fn file_dispatch_reach(
-    db: &dyn TclDb,
-    file: SourceFile,
-    project: Project,
-) -> Arc<BTreeSet<String>> {
+pub fn project_dispatch_components(db: &dyn TclDb, project: Project) -> Arc<DispatchComponents> {
     let files = project.files(db);
     // Index files by path so `source` targets can be matched to project files.
     let mut by_path: HashMap<&str, usize> = HashMap::new();
@@ -408,17 +435,49 @@ pub fn file_dispatch_reach(
             }
         }
     }
-    let Some(me) = files.iter().position(|f| *f == file) else {
+    // Number the roots densely, then merge each component's declarations once.
+    let mut number: HashMap<usize, usize> = HashMap::new();
+    let mut component_of: Vec<usize> = Vec::with_capacity(files.len());
+    for i in 0..files.len() {
+        let root = component_root(&mut parent, i);
+        let next = number.len();
+        component_of.push(*number.entry(root).or_insert(next));
+    }
+    let mut merged: Vec<BTreeSet<String>> = vec![BTreeSet::new(); number.len()];
+    for (i, f) in files.iter().enumerate() {
+        merged[component_of[i]].extend(file_decls(db, *f).procs.iter().cloned());
+    }
+    Arc::new(DispatchComponents {
+        component_of,
+        procs: merged.into_iter().map(Arc::new).collect(),
+    })
+}
+
+/// The procedures an *unenumerable* dispatch in `file` may reach — every proc
+/// declared by a file in the same `source`-connected component.
+///
+/// An index into [`project_dispatch_components`], which does the work; see
+/// there for what the component bound means and why it is not computed here.
+/// A file the project does not contain reaches only its own declarations.
+///
+/// Kept as its own query so the result still early-cutoffs per file: a decl
+/// change in one component recomputes the project decomposition, but every
+/// file outside that component gets back an equal set and backdates, leaving
+/// [`file_call_site_evidence`] untouched.
+#[salsa::tracked]
+pub fn file_dispatch_reach(
+    db: &dyn TclDb,
+    file: SourceFile,
+    project: Project,
+) -> Arc<BTreeSet<String>> {
+    let Some(me) = project.files(db).iter().position(|f| *f == file) else {
         return Arc::new(file_decls(db, file).procs.clone());
     };
-    let mine = component_root(&mut parent, me);
-    let mut reach: BTreeSet<String> = BTreeSet::new();
-    for (i, f) in files.iter().enumerate() {
-        if component_root(&mut parent, i) == mine {
-            reach.extend(file_decls(db, *f).procs.iter().cloned());
-        }
+    let components = project_dispatch_components(db, project);
+    match components.reach(me) {
+        Some(reach) => Arc::clone(reach),
+        None => Arc::new(file_decls(db, file).procs.clone()),
     }
-    Arc::new(reach)
 }
 
 /// Every call site **this** file contributes, resolved against the whole
@@ -3114,6 +3173,132 @@ mod tests {
                 .to("source lib.tcl\nset unrelated 1\nhelper dev\n".to_owned());
             let after = file_external_call_sites(&db, lib, project);
             assert_eq!(*before, *after, "an unrelated edit must not move evidence");
+        }
+
+        /// The component bound itself: both ends of a `source` edge see the
+        /// same merged set — and see the *same* `Arc`, so a component is
+        /// stored once however many files belong to it.  An unlinked file
+        /// shares no interpreter, so it reaches only its own declarations.
+        #[test]
+        fn dispatch_reach_is_the_shared_source_component_merge() {
+            let db = TclDatabase::default();
+            let a = SourceFile::new(
+                &db,
+                "source b.tcl\nproc a {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                Some("/w/a.tcl".to_owned()),
+            );
+            let b = SourceFile::new(
+                &db,
+                "proc b {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                Some("/w/b.tcl".to_owned()),
+            );
+            let unlinked = SourceFile::new(
+                &db,
+                "proc c {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                Some("/w/c.tcl".to_owned()),
+            );
+            let project = Project::new(&db, vec![a, b, unlinked]);
+            let reach_a = file_dispatch_reach(&db, a, project);
+            let reach_b = file_dispatch_reach(&db, b, project);
+            let reach_c = file_dispatch_reach(&db, unlinked, project);
+            assert_eq!(
+                reach_a.iter().map(String::as_str).collect::<Vec<_>>(),
+                vec!["::a", "::b"],
+                "the sourcing file reaches its own and the sourced file's procs"
+            );
+            assert!(
+                Arc::ptr_eq(&reach_a, &reach_b),
+                "component members share one merged set: {reach_b:?}"
+            );
+            assert_eq!(
+                reach_c.iter().map(String::as_str).collect::<Vec<_>>(),
+                vec!["::c"],
+                "an unlinked file shares no interpreter"
+            );
+        }
+
+        /// Issue #1148: the `source`-graph decomposition is *project* work, not
+        /// per-file work.  Demanding every file's reach must execute
+        /// [`project_dispatch_components`] exactly **once** — the property that
+        /// turns the old union-find-and-merge-per-file into `O(N)` — and a decl
+        /// change must recompute it once for the project rather than once per
+        /// file.  A body edit backdates its inputs and recomputes nothing.
+        #[test]
+        fn dispatch_components_are_computed_once_per_project_revision() {
+            use salsa::Setter as _;
+            const FILES: usize = 6;
+            let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+            let mut db = {
+                let sink = Arc::clone(&log);
+                TclDatabase::with_event_logger(move |key| sink.lock().unwrap().push(key))
+            };
+            // A single `source` chain, so every file lands in one component —
+            // the shape whose merge the old query re-paid per file.
+            let body = |i: usize| {
+                if i + 1 < FILES {
+                    format!("source f{}.tcl\nproc p{i} {{}} {{ set r 1 }}\n", i + 1)
+                } else {
+                    format!("proc p{i} {{}} {{ set r 1 }}\n")
+                }
+            };
+            let files: Vec<SourceFile> = (0..FILES)
+                .map(|i| {
+                    SourceFile::new(
+                        &db,
+                        body(i),
+                        "tcl8.6".to_owned(),
+                        Some(format!("/w/f{i}.tcl")),
+                    )
+                })
+                .collect();
+            let project = Project::new(&db, files.clone());
+            let drain = || std::mem::take(&mut *log.lock().unwrap());
+            let decompositions = |events: &[String]| {
+                events
+                    .iter()
+                    .filter(|key| key.contains("project_dispatch_components"))
+                    .count()
+            };
+
+            for &file in &files {
+                let _ = file_dispatch_reach(&db, file, project);
+            }
+            assert_eq!(
+                decompositions(&drain()),
+                1,
+                "cold: one decomposition serves every file's reach"
+            );
+
+            files[3]
+                .set_text(&mut db)
+                .to("source f4.tcl\nproc p3 {} { set r 999 }\n".to_owned());
+            for &file in &files {
+                let _ = file_dispatch_reach(&db, file, project);
+            }
+            assert_eq!(
+                decompositions(&drain()),
+                0,
+                "a body edit leaves file_decls / file_link_targets equal"
+            );
+
+            files[3]
+                .set_text(&mut db)
+                .to("source f4.tcl\nproc p3 {} { set r 999 }\nproc extra {} {}\n".to_owned());
+            for &file in &files {
+                let _ = file_dispatch_reach(&db, file, project);
+            }
+            assert_eq!(
+                decompositions(&drain()),
+                1,
+                "a decl change recomputes the decomposition once, not once per file"
+            );
+            assert!(
+                file_dispatch_reach(&db, files[0], project).contains("::extra"),
+                "the new proc joins every component member's reach"
+            );
         }
     }
 

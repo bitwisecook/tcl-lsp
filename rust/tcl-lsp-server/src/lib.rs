@@ -1486,12 +1486,7 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
             // semantic-token enrichment tier on a large document).
             // Handles for the post-publish evidence refresh below
             // (`run_diagnostics_core` consumes `inputs`).
-            let evidence_handles = (
-                Arc::clone(&inputs.db),
-                Arc::clone(&inputs.db_files),
-                Arc::clone(&inputs.db_project),
-                Arc::clone(&inputs.workspace_index),
-            );
+            let evidence_handles = EvidenceHandles::from_inputs(&inputs);
             // Capture + analyse the document's current state.  If it is gone
             // (closed) there is nothing to publish — retire, unless a `did_open`
             // re-armed the slot in the meantime, in which case keep draining
@@ -1527,34 +1522,42 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
             // publish-then-enrich shape the semantic-token tiers use. Salsa
             // memoisation makes the second pass cheap apart from what the
             // evidence genuinely invalidated.
-            let (db, db_files, db_project, workspace_index) = evidence_handles;
-            let changed =
-                sync_cross_file_evidence(&db, &db_files, &db_project, &workspace_index).await;
-            // Re-analyse *this* document only when the refresh gave it evidence
-            // that can actually change its result: a non-empty table means some
-            // other file calls into it, which is what retracts a fold. Going
-            // from "no view" to an *empty* view leaves the merged evidence
-            // identical, so re-running would publish a byte-identical second
-            // result — and one publish per version is a contract
-            // (`diagnostics_delivery_smoke`, and the duplicate-diagnostics KCS
-            // note). Residual: an empty view also lifts a `LOADS_EXTERNAL_UNIT`
-            // decline, which can *add* a fold; not republishing leaves that as
-            // a missing hint until the next edit, the safe direction.
-            if changed.contains(&uri)
-                && has_external_callers(&db, &db_files, &uri).await
-                && let Some(slot) = slots.lock().await.get_mut(&uri)
-            {
-                slot.dirty = true;
-            }
-            // Republish every peer the refresh invalidated. Only documents
-            // that already have resolved inputs are eligible: a file nobody
-            // has analysed has no published diagnostics to go stale, and its
-            // inputs cannot be resolved from here anyway. This converges — the
-            // peer's own run re-syncs, finds nothing changed
-            // (compare-then-set), and reschedules nobody.
-            reschedule_peers(&slots, &uri, changed).await;
+            refresh_cross_file_evidence(&evidence_handles, &slots, &uri).await;
         }
     });
+}
+
+/// Refresh the project's cross-file call-site evidence after a worker pass
+/// published, then reschedule whatever the refresh invalidated.
+async fn refresh_cross_file_evidence(
+    handles: &EvidenceHandles,
+    slots: &Arc<Mutex<HashMap<Uri, DiagSlot>>>,
+    uri: &Uri,
+) {
+    let changed = sync_cross_file_evidence(handles).await;
+    // Re-analyse *this* document only when the refresh gave it evidence
+    // that can actually change its result: a non-empty table means some
+    // other file calls into it, which is what retracts a fold. Going
+    // from "no view" to an *empty* view leaves the merged evidence
+    // identical, so re-running would publish a byte-identical second
+    // result — and one publish per version is a contract
+    // (`diagnostics_delivery_smoke`, and the duplicate-diagnostics KCS
+    // note). Residual: an empty view also lifts a `LOADS_EXTERNAL_UNIT`
+    // decline, which can *add* a fold; not republishing leaves that as
+    // a missing hint until the next edit, the safe direction.
+    if changed.contains(uri)
+        && has_external_callers(&handles.db, &handles.db_files, uri).await
+        && let Some(slot) = slots.lock().await.get_mut(uri)
+    {
+        slot.dirty = true;
+    }
+    // Republish every peer the refresh invalidated. Only documents
+    // that already have resolved inputs are eligible: a file nobody
+    // has analysed has no published diagnostics to go stale, and its
+    // inputs cannot be resolved from here anyway. This converges — the
+    // peer's own run re-syncs, finds nothing changed
+    // (compare-then-set), and reschedules nobody.
+    reschedule_peers(slots, uri, changed).await;
 }
 
 /// Mark each peer dirty and start its worker if one is not already draining
@@ -1609,6 +1612,26 @@ async fn has_external_callers(
     })
 }
 
+/// The handles [`sync_cross_file_evidence`] needs, cloned off a [`DiagInputs`]
+/// before [`run_diagnostics_core`] consumes it.
+struct EvidenceHandles {
+    db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
+    db_files: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
+    db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
+    workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+}
+
+impl EvidenceHandles {
+    fn from_inputs(inputs: &DiagInputs) -> Self {
+        Self {
+            db: Arc::clone(&inputs.db),
+            db_files: Arc::clone(&inputs.db_files),
+            db_project: Arc::clone(&inputs.db_project),
+            workspace_index: Arc::clone(&inputs.workspace_index),
+        }
+    }
+}
+
 /// Refresh every project file's [`tcl_lsp_db::SourceFile::external_call_sites`]
 /// — the call sites in *other* files that reach the procedures it declares
 /// (issue #977) — and report the URIs whose evidence actually moved.
@@ -1630,57 +1653,116 @@ async fn has_external_callers(
 ///
 /// Salsa cancellation is caught and reported as "nothing changed": the edit
 /// that cancelled this pass drives its own refresh.
-async fn sync_cross_file_evidence(
-    db: &Mutex<tcl_lsp_db::TclDatabase>,
-    db_files: &Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>,
-    db_project: &Mutex<Option<tcl_lsp_db::Project>>,
-    workspace_index: &RwLock<core_workspace_index::WorkspaceIndex>,
-) -> Vec<Uri> {
+///
+/// **The project-wide read runs on a cloned salsa snapshot inside
+/// `spawn_blocking`** (issue #1148), so the `db` mutex — which every feature
+/// read path and every `db_set_source` contends on — is held only long enough
+/// to clone the handle, and again for the short write section at the end. Held
+/// across the read, as it used to be, one worker pass over a large workspace
+/// stalled hover, completion and the next keystroke's `set_text` for the whole
+/// scan. The snapshot shares salsa's memo storage with the live database, so
+/// the writes below still see everything the read computed.
+///
+/// **Not gated on `crossFileResolution`**, despite feeding a cross-file fact.
+/// That toggle gates `project_diagnostics` — cross-file W120/W123 suppression
+/// and cross-file arity. What this writes is consumed by
+/// `document_compilation_unit`'s interprocedural seed, which is *soundness*,
+/// not an opt-in refinement: without the project's call sites a library file
+/// folds on its own callers' literals and reports an I230 the workspace
+/// contradicts (issue #977). Skipping the pass when the toggle is off
+/// reinstates exactly that unsound fold —
+/// `caller_in_a_sourcing_file_with_a_differing_literal_clears_i230` in the e2e
+/// suite runs with `crossFileResolution` at its default (off) and fails
+/// immediately if this is gated on it.
+async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
     use salsa::Setter as _;
     // Which files the host can honestly claim a closed world for, resolved
     // before taking the db locks (the index has its own).
-    let covered = files_with_covered_load_targets(db_files, workspace_index).await;
-    let mut db = db.lock().await;
-    let files = db_files.lock().await;
-    let project = db_project.lock().await;
-    let Some(&project) = project.as_ref() else {
-        return Vec::new();
+    let covered =
+        files_with_covered_load_targets(&handles.db_files, &handles.workspace_index).await;
+    let (snapshot, files, project) = {
+        let db = handles.db.lock().await;
+        let db_files = handles.db_files.lock().await;
+        let db_project = handles.db_project.lock().await;
+        let Some(&project) = db_project.as_ref() else {
+            return Vec::new();
+        };
+        let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
+            db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
+        (db.clone(), files, project)
     };
-    let snapshot: Vec<(Uri, tcl_lsp_db::SourceFile)> =
-        files.iter().map(|(u, &f)| (u.clone(), f)).collect();
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
     // cancellation unwind discards the whole `pending` list without applying
     // anything, so no torn state can be observed afterwards.
-    let pending = salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
-        snapshot
-            .iter()
-            .filter_map(|(uri, file)| {
-                // A file whose `source` target the host never indexed has a
-                // caller the project cannot enumerate, so it gets **no**
-                // evidence: `None` keeps its `LOADS_EXTERNAL_UNIT` boundary
-                // closed rather than letting `Some(empty)` assert a closed
-                // world the scan cannot back (issue #977).
-                let want = covered
-                    .contains(uri)
-                    .then(|| tcl_lsp_db::file_external_call_sites(&*db, *file, project));
-                let unchanged = match (&want, file.external_call_sites(&*db)) {
-                    (Some(want), Some(have)) => **have == **want,
-                    (None, None) => true,
-                    _ => false,
-                };
-                (!unchanged).then(|| (uri.clone(), *file, want))
-            })
-            .collect::<Vec<_>>()
-    }));
-    let Ok(pending) = pending else {
+    let pending = tokio::task::spawn_blocking(move || {
+        salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
+            files
+                .into_iter()
+                .filter_map(|(uri, file)| {
+                    let want = wanted_call_site_evidence(&snapshot, &uri, file, project, &covered);
+                    let have = file.external_call_sites(&snapshot).as_ref();
+                    (!call_site_evidence_matches(have, want.as_ref())).then_some((uri, file, want))
+                })
+                .collect::<Vec<_>>()
+        }))
+        .ok()
+    })
+    .await;
+    let Ok(Some(pending)) = pending else {
         return Vec::new();
     };
+    // Short write section. The read ran off-lock, so re-run the comparison
+    // against the live database before writing: a concurrent worker's sync may
+    // already have applied the same value, and re-checking keeps the
+    // compare-then-set contract (an input that does not move invalidates
+    // nothing) rather than trusting a snapshot's view of it.
+    let mut db = handles.db.lock().await;
     let mut changed = Vec::with_capacity(pending.len());
     for (uri, file, want) in pending {
+        if call_site_evidence_matches(file.external_call_sites(&*db).as_ref(), want.as_ref()) {
+            continue;
+        }
         file.set_external_call_sites(&mut *db).to(want);
         changed.push(uri);
     }
     changed
+}
+
+/// The evidence `uri` should be carrying, or `None` when the host cannot claim
+/// a closed world over its callers.
+///
+/// A file whose `source` target the host never indexed has a caller the project
+/// cannot enumerate, so it gets **no** evidence: `None` keeps its
+/// `LOADS_EXTERNAL_UNIT` boundary closed rather than letting `Some(empty)`
+/// assert a closed world the scan cannot back (issue #977).
+fn wanted_call_site_evidence(
+    db: &tcl_lsp_db::TclDatabase,
+    uri: &Uri,
+    file: tcl_lsp_db::SourceFile,
+    project: tcl_lsp_db::Project,
+    covered: &HashSet<Uri>,
+) -> Option<Arc<tcl_compiler::unit_scope::CallSiteEvidence>> {
+    covered
+        .contains(uri)
+        .then(|| tcl_lsp_db::file_external_call_sites(db, file, project))
+}
+
+/// Whether a file's stored cross-file evidence already equals what the project
+/// says it should be — the compare half of the compare-then-set.
+///
+/// The pointer check is the steady-state fast path: `file_external_call_sites`
+/// hands back the *same* memoised `Arc` the previous sync stored whenever the
+/// query did not re-execute, so an unchanged project settles in one comparison
+/// per file instead of a deep set comparison per file (issue #1148).
+fn call_site_evidence_matches(
+    have: Option<&Arc<tcl_compiler::unit_scope::CallSiteEvidence>>,
+    want: Option<&Arc<tcl_compiler::unit_scope::CallSiteEvidence>>,
+) -> bool {
+    match (have, want) {
+        (Some(have), Some(want)) => Arc::ptr_eq(have, want) || **have == **want,
+        (None, None) => true,
+        _ => false,
+    }
 }
 
 /// The project files whose unit-loading boundaries the host can actually
@@ -19478,6 +19560,60 @@ mod tests {
                 "the project file set must hold exactly the one live input",
             );
         }
+    }
+
+    /// #1148: the project-wide evidence read now runs on a cloned salsa
+    /// snapshot off the `db` mutex, so the write section has to re-check
+    /// currency against the live database rather than trusting the snapshot's
+    /// view.  A second pass over an unchanged project must therefore write
+    /// nothing — no input moves, nothing downstream is invalidated, and no peer
+    /// is rescheduled — which is also what stops the worker/peer loop from
+    /// running forever.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cross_file_evidence_sync_settles_after_one_pass() {
+        let backend = test_backend();
+        let lib = Uri::from_str("file:///w/lib.tcl").unwrap();
+        let main = Uri::from_str("file:///w/main.tcl").unwrap();
+        backend
+            .db_set_source(
+                &lib,
+                "proc helper {mode} { return $mode }\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        backend
+            .db_set_source(&main, "helper dev\n".to_owned(), "tcl8.6".to_owned())
+            .await;
+        let handles = EvidenceHandles {
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+        };
+
+        let first = sync_cross_file_evidence(&handles).await;
+        assert_eq!(
+            first.len(),
+            2,
+            "the cold pass gives both covered files a view: {first:?}"
+        );
+        let second = sync_cross_file_evidence(&handles).await;
+        assert!(
+            second.is_empty(),
+            "an unchanged project must write no input: {second:?}"
+        );
+
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        let evidence = files[&lib]
+            .external_call_sites(&*db)
+            .clone()
+            .expect("a covered file gets a view");
+        assert_eq!(
+            evidence.callees().collect::<Vec<_>>(),
+            vec!["::helper"],
+            "main.tcl's call reaches lib.tcl's proc"
+        );
     }
 
     /// #1145: a watched `DELETED` → `CREATED` pair — what a `git checkout` or
