@@ -128,8 +128,11 @@ not change the rule, and must not grow bespoke resolution logic. Every
   pinned), and are not references to commands: `namespace export p` before
   `proc p` still exports it (pinned). A non-glob `namespace import` of an
   unexported name is a silent no-op, not an error (pinned) — so the **exact**
-  form is snapshot-gated exactly like the glob one; importing onto
-  an existing command errors unless `-force` (pinned). Both subcommands
+  form is snapshot-gated exactly like the glob one, including a pattern rooted
+  at the global namespace (`namespace import ::p`, whose source namespace is
+  `::`, not "none" — pinned); importing onto
+  an existing command errors unless `-force`, whichever of the two spellings
+  bound the name first (pinned). Both subcommands
   consume at most **one** leading flag word: a second `-clear` is an ordinary
   export pattern (and `-clear` is then a genuinely importable command name),
   a second — or trailing — `-force` is an import pattern that aborts the
@@ -165,8 +168,12 @@ not change the rule, and must not grow bespoke resolution logic. Every
     raises the same error and leaves `origin` at `::A::p`, while `-force`
     makes it `::B::p` and a preceding `namespace forget` lets the unforced one
     through (all pinned). Re-importing from the *same* source is a silent
-    no-op, not a conflict (pinned). Statically the "installed nothing" /
-    "replaced what was there" halves are both modelled; the error's
+    no-op, not a conflict (pinned). Which of the two ran first is **load
+    order**, not written order: a body-local `namespace import ::B::x` loses to
+    a top-level `namespace import ::A::*` written below it, because the file
+    loads before any body runs — `namespace origin ::dst::x` → `::A::x` and the
+    body's import raises `already exists` (pinned). Statically the "installed
+    nothing" / "replaced what was there" halves are both modelled; the error's
     *control-flow* consequence (nothing after it in that script runs) is
     deliberately out of scope.
   - **Redefining the imported name ends the alias.** A `proc ::dst::p` written
@@ -188,6 +195,15 @@ not change the rule, and must not grow bespoke resolution logic. Every
     follow the chain while every hop is provable, bounded by
     `analyser::indirection::MAX_COMMAND_NAME_HOPS`, and abstain otherwise.
 
+  - **The install is ordered against the call, too.** A bare call written
+    *before* its own `namespace import` reaches nothing (`invalid command
+    name`); the same call written after it works (pinned). That order is the
+    ordinary load-time one, so a call inside a **proc body** still resolves
+    through an import written later in the same file — the whole file loads,
+    imports included, before any body runs (pinned: procs first, `namespace
+    import` last, the call works) — while an import written after the call in
+    that *same* body has genuinely not run yet (pinned). Issue #1104 item 1.
+
   Statically the removals join the same ordered event log: `namespace forget`
   as `SignatureNamespaceForget`, a destroying `rename OLD {}` /
   `interp alias {} NAME {}` as `AnalysisResult::destroyed_commands` (a *re*name
@@ -195,7 +211,8 @@ not change the rule, and must not grow bespoke resolution logic. Every
   `SignatureNamespaceImport::forced` — read, like `-clear`, as "the declared
   leading option word was consumed", never as a `-force` name match. Both tiers
   answer through one shared decision function
-  (`tcl_lsp_core::namespace_import::alias_live_at`), under the same
+  (`tcl_lsp_core::namespace_import::alias_live_at`), which gates **every**
+  ordered event — installs as much as removals — under the same
   `in_effect` / `in_effect_within` order rule as the export snapshot, and it
   gates the **exact**-import link the same way it gates a glob lookup.
   Byte offsets order events only *within* one document, so a cross-file event

@@ -58,7 +58,9 @@ are glob *patterns*, not command references — `namespace export get*` covers
 `getX` and not `setX`, and `namespace export p` written before `proc p` still
 exports it. The same gate applies to an *exact* `namespace import ::src::p`:
 real Tcl silently binds nothing when `p` is not exported, so neither does
-navigation.
+navigation — and that includes an import of a global command
+(`namespace import ::p`), which needs a global `namespace export p` like
+anything else.
 
 Ordering follows the same load-order rule renames and aliases do. An import
 written **inside a proc or method body** sees every top-level statement of its
@@ -67,6 +69,23 @@ export further down the file still counts; an export written after the import
 *in that same body* does not. Ordering only exists inside one document; when
 the import and the export are in different files, nothing fixes which loads
 first, so navigation keeps answering rather than guessing a revocation.
+
+A call written **before** its own `namespace import` reaches nothing, and Go to
+Definition says so: the import has not run yet, exactly as a `rename` written
+below a call has not. The same load-order rule as everywhere else applies, so
+this is about *statements*, not about lines — a call inside a proc or method
+body still jumps through an import written further down the same file, because
+the whole file loads before any body runs. That is the ordinary shape of a
+library module: the procs first, the `namespace import`s at the bottom. An
+import written after the call *inside that same body* is a later statement of
+the running script, and the call before it resolves to nothing.
+
+The tail-match fallback no longer papers over any of this. Go to Definition
+keeps a lenient last resort — a proc whose defining namespace is not
+statically visible at the call still jumps — but it will not answer with a
+command whose only route to the call was an import the rules above have just
+ruled out. Nothing else about the fallback changes: a same-file proc no import
+mentions still jumps as before.
 
 An import is not a permanent name, either. `namespace forget ::src::p` — or
 the unqualified `namespace forget p`, which drops whatever this namespace
@@ -83,7 +102,12 @@ import carries `-force`, and the failed import installs nothing — so a bare
 call still reaches the *local* definition, and Go to Definition stays on it.
 "Already has" includes a name it imported earlier from somewhere else: a
 second unforced import of the same name from a different namespace fails too,
-and navigation keeps answering the first source. With `-force` the import
+and navigation keeps answering the first source — whichever way round the two
+were spelled, `namespace import ::A::*` then `namespace import ::B::p` or the
+other way about. "First" is the order they *run*, not the order they are
+written: an import inside a proc body loses to a top-level import of the same
+name anywhere in that file, even one written below it, because the file loads
+before any body runs. With `-force` the import
 replaces whatever was there, and from that point on the same bare call jumps
 to the **source** instead — until a `proc` of that name is written, which
 silently takes the name back and sends navigation to the new local
