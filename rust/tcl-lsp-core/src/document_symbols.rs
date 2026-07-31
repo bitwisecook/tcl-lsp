@@ -81,6 +81,10 @@ pub enum SymbolKind {
     /// A BIG-IP tmsh module folder (`ltm`, `net`, `sys`, …) — the
     /// top level of the BIG-IP config outline.
     Module,
+    /// An event handler bound by a registry event-handler command — a
+    /// `when EVENT { … }` block in an iRule.  Surfaced with the LSP `Event`
+    /// wire kind, which editors render with their event glyph.
+    Event,
 }
 
 impl SymbolKind {
@@ -100,6 +104,7 @@ impl SymbolKind {
             Self::Constant => "Constant",
             Self::Operator => "Operator",
             Self::Module => "Module",
+            Self::Event => "Event",
         }
     }
 }
@@ -113,6 +118,7 @@ impl From<tcl_registry::DefinedSymbolKind> for SymbolKind {
             tcl_registry::DefinedSymbolKind::Test => Self::Test,
             tcl_registry::DefinedSymbolKind::Constraint => Self::Constant,
             tcl_registry::DefinedSymbolKind::Matcher => Self::Operator,
+            tcl_registry::DefinedSymbolKind::Event => Self::Event,
         }
     }
 }
@@ -444,7 +450,108 @@ fn scope_symbols(
         }
     }
 
-    symbols
+    nest_by_containment(symbols)
+}
+
+/// Does `outer` strictly contain `inner` — covering it, but not equal to it?
+fn strictly_contains(outer: LineRange, inner: LineRange) -> bool {
+    outer != inner
+        && pos_leq(
+            outer.start_line,
+            outer.start_character,
+            inner.start_line,
+            inner.start_character,
+        )
+        && pos_leq(
+            inner.end_line,
+            inner.end_character,
+            outer.end_line,
+            outer.end_character,
+        )
+}
+
+/// Re-parent siblings that lexically nest inside one another.
+///
+/// A scope's symbol list is flat by construction, because a body that does
+/// *not* open a scope contributes its definitions to the enclosing one: the
+/// `set`s inside an iRules `when EVENT { … }` handler (or a
+/// `tcltest::test` case) land in the same scope as the handler itself, so
+/// they arrive as siblings whose ranges sit inside the handler's.  The LSP
+/// contract wants a tree — and VS Code's outline, breadcrumbs and sticky
+/// scroll all assume one — so each symbol moves under the innermost sibling
+/// whose range strictly contains it.
+///
+/// Symbols that contain nothing are left exactly as they were, so every
+/// document without this shape (which is every plain Tcl file, where scope
+/// bodies *are* scopes) round-trips unchanged.
+fn nest_by_containment(mut symbols: Vec<DocumentSymbol>) -> Vec<DocumentSymbol> {
+    let count = symbols.len();
+    if count < 2 {
+        return symbols;
+    }
+    // `parent[i]` = index of the innermost sibling containing `i`, found by
+    // one containment sweep: visiting outermost-first (start ascending, then
+    // the wider range first) means the enclosing symbols are exactly the ones
+    // still on the stack, so this is O(n log n) rather than a pairwise scan
+    // over a document that can carry thousands of top-level symbols.
+    let mut sweep: Vec<usize> = (0..count).collect();
+    sweep.sort_by_key(|&i| {
+        let r = symbols[i].range;
+        (
+            r.start_line,
+            r.start_character,
+            std::cmp::Reverse((r.end_line, r.end_character)),
+        )
+    });
+    let mut parent: Vec<Option<usize>> = vec![None; count];
+    let mut open: Vec<usize> = Vec::new();
+    let mut nested = false;
+    for &i in &sweep {
+        // Equal ranges do not contain one another, so the earlier of a tied
+        // pair is popped and both stay siblings.
+        while open
+            .last()
+            .is_some_and(|&p| !strictly_contains(symbols[p].range, symbols[i].range))
+        {
+            open.pop();
+        }
+        if let Some(&p) = open.last() {
+            parent[i] = Some(p);
+            nested = true;
+        }
+        open.push(i);
+    }
+    if !nested {
+        return symbols;
+    }
+    // Move each nested symbol into its parent.  A child always sorts after
+    // its parent in the sweep, so walking the sweep backwards assembles a
+    // chain (`when` → `test` → `set`) from the inside out.  Indices stay
+    // valid because entries are taken, never removed.
+    let mut slots: Vec<Option<DocumentSymbol>> = symbols.drain(..).map(Some).collect();
+    for &i in sweep.iter().rev() {
+        let Some(p) = parent[i] else { continue };
+        let Some(child) = slots[i].take() else {
+            continue;
+        };
+        if let Some(host) = slots[p].as_mut() {
+            host.children.push(child);
+        }
+    }
+    for slot in slots.iter_mut().flatten() {
+        sort_nested_children(slot);
+    }
+    slots.into_iter().flatten().collect()
+}
+
+/// Put a symbol's children back into source order after re-parenting.
+fn sort_nested_children(symbol: &mut DocumentSymbol) {
+    symbol
+        .children
+        .sort_by_key(|c| (c.range.start_line, c.range.start_character));
+    for child in &mut symbol.children {
+        sort_nested_children(child);
+    }
 }
 
 fn class_symbol(source: &str, class_def: &ClassDef, line_index: &LineIndex) -> DocumentSymbol {
@@ -1554,5 +1661,109 @@ mod tests {
         let symbols = document_symbols(src, "tcl8.6");
         let greet = find(&symbols, "greet").expect("greet symbol");
         assert_eq!(greet.detail.as_deref(), Some("(args)"), "{greet:?}");
+    }
+
+    const IRULES: &str = "f5-irules";
+
+    #[test]
+    fn irule_event_handlers_are_outline_symbols() {
+        // An iRule's structure is its `when` blocks; before the registry
+        // `defines_symbol` on `when`, the outline listed only the variables
+        // the handlers happened to set.
+        let src = concat!(
+            "when HTTP_REQUEST {\n",
+            "    set host [HTTP::host]\n",
+            "}\n",
+            "when HTTP_RESPONSE priority 500 {\n",
+            "    HTTP::header insert X-Served-By $host\n",
+            "}\n",
+        );
+        let symbols = document_symbols(src, IRULES);
+        assert_eq!(names(&symbols), vec!["HTTP_REQUEST", "HTTP_RESPONSE"]);
+        assert!(
+            symbols.iter().all(|s| s.kind == SymbolKind::Event),
+            "{:?}",
+            flat(&symbols)
+        );
+    }
+
+    #[test]
+    fn event_handler_range_spans_the_body_and_selects_the_event_name() {
+        let src = "when HTTP_REQUEST {\n    set host [HTTP::host]\n}\n";
+        let symbols = document_symbols(src, IRULES);
+        let handler = &symbols[0];
+        // Selection is the event name on line 0; the range reaches the
+        // closing brace so the outline can fold (and stick) the handler.
+        assert_eq!(handler.selection_range.start_line, 0);
+        assert_eq!(handler.selection_range.start_character, 5);
+        assert_eq!(handler.range.end_line, 2);
+        assert!(range_contains(handler.range, handler.selection_range));
+    }
+
+    #[test]
+    fn variables_set_in_a_handler_nest_under_it() {
+        // A `when` body is structural, not a scope, so its `set`s land in
+        // the global scope alongside the handler.  They belong *under* it.
+        let src = concat!(
+            "set global_one 1\n",
+            "when HTTP_REQUEST {\n",
+            "    set inner 2\n",
+            "}\n",
+        );
+        let symbols = document_symbols(src, IRULES);
+        assert_eq!(names(&symbols), vec!["global_one", "HTTP_REQUEST"]);
+        let handler = find(&symbols, "HTTP_REQUEST").expect("handler");
+        assert_eq!(names(&handler.children), vec!["inner"]);
+    }
+
+    #[test]
+    fn nested_handlers_nest_in_the_outline() {
+        // A `when` inside a `when` is legal iRules; the inner handler is a
+        // child, not a sibling with an overlapping range.
+        let src = concat!(
+            "when CLIENT_ACCEPTED {\n",
+            "    when HTTP_REQUEST {\n",
+            "        set deep 1\n",
+            "    }\n",
+            "}\n",
+        );
+        let symbols = document_symbols(src, IRULES);
+        assert_eq!(names(&symbols), vec!["CLIENT_ACCEPTED"]);
+        let outer = &symbols[0];
+        assert_eq!(names(&outer.children), vec!["HTTP_REQUEST"]);
+        assert_eq!(names(&outer.children[0].children), vec!["deep"]);
+    }
+
+    #[test]
+    fn plain_tcl_outline_is_unchanged_by_containment_nesting() {
+        // Every plain-Tcl body opens a scope, so nothing re-parents: the
+        // nesting pass must leave these documents byte-identical.
+        let src = concat!(
+            "set top 1\n",
+            "proc greet {name} {\n",
+            "    set msg \"hi\"\n",
+            "}\n",
+            "namespace eval ns {\n",
+            "    variable v 1\n",
+            "}\n",
+        );
+        let symbols = document_symbols(src, "tcl8.6");
+        assert_eq!(names(&symbols), vec!["greet", "top", "ns"]);
+        // `msg` is proc-local, so it is not an outline symbol at all — and
+        // `greet` must not swallow `top` or `ns`, which sit outside it.
+        assert!(names(&find(&symbols, "greet").unwrap().children).is_empty());
+        assert_eq!(names(&find(&symbols, "ns").unwrap().children), vec!["v"]);
+    }
+
+    #[test]
+    fn dynamic_event_name_is_not_an_outline_symbol() {
+        // `when $evt { … }` has no statically-known event; the definer walk
+        // skips a non-constant name rather than listing `$evt`.
+        let src = "set evt HTTP_REQUEST\nwhen $evt {\n    set x 1\n}\n";
+        let all = flat(&document_symbols(src, IRULES));
+        assert!(
+            !all.iter().any(|(name, _)| name.contains('$')),
+            "dynamic event name leaked into the outline: {all:?}"
+        );
     }
 }

@@ -37,6 +37,7 @@ const FUNCTION: i64 = 12;
 const VARIABLE: i64 = 13;
 const CONSTANT: i64 = 14;
 const OPERATOR: i64 = 25;
+const EVENT: i64 = 24;
 
 /// The top-level document symbols for `uri` as a list (`or []`).
 fn top(lsp: &mut Lsp, uri: &str) -> Vec<Value> {
@@ -593,5 +594,69 @@ fn colon_named_proc_has_a_non_empty_symbol_name() {
     assert!(
         names.iter().all(|n| !n.is_empty()),
         "no falsy symbol names: {names:?}"
+    );
+}
+
+// -- TestIrulesEventHandlers ---------------------------------------------
+// An iRule's structure is its `when` blocks.  They carried no outline symbol
+// at all, so the outline, breadcrumbs and Cmd+Shift+O listed only whatever
+// variables the handlers happened to set.
+
+#[test]
+fn irule_event_handlers_are_outline_symbols() {
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    lsp.open_ready_lang(
+        &uri,
+        "when HTTP_REQUEST {\n\
+        \x20   set host [HTTP::host]\n\
+         }\n\
+         when HTTP_RESPONSE priority 500 {\n\
+        \x20   HTTP::header insert X-Host $host\n\
+         }\n",
+        "tcl-irule",
+    );
+    let syms = top(&mut lsp, &uri);
+    let handlers: Vec<String> = syms
+        .iter()
+        .filter(|s| kind(s) == EVENT)
+        .map(|s| name(s).to_owned())
+        .collect();
+    assert_eq!(handlers, vec!["HTTP_REQUEST", "HTTP_RESPONSE"], "{syms:?}");
+}
+
+#[test]
+fn variables_set_in_a_handler_nest_under_it() {
+    // A `when` body is structural, not a scope, so its `set`s land in the
+    // same scope as the handler — they must still nest under it in the tree.
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    lsp.open_ready_lang(
+        &uri,
+        "when HTTP_REQUEST {\n\x20   set host [HTTP::host]\n}\n",
+        "tcl-irule",
+    );
+    let syms = top(&mut lsp, &uri);
+    assert_eq!(syms.len(), 1, "{syms:?}");
+    assert_eq!(name(&syms[0]), "HTTP_REQUEST");
+    let kids = children(&syms[0]);
+    let inner: Vec<&str> = kids.iter().map(name).collect();
+    assert_eq!(inner, vec!["host"], "{syms:?}");
+}
+
+#[test]
+fn event_handler_is_a_workspace_symbol() {
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    lsp.open_ready_lang(
+        &uri,
+        "when CLIENTSSL_HANDSHAKE {\n\x20   log local0. ok\n}\n",
+        "tcl-irule",
+    );
+    let result = lsp.workspace_symbols("CLIENTSSL_HANDSHAKE");
+    let syms = result.as_array().cloned().unwrap_or_default();
+    assert!(
+        syms.iter().any(|s| name(s) == "CLIENTSSL_HANDSHAKE"),
+        "workspace symbol not found: {syms:?}"
     );
 }

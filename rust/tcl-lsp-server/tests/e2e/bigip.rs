@@ -136,6 +136,54 @@ fn nameless_singleton_falls_back_to_kind_label() {
     assert!(names.contains("auth"), "{names:?}");
 }
 
+// -- TestBigipFolding ----------------------------------------------------
+// A `.conf` is not Tcl, so the Tcl brace walk found only comment blocks in it
+// and left every stanza unfoldable; folding now runs off the stanza tree.
+
+/// The `(startLine, endLine)` pairs of a folding-range result.
+fn fold_spans(result: &Value) -> BTreeSet<(i64, i64)> {
+    result
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .map(|r| {
+                    (
+                        r.get("startLine").and_then(Value::as_i64).unwrap_or(-1),
+                        r.get("endLine").and_then(Value::as_i64).unwrap_or(-1),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[test]
+fn conf_stanzas_and_their_nested_blocks_fold() {
+    let mut lsp = Lsp::bigip();
+    let uri = bigip_uri();
+    lsp.open_document(&uri, BIGIP_CONF);
+    lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(30));
+    let spans = fold_spans(&lsp.folding_range(&uri));
+    // `net self-allow` (3..7) and the `defaults` block it wraps (4..6).
+    assert!(spans.contains(&(3, 6)), "self-allow stanza: {spans:?}");
+    assert!(spans.contains(&(4, 5)), "defaults block: {spans:?}");
+    // `ltm pool` (11..15) and its `members` block (12..14).
+    assert!(spans.contains(&(11, 14)), "pool stanza: {spans:?}");
+    assert!(spans.contains(&(12, 13)), "members block: {spans:?}");
+}
+
+#[test]
+fn tcl_inside_an_embedded_rule_folds() {
+    let mut lsp = Lsp::bigip();
+    let uri = bigip_uri();
+    lsp.open_document(&uri, BIGIP_CONF);
+    lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(30));
+    let spans = fold_spans(&lsp.folding_range(&uri));
+    // `ltm rule /Common/r` (16..20) and the `when HTTP_REQUEST` block in it.
+    assert!(spans.contains(&(16, 19)), "rule stanza: {spans:?}");
+    assert!(spans.contains(&(17, 18)), "when block: {spans:?}");
+}
+
 // -- TestBigipDiagnosticSuppression --------------------------------------
 // Issue #571 — no general Tcl diagnostics on BIG-IP config text.
 

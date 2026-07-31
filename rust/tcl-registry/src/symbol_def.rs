@@ -62,6 +62,10 @@ pub enum DefinedSymbolKind {
     /// command` — a new value accepted by `test -match`, backed by a comparison
     /// command.  A custom comparison strategy, so it reads as an operator.
     Matcher,
+    /// An event handler bound by an event-handler command (`when EVENT { … }`
+    /// in iRules), named for its event.  The top-level structure of an iRule
+    /// is its handlers, so they are the entries the outline exists to show.
+    Event,
 }
 
 impl DefinedSymbolKind {
@@ -72,6 +76,7 @@ impl DefinedSymbolKind {
             Self::Test => "test",
             Self::Constraint => "constraint",
             Self::Matcher => "match mode",
+            Self::Event => "event",
         }
     }
 }

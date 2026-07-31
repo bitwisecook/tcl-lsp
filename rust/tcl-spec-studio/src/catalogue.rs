@@ -835,7 +835,8 @@ mod tests {
             match k {
                 DefinedSymbolKind::Test
                 | DefinedSymbolKind::Constraint
-                | DefinedSymbolKind::Matcher => true,
+                | DefinedSymbolKind::Matcher
+                | DefinedSymbolKind::Event => true,
             }
         }
         fn side(k: ConnectionSide) -> bool {

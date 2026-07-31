@@ -223,7 +223,11 @@ fn collect_scope_folds(
 /// lines.  An internal block (one followed by a non-comment line)
 /// needs at least three lines; a trailing block at end-of-file needs
 /// at least two.
-fn collect_comment_folds(
+///
+/// Shared with the BIG-IP folding path ([`crate::bigip::folding_ranges`]),
+/// which reuses it verbatim so a comment block folds identically whether
+/// it sits in Tcl source or in a `.conf`.
+pub(crate) fn collect_comment_folds(
     source: &str,
     seen: &mut FxHashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,

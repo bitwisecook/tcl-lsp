@@ -74,6 +74,12 @@ pub const fn spec() -> CommandSpec {
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(2, 6),
         arg_role_resolver: Some(when_arg_roles),
+        // The event name (argument 0) is the handler's outline entry: an
+        // iRule's structure *is* its `when` blocks, so the outline, the
+        // breadcrumb bar and workspace symbols list them the way they list a
+        // `proc`.  Declared as registry data, so the document-symbol provider
+        // discovers it generically rather than matching on the command name.
+        defines_symbol: Some(SymbolDef::new(0, DefinedSymbolKind::Event)),
         lowering_hook: Some(LoweringHookId::When),
         // iRules event handler bodies run in the event
         // dispatcher's frame — separate from the top-level rule
