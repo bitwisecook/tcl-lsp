@@ -695,7 +695,9 @@ through `VarDef::link_target`. A collision with an existing cell, or a
 document in that namespace computing a variable name (a registry
 `ArgRole::VarWrite` / `VarRead` word that `names_a_dynamic_variable`),
 refuses. That makes **69 fixed, 16 remaining** — tier 1 is now **24 of 24**
-(idx 79 was its last open finding) and tier 2 stays 45 of 61.
+(idx 79 was its last open finding) and tier 2 stays 45 of 61. (*Superseded
+2026-07-31: the ledger correction below credits five earlier-fixed findings,
+making the current count 74 fixed / 11 remaining, tier 2 at 50 of 61.*)
 
 *Counts recomputed from the two priority tables themselves, not carried
 forward.* The running total the PR C2 paragraph above states (67 fixed / 18
@@ -940,6 +942,27 @@ here because the reasoning generalises to any new symbol kind.
   `{:: }` among `namespace children ::`, so there is no whitespace skip to
   add.
 
+**2026-07-31 ledger correction — five findings were fixed by earlier merged
+PRs but never credited here, discovered while splitting the remainder into
+per-mechanism issues (see issue #1019's index comment).** Verified against
+the code and the idx-named tests on `rust`, not from PR-comment history:
+**idx 16** (class-reopening `oo::define` members — `class_body_spans` /
+`enclosing_class_at` in `definition.rs`, residual pinned by tests naming
+"issue #1019 idx 16"), **idx 42** (vsatisfies-guarded `package ifneeded`
+over-flagging — `package_resolver::reachability`, pinned by
+`both_arms_of_a_tea_version_branch_declare_the_package_923_idx42` and its
+e2e), **idx 47** and **idx 62** (the same trace-callback prefix-head defect
+filed under two features — `extract_list_quoted_prefix_head` /
+`list_quoted_command_segment`, `BUILDS_COMMAND_PREFIX`-gated; idx 62 is
+inferred from being the identical defect/file/proc rather than from an
+idx-62-named test), and **idx 85** (`namespace ensemble create -map` call
+sites — `handle_namespace_ensemble` via `command_resolution_namespace`, five
+`_923_idx85` tests). **Corrected count: tier 1 24/24 + tier 2 50/61 = 74
+fixed / 11 remaining of 85 CONFIRMED.** The 11 (idx 14, 22, 41, 50, 51, 67,
+91, 98, 99, 100, 102) are now individually tracked in issues #1137–#1143,
+grouped by mechanism — see #1019's index comment for the full idx → issue
+table.
+
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
 strings in the raw data — same corpus), tomato 7, pix 8.
@@ -1178,7 +1201,7 @@ users, a worse failure mode than the narrower, but fully oracle-grounded,
 `CONFIGURE`-tracking fix actually shipped. Left as a documented, low-risk
 follow-up for a session with Tk oracle access.
 
-#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 45 now fixed — 16 remaining), grouped by feature for clustering
+#### Priority tier 2 — medium + low (60 + 1 = 61 findings, 50 now fixed — 11 remaining), grouped by feature for clustering
 
 Group findings sharing a feature/root-cause together in one fix pass the
 way idx 107+115 and idx 118+119 were — many of these look like they share
@@ -1188,15 +1211,15 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 
 | feature | count | idx (severity) |
 |---|---|---|
-| tclOO | 10 | ~~15~~ **ALREADY FIXED** (pinned, PR B2), 16, ~~34~~ **FIXED** (PR B2), ~~35~~ **FIXED** (PR B2), ~~36~~ **FIXED** (PR B2), ~~53~~ **FIXED**, ~~54~~ **FIXED**, ~~55~~ **FIXED**, ~~96~~ **FIXED**, ~~97~~ **FIXED** (all medium) |
-| namespaces | 8 | ~~3~~ **FIXED** (#1071), ~~19~~ **ALREADY FIXED** (pinned, PR C2), ~~43~~ **ALREADY FIXED**, ~~44~~ **FIXED**, ~~64~~ **FIXED**, ~~65~~ **FIXED** (PR C2), ~~75~~ **FIXED** (PR C2; its *secondary* claim — a namespace name as an argument is not a navigable symbol — was split to **#1088** and **FIXED** by PR C4b, no count change), 85 (all medium) |
+| tclOO | 10 | ~~15~~ **ALREADY FIXED** (pinned, PR B2), ~~16~~ **FIXED** (#1063, credited 2026-07-31 — see the ledger correction), ~~34~~ **FIXED** (PR B2), ~~35~~ **FIXED** (PR B2), ~~36~~ **FIXED** (PR B2), ~~53~~ **FIXED**, ~~54~~ **FIXED**, ~~55~~ **FIXED**, ~~96~~ **FIXED**, ~~97~~ **FIXED** (all medium) |
+| namespaces | 8 | ~~3~~ **FIXED** (#1071), ~~19~~ **ALREADY FIXED** (pinned, PR C2), ~~43~~ **ALREADY FIXED**, ~~44~~ **FIXED**, ~~64~~ **FIXED**, ~~65~~ **FIXED** (PR C2), ~~75~~ **FIXED** (PR C2; its *secondary* claim — a namespace name as an argument is not a navigable symbol — was split to **#1088** and **FIXED** by PR C4b, no count change), ~~85~~ **FIXED** (credited 2026-07-31 — `handle_namespace_ensemble` resolves `-map` targets via `command_resolution_namespace`, five `_923_idx85` tests) (all medium) |
 | tricky_indirection | 7 | 0 (medium, **FIXED** — see below), ~~1~~ **FIXED**, ~~2~~ **FIXED**, 14, ~~49~~ **FIXED**, 50, 51 (all medium) |
 | upvar | 7 | ~~7~~ **FIXED** (PR C1a), 22 (**PARTIAL** — model landed C1a, `$param` navigation C1b; the literal `upvar 1 name name` shape stays open), ~~57~~ **FIXED** (PR C1a), ~~58~~ **FIXED** (PR C1b), ~~59~~ **FIXED** (PR C1a, single-document; cross-file open), 98 (**PARTIAL** — same as 22), 99 (all medium) |
-| proc_args | 7 | ~~11~~ **FIXED** (#1071), ~~28~~ **FIXED** (PR B2), ~~37~~ **FIXED** (PR B2), 62, 67, ~~78~~ **FIXED** (PR C2), ~~104~~ **FIXED** (all medium) |
+| proc_args | 7 | ~~11~~ **FIXED** (#1071), ~~28~~ **FIXED** (PR B2), ~~37~~ **FIXED** (PR B2), ~~62~~ **FIXED** (credited 2026-07-31 — same defect as idx 47, one fix; see the ledger correction), 67, ~~78~~ **FIXED** (PR C2), ~~104~~ **FIXED** (all medium) |
 | tcl_mathop | 4 | ~~30~~ **FIXED**, ~~80~~ **FIXED** (PR C2), ~~81~~ **ALREADY FIXED**, ~~103~~ **FIXED** (all medium) |
-| package_loading | 3 | ~~4~~ **FIXED** (#1071), 42, ~~72~~ **FIXED** (PR C2) (all medium) |
+| package_loading | 3 | ~~4~~ **FIXED** (#1071), ~~42~~ **FIXED** (credited 2026-07-31 — `package_resolver::reachability`, `_923_idx42` tests) , ~~72~~ **FIXED** (PR C2) (all medium) |
 | source | 3 | ~~27~~ **FIXED** (PR C2), 41, 102 (all medium) |
-| tracing | 3 | 47, ~~48~~ **FIXED**, ~~92~~ **FIXED** (PR B1) (all medium) |
+| tracing | 3 | ~~47~~ **FIXED** (credited 2026-07-31 — `extract_list_quoted_prefix_head`, `BUILDS_COMMAND_PREFIX`-gated), ~~48~~ **FIXED**, ~~92~~ **FIXED** (PR B1) (all medium) |
 | rename | 2 | ~~5~~ **ALREADY FIXED** (pinned, PR B1), ~~45~~ **FIXED** (PR B1) (all medium) |
 | aliasing | 2 | ~~21~~ **FIXED** (PR B1), ~~89~~ **FIXED** (PR B1) (all medium) |
 | uplevel | 2 | ~~38~~ **FIXED** (PR C1a) (medium), 100 (low — **open**: `uplevel #0 [list upvar #0 …]`'s statically-literal destination is tagged `namespace` instead of `variable [declaration]` by the semantic-token pass; the audit itself measured no navigation differential, so the impact stays highlighting-only) |
