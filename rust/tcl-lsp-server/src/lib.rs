@@ -5184,6 +5184,7 @@ impl Backend {
                 core_workspace_index::CallSite {
                     uri: uri.as_str(),
                     at: inv.range.start(),
+                    enclosing_body: analysis.innermost_definition_body_span(inv.range.start()),
                 },
             ) {
                 return vec![target];

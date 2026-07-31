@@ -281,34 +281,46 @@ pub struct AliasEvent {
 /// unordered removal revokes nothing, exactly as an unordered `-clear` does
 /// not revoke an export.
 ///
-/// # What `removal_in_effect` does and does not gate
+/// # What `in_effect` gates
 ///
-/// `removal_in_effect` decides, for a **removal** at the given offset,
-/// whether it had already run at the query point. Both tiers pass the
-/// order-gating primitive they already use for the export snapshot
+/// `in_effect` decides, for an ordered event at the given offset, whether it
+/// had already run at the query point — and it is applied to **every** ordered
+/// event, install and removal alike. Both tiers pass the order-gating
+/// primitive they already use for the export snapshot
 /// ([`tcl_compiler::analyser::indirection::in_effect`] /
 /// [`tcl_compiler::analyser::indirection::in_effect_within`]), so "has run by
 /// here" cannot mean two things.
 ///
-/// It deliberately does **not** filter installs. Whether a bare call written
-/// *before* its own `namespace import` should stop resolving is a separate,
-/// still-open leniency (issue #1104 item 1: the workspace tier has no
-/// call-site body span to apply the identical rule with, so gating only
-/// in-document would make the two tiers disagree — the divergence the shared
-/// decision function exists to prevent). Installs still carry their offsets,
-/// because a removal revokes only the installs *before* it; they are simply
-/// not dropped for being later than the call.
+/// Gating the *install* is what makes a bare call written **before** its own
+/// `namespace import` stop resolving through it (issue #1104 item 1). Oracle
+/// (tclsh 8.6.14 / 9.0.4, byte-identical):
 ///
-/// With no install at all the answer is `false`: nothing put the alias there.
-/// Callers that have already proven an import matches (pattern, export
-/// snapshot, conflict rule) pass it as an [`AliasEventKind::Install`].
+/// ```tcl
+/// namespace eval ::src { proc p {} {return P}; namespace export p }
+/// namespace eval ::dst { p }                    ;# → invalid command name "p"
+/// namespace eval ::dst { namespace import ::src::* }
+/// namespace eval ::dst { p }                    ;# → P
+/// ```
+///
+/// That gate is *not* a plain offset comparison, and must not be reduced to
+/// one: a call inside a proc body is not ordered against a top-level import of
+/// the same file at all, because the whole file loads — running every
+/// top-level statement, imports included — before any body runs. `in_effect` /
+/// `in_effect_within` already state exactly that rule, which is why both tiers
+/// pass one of them rather than `at < call_off`. A tier that compared offsets
+/// alone would drop every proc body calling a name imported further down its
+/// own file — the overwhelmingly common shape in real code.
+///
+/// With no install in effect the answer is `false`: nothing had put the alias
+/// there yet. Callers that have already proven an import matches (pattern,
+/// export snapshot, conflict rule) pass it as an [`AliasEventKind::Install`].
 ///
 /// Single pass, two running maxima, no allocation — the same shape and the
 /// same cost as [`exported_at_import_site`], which it runs beside.
 #[must_use]
 pub fn alias_live_at(
     events: &mut dyn Iterator<Item = AliasEvent>,
-    removal_in_effect: &dyn Fn(u32) -> bool,
+    in_effect: &dyn Fn(u32) -> bool,
 ) -> bool {
     let mut installed: Option<u32> = None;
     let mut removed: Option<u32> = None;
@@ -318,13 +330,12 @@ pub fn alias_live_at(
             unordered_install |= ev.kind == AliasEventKind::Install;
             continue;
         };
+        if !in_effect(at) {
+            continue;
+        }
         match ev.kind {
             AliasEventKind::Install => installed = installed.max(Some(at)),
-            AliasEventKind::Remove => {
-                if removal_in_effect(at) {
-                    removed = removed.max(Some(at));
-                }
-            }
+            AliasEventKind::Remove => removed = removed.max(Some(at)),
         }
     }
     let ordered_live = installed.is_some_and(|i| removed.is_none_or(|r| i > r));
@@ -512,7 +523,7 @@ mod tests {
         AliasEvent { kind, at: None }
     }
 
-    /// `removal_in_effect` for a call at `call_at`: plain textual order.
+    /// `in_effect` for a call at `call_at`: plain textual order.
     fn ran_before(call_at: u32) -> impl Fn(u32) -> bool {
         move |at| at < call_at
     }
@@ -558,15 +569,37 @@ mod tests {
     }
 
     #[test]
-    fn an_install_later_than_the_call_still_counts() {
-        // Whether a call written *before* its own import resolves is #1104
-        // item 1's still-open leniency: this function must not decide it, so
-        // an install at 30 with the call at 20 still installs.
+    fn an_install_later_than_the_call_has_not_run_yet() {
+        // #1104 item 1: a bare call written *before* its own `namespace
+        // import` reaches nothing (oracle in the function's docs), so an
+        // install at 30 with the call at 20 does not install here.
         let mut evs = [install(30)].into_iter();
+        assert!(!alias_live_at(&mut evs, &ran_before(20)));
+        // The earlier install is the one that counts, and a removal between
+        // the two still kills it.
+        let mut evs = [install(5), install(30)].into_iter();
         assert!(alias_live_at(&mut evs, &ran_before(20)));
-        // …but a removal between them is still a removal.
-        let mut evs = [install(30), remove(10)].into_iter();
-        assert!(alias_live_at(&mut evs, &ran_before(20)));
+        let mut evs = [install(5), remove(10), install(30)].into_iter();
+        assert!(!alias_live_at(&mut evs, &ran_before(20)));
+    }
+
+    #[test]
+    fn a_body_local_call_observes_a_later_top_level_install() {
+        // The install gate is `in_effect`, not `at < call_off`: a call inside
+        // a proc body at 20 sees a top-level import at 30, because the whole
+        // file loads before any body runs. Modelled here by the predicate the
+        // real callers pass.
+        let body = tcl_lexer::Span::new(15, 25);
+        let mut evs = [install(30)].into_iter();
+        assert!(alias_live_at(&mut evs, &|at| {
+            tcl_compiler::analyser::indirection::in_effect_within(at, 20, Some(body))
+        }));
+        // …but an install written inside that same body after the call is an
+        // ordinary later statement of the running script.
+        let mut evs = [install(22)].into_iter();
+        assert!(!alias_live_at(&mut evs, &|at| {
+            tcl_compiler::analyser::indirection::in_effect_within(at, 20, Some(body))
+        }));
     }
 
     #[test]

@@ -83,6 +83,11 @@ surface.
 - [cross-file-command-resolution-lattice.md](cross-file-command-resolution-lattice.md)
   — the proposal for the cross-file resolution lattice: settling a call to its
   defining proc/class across the workspace index, sound by abstention.
+- [import-order-source-graph.md](import-order-source-graph.md) — design sketch
+  (unimplemented) for a load-order partial order derived from the `source` /
+  `package require` graph: which facts the analyser and index already record,
+  what the ordering relation needs, which wildcard-import abstentions it would
+  lift, and why no trivial subset exists below the resolver plumbing.
 - [name-resolution-tcl-version-and-c-source.md](name-resolution-tcl-version-and-c-source.md)
   — the version-sensitive resolution semantics (8.4→9.1), each fact pinned to a
   stable C-Tcl source permalink (`tclNamesp.c` / `tclVar.c`).
