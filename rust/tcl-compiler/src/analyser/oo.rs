@@ -1836,6 +1836,9 @@ fn apply_oo_private(
     let Some(member) = grammar.member(inner_subcmd) else {
         return;
     };
+    // `private deletemethod m` removes an instance-side member — `private`'s
+    // own side — including one this same block just recorded.
+    retract_wrapped_members(member, inner_args, &mut class_def.methods);
     match inner_subcmd {
         "method" => {
             if let Some(md) =
@@ -1857,6 +1860,41 @@ fn apply_oo_private(
             }
         }
         _ => {}
+    }
+}
+
+/// Drop every member named by a *retracting* wrapper-scoped member word
+/// (`self deletemethod m`, `private renamemethod old new`) from `table` — the
+/// method table of the side the wrapper targets.
+///
+/// This is an **abstention**, not a model of `deletemethod` / `renamemethod`:
+/// it stops a member the body goes on to delete from being retained, but it
+/// records nothing in its place (a `renamemethod old new` drops `old` without
+/// recording `new`). Keeping a member real Tcl removed would show a stale
+/// document symbol and let navigation and method validation resolve a name
+/// that does not exist — a false positive; dropping the renamed-to name is a
+/// false negative, which is the direction this campaign abstains toward.
+///
+/// Which member words retract is registry data
+/// ([`MemberSpec::retracts_named_members`]), never a keyword matched here —
+/// the sibling [`MemberRefKind::Method`] members (`export` / `unexport` /
+/// `filter`) name a method without removing it and must not retract.
+///
+/// Source order needs no tracking: real Tcl makes retracting a
+/// not-yet-declared member a hard error that aborts the whole definition (see
+/// the oracle on [`MemberSpec::retracts_named_members`]), so the only legal
+/// order is declare-then-retract, and a body that violates it never creates a
+/// class for us to describe.
+fn retract_wrapped_members(
+    member: &MemberSpec,
+    names: &[String],
+    table: &mut std::collections::HashMap<String, MethodDef>,
+) {
+    if !member.retracts_named_members {
+        return;
+    }
+    for name in names {
+        table.remove(name);
     }
 }
 
@@ -1892,6 +1930,11 @@ fn apply_oo_self(
     let Some(member) = grammar.member(inner_subcmd) else {
         return;
     };
+    // `self deletemethod m` / `self renamemethod old new` remove class-side
+    // members — including ones this same block just recorded (issue #1095
+    // review). Handled before the declaration arms below so the wrapper's own
+    // side is the only table touched.
+    retract_wrapped_members(member, inner_args, &mut class_def.class_methods);
     if !matches!(inner_subcmd, "method" | "classmethod") {
         return;
     }
@@ -3177,6 +3220,166 @@ mod tests {
         let c = r.all_classes.get("::Dyn").expect("::Dyn recorded");
         assert!(c.class_methods.is_empty(), "{:?}", c.class_methods);
         assert!(c.methods.is_empty(), "{:?}", c.methods);
+    }
+
+    #[test]
+    fn self_block_destructive_member_drops_the_member_it_deletes() {
+        // TP — issue #1095 review. Oracle (tclsh 9.0.4 / 8.6.16, identical):
+        //   oo::class create ::C1 {
+        //       self { method gone {} {…} ; method kept {} {…} ; deletemethod gone }
+        //   }
+        //   info object methods ::C1  ->  kept
+        //   ::C1 gone                 ->  unknown method "gone"
+        // Retaining `gone` would show a stale document symbol and let
+        // navigation resolve a name the interpreter does not have.
+        let src = "oo::class create ::C {\n                   self {\n                   method gone {} { return g }\n                   method kept {} { return k }\n                   deletemethod gone\n                   }\n                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(
+            !c.class_methods.contains_key("gone"),
+            "{:?}",
+            c.class_methods
+        );
+        assert!(c.class_methods.contains_key("kept"));
+    }
+
+    #[test]
+    fn self_block_renamemethod_drops_the_source_name() {
+        // TP. Oracle: `self { method old {} {…} ; renamemethod old new }` gives
+        // `info object methods ::C2` -> new, and `::C2 old` is an unknown
+        // method. We drop `old` and record nothing for `new` — the
+        // false-negative direction, which is the one to abstain toward.
+        let src = "oo::class create ::C {\n                   self {\n                   method old {} { return o }\n                   renamemethod old new\n                   }\n                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(
+            !c.class_methods.contains_key("old"),
+            "{:?}",
+            c.class_methods
+        );
+    }
+
+    #[test]
+    fn private_block_destructive_member_drops_the_instance_side_member() {
+        // TP, symmetric half. Oracle (9.0 — `private` is a 9.0 member):
+        //   oo::class create ::C5 {
+        //       private { method secret {} {…} ; method other {} {…} ;
+        //                 deletemethod secret }
+        //   }
+        //   info class methods ::C5 -all -private   ->  no `secret`
+        let src = "oo::class create ::C {\n                   private {\n                   method secret {} { return s }\n                   method other {} { return o }\n                   deletemethod secret\n                   }\n                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(!c.methods.contains_key("secret"), "{:?}", c.methods);
+        assert!(c.methods.contains_key("other"));
+    }
+
+    #[test]
+    fn wrapper_block_and_prefix_forms_retract_identically() {
+        // The block form is normalised into the prefix form, so both spellings
+        // must land on the same result. Oracle for the prefix side:
+        //   oo::define ::C7 { self method sgone {} {…} }
+        //   info object methods ::C7                  ->  sgone
+        //   oo::define ::C7 { self deletemethod sgone }
+        //   info object methods ::C7                  ->  (empty)
+        let src = "oo::class create ::C {}\n                   oo::define ::C { self method gone {} { return g } }\n                   oo::define ::C { self deletemethod gone }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(c.class_methods.is_empty(), "{:?}", c.class_methods);
+    }
+
+    #[test]
+    fn a_retraction_does_not_cross_to_the_other_side() {
+        // TN. `self deletemethod` touches only the class-object side. Oracle:
+        //   oo::class create ::D { method m {} {return inst}
+        //                          self { method m {} {return cls} } }
+        //   oo::define ::D { self deletemethod m }
+        //   info class methods ::D   ->  m        (instance side survives)
+        //   info object methods ::D  ->  (empty)
+        //   [::D new] m              ->  inst
+        let src = "oo::class create ::D {\n                   method m {} { return inst }\n                   self { method m {} { return cls } }\n                   }\n                   oo::define ::D { self deletemethod m }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::D").expect("::D recorded");
+        assert!(c.methods.contains_key("m"), "instance side must survive");
+        assert!(!c.class_methods.contains_key("m"), "class side must go");
+    }
+
+    #[test]
+    fn non_retracting_method_reference_members_keep_their_member() {
+        // TN, the discrimination the registry flag exists for: `export`,
+        // `unexport`, and `filter` are the sibling `MemberRefKind::Method`
+        // members — they *name* a method without removing it, so they must not
+        // retract. Oracle:
+        //   oo::class create ::A { self { method a {} {…} ; unexport a ; export a } }
+        //   info object methods ::A  ->  a   ;  ::A a  ->  1
+        //   oo::class create ::B { self { method f {} {…} ; filter f } }
+        //   info object methods ::B  ->  f
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::A {\n self {\n method a {} { return 1 }\n unexport a\n export a\n }\n}",
+            "tcl9.0",
+        );
+        assert!(
+            r.all_classes["::A"].class_methods.contains_key("a"),
+            "export/unexport must not retract",
+        );
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::B {\n self {\n method f {} { return 1 }\n filter f\n }\n}",
+            "tcl9.0",
+        );
+        assert!(
+            r.all_classes["::B"].class_methods.contains_key("f"),
+            "filter must not retract",
+        );
+    }
+
+    #[test]
+    fn a_retracted_member_can_be_redeclared_by_a_later_body() {
+        // Source-order guard. Oracle:
+        //   oo::class create ::C { method m {} {return 1} }
+        //   oo::define ::C { self method m {} {return 2} }
+        //   oo::define ::C { self deletemethod m }
+        //   oo::define ::C { self method m {} {return 3} }
+        //   ::C m        ->  3     (class side, redeclared after the delete)
+        //   [::C new] m  ->  1     (instance side, never touched)
+        // Retraction happens where the body is walked, so a later declaration
+        // wins — it is not a whole-document erasure of the name.
+        let src = "oo::class create ::C { method m {} { return 1 } }\n                   oo::define ::C { self method m {} { return 2 } }\n                   oo::define ::C { self deletemethod m }\n                   oo::define ::C { self method m {} { return 3 } }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(c.class_methods.contains_key("m"), "redeclaration must win");
+        assert!(c.methods.contains_key("m"), "instance side untouched");
+    }
+
+    #[test]
+    fn unwrapped_destructive_members_are_a_documented_residual() {
+        // Residual pin (reported for its own issue, deliberately NOT fixed
+        // here): an *unwrapped* `deletemethod` — in a class-creation body or an
+        // `oo::define` body, with no `self` / `private` wrapper — is still
+        // ignored, exactly as it was before the wrapper-block work. Real Tcl
+        // does delete it:
+        //   oo::class create ::C6 { method gone {} {…} ; method kept {} {…} }
+        //   oo::define ::C6 { deletemethod gone }
+        //   info class methods ::C6  ->  kept
+        // Fixing it is one more `apply_oo_subcommand` arm on this same
+        // `retracts_named_members` flag, but it changes the recorded shape of
+        // bodies this PR never touched, so it belongs to its own change.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { method gone {} { return g } }\n             oo::define ::C { deletemethod gone }",
+            "tcl9.0",
+        );
+        assert!(
+            r.all_classes["::C"].methods.contains_key("gone"),
+            "if this now fails the residual was fixed — update the note",
+        );
     }
 
     // snit (tcllib) type / widget support.  Verified against real

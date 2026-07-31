@@ -1282,6 +1282,58 @@ mod tests {
     }
 
     #[test]
+    fn oo_self_block_deleted_member_is_not_in_the_outline() {
+        // Issue #1095 review. A member the same block goes on to delete must
+        // not appear in the outline — a stale entry navigates to a name the
+        // interpreter does not have. Oracle (tclsh 9.0.4 / 8.6.16, identical):
+        //   oo::class create ::C1 {
+        //       self { method gone {} {…} ; method kept {} {…} ; deletemethod gone }
+        //   }
+        //   info object methods ::C1  ->  kept
+        //   ::C1 gone                 ->  unknown method "gone"
+        let source = concat!(
+            "oo::class create Counter {\n",
+            "    self {\n",
+            "        method gone {} { return 1 }\n",
+            "        method kept {} { return 2 }\n",
+            "        deletemethod gone\n",
+            "    }\n",
+            "}\n",
+        );
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let symbols = document_symbols(source, dialect);
+            let names: Vec<&str> = symbols[0]
+                .children
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect();
+            assert_eq!(names, ["kept"], "{dialect}: stale member in outline");
+        }
+    }
+
+    #[test]
+    fn oo_self_block_non_destructive_reference_keeps_the_member_listed() {
+        // TN for the same mechanism: `export` / `unexport` / `filter` name a
+        // method without removing it, so the member stays in the outline.
+        // Oracle: `self { method a {} {…} ; unexport a ; export a }` leaves
+        // `info object methods ::A` -> a, and `::A a` -> 1.
+        let source = concat!(
+            "oo::class create Counter {\n",
+            "    self {\n",
+            "        method a {} { return 1 }\n",
+            "        unexport a\n",
+            "        export a\n",
+            "    }\n",
+            "}\n",
+        );
+        let symbols = document_symbols(source, "tcl9.0");
+        assert!(
+            symbols[0].children.iter().any(|c| c.name == "a"),
+            "export/unexport must not drop the outline entry",
+        );
+    }
+
+    #[test]
     fn oo_private_block_form_emits_instance_method_symbols() {
         // Issue #1081, symmetric half: `private` is the other registry member
         // marked wrapper-with-block-body, so the same normalisation gives it

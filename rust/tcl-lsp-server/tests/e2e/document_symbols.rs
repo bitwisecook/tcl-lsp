@@ -356,6 +356,39 @@ fn self_block_form_members_appear_in_the_outline() {
 }
 
 #[test]
+fn self_block_deleted_member_is_absent_from_the_outline() {
+    // Issue #1095 review — TN, end to end. A member the block deletes must not
+    // reach the outline. Oracle (tclsh 9.0.4 / 8.6.16, identical):
+    //   oo::class create ::C1 {
+    //       self { method gone {} {…} ; method kept {} {…} ; deletemethod gone }
+    //   }
+    //   info object methods ::C1  ->  kept
+    //   ::C1 gone                 ->  unknown method "gone"
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create Counter {\n",
+            "    self {\n",
+            "        method gone {} { return 1 }\n",
+            "        method kept {} { return 2 }\n",
+            "        deletemethod gone\n",
+            "    }\n",
+            "}\n",
+        ),
+    );
+    let syms = top(&mut lsp, &uri);
+    let kids = children(&syms[0]);
+    let names: Vec<&str> = kids.iter().map(name).collect();
+    assert_eq!(
+        names,
+        ["kept"],
+        "stale deleted member in outline: {names:?}"
+    );
+}
+
+#[test]
 fn self_introspection_inside_a_method_body_adds_no_symbol() {
     // Issue #1081 — TN, end to end. `self class` / `self object` in a method
     // body are introspection calls, not definer members: the outline must show
