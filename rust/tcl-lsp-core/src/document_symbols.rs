@@ -1334,6 +1334,132 @@ mod tests {
     }
 
     #[test]
+    fn oo_unwrapped_deleted_member_is_not_in_the_outline() {
+        // Issue #1101 — TP, and the user-visible symptom: an *unwrapped*
+        // `deletemethod` (no `self` / `private` wrapper) really removes the
+        // method, so a retained outline entry navigates to a name the
+        // interpreter does not have. Oracle (tclsh 9.0.4 / 8.6.14, identical):
+        //   oo::class create ::I1 { method gone {} {…}; method kept {} {…}
+        //                           deletemethod gone }
+        //   info class methods ::I1  ->  kept
+        //   oo::class create ::I4 { method gone {} {…}; method kept {} {…} }
+        //   oo::define ::I4 { deletemethod gone }
+        //   info class methods ::I4  ->  kept
+        for source in [
+            concat!(
+                "oo::class create Counter {\n",
+                "    method gone {} { return 1 }\n",
+                "    method kept {} { return 2 }\n",
+                "    deletemethod gone\n",
+                "}\n",
+            ),
+            concat!(
+                "oo::class create Counter {\n",
+                "    method gone {} { return 1 }\n",
+                "    method kept {} { return 2 }\n",
+                "}\n",
+                "oo::define Counter {\n",
+                "    deletemethod gone\n",
+                "}\n",
+            ),
+        ] {
+            for dialect in ["tcl8.6", "tcl9.0"] {
+                let symbols = document_symbols(source, dialect);
+                let names: Vec<&str> = symbols[0]
+                    .children
+                    .iter()
+                    .map(|c| c.name.as_str())
+                    .collect();
+                assert_eq!(names, ["kept"], "{dialect}: stale member in outline");
+            }
+        }
+    }
+
+    #[test]
+    fn oo_unwrapped_renamed_member_leaves_only_the_sibling_listed() {
+        // Issue #1101 — the rename half. `renamemethod old new` drops `old`
+        // and deliberately records nothing for `new` (a false negative in
+        // preference to a stale entry). Oracle:
+        //   oo::class create ::I3 { method old {} {return o}; renamemethod old new }
+        //   info class methods ::I3  ->  new      ;  ::I3 old -> unknown method
+        let source = concat!(
+            "oo::class create Counter {\n",
+            "    method old {} { return 1 }\n",
+            "    method kept {} { return 2 }\n",
+            "    renamemethod old new\n",
+            "}\n",
+        );
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let names: Vec<String> = document_symbols(source, dialect)[0]
+                .children
+                .iter()
+                .map(|c| c.name.clone())
+                .collect();
+            assert_eq!(names, ["kept"], "{dialect}");
+        }
+    }
+
+    #[test]
+    fn oo_unwrapped_deletemethod_leaves_the_class_side_member_listed() {
+        // Issue #1101 — TN. The unwrapped word is instance-scoped, so a
+        // class-object-side member of the same name keeps its outline entry.
+        let source = concat!(
+            "oo::class create Counter {\n",
+            "    self {\n",
+            "        method cm {} { return 1 }\n",
+            "    }\n",
+            "}\n",
+            "oo::define Counter {\n",
+            "    deletemethod cm\n",
+            "}\n",
+        );
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            assert!(
+                document_symbols(source, dialect)[0]
+                    .children
+                    .iter()
+                    .any(|c| c.name == "cm"),
+                "{dialect}: an unwrapped delete must not reach the class side",
+            );
+        }
+    }
+
+    #[test]
+    fn oo_self_scoped_unexport_keeps_both_same_named_members_listed() {
+        // Issue #1098 — TN at the outline level. Side-scoping the visibility
+        // flip must not disturb which members are *listed*: the class-side and
+        // instance-side `m` are separate members and both stay in the outline.
+        let source = concat!(
+            "oo::class create Counter {\n",
+            "    method m {} { return 1 }\n",
+            "    self {\n",
+            "        method m {} { return 2 }\n",
+            "        unexport m\n",
+            "    }\n",
+            "}\n",
+        );
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let symbols = document_symbols(source, dialect);
+            let details: Vec<Option<&str>> = symbols[0]
+                .children
+                .iter()
+                .filter(|c| c.name == "m")
+                .map(|c| c.detail.as_deref())
+                .collect();
+            assert_eq!(
+                details.len(),
+                2,
+                "{dialect}: both sides' `m` must stay listed, got {details:?}",
+            );
+            assert!(details.contains(&Some("()")), "{dialect}: {details:?}");
+            assert!(
+                details.contains(&Some("classmethod ()")),
+                "{dialect}: {details:?}",
+            );
+        }
+    }
+
+    #[test]
     fn oo_private_block_form_emits_instance_method_symbols() {
         // Issue #1081, symmetric half: `private` is the other registry member
         // marked wrapper-with-block-body, so the same normalisation gives it
