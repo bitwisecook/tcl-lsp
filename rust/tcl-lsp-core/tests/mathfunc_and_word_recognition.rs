@@ -879,6 +879,110 @@ proc s {a {b 1} args} { return \"s got $a $b $args\" }
 }
 
 // ---------------------------------------------------------------------------
+// Issue #1079 — a computed parameter list declares nothing the analyser can
+// model, so it registers no per-parameter `VarDef` and no arity
+// ---------------------------------------------------------------------------
+//
+// Oracle (tclsh 9.0.4 and 8.6.16, identical):
+//
+//   proc makeargs {} { return {a b} }
+//   proc p [makeargs] { return "p got $a $b" }
+//   puts [info args p]  -> a b
+//   puts [p 1 2]        -> p got 1 2
+//
+//   set params {x y}
+//   proc q $params { return "q got $x $y" }
+//   puts [q 1 2]        -> q got 1 2
+//
+// The analyser used to read the unresolved word as a *one-parameter literal*
+// and register a `VarDef` whose name is the source text (`"[makeargs]"` /
+// `"$params"`) spanning that word, plus a one-argument arity that made both
+// two-argument calls above draw a false `E003 Too many arguments`.
+
+/// TN: no `VarDef` is invented for a computed parameter-list word, in either
+/// of its two spellings.
+#[test]
+fn tn_computed_parameter_list_registers_no_variable() {
+    for (src, stub) in [
+        (
+            "proc makeargs {} { return {a b} }\nproc p [makeargs] { return \"$a$b\" }\n",
+            "[makeargs]",
+        ),
+        (
+            "set params {x y}\nproc q $params { return \"$x$y\" }\n",
+            "$params",
+        ),
+    ] {
+        let analysis = analyse(src);
+        let names: Vec<&String> = analysis.all_variables.keys().collect();
+        assert!(
+            !names.iter().any(|n| n.contains(stub)),
+            "no `VarDef` may be named after the computed word {stub:?}; got {names:?}"
+        );
+        // …and the proc itself carries no modelled parameters.
+        let proc = analysis
+            .all_procs
+            .values()
+            .find(|p| p.qualified_name == "::p" || p.qualified_name == "::q")
+            .expect("the proc is still registered");
+        assert!(
+            proc.params.is_empty() && proc.params_computed,
+            "the formals are unmodelled, not empty: {:?}",
+            proc.params
+        );
+    }
+}
+
+/// TN: with the formals unknown, the call-site arity checker abstains — the
+/// two-argument calls the oracle runs must draw no `E002`/`E003`/`E005`.
+#[test]
+fn tn_computed_parameter_list_abstains_from_arity_checking() {
+    for src in [
+        "proc makeargs {} { return {a b} }\nproc p [makeargs] { return \"$a$b\" }\nputs [p 1 2]\n",
+        "set params {x y}\nproc q $params { return \"$x$y\" }\nq 1 2\n",
+    ] {
+        let codes: Vec<String> = analyse(src)
+            .diagnostics
+            .iter()
+            .map(|d| d.code.to_string())
+            .collect();
+        assert!(
+            !codes
+                .iter()
+                .any(|c| c == "E002" || c == "E003" || c == "E005"),
+            "arity is unknowable for a computed parameter list; {src:?} emitted {codes:?}"
+        );
+    }
+}
+
+/// TP control: a *literal* parameter list — braced, bareword, or a quoted word
+/// with no substitution — still models its formals and still checks arity.
+/// tclsh 9.0.4 / 8.6.16: `proc s {a b} {…}; s 1 2 3` → `wrong # args`.
+#[test]
+fn tp_literal_parameter_lists_still_model_formals_and_arity() {
+    let src = "proc s {a b} { return \"$a$b\" }\ns 1 2 3\n";
+    let analysis = analyse(src);
+    let proc = &analysis.all_procs["::s"];
+    assert!(!proc.params_computed, "a braced list is literal");
+    assert_eq!(proc.params.len(), 2, "{:?}", proc.params);
+    let codes: Vec<String> = analysis
+        .diagnostics
+        .iter()
+        .map(|d| d.code.to_string())
+        .collect();
+    assert!(codes.iter().any(|c| c == "E003"), "{codes:?}");
+    // A quoted word with no substitution really does declare `m` and `n`
+    // (tclsh: `proc r "m n" {…}; info args r` → `m n`).
+    let quoted = analyse("proc r \"m n\" { return \"$m$n\" }\n");
+    let r = &quoted.all_procs["::r"];
+    assert!(
+        !r.params_computed,
+        "a substitution-free quoted list is literal"
+    );
+    assert_eq!(r.params.len(), 2, "{:?}", r.params);
+}
+
+// ---------------------------------------------------------------------------
 // Issue #1054 — hover type inference must be built for the document's dialect
 // ---------------------------------------------------------------------------
 

@@ -41,7 +41,6 @@ use crate::var_resolve::{ResolveContext, resolve_place};
 use crate::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };
-use tcl_lexer::TokenType;
 
 /// True when `name`'s `VarRead`-role argument names the *whole* array,
 /// not a scalar (so a write to any element is observed) — the registry's
@@ -193,16 +192,11 @@ fn collect_upvar_aliases(
 /// (`{…}`): Tcl performs no `$` / `[` substitution on it, so its de-braced IR
 /// text must NOT be scanned for reads — `puts {$a(k)}` does *not* read `a(k)`.
 ///
-/// Detected via the `Str` token kind: a `$var` lexes to `Var`, a `[cmd]` to
-/// `Cmd`, and a `"…"` (which *does* substitute) to `Esc` — only a brace-quoted
-/// word is `Str`.  `tokens.argv` is command-name-first, so args are 1-based.
-/// The IR keeps args de-braced, so we gate on the token kind rather than
-/// re-scanning the braced text.
+/// Thin wrapper over the shared
+/// [`CommandTokens::arg_is_braced_literal`] for the `Option<&CommandTokens>`
+/// this module carries.
 fn is_braced_literal(tokens: Option<&CommandTokens>, arg_index: usize) -> bool {
-    tokens
-        .and_then(|t| t.argv_kinds.get(arg_index + 1))
-        .copied()
-        == Some(TokenType::Str)
+    tokens.is_some_and(|t| t.arg_is_braced_literal(arg_index))
 }
 
 fn trace_target(args: &[String]) -> Option<&str> {

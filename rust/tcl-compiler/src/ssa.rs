@@ -373,8 +373,18 @@ fn barrier_is_loop_list_header(command: &str, registry: Option<&CommandRegistry>
 /// *base* (`a$b(k)`) is dynamic too.  A bare array element (`arr($i)`) keeps
 /// its static base `arr` (only the index is dynamic), so it is **not** a
 /// dynamic target here.
+///
+/// `braced_literal` is the statement's own `name_braced` flag: a brace-quoted
+/// word (`set {$n} 1`) substitutes nothing, so its `$` is part of a perfectly
+/// static name and the target is **not** dynamic (issue #1078).  Reading the
+/// name text alone called it dynamic, withheld the def, and recorded a read of
+/// `n` — a `W210 Variable 'n' is read before it is set` on code that never
+/// mentions `n`.
 #[must_use]
-pub fn is_dynamic_write_target(name: &str) -> bool {
+pub fn is_dynamic_write_target(name: &str, braced_literal: bool) -> bool {
+    if braced_literal {
+        return false;
+    }
     if name.starts_with('$') {
         return true;
     }
@@ -415,8 +425,10 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
             // `set ${tok}(k) …`) denotes the variable named by the
             // substitution's value — a place that cannot be pinned down, so it
             // is **not** a static def of the name-bearing variable.  `uses_of`
-            // records the name read separately.
-            if is_dynamic_write_target(name) {
+            // records the name read separately.  A brace-quoted target
+            // (`set {$n} 1`) substitutes nothing — it is a static def of the
+            // variable literally named `$n` (issue #1078).
+            if is_dynamic_write_target(name, *name_braced) {
                 return Vec::new();
             }
             // A constant-keyed array element defs its own variable
@@ -425,7 +437,12 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
             vec![crate::naming::element_var_name_braced(name, *name_braced).to_owned()]
         }
         Statement::Call { defs, .. } if !defs.is_empty() => defs.clone(),
-        Statement::Barrier { command, args, .. } => {
+        Statement::Barrier {
+            command,
+            args,
+            tokens,
+            ..
+        } => {
             // Loop-header barriers (`::tcl::dict::for`/`::map`, `::tcl::array::for`
             // — any ensemble subcommand the registry marks `loop_list_header`):
             // args[0] is the iteration-variable list, so extract the names.
@@ -456,8 +473,14 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
                     return indices
                         .into_iter()
                         .filter_map(|idx| {
-                            args.get(idx)
-                                .map(|s| crate::naming::element_var_name(s).to_owned())
+                            // A brace-quoted name word is a literal name, `$`
+                            // and all (issue #1078).
+                            let braced = tokens
+                                .as_ref()
+                                .is_some_and(|t| t.arg_is_braced_literal(idx));
+                            args.get(idx).map(|s| {
+                                crate::naming::element_var_name_braced(s, braced).to_owned()
+                            })
                         })
                         .filter(|n| !n.is_empty())
                         .collect();
@@ -1403,42 +1426,63 @@ fn uses_in_assignment(
     vars_found: &mut BTreeSet<String>,
     reads_own_def: &mut BTreeSet<String>,
 ) {
+    // A brace-quoted target's `$` is part of a literal name, not a
+    // substitution: it is neither a dynamic target nor a read of the
+    // `$`-less lookalike (issue #1078).
     let note_reads_own = |name: &str,
+                          braced: bool,
                           scanner: &VarReferenceScanner,
                           vars_found: &BTreeSet<String>,
                           rod: &mut BTreeSet<String>| {
-        let norm = scanner.canonical_name(name);
+        let norm = scanner.canonical_name_braced(name, braced);
         if !norm.is_empty() && vars_found.contains(norm) {
             rod.insert(norm.to_owned());
         }
     };
     match stmt {
-        Statement::AssignConst { name, .. } => {
-            if is_dynamic_write_target(name) {
+        Statement::AssignConst {
+            name, name_braced, ..
+        } => {
+            if is_dynamic_write_target(name, *name_braced) {
                 vars_found.extend(scanner.scan_word(name, registry));
             }
         }
-        Statement::AssignExpr { name, expr, .. } => {
+        Statement::AssignExpr {
+            name,
+            name_braced,
+            expr,
+            ..
+        } => {
             vars_found.extend(expr_vars_for(scanner, expr));
-            if is_dynamic_write_target(name) {
+            if is_dynamic_write_target(name, *name_braced) {
                 vars_found.extend(scanner.scan_word(name, registry));
             } else {
-                note_reads_own(name, scanner, vars_found, reads_own_def);
+                note_reads_own(name, *name_braced, scanner, vars_found, reads_own_def);
             }
         }
-        Statement::AssignValue { name, value, .. } => {
+        Statement::AssignValue {
+            name,
+            name_braced,
+            value,
+            ..
+        } => {
             vars_found.extend(scanner.scan_word(value, registry));
-            if is_dynamic_write_target(name) {
+            if is_dynamic_write_target(name, *name_braced) {
                 vars_found.extend(scanner.scan_word(name, registry));
             } else {
-                note_reads_own(name, scanner, vars_found, reads_own_def);
+                note_reads_own(name, *name_braced, scanner, vars_found, reads_own_def);
             }
         }
-        Statement::Incr { name, amount, .. } => {
-            if is_dynamic_write_target(name) {
+        Statement::Incr {
+            name,
+            name_braced,
+            amount,
+            ..
+        } => {
+            if is_dynamic_write_target(name, *name_braced) {
                 vars_found.extend(scanner.scan_word(name, registry));
             } else {
-                let norm = scanner.canonical_name(name);
+                let norm = scanner.canonical_name_braced(name, *name_braced);
                 if !norm.is_empty() {
                     vars_found.insert(norm.to_owned());
                     reads_own_def.insert(norm.to_owned());
@@ -1483,8 +1527,29 @@ fn scan_command_words(
     // `tcltest::test`; the raw spelling alone is not a registry key).
     let lookup = canonical_command.unwrap_or(command);
     let body_indices = structural_body_indices(lookup, args, tokens, registry);
+    // A **brace-quoted word in a variable-name position** is a literal name,
+    // not a template: `unset {$n}` destroys the variable called `$n` and reads
+    // nothing (tclsh 9.0.4 / 8.6.14 — `set {$n} v; unset {$n}` leaves `n`
+    // untouched).  Scanning its de-braced content recorded a phantom read of
+    // `n`, which surfaced as `W213 Variable 'n' may not exist` (issue #1078).
+    // Only name roles are exempt: a braced `Expr` word (`expr {$a + $b}`)
+    // really does substitute, so its reads must still be seen.
+    let name_role_braced: std::collections::HashSet<usize> =
+        tokens.map_or_else(std::collections::HashSet::new, |t| {
+            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+            let mut idx =
+                registry.arg_indices_for_role(lookup, &arg_strs, tcl_registry::ArgRole::VarWrite);
+            idx.extend(registry.arg_indices_for_role(
+                lookup,
+                &arg_strs,
+                tcl_registry::ArgRole::VarRead,
+            ));
+            idx.into_iter()
+                .filter(|&i| t.arg_is_braced_literal(i))
+                .collect()
+        });
     for (idx, arg) in args.iter().enumerate() {
-        if body_indices.contains(&idx) {
+        if body_indices.contains(&idx) || name_role_braced.contains(&idx) {
             continue;
         }
         vars_found.extend(scanner.scan_word(arg, registry));
@@ -2360,13 +2425,28 @@ mod tests {
 
     #[test]
     fn is_dynamic_write_target_classifies_names() {
-        assert!(is_dynamic_write_target("$p"));
-        assert!(is_dynamic_write_target("${p}"));
-        assert!(is_dynamic_write_target("a$b"));
-        assert!(is_dynamic_write_target("[gen]"));
-        assert!(!is_dynamic_write_target("p"));
-        assert!(!is_dynamic_write_target("arr(idx)"));
-        assert!(!is_dynamic_write_target("ns::var"));
+        assert!(is_dynamic_write_target("$p", false));
+        assert!(is_dynamic_write_target("${p}", false));
+        assert!(is_dynamic_write_target("a$b", false));
+        assert!(is_dynamic_write_target("[gen]", false));
+        assert!(!is_dynamic_write_target("p", false));
+        assert!(!is_dynamic_write_target("arr(idx)", false));
+        assert!(!is_dynamic_write_target("ns::var", false));
+    }
+
+    #[test]
+    fn brace_quoted_write_target_is_not_dynamic() {
+        // Issue #1078 — `set {$n} 1` names the literal variable `$n`; the
+        // braces suppressed every substitution, so nothing about the target
+        // is computed.  tclsh 9.0.4 / 8.6.14 (identical):
+        //   set {$n} v; info exists {$n} → 1 ; info exists n → 0
+        assert!(!is_dynamic_write_target("$n", true));
+        assert!(!is_dynamic_write_target("${n}", true));
+        assert!(!is_dynamic_write_target("[gen]", true));
+        assert!(!is_dynamic_write_target("$a(k)", true));
+        // TN control: the same spellings *unbraced* are still dynamic.
+        assert!(is_dynamic_write_target("$n", false));
+        assert!(is_dynamic_write_target("[gen]", false));
     }
 
     #[test]

@@ -357,9 +357,18 @@ fn variable_hover(
     // `$var` resolution sits at a position where `find_word_span_at_position`
     // would also match the unqualified name, but a `$`-led ref should
     // surface the `VarDef` not the (typically absent) proc of the same name.
-    if let Some(var_name) = find_var_at_position(source, line, character) {
-        let var_byte_offset =
-            crate::definition::byte_offset_at(line_index, source, line, character);
+    let var_byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    // Resolved through the shared gate, not the raw character scan: a cursor
+    // inside a brace-quoted variable-name word (`set {$n} 1`) is not a `$n`
+    // reference, and must fall through to the declaration-span search below
+    // so it hovers the *literal* cell (PR #1106 review, P2).
+    if let Some(var_name) = crate::definition::substituting_var_at_position(
+        source,
+        profile.name,
+        line,
+        character,
+        var_byte_offset,
+    ) {
         // Use the byte-offset scope-chain lookup (the local line-based helper
         // mis-resolves namespace/proc-scoped vars), gated on the occurrence
         // actually being one Tcl substitutes — see `lookup_var_read_at`
@@ -412,15 +421,12 @@ fn variable_hover(
     }
 
     let decl_byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
-    // A *computed* parameter list (`proc p [makeargs] …`) is live code, not a
-    // declaration site: the analyser records a stub `VarDef` named after the
-    // whole word (`"[makeargs]"`), so trusting it here would render a bogus
-    // variable hover over what is really a call (Codex review of PR #1073).
-    if crate::definition::parameter_list_position_at(analysis, source, decl_byte_offset)
-        == crate::definition::ParamListPosition::Computed
-    {
-        return None;
-    }
+    // #1073 guarded this lookup against a *computed* parameter list
+    // (`proc p [makeargs] …`), where the analyser used to record a stub
+    // `VarDef` named after the whole word (`"[makeargs]"`) and hovering it
+    // rendered a bogus variable card over what is really a call.  Since #1079
+    // no such stub is registered, so the lookup simply finds nothing and the
+    // caller falls through to the command hover — the guard is gone.
     let var_def =
         crate::definition::var_def_at_declaration_offset(&analysis.global_scope, decl_byte_offset)?;
     let (type_info, taint_info) =

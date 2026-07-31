@@ -34,8 +34,6 @@ use std::collections::{BTreeSet, HashMap, VecDeque};
 use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
-use crate::naming::{element_var_name, normalise_var_name};
-
 /// Options controlling what a [`VarReferenceScanner`] looks for.
 #[allow(clippy::struct_excessive_bools)] // option flags, not a state machine
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -128,10 +126,20 @@ impl VarReferenceScanner {
     /// variable word: element-qualified or base, per the options.
     #[must_use]
     pub fn canonical_name<'a>(&self, raw: &'a str) -> &'a str {
+        self.canonical_name_braced(raw, false)
+    }
+
+    /// [`Self::canonical_name`] for a word whose delimiters make its content a
+    /// literal name — a brace-quoted write target (`set {$n} 1`) or the
+    /// `${…}` reference form. See
+    /// [`crate::naming::element_var_name_braced`] for the oracle: the content
+    /// is the name verbatim, `$` and all (issue #1078).
+    #[must_use]
+    pub fn canonical_name_braced<'a>(&self, raw: &'a str, braced_literal: bool) -> &'a str {
         if self.options.element_qualified {
-            element_var_name(raw)
+            crate::naming::element_var_name_braced(raw, braced_literal)
         } else {
-            normalise_var_name(raw)
+            crate::naming::normalise_var_name_braced(raw, braced_literal)
         }
     }
 
@@ -199,14 +207,18 @@ impl VarReferenceScanner {
 /// `options.element_qualified`, or `None` for a degenerate/empty name.
 fn var_token_name(source_map: &SourceMap, tok: &Token, options: VarScanOptions) -> Option<String> {
     let text = source_map.token_text(*tok);
+    // The `${…}` brace form substitutes nothing inside, so its content is the
+    // variable's literal name — `${$n}` reads the variable *called* `$n`, and
+    // `${arr($i)}` the element whose key is the two characters `$i` (tclsh
+    // 9.0.4 / 8.6.14: `set {$n} v; set ${$n}` → `can't read "v"`, i.e. it read
+    // `$n` and got `v`).  The sigil-stripped token text can't show that; the
+    // raw span keeps the `${` prefix.  Applies to both naming modes — dropping
+    // the `$` in the base-name mode keyed the read on `n` (issue #1078).
+    let braced = source_map.text(tok.span).starts_with("${");
     let name = if options.element_qualified {
-        // The `${…}` brace form substitutes nothing inside, so its key is
-        // literal even when it spells `$x` — the sigil-stripped token text
-        // can't show that, but the raw span keeps the `${` prefix.
-        let braced = source_map.text(tok.span).starts_with("${");
         crate::naming::element_var_name_braced(text, braced)
     } else {
-        normalise_var_name(text)
+        crate::naming::normalise_var_name_braced(text, braced)
     };
     (!name.is_empty()).then(|| name.to_owned())
 }
@@ -302,16 +314,19 @@ fn scan_var_read_role_names(
         return result;
     };
 
-    // Segment into commands by splitting on EOL/EOF.
-    let mut words: Vec<String> = Vec::new();
+    // Segment into commands by splitting on EOL/EOF.  Each word carries
+    // whether it is a *brace-quoted literal* — a single `Str` token, the one
+    // word form Tcl leaves entirely unsubstituted, so `unset {$n}` names the
+    // variable literally called `$n` rather than reading `n` (issue #1078).
+    let mut words: Vec<(String, bool)> = Vec::new();
     let mut prev_is_sep = true;
 
-    let flush = |words: &mut Vec<String>, result: &mut BTreeSet<String>| {
+    let flush = |words: &mut Vec<(String, bool)>, result: &mut BTreeSet<String>| {
         if words.is_empty() {
             return;
         }
-        let cmd_name = &words[0];
-        let args: Vec<&str> = words[1..].iter().map(String::as_str).collect();
+        let cmd_name = &words[0].0;
+        let args: Vec<&str> = words[1..].iter().map(|(w, _)| w.as_str()).collect();
         let mut read_idx: Vec<usize> =
             registry.arg_indices_for_role(cmd_name, &args, ArgRole::VarRead);
         // A read-modify-write command (`incr` / `append` / `lappend`) reads
@@ -325,10 +340,11 @@ fn scan_var_read_role_names(
         }
         for idx in read_idx {
             if idx < args.len() {
+                let braced = words[idx + 1].1;
                 let name = if element_qualified {
-                    element_var_name(args[idx])
+                    crate::naming::element_var_name_braced(args[idx], braced)
                 } else {
-                    normalise_var_name(args[idx])
+                    crate::naming::normalise_var_name_braced(args[idx], braced)
                 };
                 if !name.is_empty() {
                     result.insert(name.to_owned());
@@ -350,11 +366,14 @@ fn scan_var_read_role_names(
             _ => {
                 let text = source_map.token_text(*tok);
                 if prev_is_sep {
-                    words.push(text.to_owned());
+                    words.push((text.to_owned(), tok.kind == TokenType::Str));
                 } else if let Some(last) = words.last_mut() {
-                    last.push_str(text);
+                    last.0.push_str(text);
+                    // A second token in the word means it is not a single
+                    // brace-quoted literal.
+                    last.1 = false;
                 } else {
-                    words.push(text.to_owned());
+                    words.push((text.to_owned(), tok.kind == TokenType::Str));
                 }
                 prev_is_sep = false;
             }
@@ -401,7 +420,7 @@ fn deref_form(text: &str) -> &str {
     }
 }
 
-fn collect_ref_forms(text: &str, out: &mut Vec<String>) {
+fn collect_ref_forms(text: &str, out: &mut Vec<(String, bool)>) {
     if text.is_empty() {
         return;
     }
@@ -412,9 +431,18 @@ fn collect_ref_forms(text: &str, out: &mut Vec<String>) {
     for tok in &tokens {
         match tok.kind {
             TokenType::Var => {
-                let form = deref_form(source_map.token_text(*tok));
+                // `token_text` already drops the `$` / `${` decoration, so the
+                // remainder *is* the form.  Re-running `deref_form` over it
+                // would strip a second sigil that belongs to the name itself:
+                // `${$n}` reads the variable literally called `$n` (issue
+                // #1078), whose de-decorated text is `$n`, not `n`.  The
+                // `${…}` form's content is literal, which the flag carries so
+                // consumers do not re-normalise it either.
+                let braced = source_map.text(tok.span).starts_with("${");
+                let form = source_map.token_text(*tok);
+                let form = if braced { form } else { deref_form(form) };
                 if !form.is_empty() {
-                    out.push(form.to_owned());
+                    out.push((form.to_owned(), braced));
                 }
             }
             TokenType::Cmd => {
@@ -437,6 +465,22 @@ fn collect_ref_forms(text: &str, out: &mut Vec<String>) {
 /// distinguish a scalar from an array element from a dynamic ref.
 #[must_use]
 pub fn scan_var_ref_forms(text: &str) -> Vec<String> {
+    scan_var_ref_forms_braced(text)
+        .into_iter()
+        .map(|(f, _)| f)
+        .collect()
+}
+
+/// [`scan_var_ref_forms`], also reporting whether each reference used the
+/// `${…}` **brace form**, whose content is a literal name — `${$n}` reads the
+/// variable called `$n`, `${arr($i)}` the element whose key is the two
+/// characters `$i` (issue #1078).
+///
+/// A consumer that canonicalises the form must pass the flag on to
+/// [`crate::naming::element_var_name_braced`] rather than re-stripping a `$`
+/// that is part of the name.
+#[must_use]
+pub fn scan_var_ref_forms_braced(text: &str) -> Vec<(String, bool)> {
     let mut out = Vec::new();
     collect_ref_forms(text, &mut out);
     out

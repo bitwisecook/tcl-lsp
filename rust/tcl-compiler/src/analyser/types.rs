@@ -403,7 +403,24 @@ pub struct ProcDef {
     /// Fully-qualified proc name with leading ``::``.
     pub qualified_name: String,
     /// Parameter list in declaration order.
+    ///
+    /// Empty *and* [`Self::params_computed`] set means "unknown", not
+    /// "none" — see that field.
     pub params: Vec<ParamDef>,
+    /// The parameter-list word was **computed**, so the proc's formals are
+    /// unmodelled (issue #1079).
+    ///
+    /// `proc p [makeargs] {…}` / `proc q $params {…}` build the formal list at
+    /// definition time from a value; which names it declares, and how many,
+    /// are run-time facts (tclsh 9.0.4 / 8.6.16: with
+    /// `proc makeargs {} {return {a b}}`, `proc p [makeargs] {…}` then
+    /// `info args p` → `a b`, and `p 1 2` runs).  The analyser used to read
+    /// the unresolved word as a one-parameter literal and register a
+    /// `VarDef` whose *name is the source text* (`"[makeargs]"`) — a wrong
+    /// fact that also made the call-site arity checker demand exactly one
+    /// argument.  Now nothing is claimed: no per-parameter `VarDef`, and the
+    /// arity resolvers abstain (`0..unlimited`).
+    pub params_computed: bool,
     /// Source span of the proc-name token.
     pub name_span: Span,
     /// Source span of the proc body (braces excluded).
@@ -430,6 +447,28 @@ pub struct ProcDef {
     /// trait alone.  Populated by
     /// [`super::param_traits::caller_frame_upvar_params`].
     pub caller_frame_params: std::collections::HashSet<String>,
+}
+
+impl ProcDef {
+    /// The proc's declared argument arity — or the **abstaining**
+    /// `0..unlimited` when its parameter list was computed
+    /// ([`Self::params_computed`], issue #1079).
+    ///
+    /// A computed list declares an unknown number of formals with unknown
+    /// names, so no call-site count can be wrong: `proc p [makeargs] {…}` with
+    /// `makeargs` returning `{a b}` really does take two arguments (tclsh
+    /// 9.0.4 / 8.6.16: `p 1 2` → `p got 1 2`), and reading the unresolved word
+    /// as one literal parameter made `p 1 2` draw a false
+    /// `E003 Too many arguments`.  Every arity consumer asks here rather than
+    /// calling [`crate::signature_scan::arity::arity_of`] on `params`
+    /// directly, so the abstention cannot be forgotten at one call site.
+    #[must_use]
+    pub fn arity(&self) -> tcl_registry::Arity {
+        if self.params_computed {
+            return tcl_registry::Arity::new(0, tcl_registry::Arity::UNLIMITED);
+        }
+        crate::signature_scan::arity::arity_of(&self.params)
+    }
 }
 
 /// A lightweight *named definition* introduced by a registry

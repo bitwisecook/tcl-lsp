@@ -186,6 +186,7 @@ mod tests {
             name: name.to_string(),
             qualified_name: format!("::{name}"),
             params: Vec::new(),
+            params_computed: false,
             name_span: Span::new(0, 0),
             body_span: Span::new(0, 0),
             doc: String::new(),

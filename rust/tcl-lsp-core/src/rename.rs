@@ -86,7 +86,7 @@ use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
 
 use crate::definition::LspRange;
-use crate::hover::{find_var_at_position, find_word_span_at_position};
+use crate::hover::find_word_span_at_position;
 use crate::references::{MemberSel, resolve_member_span};
 
 /// One text edit in a rename — span plus replacement text.
@@ -198,25 +198,26 @@ pub fn prepare_rename(
     if crate::namespace_symbol::namespace_cell_at(source, analysis, line, character).is_some() {
         return None;
     }
-    // Variable?
-    if let Some(var_name) = find_var_at_position(source, line, character) {
-        let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-        // A `$name`-shaped substring in a comment or a data brace is not a
-        // reference, so it is not renameable either (issue #923 idx 24; see
-        // `lookup_var_read_at`).
-        if let Some(var_def) = crate::definition::lookup_var_read_at(
+    // Variable?  Shared `$ref` gate: a `$name`-shaped substring in a comment
+    // or a data brace is not a reference, so it is not renameable either
+    // (issue #923 idx 24) — and neither is the `$n` inside a brace-quoted
+    // *name* word (PR #1106 review, P2).
+    let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if let Some(var_name) =
+        crate::definition::substituting_var_at_position(source, "", line, character, byte_offset)
+        && let Some(var_def) = crate::definition::lookup_var_read_at(
             &analysis.global_scope,
             source,
             "",
             byte_offset,
             &var_name,
             analysis.ns_var_global_fallback(),
-        ) {
-            return Some(PrepareRename {
-                range: span_to_range(source, &line_index, var_def.definition_span),
-                placeholder: var_def.name.clone(),
-            });
-        }
+        )
+    {
+        return Some(PrepareRename {
+            range: span_to_range(source, &line_index, var_def.definition_span),
+            placeholder: var_def.name.clone(),
+        });
     }
     // Variable definition / same-cell write site (`set x` / `variable x` /
     // a proc-param / a `catch` result-var) — no `$`, so resolve directly
@@ -362,6 +363,21 @@ pub fn rename_with_diagnosis(
     // namespace and nothing else; renaming one would have to rewrite every
     // qualified name beneath it, which this tier does not do.
     if let Some(refusal) = namespace_rename_refusal(source, line, character, analysis) {
+        return Err(refusal);
+    }
+    // Safety gate: a variable whose *name* can only be written quoted
+    // (`set {$n} 1`) cannot be renamed by substituting into the recorded
+    // spans — see the gate's own doc (issue #1078).  Checked before
+    // `rename_variable_at`, whose `$`-reference cursor search would otherwise
+    // read the `$n` *inside* the braces as a reference to the unrelated
+    // variable `n` and rename that one instead.
+    if let Some(refusal) = crate::rename_safety::literal_name_variable_rename_refusal(
+        source,
+        line,
+        character,
+        analysis,
+        &line_index,
+    ) {
         return Err(refusal);
     }
 
@@ -534,10 +550,17 @@ fn rename_variable_at(
     analysis: &AnalysisResult,
     line_index: &LineIndex,
 ) -> Option<Vec<TextEdit>> {
-    let name = if let Some(var_name) = find_var_at_position(source, line, character) {
+    let def_byte = crate::definition::byte_offset_at(line_index, source, line, character);
+    // Shared `$ref` gate — see `substituting_var_at_position`.  A cursor
+    // inside a brace-quoted name word falls through to the declaration-span
+    // search, so it names the literal cell; the refusal gate in
+    // `rename_with_diagnosis` has already stopped it before this point, but
+    // resolving it correctly here keeps the two from disagreeing.
+    let name = if let Some(var_name) =
+        crate::definition::substituting_var_at_position(source, "", line, character, def_byte)
+    {
         var_name
     } else {
-        let def_byte = crate::definition::byte_offset_at(line_index, source, line, character);
         crate::definition::var_def_at_declaration_offset(&analysis.global_scope, def_byte)?
             .name
             .clone()

@@ -1696,3 +1696,164 @@ emitted: {:?}",
         codes(src, D)
     );
 }
+
+// ---------------------------------------------------------------------------
+// Issue #1078 — a brace-quoted `$`-bearing name is a *literal* variable name
+//
+// Oracle, tclsh 9.0.4 and 8.6.14, byte-identical:
+//
+//   set {$n} v ; set {$n}            -> v
+//   info exists {$n} / info exists n -> 1 / 0     (two distinct variables)
+//   set n other ; set {$n}           -> v         (unaffected)
+//   set {$m} 1 ; set m               -> can't read "m": no such variable
+//   set ${$n}                        -> can't read "v"  (`${$n}` read `$n`)
+//   set {a b} v2 ; set x ${a b}      -> v2
+//   set i 5 ; set {arr($i)} 1
+//     array names arr                -> {$i}      (the literal key)
+//     info exists arr(5)             -> 0
+//   unset {$n} ; info exists {$n} / n -> 0 / 1
+//
+// These are the acceptance measurements recorded when PR #1076 reverted its
+// one-parameter attempt (`docs/design/compiler/ssa-construction.md`).
+// ---------------------------------------------------------------------------
+
+/// The **missed true positive** the reverted #1076 attempt produced: with the
+/// def landing on the wrong variable, `set {$n} 1; puts $n` stopped warning
+/// even though tclsh errors `can't read "n": no such variable`.
+#[test]
+fn issue_1078_braced_write_does_not_define_the_plain_name() {
+    let src = "proc f {} { set {$n} 1; puts $n }\n";
+    assert!(
+        fires(src, D, "W210"),
+        "#1078 TP: `set {{$n}} 1` defines `$n`, so the bare `$n` read is still \
+read-before-set (tclsh: `can't read \"n\"`); emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+/// The **pre-existing false positive** #1078 was filed for: a lone
+/// `set {$n} 1` reads nothing at all, yet the naming layer recorded a read of
+/// `n` and fired `W210 Variable 'n' is read before it is set` on code that
+/// never mentions `n`.
+#[test]
+fn issue_1078_braced_write_alone_is_not_a_read_of_the_plain_name() {
+    let src = "proc f {} { set {$n} 1 }\n";
+    assert!(
+        !fires(src, D, "W210"),
+        "#1078 FP: `set {{$n}} 1` substitutes nothing and reads nothing; \
+emitted: {:?}",
+        codes(src, D)
+    );
+    assert!(
+        fires(src, D, "W211"),
+        "#1078: the write is a genuine unused-variable hint; emitted: {:?}",
+        codes(src, D)
+    );
+    let unused: Vec<String> = crate::analyser::Analyser::new()
+        .analyse(src, D)
+        .diagnostics
+        .iter()
+        .filter(|d| d.code.to_string() == "W211")
+        .map(|d| d.message.clone())
+        .collect();
+    assert!(
+        unused.iter().any(|m| m.contains("'$n'")),
+        "#1078: the hint must name `$n`, not `n`; got {unused:?}"
+    );
+}
+
+/// The **two fresh false `W220`s** the reverted #1076 attempt produced.  The
+/// braced verdict must match the identically-shaped plain-named control
+/// exactly — both silent, because `[set …]` really does read the store.
+#[test]
+fn issue_1078_braced_double_store_matches_the_plain_control() {
+    let braced = "proc f {} { set {$n} 1; set {$n} 2; return [set {$n}] }\n";
+    let plain = "proc f {} { set n 1; set n 2; return [set n] }\n";
+    assert!(
+        !fires(braced, D, "W220"),
+        "#1078: `[set {{$n}}]` reads the store, so neither assignment is dead \
+(tclsh returns 2); emitted: {:?}",
+        codes(braced, D)
+    );
+    assert_eq!(
+        codes(braced, D),
+        codes(plain, D),
+        "#1078: the braced spelling must draw exactly the plain spelling's \
+verdicts"
+    );
+}
+
+/// `unset {$n}` destroys the literal `$n` — it neither reads nor destroys `n`,
+/// so no `W213 Variable 'n' may not exist`.
+#[test]
+fn issue_1078_braced_unset_does_not_touch_the_plain_name() {
+    let src = "proc f {} { set {$n} 1; unset {$n}; return ok }\n";
+    assert!(
+        !fires(src, D, "W213"),
+        "#1078: `unset {{$n}}` destroys the variable it just set; emitted: {:?}",
+        codes(src, D)
+    );
+    assert!(
+        !fires(src, D, "W210"),
+        "#1078: …and reads nothing; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+/// TN control for the family: the *unbraced* substituted spellings must keep
+/// behaving as dynamic names — the #1076 barrier still has to fire.  Same
+/// shape as FP-DS-14's control, restated here so the #1078 changes cannot
+/// quietly erase the barrier they sit on top of.
+#[test]
+fn issue_1078_unbraced_substituted_target_still_behaves_dynamically() {
+    // `[set $p]` may observe *any* store, so the read barrier blinds the
+    // dead-store pass for the whole function.
+    let dynamic = "proc f {p} { set b [set $p]\n set a 1\n set a 2\n return \"$a$b\" }\n";
+    assert!(
+        !fires(dynamic, D, "W220"),
+        "#1076 barrier: a computed read target must still blind W220; \
+emitted: {:?}",
+        codes(dynamic, D)
+    );
+    // TP control: brace the name and the barrier clears, so the genuine dead
+    // store is reported again.
+    let braced = "proc f {p} { set b [set {$p}]\n set a 1\n set a 2\n return \"$a$b\" }\n";
+    assert!(
+        fires(braced, D, "W220"),
+        "#1078: a brace-quoted target computes nothing, so the unrelated dead \
+store is still reported; emitted: {:?}",
+        codes(braced, D)
+    );
+}
+
+/// The `${…}` **read** form reaches the same cell the brace-quoted write
+/// created: `set {$n} 1; return ${$n}` is a complete write/read pair with
+/// nothing to report, and it must not be read as touching `n`.
+#[test]
+fn issue_1078_brace_reference_form_reads_the_literal_name() {
+    let src = "proc f {} { set {$n} 1; return ${$n} }\n";
+    assert!(
+        codes(src, D).is_empty(),
+        "#1078: `${{$n}}` reads the `{{$n}}` cell — nothing to report; \
+emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+/// A brace-quoted **array element** keeps its literal key, and a space-bearing
+/// braced name is an ordinary variable — both must key on their own spelling.
+#[test]
+fn issue_1078_braced_element_and_spaced_names_key_on_their_own_spelling() {
+    let elem = "proc f {} { set {arr($i)} 1; return [set {arr($i)}] }\n";
+    assert!(
+        codes(elem, D).is_empty(),
+        "#1078: `{{arr($i)}}` writes and reads one literal element; emitted: {:?}",
+        codes(elem, D)
+    );
+    let spaced = "proc f {} { set {a b} 1; return [set {a b}] }\n";
+    assert!(
+        codes(spaced, D).is_empty(),
+        "#1078: `{{a b}}` is a legal name written and read; emitted: {:?}",
+        codes(spaced, D)
+    );
+}

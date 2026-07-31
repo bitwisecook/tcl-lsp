@@ -2253,20 +2253,31 @@ impl<'r> Lowerer<'r> {
         }
 
         if !var_indices.is_empty() || !var_read_indices.is_empty() {
+            // A brace-quoted name word (`set {$n} 1`, `unset {$n}`) is Tcl's
+            // literal spelling for a name that contains `$` / `[`: it
+            // substitutes nothing, so the word's content **is** the variable
+            // name (issue #1078). The de-braced `args` text cannot show that;
+            // the word's own token kind can.
+            let braced_at = |real: usize| {
+                matches!(seg.argv.get(real + 1).map(|t| t.kind), Some(TokenType::Str))
+                    && seg.single_token_word.get(real + 1).copied().unwrap_or(true)
+            };
             let var_defs: Vec<String> = var_indices
                 .iter()
                 .filter_map(|&i| {
                     let real = i.checked_sub(prepend_n)?;
-                    args.get(real)
-                        .map(|a| crate::naming::element_var_name(a).to_owned())
+                    args.get(real).map(|a| {
+                        crate::naming::element_var_name_braced(a, braced_at(real)).to_owned()
+                    })
                 })
                 .collect();
             let var_reads: Vec<String> = var_read_indices
                 .iter()
                 .filter_map(|&i| {
                     let real = i.checked_sub(prepend_n)?;
-                    args.get(real)
-                        .map(|a| crate::naming::element_var_name(a).to_owned())
+                    args.get(real).map(|a| {
+                        crate::naming::element_var_name_braced(a, braced_at(real)).to_owned()
+                    })
                 })
                 .collect();
             return Statement::Call {

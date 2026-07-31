@@ -426,11 +426,47 @@ pub fn element_var_name(name: &str) -> &str {
     element_var_name_braced(name, false)
 }
 
-/// [`element_var_name`] for a write-target word whose braced-ness is known
-/// from the lowering (`set {a($x)} v` — the braces suppressed substitution,
-/// so the key is literal even though it spells `$x`).
+/// [`element_var_name`] for a word whose **delimiters make its content a
+/// literal name** — a brace-quoted write target (`set {a($x)} v`) or the
+/// `${…}` reference form, both of which suppress every substitution inside.
+///
+/// With `braced_literal` set, the content **is** the variable name, verbatim:
+/// no `$` sigil to strip, no `${…}` form to unwrap, and the array key is
+/// literal whatever it spells.  Tcl keeps such a name distinct from the
+/// `$`-less one it looks like (tclsh 9.0.4 / 8.6.14, byte-identical):
+///
+/// ```text
+/// set {$n} v ; set {$n}   -> v
+/// info exists {$n} / n    -> 1 / 0     (two different variables)
+/// set n other ; set {$n}  -> v         (unaffected)
+/// set i 5 ; set {arr($i)} 1
+/// array names arr         -> {$i}      (the literal key, not `arr(5)`)
+/// info exists arr(5)      -> 0
+/// ```
+///
+/// Stripping the sigil here (issue #1078) keyed every consumer — defs, reads,
+/// W210/W211/W220, rename, semantic highlighting — on the wrong variable.
+///
+/// ```
+/// use tcl_syntax::naming::element_var_name_braced;
+/// // A brace-quoted word: the content is the name, verbatim.
+/// assert_eq!(element_var_name_braced("$n", true), "$n");
+/// assert_eq!(element_var_name_braced("${n}", true), "${n}");
+/// assert_eq!(element_var_name_braced("a b", true), "a b");
+/// assert_eq!(element_var_name_braced("arr($i)", true), "arr($i)");
+/// assert_eq!(element_var_name_braced("$arr(k)", true), "$arr(k)");
+/// // Unbraced: the ordinary substituting spellings.
+/// assert_eq!(element_var_name_braced("$n", false), "n");
+/// assert_eq!(element_var_name_braced("$arr($i)", false), "arr");
+/// ```
 #[must_use]
 pub fn element_var_name_braced(name: &str, braced_literal: bool) -> &str {
+    if braced_literal {
+        // The delimiters suppressed every substitution, so the content is the
+        // whole name — including a leading `$` and any `(key)`, which is
+        // literal by construction.
+        return name;
+    }
     // `${…}` brace form: the inner text is the whole (literal) name.
     if let Some(after) = name.strip_prefix("${")
         && let Some(rel) = after.find('}')
@@ -439,9 +475,90 @@ pub fn element_var_name_braced(name: &str, braced_literal: bool) -> &str {
     }
     let base = name.strip_prefix('$').unwrap_or(name);
     match split_array_name(name) {
-        (_, Some(key)) if braced_literal || array_key_is_literal(key) => base,
+        (_, Some(key)) if array_key_is_literal(key) => base,
         _ => normalise_var_name(name),
     }
+}
+
+/// [`normalise_var_name`] for a word whose delimiters make its content a
+/// literal name — see [`element_var_name_braced`] for the oracle.
+///
+/// The *base* name, so an array element still loses its `(key)` suffix
+/// (`{arr($i)}` is element `$i` of the array `arr`); what a braced word does
+/// **not** lose is its substitution sigil, because there was no substitution:
+/// `{$n}` names the variable `$n`, and `{$arr(k)}` element `k` of the array
+/// `$arr`.
+///
+/// ```
+/// use tcl_syntax::naming::normalise_var_name_braced;
+/// assert_eq!(normalise_var_name_braced("$n", true), "$n");
+/// assert_eq!(normalise_var_name_braced("${n}", true), "${n}");
+/// assert_eq!(normalise_var_name_braced("arr($i)", true), "arr");
+/// assert_eq!(normalise_var_name_braced("$arr(k)", true), "$arr");
+/// assert_eq!(normalise_var_name_braced("$n", false), "n");
+/// ```
+#[must_use]
+pub fn normalise_var_name_braced(name: &str, braced_literal: bool) -> &str {
+    if !braced_literal {
+        return normalise_var_name(name);
+    }
+    split_array_name_braced(name, true).0
+}
+
+/// [`split_array_name`] for a word whose delimiters make its content a
+/// literal name — see [`element_var_name_braced`] for the oracle.
+///
+/// ```
+/// use tcl_syntax::naming::split_array_name_braced;
+/// assert_eq!(split_array_name_braced("arr($i)", true), ("arr", Some("$i")));
+/// assert_eq!(split_array_name_braced("$n", true), ("$n", None));
+/// assert_eq!(split_array_name_braced("$arr(k)", true), ("$arr", Some("k")));
+/// assert_eq!(split_array_name_braced("$arr(k)", false), ("arr", Some("k")));
+/// ```
+#[must_use]
+pub fn split_array_name_braced(name: &str, braced_literal: bool) -> (&str, Option<&str>) {
+    if !braced_literal {
+        return split_array_name(name);
+    }
+    if name.ends_with(')')
+        && let Some(idx) = name.find('(')
+    {
+        return (&name[..idx], Some(&name[idx + 1..name.len() - 1]));
+    }
+    (name, None)
+}
+
+/// Whether a variable's **name** can only ever appear in source inside
+/// quoting — `{$n}` / `${$n}`, `{a b}` / `${a b}` — because writing it bare
+/// would substitute, split the word, or end the command.
+///
+/// Such a name is legal and distinct in Tcl (`set {$n} v` creates the
+/// variable `$n`, unrelated to `n`), but every occurrence of it carries
+/// delimiters that are *not* part of the recorded name span, and the
+/// delimiters a **new** name needs depend on that new name.  A rewrite is
+/// therefore not a matter of substituting new text into the recorded spans,
+/// which is what the rename edit builder does — so rename refuses instead of
+/// emitting an edit set that would produce `set q} 1` (issue #1078).
+///
+/// A namespace-qualified bareword (`::ns::v`) needs no quoting; neither does
+/// an array element whose base and key are barewords (`arr(k)`), since it is
+/// keyed by its base.
+///
+/// ```
+/// use tcl_syntax::naming::var_name_requires_quoting;
+/// assert!(var_name_requires_quoting("$n"));
+/// assert!(var_name_requires_quoting("a b"));
+/// assert!(var_name_requires_quoting("[gen]"));
+/// assert!(!var_name_requires_quoting("n"));
+/// assert!(!var_name_requires_quoting("::ns::v"));
+/// assert!(!var_name_requires_quoting("arr"));
+/// ```
+#[must_use]
+pub fn var_name_requires_quoting(name: &str) -> bool {
+    name.is_empty()
+        || name.contains([
+            '$', '[', ']', '{', '}', '"', '\\', ';', ' ', '\t', '\n', '\r',
+        ])
 }
 
 /// Return `true` when `${name}` would successfully look up `name` under the
@@ -1244,6 +1361,86 @@ mod tests {
         assert_eq!(split_array_name("a($i)"), ("a", Some("$i")));
         // a `)` with no `(` is not an element.
         assert_eq!(split_array_name("weird)"), ("weird)", None));
+    }
+
+    /// Issue #1078 — the full brace-literal spelling matrix, pinned against
+    /// tclsh 9.0.4 and 8.6.14 (byte-identical transcripts):
+    ///
+    /// ```text
+    /// set {$n} v ; set {$n}          -> v
+    /// info exists {$n} / n           -> 1 / 0      (distinct variables)
+    /// set n other ; set {$n}         -> v          (unaffected)
+    /// set ${$n}                      -> can't read "v"   (`${$n}` read `$n`)
+    /// set {a b} v2 ; set x ${a b}    -> v2         (space in a legal name)
+    /// set i 5 ; set {arr($i)} 1
+    ///   array names arr              -> {$i}       (literal key)
+    ///   info exists arr(5)           -> 0
+    ///   set arr($i) 2 ; array names arr -> {$i} 5  (two distinct elements)
+    /// unset {$n} ; info exists {$n} / n -> 0 / 1
+    /// ```
+    #[test]
+    fn brace_literal_names_keep_their_sigil() {
+        // Element-qualified (SSA / def-use) naming.
+        assert_eq!(element_var_name_braced("$n", true), "$n");
+        assert_eq!(element_var_name_braced("${n}", true), "${n}");
+        assert_eq!(element_var_name_braced("a b", true), "a b");
+        assert_eq!(element_var_name_braced("arr($i)", true), "arr($i)");
+        assert_eq!(element_var_name_braced("$arr(k)", true), "$arr(k)");
+        assert_eq!(element_var_name_braced("[gen]", true), "[gen]");
+        // Base-name (scope / analyser) naming: the element suffix still comes
+        // off, the sigil does not.
+        assert_eq!(normalise_var_name_braced("$n", true), "$n");
+        assert_eq!(normalise_var_name_braced("${n}", true), "${n}");
+        assert_eq!(normalise_var_name_braced("a b", true), "a b");
+        assert_eq!(normalise_var_name_braced("arr($i)", true), "arr");
+        assert_eq!(normalise_var_name_braced("$arr(k)", true), "$arr");
+        assert_eq!(
+            split_array_name_braced("$arr(k)", true),
+            ("$arr", Some("k"))
+        );
+        assert_eq!(split_array_name_braced("$n", true), ("$n", None));
+    }
+
+    /// TN control for [`brace_literal_names_keep_their_sigil`]: the *unbraced*
+    /// spellings are genuine substitutions and must keep normalising, or the
+    /// fix would blind every ordinary `$x` read.
+    #[test]
+    fn unbraced_names_still_normalise() {
+        assert_eq!(element_var_name_braced("$n", false), "n");
+        assert_eq!(element_var_name_braced("${n}", false), "n");
+        assert_eq!(element_var_name_braced("$arr($i)", false), "arr");
+        assert_eq!(element_var_name_braced("$arr(k)", false), "arr(k)");
+        assert_eq!(normalise_var_name_braced("$n", false), "n");
+        assert_eq!(normalise_var_name_braced("$arr(k)", false), "arr");
+        assert_eq!(
+            split_array_name_braced("$arr(k)", false),
+            ("arr", Some("k"))
+        );
+        // The `${…}` *reference* form already carried the rule: its content is
+        // the literal name whichever flag the caller passes.
+        assert_eq!(element_var_name("${$n}"), "$n");
+        assert_eq!(element_var_name("${arr($i)}"), "arr($i)");
+        assert_eq!(normalise_var_name("${$n}"), "$n");
+    }
+
+    /// The rename gate's predicate (issue #1078): a name that can only be
+    /// written quoted is not renameable by span substitution.
+    #[test]
+    fn quoting_requirement_matches_the_writable_spellings() {
+        for needs in [
+            "$n", "${n}", "a b", "[gen]", "a\tb", "x;y", "q\"r", "", "a\\b",
+        ] {
+            assert!(
+                var_name_requires_quoting(needs),
+                "{needs:?} can only be written quoted"
+            );
+        }
+        for plain in ["n", "::ns::v", "arr", "arr(k)", "_x1", "caf\u{e9}"] {
+            assert!(
+                !var_name_requires_quoting(plain),
+                "{plain:?} is writable bare"
+            );
+        }
     }
 
     #[test]

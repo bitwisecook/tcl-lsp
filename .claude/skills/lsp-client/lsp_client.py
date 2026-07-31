@@ -22,6 +22,16 @@
 Starts the server, sends LSP requests, and prints human-readable results.
 Uses only the Python standard library — no external dependencies.
 
+Cross-file assertions (definition/references/diagnostics/code-actions/
+context/all/completion/code-lens touching more than one file's worth of
+state — workspace variables, package tiers, sibling-file completions,
+workspace-wide lens counts) wait out the server's background workspace scan
+first via `LspClient.wait_for_workspace_scan()` (bounded by --scan-timeout,
+default 15s) rather than racing it — see issue #1094 and that method's
+docstring for the exact server-side signal it waits on. Single-file
+subcommands (semantic-tokens, hover, format, ...) are unaffected and
+don't wait.
+
 Usage:
     python3 lsp_client.py semantic-tokens <file.tcl>
     python3 lsp_client.py diagnostics <file.tcl>
@@ -110,6 +120,23 @@ SEMANTIC_TOKEN_MODIFIERS = [
 
 LSP_SEVERITY = {1: "ERROR", 2: "WARNING", 3: "INFO", 4: "HINT"}
 
+# The one documented, intentional readiness signal for the background
+# workspace scan (`Backend::scan_workspace_folders` in
+# rust/tcl-lsp-server/src/lib.rs). It fires exactly once, after
+# `package_resolver` / `workspace_index` have been (re)built from disk —
+# unconditionally, even for a zero-root / single-file session — via a
+# `window/logMessage` notification (MessageType::LOG). The server's own doc
+# comment on that call site says explicitly: "a client (or a test) that
+# needs to know the autoload / cross-file workspace state is current rather
+# than racing this scan should wait on this line instead of an unrelated
+# per-document signal (issue #1003)". See issue #1094.
+#
+# NOT the same marker as `[timing] workspace_state.update`, which is a
+# *per-document* diagnostics-publish timing line (fires once per open
+# document, unrelated to workspace-scan completion) — waiting on that one
+# instead is the exact confusion issue #1094 warns against.
+WORKSPACE_SCAN_SIGNAL = "[timing] workspace_folders_scan"
+
 COMPLETION_KIND = {
     1: "Text",
     2: "Method",
@@ -136,6 +163,33 @@ COMPLETION_KIND = {
     23: "Event",
     24: "Operator",
     25: "TypeParameter",
+}
+
+# Subcommands whose results can depend on cross-file workspace state
+# (workspace variables, package tiers — issue #1094): `definition` and
+# `references` query `workspace_index` directly per-request, so waiting
+# right before the request (see `cmd_definition`/`cmd_references`) is
+# sufficient. `diagnostics`, `code-actions`, `context`, and `all` are
+# different: diagnostics are *pushed* once, right after `didOpen`, and only
+# get republished once the scan completes if the doc was already open when
+# `initialized` fired (see `initialized`'s "reschedule every open document"
+# comment in rust/tcl-lsp-server/src/lib.rs) — waiting *after* `didOpen`
+# would just race that republish instead. So for these, `main()` waits
+# *before* `open_document()`, ensuring the first (and only) diagnostics
+# publish already sees the fully-populated workspace state.
+# `completion` and `code-lens` also read `workspace_index` per-request
+# (completion enumerates sibling-file procedures; lenses count
+# workspace-wide references), so they wait too — before `didOpen` via
+# `main()`, which is also sufficient for their per-request reads.
+CROSS_FILE_COMMANDS = {
+    "definition",
+    "references",
+    "diagnostics",
+    "code-actions",
+    "context",
+    "all",
+    "completion",
+    "code-lens",
 }
 
 SYMBOL_KIND = {
@@ -392,6 +446,57 @@ class LspClient:
                     continue
                 messages.append(params.get("message", ""))
         return messages
+
+    def wait_for_workspace_scan(self, timeout: float = 15.0) -> str:
+        """Block until the server's initial background workspace scan completes.
+
+        Cross-file navigation (`textDocument/definition`,
+        `textDocument/references`) and cross-file diagnostics (workspace
+        variable / package-tier resolution, W120/W123) read
+        `workspace_index` / `package_resolver`, which
+        `Backend::scan_workspace_folders` populates in the background —
+        kicked off from the `initialized` handler, running concurrently
+        with whatever `didOpen` the client sends next. Asserting before
+        that scan lands is issue #1094: results flip between "resolved"
+        and "unresolved" depending on scan timing.
+
+        Waits for the `[timing] workspace_folders_scan` `window/logMessage`
+        line (see `WORKSPACE_SCAN_SIGNAL` above) — the scan's one
+        documented readiness signal, always emitted exactly once per scan
+        regardless of workspace size (even a zero-root session gets it).
+        Call this *before* `open_document()` / navigation requests for any
+        assertion that depends on cross-file state; calling it again after
+        the signal has already arrived returns immediately (cheap to call
+        defensively from multiple places).
+
+        Raises TimeoutError with a pointer back to the server-side signal
+        and this issue if the line never arrives within *timeout* seconds.
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            for msg in self.get_log_messages():
+                if WORKSPACE_SCAN_SIGNAL in msg:
+                    return msg
+            # Defensive: also accept a plain stderr echo of the same line,
+            # in case the server (or a future build) mirrors log messages
+            # there in addition to `window/logMessage`.
+            for line in self.get_stderr_lines():
+                if WORKSPACE_SCAN_SIGNAL in line:
+                    return line
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.05)
+        raise TimeoutError(
+            f"Timed out after {timeout}s waiting for the server's workspace "
+            f"scan to complete — no {WORKSPACE_SCAN_SIGNAL!r} window/logMessage "
+            "was seen. Cross-file navigation/diagnostics results read here "
+            "would be racy (issue #1094). If this is a legitimately large "
+            "workspace, pass a higher --scan-timeout; otherwise check that "
+            "the server actually reached `scan_workspace_folders` (see "
+            "rust/tcl-lsp-server/src/lib.rs) — e.g. it never got past "
+            "`initialized` because a server-to-client request went "
+            "unanswered."
+        )
 
     def clear_timing(self) -> None:
         """Clear collected stderr lines and notifications for fresh measurement."""
@@ -1020,7 +1125,14 @@ def cmd_completion(client: LspClient, uri: str, line: int, col: int) -> None:
 
 
 def cmd_definition(client: LspClient, uri: str, line: int, col: int) -> None:
-    """Request and display definitions."""
+    """Request and display definitions.
+
+    A "navigation request" per issue #1094: waits out the background
+    workspace scan first (idempotent/cheap if `main()` already did) so a
+    cross-file definition isn't raced. Belt-and-suspenders for callers that
+    invoke this directly rather than through `main()`.
+    """
+    client.wait_for_workspace_scan()
     result = client.send_request(
         "textDocument/definition",
         {
@@ -1034,7 +1146,14 @@ def cmd_definition(client: LspClient, uri: str, line: int, col: int) -> None:
 
 
 def cmd_references(client: LspClient, uri: str, line: int, col: int) -> None:
-    """Request and display references."""
+    """Request and display references.
+
+    A "navigation request" per issue #1094: waits out the background
+    workspace scan first (idempotent/cheap if `main()` already did) so
+    cross-file references aren't raced. Belt-and-suspenders for callers
+    that invoke this directly rather than through `main()`.
+    """
+    client.wait_for_workspace_scan()
     result = client.send_request(
         "textDocument/references",
         {
@@ -1549,6 +1668,17 @@ examples:
         "--server-bin",
         help="Path to the native tcl-lsp-server binary (for --server rust; else auto-detected).",
     )
+    parser.add_argument(
+        "--scan-timeout",
+        type=float,
+        default=15.0,
+        help=(
+            "Seconds to wait for the background workspace scan to complete "
+            "before cross-file subcommands (definition, references, "
+            "diagnostics, code-actions, context, all) proceed. See "
+            "issue #1094. Default: 15.0."
+        ),
+    )
 
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -1726,6 +1856,15 @@ examples:
                     "workspace/didChangeConfiguration",
                     {"settings": {"tclLsp": {"dialect": dialect}}},
                 )
+
+            # Cross-file-sensitive commands: wait out the background
+            # workspace scan *before* opening the document, so the doc's
+            # one diagnostics publish (and any definition/references
+            # request issued below) already sees the fully-populated
+            # workspace_index / package_resolver instead of racing the
+            # scan (issue #1094).
+            if args.command in CROSS_FILE_COMMANDS:
+                client.wait_for_workspace_scan(timeout=args.scan_timeout)
 
             uri, content = open_document(client, args.file)
 
