@@ -2570,6 +2570,24 @@ pub struct Backend {
     /// only re-analyses on change, and so declaration-side queries can map a
     /// standalone name to its re-homed twin.
     rehomed_source_seeds: Arc<Mutex<HashMap<String, Vec<String>>>>,
+    /// Serialises [`Backend::refresh_source_rehoming`] passes.
+    ///
+    /// A dozen request handlers (references, definition, hover, rename, …)
+    /// each call `refresh_source_rehoming` at their own entry, and
+    /// `scan_workspace_folders` calls it again after every merge. Without
+    /// this gate, concurrent callers each ran the full (up to 4-round)
+    /// convergence loop independently — on a `source`-heavy workspace, every
+    /// one of them re-read and re-analysed the same re-homed documents and
+    /// took its own turn on `workspace_index`'s write lock, so N concurrent
+    /// requests paid N times the real reconciliation cost and serialised
+    /// against each other on that lock (issue #1158: the measured 130 s
+    /// `references` call that head-of-line-blocked an unrelated `definition`
+    /// request). With the gate, a caller that lands while a pass is already
+    /// running simply waits for it — `refresh_source_rehoming`'s own
+    /// early-return ("nothing left to reconcile") then answers instantly for
+    /// every waiter but the one that did the real work. Same "wait out the
+    /// in-flight pass" idiom as [`Self::workspace_scan_gate`] (issue #1003).
+    rehoming_gate: tokio::sync::Mutex<()>,
     /// Tcl installations discovered by scanning common install locations on
     /// disk (never by executing `tclsh`). Cached once per session. The package
     /// database scans these (plus configured `libraryPaths`) so it can see
@@ -3186,6 +3204,7 @@ impl Backend {
             workspace_scan_gate: tokio::sync::Mutex::new(()),
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
+            rehoming_gate: tokio::sync::Mutex::new(()),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
@@ -9215,7 +9234,15 @@ impl Backend {
     /// several views when sourced from several namespaces — all true at
     /// run time).  Iterates to a fixpoint (bounded) because a seeded parent
     /// records *composed* namespaces for its own nested `source` calls.
+    ///
+    /// Serialised by [`Self::rehoming_gate`] (issue #1158): a caller that
+    /// lands while another pass (a peer request, or `scan_workspace_folders`'
+    /// own call after a merge) is already reconciling waits for it instead of
+    /// running its own redundant copy of the loop below — the early return a
+    /// few lines down then answers "already converged" for every waiter but
+    /// whichever caller actually did the work.
     async fn refresh_source_rehoming(&self) {
+        let _guard = self.rehoming_gate.lock().await;
         for _round in 0..4 {
             let desired = {
                 let index = self.workspace_index.read().await;
@@ -18662,6 +18689,7 @@ mod tests {
             workspace_scan_gate: tokio::sync::Mutex::new(()),
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
+            rehoming_gate: tokio::sync::Mutex::new(()),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
@@ -22769,6 +22797,76 @@ mod tests {
             a_edit_lines,
             [2, 3].into_iter().collect(),
             "both views' callers must be rewritten: {changes:?}"
+        );
+    }
+
+    /// Issue #1158: concurrent `refresh_source_rehoming` callers (every
+    /// navigation handler calls it at its own entry) must not each run their
+    /// own full re-analysis of the same re-homed document — that duplicated
+    /// disk reads / analyses and serialised on `workspace_index`'s write
+    /// lock, turning one caller's O(sourced files) convergence cost into
+    /// O(concurrent callers × that cost) and head-of-line-blocking unrelated
+    /// requests behind it.
+    ///
+    /// Proxy for "did the real reconciliation work run more than once":
+    /// each genuine reconciliation of a document is one `remove_document` +
+    /// one `add_document`, so it bumps [`core_workspace_index::WorkspaceIndex::generation`]
+    /// by exactly 2; a second, redundant pass over the same document would
+    /// bump it by 2 more. Run on a real multi-thread runtime with genuine
+    /// `tokio::spawn` tasks (not `tokio::join!` on one task, which never
+    /// gives two `.await`-separated bodies true concurrent access to the
+    /// gate) so the two calls can actually race for
+    /// [`Backend::rehoming_gate`] — with the gate, the outcome is
+    /// deterministic regardless of scheduling: whichever call acquires it
+    /// second always finds the reconciliation already converged, because the
+    /// first call fully completes (and releases the gate) before the second
+    /// can proceed. A build that dropped the gate could still pass this test
+    /// on an unlucky schedule (the two spawned tasks not actually
+    /// overlapping), so it is a genuine, non-flaky proof *with* the fix
+    /// rather than a guaranteed catch of its absence — the reconciliation
+    /// path's several `.await` points (disk read, `spawn_blocking`, index
+    /// write) give a wide window for the race to manifest in practice.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn rehoming_gate_dedups_concurrent_reconciliation_passes() {
+        let backend = Arc::new(test_backend());
+        let a = Uri::from_str("file:///proj/a.tcl").unwrap();
+        let b = Uri::from_str("file:///proj/b.tcl").unwrap();
+        register(&backend, &b, "proc helper {} {}\n").await;
+        register(
+            &backend,
+            &a,
+            "namespace eval ::x { source b.tcl }\n::x::helper\n",
+        )
+        .await;
+
+        let before = backend.workspace_index.read().await.generation();
+        let (b1, b2) = (Arc::clone(&backend), Arc::clone(&backend));
+        let (r1, r2) = tokio::join!(
+            tokio::spawn(async move { b1.refresh_source_rehoming().await }),
+            tokio::spawn(async move { b2.refresh_source_rehoming().await }),
+        );
+        r1.expect("first pass must not panic");
+        r2.expect("second pass must not panic");
+        let after = backend.workspace_index.read().await.generation();
+        assert_eq!(
+            after.wrapping_sub(before),
+            2,
+            "two concurrent reconciliation passes must not each re-index the same document",
+        );
+
+        // The result is still correct: b.tcl's declaration is reachable
+        // under its seeded identity from a.tcl's qualified call.
+        let b_src = "proc helper {} {}\n";
+        let analysis = {
+            let mut an = Analyser::new();
+            an.analyse(b_src, "tcl8.6").clone()
+        };
+        let refs = backend
+            .cross_document_references(&b, b_src, &analysis, Position::new(0, 6), false)
+            .await;
+        assert!(
+            refs.iter().any(|l| l.uri == a),
+            "the sourcing document's qualified call must still resolve: {refs:?}"
         );
     }
 
