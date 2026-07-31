@@ -318,6 +318,48 @@ pub fn rename(
     .unwrap_or_default()
 }
 
+/// Every refusal that must be decided **before** any edit is built, in order.
+///
+/// Grouped because they share that one property: a hazard here can never be
+/// allowed to leak a partial edit set, so all of them run ahead of the first
+/// `rename_*` tier rather than being interleaved with them.
+fn pre_edit_refusal(
+    source: &str,
+    dialect: &str,
+    line: u32,
+    character: u32,
+    new_name: &str,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Option<crate::rename_safety::RenameRefusal> {
+    // When the cursor names a `TclOO` member: refuse outright if any dispatch
+    // of it in this document cannot be proved safe to rewrite (issue #923 idx
+    // 79), or if the *requested name* would turn a `renamemethod` into one that
+    // aborts the whole class definition (issue #1121 review).
+    method_rename_refusal(
+        source, dialect, line, character, new_name, analysis, line_index,
+    )
+    // A namespace name is not a rename target here, and — crucially — it must
+    // **refuse** rather than return an empty edit set: `Ok(vec![])` falls
+    // through to the server's workspace-resolved rename branch, which
+    // resolved the word as a *command* and rewrote a same-spelled proc
+    // instead (issue #1088 review, finding 1).  The cursor is provably on a
+    // registry-declared `ArgRole::NamespaceName` argument, so it names a
+    // namespace and nothing else; renaming one would have to rewrite every
+    // qualified name beneath it, which this tier does not do.
+    .or_else(|| namespace_rename_refusal(source, line, character, analysis))
+    // A variable whose *name* can only be written quoted (`set {$n} 1`) cannot
+    // be renamed by substituting into the recorded spans — see the gate's own
+    // doc (issue #1078).  Decided before `rename_variable_at`, whose
+    // `$`-reference cursor search would otherwise read the `$n` *inside* the
+    // braces as a reference to the unrelated variable `n` and rename that one.
+    .or_else(|| {
+        crate::rename_safety::literal_name_variable_rename_refusal(
+            source, line, character, analysis, line_index,
+        )
+    })
+}
+
 /// [`rename`], but reporting *why* a rename was refused.
 ///
 /// `Err(refusal)` means the cursor names a real, resolvable symbol whose
@@ -345,36 +387,12 @@ pub fn rename_with_diagnosis(
         return Ok(Vec::new());
     }
     let line_index = LineIndex::new(source);
-    // Safety gate: when the cursor names a `TclOO` member, refuse outright if
-    // any dispatch of it in this document cannot be proved safe to rewrite.
-    // Checked before any edit is built so a hazard can never leak a partial
-    // edit set (issue #923 idx 79).
-    if let Some(refusal) =
-        method_rename_refusal(source, dialect, line, character, analysis, &line_index)
-    {
-        return Err(refusal);
-    }
-    // A namespace name is not a rename target here, and — crucially — it must
-    // **refuse** rather than return an empty edit set: `Ok(vec![])` falls
-    // through to the server's workspace-resolved rename branch, which
-    // resolved the word as a *command* and rewrote a same-spelled proc
-    // instead (issue #1088 review, finding 1).  The cursor is provably on a
-    // registry-declared `ArgRole::NamespaceName` argument, so it names a
-    // namespace and nothing else; renaming one would have to rewrite every
-    // qualified name beneath it, which this tier does not do.
-    if let Some(refusal) = namespace_rename_refusal(source, line, character, analysis) {
-        return Err(refusal);
-    }
-    // Safety gate: a variable whose *name* can only be written quoted
-    // (`set {$n} 1`) cannot be renamed by substituting into the recorded
-    // spans — see the gate's own doc (issue #1078).  Checked before
-    // `rename_variable_at`, whose `$`-reference cursor search would otherwise
-    // read the `$n` *inside* the braces as a reference to the unrelated
-    // variable `n` and rename that one instead.
-    if let Some(refusal) = crate::rename_safety::literal_name_variable_rename_refusal(
+    if let Some(refusal) = pre_edit_refusal(
         source,
+        dialect,
         line,
         character,
+        new_name,
         analysis,
         &line_index,
     ) {
@@ -510,6 +528,7 @@ fn method_rename_refusal(
     dialect: &str,
     line: u32,
     character: u32,
+    new_name: &str,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
 ) -> Option<crate::rename_safety::RenameRefusal> {
@@ -527,6 +546,7 @@ fn method_rename_refusal(
             family: &family,
             method: &method,
             is_classmethod,
+            new_name,
         },
         line_index,
     )
@@ -701,6 +721,33 @@ pub fn method_target_with_access(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Option<(String, String, bool, crate::workspace_index::MethodAccess)> {
+    method_target_with_access_in_workspace(source, line, character, analysis, None)
+}
+
+/// [`method_target_with_access`] with the **workspace tier** available for
+/// receiver classification.
+///
+/// The local analysis classifies every receiver this document knows about. A
+/// *pure consumer* file — one holding only `C cm`, declaring no part of `C` —
+/// knows none, and the server's workspace-class oracle reanalysis does not
+/// close that gap: it supplies class **names** only, never their member
+/// tables. So a class-side call from an ordinary consumer fell through both
+/// receiver branches and definition / references / rename all answered nothing
+/// (issue #1119 review).
+///
+/// Passing `index` lets the classmethod arm ask the workspace what it cannot
+/// see locally, through the same dispatch chain the resolvers use. The
+/// instance arm needs no equivalent: it already crosses files, because the
+/// analyser's own class oracle is enough to type `[Cls new]` and populate
+/// `instance_classes`.
+#[must_use]
+pub fn method_target_with_access_in_workspace(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    index: Option<&crate::workspace_index::WorkspaceIndex>,
+) -> Option<(String, String, bool, crate::workspace_index::MethodAccess)> {
     use crate::workspace_index::MethodAccess;
     let line_index = LineIndex::new(source);
     let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
@@ -738,8 +785,9 @@ pub fn method_target_with_access(
         if !is_dollar
             && crate::definition::receiver_method_bucket(analysis, &inst, is_dollar)
                 == crate::definition::MethodBucket::Class
-            && let Some(class_q) =
-                crate::definition::classmethod_dispatch_class(analysis, &inst, &method)
+            && let Some(class_q) = crate::definition::classmethod_dispatch_class_in_workspace(
+                analysis, &inst, &method, index,
+            )
         {
             return Some((class_q, method, true, MethodAccess::External));
         }

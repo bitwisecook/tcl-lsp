@@ -1155,15 +1155,71 @@ pub(crate) fn classmethod_dispatch_class(
     receiver: &str,
     method: &str,
 ) -> Option<String> {
-    let named = analysis
+    classmethod_dispatch_class_in_workspace(analysis, receiver, method, None)
+}
+
+/// [`classmethod_dispatch_class`] with the **workspace tier** available.
+///
+/// The local analysis answers whenever this document declares or extends the
+/// class. When it does not — an ordinary *pure consumer* file, holding nothing
+/// but `C cm` — the class's member tables live in another document, and the
+/// server's workspace-class oracle reanalysis does not help: it supplies class
+/// **names** only (`Analyser::with_workspace_classes`, which exists to let
+/// instance inference resolve `[Cls new]`), never their `class_methods`. So
+/// classification fell through both receiver branches and definition /
+/// references / rename from a consumer answered nothing, even though the
+/// workspace index held the fact all along (issue #1119 review).
+///
+/// `index` closes that gap by consulting the same class-side dispatch chain
+/// the cross-file resolvers use — [`WorkspaceIndex::class_method_dispatch_chain`],
+/// not a second walk of its own, so the tier that classifies a call and the
+/// tier that resolves it can never disagree about which members exist.
+///
+/// [`MethodAccess::Internal`] is deliberate here: this asks *"is there a
+/// class-side member of this name at all"*, which is a question about the
+/// tables, not about the caller's access. An unexported class-side member must
+/// still classify as class-side — the caller's own access is applied afterwards
+/// by the resolver, which is what makes a `self unexport`ed member classify
+/// here and then correctly resolve to nothing.
+#[must_use]
+pub(crate) fn classmethod_dispatch_class_in_workspace(
+    analysis: &AnalysisResult,
+    receiver: &str,
+    method: &str,
+    index: Option<&crate::workspace_index::WorkspaceIndex>,
+) -> Option<String> {
+    let Some(named) = analysis
         .all_classes
         .values()
-        .find(|cd| cd.name == receiver || cd.qualified_name == receiver)?;
+        .find(|cd| cd.name == receiver || cd.qualified_name == receiver)
+    else {
+        // No local record for the receiver at all — the pure-consumer shape.
+        return index.and_then(|index| workspace_classmethod_class(index, receiver, method));
+    };
     if named.class_methods.contains_key(method) {
         return Some(named.qualified_name.clone());
     }
+    let local = local_inherited_classmethod(analysis, &named.qualified_name, method);
+    if local.is_some() {
+        return local;
+    }
+    // A local record that does not itself declare the member is no proof there
+    // is none: this document may hold only an `oo::define C { … }` extension
+    // while the `self method` lives in the class's own file. Same workspace
+    // tier as the no-local-record case above.
+    index.and_then(|index| workspace_classmethod_class(index, receiver, method))
+}
+
+/// The class an *inherited* `classmethod` resolves to, using this document's
+/// own hierarchy — the local half of
+/// [`classmethod_dispatch_class_in_workspace`].
+fn local_inherited_classmethod(
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+) -> Option<String> {
     let hierarchy = analysis.class_hierarchy();
-    let provider_q = hierarchy.method_target(&named.qualified_name, method)?;
+    let provider_q = hierarchy.method_target(class_q, method)?;
     analysis
         .all_classes
         .get(provider_q)
@@ -1180,6 +1236,49 @@ pub(crate) fn classmethod_dispatch_class(
         // reported as the receiver's dispatch target.
         .filter(|md| !md.is_self_method)
         .map(|_| provider_q.to_string())
+}
+
+/// The qualified class a bare `receiver method` names, decided from the
+/// **workspace index** — the tier that knows a class this document never
+/// mentions.
+///
+/// Resolution of the written receiver goes through
+/// [`WorkspaceIndex::classes_named`], which matches an exact or `::`-prefixed
+/// spelling and deliberately declines a bare tail guess, so an ambiguous name
+/// shared by two namespaces abstains rather than manufacturing a link — the
+/// same discipline the analyser's own cross-file class resolution uses.
+///
+/// Membership is decided by [`WorkspaceIndex::class_method_dispatch_chain`]
+/// rather than by reading `WorkspaceClass::class_method` here, so the
+/// `self method`-is-not-inherited rule, the class-side export union and the
+/// class-side retraction tombstones are all applied exactly once, in the walk
+/// both this and the resolver share.
+fn workspace_classmethod_class(
+    index: &crate::workspace_index::WorkspaceIndex,
+    receiver: &str,
+    method: &str,
+) -> Option<String> {
+    let mut candidates = index
+        .classes_named(receiver)
+        .into_iter()
+        .map(|c| c.qualified_name.clone())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter();
+    // Exactly one indexed class may answer: two same-named classes leave the
+    // receiver genuinely ambiguous, and guessing one is the namespace-blind
+    // match issue #981 removed.
+    let class_q = candidates.next()?;
+    if candidates.next().is_some() {
+        return None;
+    }
+    (!index
+        .class_method_dispatch_chain(
+            &class_q,
+            method,
+            crate::workspace_index::MethodAccess::Internal,
+        )
+        .is_empty())
+    .then_some(class_q)
 }
 
 /// The command name a word written at `cursor_off` actually reaches once the

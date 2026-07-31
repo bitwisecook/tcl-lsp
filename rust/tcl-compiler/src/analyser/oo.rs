@@ -58,8 +58,8 @@ use super::diagnostics::helpers::has_substitution;
 use super::scope::scope_at_mut;
 use super::state::Analyser;
 use super::types::{
-    ClassDef, DefinitionAbort, DefinitionAbortKind, MemberSide, MethodDef, PropertyDef, Scope,
-    ScopeKind, UnknownProcInfo,
+    ClassDef, DefinitionAbort, DefinitionAbortKind, MemberSide, MethodDef, PropertyDef,
+    RenamedMember, Scope, ScopeKind, UnknownProcInfo,
 };
 use super::utils::{param_name_spans_for_token, parse_param_list};
 use crate::ir::{Module, Statement, SwitchMode};
@@ -1998,19 +1998,28 @@ fn retract_named_members(
         let Some((new_name, new_tok)) = arrival else {
             continue;
         };
+        // The member state this move runs against, captured with the source
+        // already removed and the destination not yet inserted — exactly the
+        // table the interpreter reads at this point in the body.
+        let moved = RenamedMember {
+            source: name.clone(),
+            destination: new_name.clone(),
+            side,
+            destination_span: new_tok.span,
+            blocked: side.table(class_def).keys().cloned().collect(),
+        };
+        // One fold decides both readings of that state: whether the destination
+        // actually written aborts the definition (`W315`, below) and whether
+        // some *other* name would (the rename gate, which asks the recorded
+        // `RenamedMember` the same question). Deciding them in one place is what
+        // stops the diagnostic and the gate from drifting apart.
+        //
         // A rename real Tcl rejects moves nothing — and rather than let the
         // wreckage take a declaration with it, the source stays under its own
         // name and an existing destination keeps its own body. Both members the
         // author wrote are then still navigable, which is the whole point of
         // recording a class that cannot run.
-        let blocked = if new_name == name {
-            Some(DefinitionAbortKind::RenameToItself)
-        } else if side.table(class_def).contains_key(new_name) {
-            Some(DefinitionAbortKind::DestinationExists)
-        } else {
-            None
-        };
-        if let Some(kind) = blocked {
+        if let Some(kind) = moved.abort_if_renamed_to(new_name) {
             class_def.definition_aborts.push(DefinitionAbort {
                 kind,
                 member: new_name.clone(),
@@ -2026,6 +2035,7 @@ fn retract_named_members(
         md.name.clone_from(new_name);
         md.name_span = new_tok.span;
         side.table(class_def).insert(new_name.clone(), md);
+        class_def.renamed_members.push(moved);
     }
 }
 
@@ -4347,6 +4357,140 @@ mod tests {
             "{:?}",
             r.all_classes["::C"].retracted_members,
         );
+    }
+
+    #[test]
+    fn a_move_records_the_member_state_it_ran_against() {
+        // Issue #1121 review. The moved member's declaration site is the
+        // `renamemethod`'s destination word, so a *rename* of it rewrites that
+        // word — and the gate that decides whether the result still runs needs
+        // the table as it stood at the move. Captured with the source already
+        // removed and the destination not yet inserted, which is exactly what
+        // the interpreter reads at that point.
+        let src = "oo::class create ::C { method old {} { return 1 }\n\
+                   method sib {} { return 2 }\n\
+                   renamemethod old new }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert_eq!(c.renamed_members.len(), 1, "{:?}", c.renamed_members);
+        let moved = &c.renamed_members[0];
+        assert_eq!(moved.source, "old");
+        assert_eq!(moved.destination, "new");
+        assert_eq!(moved.side, MemberSide::Instance);
+        assert_eq!(
+            &src[moved.destination_span.start() as usize..moved.destination_span.end() as usize],
+            "new",
+        );
+        // `sib` is live at the move; `old` is not (it was just retracted) and
+        // `new` is not (it has not arrived yet).
+        assert_eq!(moved.blocked, vec!["sib".to_string()]);
+    }
+
+    #[test]
+    fn the_move_record_answers_which_new_names_would_abort() {
+        // The shared fold both consumers use: the walker asks it about the
+        // destination actually written (that is how W315 is decided) and the
+        // rename gate asks it about the name the user typed. Oracle, identical
+        // on tclsh 9.0.4 and 8.6.14 — no class is created in either case:
+        //   { method old {} {…} ; renamemethod old old }
+        //        -> cannot rename method to itself
+        //   { method old {} {…} ; method sib {} {…} ; renamemethod old sib }
+        //        -> method called sib already exists
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { method old {} { return 1 }\n\
+             method sib {} { return 2 }\n\
+             renamemethod old new }",
+            "tcl9.0",
+        );
+        let moved = &r.all_classes["::C"].renamed_members[0];
+        assert_eq!(
+            moved.abort_if_renamed_to("old"),
+            Some(DefinitionAbortKind::RenameToItself),
+        );
+        assert_eq!(
+            moved.abort_if_renamed_to("sib"),
+            Some(DefinitionAbortKind::DestinationExists),
+        );
+        // TN: a fresh name is fine, and so is the destination it already has.
+        assert_eq!(moved.abort_if_renamed_to("fresh"), None);
+        // The mirror direction, from the same record.
+        assert!(moved.collides_with_renaming("sib", "new"));
+        assert!(!moved.collides_with_renaming("sib", "other"));
+    }
+
+    #[test]
+    fn a_cross_side_name_is_not_in_the_move_snapshot() {
+        // TN (CRITICAL). Collisions are side-local: `method old {} {…}` +
+        // `self { method sib {} {…} }` + `renamemethod old sib` runs fine and
+        // leaves `info class methods ::C1` -> sib (9.0.4 / 8.6.14). So a
+        // class-side `sib` must not appear in an instance-side move's snapshot.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { method old {} { return 1 }\n\
+             self { method sib {} { return 2 } }\n\
+             renamemethod old new }",
+            "tcl9.0",
+        );
+        let moved = &r.all_classes["::C"].renamed_members[0];
+        assert!(moved.blocked.is_empty(), "{:?}", moved.blocked);
+        assert_eq!(moved.abort_if_renamed_to("sib"), None);
+    }
+
+    #[test]
+    fn the_move_snapshot_honours_body_order_in_both_directions() {
+        // TN ×2, both oracle-pinned legal on 9.0.4 and 8.6.14:
+        //   { method old {} {} ; method sib {} {} ; deletemethod sib
+        //     renamemethod old sib }                 -> info class methods -> sib
+        //   { method old {} {} ; renamemethod old sib ; method sib {} {} }
+        //                                            -> info class methods -> sib
+        // so a name deleted *before* the move is free, and one declared
+        // *after* it never collides with it.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { method old {} { return 1 }\n\
+             method sib {} { return 2 }\n\
+             deletemethod sib\n\
+             renamemethod old new }",
+            "tcl9.0",
+        );
+        assert_eq!(
+            r.all_classes["::C"].renamed_members[0].abort_if_renamed_to("sib"),
+            None,
+            "a name deleted before the move is free",
+        );
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::D { method old {} { return 1 }\n\
+             renamemethod old new\n\
+             method sib {} { return 2 } }",
+            "tcl9.0",
+        );
+        assert_eq!(
+            r.all_classes["::D"].renamed_members[0].abort_if_renamed_to("sib"),
+            None,
+            "a name declared after the move never collides with it",
+        );
+    }
+
+    #[test]
+    fn a_rejected_rename_records_no_move() {
+        // A move real Tcl refuses never happened, so there is nothing for the
+        // rename gate to reason about — only the W315 it already drew.
+        for body in [
+            "method a {} {}\nrenamemethod a a",
+            "method a {} {}\nmethod b {} {}\nrenamemethod a b",
+        ] {
+            let mut a = Analyser::new();
+            let r = a.analyse(&format!("oo::class create ::C {{ {body} }}"), "tcl9.0");
+            assert!(
+                r.all_classes["::C"].renamed_members.is_empty(),
+                "body: {body}: {:?}",
+                r.all_classes["::C"].renamed_members,
+            );
+            assert!(has_w315(&r), "body: {body}");
+        }
     }
 
     #[test]

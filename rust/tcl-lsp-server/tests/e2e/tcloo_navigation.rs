@@ -847,3 +847,211 @@ fn tn_cross_file_stub_retraction_draws_no_w315() {
     let diags = lsp.open_ready(&uri, "oo::define C { deletemethod m }\n");
     assert!(!carries_code(&diags, "W315"), "unexpected W315: {diags:?}");
 }
+
+/// TP, issue #1119 review (Codex P2): a **pure consumer** file — one that
+/// contains only `C cm` and declares no part of `C` — must resolve the
+/// class-side member of a class declared in another document.
+///
+/// The receiver *classification* used to run on the local analysis alone:
+/// `classmethod_dispatch_class` needs the class's own `class_methods` table,
+/// and the server's workspace-oracle reanalysis supplies class **names** only.
+/// So the request fell through both receiver branches and definition /
+/// references / rename from an ordinary consumer answered nothing, even though
+/// the workspace class-side dispatch chain held the fact.
+#[test]
+fn tp_pure_consumer_resolves_a_cross_file_class_side_member() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(
+        &decl,
+        "oo::class create C {\n    self { method cm {} { return 1 } }\n}\n",
+    );
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(&consumer, "C cm\n");
+
+    // Go-to-definition lands on the declaration in the other document.
+    let defs = locations(&lsp.definition(&consumer, 0, 3));
+    assert_eq!(
+        defs.iter().map(|l| l.uri.as_str()).collect::<Vec<_>>(),
+        [decl.as_str()],
+        "a pure consumer must reach the class-side declaration",
+    );
+
+    // References from the consumer see both the declaration and this call.
+    let refs = lsp.references(&consumer, 0, 3, true);
+    let uris: std::collections::BTreeSet<String> =
+        locations(&refs).iter().map(|l| l.uri.clone()).collect();
+    assert!(
+        uris.contains(&decl) && uris.contains(&consumer),
+        "references from the consumer must span both documents: {uris:?}"
+    );
+
+    // Rename from the consumer rewrites the declaration and the call site.
+    let edits = rename_edits(&lsp.rename(&consumer, 0, 3, "renamed"));
+    assert_eq!(
+        edit_lines(&edits, &consumer),
+        vec![0],
+        "the consumer's own call must rename: {edits:?}"
+    );
+    assert_eq!(
+        edit_lines(&edits, &decl),
+        vec![1],
+        "the cross-file declaration must rename too: {edits:?}"
+    );
+}
+
+// Issue #1121 review — renaming a moved member must not produce a class that
+// cannot run.  The moved member's declaration site IS the `renamemethod`'s
+// destination word, so the edit rewrites that word; for some new names the
+// result is a body real Tcl refuses (the shapes W315 diagnoses).
+
+/// The refusal reason for a rename request, or `None` when it produced edits.
+fn rename_refusal_reason(
+    lsp: &mut Lsp,
+    uri: &str,
+    line: u32,
+    ch: u32,
+    new: &str,
+) -> Option<String> {
+    lsp.rename_error(uri, line, ch, new)
+        .get("message")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+}
+
+/// TP: renaming the moved member back to its own retracted source produces
+/// `renamemethod old old`, which fails `cannot rename method to itself` and
+/// creates no class (tclsh 9.0.4 / 8.6.14).
+#[test]
+fn tp_renaming_a_moved_member_to_its_source_is_refused() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create C {\n    method old {} { return 1 }\n    renamemethod old new\n}\n",
+    );
+    let reason = rename_refusal_reason(&mut lsp, &uri, 2, 21, "old")
+        .expect("renaming `new` back to `old` must be refused");
+    assert!(
+        reason.contains("cannot rename method to itself"),
+        "the refusal must name the interpreter error: {reason}"
+    );
+}
+
+/// TP: renaming the moved member onto a **live same-side sibling** produces
+/// `renamemethod old sib`, which fails `method called sib already exists`.
+#[test]
+fn tp_renaming_a_moved_member_onto_a_live_sibling_is_refused() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create C {\n",
+            "    method old {} { return 1 }\n",
+            "    method sib {} { return 2 }\n",
+            "    renamemethod old new\n",
+            "}\n",
+        ),
+    );
+    let reason = rename_refusal_reason(&mut lsp, &uri, 3, 21, "sib")
+        .expect("renaming `new` onto the live `sib` must be refused");
+    assert!(
+        reason.contains("method called sib already exists"),
+        "the refusal must name the interpreter error: {reason}"
+    );
+}
+
+/// TP, the mirror: renaming an ordinary sibling *into* the name a later
+/// `renamemethod` needs free produces the same collision at that site
+/// (`method new {} …; renamemethod old new` -> `method called new already
+/// exists`, oracle-pinned on both interpreters).
+#[test]
+fn tp_renaming_a_sibling_onto_a_later_rename_destination_is_refused() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create C {\n",
+            "    method old {} { return 1 }\n",
+            "    method sib {} { return 2 }\n",
+            "    renamemethod old new\n",
+            "}\n",
+        ),
+    );
+    let reason = rename_refusal_reason(&mut lsp, &uri, 2, 11, "new")
+        .expect("renaming `sib` onto the later rename destination must be refused");
+    assert!(
+        reason.contains("method called new already exists"),
+        "the refusal must name the interpreter error: {reason}"
+    );
+}
+
+/// TN: a fresh destination is a perfectly good rename and must still produce
+/// edits — the gate is about the two aborting shapes, nothing wider.
+#[test]
+fn tn_renaming_a_moved_member_to_a_fresh_name_still_works() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create C {\n    method old {} { return 1 }\n    renamemethod old new\n}\n",
+    );
+    let edits = rename_edits(&lsp.rename(&uri, 2, 21, "fresh"));
+    assert_eq!(
+        edit_lines(&edits, &uri),
+        vec![2],
+        "a fresh destination must rewrite the renamemethod's destination word: {edits:?}"
+    );
+}
+
+/// TN (CRITICAL): a name live only on the **other** side is not a collision —
+/// `method old {} …; self { method sib {} … }; renamemethod old sib` runs fine
+/// and leaves the instance side with `sib` (9.0.4 / 8.6.14 identical).
+#[test]
+fn tn_renaming_a_moved_member_onto_a_cross_side_name_is_allowed() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create C {\n",
+            "    method old {} { return 1 }\n",
+            "    self { method sib {} { return 2 } }\n",
+            "    renamemethod old new\n",
+            "}\n",
+        ),
+    );
+    let edits = rename_edits(&lsp.rename(&uri, 3, 21, "sib"));
+    assert_eq!(
+        edit_lines(&edits, &uri),
+        vec![3],
+        "a class-side `sib` must not block an instance-side rename: {edits:?}"
+    );
+}
+
+/// TN: a destination **deleted before** the rename is free — the check reads
+/// the side's table at the move's own point in the body, as Tcl does.
+#[test]
+fn tn_renaming_a_moved_member_onto_an_earlier_deleted_name_is_allowed() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create C {\n",
+            "    method old {} { return 1 }\n",
+            "    method sib {} { return 2 }\n",
+            "    deletemethod sib\n",
+            "    renamemethod old new\n",
+            "}\n",
+        ),
+    );
+    let edits = rename_edits(&lsp.rename(&uri, 4, 21, "sib"));
+    assert_eq!(
+        edit_lines(&edits, &uri),
+        vec![4],
+        "`sib` was deleted before the rename, so it is free: {edits:?}"
+    );
+}
