@@ -445,11 +445,171 @@ fn resolve_picks_the_highest_release_satisfying_the_constraint() {
     assert!(resolver.resolve("widget", Some("9.9")).is_empty());
     assert!(resolver.resolve("widget", Some("3.0")).is_empty());
 
-    // TN: an unconstrained require keeps the first-discovered provider.
+    // An **unconstrained** require picks the highest, not the first
+    // discovered — `package require widget` loads 2.3 on 8.6.14 and 9.0.4
+    // alike, whichever order the two directories were scanned in (#1090).
     assert_eq!(
         resolver.resolve("widget", None),
-        vec![root.join("v1").join("widget15.tcl")],
+        vec![root.join("v2").join("widget23.tcl")],
     );
+}
+
+/// `package require -exact NAME VERSION` selects **that** release or nothing.
+///
+/// Oracle (`tclsh8.6` 8.6.14 / `tclsh9.0` 9.0.4, byte-identical; providers
+/// registered as `package ifneeded widget V …` and then required):
+///
+/// ```text
+/// avail {1.5 2.3}     -exact widget 2.0  -> can't find package widget exactly 2.0
+/// avail {1.5 2.0 2.3} -exact widget 2.0  -> 2.0
+/// avail {1.5 2.0 2.3}         widget 2.0 -> 2.3      (the ranged reading)
+/// avail {2.0a1}       -exact widget 2.0  -> can't find package widget exactly 2.0
+/// avail {2.0a1}               widget 2.0 -> 2.0a1
+/// ```
+///
+/// Before #1090 the flag was parsed and dropped, so the first row resolved
+/// 2.3 — a navigation jump into a release the script provably never loads.
+#[test]
+fn exact_require_selects_that_release_or_nothing() {
+    let td = TempDir::new("exact");
+    let root = td.path();
+    for (dir, ver) in [("v1", "1.5"), ("v2", "2.0"), ("v3", "2.3"), ("v4", "2.0a1")] {
+        let pkg_dir = root.join(dir);
+        let file = format!("widget{dir}.tcl");
+        write(&pkg_dir.join(&file), "proc widget::init {} {}\n");
+        write(
+            &pkg_dir.join("pkgIndex.tcl"),
+            &format!("package ifneeded widget {ver} [list source [file join $dir {file}]]\n"),
+        );
+    }
+    let impl_of = |dir: &str| vec![root.join(dir).join(format!("widget{dir}.tcl"))];
+
+    let mut all = PackageResolver::new();
+    all.scan_path(root);
+    // TP — the exact release is present, so it is the one selected, where the
+    // ranged reading of the same version would have taken 2.3.
+    assert_eq!(
+        all.resolve_require("widget", Some("2.0"), true),
+        impl_of("v2")
+    );
+    assert_eq!(
+        all.resolve_require("widget", Some("2.0"), false),
+        impl_of("v3")
+    );
+    // TP — the trailing-zero spelling of the same release still satisfies
+    // `-exact` (`package vcompare 2.0 2.0.0` is 0).
+    assert_eq!(
+        all.resolve_require("widget", Some("2.0.0"), true),
+        impl_of("v2"),
+    );
+
+    // FN guard — with 2.0 absent, `-exact 2.0` resolves *nothing* rather than
+    // falling through to the next-highest release.
+    let mut without_exact = PackageResolver::new();
+    without_exact.scan_path(&root.join("v1"));
+    without_exact.scan_path(&root.join("v3"));
+    assert!(
+        without_exact
+            .resolve_require("widget", Some("2.0"), true)
+            .is_empty(),
+        "`-exact 2.0` must not resolve 2.3",
+    );
+    assert_eq!(
+        without_exact.resolve_require("widget", Some("2.0"), false),
+        impl_of("v3"),
+        "the ranged form still resolves 2.3, so the difference is the flag",
+    );
+
+    // FP guard — an alpha of the required release does not satisfy `-exact`,
+    // though it does satisfy the ranged form.
+    let mut alpha_only = PackageResolver::new();
+    alpha_only.scan_path(&root.join("v4"));
+    assert!(
+        alpha_only
+            .resolve_require("widget", Some("2.0"), true)
+            .is_empty(),
+    );
+    assert_eq!(
+        alpha_only.resolve_require("widget", Some("2.0"), false),
+        impl_of("v4"),
+    );
+
+    // TN — `-exact` with no version is `package require -exact NAME`, a
+    // syntax error in real Tcl; treated as unconstrained, so it picks the
+    // best release rather than nothing.
+    assert_eq!(all.resolve_require("widget", None, true), impl_of("v3"));
+}
+
+/// An unconstrained require picks the highest **stable** release, which is
+/// `package prefer`'s default (`package prefer` answers `stable` on 8.6.14 and
+/// 9.0.4 with no `TCL_PKG_PREFER_LATEST` in the environment).
+///
+/// Oracle: with 1.2 and 1.3b1 both on `auto_path`, `package require widget`
+/// loads **1.2**; `package prefer latest` first makes it load 1.3b1. With
+/// 1.3b1 the only provider, it loads 1.3b1 either way.
+#[test]
+fn unconstrained_require_prefers_the_highest_stable_release() {
+    let td = TempDir::new("prefer");
+    let root = td.path();
+    for (dir, ver) in [("s", "1.2"), ("u", "1.3b1")] {
+        let pkg_dir = root.join(dir);
+        let file = format!("w{dir}.tcl");
+        write(&pkg_dir.join(&file), "proc w {} {}\n");
+        write(
+            &pkg_dir.join("pkgIndex.tcl"),
+            &format!("package ifneeded w {ver} [list source [file join $dir {file}]]\n"),
+        );
+    }
+    let mut both = PackageResolver::new();
+    both.scan_path(root);
+    // TP — the prerelease is the numerically higher version but not the one
+    // Tcl loads; picking `max` alone would have taken 1.3b1.
+    assert_eq!(both.resolve("w", None), vec![root.join("s").join("ws.tcl")]);
+    // …and a version constraint both satisfy resolves the same way.
+    assert_eq!(
+        both.resolve("w", Some("1.2")),
+        vec![root.join("s").join("ws.tcl")],
+    );
+
+    // TN — with only the prerelease available there is nothing stable to
+    // prefer, so it loads.
+    let mut unstable_only = PackageResolver::new();
+    unstable_only.scan_path(&root.join("u"));
+    assert_eq!(
+        unstable_only.resolve("w", None),
+        vec![root.join("u").join("wu.tcl")],
+    );
+    assert_eq!(
+        unstable_only.resolve("w", Some("1.2")),
+        vec![root.join("u").join("wu.tcl")],
+        "`package vsatisfies 1.3b1 1.2` is 1 — the prerelease is acceptable",
+    );
+}
+
+/// `select_provider` reports the whole chosen declaration, not just its files
+/// — the version actually selected and the `pkgIndex.tcl` that declared it.
+#[test]
+fn select_provider_reports_the_chosen_declaration() {
+    let td = TempDir::new("chosen");
+    let root = td.path();
+    for (dir, ver) in [("a", "1.5"), ("b", "2.3")] {
+        let pkg_dir = root.join(dir);
+        write(&pkg_dir.join("impl.tcl"), "proc p {} {}\n");
+        write(
+            &pkg_dir.join("pkgIndex.tcl"),
+            &format!("package ifneeded p {ver} [list source [file join $dir impl.tcl]]\n"),
+        );
+    }
+    let mut resolver = PackageResolver::new();
+    resolver.scan_path(root);
+    let chosen = resolver
+        .select_provider("p", None, false)
+        .expect("a provider");
+    assert_eq!(chosen.version, "2.3");
+    assert_eq!(chosen.pkg_index_path, root.join("b").join("pkgIndex.tcl"));
+    // TN — nothing acceptable, and an unknown package, both answer `None`.
+    assert!(resolver.select_provider("p", Some("9.9"), false).is_none());
+    assert!(resolver.select_provider("absent", None, false).is_none());
 }
 
 #[test]
@@ -533,6 +693,17 @@ fn transitive_closure_pulls_in_tk_through_a_wrapper_package() {
     );
 }
 
+/// Two providers declaring versions that compare *equal*: the first scanned
+/// wins, deterministically.
+///
+/// Real Tcl collapses them into one `package ifneeded` entry — first
+/// registration's version string, last registration's script — and the
+/// registration order is `glob` order, i.e. filesystem order, which differs
+/// per machine (verified: on this container `glob -directory … -join *
+/// pkgIndex.tcl` returned `b` before `a`). There is no stable oracle to match,
+/// so this pins the deterministic choice instead: discovery order, which sorts
+/// subdirectories by name, so a workspace-local copy listed first shadows an
+/// equally-versioned installed one.
 #[test]
 fn resolver_first_provider_wins() {
     // Two providers of the same package: the first scanned keeps the head.

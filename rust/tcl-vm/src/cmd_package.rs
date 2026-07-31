@@ -100,21 +100,28 @@ fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 fn pkg_require(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    // Skip a leading `-exact` flag.
-    let rest = match rest.first() {
-        Some(v) if &*v.to_str() == "-exact" => &rest[1..],
-        _ => rest,
-    };
+    // `-exact NAME VERSION` is the requirement `VERSION-VERSION` — the same
+    // rewrite `tclPkg.c`'s `PKG_REQUIRE` arm performs, so exactness needs no
+    // second comparison rule (issue #1090).
+    let exact = rest.first().is_some_and(|v| &*v.to_str() == "-exact");
+    let rest = if exact { &rest[1..] } else { rest };
     let Some((name, reqs)) = rest.split_first() else {
         return err(
             "wrong # args: should be \"package require ?-exact? package ?requirement ...?\"",
         );
     };
     let name = name.to_str();
+    let reqs: Vec<String> = if exact {
+        reqs.iter()
+            .map(|r| tcl_dialect::exact_requirement(&r.to_str()))
+            .collect()
+    } else {
+        reqs.iter().map(|r| r.to_str().to_string()).collect()
+    };
     match vm.package_version(&name) {
         Some(v) => {
             let v = v.to_string();
-            let ok_version = reqs.is_empty() || reqs.iter().any(|r| vsatisfies(&v, &r.to_str()));
+            let ok_version = reqs.is_empty() || reqs.iter().any(|r| vsatisfies(&v, r));
             if ok_version {
                 ok(Value::string(v))
             } else {

@@ -1,0 +1,342 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Property tests for the package-version comparator against a **pinned**
+//! `tclsh` corpus (issue #1090).
+//!
+//! The comparator in `tcl-dialect::version` is a port of C Tcl's
+//! `generic/tclPkg.c` (`CheckVersionAndConvert` / `CompareVersions` /
+//! `RequirementSatisfied` / `SelectPackage`).  A port can drift, so every
+//! answer is checked against a transcript captured from the real
+//! interpreters — `tclsh8.6` (8.6.14) and `tclsh9.0` (9.0.4), whose output was
+//! byte-identical, so one corpus covers both dialects.
+//!
+//! The corpus is **pinned in the repository**, not regenerated at run time:
+//! the generating Tcl script is preserved in each data file's header so a
+//! reviewer can re-run it, but the test itself is hermetic and does not need a
+//! `tclsh` on the machine running `cargo test`.
+//!
+//! * `data/package_version_oracle.txt` — every `package vcompare` /
+//!   `package vsatisfies` pair over a fixed version × version and
+//!   version × requirement grid, plus the ill-formed inputs the interpreter
+//!   rejects.
+//! * `data/package_select_oracle.txt` — `package require` provider selection
+//!   over multi-provider `package ifneeded` sets, including `-exact`,
+//!   `package prefer`, and unsatisfiable requires.
+
+use std::cmp::Ordering;
+
+use tcl_dialect::{
+    PackagePrefer, compare_versions, exact_requirement, select_package_version, version_is_stable,
+    version_satisfies,
+};
+
+const VERSION_ORACLE: &str = include_str!("data/package_version_oracle.txt");
+const SELECT_ORACLE: &str = include_str!("data/package_select_oracle.txt");
+
+/// The data rows of a pinned corpus: comment and blank lines dropped, each
+/// remaining line split on tabs.
+fn rows(corpus: &str) -> impl Iterator<Item = Vec<&str>> {
+    corpus
+        .lines()
+        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+        .map(|l| l.split('\t').collect())
+}
+
+/// Every `package vcompare V1 V2` row: the port's ordering must equal the
+/// interpreter's `-1` / `0` / `1`.
+///
+/// This is the per-pair oracle for the comparison rule itself — `vcompare`
+/// *is* Tcl's version comparator, so agreeing with it on the whole grid is
+/// what makes the rest of the module trustworthy.
+#[test]
+fn compare_versions_matches_the_interpreter_over_the_pinned_corpus() {
+    let mut pairs = 0usize;
+    let mut mismatches = Vec::new();
+    for row in rows(VERSION_ORACLE) {
+        let ["vcompare", a, b, want] = row.as_slice() else {
+            continue;
+        };
+        pairs += 1;
+        let got = match compare_versions(a, b) {
+            Ordering::Less => "-1",
+            Ordering::Equal => "0",
+            Ordering::Greater => "1",
+        };
+        if got != *want {
+            mismatches.push(format!("vcompare {a} {b}: want {want}, got {got}"));
+        }
+    }
+    assert!(
+        pairs >= 1000,
+        "the pinned vcompare grid shrank to {pairs} pairs — the corpus is the \
+         property test's whole coverage story",
+    );
+    assert!(
+        mismatches.is_empty(),
+        "{} of {pairs} pairs disagree with tclsh:\n{}",
+        mismatches.len(),
+        mismatches.join("\n")
+    );
+}
+
+/// `vcompare` is a total order over the corpus's versions in the sense the
+/// resolver relies on: antisymmetric, and consistent under transitivity.
+///
+/// A selection loop that keeps a running maximum is only correct if the
+/// comparator is an ordering; this checks the port's own algebra rather than
+/// a single interpreter answer.
+#[test]
+fn compare_versions_is_a_consistent_ordering() {
+    let versions: Vec<&str> = {
+        let mut v: Vec<&str> = rows(VERSION_ORACLE)
+            .filter(|r| r.first() == Some(&"vcompare"))
+            .filter_map(|r| r.get(1).copied())
+            .collect();
+        v.sort_unstable();
+        v.dedup();
+        v
+    };
+    assert!(versions.len() >= 30, "corpus version set shrank");
+    for a in &versions {
+        assert_eq!(compare_versions(a, a), Ordering::Equal, "{a} vs itself");
+        for b in &versions {
+            assert_eq!(
+                compare_versions(a, b),
+                compare_versions(b, a).reverse(),
+                "antisymmetry: {a} vs {b}",
+            );
+            for c in &versions {
+                if compare_versions(a, b) == Ordering::Less
+                    && compare_versions(b, c) == Ordering::Less
+                {
+                    assert_eq!(
+                        compare_versions(a, c),
+                        Ordering::Less,
+                        "transitivity: {a} < {b} < {c}",
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Every `package vsatisfies V REQ` row across the version × requirement grid
+/// — the min-bound, `-`-open, `a-b` range and degenerate `v-v` (exact) forms
+/// all at once.
+#[test]
+fn version_satisfies_matches_the_interpreter_over_the_pinned_corpus() {
+    let mut pairs = 0usize;
+    let mut mismatches = Vec::new();
+    for row in rows(VERSION_ORACLE) {
+        let ["vsatisfies", version, requirement, want] = row.as_slice() else {
+            continue;
+        };
+        pairs += 1;
+        let got = if version_satisfies(version, requirement) {
+            "1"
+        } else {
+            "0"
+        };
+        if got != *want {
+            mismatches.push(format!(
+                "vsatisfies {version} {requirement}: want {want}, got {got}"
+            ));
+        }
+    }
+    assert!(
+        pairs >= 800,
+        "the pinned vsatisfies grid shrank to {pairs} pairs",
+    );
+    assert!(
+        mismatches.is_empty(),
+        "{} of {pairs} pairs disagree with tclsh:\n{}",
+        mismatches.len(),
+        mismatches.join("\n")
+    );
+}
+
+/// Ill-formed versions and requirements: real Tcl raises
+/// `expected version number but got "…"`, and the port — which has no error
+/// channel — answers `false`.  Pinned so the mapping is a decision, not an
+/// accident, and so a future parser change cannot start *accepting* junk.
+#[test]
+fn malformed_inputs_answer_false_where_the_interpreter_raises() {
+    let mut checked = 0usize;
+    for row in rows(VERSION_ORACLE) {
+        match row.as_slice() {
+            ["malformed-version", version, raised] => {
+                checked += 1;
+                if *raised == "1" {
+                    assert!(
+                        !version_satisfies(version, "1.2"),
+                        "tclsh rejects the version {version:?}, so nothing may satisfy through it",
+                    );
+                    assert!(
+                        !version_is_stable(version),
+                        "an unparseable version {version:?} is not a stable release",
+                    );
+                } else {
+                    // `01.02` — leading zeros are legal, and compare as 1.2.
+                    assert!(
+                        version_satisfies(version, "1.2"),
+                        "tclsh accepts {version:?}",
+                    );
+                }
+            }
+            ["malformed-req", requirement, raised, rest @ ..] => {
+                checked += 1;
+                let got = version_satisfies("1.2", requirement);
+                if *raised == "1" {
+                    assert!(
+                        !got,
+                        "tclsh rejects the requirement {requirement:?}, so it is unsatisfiable",
+                    );
+                } else {
+                    assert_eq!(
+                        got,
+                        rest.first().copied() == Some("1"),
+                        "requirement {requirement:?}",
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    assert!(checked >= 15, "malformed-input rows shrank to {checked}");
+}
+
+/// Every provider-selection trial: which `package ifneeded` version a
+/// `package require` actually loads, including `-exact`, `package prefer`,
+/// multi-requirement (OR) requires, and the unsatisfiable cases.
+///
+/// One wrinkle the corpus exposes and this test encodes: `package ifneeded`
+/// **collapses** two registrations whose versions compare *equal*
+/// (`1.0` and `1.0.0`) into a single entry — it keeps the first entry's
+/// version string and overwrites its script.  The trial harness can only
+/// observe `[package require]`'s return value, which is whatever the surviving
+/// *script* provided (`1.0.0`), while the entry selected is the first
+/// (`1.0`).  Agreement is therefore checked with `package vcompare` equality,
+/// with exact string agreement additionally required for every trial whose
+/// candidate list has no two equal-comparing versions — i.e. everywhere the
+/// collapse cannot apply.
+#[test]
+fn select_package_version_matches_the_interpreter_over_the_pinned_corpus() {
+    let mut trials = 0usize;
+    let mut mismatches = Vec::new();
+    let mut collapsed = 0usize;
+    for row in rows(SELECT_ORACLE) {
+        let ["select", prefer, available, require_args, want] = row.as_slice() else {
+            continue;
+        };
+        trials += 1;
+        let available: Vec<&str> = available.split_whitespace().collect();
+        let has_equal_pair = available.iter().enumerate().any(|(i, a)| {
+            available[i + 1..]
+                .iter()
+                .any(|b| compare_versions(a, b) == Ordering::Equal)
+        });
+        let prefer = match *prefer {
+            "latest" => PackagePrefer::Latest,
+            // A bare `package prefer` answers `stable` on 8.6.14 and 9.0.4.
+            "stable" | "default" => PackagePrefer::Stable,
+            other => panic!("unknown prefer mode {other:?}"),
+        };
+        // `package require ?-exact? NAME ?requirement …?` — `-exact NAME V`
+        // is the requirement `V-V`, which is the whole of the `-exact` model.
+        let words: Vec<&str> = require_args.split_whitespace().collect();
+        let exact_form = words.first() == Some(&"-exact");
+        let held;
+        let requirements: Vec<&str> = if exact_form {
+            held = exact_requirement(words[2]);
+            vec![held.as_str()]
+        } else {
+            words[1..].to_vec()
+        };
+        let got = select_package_version(&available, &requirements, prefer)
+            .map_or("ERROR", |i| available[i]);
+        let agrees = if *want == "ERROR" || got == "ERROR" {
+            got == *want
+        } else if has_equal_pair {
+            collapsed += usize::from(got != *want);
+            compare_versions(got, want) == Ordering::Equal
+        } else {
+            got == *want
+        };
+        if !agrees {
+            mismatches.push(format!(
+                "prefer={prefer:?} avail={available:?} req={require_args:?}: want {want}, got {got}"
+            ));
+        }
+    }
+    assert!(
+        trials >= 30,
+        "the pinned selection corpus shrank to {trials}"
+    );
+    assert!(
+        mismatches.is_empty(),
+        "{} of {trials} trials disagree with tclsh:\n{}",
+        mismatches.len(),
+        mismatches.join("\n"),
+    );
+    assert_eq!(
+        collapsed, 1,
+        "exactly one pinned trial (`1.0` + `1.0.0`, `-exact 1.0`) differs only \
+         by the ifneeded-collapse spelling; a change here means the corpus or \
+         the tie rule moved",
+    );
+}
+
+/// Stability classification — the input to `package prefer`'s choice.
+///
+/// TP: a dotted release is stable.  FP guard: an alpha/beta release is not,
+/// wherever the `a`/`b` sits.  TN: junk is not stable either.
+#[test]
+fn version_is_stable_splits_release_from_prerelease() {
+    for stable in ["0", "1", "1.2", "1.2.3", "10.0", "100.200.300", "01.02"] {
+        assert!(version_is_stable(stable), "{stable}");
+    }
+    for unstable in ["1.2a1", "1.2b1", "1.0a1", "2.0a1", "1.2.3a1", "1.2.3b4"] {
+        assert!(!version_is_stable(unstable), "{unstable}");
+    }
+    for junk in ["", "a", "1.", "1..2", "1a", "x1"] {
+        assert!(!version_is_stable(junk), "{junk}");
+    }
+}
+
+/// `-exact V` is exactly the requirement `V-V`, and that degenerate range is
+/// the one form compared **unpadded** — so it accepts a trailing-zero spelling
+/// of the same release but rejects its alpha.
+///
+/// Oracle rows: `-exact widget 2.0` picks `2.0.0` when that is what is on
+/// offer, and errors when only `2.0a1` is.
+#[test]
+fn exact_requirement_is_the_degenerate_range() {
+    assert_eq!(exact_requirement("2.0"), "2.0-2.0");
+    // TP — the same release, however spelled.
+    assert!(version_satisfies("2.0", "2.0-2.0"));
+    assert!(version_satisfies("2.0.0", "2.0-2.0"));
+    assert!(version_satisfies("2.0", &exact_requirement("2.0.0")));
+    // FP guard — a later release, an earlier one, and the alpha of the same
+    // release are all rejected, where the *ranged* `2.0` accepts two of them.
+    assert!(!version_satisfies("2.3", "2.0-2.0"));
+    assert!(!version_satisfies("1.5", "2.0-2.0"));
+    assert!(!version_satisfies("2.0a1", "2.0-2.0"));
+    assert!(version_satisfies("2.3", "2.0"));
+    assert!(version_satisfies("2.0a1", "2.0"));
+}

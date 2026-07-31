@@ -43,7 +43,9 @@ per-dialect spec packs, never as name-matching in a consumer (see
 2. `package provide` is tracked separately (`package_provides`); a file that
    *provides* a package needn't *require* it. `package ifneeded` is not a
    require.
-3. Each `SignaturePackageRequire` carries the name, the optional version, its
+3. Each `SignaturePackageRequire` carries the name, the optional version, an
+   `exact` flag set when the call carried `-exact` (issue #1090 — the flag
+   used to be parsed and dropped by both recorders), its
    source span, and a `conditional` flag set when the require sits inside a
    guarded branch, so version inference does not promote a guarded
    `package require Tcl 8.6` to an unconditional minimum. "Guarded" is
@@ -97,8 +99,60 @@ per-dialect spec packs, never as name-matching in a consumer (see
     `[file join $dir x]`, quoted, and braced path forms are handled
     structurally — not by regex. The differential tests verify the output
     against a real `tclsh`.
-12. `resolve(name, version)` returns the implementation files for the
-    best-matching version (exact or prefix match, e.g. `"2"` matches `"2.9"`).
+12. `resolve_require(name, version, exact)` (and its `resolve(name, version)`
+    shorthand) returns the implementation files of the single declaration
+    C Tcl's `SelectPackage` would evaluate; `select_provider(…)` returns that
+    whole declaration. The selection rule is
+    `tcl_dialect::select_package_version`, a port of `generic/tclPkg.c`, and
+    is the *only* version-comparison code in the workspace — the bytecode VM's
+    `package vcompare` / `vsatisfies` / `require`, the `pkgIndex.tcl` guard
+    evaluation and this resolver all go through it, so they cannot disagree.
+    The rules, each pinned against `tclsh8.6` (8.6.14) and `tclsh9.0` (9.0.4),
+    whose transcripts were byte-identical:
+
+    | Requirement | Means | from providers 1.5 + 2.3 |
+    |---|---|---|
+    | *(none)* | anything | 2.3 — highest, **not** first discovered (#1090) |
+    | `1.2` | `[1.2, 2)` — up to but excluding the next major | 1.5 |
+    | `2.0` | `[2.0, 3)` | 2.3 |
+    | `2.0-` | `[2.0, ∞)` | 2.3 |
+    | `2.0-2.2` | `[2.0, 2.2)` — half-open | nothing |
+    | `-exact 2.0` | the degenerate range `2.0-2.0` | nothing (#1090) |
+
+    Two further rules the port implements:
+
+    - **Prereleases.** `1.3b1` orders *above* `1.2` and *below* `1.3`, and
+      satisfies the requirement `1.2` — but an unconstrained require prefers
+      the highest **stable** candidate, so 1.2 + 1.3b1 selects 1.2. That is
+      `package prefer`'s default on both interpreters.
+    - **`-exact` is a range, not a separate code path.** `-exact V` is the
+      requirement `V-V` (`tcl_dialect::exact_requirement`), the same rewrite
+      `tclPkg.c` performs, and the degenerate range is the one form compared
+      without the alpha padding — so `-exact 2.0` accepts `2.0.0` (it compares
+      equal) and rejects `2.0a1`.
+
+    Two bounds, both deliberate and both documented at
+    `PackageResolver::resolve_require`:
+
+    - **`package prefer` state is not tracked.** A document that raises the
+      interpreter preference to `latest` changes the answer only when the best
+      acceptable version is a prerelease *and* a stable one is also
+      acceptable; the state is interpreter-global and evaluation-order
+      dependent, so the default is pinned rather than guessed.
+    - **Two providers whose versions compare equal.** C Tcl collapses them
+      into one `ifneeded` entry keeping the *last*-sourced script, and the
+      source order is `glob` order — filesystem order, machine-dependent.
+      This keeps the first-discovered provider (discovery sorts
+      subdirectories by name), which is deterministic and lets a
+      workspace-local copy listed first shadow an installed one.
+
+    The comparator's per-pair oracle is pinned as a corpus, not regenerated at
+    run time: `rust/tcl-dialect/tests/data/package_version_oracle.txt` (the
+    full `package vcompare` / `package vsatisfies` grid plus the ill-formed
+    inputs the interpreter rejects) and
+    `rust/tcl-dialect/tests/data/package_select_oracle.txt` (multi-provider
+    `package require` trials, including `-exact` and `package prefer`), both
+    checked by `rust/tcl-dialect/tests/package_version_oracle.rs`.
 13. `provides(name)` reports whether the scanned database knows `name`.
 14. `transitive_available_packages(requires, read_fn)` returns the closure of
     packages the given requires pull in — following each `ifneeded` script's

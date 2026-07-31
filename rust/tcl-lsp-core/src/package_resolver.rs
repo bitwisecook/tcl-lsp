@@ -657,10 +657,13 @@ fn collapse_colons(cmd: &str) -> (String, usize) {
 /// Tcl would load, by scanning `pkgIndex.tcl` / `tclIndex` files across a set
 /// of search paths (an `auto_path`).
 ///
-/// Search-path order follows Tcl's `auto_path` semantics: the **first**
-/// provider discovered for a name wins (workspace-local copies should be
-/// listed first so they shadow installed libraries). Later providers append
-/// to the version list but never displace the head.
+/// Every provider discovered for a name is kept, in discovery order (each
+/// search path in turn, its subdirectories sorted by name). Which one a
+/// `package require` picks is decided by [`PackageResolver::resolve_require`]
+/// with C Tcl's own selection rule — the highest acceptable version, not the
+/// first discovered — and *ties are broken by discovery order*, so listing a
+/// workspace-local copy first still shadows an equally-versioned installed
+/// one.
 #[derive(Debug, Default)]
 pub struct PackageResolver {
     packages: HashMap<String, Vec<PackageInfo>>,
@@ -675,7 +678,9 @@ impl PackageResolver {
         Self::default()
     }
 
-    /// Record a parsed `pkgIndex.tcl`'s declarations (first provider wins).
+    /// Record a parsed `pkgIndex.tcl`'s declarations, appended in discovery
+    /// order (selection among them is
+    /// [`Self::resolve_require`]'s job, not this one's).
     pub fn add_pkg_index(&mut self, infos: Vec<PackageInfo>) {
         for info in infos {
             self.packages
@@ -772,51 +777,90 @@ impl PackageResolver {
 
     /// Resolve a `package require NAME ?VERSION?` to its implementation files.
     ///
-    /// With no version constraint, the first-discovered provider's files are
-    /// returned. Empty when the package is unknown to the scanned paths.
-    ///
-    /// A constraint is evaluated with **`package vsatisfies` semantics**
-    /// ([`tcl_dialect::version_satisfies`], the same implementation
-    /// the bytecode VM and the `pkgIndex.tcl` guard evaluation use), and the
-    /// *highest* satisfying release wins — both verified against `tclsh8.6`
-    /// and `tclsh9.0`:
-    ///
-    /// | Written | Means | 1.5 | 2.3 |
-    /// |---------|-------|-----|-----|
-    /// | `2.0`   | `[2.0, 3)` — up to but excluding the next major | no | yes |
-    /// | `2.0-`  | `[2.0, ∞)` | no | yes |
-    /// | `2.0-2.2` | `[2.0, 2.2)` | no | no |
-    ///
-    /// With 1.5 and 2.3 both present, `package require widget 2.0` loads 2.3 —
-    /// so this returns 2.3's files. String prefixing would have missed it.
-    ///
-    /// Two bounds, both deliberate:
-    ///
-    /// * `-exact` is **not** modelled. The flag is parsed and dropped when the
-    ///   requirement is recorded (`SignaturePackageRequire` carries no
-    ///   `exact`), so `package require -exact widget 2.0` reads here as the
-    ///   ranged `2.0` and resolves 2.3, where real Tcl would error. For a
-    ///   navigation tier that is a generous answer rather than a wrong one.
-    /// * An **unconstrained** require answers the first-discovered provider,
-    ///   while Tcl picks the highest available. Left as-is so the common
-    ///   single-version workspace keeps its `auto_path`-order behaviour.
+    /// Shorthand for [`Self::resolve_require`] with `exact` false; see there
+    /// for the selection rule and its oracle.
     #[must_use]
     pub fn resolve(&self, name: &str, version: Option<&str>) -> Vec<PathBuf> {
-        let Some(infos) = self.packages.get(name) else {
-            return Vec::new();
-        };
-        let Some(req) = version else {
-            return infos
-                .first()
-                .map(|i| i.source_files.clone())
-                .unwrap_or_default();
-        };
-        infos
-            .iter()
-            .filter(|info| tcl_dialect::version_satisfies(&info.version, req))
-            .max_by(|a, b| tcl_dialect::compare_versions(&a.version, &b.version))
+        self.resolve_require(name, version, false)
+    }
+
+    /// Resolve a `package require ?-exact? NAME ?VERSION?` to its
+    /// implementation files, empty when nothing acceptable is on the scanned
+    /// paths (which includes the "constraint no provider satisfies" case —
+    /// never a silent fallback to some other release).
+    ///
+    /// The selection is [`tcl_dialect::select_package_version`], a port of C
+    /// Tcl's `SelectPackage`: among the providers satisfying the requirement,
+    /// the **highest** version wins, preferring the highest *stable* one
+    /// (`package prefer`'s default on 8.6.14 and 9.0.4 alike).
+    ///
+    /// | Written | Means | picks, from 1.5 + 2.3 |
+    /// |---------|-------|-----------------------|
+    /// | *(none)* | `0-` — every version is acceptable | 2.3 |
+    /// | `1.2` | `[1.2, 2)` — up to but excluding the next major | 1.5 |
+    /// | `2.0` | `[2.0, 3)` | 2.3 |
+    /// | `2.0-` | `[2.0, ∞)` | 2.3 |
+    /// | `2.0-2.2` | `[2.0, 2.2)` | *nothing* |
+    /// | `-exact 2.0` | the degenerate range `2.0-2.0` | *nothing* |
+    ///
+    /// `-exact` is the requirement `VERSION-VERSION`
+    /// ([`tcl_dialect::exact_requirement`]) — the same shape `tclPkg.c` builds
+    /// — so it accepts a trailing-zero spelling of the same release (`2.0.0`)
+    /// and rejects both a later release and that release's alpha (`2.0a1`).
+    /// `-exact` with no version is `package require -exact NAME`, which real
+    /// Tcl rejects as a syntax error; it is treated here as unconstrained.
+    ///
+    /// Two deliberate bounds, both verified against the interpreters:
+    ///
+    /// * **`package prefer` is not tracked.** A document may raise the
+    ///   interpreter's preference to `latest`, which changes the answer only
+    ///   when the best acceptable version is a prerelease and a stable one is
+    ///   also acceptable (`1.2` + `1.3b1` loads 1.2 by default, 1.3b1 under
+    ///   `package prefer latest`). The state is interpreter-global and
+    ///   order-of-evaluation dependent, so this pins the default rather than
+    ///   guessing at it.
+    /// * **Two providers whose versions compare *equal*.** C Tcl collapses
+    ///   them into one `ifneeded` entry, keeping the first registration's
+    ///   version string and the *last* one's script — and the registration
+    ///   order is `glob` order, i.e. filesystem order, so which script that is
+    ///   varies by machine. This keeps the first-discovered provider (with
+    ///   discovery sorted by name), which is deterministic; a workspace-local
+    ///   copy listed first therefore still shadows an installed one.
+    #[must_use]
+    pub fn resolve_require(&self, name: &str, version: Option<&str>, exact: bool) -> Vec<PathBuf> {
+        self.select_provider(name, version, exact)
             .map(|info| info.source_files.clone())
             .unwrap_or_default()
+    }
+
+    /// The single `package ifneeded` declaration a
+    /// `package require ?-exact? NAME ?VERSION?` would evaluate, or `None`
+    /// when no scanned provider is acceptable.  The full-fidelity form of
+    /// [`Self::resolve_require`], for a caller that needs the chosen release's
+    /// version or index file rather than just its sources.
+    #[must_use]
+    pub fn select_provider(
+        &self,
+        name: &str,
+        version: Option<&str>,
+        exact: bool,
+    ) -> Option<&PackageInfo> {
+        let infos = self.packages.get(name)?;
+        let requirement = version.map(|v| {
+            if exact {
+                tcl_dialect::exact_requirement(v)
+            } else {
+                v.to_owned()
+            }
+        });
+        let requirements: Vec<&str> = requirement.as_deref().into_iter().collect();
+        let versions: Vec<&str> = infos.iter().map(|i| i.version.as_str()).collect();
+        let chosen = tcl_dialect::select_package_version(
+            &versions,
+            &requirements,
+            tcl_dialect::PackagePrefer::default(),
+        )?;
+        infos.get(chosen)
     }
 
     /// Whether the scanned paths know how to provide `name`.
@@ -961,9 +1005,9 @@ impl PackageResolver {
 }
 
 /// The immediate subdirectories of `dir`, sorted by name — `read_dir` yields
-/// filesystem order, and everything downstream of a scan (which provider is
-/// first-discovered, the order of a package's source files) must be identical
-/// on every machine.
+/// filesystem order, and everything downstream of a scan (which provider wins
+/// a version tie, the order of a package's source files) must be identical on
+/// every machine.
 fn sorted_subdirs(dir: &Path) -> Vec<PathBuf> {
     let mut subdirs = Vec::new();
     if let Ok(read) = std::fs::read_dir(dir) {

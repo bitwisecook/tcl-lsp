@@ -142,8 +142,27 @@ approximately:
 - **A version constraint picks the release Tcl would load.** With 1.5 and 2.3
   both on the search path, `package require widget 2.0` navigates into 2.3 —
   `package vsatisfies` semantics (`2.0` means up to but excluding the next
-  major), highest satisfying release wins. An unconstrained require still
-  answers the first provider found.
+  major), highest satisfying release wins. `package require widget 1.2`
+  navigates into **1.5**, not 2.3, for the same reason: 2.3 is a different
+  major.
+- **`-exact` navigates into that release or nowhere.** `package require -exact
+  widget 2.0` jumps into 2.0 when it is on the search path and into *nothing*
+  when it is not — never into 2.3, which is what `package require widget 2.0`
+  would load. A trailing-zero spelling of the same release (2.0.0) still
+  counts; that release's alpha (2.0a1) does not.
+- **An unconstrained require picks the highest release, preferring a stable
+  one.** `package require widget` with 1.5 and 2.3 on the search path
+  navigates into 2.3, whichever directory was scanned first. With 1.2 and
+  1.3b1 it navigates into **1.2** — a prerelease loses to a stable release,
+  which is what `package prefer` defaults to. A document that raises the
+  preference with `package prefer latest` is not tracked, so navigation keeps
+  the default answer there.
+
+  Two providers declaring the *same* version are the one case with no answer
+  to match: real Tcl keeps whichever `pkgIndex.tcl` its `glob` sourced last,
+  and that is filesystem order. Navigation takes the first provider in
+  search-path order instead, so it is at least the same on every machine —
+  list a workspace-local copy first and it shadows the installed one.
 
 ### Caller-frame variables
 

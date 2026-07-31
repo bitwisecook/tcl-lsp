@@ -4709,12 +4709,13 @@ impl Backend {
             for req in &analysis.package_requires {
                 // The document's own constraint decides which release is
                 // indexed: `package require widget 2.0` against a workspace
-                // holding 1.5 and 2.3 must navigate into 2.3 (`package
-                // vsatisfies` semantics — see `PackageResolver::resolve`), not
-                // whichever directory the scan happened to read first.  `None`
-                // when the require carried no version, which keeps the
-                // unconstrained case on the first-discovered provider.
-                for f in resolver.resolve(&req.name, req.version.as_deref()) {
+                // holding 1.5 and 2.3 must navigate into 2.3 (C Tcl's
+                // `SelectPackage` rule — see
+                // `PackageResolver::resolve_require`), not whichever directory
+                // the scan happened to read first.  `-exact` is carried
+                // through, so `package require -exact widget 2.0` navigates
+                // into 2.0 or nothing at all — never into 2.3 (issue #1090).
+                for f in resolver.resolve_require(&req.name, req.version.as_deref(), req.exact) {
                     if !files.contains(&f) {
                         files.push(f);
                     }
@@ -17502,6 +17503,96 @@ mod tests {
             "unexpected target: {:?}",
             locs[0].uri,
         );
+    }
+
+    /// Issue #1090 — end to end across documents: which *release* of a
+    /// multi-version package go-to-definition lands in.
+    ///
+    /// Three providers of `widget` (2.0, 2.3 and 1.5) each define
+    /// `::widget::init`, all outside the workspace root and reachable only
+    /// through the user file's own `auto_path` mutation, so the answer comes
+    /// from the package tier's version selection and nothing else.
+    ///
+    /// Oracle (`tclsh8.6` 8.6.14 / `tclsh9.0` 9.0.4, byte-identical, the same
+    /// three versions registered as `package ifneeded widget V …`):
+    ///
+    /// ```text
+    /// package require widget            -> 2.3
+    /// package require widget 2.0        -> 2.3
+    /// package require -exact widget 2.0 -> 2.0
+    /// package require widget 1.2        -> 1.5
+    /// ```
+    ///
+    /// Before the fix, `-exact` was dropped (so row 3 navigated into 2.3) and
+    /// an unconstrained require answered the first provider discovered (so
+    /// row 1 navigated into whichever directory sorted first — 1.5).
+    #[tokio::test]
+    async fn definition_lands_in_the_package_release_tcl_would_load() {
+        let ws = TmpWs::new("pkgver-def");
+        for ver in ["1.5", "2.0", "2.3"] {
+            let dir = format!("v{}", ver.replace('.', ""));
+            ws.write(
+                &format!("reporoot/{dir}/pkgIndex.tcl"),
+                &format!(
+                    "package ifneeded widget {ver} \
+                     [list source [file join $dir widget.tcl]]\n"
+                ),
+            );
+            ws.write(
+                &format!("reporoot/{dir}/widget.tcl"),
+                &format!(
+                    "package provide widget {ver}\n\
+                     proc ::widget::init {{}} {{ return {ver} }}\n"
+                ),
+            );
+        }
+
+        // Each row: the `package require` line, and the basename of the
+        // directory whose `widget.tcl` must be the definition target.
+        for (require_line, want_dir) in [
+            ("package require widget", "v23"),
+            ("package require widget 2.0", "v23"),
+            ("package require -exact widget 2.0", "v20"),
+            ("package require widget 1.2", "v15"),
+        ] {
+            let user_src = format!(
+                "lappend auto_path [file dirname [file dirname [info script]]]\n\
+                 {require_line}\n\
+                 puts [::widget::init]\n"
+            );
+            let name = format!("reporoot/examples/{want_dir}_user.tcl");
+            ws.write(&name, &user_src);
+
+            let backend = test_backend();
+            let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
+            *backend.workspace_folders.lock().await = vec![narrow_root];
+            backend.scan_workspace_folders().await;
+
+            let user_uri = Uri::from_file_path(ws.0.join(&name)).unwrap();
+            register(&backend, &user_uri, &user_src).await;
+            let locs = backend
+                .compute_definition(
+                    &user_uri,
+                    Position {
+                        line: 2,
+                        character: 12,
+                    },
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                locs.len(),
+                1,
+                "`{require_line}` must pull in exactly one release's \
+                 implementation, got: {locs:?}",
+            );
+            let target = locs[0].uri.as_str();
+            assert!(
+                target.contains(&format!("/{want_dir}/")),
+                "`{require_line}` must navigate into {want_dir}'s widget.tcl, \
+                 got {target}",
+            );
+        }
     }
 
     /// PR #1086 finding 2 — TP: `set auto_path` assigns a **list**, so every
