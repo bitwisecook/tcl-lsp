@@ -2552,3 +2552,114 @@ mod textutil_submodule_vs_umbrella {
         assert_eq!(umbrella_spec.traits, submodule_spec.traits);
     }
 }
+
+/// `namespace`'s namespace-name argument positions — the registry data issue
+/// #1088's navigation is driven by.  Which words name a namespace is a
+/// registry fact, so no analyser or provider matches a subcommand spelling.
+///
+/// Oracle (tclsh 9.0.4 and 8.6.16, byte-identical): `namespace children
+/// ::never` fails `namespace "::never" not found`; `namespace exists ::never`
+/// answers `0`; `namespace delete ::a ::b` deletes both and errors on the
+/// first unknown one; `namespace upvar ::rel::kid v alias` binds through the
+/// namespace word; and inside `namespace eval ::outer`, `namespace exists
+/// inner` is `1` while the same words at global scope are `0`.
+///
+/// registry-metadata: `arg_roles` / `arg_role_resolver`.
+#[test]
+fn namespace_subcommands_declare_their_namespace_name_arguments() {
+    let (reg, _) = reg_and_set("tcl8.6");
+    for (args, expected) in [
+        (vec!["children", "::a"], vec![1usize]),
+        (vec!["children", "::a", "pat*"], vec![1]),
+        (vec!["exists", "::a"], vec![1]),
+        (vec!["parent", "::a"], vec![1]),
+        (vec!["eval", "::a", "{}"], vec![1]),
+        (vec!["inscope", "::a", "{}"], vec![1]),
+        (vec!["upvar", "::a", "v", "l"], vec![1]),
+        (vec!["delete", "::a", "::b"], vec![1, 2]),
+    ] {
+        assert_eq!(
+            reg.arg_indices_for_role("namespace", &args, ArgRole::NamespaceName),
+            expected,
+            "namespace {args:?} namespace-name positions",
+        );
+    }
+    // `children`'s second word filters the *result*; it is a glob pattern.
+    assert_eq!(
+        reg.arg_indices_for_role("namespace", &["children", "::a", "pat*"], ArgRole::Pattern),
+        vec![2],
+    );
+}
+
+/// The `namespace` subcommands whose arguments only *look* like namespaces
+/// must declare no namespace-name position at all.
+///
+/// Oracle (both interpreters): `namespace tail a::b` → `b` and `namespace
+/// qualifiers a::b` → `a` whether or not `::a` exists, so those words are
+/// arbitrary strings; `import`/`export`/`forget` take glob patterns;
+/// `origin`/`which` name commands; `code` takes a script.
+///
+/// registry-metadata: `arg_roles`.
+#[test]
+fn namespace_string_and_command_subcommands_declare_no_namespace_name() {
+    let (reg, _) = reg_and_set("tcl8.6");
+    for args in [
+        vec!["tail", "a::b"],
+        vec!["qualifiers", "a::b"],
+        vec!["import", "::a::*"],
+        vec!["export", "p"],
+        vec!["forget", "::a::*"],
+        vec!["origin", "::a::p"],
+        vec!["which", "-command", "::a::p"],
+        vec!["code", "{puts hi}"],
+        vec!["current"],
+        vec!["path", "{::a ::b}"],
+    ] {
+        assert!(
+            reg.arg_indices_for_role("namespace", &args, ArgRole::NamespaceName)
+                .is_empty(),
+            "namespace {args:?} must declare no namespace-name argument",
+        );
+    }
+}
+
+/// Only `namespace eval` **declares** a namespace, and the fact is a trait
+/// rather than a spelling check — `namespace inscope`'s argument layout and
+/// analyser hook are identical but it requires the namespace to exist.
+///
+/// Oracle (both interpreters): `namespace eval ::brandnew {}` creates it;
+/// `namespace inscope ::brandnew {}` on an undeclared namespace fails; and no
+/// other form creates one (`proc ::nope::gone::p {} {}` → `can't create
+/// procedure "::nope::gone::p": unknown namespace`).
+///
+/// registry-metadata: `Traits::DECLARES_NAMESPACE`.
+#[test]
+fn only_namespace_eval_declares_a_namespace() {
+    let (reg, _) = reg_and_set("tcl8.6");
+    assert!(
+        reg.call_traits("namespace", &["eval", "::a", "{}"])
+            .contains(Traits::DECLARES_NAMESPACE),
+    );
+    for sub in ["inscope", "children", "exists", "delete", "parent", "upvar"] {
+        assert!(
+            !reg.call_traits("namespace", &[sub, "::a"])
+                .contains(Traits::DECLARES_NAMESPACE),
+            "namespace {sub} must not be a declaring form",
+        );
+    }
+    // No other command in any dialect claims it either — a declaring form the
+    // navigation tier does not know about would silently lose definitions.
+    let declarers: Vec<&str> = reg
+        .command_names()
+        .filter(|name| {
+            reg.get(name).is_some_and(|spec| {
+                spec.traits.contains(Traits::DECLARES_NAMESPACE)
+                    || spec
+                        .subcommands
+                        .iter()
+                        .any(|sub| sub.traits.contains(Traits::DECLARES_NAMESPACE))
+            })
+        })
+        .collect();
+    assert_eq!(declarers, vec!["namespace"]);
+}

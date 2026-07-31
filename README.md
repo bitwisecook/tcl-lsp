@@ -595,6 +595,16 @@ whatever the surrounding scope supplies, which is a within-file question, so
 it is never widened to a same-named variable somewhere else in the
 workspace.
 
+Namespace **names** navigate too. The `::tomato` of `namespace children
+::tomato`, `namespace exists`, `namespace delete`, `namespace upvar`, or a
+second `namespace eval ::tomato { … }` block jumps to — and hovers, and
+finds references for — every `namespace eval` block that declares it,
+wherever those live, since reopening a namespace extends the same one. A
+relative name resolves against the namespace it is written in, exactly as
+Tcl does. Words that only look like namespace names are left alone:
+`namespace tail` / `qualifiers` take arbitrary strings, `import` / `export`
+/ `forget` take glob patterns, and `origin` / `which` name commands.
+
 ### Signature help
 
 As you type arguments, the server shows the expected parameter list with the

@@ -20,6 +20,7 @@ entry has an identity another document can spell:
 | `invocations` | every call site, with its ordered resolution candidates | — |
 | `variables` | namespace- and global-scope variable declarations | **qualified name only** |
 | `variable_refs` | occurrences written with a `::` qualifier | **qualified name only** |
+| `namespace_refs` | every word naming a namespace, declaring or not | qualified name (rooted at record time) |
 | `sources` / `package_requires` / `command_links` / `glob_imports` / `namespace_exports` | the cross-file graph edges | — |
 
 `glob_imports` and `namespace_exports` each carry their document **and their
@@ -66,6 +67,42 @@ The `variable_refs` rows come from `qualified_var_refs`, which the analyser
 (`tcl_compiler::analyser::QualifiedVarRef`) records whether or not the named
 cell resolves in the recording document: the cross-file case is precisely
 the one where it does not.
+
+### The namespace tier
+
+`namespace_refs` (issue #1088) holds one row per word the registry marks
+`ArgRole::NamespaceName`: the `namespace eval` target that **declares** a
+namespace (`declares: true`, from `Traits::DECLARES_NAMESPACE`) and every
+other spelling of it — `namespace children`, `exists`, `delete`, `parent`,
+`upvar`, `inscope`.  One table rather than two, because a namespace's
+declaring site *is* one of its spellings: it is both what go-to-definition
+answers with and a word find-references reports.
+
+This tier needs **no** qualified-only bound, unlike the variable one.  A
+namespace word roots against the command-resolution namespace in force where
+it is written, and that is a lexical fact the recording document already
+knows, so `tcl_compiler::analyser::NamespaceRef` stores the rooted name and
+every indexed row names one namespace absolutely.  Two consequences the
+providers rely on: a relative `inner` inside `namespace eval ::outer` is
+indexed as `::outer::inner` and matches a sibling document's
+`::outer::inner` exactly; and the index never has to re-derive the rooting
+rule, so it cannot disagree with the same-document resolver
+(`tcl_lsp_core::namespace_symbol::namespace_cell_at`, the single entry point
+definition, hover, and references all answer through).
+
+Two shapes are deliberately absent.  A **computed** target (`namespace eval
+$ns { … }`) names no static namespace and is recorded nowhere.  A namespace
+that exists only as an implicit **parent** — `namespace eval ::p::q::r {}`
+really does create `::p` and `::p::q` on tclsh 9.0.4 and 8.6.16 alike — has
+no declaring row, because its name is written nowhere; definition abstains
+rather than pointing into the middle of another namespace's name word.
+
+`observable_namespaces` (the discriminator between "this namespace does not
+export the name" and "this namespace is not in the workspace at all", which
+gates `live_command_links`) reads the declaring rows as a fourth source,
+alongside proc/class owners and `namespace_exports`.  A `namespace eval ::ns
+{ namespace import ::other::* }` block declaring no proc, class, or export
+of its own *is* a namespace the workspace can see.
 
 ### The variable tier's rename half
 
@@ -172,6 +209,8 @@ cache.
 
 - `rust/tcl-lsp-core/src/workspace_index.rs` (`mod tests`)
 - `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs`
+- `rust/tcl-lsp-server/tests/e2e/issue1088_namespace_symbols.rs` (the
+  namespace tier, single-file and cross-file)
 - `rust/tcl-lsp-server/tests/e2e/rename_safety.rs` (the variable tier's
   rename half: TP cross-document, TP out-of-namespace alias, FN-guard
   proc-local alias, TN sibling namespace, FP-guard computed variable name,

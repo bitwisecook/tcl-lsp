@@ -197,6 +197,21 @@ static IMPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
     min_version: None,
 }];
 
+/// `namespace delete ?namespace namespace ...?` — every positional word names
+/// a namespace, so the role is variadic and cannot be a fixed index table.
+///
+/// `NamespaceDeleteCmd` (tclNamesp.c) walks `objv[1..]` and deletes each,
+/// erroring on the first unknown one (`unknown namespace "::never" in
+/// namespace delete command`, rc 1 — identical on tclsh 9.0.4 and 8.6.16), so
+/// there is no flag or terminator word to skip. `args` are the words after
+/// the `delete` subcommand.
+fn namespace_delete_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    (0..args.len())
+        .filter_map(|i| u8::try_from(i).ok())
+        .map(|i| (i, ArgRole::NamespaceName))
+        .collect()
+}
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "children",
@@ -205,6 +220,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace children ?namespace? ?pattern?",
         pure: true,
         return_type: Some(TclType::List),
+        // The optional first word names the namespace whose children are
+        // listed (`namespace children ::tomato` — issue #1088); the optional
+        // second is a glob pattern filtering the *result*, not a namespace.
+        arg_roles: &[(0, ArgRole::NamespaceName), (1, ArgRole::Pattern)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -249,6 +268,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // suppression keys off.
         destructive: true,
         return_type: Some(TclType::String),
+        // Every positional word names a namespace — see
+        // `namespace_delete_arg_roles`.
+        arg_role_resolver: Some(namespace_delete_arg_roles),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -288,7 +310,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Evaluate a script in a namespace context.",
         synopsis: "namespace eval namespace arg ?arg ...?",
-        arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Body)],
+        // The target word is a namespace **name**, not a generic symbolic
+        // `Name`: it is the one form that *declares* a namespace (see
+        // `Traits::DECLARES_NAMESPACE` below), and every other spelling of
+        // the same namespace — `namespace children ::ns`, `namespace exists
+        // ns` — must navigate to it (issue #1088).
+        arg_roles: &[(0, ArgRole::NamespaceName), (1, ArgRole::Body)],
         lowering_hook: Some(crate::hooks::LoweringHookId::NamespaceEval),
         return_type: Some(TclType::String),
         // The body evaluates in the *namespace* frame, not the caller's, so
@@ -301,7 +328,20 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // key off this.  Words after the body concatenate into it exactly as
         // `eval`'s do (`namespace eval ::n set l2 hello` sets `::n::l2`,
         // tclsh8.6.14/9.0.4-confirmed), so the eval-family trait applies.
-        traits: Traits::EVALUATES_CODE.union(Traits::SCRIPT_CONCATENATES_ARGS),
+        // `DECLARES_NAMESPACE` is what makes this the namespace's *declaring*
+        // site rather than merely another reference to it.  Pinned on tclsh
+        // 9.0.4 and 8.6.16 (byte-identical): `namespace eval ::a {}` twice
+        // creates the namespace once and extends it the second time, a deep
+        // `namespace eval ::p::q::r {}` creates `::p` and `::p::q` too, and
+        // it is the **only** declaring form — `proc ::nope::gone::p {} {}`
+        // with no such namespace fails (`can't create procedure
+        // "::nope::gone::p": unknown namespace`, rc 1), as does `set
+        // ::brandnew::v 1` (`parent namespace doesn't exist`).  `inscope`,
+        // which shares this hook and arg layout, deliberately does **not**
+        // carry it: it requires the namespace to already exist.
+        traits: Traits::EVALUATES_CODE
+            .union(Traits::SCRIPT_CONCATENATES_ARGS)
+            .union(Traits::DECLARES_NAMESPACE),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceEval),
         ..SubCommand::DEFAULT
     },
@@ -312,6 +352,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace exists namespace",
         pure: true,
         return_type: Some(TclType::Boolean),
+        // An existence probe of a namespace: the name navigates like any
+        // other namespace reference, and no diagnostic asserts it exists
+        // (both interpreters answer `0` rather than erroring).
+        arg_roles: &[(0, ArgRole::NamespaceName)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -388,7 +432,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Executes a script in the context of the specified namespace.",
         synopsis: "namespace inscope namespace script ?arg ...?",
-        arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Body)],
+        // Same shape as `eval`'s, and the same namespace **reference** —
+        // but `inscope` requires the namespace to exist already, so it
+        // carries no `DECLARES_NAMESPACE`.
+        arg_roles: &[(0, ArgRole::NamespaceName), (1, ArgRole::Body)],
         return_type: Some(TclType::String),
         // Like `eval`, the script runs in the namespace frame — the `[subcmd,
         // namespace, body]` shape is identical, so the same analyser hook
@@ -424,6 +471,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace parent ?namespace?",
         pure: true,
         return_type: Some(TclType::String),
+        // The optional word names the namespace whose parent is reported.
+        arg_roles: &[(0, ArgRole::NamespaceName)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -502,6 +551,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Arrange local variables to refer to namespace variables, as zero or more otherVar/myVar pairs. Tcl 8.5 requires at least one pair; from Tcl 8.6 the namespace argument alone is legal (and a no-op).",
         synopsis: "namespace upvar namespace ?otherVar myVar ...?",
         return_type: Some(TclType::String),
+        // The leading word names the namespace the aliased cells live in —
+        // relative names root against the current namespace exactly as
+        // elsewhere (tclsh 9.0.4 / 8.6.16: inside `namespace eval ::rel`,
+        // `namespace upvar kid v alias` binds `::rel::kid::v`).
+        arg_roles: &[(0, ArgRole::NamespaceName)],
         creates_scope_alias: true,
         dialects: Some(DialectSet::TCL85_PLUS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceUpvar),

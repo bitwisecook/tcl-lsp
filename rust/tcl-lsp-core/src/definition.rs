@@ -428,6 +428,24 @@ fn position_definition(
             var_def.definition_span,
         )]);
     }
+    // A word naming a namespace (`namespace children ::tomato`, and the
+    // `::tomato` of `namespace eval ::tomato { … }` itself) — issue #1088.
+    // Definitive: the position is inside a registry-declared
+    // `ArgRole::NamespaceName` word, so it is about a namespace and nothing
+    // else.  Every declaring `namespace eval` block answers, in source order,
+    // because reopening a namespace extends the same one (tclsh 9.0.4 /
+    // 8.6.16).  An empty answer means this document declares it nowhere —
+    // the cross-document tier picks it up from there.
+    if let Some(cell) =
+        crate::namespace_symbol::namespace_cell_at_offset(source, "", analysis, cursor_off)
+    {
+        return Some(
+            crate::namespace_symbol::namespace_declaration_spans(analysis, &cell)
+                .into_iter()
+                .map(|span| span_to_range(source, line_index, span))
+                .collect(),
+        );
+    }
     if let Some(inv) = crate::expr_context::mathfunc_call_at(analysis, cursor_off) {
         return Some(
             inv.resolved_qualified_name

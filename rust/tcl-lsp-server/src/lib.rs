@@ -64,6 +64,7 @@ use tcl_lsp_core::implementation as core_implementation;
 use tcl_lsp_core::inlay_hints as core_inlay_hints;
 use tcl_lsp_core::linked_editing_range as core_linked_editing_range;
 use tcl_lsp_core::minify as core_minify;
+use tcl_lsp_core::namespace_symbol as core_namespace_symbol;
 use tcl_lsp_core::package_resolver::PackageResolver;
 use tcl_lsp_core::references as core_references;
 use tcl_lsp_core::rename as core_rename;
@@ -4323,6 +4324,17 @@ impl Backend {
                 return Ok(method_defs);
             }
         }
+        // Cross-file namespace: `namespace children ::tomato` whose declaring
+        // `namespace eval ::tomato { … }` is in another document (issue
+        // #1088).  Not gated on `on_command_head` — a namespace-name argument
+        // never is one — and safe without that gate because the namespace is
+        // named exactly, not matched by simple name.
+        let cross_ns = self
+            .cross_document_namespace_definition(uri, &doc.text, pos, &analysis)
+            .await;
+        if !cross_ns.is_empty() {
+            return Ok(cross_ns);
+        }
         // Cross-file namespace variable: `$::NS::var` whose declaring
         // `namespace eval NS { variable var }` is in another document (issue
         // #923 idx 65 / 75 / 78).  Not gated on `on_command_head` — a `$var`
@@ -4373,6 +4385,133 @@ impl Backend {
             pos.line,
             pos.character,
         )
+    }
+
+    /// The `::`-rooted namespace the cursor names, or `None` when it names
+    /// none — see [`core_namespace_symbol::namespace_cell_at`] for the two
+    /// cursor shapes that answer.  The one place the server decides "this
+    /// position is about a namespace", shared by the cross-document
+    /// definition, hover, and references tiers so they cannot disagree.
+    fn namespace_cell(
+        source: &str,
+        dialect: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+    ) -> Option<String> {
+        core_namespace_symbol::namespace_cell_at(source, dialect, analysis, pos.line, pos.character)
+    }
+
+    /// Cross-document go-to-definition for a namespace: the declaring
+    /// `namespace eval` blocks the workspace index holds for the namespace at
+    /// `pos`, in *other* documents.
+    ///
+    /// Only ever consulted after the in-document provider came back empty, so
+    /// a locally-declared namespace always answers locally.  The index lookup
+    /// is an exact qualified-name match — no scan of other documents, no
+    /// re-analysis (issue #1088).  Every declaring block answers, not just
+    /// the first: reopening a namespace extends the same one on tclsh 9.0.4
+    /// and 8.6.16 alike.
+    async fn cross_document_namespace_definition(
+        &self,
+        uri: &Uri,
+        source: &str,
+        pos: Position,
+        analysis: &AnalysisResult,
+    ) -> Vec<Location> {
+        let Some(cell) = Self::namespace_cell(source, &analysis.dialect, analysis, pos) else {
+            return Vec::new();
+        };
+        self.refresh_source_rehoming().await;
+        let targets: Vec<(String, tcl_lexer::Span)> = {
+            let index = self.workspace_index.read().await;
+            index
+                .namespace_declarations_qualified(&cell, uri.as_str())
+                .into_iter()
+                .map(|n| (n.uri.clone(), n.span))
+                .collect()
+        };
+        self.resolve_target_locations(targets).await
+    }
+
+    /// Hover for a namespace declared in a sibling document — the hover twin
+    /// of [`Self::cross_document_namespace_definition`], rendered from the
+    /// *declaring* document's own analysis (memoised by
+    /// [`Self::analysis_for`]).
+    async fn cross_document_namespace_hover(
+        &self,
+        uri: &Uri,
+        source: &str,
+        pos: Position,
+        analysis: &AnalysisResult,
+    ) -> Option<CoreHover> {
+        let cell = Self::namespace_cell(source, &analysis.dialect, analysis, pos)?;
+        self.refresh_source_rehoming().await;
+        let target_uris: Vec<String> = {
+            let index = self.workspace_index.read().await;
+            index
+                .namespace_declarations_qualified(&cell, uri.as_str())
+                .into_iter()
+                .map(|n| n.uri.clone())
+                .collect()
+        };
+        for target_uri in target_uris {
+            let Ok(parsed) = Uri::from_str(&target_uri) else {
+                continue;
+            };
+            let Some(target_doc) = self.read_document(&parsed).await else {
+                continue;
+            };
+            let target_analysis = self
+                .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
+                .await;
+            if let Some(hover) = core_hover::qualified_namespace_hover(&target_analysis, &cell) {
+                return Some(hover);
+            }
+        }
+        None
+    }
+
+    /// Workspace references for the namespace at `pos`: every occurrence of
+    /// it anywhere in the index, plus its declaring `namespace eval` blocks
+    /// when `include_declaration`.
+    ///
+    /// Like the variable tier this excludes **no** document, the caller's own
+    /// included, and for the same structural reason: a document that merely
+    /// mentions `::tomato` holds no declaration to anchor the single-document
+    /// pass on.  The caller dedupes ([`dedup_locations`]) and the index
+    /// records the same spans the single-document pass does, so an occurrence
+    /// already reported collapses rather than doubling.
+    async fn cross_document_namespace_references(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        include_declaration: bool,
+    ) -> Vec<Location> {
+        let Some(cell) = Self::namespace_cell(source, &analysis.dialect, analysis, pos) else {
+            return Vec::new();
+        };
+        self.refresh_source_rehoming().await;
+        let targets: Vec<(String, tcl_lexer::Span)> = {
+            let index = self.workspace_index.read().await;
+            let mut t: Vec<(String, tcl_lexer::Span)> = index
+                .namespace_refs_of(&cell, "")
+                .into_iter()
+                .map(|n| (n.uri.clone(), n.span))
+                .collect();
+            if include_declaration {
+                t.extend(
+                    index
+                        .namespace_declarations_qualified(&cell, "")
+                        .into_iter()
+                        .map(|n| (n.uri.clone(), n.span)),
+                );
+            }
+            t.sort_by_key(|(u, s)| (u.clone(), s.start(), s.end()));
+            t.dedup();
+            t
+        };
+        self.resolve_target_locations(targets).await
     }
 
     /// Cross-document go-to-definition for a namespace variable: the
@@ -5236,6 +5375,20 @@ impl Backend {
         // consumer document holds no `VarDef` for a cell it merely reads.
         locations.extend(
             self.cross_document_variable_references(
+                &doc.text,
+                analysis,
+                position,
+                include_declaration,
+            )
+            .await,
+        );
+        // Cross-document namespace sites: every other spelling of the
+        // namespace the cursor names, plus its declaring `namespace eval`
+        // blocks when asked for (issue #1088).  The single-document provider
+        // above only sees this file, and a namespace is routinely referenced
+        // from files that declare none of it.
+        locations.extend(
+            self.cross_document_namespace_references(
                 &doc.text,
                 analysis,
                 position,
@@ -11902,6 +12055,14 @@ impl LanguageServer for Backend {
         // reach the tiers below (issue #923 idx 65 / 75 / 78).
         if let Some(hover) = self
             .cross_document_variable_hover(&uri, &doc.text, pos, &analysis)
+            .await
+        {
+            return Ok(Some(lift_hover(hover)));
+        }
+        // Same for a namespace whose declaring `namespace eval` is in a
+        // sibling document (issue #1088).
+        if let Some(hover) = self
+            .cross_document_namespace_hover(&uri, &doc.text, pos, &analysis)
             .await
         {
             return Ok(Some(lift_hover(hover)));

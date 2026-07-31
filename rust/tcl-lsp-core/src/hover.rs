@@ -209,6 +209,22 @@ pub fn qualified_variable_hover(
     )))
 }
 
+/// Hover for a **namespace** declared in another document, rendered from that
+/// document's own analysis — the namespace twin of
+/// [`qualified_variable_hover`] (issue #1088).
+///
+/// `qualified` is the `::`-rooted namespace name
+/// ([`crate::namespace_symbol::namespace_cell_at`]); the counts shown are the
+/// declaring document's, matching exactly what hovering a declaring
+/// `namespace eval` there renders.
+#[must_use]
+pub fn qualified_namespace_hover(
+    defining_analysis: &AnalysisResult,
+    qualified: &str,
+) -> Option<Hover> {
+    crate::namespace_symbol::namespace_hover_text(defining_analysis, qualified).map(Hover::markdown)
+}
+
 /// `<ensemble> <subcommand>` hover — a static `namespace ensemble create
 /// -map`/`-subcommands` mapping (issue #923 idx 106), the hover twin of
 /// `definition()`'s identical check. Extracted from
@@ -530,6 +546,19 @@ pub fn hover_with_profile(
     // (`proc p [makeargs] {…}`) holds live code and stays navigable.
     if crate::definition::offset_is_in_parameter_list(analysis, source, cursor_offset) {
         return None;
+    }
+
+    // A word naming a namespace (issue #1088) — span-precise, so it is asked
+    // before every word-based resolver: a namespace is its own symbol space
+    // in Tcl, and a proc or class of the same spelling is not what
+    // `namespace children ::tomato` refers to.  Abstains (falls through)
+    // when no `namespace eval` in *this* document declares it — the
+    // cross-document tier answers those.
+    if let Some(cell) =
+        crate::namespace_symbol::namespace_cell_at(source, profile.name, analysis, line, character)
+        && let Some(text) = crate::namespace_symbol::namespace_hover_text(analysis, &cell)
+    {
+        return Some(Hover::markdown(text));
     }
 
     if let Some(hover) = format_string_hover(source, line, character) {

@@ -122,6 +122,21 @@ When nothing binds the name, Find All References returns nothing rather than
 falling back to a command or method of the same name — a `$`-led token can
 only ever be the variable.
 
+### Namespace names
+
+A namespace is a symbol in its own right. Asking for references from the
+`::tomato` of `namespace children ::tomato` — or from the name word of a
+`namespace eval ::tomato { … }` block — returns every other place that names
+that namespace: `namespace exists`, `namespace delete`, `namespace parent`,
+`namespace upvar`, `namespace inscope`, and every declaring `namespace eval`
+block, in this file and in every other file in the workspace. Turning
+declarations off drops the `namespace eval` blocks and keeps the rest.
+Relative names count: inside `namespace eval ::outer`, a bare `inner` names
+`::outer::inner` and is listed with the qualified spellings of the same
+namespace. Words that merely look like namespace names are not listed —
+`namespace tail` and `namespace qualifiers` take arbitrary strings, and
+`namespace import` / `export` / `forget` take glob patterns.
+
 ### Method-name references in a class body
 
 A method's references include the definition-body words that *name* it, not
@@ -144,6 +159,8 @@ that reason.
   call-site word and the reads it feeds, shared with Hover and Go to
   Definition)
 - `rust/tcl-lsp-core/src/definition.rs` (shared namespace-aware resolvers)
+- `rust/tcl-lsp-core/src/namespace_symbol.rs` (the one namespace resolver Go
+  to Definition, Hover, and Find References all answer through)
 - `rust/tcl-compiler/src/analyser/oo.rs` (`record_member_command_references` —
   `superclass` / `mixin` / `inherit` / `forward` as command references)
 
@@ -222,6 +239,8 @@ that reason.
   `dispatch_scan_depth_guard_stops_runaway_nesting`,
   `tn_expect_clause_flags_not_decomposed`)
 - `rust/tcl-lsp-server/tests/e2e/issue923_class_refs.rs` (cross-file)
+- `rust/tcl-lsp-server/tests/e2e/issue1088_namespace_symbols.rs` (namespace
+  names as references, in one file and across files)
 - `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs` (cross-file namespace
   variables, TP + TN)
 - `rust/tcl-lsp-server/tests/e2e/tcloo_navigation.rs` (rename / references /

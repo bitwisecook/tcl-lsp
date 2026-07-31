@@ -80,6 +80,10 @@ pub const ARG_ROLES: &[Variant] = &[
         "names a command that need not exist yet",
     ),
     v("LambdaLiteral", "an `apply`-style lambda literal"),
+    v(
+        "NamespaceName",
+        "names a namespace (`namespace children ::ns`)",
+    ),
 ];
 
 /// [`TclType`] — the intrep a value carries.
@@ -502,6 +506,10 @@ pub const TRAITS: &[Variant] = &[
         "TCLOO_REQUIRES_METHOD_FRAME",
         "calling it needs a real method invocation, not just an object frame",
     ),
+    v(
+        "DECLARES_NAMESPACE",
+        "declares the namespace its NamespaceName word names",
+    ),
 ];
 
 /// [`TaintColour`] bits.
@@ -705,7 +713,8 @@ mod tests {
             | ArgRole::CommandPrefix
             | ArgRole::CommandName
             | ArgRole::CommandNameProbe
-            | ArgRole::LambdaLiteral => true,
+            | ArgRole::LambdaLiteral
+            | ArgRole::NamespaceName => true,
         }
     }
 

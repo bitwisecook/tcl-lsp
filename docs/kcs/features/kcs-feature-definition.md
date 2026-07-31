@@ -93,6 +93,23 @@ other file can know, so it stays a within-file question. A `$name`-shaped
 run of characters inside a comment or a data brace substitutes nothing in
 real Tcl and is likewise never a jump target.
 
+A **namespace name** is a jump target too. The `::tomato` of `namespace
+children ::tomato`, `namespace exists ::tomato`, `namespace delete
+::tomato`, `namespace upvar ::tomato v local`, `namespace inscope`, or a
+second `namespace eval ::tomato { … }` block all land on the `namespace
+eval` blocks that declare that namespace — every one of them, in source
+order, because reopening a namespace extends the same namespace rather than
+making a new one. The declaring block may live in another file. A
+**relative** name resolves against the namespace it is written in, exactly
+as Tcl resolves it: inside `namespace eval ::outer`, `namespace exists
+inner` means `::outer::inner`, and the same words at the top level mean
+`::inner`. Words that only look like namespaces are not: `namespace tail`
+and `namespace qualifiers` take an arbitrary string, `namespace import` /
+`export` / `forget` take glob patterns, and `namespace origin` / `which`
+name commands. A namespace that exists only because it is a parent
+(`namespace eval ::p::q::r { … }` really does create `::p::q`) has no name
+of its own written anywhere, so nothing is reported for it.
+
 A command a `package require`d package provides also jumps: the package's
 `pkgIndex.tcl` is resolved through the search path, including the one the
 file builds for itself with `lappend auto_path [file dirname [file dirname
@@ -153,6 +170,8 @@ same name — Tcl keeps those in a separate table from variables.
 - A cross-file namespace variable stops resolving when the declaring file is
   no longer in the workspace index (it was closed *and* is outside every
   workspace folder).
+- A namespace whose target is computed (`namespace eval $ns { … }`) names no
+  fixed namespace, so neither the block nor any reference to it resolves.
 - A callee that binds a *literal* caller-side name (`upvar 1 options options`)
   names it nowhere at the call site, so there is no word to jump to.
 - A callee whose `upvar` level is not `1` (`upvar 0`, `upvar #0`, `upvar 2`)
@@ -173,6 +192,10 @@ same name — Tcl keeps those in a separate table from variables.
   `wildcard_import_ignores_an_export_written_after_it_cross_document`)
 - `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs` (cross-file namespace
   variables, cross-file class-reference arguments)
+- `rust/tcl-lsp-core/src/namespace_symbol.rs` (`mod tests`) — the shared
+  namespace resolver definition, hover, and references all answer through
+- `rust/tcl-lsp-server/tests/e2e/issue1088_namespace_symbols.rs` (namespace
+  names as jump targets, in one file and across files)
 - `rust/tcl-lsp-server/src/lib.rs` unit tests
   (`definition_resolves_through_a_document_auto_path_package`,
   `set_auto_path_puts_every_list_element_on_the_search_path`,

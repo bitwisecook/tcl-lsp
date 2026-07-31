@@ -1855,6 +1855,9 @@ impl Analyser {
             .qualified_var_refs
             .sort_by_key(|r| (r.span.start(), r.span.end()));
         self.result
+            .namespace_refs
+            .sort_by_key(|r| (r.span.start(), r.span.end()));
+        self.result
             .regex_patterns
             .sort_by_key(|r| (r.range.start(), r.range.end()));
         // `unresolved_command_sites` is a set of call sites consumed

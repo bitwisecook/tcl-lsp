@@ -1277,6 +1277,29 @@ impl CommandRegistry {
         self.get(name).and_then(|spec| spec.frame_effect)
     }
 
+    /// The behavioural traits in force for one **concrete call** — the
+    /// command's own set, unioned with those of the subcommand `args[0]`
+    /// resolves to (exact or unique-prefix), when it has subcommands.
+    ///
+    /// The trait counterpart of [`Self::arg_indices_for_role`], and it takes
+    /// the same `args` shape (subcommand first) for the same reason: a
+    /// consumer asking "does *this* call declare a namespace / evaluate code"
+    /// must not have to know whether the fact lives on the ensemble or on one
+    /// of its subcommands. `namespace eval` carries
+    /// [`Traits::DECLARES_NAMESPACE`] on the subcommand while `namespace`
+    /// itself does not, and `namespace inscope` — identical argument layout,
+    /// same analyser hook — does not carry it at all.
+    #[must_use]
+    pub fn call_traits(&self, name: &str, args: &[&str]) -> Traits {
+        let Some(spec) = self.get(name) else {
+            return Traits::empty();
+        };
+        let sub = (!spec.subcommands.is_empty())
+            .then(|| args.first().and_then(|word| spec.resolve_subcommand(word)))
+            .flatten();
+        sub.map_or(spec.traits, |sub| spec.traits.union(sub.traits))
+    }
+
     /// Resolve argument indices for a given role.
     ///
     /// For subcommand-based commands (e.g. `dict create`), pass the
