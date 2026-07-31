@@ -392,6 +392,19 @@ now looks at a `return`'s value word (a terminator, which it never walked), so
 `proc f {} {set n 1; set n 2; return [set n]}` no longer reports two dead
 stores on code tclsh runs to `2`.
 
+All five variable providers resolve their `$ref` cursor through one gate,
+`definition::substituting_var_at_position`. The character scan under it
+reports `n` for a cursor on the `n` of `set {$n} 1` — that word is
+brace-quoted, so the `$n` is not a reference at all but part of a different
+variable's literal *name*. Each provider used to short-circuit on that scan,
+so a cursor one column right of the `{` stopped resolving the cell whose
+declaration it sits inside. The gate answers `None` there (it also folds in
+the two `inert_text` proofs, issue #923 idx 24, that every caller previously
+re-derived), which lets each provider fall through to its declaration-span
+search — the behaviour the `{` column already had. Document-highlight has no
+declaration-span search, so it abstains for a braced cursor exactly as it
+already does for a plain bareword declaration cursor.
+
 Rename **refuses** rather than guesses for these cells
 (`rename_safety::literal_name_variable_rename_refusal`, the #1091 typed-refusal
 precedent): the recorded spans cover a word's content, not its delimiters, and

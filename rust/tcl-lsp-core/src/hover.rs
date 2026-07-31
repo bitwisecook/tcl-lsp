@@ -336,9 +336,18 @@ fn variable_hover(
     // `$var` resolution sits at a position where `find_word_span_at_position`
     // would also match the unqualified name, but a `$`-led ref should
     // surface the `VarDef` not the (typically absent) proc of the same name.
-    if let Some(var_name) = find_var_at_position(source, line, character) {
-        let var_byte_offset =
-            crate::definition::byte_offset_at(line_index, source, line, character);
+    let var_byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    // Resolved through the shared gate, not the raw character scan: a cursor
+    // inside a brace-quoted variable-name word (`set {$n} 1`) is not a `$n`
+    // reference, and must fall through to the declaration-span search below
+    // so it hovers the *literal* cell (PR #1106 review, P2).
+    if let Some(var_name) = crate::definition::substituting_var_at_position(
+        source,
+        profile.name,
+        line,
+        character,
+        var_byte_offset,
+    ) {
         // Use the byte-offset scope-chain lookup (the local line-based helper
         // mis-resolves namespace/proc-scoped vars), gated on the occurrence
         // actually being one Tcl substitutes — see `lookup_var_read_at`

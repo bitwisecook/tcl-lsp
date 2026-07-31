@@ -901,6 +901,14 @@ fn scan_set_read_refs(slice: &str, out: &mut HashSet<String>) {
         {
             name_cursor += 1;
         }
+        // The slice can end right here — a half-typed `[set ` is an ordinary
+        // intermediate state while editing, and this scan runs over partial
+        // functions (PR #1106 review, P2). There is no name word to read, so
+        // the conservative answer is "this bracket contributes nothing":
+        // stop rather than index off the end (nothing follows it either).
+        if name_cursor >= bytes.len() {
+            break;
+        }
         // A **brace-quoted** name word (`[set {$n}]`, `[set {a b}]`,
         // `[set {arr($i)}]`) is Tcl's literal spelling for a name the bareword
         // scan below cannot match: the braces suppress substitution, so the
@@ -1555,6 +1563,79 @@ mod tests {
             bad.is_empty(),
             "[set x] should count as a read for x; got {opts:?}",
         );
+    }
+
+    /// PR #1106 review, P2 — the `[set …]` name scan must survive a slice that
+    /// ends inside the command.
+    ///
+    /// A half-typed `[set ` is an ordinary intermediate state while editing,
+    /// and this scan runs over *partial* functions, so the whitespace skip can
+    /// walk `name_cursor` to `bytes.len()`. Indexing there panicked, taking
+    /// down whatever optimiser / diagnostic pass was asking — a crash where a
+    /// conservative answer was wanted.
+    #[test]
+    fn scan_set_read_refs_survives_truncated_input() {
+        for slice in [
+            // The reported shape: the slice ends after the separator.
+            "[set ",
+            "[set  ",
+            "[set\t",
+            // Off-by-one neighbours around the same cursor.
+            "[set",
+            "[set ]",
+            // Unclosed brace-quoted name words (the arm the guard precedes).
+            "[set {",
+            "[set {$n",
+            "[set {$n}",
+            "[set {{",
+            "[set {}",
+            // Unclosed bareword names.
+            "[set n",
+            "[set ::",
+        ] {
+            let mut out = HashSet::new();
+            scan_set_read_refs(slice, &mut out);
+            assert!(
+                out.is_empty(),
+                "a truncated `[set …]` names nothing; {slice:?} yielded {out:?}"
+            );
+        }
+    }
+
+    /// TP control for the guard: truncation must not cost the *complete*
+    /// reads earlier in the same slice, and the complete forms still parse.
+    #[test]
+    fn scan_set_read_refs_keeps_complete_reads_before_a_truncation() {
+        let mut out = HashSet::new();
+        scan_set_read_refs("puts [set x]; return [set ", &mut out);
+        assert!(
+            out.contains("x"),
+            "the complete read is still seen: {out:?}"
+        );
+
+        let mut braced = HashSet::new();
+        scan_set_read_refs("[set {$n}]", &mut braced);
+        assert!(braced.contains("$n"), "{braced:?}");
+        let mut spaced = HashSet::new();
+        scan_set_read_refs("[set  {$n} ]", &mut spaced);
+        assert!(spaced.contains("$n"), "{spaced:?}");
+    }
+
+    /// The same shape through the real entry point: an incomplete command in
+    /// a document must return conservative results, not crash the pass.
+    #[test]
+    fn textual_var_reference_scan_survives_an_incomplete_command_in_a_document() {
+        for src in [
+            "proc ::f {} { set x 1; return [set ",
+            "proc ::f {} { set x 1; return [set {",
+            "proc ::f {} { set x 1; return [set {$n",
+        ] {
+            let opts = run_pass(src);
+            // No assertion on the verdicts — a half-typed document may
+            // legitimately produce anything or nothing. The point is that it
+            // returns at all.
+            let _ = opts;
+        }
     }
 
     #[test]
