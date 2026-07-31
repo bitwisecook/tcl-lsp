@@ -1543,6 +1543,24 @@ pub struct SubCommand {
     /// command.  A word at the index that is an option flag (leading `-`) or
     /// a missing name (auto-generated at run time) names nothing statically.
     pub defines_command_at: Option<u8>,
+
+    /// How many leading option **words** this subcommand consumes before every
+    /// remaining word is positional, however it is spelled.  `None` — the
+    /// ordinary rule: keep consuming while each word matches a declared
+    /// option.
+    ///
+    /// `namespace export ?-clear?` and `namespace import ?-force?` parse
+    /// exactly one optional leading flag by hand in C (`NamespaceExportCmd` /
+    /// `NamespaceImportCmd` in `tclNamesp.c` compare `objv[1]` and nothing
+    /// else), so a *second* occurrence is an ordinary argument word.  Oracle
+    /// (tclsh 8.6.14 / 9.0.4): `namespace export -clear -clear p` leaves
+    /// exactly `-clear p` exported — and a command genuinely named `-clear`
+    /// is then importable, `namespace import ::src::*` binding `::dst::-clear`
+    /// — while `namespace import -force -force ::src::*` aborts with `no
+    /// namespace specified in import pattern "-force"`.  Declaring the limit
+    /// here keeps the count in registry data rather than as a loop bound in a
+    /// consumer.
+    pub max_leading_option_words: Option<u8>,
 }
 
 /// A second-level subcommand of a two-level ensemble (`info object <op>`,
@@ -1620,6 +1638,7 @@ impl SubCommand {
         cfg_rewrite_name: None,
         sub_subcommands: &[],
         defines_command_at: None,
+        max_leading_option_words: None,
     };
 
     /// The subcommand's primary invocation synopsis — its own
@@ -1639,9 +1658,18 @@ impl SubCommand {
     /// argument index (e.g. [`Self::defines_command_at`]) can be shifted
     /// past them. The subcommand counterpart of
     /// [`CommandSpec::leading_option_word_count`].
+    ///
+    /// Capped by [`Self::max_leading_option_words`] when the subcommand
+    /// declares one: a subcommand that hand-parses a single optional flag
+    /// treats every further option-shaped word as positional, so counting
+    /// them all would shift a positional index past real arguments.
     #[must_use]
     pub fn leading_option_word_count(&self, args: &[&str]) -> usize {
-        leading_option_word_count(self.options, args)
+        let counted = leading_option_word_count(self.options, args);
+        match self.max_leading_option_words {
+            Some(cap) => counted.min(usize::from(cap)),
+            None => counted,
+        }
     }
 
     /// Run this subcommand's constant folder for `args` under `dialect` —

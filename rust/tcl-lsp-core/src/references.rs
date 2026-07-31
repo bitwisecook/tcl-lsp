@@ -315,6 +315,17 @@ fn invocation_references_via_indirection(
 /// (`WorkspaceIndex::linked_invocations_of`, used by cross-document
 /// references only, never by cross-document rename's
 /// `invocations_of`-based edit gathering).
+///
+/// The export gate is applied **per import site**, at that import's own
+/// position, through the same shared decision function the go-to-definition
+/// resolver uses (`definition::exported_at_import` →
+/// [`crate::namespace_import::exported_at_import_site`]): an import binds the
+/// names exported when it runs, so a later `namespace export -clear` does not
+/// revoke this call site's alias and a later `namespace export` does not
+/// create one (issue #1027). Testing "some import matches" and "the final
+/// export set covers the name" as two independent conditions — as this
+/// originally did — gets both directions wrong, and lets an import whose own
+/// snapshot excluded the name borrow an unrelated import's export.
 #[must_use]
 fn invocation_references_via_wildcard_import(
     analysis: &AnalysisResult,
@@ -334,7 +345,7 @@ fn invocation_references_via_wildcard_import(
         inv.range.start(),
         &analysis.namespace_overrides,
     );
-    let imported = analysis.namespace_imports.iter().any(|imp| {
+    analysis.namespace_imports.iter().any(|imp| {
         imp.ns.trim_start_matches("::") == call_ns
             && imp
                 .pattern
@@ -342,13 +353,14 @@ fn invocation_references_via_wildcard_import(
                 .is_some_and(|(source_ns, tail)| {
                     source_ns.trim_start_matches("::") == target_ns
                         && tcl_syntax::glob::string_match(tail, def_name)
+                        && crate::definition::exported_at_import(
+                            analysis,
+                            source_ns,
+                            def_name,
+                            imp.range.start(),
+                        )
                 })
-    });
-    imported
-        && analysis.namespace_exports.iter().any(|e| {
-            e.ns.trim_start_matches("::") == target_ns
-                && tcl_syntax::glob::string_match(&e.pattern, def_name)
-        })
+    })
 }
 
 #[must_use]
@@ -3396,6 +3408,47 @@ mod tests {
         assert!(
             lines.contains(&5),
             "wildcard-imported bareword call site missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_keep_a_wildcard_imported_call_after_a_later_export_clear() {
+        // TP, issue #1027 direction A — the import bound `p` while `::src`
+        // still exported it; the later `namespace export -clear` does not
+        // revoke that alias (oracle tclsh 8.6.14/9.0.4: `::dst::p` still
+        // runs, `info commands ::dst::*` still lists it). Before the
+        // per-import-site snapshot, the export gate read the *final* export
+        // set — which the `-clear` had emptied — and find-references
+        // silently dropped this real call site.
+        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n    p\n}\nnamespace eval src {\n    namespace export -clear\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `p` declaration (line 1, col 9).
+        let refs = references(src, "tcl", 1, 9, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&6),
+            "the imported call site must survive a later `-clear`: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_exclude_a_wildcard_imported_call_the_import_predates_the_export_of() {
+        // FP guard (CRITICAL), issue #1027 direction B — `::src` exports `p`
+        // only *after* `::dst` imported `::src::*`, so real Tcl never binds
+        // `::dst::p` at all (oracle: `invalid command name "::dst::p"`) and
+        // the bare `p` inside `::dst` is not a call to `::src::p`. Reading
+        // the final export set reported it as one.
+        let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n    p\n}\nnamespace eval src {\n    namespace export p\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `p` declaration (line 1, col 9).
+        let refs = references(src, "tcl", 1, 9, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(
+            !lines.contains(&5),
+            "an export written after the import must not make the bare call a \
+             reference: {refs:?}"
         );
     }
 

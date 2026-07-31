@@ -2229,9 +2229,10 @@ pub fn itcl_class_proc_target_at(
 /// source namespace has actually `namespace export`ed (`Tcl_Export`,
 /// `tclNamesp.c`) — an unexported sibling command living in the same
 /// namespace is **not** reachable through the import (tclsh9.0/8.6-verified:
-/// `invalid command name` calling it bare) — so this also requires a recorded
-/// `analysis.namespace_exports` entry from that same source namespace whose
-/// pattern covers `word`.
+/// `invalid command name` calling it bare) — so this also requires the source
+/// namespace to have exported a covering pattern **as of that import's own
+/// position** ([`crate::namespace_import::exported_at_import_site`], issue
+/// #1027), not in the document's final export state.
 ///
 /// Only resolves a source namespace defined in **this** document
 /// (`analysis.all_procs`); a source namespace defined in another file is
@@ -2269,6 +2270,13 @@ fn proc_visible_via_wildcard_import<'a>(
 /// (`inner::p`) never goes through an imported alias in real Tcl, so this
 /// abstains rather than risk mismatching a namespace-path segment against
 /// an unrelated import.
+///
+/// The export check is taken **at each import's own position** rather than
+/// against the document's final export state: an import binds the names
+/// exported when it runs, and neither a later `-clear` nor a later `namespace
+/// export` reaches back (issue #1027 — see
+/// [`crate::namespace_import`] for the oracle). Every import site in scope is
+/// tried, so a second, later import that *does* see a name still resolves it.
 fn wildcard_import_source_namespace<'a, S: AsRef<str>>(
     analysis: &'a AnalysisResult,
     namespace: &str,
@@ -2294,16 +2302,46 @@ fn wildcard_import_source_namespace<'a, S: AsRef<str>>(
             if source_ns.is_empty() || !tcl_syntax::glob::string_match(export_tail, word) {
                 continue;
             }
-            let exported = analysis
-                .namespace_exports
-                .iter()
-                .any(|e| e.ns == source_ns && tcl_syntax::glob::string_match(&e.pattern, word));
-            if exported {
+            if exported_at_import(analysis, source_ns, word, imp.range.start()) {
                 return Some(source_ns);
             }
         }
     }
     None
+}
+
+/// Whether `source_ns` had exported `word` by the time the `namespace import`
+/// at `import_at` ran — the same-document binding of the shared decision
+/// function [`crate::namespace_import::exported_at_import_site`].
+///
+/// Every export event in this document is ordered against the import, so all
+/// of them carry an `at`; the "had it run?" primitive is
+/// [`tcl_compiler::analyser::indirection::in_effect`], reused rather than
+/// re-derived so an export written inside a proc body is judged by exactly the
+/// same load-order rule the `rename` / `interp alias` timeline applies (the
+/// whole file loads before any body runs, but a statement of the *same* body
+/// stays offset-ordered).
+///
+/// `pub(crate)` because `references.rs` asks the identical question about the
+/// identical records — one decision, not two.
+pub(crate) fn exported_at_import(
+    analysis: &AnalysisResult,
+    source_ns: &str,
+    word: &str,
+    import_at: u32,
+) -> bool {
+    let mut events = analysis
+        .namespace_exports
+        .iter()
+        .filter(|e| e.ns == source_ns)
+        .map(|e| crate::namespace_import::ExportEvent {
+            pattern: &e.pattern,
+            clears: e.clears,
+            at: Some(e.range.start()),
+        });
+    crate::namespace_import::exported_at_import_site(&mut events, word, &|at| {
+        tcl_compiler::analyser::indirection::in_effect(analysis, at, import_at)
+    })
 }
 
 /// Resolve a call `word` written in `namespace` to the proc it denotes:
@@ -3003,6 +3041,199 @@ mod tests {
             locs[0].start_line, 2,
             "must resolve to realns::helper (the exported, imported target), \
              not the decoy: {locs:?}"
+        );
+    }
+
+    // Per-import-site export snapshots (issue #1027). `namespace import`
+    // binds the names exported *when it runs*; the export list keeps
+    // changing afterwards and none of it reaches back. Every case below is
+    // oracle-pinned against tclsh 8.6.14 and 9.0.4.
+    //
+    // These drive `proc_visible_via_wildcard_import` rather than the full
+    // `definition()` provider for the same reason
+    // `wildcard_namespace_import_unexported_sibling_stays_unresolved` does:
+    // `resolve_called_proc`'s unrelated lenient `fallback_proc_by_simple_name`
+    // would answer either way and would prove nothing about this gate.
+
+    #[test]
+    fn import_site_snapshot_survives_a_later_export_clear() {
+        // TP, issue #1027 direction A — `namespace export -clear` after the
+        // import does NOT revoke the alias the import already installed.
+        // Oracle: `namespace eval ::src {proc p {} {return P}; namespace
+        // export p}; namespace eval ::dst {namespace import ::src::*};
+        // namespace eval ::src {namespace export -clear}; ::dst::p` → `P`,
+        // and `info commands ::dst::*` still lists `::dst::p`.
+        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export -clear\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p");
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::src::p"),
+            "a `-clear` written after the import must not revoke it: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn import_site_snapshot_ignores_a_later_export() {
+        // FP guard (CRITICAL), issue #1027 direction B — exporting a name
+        // *after* an import does not add it retroactively. Oracle:
+        // `namespace eval ::src {proc p {} {return P}}; namespace eval ::dst
+        // {namespace import ::src::*}; namespace eval ::src {namespace export
+        // p}; ::dst::p` → `invalid command name "::dst::p"`.
+        let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p");
+        assert!(
+            hit.is_none(),
+            "an export written after the import must not apply retroactively: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_second_import_after_a_later_export_does_pick_the_name_up() {
+        // TP — each import takes its own snapshot, so the *second* import,
+        // written after the export, binds `q` even though the first could
+        // not. Oracle: `namespace eval ::src {proc p …; proc q …; namespace
+        // export p}; namespace eval ::dst {namespace import ::src::*};
+        // namespace eval ::src {namespace export -clear p q}; namespace eval
+        // ::dst {namespace import ::src::*}` → both `::dst::p` and
+        // `::dst::q` run.
+        let src = "namespace eval src {\n    proc p {} { return P }\n    proc q {} { return Q }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export -clear p q\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let analysis = analyse(src);
+        for name in ["p", "q"] {
+            let hit = proc_visible_via_wildcard_import(&analysis, "dst", name);
+            assert!(
+                hit.is_some(),
+                "the second import must see `{name}`: {hit:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn export_clear_before_the_import_does_revoke() {
+        // TN — the ordering gate is real in both directions: a `-clear`
+        // written *before* the import leaves nothing for it to bind.
+        // Oracle: after `namespace export -clear`, `namespace export`
+        // returns the empty list, and the later import binds no command.
+        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n    namespace export -clear\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p");
+        assert!(
+            hit.is_none(),
+            "a `-clear` before the import leaves nothing exported: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn export_clear_with_patterns_on_the_same_call_keeps_only_the_new_ones() {
+        // TP + TN — `namespace export a b; namespace export -clear p` leaves
+        // exactly `p` exported (oracle: `namespace export` → `p`), so an
+        // import after it binds `p` and not `a`.
+        let src = "namespace eval src {\n    proc a {} { return A }\n    proc p {} { return P }\n    namespace export a\n    namespace export -clear p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let analysis = analyse(src);
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "dst", "p").is_some(),
+            "the `-clear` call's own pattern survives it"
+        );
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "dst", "a").is_none(),
+            "the pattern cleared by the same call must not survive"
+        );
+    }
+
+    #[test]
+    fn separate_export_calls_are_additive() {
+        // TP — `namespace export a` then `namespace export b` exports both
+        // (oracle: `namespace export` → `a b`); `export` appends, it does
+        // not replace. A snapshot model that kept only the newest call's
+        // patterns would lose `a`.
+        let src = "namespace eval src {\n    proc a {} { return A }\n    proc b {} { return B }\n    namespace export a\n    namespace export b\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let analysis = analyse(src);
+        for name in ["a", "b"] {
+            assert!(
+                proc_visible_via_wildcard_import(&analysis, "dst", name).is_some(),
+                "`{name}` must stay exported — `namespace export` is additive"
+            );
+        }
+    }
+
+    #[test]
+    fn export_glob_patterns_use_tcl_glob_semantics() {
+        // TP + TN — export patterns are glob *patterns*: oracle `namespace
+        // export get*` with `getX`/`setX` in the namespace imports only
+        // `getX` (`::dst::setX` → `invalid command name`).
+        let src = "namespace eval src {\n    proc getX {} { return GX }\n    proc setX {} { return SX }\n    namespace export get*\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let analysis = analyse(src);
+        assert!(proc_visible_via_wildcard_import(&analysis, "dst", "getX").is_some());
+        assert!(proc_visible_via_wildcard_import(&analysis, "dst", "setX").is_none());
+    }
+
+    #[test]
+    fn an_export_written_before_the_proc_still_exports_it() {
+        // TP — an export pattern is a *name pattern*, not a reference to a
+        // command: oracle `namespace eval ::src {namespace export p; proc p
+        // {} {return P}}` then importing `::src::*` yields a working
+        // `::dst::p`. Nothing in the snapshot may require the proc to have
+        // been defined by the time the export ran.
+        let src = "namespace eval src {\n    namespace export p\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let analysis = analyse(src);
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "dst", "p").is_some(),
+            "`namespace export` names a pattern, not an existing command"
+        );
+    }
+
+    #[test]
+    fn an_import_inside_a_body_sees_a_later_top_level_export() {
+        // TP — the same-document half of the ordering rule the workspace tier
+        // must match (PR #1102 review finding 1, pinned on both sides so they
+        // cannot drift): the import runs only when `setup` is called, by which
+        // time the whole file — including the `namespace export` written below
+        // it — has loaded. Oracle (tclsh 8.6.14 / 9.0.4): `::app::setup;
+        // ::app::run` → `HELP`.
+        //
+        // `indirection::in_effect` already said so here; the workspace tier's
+        // plain offset compare did not, which is what the review caught.
+        let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    proc setup {} { namespace import ::src::* }\n}\nnamespace eval src {\n    namespace export p\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p");
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::src::p"),
+            "a body-local import observes a top-level export written later in \
+             the same file: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn an_export_in_the_importing_body_itself_stays_ordered() {
+        // FN guard for the leniency above: the "whole file loads first"
+        // exception does not extend to a statement of the *same* body, where
+        // the offsets are in genuine execution order. Oracle: `proc setup {}
+        // {namespace import ::src::*; namespace eval ::src {namespace export
+        // p}}` then `::dst::setup` leaves `::dst::p` an invalid command name.
+        let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    proc setup {} { namespace import ::src::* ; namespace eval ::src { namespace export p } }\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p");
+        assert!(
+            hit.is_none(),
+            "an export written after the import in the same body has not run \
+             yet: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_command_named_like_the_export_flag_is_exportable() {
+        // TP — the user-visible consequence of consuming only one `-clear`
+        // (PR #1102 review finding 3): `namespace export -clear -clear`
+        // exports a command genuinely *named* `-clear`, and a wildcard import
+        // then binds it. Oracle (tclsh 8.6.14 / 9.0.4): `namespace export`
+        // returns `-clear`, and `info commands ::dst::*` lists `::dst::-clear`.
+        // Consuming both words as flags dropped the export entirely.
+        let src = "namespace eval src {\n    proc -clear {} { return DC }\n    namespace export -clear -clear\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "-clear");
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::src::-clear"),
+            "the second `-clear` is an export pattern, not a second flag: {hit:?}"
         );
     }
 

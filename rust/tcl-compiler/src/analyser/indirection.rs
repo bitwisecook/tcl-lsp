@@ -89,6 +89,8 @@
 
 use std::collections::HashMap;
 
+use tcl_lexer::Span;
+
 use super::types::AnalysisResult;
 
 /// Maximum command-name hops [`walk`] follows.
@@ -151,12 +153,34 @@ pub struct Indirection {
 /// not statically decidable.
 #[must_use]
 pub fn in_effect(result: &AnalysisResult, established: u32, call_off: u32) -> bool {
+    in_effect_within(
+        established,
+        call_off,
+        result.innermost_definition_body_span(call_off),
+    )
+}
+
+/// [`in_effect`]'s rule, stated over the two facts it actually needs, for a
+/// consumer that cannot hold the whole [`AnalysisResult`].
+///
+/// `enclosing_body` is the innermost recorded proc/class body span containing
+/// `call_off` (`None` when `call_off` is top-level) — exactly what
+/// [`AnalysisResult::innermost_definition_body_span`] returns, and the only
+/// thing [`in_effect`] reads out of the result.
+///
+/// Exists so the cross-document tier can apply the *identical* execution-order
+/// rule from facts it stores per row (`tcl_lsp_core`'s
+/// `WorkspaceGlobImport::enclosing_body`) instead of a weaker plain-offset
+/// comparison: an import written inside a proc body genuinely does observe a
+/// top-level `namespace export` written *later* in the same file, because the
+/// whole file loads before any body runs. A tier that compared offsets alone
+/// would reject that export and lose a real imported alias.
+#[must_use]
+pub fn in_effect_within(established: u32, call_off: u32, enclosing_body: Option<Span>) -> bool {
     if established < call_off {
         return true;
     }
-    result
-        .innermost_definition_body_span(call_off)
-        .is_some_and(|body| !(body.start() <= established && established < body.end()))
+    enclosing_body.is_some_and(|body| !(body.start() <= established && established < body.end()))
 }
 
 /// The binding a command name's slot holds, as of `as_of` — the later of its

@@ -1338,6 +1338,13 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         FieldKind::OptIndex,
         "Index after the subcommand word whose literal value becomes a command name.",
     ),
+    f(
+        "max_leading_option_words",
+        "Max leading option words",
+        OPTS,
+        FieldKind::OptIndex,
+        "Cap on leading option words consumed; further option-shaped words are positional.",
+    ),
 ];
 
 /// The variant catalogues the form's pickers read, keyed by catalogue id.

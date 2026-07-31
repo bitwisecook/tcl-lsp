@@ -566,6 +566,10 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         "defines_command_at".into(),
         opt_index(sub.defines_command_at),
     );
+    d.insert(
+        "max_leading_option_words".into(),
+        opt_index(sub.max_leading_option_words),
+    );
 }
 
 /// Seed a draft from a live [`CommandSpec`].

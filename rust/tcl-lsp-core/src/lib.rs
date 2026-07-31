@@ -66,6 +66,7 @@ pub mod irules_context;
 pub mod irules_object_refs;
 pub mod linked_editing_range;
 pub mod minify;
+pub mod namespace_import;
 pub mod oo_body;
 mod oo_dispatch;
 pub mod package_resolver;

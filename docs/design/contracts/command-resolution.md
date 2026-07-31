@@ -115,6 +115,33 @@ not change the rule, and must not grow bespoke resolution logic. Every
   The WASM runtime retargets its by-name redirects on rename to match;
   the VM's clone-model import (a later redefinition of the origin is not
   seen) is a **known divergence**, documented here.
+  The export gate is a **snapshot taken at the import site**, not a
+  standing subscription: the import binds the names exported when it runs,
+  and neither a later `namespace export -clear` (which does **not** revoke
+  the alias — pinned) nor a later `namespace export` (which does **not**
+  add one retroactively — pinned) reaches back. A second, later import
+  takes its own snapshot and may bind names the first could not (pinned).
+  `namespace export` is **additive** across calls, and `-clear` empties the
+  list before the same call's own patterns are appended (both pinned).
+  Export patterns are glob *patterns* matched against a command's tail
+  name, never `::`-qualified (`namespace export ::foo` is an error —
+  pinned), and are not references to commands: `namespace export p` before
+  `proc p` still exports it (pinned). A non-glob `namespace import` of an
+  unexported name is a silent no-op, not an error (pinned) — so the **exact**
+  form is snapshot-gated exactly like the glob one; importing onto
+  an existing command errors unless `-force` (pinned). Both subcommands
+  consume at most **one** leading flag word: a second `-clear` is an ordinary
+  export pattern (and `-clear` is then a genuinely importable command name),
+  a second — or trailing — `-force` is an import pattern that aborts the
+  script, and neither flag abbreviates (`-c` / `-f` are patterns, not
+  options) — all pinned, and declared as
+  `SubCommand::max_leading_option_words`. Statically the
+  analyser records exports as an ordered event log
+  (`SignatureNamespaceExport`, with `-clear` tombstones) and both LSP tiers
+  answer through one shared decision function
+  (`tcl_lsp_core::namespace_import::exported_at_import_site`), under one
+  shared execution-order rule (`analyser::indirection::in_effect` /
+  `in_effect_within`). Issue #1027.
 - **`unknown` / `namespace unknown`** fire only after the full candidate
   walk (path included) misses. `namespace unknown` handlers are
   **per-namespace, NOT inherited** by children; the global namespace's
