@@ -655,8 +655,8 @@ test parse-1.1 {parses a row} -body { ... } -result ok
 
 ### Workspace symbols
 
-Search for procs, classes, methods, and `tcltest` test cases across the
-workspace (Ctrl+T / Cmd+T).
+Search for procs, classes, methods, and `tcltest` test cases across the whole
+workspace (Ctrl+T / Cmd+T) — including files you have not opened.
 
 ```tcl
 # File: utils.tcl

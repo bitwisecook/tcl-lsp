@@ -11646,55 +11646,88 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
-        // Walk every cached document and collect matching
-        // symbols.  This iterates the document
-        // store on the LSP loop (acquiring the mutex briefly).
-        let docs = self.documents.lock().await.clone();
-        if docs.is_empty() {
+        // Answered from the workspace index, not from the open-document map
+        // (#1156).  VS Code re-issues this request on every keystroke in its
+        // Ctrl+T box, and the previous handler cloned the whole document store
+        // — every buffer and its `LineIndex` — and then serially re-analysed
+        // each open document per keystroke, while missing every symbol in a
+        // file the editor had not opened.  The index already holds each of
+        // them, filters before materialising, and caps the answer.
+        //
+        // Freshness: the index is refreshed on each document's diagnostics
+        // publish, which the debounce puts ~50 ms behind an edit.  A symbol
+        // picker tolerates that — it is the same staleness every other
+        // cross-document feature answers with — and an open-but-not-yet-
+        // published buffer still contributes the symbols of its last publish
+        // (or of the folder scan), so nothing that used to be listed stops
+        // being listed.
+        let hits = {
+            let index = self.workspace_index.read().await;
+            index.symbols_matching(
+                &params.query,
+                core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS,
+            )
+        };
+        if hits.is_empty() {
             return Ok(None);
         }
-        let query = params.query;
-        let mut all: Vec<SymbolInformation> = Vec::new();
-        for (uri, doc) in docs {
-            let text = doc.text.clone();
-            let dialect = doc.dialect.clone();
-            let q = query.clone();
-            let analysis = self.analysis_for(&uri, text.clone(), dialect.clone()).await;
-            let symbols = tokio::task::spawn_blocking(move || {
-                core_workspace_symbols::workspace_symbols(&text, &q, &analysis)
-            })
-            .await
-            .map_err(|err| jsonrpc::Error {
-                code: jsonrpc::ErrorCode::InternalError,
-                message: format!("workspace_symbols worker panicked: {err}").into(),
-                data: None,
-            })?;
-            for s in symbols {
-                #[allow(deprecated)]
-                all.push(SymbolInformation {
-                    name: s.name,
-                    kind: match s.kind {
-                        // A tcltest case has no dedicated LSP kind; it lists as
-                        // a function alongside real functions.
-                        CoreWorkspaceSymbolKind::Function | CoreWorkspaceSymbolKind::Test => {
-                            SymbolKind::FUNCTION
-                        }
-                        CoreWorkspaceSymbolKind::Class => SymbolKind::CLASS,
-                        CoreWorkspaceSymbolKind::Method => SymbolKind::METHOD,
-                        CoreWorkspaceSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
-                        CoreWorkspaceSymbolKind::Constant => SymbolKind::CONSTANT,
-                        CoreWorkspaceSymbolKind::Operator => SymbolKind::OPERATOR,
-                        CoreWorkspaceSymbolKind::Event => SymbolKind::EVENT,
-                    },
-                    tags: None,
-                    deprecated: None,
-                    location: Location {
-                        uri: uri.clone(),
-                        range: lift_lsp_range(s.range),
-                    },
-                    container_name: s.container_name,
-                });
+        // A name span becomes an LSP range only against its own document's
+        // source, which the index deliberately does not hold.  `hits` arrives
+        // grouped by URI, so each document is resolved once — from the open
+        // buffer when there is one, else from disk.
+        let mut sources: HashMap<String, Option<DocumentState>> = HashMap::new();
+        let mut all: Vec<SymbolInformation> = Vec::with_capacity(hits.len());
+        for hit in hits {
+            if !sources.contains_key(&hit.uri) {
+                let loaded = match Uri::from_str(&hit.uri) {
+                    Ok(uri) => self.read_document(&uri).await,
+                    Err(_) => None,
+                };
+                sources.insert(hit.uri.clone(), loaded);
             }
+            let (Some(Some(doc)), Ok(uri)) = (sources.get(&hit.uri), Uri::from_str(&hit.uri))
+            else {
+                continue;
+            };
+            let start = doc
+                .line_index
+                .position_at_utf16(hit.name_span.start(), &doc.text);
+            let end = doc
+                .line_index
+                .position_at_utf16(hit.name_span.end(), &doc.text);
+            #[allow(deprecated)]
+            all.push(SymbolInformation {
+                name: hit.name,
+                kind: match hit.kind {
+                    // A tcltest case has no dedicated LSP kind; it lists as
+                    // a function alongside real functions.
+                    CoreWorkspaceSymbolKind::Function | CoreWorkspaceSymbolKind::Test => {
+                        SymbolKind::FUNCTION
+                    }
+                    CoreWorkspaceSymbolKind::Class => SymbolKind::CLASS,
+                    CoreWorkspaceSymbolKind::Method => SymbolKind::METHOD,
+                    CoreWorkspaceSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
+                    CoreWorkspaceSymbolKind::Constant => SymbolKind::CONSTANT,
+                    CoreWorkspaceSymbolKind::Operator => SymbolKind::OPERATOR,
+                    CoreWorkspaceSymbolKind::Event => SymbolKind::EVENT,
+                },
+                tags: None,
+                deprecated: None,
+                location: Location {
+                    uri,
+                    range: Range {
+                        start: Position {
+                            line: start.line,
+                            character: start.character.get(),
+                        },
+                        end: Position {
+                            line: end.line,
+                            character: end.character.get(),
+                        },
+                    },
+                },
+                container_name: hit.container_name,
+            });
         }
         if all.is_empty() {
             return Ok(None);
@@ -24670,6 +24703,87 @@ mod tests {
                 .expect("ok")
                 .is_none(),
             "workspaceSymbols disabled must yield None",
+        );
+    }
+
+    /// Issue #1156: `workspace/symbol` is answered from the workspace index,
+    /// so a file the folder scan indexed but the editor never opened is
+    /// searchable.  The previous handler walked the open-document map, which
+    /// made every symbol in an unopened file invisible to Ctrl+T.
+    #[tokio::test]
+    async fn workspace_symbol_finds_a_symbol_in_an_unopened_indexed_file() {
+        let backend = test_backend();
+        let root = unique_scratch_dir("ws-symbol-unopened");
+        let on_disk = root.join("scanned.tcl");
+        let src = "proc scanned_only_helper {} {}\n";
+        std::fs::write(&on_disk, src).unwrap();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        // Indexed like the folder scan does it — never inserted into
+        // `documents`, so the old open-document walk could not have seen it.
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(src, "tcl8.6").clone()
+        };
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(uri.as_str(), &analysis);
+        assert!(
+            backend.documents.lock().await.is_empty(),
+            "the fixture must not be an open document",
+        );
+
+        let found = backend
+            .symbol(WorkspaceSymbolParams {
+                query: "scanned_only".to_owned(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            })
+            .await
+            .expect("ok");
+        let Some(WorkspaceSymbolResponse::Flat(syms)) = found else {
+            panic!("expected a flat symbol list, got {found:?}");
+        };
+        assert_eq!(syms.len(), 1, "{syms:?}");
+        assert_eq!(syms[0].name, "scanned_only_helper");
+        assert_eq!(syms[0].kind, SymbolKind::FUNCTION);
+        assert_eq!(syms[0].location.uri, uri);
+        // The span was resolved against the file's own text, read from disk.
+        assert_eq!(syms[0].location.range.start.line, 0);
+        assert_eq!(syms[0].location.range.start.character, 5);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// Issue #1156: the answer is capped, so an empty or one-character query
+    /// against a large workspace cannot turn a per-keystroke request into an
+    /// unbounded response.
+    #[tokio::test]
+    async fn workspace_symbol_caps_its_answer() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w/many.tcl").unwrap();
+        let over_the_cap = core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS + 25;
+        let src = (0..over_the_cap).fold(String::new(), |mut src, n| {
+            use std::fmt::Write;
+            let _ = writeln!(src, "proc capped_{n} {{}} {{}}");
+            src
+        });
+        register(&backend, &uri, &src).await;
+
+        let found = backend
+            .symbol(WorkspaceSymbolParams {
+                query: "capped_".to_owned(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            })
+            .await
+            .expect("ok");
+        let Some(WorkspaceSymbolResponse::Flat(syms)) = found else {
+            panic!("expected a flat symbol list, got {found:?}");
+        };
+        assert_eq!(
+            syms.len(),
+            core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS,
         );
     }
 

@@ -19,8 +19,8 @@
 //! Behaviour-driven coverage of several `tcl-lsp-core` editing / workspace
 //! providers and utilities:
 //!
-//!   * `workspace_symbols::workspace_symbols` — symbol search over the
-//!     analysed document.
+//!   * `workspace_index::WorkspaceIndex::symbols_matching` — workspace
+//!     symbol search over the indexed documents.
 //!   * `minify::{minify_tcl, minify_tcl_compact, minify_tcl_aggressive, …}`
 //!     — the Tcl minifier tiers.
 //!   * `snippets::snippet_completions` — context-aware snippet templates.
@@ -78,7 +78,10 @@ use tcl_lsp_core::source_style::{
     DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, StyleSeverity, check_comment_continuation,
     check_line_endings, check_line_length, check_trailing_whitespace, style_diagnostics,
 };
-use tcl_lsp_core::workspace_symbols::{WorkspaceSymbol, WorkspaceSymbolKind, workspace_symbols};
+use tcl_lsp_core::workspace_index::WorkspaceIndex;
+use tcl_lsp_core::workspace_symbols::{
+    IndexedWorkspaceSymbol, MAX_WORKSPACE_SYMBOL_RESULTS, WorkspaceSymbolKind,
+};
 use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 // ---------------------------------------------------------------------------
@@ -95,8 +98,25 @@ fn registry() -> &'static CommandRegistry {
 }
 
 /// Map symbol name -> symbol, for order-independent lookups.
-fn by_name(syms: &[WorkspaceSymbol]) -> HashMap<&str, &WorkspaceSymbol> {
+fn by_name(syms: &[IndexedWorkspaceSymbol]) -> HashMap<&str, &IndexedWorkspaceSymbol> {
     syms.iter().map(|s| (s.name.as_str(), s)).collect()
+}
+
+/// `source` indexed as the workspace's only document, queried for `query`.
+fn symbols(source: &str, query: &str) -> Vec<IndexedWorkspaceSymbol> {
+    let analysis = analyse(source);
+    let mut index = WorkspaceIndex::new();
+    index.add_document("file:///doc.tcl", &analysis);
+    index.symbols_matching(query, MAX_WORKSPACE_SYMBOL_RESULTS)
+}
+
+/// The zero-based line a symbol's name token starts on.  The index stores a
+/// byte span; the server resolves it against the target document's source, and
+/// so does this.
+fn start_line(source: &str, sym: &IndexedWorkspaceSymbol) -> u32 {
+    tcl_lexer::LineIndex::new(source)
+        .position_at_utf16(sym.name_span.start(), source)
+        .line
 }
 
 /// Empty disabled-set / suppression-map for the `style_diagnostics`
@@ -136,8 +156,7 @@ fn workspace_symbols_empty_query_returns_every_declaration() {
     // report `alpha` and `info procs ::ns::*` report `::ns::beta`;
     // `oo::class create Widget {method draw …}` makes
     // `info class methods Widget` report `draw`. An empty query matches all.
-    let an = analyse(SYMBOL_DOC);
-    let syms = workspace_symbols(SYMBOL_DOC, "", &an);
+    let syms = symbols(SYMBOL_DOC, "");
     let map = by_name(&syms);
     // Structural: the full declared set surfaces.
     assert!(map.contains_key("alpha"), "{syms:?}");
@@ -149,8 +168,7 @@ fn workspace_symbols_empty_query_returns_every_declaration() {
 
 #[test]
 fn workspace_symbols_kinds_and_containers_are_structural() {
-    let an = analyse(SYMBOL_DOC);
-    let syms = workspace_symbols(SYMBOL_DOC, "", &an);
+    let syms = symbols(SYMBOL_DOC, "");
     let map = by_name(&syms);
     // Kinds (editor-presentation, asserted structurally).
     assert_eq!(map["alpha"].kind, WorkspaceSymbolKind::Function);
@@ -166,25 +184,25 @@ fn workspace_symbols_kinds_and_containers_are_structural() {
         map["constructor"].container_name.as_deref(),
         Some("::Widget")
     );
-    // The definition range points at the declaring line (structural).
-    assert_eq!(map["alpha"].range.start_line, 0);
-    assert_eq!(map["draw"].range.start_line, 5);
+    // Every symbol names the document it was indexed from (structural).
+    assert!(syms.iter().all(|s| s.uri == "file:///doc.tcl"), "{syms:?}");
+    // The definition span points at the declaring line (structural).
+    assert_eq!(start_line(SYMBOL_DOC, map["alpha"]), 0);
+    assert_eq!(start_line(SYMBOL_DOC, map["draw"]), 5);
 }
 
 #[test]
 fn workspace_symbols_query_is_case_insensitive_substring() {
-    let an = analyse(SYMBOL_DOC);
     // Mixed-case substring of `alpha` matches exactly that proc.
-    let syms = workspace_symbols(SYMBOL_DOC, "LPH", &an);
+    let syms = symbols(SYMBOL_DOC, "LPH");
     let names: Vec<&str> = syms.iter().map(|s| s.name.as_str()).collect();
     assert_eq!(names, vec!["alpha"], "{syms:?}");
 }
 
 #[test]
 fn workspace_symbols_query_matches_class_member_by_substring() {
-    let an = analyse(SYMBOL_DOC);
     // `draw` is reachable by a substring of its own name.
-    let syms = workspace_symbols(SYMBOL_DOC, "dra", &an);
+    let syms = symbols(SYMBOL_DOC, "dra");
     let names: Vec<&str> = syms.iter().map(|s| s.name.as_str()).collect();
     assert!(names.contains(&"draw"), "{syms:?}");
     // The unrelated top-level proc `alpha` must not match `dra`.
@@ -193,18 +211,16 @@ fn workspace_symbols_query_matches_class_member_by_substring() {
 
 #[test]
 fn workspace_symbols_no_match_returns_empty() {
-    let an = analyse(SYMBOL_DOC);
     assert!(
-        workspace_symbols(SYMBOL_DOC, "zzz_nonexistent", &an).is_empty(),
+        symbols(SYMBOL_DOC, "zzz_nonexistent").is_empty(),
         "a query matching nothing yields no symbols",
     );
 }
 
 #[test]
 fn workspace_symbols_empty_document_is_empty_and_does_not_panic() {
-    let an = analyse("");
-    assert!(workspace_symbols("", "", &an).is_empty());
-    assert!(workspace_symbols("", "anything", &an).is_empty());
+    assert!(symbols("", "").is_empty());
+    assert!(symbols("", "anything").is_empty());
 }
 
 #[test]
@@ -213,11 +229,29 @@ fn workspace_symbols_classmethod_surfaces_as_method() {
     // method) is a real member — `info class methods C -all` lists it. The
     // provider surfaces a classmethod with kind Method (structural).
     let src = "oo::class create C {\n    classmethod make {} {}\n}\n";
-    let an = analyse(src);
-    let syms = workspace_symbols(src, "make", &an);
+    let syms = symbols(src, "make");
     assert_eq!(syms.len(), 1, "{syms:?}");
     assert_eq!(syms[0].name, "make");
     assert_eq!(syms[0].kind, WorkspaceSymbolKind::Method);
+}
+
+#[test]
+fn workspace_symbols_span_every_indexed_document() {
+    // Issue #1156: the answer is the whole workspace, not the caller's
+    // document — two indexed documents both contribute, each naming its own
+    // URI.
+    let a = analyse("proc from_a {} {}\n");
+    let b = analyse("proc from_b {} {}\n");
+    let mut index = WorkspaceIndex::new();
+    index.add_document("file:///a.tcl", &a);
+    index.add_document("file:///b.tcl", &b);
+    let syms = index.symbols_matching("from_", MAX_WORKSPACE_SYMBOL_RESULTS);
+    let by_uri: HashMap<&str, &str> = syms
+        .iter()
+        .map(|s| (s.uri.as_str(), s.name.as_str()))
+        .collect();
+    assert_eq!(by_uri.get("file:///a.tcl"), Some(&"from_a"), "{syms:?}");
+    assert_eq!(by_uri.get("file:///b.tcl"), Some(&"from_b"), "{syms:?}");
 }
 
 // ===========================================================================

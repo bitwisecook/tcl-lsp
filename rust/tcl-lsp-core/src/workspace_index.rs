@@ -76,6 +76,9 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use crate::workspace_symbols::{
+    IndexedWorkspaceSymbol, WorkspaceSymbolKind, matches_query, namespace_of,
+};
 use tcl_compiler::analyser::class_hierarchy::{build_tail_index, resolve_class_name};
 use tcl_compiler::analyser::{AnalysisResult, MemberSide};
 use tcl_lexer::Span;
@@ -182,6 +185,12 @@ pub struct WorkspaceClass {
     /// `classmethod` / snit `typemethod` (dispatched as two bare words)
     /// without a local `ClassDef` to ask.
     pub metaclass: String,
+    /// Byte spans of this record's `constructor` name tokens, in declaration
+    /// order (`oo::configurable` admits more than one).  Constructors are not
+    /// dispatchable members, so they stay out of [`Self::methods`]; they are
+    /// carried only so `workspace/symbol` can offer them from an unopened file
+    /// the way the per-document outline does (issue #1156).
+    pub constructor_spans: Vec<Span>,
 }
 
 impl WorkspaceClass {
@@ -252,6 +261,11 @@ pub struct WorkspaceMethod {
     /// carrying it here is what lets a *cross-file* consumer scan tell the
     /// two apart (Codex review on #1047).
     pub is_self_method: bool,
+    /// Byte span of the method's name token in the declaring record's
+    /// document.  Carried so `workspace/symbol` can locate a method in a file
+    /// the editor has never opened (issue #1156); cross-file *dispatch* uses
+    /// the name and the visibility flags and does not need it.
+    pub name_span: Span,
 }
 
 /// The access context of a method call site — `TclOO` dispatches an
@@ -311,6 +325,30 @@ pub struct WorkspaceInvocation {
     /// [`WorkspaceIndex::enclosing_body_spans`] computes the whole column in
     /// one stack sweep instead, `O((P + I) log (P + I))` per document.
     pub enclosing_body: Option<Span>,
+}
+
+/// One **registry symbol-definer** definition recorded in the index — a
+/// `tcltest::test` case, a `testConstraint`, a `customMatch` mode, or an
+/// iRules `when EVENT` handler (issue #790's outline tier, lifted to the
+/// workspace for issue #1156).
+///
+/// Cross-document identity, as the index requires of every table: each of
+/// these is a *named* definition carrying its enclosing namespace, spellable
+/// from another file exactly as a proc's qualified name is.  They are not
+/// callable commands, so they stay out of `procs` and out of the command
+/// existence oracle; the workspace-symbol picker is their consumer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceDefinedSymbol {
+    /// Document the definition is in.
+    pub uri: String,
+    /// Definition name as resolved (a test's case label, an event's name).
+    pub name: String,
+    /// Fully-qualified name, with the enclosing namespace applied.
+    pub qualified_name: String,
+    /// The registry's outline category for it.
+    pub kind: tcl_registry::DefinedSymbolKind,
+    /// Byte span of the name token in `uri`'s source.
+    pub name_span: Span,
 }
 
 /// One **namespace-qualified** variable declaration recorded in the index —
@@ -757,6 +795,7 @@ struct DocumentRecords {
     namespace_exports: Vec<WorkspaceNamespaceExport>,
     namespace_forgets: Vec<WorkspaceNamespaceForget>,
     command_deletions: Vec<WorkspaceCommandDeletion>,
+    defined_symbols: Vec<WorkspaceDefinedSymbol>,
 }
 
 impl DocumentRecords {
@@ -785,6 +824,7 @@ impl DocumentRecords {
             namespace_exports,
             namespace_forgets,
             command_deletions,
+            defined_symbols,
         } = self;
         procs.clear();
         classes.clear();
@@ -800,6 +840,103 @@ impl DocumentRecords {
         namespace_exports.clear();
         namespace_forgets.clear();
         command_deletions.clear();
+        defined_symbols.clear();
+    }
+
+    /// Append this document's [`IndexedWorkspaceSymbol`]s matching
+    /// `lower_query` to `out`, stopping once `out` reaches `limit`.
+    ///
+    /// The order — procs, then classes with their members, then registry
+    /// symbol-definer definitions — mirrors the per-document outline the
+    /// document-symbol provider produces, and each table is already in source
+    /// order (see [`sorted_by_span`]).
+    fn collect_symbols_matching(
+        &self,
+        lower_query: &str,
+        limit: usize,
+        out: &mut Vec<IndexedWorkspaceSymbol>,
+    ) {
+        for proc_def in &self.procs {
+            if out.len() >= limit {
+                return;
+            }
+            if matches_query(&proc_def.name, lower_query)
+                || matches_query(&proc_def.qualified_name, lower_query)
+            {
+                out.push(IndexedWorkspaceSymbol {
+                    uri: proc_def.uri.clone(),
+                    name: proc_def.name.clone(),
+                    container_name: namespace_of(&proc_def.qualified_name),
+                    kind: WorkspaceSymbolKind::Function,
+                    name_span: proc_def.name_span,
+                });
+            }
+        }
+        // A constructor's only name is the keyword, so whether the query
+        // admits one is decided once rather than per class.
+        let wants_constructors = matches_query("constructor", lower_query);
+        for class_def in &self.classes {
+            if out.len() >= limit {
+                return;
+            }
+            if matches_query(&class_def.name, lower_query)
+                || matches_query(&class_def.qualified_name, lower_query)
+            {
+                out.push(IndexedWorkspaceSymbol {
+                    uri: class_def.uri.clone(),
+                    name: class_def.name.clone(),
+                    container_name: namespace_of(&class_def.qualified_name),
+                    kind: WorkspaceSymbolKind::Class,
+                    name_span: class_def.name_span,
+                });
+            }
+            // Members carry the class's qualified name as their container, so
+            // an editor renders them as `ClassName::methodName`.
+            for method in &class_def.methods {
+                if out.len() >= limit {
+                    return;
+                }
+                if matches_query(&method.name, lower_query) {
+                    out.push(IndexedWorkspaceSymbol {
+                        uri: class_def.uri.clone(),
+                        name: method.name.clone(),
+                        container_name: Some(class_def.qualified_name.clone()),
+                        kind: WorkspaceSymbolKind::Method,
+                        name_span: method.name_span,
+                    });
+                }
+            }
+            if wants_constructors {
+                for &name_span in &class_def.constructor_spans {
+                    if out.len() >= limit {
+                        return;
+                    }
+                    out.push(IndexedWorkspaceSymbol {
+                        uri: class_def.uri.clone(),
+                        name: "constructor".to_owned(),
+                        container_name: Some(class_def.qualified_name.clone()),
+                        kind: WorkspaceSymbolKind::Constructor,
+                        name_span,
+                    });
+                }
+            }
+        }
+        for sym in &self.defined_symbols {
+            if out.len() >= limit {
+                return;
+            }
+            if matches_query(&sym.name, lower_query)
+                || matches_query(&sym.qualified_name, lower_query)
+            {
+                out.push(IndexedWorkspaceSymbol {
+                    uri: sym.uri.clone(),
+                    name: sym.name.clone(),
+                    container_name: namespace_of(&sym.qualified_name),
+                    kind: WorkspaceSymbolKind::from(sym.kind),
+                    name_span: sym.name_span,
+                });
+            }
+        }
     }
 
     /// Lift one document's analysis into this record set.
@@ -825,6 +962,15 @@ impl DocumentRecords {
             });
         }
         self.index_classes(uri, analysis);
+        for sym in sorted_by_span(&analysis.all_defined_symbols, |s| s.name_span) {
+            self.defined_symbols.push(WorkspaceDefinedSymbol {
+                uri: uri.to_owned(),
+                name: sym.name.clone(),
+                qualified_name: sym.qualified_name.clone(),
+                kind: sym.kind,
+                name_span: sym.name_span,
+            });
+        }
         self.index_variables(uri, analysis);
         self.index_namespace_refs(uri, analysis);
         let bodies = WorkspaceIndex::enclosing_body_spans(
@@ -891,6 +1037,7 @@ impl DocumentRecords {
                         exported: m.visibility == "public",
                         private: m.visibility == "private",
                         is_self_method: m.is_self_method,
+                        name_span: m.name_span,
                     })
                     .chain(
                         sorted_by_span(class_def.class_methods.values(), |m| m.name_span)
@@ -901,6 +1048,7 @@ impl DocumentRecords {
                                 exported: m.visibility == "public",
                                 private: m.visibility == "private",
                                 is_self_method: m.is_self_method,
+                                name_span: m.name_span,
                             }),
                     )
                     .collect();
@@ -919,6 +1067,7 @@ impl DocumentRecords {
                 retracted_members: class_def.retracted_members.clone(),
                 via_define: class_def.via_define,
                 metaclass: class_def.metaclass.clone(),
+                constructor_spans: class_def.constructors.iter().map(|c| c.name_span).collect(),
             });
         }
     }
@@ -1609,6 +1758,38 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn has_source_edges(&self) -> bool {
         self.sources().next().is_some()
+    }
+
+    /// The workspace's symbols matching `query`, at most `limit` of them —
+    /// the whole `workspace/symbol` answer (issue #1156).
+    ///
+    /// Every indexed document is searched, not only the ones the editor has
+    /// open, so a symbol in a file the user has never opened is reachable from
+    /// the picker.  The index is refreshed on each document's diagnostics
+    /// publish (~50 ms after an edit), which is the freshness a symbol picker
+    /// gets: a name typed a moment ago appears once that publish lands.  It is
+    /// the same staleness every other cross-document feature answers with, and
+    /// the alternative — re-analysing every open buffer per keystroke in the
+    /// Ctrl+T box — is what this replaces.
+    ///
+    /// The scan is **document-major**: each document contributes its procs,
+    /// then its classes (with their methods and constructors), then its
+    /// registry symbol-definer definitions, before the next document is
+    /// looked at.  So a `limit`-truncated answer is a prefix of the workspace
+    /// rather than a prefix of one symbol table — a capped result still holds
+    /// classes and test cases, not only procs — and results arrive grouped by
+    /// URI, which lets the caller resolve each document's source once.
+    #[must_use]
+    pub fn symbols_matching(&self, query: &str, limit: usize) -> Vec<IndexedWorkspaceSymbol> {
+        let lower_query = query.to_lowercase();
+        let mut out: Vec<IndexedWorkspaceSymbol> = Vec::new();
+        for doc in &self.docs {
+            if out.len() >= limit {
+                break;
+            }
+            doc.collect_symbols_matching(&lower_query, limit, &mut out);
+        }
+        out
     }
 
     /// Every indexed proc.

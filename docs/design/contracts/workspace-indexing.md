@@ -22,6 +22,7 @@ entry has an identity another document can spell:
 | `variable_refs` | occurrences written with a `::` qualifier | **qualified name only** |
 | `namespace_refs` | every word naming a namespace, declaring or not | qualified name (rooted at record time) |
 | `sources` / `package_requires` / `command_links` / `glob_imports` / `namespace_exports` | the cross-file graph edges | — |
+| `defined_symbols` | registry symbol-definer definitions — `tcltest` test cases / constraints / match modes, iRules `when EVENT` handlers | qualified name |
 
 `glob_imports` and `namespace_exports` each carry their document **and their
 byte offset within it**, because a `namespace import` binds the names its
@@ -263,6 +264,12 @@ silently misses something:
   A computed cell names no fixed variable, so it can be neither found by a
   candidate scan nor rewritten.  The match stays narrow: whichever half of
   the cell is still written literally must agree with the cell being renamed.
+
+`workspace/symbol` is answered from here too (`symbols_matching`, issue
+#1156), which is why a class record carries its methods' `name_span`s and its
+`constructor_spans`, and why `defined_symbols` exists: the picker must be able
+to locate a member in a file the editor never opened.  Cross-file *dispatch*
+needs none of those spans; they are carried for the picker alone.
 
 ## How the tables are stored
 
