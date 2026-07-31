@@ -770,6 +770,176 @@ reasoning is the useful part:
   dynamic-name gate and refuses. Correct but blunt, and the same provenance
   work would fix it.
 
+**2026-07-31 update — PR C4b
+(`claude/commandregistry-compiler-fixes-tshu8d-nssym`) closes idx 75's
+*secondary* claim, split out as issue #1088: a namespace **name** written as
+an argument was never a navigable symbol.** The finding's own note is exact —
+"a general `namespace name is never a go-to-def/references target` gap, not
+specifically about unioning many files" — and it reproduced in a single file
+with one trivial `namespace eval mypkg { … }` reopening. idx 75's headline
+count does not move: it was already ticked FIXED by PR C2 for its primary,
+cross-file namespace-*variable* claim, and this is the same finding's other
+half.
+
+Namespaces were modelled only as *containers* — a `ScopeKind::Namespace`
+node and a `Namespace` entry in the document outline — never as symbols. The
+fix makes them one, registry-first. A new **`ArgRole::NamespaceName`** marks
+which argument positions name a namespace (`namespace children` / `exists` /
+`delete` — variadic, via an `arg_role_resolver` — / `parent` / `upvar` /
+`eval` / `inscope`), and a new **`Traits::DECLARES_NAMESPACE`** marks the one
+form that *creates* one. Both are precise rather than sweeping: `namespace
+tail` and `qualifiers` take an arbitrary string (`namespace tail a::b` → `b`
+whether or not `::a` exists, both interpreters), `import` / `export` /
+`forget` take glob patterns, `origin` / `which` name commands, and `code`
+takes a script — none of them is marked, and a registry test asserts each
+stays unmarked. The analyser records every marked word as a
+`NamespaceRef` — including inside a `[…]` substitution, which is where the
+finding's own idiom lives (`set targets [namespace children ::tomato]`) —
+already rooted against the occurrence's own namespace, and the trait (not the
+subcommand's spelling) decides whether the word declares.
+
+The oracle decides what "the namespace's definition" is, and both
+interpreters agree byte-for-byte (9.0.4 / 8.6.16): `namespace eval ::a {}`
+twice creates the namespace once and extends it the second time (`info vars
+::a::*` → `::a::x ::a::y`), so **every** block is a declaring site and
+go-to-definition answers with all of them in source order — the same shape
+idx 31 established for a proc declared twice. `namespace eval` is also the
+*only* declaring form: `proc ::nope::gone::p {} {}` fails with `can't create
+procedure "::nope::gone::p": unknown namespace` and `set ::brandnew::v 1`
+with `can't set "::brandnew::v": parent namespace doesn't exist`, which is
+why `DECLARES_NAMESPACE` sits on `eval` alone and not on `inscope` (identical
+argument layout, same analyser hook, but it requires the namespace to exist).
+A relative name roots against the current namespace — inside `namespace eval
+::outer`, `namespace exists inner` is `1` and the same words at global scope
+are `0` — and a proc body's current namespace is its defining one, which is
+exactly what `innermost_namespace_at` already reports.
+
+One entry point, as the campaign requires: `tcl-lsp-core`'s new
+[`namespace_symbol`](../../../rust/tcl-lsp-core/src/namespace_symbol.rs)
+module holds `namespace_cell_at` and the span queries, and definition, hover,
+and find-references all answer through it, so they cannot disagree. It is
+**span**-driven, not word-driven — the cursor must sit inside a word the
+registry marked — so a proc or class of the same spelling never claims the
+position (Tcl keeps namespaces, commands, and variables in disjoint symbol
+spaces), and the inert-text gate (idx 24's `offset_in_comment` /
+`offset_in_data_brace`) applies unchanged. The workspace tier follows #1086's
+established pattern: a `namespace_refs` table on `WorkspaceIndex`, matched by
+exact qualified name with no re-analysis. It needs no qualified-only bound —
+the analyser roots relative spellings before recording, so every indexed row
+names one namespace absolutely — and its declaring rows become a fourth
+source for `observable_namespaces`, closing the case of a `namespace eval
+::ns { namespace import ::other::* }` block the import gate previously could
+not see. Document outline is left alone: `document_symbols` already nests
+under `namespace eval`, so this only wires navigation.
+
+**Residuals (documented, not half-fixed)** — each to be filed as its own
+issue:
+
+- **An implicitly-created parent namespace has no declaring site.**
+  `namespace eval ::p::q::r {}` really does create `::p` and `::p::q` (both
+  interpreters), but neither name is written anywhere, so
+  `namespace children ::p::q` resolves to nothing rather than jumping into
+  the middle of the `::p::q::r` word. Answering it needs a synthetic
+  declaration identity the span model has no place for yet.
+- **`namespace path {::a ::b}` is not covered.** Its argument is a *list* of
+  namespace names inside one word, and `ArgRole` marks whole words. The role
+  cannot express it, so the subcommand stays unmarked rather than
+  half-marked; a list-of-names role (or the `case_list` treatment
+  `ArgRole::Body` needed) would close it.
+- **Rename is not wired to the namespace tier.** Definition, hover, and
+  references answer; renaming a namespace would have to rewrite every
+  qualified proc/variable name under it, which is a materially bigger edit
+  set than the variable tier's and is not attempted here. It now **refuses
+  with a reason** rather than answering nothing — see the review section
+  below for why that distinction is load-bearing.
+- **A computed target (`namespace eval $ns { … }`) resolves nowhere**, by
+  design — it names no static namespace. The per-call-site synthetic domain
+  the analyser already builds for it (`@dynns@<offset>`) could in principle
+  carry navigation for the constant-dominated case (idx 44's treatment for
+  command heads), which is not attempted here.
+- **An `apply` lambda's third list element names a namespace** (`apply
+  {{x} {…} ::ns} 1`) and is not navigable. It sits *inside* an
+  `ArgRole::LambdaLiteral` word rather than at an argument position of its
+  own, so no `ArgRole` reaches it; the analyser already models its
+  *semantics* (`AnalysisResult::namespace_overrides`), just not its identity
+  as a reference.
+
+**Codex review of PR #1112 (P2 × 3)** — all three were *tier-completeness*
+faults on the new feature, and all three are fixed in the same PR. Recorded
+here because the reasoning generalises to any new symbol kind.
+
+- **A span-definitive position must be definitive in every provider**
+  (finding 1). The design point was that a `NamespaceName`-role word is
+  span-precise, so no word-based resolver may claim it — but hover only
+  returned early when it had a *local* answer, and otherwise fell through to
+  the command resolvers. `namespace exists string`, with `::string` declared
+  in a sibling document, therefore rendered the built-in `string` command's
+  documentation; and because that is an answer, the server returned it and
+  never reached the cross-document namespace tier at all. `None` now means
+  "no local answer" — the signal that tier needs — and never "try something
+  else". The same fall-through class was audited across the other providers:
+  definition and references were already definitive in core, but the
+  *server's* references handler routes an empty local set to
+  `workspace_resolved_references` (the proc/class tier), which an empty
+  namespace answer reaches whenever `includeDeclaration` is false and the
+  cursor sits on the namespace's only declaring block. **Rename was the worst
+  of the family**: `Ok(vec![])` is documented to fall through to the
+  workspace-resolved rename branch, so `namespace children widget` beside a
+  `proc widget` offered to rename the *proc*, with the editor's highlight
+  pointing at the proc's declaration on a different line. Rename now refuses
+  with a reason (`rename_safety::RenameRefusal`), prepare-rename answers
+  `None`, and every namespace query is answered by one server-side branch
+  taken *before* any other tier runs.
+- **Every declaring block is a target, wherever it lives** (finding 2). The
+  first cut returned as soon as the in-document provider answered *and*
+  excluded the request's own URI from the index lookup, so a namespace
+  reopened both locally and in a sibling reported only the local half —
+  contradicting the feature's own contract. Definition and references now
+  union the local analysis with the index (deduplicated by `(uri, span)`),
+  and hover counts the same merged set, saying how many documents it looked
+  at. Rendering stays in one function
+  (`namespace_symbol::namespace_hover_markdown`) fed by a
+  `NamespaceFacts { declarations, references, documents }`, so the
+  in-document and workspace tiers cannot word the same fact differently —
+  they differ only in how wide a set they counted. References already
+  unioned; that was verified rather than assumed, with a test pinning it.
+- **The empty literal is a namespace name** (finding 3), and the oracle
+  refines the claim. tclsh 9.0.4 and 8.6.16 agree byte-for-byte that it is an
+  ordinary **relative** name, not a synonym for `::`. At global scope
+  `namespace exists {}` is `1`, `namespace children {}` equals `namespace
+  children ::`, `namespace inscope {} {namespace current}` is `::`, and
+  `namespace eval {} { … }` reopens the global namespace. Written *inside*
+  `namespace eval ::outer` the same word means `::outer`'s empty-named child:
+  `namespace exists {}` is `0`, `namespace children {}` fails `namespace ""
+  not found in "::outer"`, and `namespace eval {} { … }` fails `can't create
+  namespace "": only global namespace can have empty name`. Dropping the
+  `name.is_empty()` skip is therefore the whole fix — `naming::qualify`
+  already maps the word to `::` at global scope and to `::outer::` inside a
+  namespace, which is exactly Tcl's rule. Two consequences had to be fixed
+  with it: the root-collapsing comparison must fold **only** the root, or
+  `::outer::` (a namespace that cannot exist) would answer with `::outer`'s
+  declarations; and the data-brace inertness proof must **not** run on a
+  namespace word, because a namespace name may legitimately *be* a braced
+  word — `namespace eval {my ns} { variable v 7; proc p {} {return P} }`
+  creates a real namespace on both interpreters (`namespace children ::`
+  lists `{::my ns}`, `set {::my ns::v}` is `7`, `{::my ns::p}` runs). That
+  gate was redundant anyway: a `NamespaceRef` exists only because the
+  analyser walked the command as live code, which is a strictly stronger
+  liveness proof than the textual test.
+
+**Further residuals from that review**:
+
+- **A braced name's recorded span omits its closing brace** (`{my ns` for
+  `{my ns}`). This is a pre-existing, product-wide token-span convention —
+  `proc {my p}`'s own `name_span` is `{my p` — not a namespace-tier fact, so
+  it is left alone rather than fixed asymmetrically here. It is cosmetic: the
+  range an editor highlights is one character short, and resolution is
+  unaffected.
+- **Whitespace-only namespace names are recorded, deliberately.** `namespace
+  eval " " { … }` genuinely creates a namespace both interpreters list as
+  `{:: }` among `namespace children ::`, so there is no whitespace skip to
+  add.
+
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
 strings in the raw data — same corpus), tomato 7, pix 8.
@@ -1019,7 +1189,7 @@ mixin/oo::configurable class-scoping findings, idx 34/36).
 | feature | count | idx (severity) |
 |---|---|---|
 | tclOO | 10 | ~~15~~ **ALREADY FIXED** (pinned, PR B2), 16, ~~34~~ **FIXED** (PR B2), ~~35~~ **FIXED** (PR B2), ~~36~~ **FIXED** (PR B2), ~~53~~ **FIXED**, ~~54~~ **FIXED**, ~~55~~ **FIXED**, ~~96~~ **FIXED**, ~~97~~ **FIXED** (all medium) |
-| namespaces | 8 | ~~3~~ **FIXED** (#1071), ~~19~~ **ALREADY FIXED** (pinned, PR C2), ~~43~~ **ALREADY FIXED**, ~~44~~ **FIXED**, ~~64~~ **FIXED**, ~~65~~ **FIXED** (PR C2), ~~75~~ **FIXED** (PR C2), 85 (all medium) |
+| namespaces | 8 | ~~3~~ **FIXED** (#1071), ~~19~~ **ALREADY FIXED** (pinned, PR C2), ~~43~~ **ALREADY FIXED**, ~~44~~ **FIXED**, ~~64~~ **FIXED**, ~~65~~ **FIXED** (PR C2), ~~75~~ **FIXED** (PR C2; its *secondary* claim — a namespace name as an argument is not a navigable symbol — was split to **#1088** and **FIXED** by PR C4b, no count change), 85 (all medium) |
 | tricky_indirection | 7 | 0 (medium, **FIXED** — see below), ~~1~~ **FIXED**, ~~2~~ **FIXED**, 14, ~~49~~ **FIXED**, 50, 51 (all medium) |
 | upvar | 7 | ~~7~~ **FIXED** (PR C1a), 22 (**PARTIAL** — model landed C1a, `$param` navigation C1b; the literal `upvar 1 name name` shape stays open), ~~57~~ **FIXED** (PR C1a), ~~58~~ **FIXED** (PR C1b), ~~59~~ **FIXED** (PR C1a, single-document; cross-file open), 98 (**PARTIAL** — same as 22), 99 (all medium) |
 | proc_args | 7 | ~~11~~ **FIXED** (#1071), ~~28~~ **FIXED** (PR B2), ~~37~~ **FIXED** (PR B2), 62, 67, ~~78~~ **FIXED** (PR C2), ~~104~~ **FIXED** (all medium) |

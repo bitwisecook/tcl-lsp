@@ -516,6 +516,16 @@ pub fn references(
         return Vec::new();
     }
 
+    // Namespace references — a word the registry marks
+    // `ArgRole::NamespaceName` (issue #1088).  Checked before every bareword
+    // resolver below because it is span-precise: the cursor is provably
+    // inside a namespace-name argument, so a class or proc that happens to
+    // share the spelling must not claim it.  Namespaces are their own symbol
+    // space in Tcl, disjoint from commands and variables.
+    if let Some(out) = namespace_references(&ctx) {
+        return out;
+    }
+
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
     };
@@ -583,6 +593,38 @@ pub fn references(
     }
 
     Vec::new()
+}
+
+/// References for the **namespace** the cursor names — every other spelling
+/// of it in this document, plus its declaring `namespace eval` blocks when
+/// `include_declaration` (issue #1088).
+///
+/// `None` means the cursor is not on a namespace-name word at all, so the
+/// caller falls through.  `Some` is definitive, empty vector included: once
+/// the position is provably a namespace reference, an unrelated same-spelled
+/// proc or class is not the answer.
+///
+/// Resolution — including a relative name's rooting against the enclosing
+/// namespace — happens once, in
+/// [`crate::namespace_symbol::namespace_cell_at`], so this and
+/// go-to-definition and hover cannot disagree about which namespace is meant.
+fn namespace_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
+    let RefCtx {
+        source,
+        line_index,
+        line,
+        character,
+        analysis,
+        include_declaration,
+        ..
+    } = *ctx;
+    let cell = crate::namespace_symbol::namespace_cell_at(source, analysis, line, character)?;
+    Some(
+        crate::namespace_symbol::namespace_all_spans(analysis, &cell, include_declaration)
+            .into_iter()
+            .map(|span| crate::definition::span_to_range(source, line_index, span))
+            .collect(),
+    )
 }
 
 /// Build references for a `constructor` / `destructor` keyword: when the

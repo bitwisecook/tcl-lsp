@@ -95,6 +95,16 @@ Both of those are decided narrowly, so a real reference is never hidden:
   (`::tomato::version`) and how many times the declaring file itself uses
   it. A bare `$v` is still a within-file question and shows nothing when the
   file has no such variable.
+- A **namespace name** is described as one. Hovering the `::tomato` of
+  `namespace children ::tomato` — or of the `namespace eval ::tomato { … }`
+  block itself — names the namespace and counts every `namespace eval` block
+  that declares it and every other place that refers to it, **across the
+  whole workspace**, saying how many documents it looked at. Nothing is shown
+  for a namespace no file in view declares, so a guess is never presented as
+  an answer. In particular, a namespace whose name also happens to be a
+  command's — `namespace exists string` — never shows that *command's*
+  documentation instead: the two are different kinds of symbol, and the
+  position says which one is meant.
 
 ### Caller-frame variables
 
@@ -165,6 +175,10 @@ in separate tables, so `$dataset` can never mean a method called `dataset`.
 - `rust/tcl-lsp-core/src/hover.rs` — renderer unit tests
 - `rust/tcl-lsp-core/tests/mathfunc_and_word_recognition.rs` — the `expr`
   math-function and not-a-reference cases
+- `rust/tcl-lsp-core/src/namespace_symbol.rs` (`mod tests`) — the namespace
+  resolver and its hover text
+- `rust/tcl-lsp-server/tests/e2e/issue1088_namespace_symbols.rs` — namespace
+  hover in one file and across files
 
 ## Screenshots
 

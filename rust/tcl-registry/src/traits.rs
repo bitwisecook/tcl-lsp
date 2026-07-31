@@ -940,6 +940,26 @@ declare_traits! {
     /// paired with the call site's own frame kind. Offering a word the
     /// interpreter will refuse is the defect this trait exists to prevent.
     TclooRequiresMethodFrame => TCLOO_REQUIRES_METHOD_FRAME;
+
+    /// This command (or subcommand) **declares** the namespace its
+    /// [`crate::arg_role::ArgRole::NamespaceName`] word names — it brings
+    /// the namespace into existence if it does not already exist, and its
+    /// name word is therefore a *definition* site go-to-definition answers
+    /// with (issue #1088).
+    ///
+    /// `namespace eval` is the only carrier, and the oracle is why.  On
+    /// tclsh 9.0.4 and 8.6.16, byte-identically: two `namespace eval ::a
+    /// {}` blocks create the namespace once and then extend it (both are
+    /// declaring sites, and both `::a::x` and `::a::y` survive); a deep
+    /// `namespace eval ::p::q::r {}` implicitly creates `::p` and `::p::q`;
+    /// and no other form creates one — `proc ::nope::gone::p {} {}` fails
+    /// with `can't create procedure "::nope::gone::p": unknown namespace`
+    /// and `set ::brandnew::v 1` with `can't set "::brandnew::v": parent
+    /// namespace doesn't exist`.  `namespace inscope`, whose argument
+    /// layout is identical and which shares `eval`'s analyser hook, is the
+    /// reason this is a trait rather than a subcommand-name check in the
+    /// handler: it references an existing namespace and never declares one.
+    DeclaresNamespace => DECLARES_NAMESPACE;
 }
 
 /// Every trait that widens a file's caller set beyond the file itself — the
