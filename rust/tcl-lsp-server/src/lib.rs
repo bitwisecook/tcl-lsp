@@ -10012,23 +10012,29 @@ impl LanguageServer for Backend {
             entry.bump_revision(change_version);
             let dialect = entry.dialect.clone();
             let language_id = entry.language_id.clone();
-            // Update the salsa `SourceFile` input + the cross-document index
-            // WHILE still holding the `documents` lock (the `documents` →
-            // `workspace_index` order that replaced the global gate): no
-            // concurrent request can observe the new `doc.text` (from
-            // `read_document`) with a stale query result for the old text, and
-            // no diagnostics run can re-add a stale index entry between the
-            // commit and the removal.  (db_set_source locks db→db_files, never
-            // documents, so this nesting introduces no lock-order cycle.)
+            // Update the salsa `SourceFile` input WHILE still holding the
+            // `documents` lock, so no concurrent request can observe the new
+            // `doc.text` (from `read_document`) with a stale query result for
+            // the old text.  (db_set_source locks db→db_files, never documents,
+            // so this nesting introduces no lock-order cycle.)
+            //
+            // The workspace index is deliberately *not* touched here (#1149).
+            // Dropping the edited document's entries per keystroke bought
+            // nothing — `publish_diagnostics_result` re-indexes the document
+            // (remove + add) under the same `documents` lock behind an
+            // `is_current` re-check, so it can only ever install the analysis of
+            // the revision the buffer actually holds, and nothing between the
+            // edit and that publish requires the entries to be absent: every
+            // index consumer in the interim reads a *previous* published
+            // revision of this document, which is the same staleness the rest of
+            // the workspace already carries between publishes, and strictly less
+            // misleading than the alternative (a mid-keystroke window where the
+            // file contributes no procs, classes or call sites at all).
             self.db_set_source(&uri, text, dialect.clone()).await;
-            self.workspace_index
-                .write()
-                .await
-                .remove_document(uri.as_str());
             drop(docs);
             (dialect, language_id)
         };
-        // The splice, the salsa source and the index entry are committed, so
+        // The splice and the salsa source are committed, so
         // hand the ordering turn on before the tail below (#1150).  Everything
         // after this point is order-insensitive — marking the diagnostics slot
         // dirty (the worker reads the document's *current* state at drain time),
@@ -10067,11 +10073,10 @@ impl LanguageServer for Backend {
                     };
                     entry.dialect.clone_from(&new_dialect);
                     let text = entry.text.clone();
+                    // As above (#1149): the reschedule below republishes, and
+                    // the publish re-indexes the document under its own
+                    // currency check.
                     self.db_set_source(&uri, text, new_dialect.clone()).await;
-                    self.workspace_index
-                        .write()
-                        .await
-                        .remove_document(uri.as_str());
                 }
                 self.reschedule_diagnostics(uri, new_dialect).await;
             }
@@ -22019,9 +22024,9 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
-    /// #1150, the edit side: `did_change` must hand its turn on once the splice,
-    /// the salsa source and the index entry are committed — not hold it across
-    /// the diagnostics scheduling and the whole-source `detect_dialect` re-scan.
+    /// #1150, the edit side: `did_change` must hand its turn on once the splice
+    /// and the salsa source are committed — not hold it across the diagnostics
+    /// scheduling and the whole-source `detect_dialect` re-scan.
     ///
     /// `diag_slots` stands in for that tail here: the ordered mutations never
     /// take it and `schedule_diagnostics` takes it first thing, so a held
@@ -22067,6 +22072,64 @@ mod tests {
                 .as_deref(),
             Some("set x 2\n"),
             "the splice the ticket covers must already be committed",
+        );
+
+        drop(slots_held);
+        tokio::time::timeout(std::time::Duration::from_secs(30), editing)
+            .await
+            .expect("the edit must finish once its tail can take the diag_slots lock")
+            .expect("did_change panicked");
+    }
+
+    /// #1149: an edit no longer evicts the edited document from the workspace
+    /// index.  `publish_diagnostics_result` re-indexes it (remove + add) behind
+    /// its own `is_current` check, so all the per-keystroke removal bought was
+    /// a window in which the file contributed no procs, classes or call sites
+    /// to any cross-file query — on top of fourteen workspace-wide `retain`
+    /// passes per edit.
+    ///
+    /// Pinned the same way as the #1150 test above: `diag_slots` is held, so
+    /// the handler is parked in its tail and no publish can have run by the
+    /// time the assertion reads the index.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_change_does_not_evict_the_document_from_the_workspace_index() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/indexed.tcl").unwrap();
+        register(&backend, &uri, "proc published {} {}\n").await;
+
+        let slots_held = backend.diag_slots.lock().await;
+        let editing = tokio::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change(DidChangeTextDocumentParams {
+                        text_document: VersionedTextDocumentIdentifier { uri, version: 2 },
+                        content_changes: vec![TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text: "proc renamed {} {}\n".to_owned(),
+                        }],
+                    })
+                    .await;
+            }
+        });
+
+        assert!(
+            one_edit_turn_released(&backend).await,
+            "did_change must release its turn before scheduling diagnostics",
+        );
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .procs()
+                .any(|p| p.uri == uri.as_str() && p.name == "published"),
+            "the last published analysis must still be indexed mid-edit",
         );
 
         drop(slots_held);
@@ -24847,7 +24910,7 @@ mod tests {
             },
         );
         backend.closed_diag_gen.lock().await.insert(old.clone(), 3);
-        assert_eq!(backend.workspace_index.read().await.procs().len(), 1);
+        assert_eq!(backend.workspace_index.read().await.procs().count(), 1);
 
         let params = RenameFilesParams {
             files: vec![tower_lsp_server::ls_types::FileRename {
@@ -24866,7 +24929,6 @@ mod tests {
                 .read()
                 .await
                 .procs()
-                .iter()
                 .all(|p| p.uri != old.as_str()),
         );
         // #1146: and out of the salsa db, so the renamed file's procedures are

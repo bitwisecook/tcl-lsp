@@ -62,9 +62,12 @@ Per `textDocument/didChange` (`rust/tcl-lsp-server/src/lib.rs`, `did_change`):
 2. `db_set_source` → salsa `SourceFile::set_text` with the **whole-file `String`**
    (one flat input per file; no chunk/per-proc granularity), bumping the input
    revision and marking every dependent query dirty.
-3. `workspace_index.remove_document(uri)` — drops file A's symbols from the
-   cross-document aggregate. **This is the only cross-file action, and it triggers
-   no re-analysis of any other file.**
+3. *(removed in #1149)* `did_change` used to call
+   `workspace_index.remove_document(uri)`, dropping file A's symbols from the
+   cross-document aggregate. The edit path no longer touches the index at all —
+   `publish_diagnostics_result` re-indexes the document on publish, behind its
+   own currency check. **The edit path triggers no cross-file work and no
+   re-analysis of any other file.**
 4. debounced `schedule_diagnostics` → two salsa queries:
    `file_analysis_incremental(file, config)` (the per-item analyser walk) and
    `compiler_check_diagnostics(file)` (`run_all_checks` + `optimise_unit` over the

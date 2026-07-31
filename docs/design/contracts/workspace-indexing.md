@@ -264,6 +264,37 @@ silently misses something:
   candidate scan nor rewritten.  The match stays narrow: whichever half of
   the cell is still written literally must agree with the cell being renamed.
 
+## How the tables are stored
+
+The tables are held **per document** (`DocumentRecords`, one slot per URI)
+and exposed as workspace-wide iterators that chain the slots in slot order —
+`procs()`, `classes()`, `invocations()` and the rest return an
+`impl Iterator`, not a slice.  That is what makes `remove_document` cost the
+removed document's own rows rather than a pass over the whole workspace
+(issue #1149): flat workspace-wide vectors made a removal fourteen
+`Vec::retain` passes with a `String` compare per element, over tables that
+hold one row per call site and per qualified variable occurrence — 10⁵–10⁶
+rows on tcllib — and the server re-indexes a document on every diagnostics
+publish.
+
+A removal clears the document's slot and returns it to a LIFO free list, so
+the remove-then-add of a publish hands the document straight back the slot it
+just gave up: its position in the workspace-wide order is stable across a
+re-index, and the slot vector stays bounded by the workspace's peak document
+count.  Adding the **same** URI twice without an intervening removal
+accumulates (it does not replace): the M9 source-rehoming pass indexes one
+analysis per source-site namespace, and those views are several runtime
+identities of one physical file.
+
+An **edit** does not touch the index.  `did_change` commits the buffer splice
+and the salsa source only; `publish_diagnostics_result` re-indexes the
+document (remove + add) under the `documents` lock behind its `is_current`
+re-check, so it can only ever install the analysis of the revision the buffer
+actually holds.  Between the two the document contributes its *previous
+published* rows — the same staleness every other document carries between
+publishes, and strictly less misleading than a per-keystroke window in which
+the edited file contributes no procs, classes or call sites at all.
+
 ## Derived views and their invalidation
 
 `WorkspaceIndex::generation()` is bumped by `add_document` /
