@@ -298,12 +298,13 @@ pub fn run_all_checks_with_solved_and_patterns(
     // shimmer / thunking / byte-array), computed on each procedure — **and**,
     // via `analysable_body_function_units`, every `TclOO` method body and
     // synthetic body unit (`apply` lambda, `namespace eval` body) too, so the
-    // shimmer family `function_nontaint_checks` folds in reaches those places
-    // as well (no separate widening loop needed here: unlike
-    // `tcl-lsp-db::proc_taint_solve`'s memoised path below, which still
-    // iterates the proc-only `analysable_functions` and so keeps its own
-    // explicit `shimmer_family_checks` pass over methods/body units) —
-    // rebased to its offset. Factored into [`function_nontaint_checks`] so
+    // whole family this folds in (SCCP constant branches, GVN redundancies and
+    // the shimmer half alike) reaches those places as well (no separate
+    // widening loop needed here: unlike `tcl-lsp-db::proc_taint_solve`'s
+    // memoised path, which still iterates the proc-only `analysable_functions`
+    // and so keeps its own explicit `function_nontaint_checks` top-up pass over
+    // methods/body units) — rebased to its offset. Factored into
+    // [`function_nontaint_checks`] so
     // the LSP db can memoise it per procedure on the offset-0 `FnLatticeKey`
     // (SRV-INCREMENTAL 2a): an unedited procedure's checks are a cache hit
     // instead of recomputed over the whole unit every edit.

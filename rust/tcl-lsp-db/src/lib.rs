@@ -1760,19 +1760,31 @@ pub fn proc_taint_solve<'db>(
         }
     }
 
-    // The intrep-shimmer family alone, extended to `TclOO` method bodies and
+    // The per-function non-taint checks over `TclOO` method bodies and
     // synthetic body units (`apply` lambdas, `namespace eval` bodies). The
-    // main per-function loop above still iterates the proc-only
+    // main per-function loop above iterates the proc-only
     // `analysable_functions`, unlike `compiler_checks::run_all_checks_with_solved_and_patterns`'s
-    // direct path (which iterates the wider `all_body_function_units` and so
-    // needs no separate top-up — see `analysable_methods_and_body_units`'s
+    // direct path (which iterates the wider `analysable_body_function_units`
+    // and so needs no separate top-up — see `analysable_methods_and_body_units`'s
     // own doc comment for why adding it there too would double-count), so
     // this memoised path needs its own top-up loop to reach the same
-    // methods/body units. These never get an offset-0 `FnLatticeKey`, so
-    // they carry absolute spans already and need no rebase, same as the
-    // `None` arm above.
+    // methods/body units.
+    //
+    // This must run the **whole** `function_nontaint_checks` family, not just
+    // its `shimmer_family_checks` half: the direct path folds the SCCP
+    // constant-branch (O100) and GVN full / partial / loop-invariant
+    // (O105/O106) halves in here too, and running only the shimmer half made
+    // the memoised path silently drop every O1xx finding inside a method or a
+    // `namespace eval` body — 20 of them on one large TclOO corpus file
+    // (issue #1117), a diff users on the LSP (memoised) path saw as missing
+    // hints the CLI reported.
+    //
+    // These units never get an offset-0 `FnLatticeKey`, so they carry absolute
+    // spans already and need no rebase, same as the `None` arm above (the
+    // direct path's `shift` is likewise the identity here — a whole-module
+    // build leaves every `FunctionUnit::base_offset` at 0).
     for fu in cu.analysable_methods_and_body_units() {
-        for d in tcl_compiler::compiler_checks::shimmer_family_checks(
+        for d in tcl_compiler::compiler_checks::function_nontaint_checks(
             fu,
             registry,
             dialect_opt,
@@ -3545,6 +3557,139 @@ mod tests {
                 "optimisations differ for ({dialect}):\n{src}"
             );
         }
+    }
+
+    /// A `TclOO` method body / `namespace eval` body / `apply` lambda is not a
+    /// procedure, so it never gets an offset-0 `FnLatticeKey` and is invisible to
+    /// [`proc_taint_solve`]'s main `analysable_functions` loop — it is reached
+    /// only by that query's explicit top-up over
+    /// `analysable_methods_and_body_units`.  That top-up used to run just the
+    /// `shimmer_family_checks` half of `function_nontaint_checks`, so every SCCP
+    /// constant-branch (`O100`) and GVN full / partial / loop-invariant
+    /// (`O105`/`O106`) finding inside a method or a body unit was silently
+    /// dropped from the memoised path while the direct
+    /// [`compiler_check_diagnostics_uncached`] build reported it — 20 missing
+    /// hints on one large `TclOO` corpus file (issue #1117).
+    ///
+    /// The existing corpus differential could not see this: it sweeps the
+    /// procedural `tmp/tcl*/library` + `tcllib` trees, which define almost no
+    /// `TclOO` methods.  This fixture pins the shape directly, and asserts the
+    /// counts are **non-zero** so the equality cannot pass vacuously.
+    #[test]
+    fn compiler_check_memo_covers_method_and_body_unit_checks() {
+        let dialect = "tcl8.6";
+        // Each body carries an `O100` (SCCP-folded existence branch) *and* an
+        // `O106` (loop-invariant `lindex`), once inside a `TclOO` method, once
+        // inside a `destructor`, once inside an `apply` lambda, and once inside a
+        // `namespace eval` body — the four function kinds outside
+        // `analysable_functions`.
+        let body = "if {[info exists Missing]} { puts no }\n\
+                    for {set i 0} {$i < [llength $vals]} {incr i 2} {\n\
+                        set v [lindex $vals [expr {$i+1}]]\n\
+                        puts $v\n\
+                    }\n";
+        let src = format!(
+            "oo::class create K {{\n\
+                 variable vals\n\
+                 method m {{}} {{\n{body}}}\n\
+                 destructor {{\n{body}}}\n\
+             }}\n\
+             apply {{{{vals}} {{\n{body}}}}} {{a b}}\n\
+             namespace eval ns {{\n set vals {{a b}}\n{body}}}\n"
+        );
+
+        let db = TclDatabase::default();
+        let file = SourceFile::new(&db, src.clone(), dialect.to_owned(), None);
+        let got = compiler_check_diagnostics(&db, file, cfg(&db));
+        let registry = db.registry(dialect);
+        let want = compiler_check_diagnostics_uncached(&src, registry, dialect, None, None);
+
+        let o1xx = |ds: &[CompilerCheck]| {
+            ds.iter()
+                .filter(|d| matches!(d.code, DiagCode::O100 | DiagCode::O105 | DiagCode::O106))
+                .count()
+        };
+        assert!(
+            o1xx(&want.checks) >= 4,
+            "fixture must actually produce O1xx checks in the non-proc bodies, got {:?}",
+            want.checks
+        );
+        assert_eq!(
+            got.checks, want.checks,
+            "memoised checks drop findings inside TclOO method / body-unit bodies (#1117)"
+        );
+        assert_eq!(
+            o1xx(&got.checks),
+            o1xx(&want.checks),
+            "memoised O1xx hint count must equal the fresh build's"
+        );
+        assert_eq!(got.optimisations, want.optimisations);
+    }
+
+    /// The #1117 top-up must also **invalidate**: an edit inside a `TclOO`
+    /// method body has to move the memoised path's O1xx hints with it (and drop
+    /// them when the construct goes away), not serve a stale `proc_taint_solve`
+    /// result — the opposite failure direction from the missing-hints bug.
+    #[test]
+    fn method_body_checks_invalidate_on_edit() {
+        use salsa::Setter as _;
+        let dialect = "tcl8.6";
+        let with_hint = |pad: &str| {
+            format!(
+                "oo::class create K {{\n{pad}\
+                 method m {{}} {{\n\
+                     if {{[info exists Missing]}} {{ puts no }}\n\
+                 }}\n\
+                 }}\n"
+            )
+        };
+        // Same class with the constant-branch guard removed — no O100 at all.
+        let without_hint = "oo::class create K {\n\
+             method m {} {\n\
+                 puts no\n\
+             }\n\
+             }\n";
+
+        let mut db = TclDatabase::default();
+        let registry = db.registry(dialect);
+        let file = SourceFile::new(&db, with_hint(""), dialect.to_owned(), None);
+
+        let o100_spans = |ds: &[CompilerCheck]| -> Vec<(u32, u32)> {
+            ds.iter()
+                .filter(|d| d.code == DiagCode::O100)
+                .map(|d| (d.span.start(), d.span.end()))
+                .collect()
+        };
+
+        let mut seen: Vec<Vec<(u32, u32)>> = Vec::new();
+        // 1. baseline, 2. body shifted by a prepended line (spans must move),
+        // 3. the guard deleted (hint must disappear), 4. restored.
+        for src in [
+            with_hint(""),
+            with_hint("\n\n"),
+            without_hint.to_owned(),
+            with_hint(""),
+        ] {
+            file.set_text(&mut db).to(src.clone());
+            let got = compiler_check_diagnostics(&db, file, cfg(&db));
+            let want = compiler_check_diagnostics_uncached(&src, registry, dialect, None, None);
+            assert_eq!(got.checks, want.checks, "stale memo after edit to:\n{src}");
+            seen.push(o100_spans(&got.checks));
+        }
+        assert_eq!(seen[0].len(), 1, "baseline must have the method-body O100");
+        assert_ne!(
+            seen[0], seen[1],
+            "prepending lines must shift the method-body O100 span, not reuse the stale one"
+        );
+        assert!(
+            seen[2].is_empty(),
+            "deleting the guard must drop the method-body O100, got {:?}",
+            seen[2]
+        );
+        assert_eq!(
+            seen[3], seen[0],
+            "restoring the guard must restore the span"
+        );
     }
 
     /// The interprocedural taint cascade (`taint_cascade`, backlog #1) must stay
