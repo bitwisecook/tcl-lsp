@@ -53,11 +53,13 @@ All line/col arguments are **0-based**, matching the LSP protocol.
 
 ### Cross-file assertions
 
-`definition`, `references`, `diagnostics`, `code-actions`, `context`, and
-`all` wait for the server's background workspace scan to finish before
+`definition`, `references`, `diagnostics`, `code-actions`, `context`,
+`all`, `completion`, and `code-lens` wait for the server's background
+workspace scan to finish before
 proceeding (bounded by `--scan-timeout`, default 15s) — otherwise
 cross-file results (workspace variables, package tiers, cross-file
-definition/references) are racy depending on scan timing (issue #1094).
+definition/references, sibling-file completions, workspace-wide lens
+counts) are racy depending on scan timing (issue #1094).
 Other subcommands are single-file and unaffected. If you add a new
 cross-file check, call `client.wait_for_workspace_scan()` yourself before
 opening the document(s) it depends on — see the method's docstring in

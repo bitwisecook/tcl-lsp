@@ -23,13 +23,14 @@ Starts the server, sends LSP requests, and prints human-readable results.
 Uses only the Python standard library — no external dependencies.
 
 Cross-file assertions (definition/references/diagnostics/code-actions/
-context/all touching more than one file's worth of state — workspace
-variables, package tiers) wait out the server's background workspace scan
+context/all/completion/code-lens touching more than one file's worth of
+state — workspace variables, package tiers, sibling-file completions,
+workspace-wide lens counts) wait out the server's background workspace scan
 first via `LspClient.wait_for_workspace_scan()` (bounded by --scan-timeout,
 default 15s) rather than racing it — see issue #1094 and that method's
 docstring for the exact server-side signal it waits on. Single-file
-subcommands (semantic-tokens, hover, completion, format, ...) are
-unaffected and don't wait.
+subcommands (semantic-tokens, hover, format, ...) are unaffected and
+don't wait.
 
 Usage:
     python3 lsp_client.py semantic-tokens <file.tcl>
@@ -176,6 +177,10 @@ COMPLETION_KIND = {
 # would just race that republish instead. So for these, `main()` waits
 # *before* `open_document()`, ensuring the first (and only) diagnostics
 # publish already sees the fully-populated workspace state.
+# `completion` and `code-lens` also read `workspace_index` per-request
+# (completion enumerates sibling-file procedures; lenses count
+# workspace-wide references), so they wait too — before `didOpen` via
+# `main()`, which is also sufficient for their per-request reads.
 CROSS_FILE_COMMANDS = {
     "definition",
     "references",
@@ -183,6 +188,8 @@ CROSS_FILE_COMMANDS = {
     "code-actions",
     "context",
     "all",
+    "completion",
+    "code-lens",
 }
 
 SYMBOL_KIND = {
