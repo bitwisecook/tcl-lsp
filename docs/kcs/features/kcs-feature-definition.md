@@ -68,6 +68,34 @@ export further down the file still counts; an export written after the import
 the import and the export are in different files, nothing fixes which loads
 first, so navigation keeps answering rather than guessing a revocation.
 
+An import is not a permanent name, either. `namespace forget ::src::p` — or
+the unqualified `namespace forget p`, which drops whatever this namespace
+imported under that name — takes the alias away again, and a bare call written
+after it resolves to nothing; a call written *before* it still jumps to the
+source. Deleting the source command (`rename ::src::p {}`) has the same effect,
+because the alias holds the command *object*: a plain `rename ::src::p
+::src::pp` does **not** break it (the alias keeps working, only `namespace
+origin` moves), and redefining the source is seen straight through the link.
+Re-running the import after a forget brings the alias back.
+
+Importing onto a name the target namespace already has is an error unless the
+import carries `-force`, and the failed import installs nothing — so a bare
+call still reaches the *local* definition, and Go to Definition stays on it.
+"Already has" includes a name it imported earlier from somewhere else: a
+second unforced import of the same name from a different namespace fails too,
+and navigation keeps answering the first source. With `-force` the import
+replaces whatever was there, and from that point on the same bare call jumps
+to the **source** instead — until a `proc` of that name is written, which
+silently takes the name back and sends navigation to the new local
+definition.
+
+Imports chain. When `::A` imports `::B::*` and `::B` had imported `::C::*`
+(and re-exported), a bare call in `::A` runs `::C`'s body, and Go to Definition
+follows the whole chain to `::C`'s header — while a forget anywhere along it
+kills the call, exactly as `namespace origin` reports. The chase is bounded
+(eight hops, the same cap the rename / alias chase uses), so mutually
+importing namespaces cannot spin; past that bound navigation abstains.
+
 A proc declared twice in one file is two definitions of one command. A call
 between the two jumps to the **first** header, a call after both jumps to
 the second, and a cursor on either header stays on that header.
@@ -92,6 +120,33 @@ does not: it names whatever the surrounding scope chain supplies, which no
 other file can know, so it stays a within-file question. A `$name`-shaped
 run of characters inside a comment or a data brace substitutes nothing in
 real Tcl and is likewise never a jump target.
+
+A **namespace name** is a jump target too. The `::tomato` of `namespace
+children ::tomato`, `namespace exists ::tomato`, `namespace delete
+::tomato`, `namespace upvar ::tomato v local`, `namespace inscope`, or a
+second `namespace eval ::tomato { … }` block all land on the `namespace
+eval` blocks that declare that namespace — every one of them, in source
+order, because reopening a namespace extends the same namespace rather than
+making a new one. The declaring block may live in another file. A
+**relative** name resolves against the namespace it is written in, exactly
+as Tcl resolves it: inside `namespace eval ::outer`, `namespace exists
+inner` means `::outer::inner`, and the same words at the top level mean
+`::inner`. Words that only look like namespaces are not: `namespace tail`
+and `namespace qualifiers` take an arbitrary string, `namespace import` /
+`export` / `forget` take glob patterns, and `namespace origin` / `which`
+name commands. A namespace that exists only because it is a parent
+(`namespace eval ::p::q::r { … }` really does create `::p::q`) has no name
+of its own written anywhere, so nothing is reported for it.
+
+Two spellings surprise people, and both follow the same relative rule. The
+**empty** word names the global namespace at the top level — `namespace eval
+{} { … }` really does reopen `::`, and `namespace children {}` lists the same
+children as `namespace children ::` — so all three spellings are one symbol.
+Written inside another namespace the same word means that namespace's
+empty-named child, which Tcl refuses to create at all, so it resolves to
+nothing rather than to the namespace around it. And a **braced** name is an
+ordinary name: `namespace eval {my ns} { … }` creates a real namespace, and
+`namespace children {my ns}` jumps to it.
 
 A command a `package require`d package provides also jumps: the package's
 `pkgIndex.tcl` is resolved through the search path, including the one the
@@ -153,6 +208,8 @@ same name — Tcl keeps those in a separate table from variables.
 - A cross-file namespace variable stops resolving when the declaring file is
   no longer in the workspace index (it was closed *and* is outside every
   workspace folder).
+- A namespace whose target is computed (`namespace eval $ns { … }`) names no
+  fixed namespace, so neither the block nor any reference to it resolves.
 - A callee that binds a *literal* caller-side name (`upvar 1 options options`)
   names it nowhere at the call site, so there is no word to jump to.
 - A callee whose `upvar` level is not `1` (`upvar 0`, `upvar #0`, `upvar 2`)
@@ -166,13 +223,21 @@ same name — Tcl keeps those in a separate table from variables.
 - `rust/tcl-lsp-core/src/caller_frame.rs` — unit tests for the binding scan
 - `rust/tcl-lsp-core/src/definition.rs` (`mod tests`)
 - `rust/tcl-lsp-core/src/namespace_import.rs` (`mod tests`) — the
-  per-import-site export snapshot, shared by the same-document and workspace
-  resolvers
+  per-import-site export snapshot and the import edge's own lifecycle
+  (`alias_live_at`), both shared by the same-document and workspace resolvers
 - `rust/tcl-lsp-server/tests/e2e/definition.rs`
   (`wildcard_import_survives_a_later_export_clear_cross_document`,
-  `wildcard_import_ignores_an_export_written_after_it_cross_document`)
+  `wildcard_import_ignores_an_export_written_after_it_cross_document`,
+  `a_forgotten_wildcard_import_stops_resolving_cross_document`,
+  `a_forced_import_shadows_the_local_command_cross_document`,
+  `a_wildcard_import_chain_follows_to_the_original_source_cross_document`,
+  `deleting_the_source_command_kills_the_import_cross_document`)
 - `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs` (cross-file namespace
   variables, cross-file class-reference arguments)
+- `rust/tcl-lsp-core/src/namespace_symbol.rs` (`mod tests`) — the shared
+  namespace resolver definition, hover, and references all answer through
+- `rust/tcl-lsp-server/tests/e2e/issue1088_namespace_symbols.rs` (namespace
+  names as jump targets, in one file and across files)
 - `rust/tcl-lsp-server/src/lib.rs` unit tests
   (`definition_resolves_through_a_document_auto_path_package`,
   `set_auto_path_puts_every_list_element_on_the_search_path`,

@@ -578,6 +578,7 @@ impl Analyser {
         self.result.class_body_spans.extend(r.class_body_spans);
         self.result.auto_path_entries.extend(r.auto_path_entries);
         self.result.qualified_var_refs.extend(r.qualified_var_refs);
+        self.result.namespace_refs.extend(r.namespace_refs);
         self.result.regex_patterns.extend(r.regex_patterns);
         self.result
             .namespace_overrides
@@ -1069,6 +1070,9 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
         x.range = shift(x.range, d);
     }
     for x in &mut r.qualified_var_refs {
+        x.span = shift(x.span, d);
+    }
+    for x in &mut r.namespace_refs {
         x.span = shift(x.span, d);
     }
     for x in &mut r.regex_patterns {

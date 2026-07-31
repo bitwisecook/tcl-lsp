@@ -34,8 +34,9 @@ use tcl_lexer::{Token, TokenType};
 use super::ctx::{FactoryCandidate, ProcBodyInfo, ScanCtx};
 use super::params::parse_param_list;
 use super::types::{
-    SignatureAutoPathEntry, SignatureClass, SignatureCommandAlias, SignatureNamespaceImport,
-    SignaturePackageRequire, SignatureProc, SignatureRename, SignatureScanResult, SignatureSource,
+    SignatureAutoPathEntry, SignatureClass, SignatureCommandAlias, SignatureNamespaceForget,
+    SignatureNamespaceImport, SignaturePackageRequire, SignatureProc, SignatureRename,
+    SignatureScanResult, SignatureSource,
 };
 
 /// Fully qualify `name` within `ns_prefix` following Tcl scoping.
@@ -70,6 +71,53 @@ fn canonical_subcommand<'w>(
         .and_then(|r| r.get(parent))
         .and_then(|spec| spec.resolve_subcommand(word))
         .map_or(word, |sub| sub.name)
+}
+
+/// How many of `args`' leading words `PARENT SUB` consumes as option flags,
+/// entirely from registry data: a word matching a declared flag option of
+/// that subcommand, capped by its declared
+/// [`tcl_registry::SubCommand::max_leading_option_words`].
+///
+/// The scanner-side twin of the analyser's
+/// `Analyser::namespace_leading_flag_words` — see that function for why the
+/// match is exact rather than the generic unique-prefix rule, and why the
+/// cap is registry data. Kept in step so the light background scan and the
+/// full analyser cannot disagree on where a `namespace import`'s patterns
+/// start.
+///
+/// `0` with no registry attached: a flagless read then treats the option word
+/// as an ordinary pattern, which the callers below discard anyway (`-force`
+/// carries no `::`).
+///
+/// The subcommand's own declared `options` are read directly rather than
+/// through a dialect profile: this scan has no resolved dialect, and the two
+/// subcommands involved (`namespace import` / `namespace forget`) declare no
+/// dialect-gated options, so profile filtering could only ever return the same
+/// set.
+fn leading_flag_words(
+    registry: Option<&tcl_registry::CommandRegistry>,
+    parent: &str,
+    sub: &str,
+    args: &[String],
+) -> usize {
+    let Some(sub_spec) = registry
+        .and_then(|r| r.get(parent))
+        .and_then(|spec| spec.subcommand(sub))
+    else {
+        return 0;
+    };
+    let cap = sub_spec
+        .max_leading_option_words
+        .map_or(usize::MAX, usize::from);
+    args.iter()
+        .take(cap)
+        .take_while(|w| {
+            sub_spec
+                .options
+                .iter()
+                .any(|o| o.matches(w.as_str()) && !o.takes_value())
+        })
+        .count()
 }
 
 /// Insert a class record under `result.classes`, computing the
@@ -246,7 +294,62 @@ pub(super) fn handle_namespace(
         return;
     }
     if sub == "import" && texts.len() >= 3 {
-        handle_namespace_import(texts, argv, ns_prefix, &mut ctx.result);
+        handle_namespace_import(texts, argv, ns_prefix, ctx.registry, &mut ctx.result);
+    }
+    if sub == "forget" && texts.len() >= 3 {
+        handle_namespace_forget(texts, argv, ns_prefix, ctx.registry, &mut ctx.result);
+    }
+}
+
+/// Handler for `namespace forget ?PATTERN…?` — the removal half of the
+/// import edge's lifecycle log (issue #1103).
+///
+/// The scanner-side twin of `Analyser::handle_namespace_forget_command`; see
+/// that function and
+/// [`crate::signature_scan::types::SignatureNamespaceForget`] for the
+/// semantics and the oracle. Dynamic patterns are skipped (revoking an alias
+/// on a guess would silently drop real references).
+pub(super) fn handle_namespace_forget(
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
+    result: &mut SignatureScanResult,
+) {
+    let forgetting_ns = if ns_prefix.is_empty() {
+        "::".to_string()
+    } else {
+        format!("::{ns_prefix}")
+    };
+    let mut i = 2 + leading_flag_words(registry, "namespace", "forget", &texts[2..]);
+    while i < texts.len() && i < argv.len() {
+        let raw = &texts[i];
+        if raw.contains('$') || raw.contains('[') {
+            i += 1;
+            continue;
+        }
+        let (source_ns, pattern) = match raw.rsplit_once("::") {
+            Some((prefix, tail)) => {
+                let prefix = if prefix.is_empty() {
+                    "::".to_string()
+                } else if prefix.starts_with("::") {
+                    prefix.to_string()
+                } else if forgetting_ns == "::" {
+                    format!("::{prefix}")
+                } else {
+                    format!("{forgetting_ns}::{prefix}")
+                };
+                (Some(prefix), tail.to_string())
+            }
+            None => (None, raw.clone()),
+        };
+        result.namespace_forgets.push(SignatureNamespaceForget {
+            ns: forgetting_ns.clone(),
+            source_ns,
+            pattern,
+            range: argv[i].span,
+        });
+        i += 1;
     }
 }
 
@@ -262,6 +365,7 @@ pub(super) fn handle_namespace_import(
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
     result: &mut SignatureScanResult,
 ) {
     let importing_ns = if ns_prefix.is_empty() {
@@ -269,13 +373,16 @@ pub(super) fn handle_namespace_import(
     } else {
         format!("::{ns_prefix}")
     };
-    let mut i = 2;
+    // Which leading words are options, and how many are consumed, is registry
+    // data — not the `-force` string match this loop used to carry. That the
+    // option word *was* consumed is exactly "`-force` was given", since
+    // `IMPORT_OPTIONS` declares one option and `max_leading_option_words`
+    // caps it at one.
+    let flag_words = leading_flag_words(registry, "namespace", "import", &texts[2..]);
+    let forced = flag_words > 0;
+    let mut i = 2 + flag_words;
     while i < texts.len() {
         let pattern_raw = &texts[i];
-        if pattern_raw == "-force" {
-            i += 1;
-            continue;
-        }
         if !pattern_raw.contains("::") || pattern_raw.contains('$') || pattern_raw.contains('[') {
             i += 1;
             continue;
@@ -292,6 +399,7 @@ pub(super) fn handle_namespace_import(
             pattern,
             range: argv[i].span,
             conjectured: false,
+            forced,
         });
         i += 1;
     }
@@ -549,6 +657,9 @@ pub(super) fn maybe_handle_import_wrapper(
         pattern: format!("{source_ns}::*"),
         range: argv[0].span,
         conjectured: true,
+        // The wrapper body is not read, so `-force` is unknown; `false` is
+        // the conservative reading (see the analyser twin).
+        forced: false,
     });
 }
 
@@ -771,7 +882,7 @@ mod tests {
         ];
         let argv = vec![token(0, 9), token(10, 16), token(17, 25)];
         let mut result = SignatureScanResult::default();
-        handle_namespace_import(&texts, &argv, "", &mut result);
+        handle_namespace_import(&texts, &argv, "", None, &mut result);
         assert_eq!(result.namespace_imports.len(), 1);
         let imp = &result.namespace_imports[0];
         assert_eq!(imp.ns, "::");
@@ -789,9 +900,88 @@ mod tests {
         ];
         let argv = vec![token(0, 9), token(10, 16), token(17, 23), token(24, 32)];
         let mut result = SignatureScanResult::default();
-        handle_namespace_import(&texts, &argv, "", &mut result);
+        handle_namespace_import(&texts, &argv, "", None, &mut result);
         assert_eq!(result.namespace_imports.len(), 1);
         assert_eq!(result.namespace_imports[0].pattern, "::foo::*");
+    }
+
+    /// The consumed leading option word *is* `-force`, read from the
+    /// registry's own `IMPORT_OPTIONS` + `max_leading_option_words` rather
+    /// than matched by name (issue #1103).
+    #[test]
+    fn handle_namespace_import_records_the_force_flag() {
+        let registry = tcl_registry::registry_for_dialect("tcl9.0");
+        let texts = vec![
+            "namespace".to_string(),
+            "import".to_string(),
+            "-force".to_string(),
+            "::foo::*".to_string(),
+        ];
+        let argv = vec![token(0, 9), token(10, 16), token(17, 23), token(24, 32)];
+        let mut result = SignatureScanResult::default();
+        handle_namespace_import(&texts, &argv, "", Some(registry), &mut result);
+        assert_eq!(result.namespace_imports.len(), 1);
+        assert!(result.namespace_imports[0].forced);
+
+        let texts = vec![
+            "namespace".to_string(),
+            "import".to_string(),
+            "::foo::*".to_string(),
+        ];
+        let argv = vec![token(0, 9), token(10, 16), token(17, 25)];
+        let mut result = SignatureScanResult::default();
+        handle_namespace_import(&texts, &argv, "", Some(registry), &mut result);
+        assert_eq!(result.namespace_imports.len(), 1);
+        assert!(!result.namespace_imports[0].forced);
+    }
+
+    /// `namespace forget` in both pattern shapes `Tcl_ForgetImport` accepts.
+    #[test]
+    fn handle_namespace_forget_records_both_pattern_shapes() {
+        let registry = tcl_registry::registry_for_dialect("tcl9.0");
+        // Qualified: names the source namespace.
+        let texts = vec![
+            "namespace".to_string(),
+            "forget".to_string(),
+            "::src::p".to_string(),
+        ];
+        let argv = vec![token(0, 9), token(10, 16), token(17, 25)];
+        let mut result = SignatureScanResult::default();
+        handle_namespace_forget(&texts, &argv, "dst", Some(registry), &mut result);
+        assert_eq!(result.namespace_forgets.len(), 1);
+        let fgt = &result.namespace_forgets[0];
+        assert_eq!(fgt.ns, "::dst");
+        assert_eq!(fgt.source_ns.as_deref(), Some("::src"));
+        assert_eq!(fgt.pattern, "p");
+
+        // Simple: matches this namespace's own imported names, any origin.
+        let texts = vec![
+            "namespace".to_string(),
+            "forget".to_string(),
+            "p*".to_string(),
+        ];
+        let argv = vec![token(0, 9), token(10, 16), token(17, 19)];
+        let mut result = SignatureScanResult::default();
+        handle_namespace_forget(&texts, &argv, "dst", Some(registry), &mut result);
+        assert_eq!(result.namespace_forgets.len(), 1);
+        assert!(result.namespace_forgets[0].source_ns.is_none());
+        assert_eq!(result.namespace_forgets[0].pattern, "p*");
+    }
+
+    /// A dynamic forget pattern is skipped rather than guessed at: revoking
+    /// an alias on a guess would silently drop real references.
+    #[test]
+    fn handle_namespace_forget_skips_dynamic_patterns() {
+        let registry = tcl_registry::registry_for_dialect("tcl9.0");
+        let texts = vec![
+            "namespace".to_string(),
+            "forget".to_string(),
+            "${ns}::*".to_string(),
+        ];
+        let argv = vec![token(0, 9), token(10, 16), token(17, 25)];
+        let mut result = SignatureScanResult::default();
+        handle_namespace_forget(&texts, &argv, "", Some(registry), &mut result);
+        assert!(result.namespace_forgets.is_empty());
     }
 
     #[test]
@@ -803,7 +993,7 @@ mod tests {
         ];
         let argv = vec![token(0, 9), token(10, 16), token(17, 23)];
         let mut result = SignatureScanResult::default();
-        handle_namespace_import(&texts, &argv, "foo", &mut result);
+        handle_namespace_import(&texts, &argv, "foo", None, &mut result);
         assert_eq!(result.namespace_imports.len(), 1);
         let imp = &result.namespace_imports[0];
         assert_eq!(imp.ns, "::foo");
@@ -819,7 +1009,7 @@ mod tests {
         ];
         let argv = vec![token(0, 9), token(10, 16), token(17, 25)];
         let mut result = SignatureScanResult::default();
-        handle_namespace_import(&texts, &argv, "", &mut result);
+        handle_namespace_import(&texts, &argv, "", None, &mut result);
         assert!(result.namespace_imports.is_empty());
     }
 

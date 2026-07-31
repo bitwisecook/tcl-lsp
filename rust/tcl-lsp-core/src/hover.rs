@@ -209,6 +209,27 @@ pub fn qualified_variable_hover(
     )))
 }
 
+/// Hover for a **namespace**, rendered from counts the caller gathered — one
+/// document for the in-document provider, the whole workspace index for the
+/// server's cross-document tier (issue #1088).
+///
+/// `qualified` is the `::`-rooted namespace name
+/// ([`crate::namespace_symbol::namespace_cell_at`]).  The markdown itself
+/// comes from [`crate::namespace_symbol::namespace_hover_markdown`], the one
+/// renderer, so the two tiers cannot word the same fact differently; this
+/// wrapper exists because [`Hover`]'s constructors are crate-private.
+///
+/// `None` when nothing in the gathered set declares the namespace — a genuine
+/// "no hover", never a licence for the caller to fall through to command
+/// documentation.
+#[must_use]
+pub fn namespace_hover(
+    qualified: &str,
+    facts: crate::namespace_symbol::NamespaceFacts,
+) -> Option<Hover> {
+    crate::namespace_symbol::namespace_hover_markdown(qualified, facts).map(Hover::markdown)
+}
+
 /// `<ensemble> <subcommand>` hover — a static `namespace ensemble create
 /// -map`/`-subcommands` mapping (issue #923 idx 106), the hover twin of
 /// `definition()`'s identical check. Extracted from
@@ -233,8 +254,14 @@ fn ensemble_subcommand_hover(
         &analysis.namespace_overrides,
     );
     let target = crate::definition::ensemble_subcommand_target(analysis, &namespace, &head, &sub)?;
-    let proc_def =
-        crate::definition::resolve_called_proc(analysis, source, "::", target, registry)?;
+    let proc_def = crate::definition::resolve_called_proc(
+        analysis,
+        source,
+        "::",
+        target,
+        cursor_offset,
+        registry,
+    )?;
     let text = format!(
         "**Ensemble subcommand** of `{head}`\n\n{}",
         proc_hover_text(proc_def)
@@ -302,8 +329,14 @@ fn proc_hover_at(
         cursor_offset,
         &analysis.namespace_overrides,
     );
-    let proc_def =
-        crate::definition::resolve_called_proc(analysis, source, &namespace, word, registry)?;
+    let proc_def = crate::definition::resolve_called_proc(
+        analysis,
+        source,
+        &namespace,
+        word,
+        cursor_offset,
+        registry,
+    )?;
     Some(Hover::markdown(proc_hover_text(proc_def)))
 }
 
@@ -536,6 +569,23 @@ pub fn hover_with_profile(
     // (`proc p [makeargs] {…}`) holds live code and stays navigable.
     if crate::definition::offset_is_in_parameter_list(analysis, source, cursor_offset) {
         return None;
+    }
+
+    // A word naming a namespace (issue #1088) — span-precise, so it is asked
+    // before every word-based resolver AND it is **definitive**: once the
+    // cursor is provably inside a registry-declared `ArgRole::NamespaceName`
+    // argument, a proc, class, or built-in command of the same spelling is
+    // not what it refers to.  Tcl keeps namespaces in their own symbol
+    // space, so falling through on an empty local answer produced *command*
+    // documentation for `namespace exists string` whenever `::string` was
+    // declared in a sibling document — and, because that is a `Some`, the
+    // server returned it and never consulted the cross-document namespace
+    // tier at all (issue #1088 review, finding 1).  `None` here means "no
+    // local answer", which is exactly the signal that tier needs.
+    if let Some(cell) =
+        crate::namespace_symbol::namespace_cell_at(source, analysis, line, character)
+    {
+        return crate::namespace_symbol::namespace_hover_text(analysis, &cell).map(Hover::markdown);
     }
 
     if let Some(hover) = format_string_hover(source, line, character) {

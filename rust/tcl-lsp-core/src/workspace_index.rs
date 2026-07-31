@@ -57,8 +57,21 @@
 //! differential-audit findings idx 65 / 75 / 78).  An **unqualified**
 //! `$v` names whichever cell the local scope chain supplies, which is a
 //! per-document question with no statically-sound cross-file answer, so
-//! proc locals and bare occurrences are still not indexed.  Namespaces
-//! themselves are not indexed.
+//! proc locals and bare occurrences are still not indexed.
+//!
+//! **Namespaces** are indexed as first-class symbols too
+//! ([`WorkspaceNamespaceRef`], issue #1088): every word the registry marks
+//! [`tcl_registry::ArgRole::NamespaceName`] — the declaring `namespace eval`
+//! name token and every other spelling (`namespace children ::tomato`,
+//! `namespace exists ns`, `namespace delete ::a`, `namespace upvar ns v l`).
+//! This tier needs no qualified-only bound the way variables do: the analyser
+//! roots a relative namespace word against its own lexical namespace before
+//! recording it, so every indexed row names one namespace absolutely.  A
+//! **computed** target (`namespace eval $ns { … }`) is recorded nowhere — it
+//! names no static namespace — and a namespace brought into being only as an
+//! implicit parent (`namespace eval ::p::q::r {}` creates `::p` and `::p::q`
+//! on both interpreters) has no declaring row of its own, because its name is
+//! not written anywhere.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -311,6 +324,32 @@ pub struct WorkspaceVariableAlias {
     pub qualified_name: String,
 }
 
+/// One occurrence of a word naming a **namespace**, recorded workspace-wide —
+/// the cross-document half of issue #1088, lifted verbatim from
+/// [`tcl_compiler::analyser::NamespaceRef`].
+///
+/// One table, not two, because a namespace's declaring site *is* one of its
+/// spellings: the `::tomato` of `namespace eval ::tomato { … }` is both the
+/// definition go-to-definition answers with and a word find-references
+/// reports.  [`Self::declares`] is the discriminator, and it is registry data
+/// ([`tcl_registry::Traits::DECLARES_NAMESPACE`]), not a spelling check.
+///
+/// Unlike [`WorkspaceVariable`] this table needs no qualified-only bound: the
+/// analyser roots a relative namespace word against its own lexical namespace
+/// before recording it, so every row already names one namespace absolutely,
+/// spellable from any document.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceNamespaceRef {
+    /// Document the occurrence is in.
+    pub uri: String,
+    /// `::`-rooted namespace the occurrence names.
+    pub qualified_name: String,
+    /// Byte span of the name token as written.
+    pub span: Span,
+    /// `true` for a declaring `namespace eval` name word.
+    pub declares: bool,
+}
+
 /// Whether a word carries a substitution marker, so its run-time text is not
 /// the text as written.
 fn is_computed_word(word: &str) -> bool {
@@ -436,6 +475,9 @@ pub struct WorkspaceImportGate {
     /// Span of the innermost proc/class body containing the import; `None` at
     /// load level. See [`WorkspaceGlobImport::enclosing_body`].
     pub enclosing_body: Option<Span>,
+    /// `true` when the import carried its declared leading option word —
+    /// `namespace import -force`. See [`WorkspaceGlobImport::forced`].
+    pub forced: bool,
 }
 
 /// One wildcard `namespace import NS::*` recorded in the index.
@@ -488,6 +530,62 @@ pub struct WorkspaceGlobImport {
     /// weaker `at <= import_at` — which rejected such an export and lost a
     /// real imported alias.
     pub enclosing_body: Option<Span>,
+    /// `true` when the import carried its declared leading option word —
+    /// `namespace import -force`.
+    ///
+    /// Decides what happens when the importing namespace already holds a
+    /// command of the imported name (oracle tclsh 8.6.14 / 9.0.4, issue
+    /// #1103): without `-force` the import raises `can't import command "p":
+    /// already exists` and installs **nothing**, so a bare call still reaches
+    /// the local definition; with `-force` it silently replaces it and the
+    /// call reaches the source (`namespace origin` → `::src::p`). See
+    /// [`tcl_compiler::signature_scan::types::SignatureNamespaceImport::forced`]
+    /// for why this is registry data rather than a `-force` name match.
+    pub forced: bool,
+}
+
+/// One `namespace forget` **event** recorded in the index — the removal half
+/// of the import edge's lifecycle log (issue #1103).
+///
+/// Aggregated workspace-wide for the same reason
+/// [`WorkspaceNamespaceExport`] is: the forget and the import it undoes need
+/// not live in the same file. Ordering only means something *within* a
+/// document, which is why [`Self::uri`] and [`Self::at`] are always read
+/// together.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceNamespaceForget {
+    /// Document the `namespace forget` is in.
+    pub uri: String,
+    /// The namespace losing the aliases, with leading `::`.
+    pub ns: String,
+    /// Source namespace named by a *qualified* pattern (`::src` for
+    /// `namespace forget ::src::p`), `None` for a simple pattern — which
+    /// matches this namespace's own imported command names whatever their
+    /// origin. See
+    /// [`tcl_compiler::signature_scan::types::SignatureNamespaceForget`].
+    pub source_ns: Option<String>,
+    /// The pattern's final `::`-segment, exactly as written, matched against
+    /// a command's bare name with Tcl glob semantics.
+    pub pattern: String,
+    /// Byte offset of the event within [`Self::uri`].
+    pub at: u32,
+}
+
+/// One straight-line command **deletion** recorded in the index — `rename
+/// OLD {}` / `interp alias {} NAME {}`.
+///
+/// A deletion is a lifecycle event on every import edge pointing at the
+/// deleted command: the alias holds the command object, so deleting the
+/// source kills the alias too (issue #1103, oracle on
+/// [`tcl_compiler::analyser::AnalysisResult::deleted_commands`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceCommandDeletion {
+    /// Document the deletion is in.
+    pub uri: String,
+    /// The `::`-normalised qualified name that was deleted.
+    pub qualified_name: String,
+    /// Byte offset of the deleting statement within [`Self::uri`].
+    pub at: u32,
 }
 
 impl WorkspaceGlobImport {
@@ -576,12 +674,15 @@ pub struct WorkspaceIndex {
     variables: Vec<WorkspaceVariable>,
     variable_refs: Vec<WorkspaceVariableRef>,
     variable_aliases: Vec<WorkspaceVariableAlias>,
+    namespace_refs: Vec<WorkspaceNamespaceRef>,
     invocations: Vec<WorkspaceInvocation>,
     sources: Vec<WorkspaceSource>,
     package_requires: Vec<WorkspacePackageRequire>,
     command_links: Vec<WorkspaceCommandLink>,
     glob_imports: Vec<WorkspaceGlobImport>,
     namespace_exports: Vec<WorkspaceNamespaceExport>,
+    namespace_forgets: Vec<WorkspaceNamespaceForget>,
+    command_deletions: Vec<WorkspaceCommandDeletion>,
     generation: u64,
     command_names: CommandNameCache,
     live_links: LiveLinkCache,
@@ -724,8 +825,37 @@ impl WorkspaceIndex {
                     .iter()
                     .map(|l| {
                         l.import_gate.as_ref().is_none_or(|g| {
-                            !observable.contains(g.source_ns.trim_start_matches("::"))
-                                || wci.exports_name_at(&g.source_ns, &g.name, g.site(&l.uri))
+                            if !observable.contains(g.source_ns.trim_start_matches("::")) {
+                                return true;
+                            }
+                            if !wci.exports_name_at(&g.source_ns, &g.name, g.site(&l.uri)) {
+                                return false;
+                            }
+                            // A non-`-force` import onto a name the target
+                            // namespace already holds installs nothing at all
+                            // (oracle on `WorkspaceGlobImport::forced`), so
+                            // the link it would introduce is not live either.
+                            // "Already holds" is a real *definition* or an
+                            // earlier live alias from a **different** source
+                            // in the same document (issue #1116 finding 4);
+                            // a same-source re-import is a silent no-op, and
+                            // two links cancelling each other out is what the
+                            // different-source test rules out.
+                            if !g.forced
+                                && (self.defines_command(&l.linked_qname)
+                                    || self.earlier_conflicting_link(l))
+                            {
+                                return false;
+                            }
+                            // …and the alias it installed can be taken away
+                            // again: `namespace forget`, a redefinition of the
+                            // imported name, or destruction of the source
+                            // command (issue #1116 finding 2).
+                            let importing_ns = l
+                                .linked_qname
+                                .rsplit_once("::")
+                                .map_or("::", |(ns, _)| if ns.is_empty() { "::" } else { ns });
+                            wci.link_alias_live(importing_ns, g, &l.uri)
                         })
                     })
                     .collect(),
@@ -738,13 +868,63 @@ impl WorkspaceIndex {
             .collect()
     }
 
+    /// Whether the workspace holds a real proc or class definition at
+    /// `qualified_name` — the "already exists" side of a non-`-force`
+    /// `namespace import` conflict.
+    ///
+    /// Deliberately *not* [`Self::workspace_command_exists`], which also
+    /// admits linked names: a link is what this question is being asked
+    /// about, so counting one would make an import conflict with itself.
+    /// Whether another **exact** import link in the same document installs
+    /// the same name from a *different* source before this one — the live
+    /// alias a non-`-force` import conflicts with (issue #1116 finding 4).
+    ///
+    /// Oracle (9.0.4 / 8.6.14): with `::dst` already importing `::A::p`, a
+    /// later `namespace import ::B::p` raises `can't import command "p":
+    /// already exists` and leaves `namespace origin ::dst::p` → `::A::p`.
+    ///
+    /// Restricted to one document because that is where an order exists: two
+    /// imports in different files have none, and conflicting on a guess would
+    /// drop a link Tcl really installed. A **same-source** re-import is a
+    /// silent no-op (oracle), so it is not a conflict — which is also what
+    /// stops a link from conflicting with itself.
+    fn earlier_conflicting_link(&self, link: &WorkspaceCommandLink) -> bool {
+        self.command_links.iter().any(|other| {
+            other.uri == link.uri
+                && other.linked_qname == link.linked_qname
+                && other.target_qname != link.target_qname
+                && other
+                    .import_gate
+                    .as_ref()
+                    .zip(link.import_gate.as_ref())
+                    .is_some_and(|(o, l)| o.at < l.at)
+        })
+    }
+
+    fn defines_command(&self, qualified_name: &str) -> bool {
+        let target = qualified_name.trim_start_matches("::");
+        self.procs
+            .iter()
+            .any(|p| p.qualified_name.trim_start_matches("::") == target)
+            || self
+                .classes
+                .iter()
+                .any(|c| c.qualified_name.trim_start_matches("::") == target)
+    }
+
     /// The `::`-stripped namespaces the workspace can say anything about: one
-    /// that owns an indexed proc or class, or that declares a `namespace
-    /// export` somewhere.
+    /// that owns an indexed proc or class, that declares a `namespace export`
+    /// somewhere, or that an indexed `namespace eval` block declares.
     ///
     /// The discriminator between "this namespace does not export the name"
     /// (a fact) and "this namespace is not in the workspace at all" (no
     /// information) — see [`Self::live_command_links`].
+    ///
+    /// The declaring-block source (issue #1088) closes a hole the first two
+    /// leave: a `namespace eval ::ns { namespace import ::other::* }` block
+    /// that declares no proc, class, or export of its own *is* a namespace
+    /// the workspace can see, and treating it as unknown made the import gate
+    /// abstain where it had the evidence to decide.
     fn observable_namespaces(&self) -> HashSet<&str> {
         fn owning_ns(qualified: &str) -> &str {
             qualified
@@ -760,6 +940,12 @@ impl WorkspaceIndex {
                 self.namespace_exports
                     .iter()
                     .map(|e| e.ns.trim_start_matches("::")),
+            )
+            .chain(
+                self.namespace_refs
+                    .iter()
+                    .filter(|n| n.declares)
+                    .map(|n| n.qualified_name.trim_start_matches("::")),
             )
             .collect()
     }
@@ -825,6 +1011,7 @@ impl WorkspaceIndex {
             });
         }
         self.index_variables(uri, analysis);
+        self.index_namespace_refs(uri, analysis);
         for inv in &analysis.command_invocations {
             self.invocations.push(WorkspaceInvocation {
                 uri: uri.to_owned(),
@@ -859,7 +1046,40 @@ impl WorkspaceIndex {
                 clears: exp.clears,
             });
         }
+        self.index_import_lifecycle(uri, analysis);
         self.index_command_links(uri, analysis);
+    }
+
+    /// Lift a document's `namespace forget` events and command **destructions**
+    /// — the removal half of the import edge's lifecycle (issue #1103).
+    ///
+    /// A destroying `rename OLD {}` / `interp alias {} NAME {}` kills every
+    /// import alias pointing at `OLD`, because the alias holds the command
+    /// object; a plain `rename OLD NEW` does not, which is why
+    /// `AnalysisResult::destroyed_commands` (not `deleted_commands`) is the
+    /// source here.
+    fn index_import_lifecycle(&mut self, uri: &str, analysis: &AnalysisResult) {
+        for fgt in &analysis.namespace_forgets {
+            self.namespace_forgets.push(WorkspaceNamespaceForget {
+                uri: uri.to_owned(),
+                ns: fgt.ns.clone(),
+                source_ns: fgt.source_ns.clone(),
+                pattern: fgt.pattern.clone(),
+                at: fgt.range.start(),
+            });
+        }
+        // `HashMap`-valued, so sort into source order for the same reason
+        // `sorted_by_span` exists (issue #1028): a consumer answering with the
+        // first matching record must not answer differently run to run.
+        let mut destroyed: Vec<(&String, &u32)> = analysis.destroyed_commands.iter().collect();
+        destroyed.sort_unstable_by(|a, b| a.1.cmp(b.1).then_with(|| a.0.cmp(b.0)));
+        for (name, at) in destroyed {
+            self.command_deletions.push(WorkspaceCommandDeletion {
+                uri: uri.to_owned(),
+                qualified_name: tcl_syntax::naming::normalise_qualified_name(name),
+                at: *at,
+            });
+        }
     }
 
     /// Lift a document's three **variable** tables: the namespace-scoped
@@ -903,6 +1123,25 @@ impl WorkspaceIndex {
         }
     }
 
+    /// Lift a document's namespace-name occurrences
+    /// ([`tcl_compiler::analyser::AnalysisResult::namespace_refs`]) into the
+    /// workspace table, so `namespace children ::tomato` in one file reaches
+    /// the `namespace eval ::tomato { … }` in another (issue #1088).
+    ///
+    /// A straight copy: the analyser has already rooted relative spellings
+    /// and dropped computed ones, so there is no second resolution rule here
+    /// that could disagree with the in-document providers.
+    fn index_namespace_refs(&mut self, uri: &str, analysis: &AnalysisResult) {
+        for nref in &analysis.namespace_refs {
+            self.namespace_refs.push(WorkspaceNamespaceRef {
+                uri: uri.to_owned(),
+                qualified_name: tcl_syntax::naming::normalise_qualified_name(&nref.qualified_name),
+                span: nref.span,
+                declares: nref.declares,
+            });
+        }
+    }
+
     /// Lift a document's `namespace import` / `interp alias` / `rename`
     /// records into flat [`WorkspaceCommandLink`] entries the cross-document
     /// reference walk can follow.  Each becomes `linked_qname → target_qname`:
@@ -927,6 +1166,7 @@ impl WorkspaceIndex {
                         tail_pattern: tail_pattern.to_owned(),
                         at: imp.range.start(),
                         enclosing_body: analysis.innermost_definition_body_span(imp.range.start()),
+                        forced: imp.forced,
                     });
                 }
                 continue;
@@ -953,6 +1193,7 @@ impl WorkspaceIndex {
                     name: tail.to_owned(),
                     at: imp.range.start(),
                     enclosing_body: analysis.innermost_definition_body_span(imp.range.start()),
+                    forced: imp.forced,
                 });
             self.command_links.push(WorkspaceCommandLink {
                 uri: uri.to_owned(),
@@ -1017,12 +1258,15 @@ impl WorkspaceIndex {
         self.variables.retain(|v| v.uri != uri);
         self.variable_refs.retain(|v| v.uri != uri);
         self.variable_aliases.retain(|v| v.uri != uri);
+        self.namespace_refs.retain(|n| n.uri != uri);
         self.invocations.retain(|i| i.uri != uri);
         self.sources.retain(|s| s.uri != uri);
         self.package_requires.retain(|pr| pr.uri != uri);
         self.command_links.retain(|l| l.uri != uri);
         self.glob_imports.retain(|g| g.uri != uri);
         self.namespace_exports.retain(|e| e.uri != uri);
+        self.namespace_forgets.retain(|f| f.uri != uri);
+        self.command_deletions.retain(|d| d.uri != uri);
     }
 
     /// Every indexed `source FILE` reference.
@@ -1809,6 +2053,55 @@ impl WorkspaceIndex {
         uris
     }
 
+    /// Every indexed namespace-name occurrence.
+    #[must_use]
+    pub fn namespace_refs(&self) -> &[WorkspaceNamespaceRef] {
+        &self.namespace_refs
+    }
+
+    /// **Declaring** sites of the namespace `qualified_name` — the name word
+    /// of each `namespace eval` block that creates or extends it — excluding
+    /// any in `exclude_uri` (pass `""` to exclude nothing).
+    ///
+    /// A set, not an `Option`, and for a stronger reason than the variable
+    /// tier's: reopening a namespace is the *normal* way to build one, and
+    /// tclsh 9.0.4 / 8.6.16 agree byte-for-byte that two `namespace eval ::a
+    /// {}` blocks are one namespace (`info vars ::a::*` shows both blocks'
+    /// variables).  Every block is a real definition site.
+    ///
+    /// Exact-name matching only: the analyser already rooted every relative
+    /// spelling, so there is no candidate list to walk.
+    #[must_use]
+    pub fn namespace_declarations_qualified<'a>(
+        &'a self,
+        qualified_name: &str,
+        exclude_uri: &str,
+    ) -> Vec<&'a WorkspaceNamespaceRef> {
+        let target = qualified_name.trim_start_matches("::");
+        self.namespace_refs
+            .iter()
+            .filter(|n| n.declares && n.uri != exclude_uri)
+            .filter(|n| n.qualified_name.trim_start_matches("::") == target)
+            .collect()
+    }
+
+    /// Non-declaring occurrences of the namespace `qualified_name`, excluding
+    /// any in `exclude_uri` — the reference-side twin of
+    /// [`Self::namespace_declarations_qualified`].
+    #[must_use]
+    pub fn namespace_refs_of<'a>(
+        &'a self,
+        qualified_name: &str,
+        exclude_uri: &str,
+    ) -> Vec<&'a WorkspaceNamespaceRef> {
+        let target = qualified_name.trim_start_matches("::");
+        self.namespace_refs
+            .iter()
+            .filter(|n| !n.declares && n.uri != exclude_uri)
+            .filter(|n| n.qualified_name.trim_start_matches("::") == target)
+            .collect()
+    }
+
     /// Occurrence (read / write) sites naming the namespace variable
     /// `qualified_name`, excluding any in `exclude_uri`.  The reference-side
     /// twin of [`Self::variable_definitions_qualified`], matched the same
@@ -1966,7 +2259,15 @@ impl WorkspaceIndex {
         // just because its ultimate source is renamed.
         links.is_some()
             && self
-                .resolve_wildcard_import_indexed(&inv.name, &inv.resolution_candidates, wci)
+                .resolve_wildcard_import_indexed(
+                    &inv.name,
+                    &inv.resolution_candidates,
+                    CallSite {
+                        uri: &inv.uri,
+                        at: inv.range.start(),
+                    },
+                    wci,
+                )
                 .is_some_and(|resolved| resolved.trim_start_matches("::") == target)
     }
 
@@ -2189,10 +2490,12 @@ impl WorkspaceIndex {
         &self,
         word: &str,
         resolution_candidates: &[String],
+        call: CallSite<'_>,
     ) -> Option<String> {
         self.resolve_wildcard_import_indexed(
             word,
             resolution_candidates,
+            call,
             &WildcardImportIndex::build(self),
         )
     }
@@ -2210,6 +2513,7 @@ impl WorkspaceIndex {
         &self,
         word: &str,
         resolution_candidates: &[String],
+        call: CallSite<'_>,
         wci: &WildcardImportIndex<'_>,
     ) -> Option<String> {
         if word.contains("::") {
@@ -2223,23 +2527,94 @@ impl WorkspaceIndex {
                 continue;
             }
             let candidate_ns = if prefix.is_empty() { "::" } else { prefix };
-            let Some(imports) = wci.imports_by_ns.get(candidate_ns) else {
-                continue;
-            };
-            for imp in imports {
-                if !tcl_syntax::glob::string_match(&imp.tail_pattern, word) {
-                    continue;
-                }
-                if !wci.exports_name_at(&imp.source_ns, word, imp.site()) {
-                    continue;
-                }
-                let target = format!("{}::{word}", imp.source_ns);
-                if self.workspace_command_exists(&target) {
-                    return Some(target);
-                }
+            if let Some(target) = self.follow_import_chain(candidate_ns, word, call, wci) {
+                return Some(target);
             }
         }
         None
+    }
+
+    /// Follow the import edges out of `ns` until they reach a command the
+    /// workspace actually defines, and return that qualified name.
+    ///
+    /// An import edge may land on a name that is *itself* imported: with
+    /// `::C` exporting `p`, `::B` importing `::C::*` and re-exporting, and
+    /// `::A` importing `::B::*`, `::A::p` runs `::C`'s body and `namespace
+    /// origin ::A::p` answers `::C::p` (oracle tclsh 8.6.14 / 9.0.4 — issue
+    /// #1103). The middle hop is in no workspace proc/class table, so a
+    /// single-hop walk found nothing and go-to-definition silently abstained.
+    ///
+    /// Bounded by [`tcl_compiler::analyser::indirection::MAX_COMMAND_NAME_HOPS`]
+    /// — the same cap the `rename` / `interp alias` walk applies to the same
+    /// kind of chain, so a mutually-importing pair cannot spin. The whole
+    /// chain is judged at the *call's* offset: a forget anywhere along it
+    /// kills the call (oracle: forgetting `::C::p` inside `::B` makes
+    /// `::A::p` an `invalid command name` too, because deleting an imported
+    /// command deletes the commands imported from it).
+    fn follow_import_chain(
+        &self,
+        ns: &str,
+        word: &str,
+        call: CallSite<'_>,
+        wci: &WildcardImportIndex<'_>,
+    ) -> Option<String> {
+        let mut current = ns.to_owned();
+        for _ in 0..tcl_compiler::analyser::indirection::MAX_COMMAND_NAME_HOPS {
+            let hop = self.import_hop(&current, word, call, wci)?;
+            let target = format!("{hop}::{word}");
+            if self.workspace_command_exists(&target) {
+                return Some(target);
+            }
+            current = hop;
+        }
+        None
+    }
+
+    /// One hop of [`Self::follow_import_chain`]: the source namespace of the
+    /// live import that makes `word` callable from `ns` at `call`, or `None`.
+    ///
+    /// Three gates, in the order real Tcl applies them:
+    ///
+    /// 1. the pattern must cover `word`;
+    /// 2. the source namespace must have exported it **at that import's own
+    ///    position** ([`WildcardImportIndex::exports_name_at`], issue #1027);
+    /// 3. without `-force`, the importing namespace must not already hold a
+    ///    command of that name — such an import raises `can't import command
+    ///    "p": already exists` and installs nothing, so a bare call still
+    ///    reaches the local definition (issue #1103). With `-force` it
+    ///    replaces the local one instead, which is why the check is skipped
+    ///    there.
+    ///
+    /// …and then the edge must still be *there*
+    /// ([`WildcardImportIndex::alias_live_at`]).
+    fn import_hop(
+        &self,
+        ns: &str,
+        word: &str,
+        call: CallSite<'_>,
+        wci: &WildcardImportIndex<'_>,
+    ) -> Option<String> {
+        let imports = wci.imports_by_ns.get(ns)?;
+        // The **latest** live install wins, not the first match: a second
+        // import of the same name — `-force`, or after a forget — replaces
+        // the first alias (oracle on `conflicting_alias_at`), exactly as the
+        // same-document tier's fold decides it. Offsets only order rows in
+        // the calling document, so same-document imports rank above
+        // unordered foreign ones, and among foreign ones the index's own
+        // stable source order breaks the tie.
+        imports
+            .iter()
+            .filter(|imp| tcl_syntax::glob::string_match(&imp.tail_pattern, word))
+            .filter(|imp| wci.exports_name_at(&imp.source_ns, word, imp.site()))
+            .filter(|imp| {
+                imp.forced
+                    || !(self.defines_command(&format!("{ns}::{word}"))
+                        || wci.conflicting_alias_at(ns, &imp.source_ns, word, imp.site()))
+            })
+            .filter(|imp| wci.alias_live_at(ns, &imp.source_ns, word, imp.site(), call))
+            .enumerate()
+            .max_by_key(|(seq, imp)| (imp.uri == call.uri, imp.at, *seq))
+            .map(|(_, imp)| imp.source_ns.clone())
     }
 }
 
@@ -2250,6 +2625,13 @@ impl WorkspaceIndex {
 struct WildcardImportIndex<'a> {
     imports_by_ns: std::collections::HashMap<&'a str, Vec<&'a WorkspaceGlobImport>>,
     exports_by_ns: std::collections::HashMap<&'a str, Vec<&'a WorkspaceNamespaceExport>>,
+    forgets_by_ns: std::collections::HashMap<&'a str, Vec<&'a WorkspaceNamespaceForget>>,
+    deletions_by_name: std::collections::HashMap<&'a str, Vec<&'a WorkspaceCommandDeletion>>,
+    /// Every proc / class declaration site, by `::`-rooted qualified name —
+    /// a redefinition of an *imported* name ends the alias (issue #1116
+    /// finding 3), which is a question about where the declaration sits, not
+    /// merely whether one exists.
+    declarations_by_qname: std::collections::HashMap<&'a str, Vec<(&'a str, u32)>>,
 }
 
 impl<'a> WildcardImportIndex<'a> {
@@ -2264,10 +2646,242 @@ impl<'a> WildcardImportIndex<'a> {
         for exp in &index.namespace_exports {
             exports_by_ns.entry(exp.ns.as_str()).or_default().push(exp);
         }
+        let mut forgets_by_ns: std::collections::HashMap<&str, Vec<&WorkspaceNamespaceForget>> =
+            std::collections::HashMap::new();
+        for fgt in &index.namespace_forgets {
+            forgets_by_ns.entry(fgt.ns.as_str()).or_default().push(fgt);
+        }
+        let mut deletions_by_name: std::collections::HashMap<&str, Vec<&WorkspaceCommandDeletion>> =
+            std::collections::HashMap::new();
+        for del in &index.command_deletions {
+            deletions_by_name
+                .entry(del.qualified_name.as_str())
+                .or_default()
+                .push(del);
+        }
+        let mut declarations_by_qname: std::collections::HashMap<&str, Vec<(&str, u32)>> =
+            std::collections::HashMap::new();
+        for (qname, uri, at) in index
+            .procs
+            .iter()
+            .map(|p| {
+                (
+                    p.qualified_name.as_str(),
+                    p.uri.as_str(),
+                    p.name_span.start(),
+                )
+            })
+            .chain(index.classes.iter().map(|c| {
+                (
+                    c.qualified_name.as_str(),
+                    c.uri.as_str(),
+                    c.name_span.start(),
+                )
+            }))
+        {
+            declarations_by_qname
+                .entry(qname)
+                .or_default()
+                .push((uri, at));
+        }
         Self {
             imports_by_ns,
             exports_by_ns,
+            forgets_by_ns,
+            deletions_by_name,
+            declarations_by_qname,
         }
+    }
+
+    /// Every removal event bearing on the alias `importing_ns` took from
+    /// `source_ns` for `name`, as seen from `query` — the cross-document
+    /// half of [`crate::namespace_import::alias_live_at`]'s event log
+    /// (issue #1103).
+    ///
+    /// Three kinds, and the ordering rule differs per kind because the
+    /// underlying facts differ:
+    ///
+    /// - **`namespace forget`** and **a redefinition of the imported name**
+    ///   are events on *this namespace's* slot. They are ordered only inside
+    ///   one document: which of two files loads first is not a static fact
+    ///   (#1104 item 3), so an event in another document is passed unordered
+    ///   and revokes nothing.
+    /// - **Destroying the source command** (`rename ::src::p {}`) is not a
+    ///   slot event at all — the command *object* the alias holds is gone,
+    ///   workspace-wide, and no load order brings it back. When there is a
+    ///   call site to order against it is ordered like the rest; with none
+    ///   ([`Self::link_alias_live`]) it is passed as having already happened.
+    fn removal_events<'e>(
+        &'e self,
+        importing_ns: &'e str,
+        source_ns: &'e str,
+        name: &'e str,
+        ordered_in: &'e str,
+        destroy_at: impl Fn(&WorkspaceCommandDeletion) -> Option<u32> + 'e,
+    ) -> impl Iterator<Item = crate::namespace_import::AliasEvent> + 'e {
+        use crate::namespace_import::{AliasEvent, AliasEventKind};
+        let forgets = self
+            .forgets_by_ns
+            .get(importing_ns)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .iter()
+            .filter(move |f| {
+                f.source_ns.as_deref().is_none_or(|src| {
+                    src.trim_start_matches("::") == source_ns.trim_start_matches("::")
+                }) && tcl_syntax::glob::string_match(&f.pattern, name)
+            })
+            .map(move |f| AliasEvent {
+                kind: AliasEventKind::Remove,
+                at: (f.uri == ordered_in).then_some(f.at),
+            });
+        // A `proc` / class declaration of the *imported* name recreates it as
+        // an ordinary command and ends the alias (oracle on
+        // `definition::live_import_at` case 5).
+        let redefinitions = self
+            .declarations_by_qname
+            .get(tcl_syntax::naming::qualify(importing_ns, name).as_str())
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .iter()
+            .map(move |(uri, at)| AliasEvent {
+                kind: AliasEventKind::Remove,
+                at: (*uri == ordered_in).then_some(*at),
+            });
+        let qualified = tcl_syntax::naming::qualify(source_ns, name);
+        let deletions = self
+            .deletions_by_name
+            .get(qualified.as_str())
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .iter()
+            .map(move |d| AliasEvent {
+                kind: AliasEventKind::Remove,
+                at: destroy_at(d),
+            });
+        forgets.chain(redefinitions).chain(deletions)
+    }
+
+    /// Whether the alias `importing_ns` took from `source_ns` for `name` is
+    /// still there when the call at `call` runs — the cross-document binding
+    /// of the shared lifecycle decision
+    /// [`crate::namespace_import::alias_live_at`] (issue #1103).
+    ///
+    /// `install_at` is the import's own site. It is ordered against the call
+    /// **only when the two share a document** (issue #1116 finding 1): a byte
+    /// offset in the importing file and a byte offset in the calling file are
+    /// unrelated numbers, and comparing them let a `namespace forget` in the
+    /// caller revoke a cross-file import purely because its local offset
+    /// happened to be the larger one. Unordered, the shared function keeps the
+    /// alias — the same direction every other cross-file event takes here.
+    ///
+    /// Within one document the comparison is a plain offset test rather than
+    /// [`tcl_compiler::analyser::indirection::in_effect_within`], because the
+    /// index does not store a *call site's* enclosing body span — only an
+    /// import's. That can only make a removal look not-yet-run, i.e. keep
+    /// answering, which is the abstention direction navigation wants; it can
+    /// never invent a removal and drop a live alias.
+    fn alias_live_at(
+        &self,
+        importing_ns: &str,
+        source_ns: &str,
+        name: &str,
+        install_at: ImportSite<'_>,
+        call: CallSite<'_>,
+    ) -> bool {
+        use crate::namespace_import::{AliasEvent, AliasEventKind};
+        let install = std::iter::once(AliasEvent {
+            kind: AliasEventKind::Install,
+            at: (install_at.uri == call.uri).then_some(install_at.at),
+        });
+        let mut events =
+            install.chain(
+                self.removal_events(importing_ns, source_ns, name, call.uri, |d| {
+                    (d.uri == call.uri).then_some(d.at)
+                }),
+            );
+        crate::namespace_import::alias_live_at(&mut events, &|at| at < call.at)
+    }
+
+    /// Whether `ns` already holds a live alias for `name` from a namespace
+    /// other than `source_ns` when the import at `site` runs — the conflict a
+    /// non-`-force` `namespace import` aborts on (issue #1116 finding 4).
+    ///
+    /// Ordered within the import's own document only: two imports in
+    /// different files have no static load order, and conflicting on a guess
+    /// would drop an alias Tcl really installed. A **same-source** re-import
+    /// is a silent no-op (oracle), never a conflict.
+    fn conflicting_alias_at(
+        &self,
+        ns: &str,
+        source_ns: &str,
+        name: &str,
+        site: ImportSite<'_>,
+    ) -> bool {
+        self.imports_by_ns
+            .get(ns)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .iter()
+            .any(|other| {
+                other.uri == site.uri
+                    && other.at < site.at
+                    && other.source_ns != source_ns
+                    && tcl_syntax::glob::string_match(&other.tail_pattern, name)
+                    && self.exports_name_at(&other.source_ns, name, other.site())
+                    && self.alias_live_at(
+                        ns,
+                        &other.source_ns,
+                        name,
+                        other.site(),
+                        CallSite {
+                            uri: site.uri,
+                            at: site.at,
+                        },
+                    )
+            })
+    }
+
+    /// Whether an **exact** import link is still installed, with no call site
+    /// to order against — the gate [`WorkspaceIndex::live_command_links`]
+    /// applies (issue #1116 finding 2).
+    ///
+    /// `namespace import ::src::p` produces a fixed `WorkspaceCommandLink`
+    /// rather than a per-call glob lookup, so the export snapshot and the
+    /// `-force` conflict were the only things gating it: after `namespace
+    /// forget ::src::p` — or `rename ::src::p {}` — the link stayed live and
+    /// cross-document definition / references still resolved `::dst::p`.
+    ///
+    /// The question a link answers is "does this alias exist for navigation",
+    /// which has no query point of its own, so every recorded removal counts
+    /// as having run (`removal_in_effect` is unconditionally true) and the
+    /// ordering that remains is the removal's position relative to the
+    /// **import**:
+    ///
+    /// - A forget or redefinition in the import's own document orders against
+    ///   it: one written *after* the import revokes the link, one written
+    ///   before is undone by the import itself (a re-import after a forget
+    ///   reinstalls — oracle).
+    /// - One in another document has no static load order and revokes
+    ///   nothing, exactly as in [`Self::alias_live_at`].
+    /// - A destroyed source command revokes regardless: the command object is
+    ///   gone workspace-wide (oracle: `rename ::src::p {}` makes `::dst::p`
+    ///   an `invalid command name` and empties `info commands ::dst::*`), so
+    ///   it is passed at [`u32::MAX`] — later than any install.
+    fn link_alias_live(&self, importing_ns: &str, gate: &WorkspaceImportGate, uri: &str) -> bool {
+        use crate::namespace_import::{AliasEvent, AliasEventKind};
+        let install = std::iter::once(AliasEvent {
+            kind: AliasEventKind::Install,
+            at: Some(gate.at),
+        });
+        let mut events = install.chain(self.removal_events(
+            importing_ns,
+            &gate.source_ns,
+            &gate.name,
+            uri,
+            |_| Some(u32::MAX),
+        ));
+        crate::namespace_import::alias_live_at(&mut events, &|_| true)
     }
 
     /// Whether `ns` (`::`-rooted) had exported the unqualified `name` **as of
@@ -2322,6 +2936,27 @@ struct ImportSite<'a> {
     enclosing_body: Option<Span>,
 }
 
+/// Where the **call** being resolved sits: the document and the offset of its
+/// command-head token.
+///
+/// The import edge's lifecycle is a question about the call, not about the
+/// import — a `namespace forget` written after the import kills calls after
+/// it and leaves calls before it alone (issue #1103) — so the resolver needs
+/// the call's own position, which
+/// [`WorkspaceIndex::resolve_wildcard_import`] previously never received.
+///
+/// Carries no enclosing-body span: the index stores one per *import* row, not
+/// per invocation, and building it per call would be O(procs × invocations)
+/// at index time. See [`WildcardImportIndex::alias_live_at`] for why its
+/// absence can only make this abstain toward answering.
+#[derive(Debug, Clone, Copy)]
+pub struct CallSite<'a> {
+    /// Document the call is in.
+    pub uri: &'a str,
+    /// Byte offset of the call's command-head token within `uri`.
+    pub at: u32,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2330,6 +2965,19 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    /// A call site at the end of `uri` — the offset only matters to the
+    /// import-lifecycle gate (a `namespace forget` / source deletion earlier
+    /// in the *same* document), so tests with no such event may use it
+    /// freely.
+    /// Byte offset of `needle` in a test source.
+    fn app_src_offset(src: &str, needle: &str) -> usize {
+        src.find(needle).expect("needle present")
+    }
+
+    fn call_from(uri: &str) -> CallSite<'_> {
+        CallSite { uri, at: u32::MAX }
     }
 
     #[test]
@@ -2844,6 +3492,7 @@ mod tests {
         let resolved = index.resolve_wildcard_import(
             "helper",
             &["::app::helper".to_string(), "::helper".to_string()],
+            call_from("file:///caller.tcl"),
         );
         assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
     }
@@ -2868,6 +3517,7 @@ mod tests {
         let resolved = index.resolve_wildcard_import(
             "other",
             &["::app::other".to_string(), "::other".to_string()],
+            call_from("file:///caller.tcl"),
         );
         assert!(resolved.is_none(), "{resolved:?}");
     }
@@ -2890,7 +3540,11 @@ mod tests {
             ("file:///mypkg.tcl", &mypkg),
             ("file:///consumer.tcl", &consumer),
         ]);
-        let resolved = index.resolve_wildcard_import("Widget", &["::Widget".to_string()]);
+        let resolved = index.resolve_wildcard_import(
+            "Widget",
+            &["::Widget".to_string()],
+            call_from("file:///caller.tcl"),
+        );
         assert_eq!(resolved.as_deref(), Some("::mypkg::Widget"));
     }
 
@@ -2923,6 +3577,7 @@ mod tests {
         let resolved = index.resolve_wildcard_import(
             "helper",
             &["::app::helper".to_string(), "::helper".to_string()],
+            call_from("file:///caller.tcl"),
         );
         assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
     }
@@ -2953,6 +3608,7 @@ mod tests {
         let resolved = index.resolve_wildcard_import(
             "helper",
             &["::app::helper".to_string(), "::helper".to_string()],
+            call_from("file:///caller.tcl"),
         );
         assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
     }
@@ -2975,6 +3631,7 @@ mod tests {
         let resolved = index.resolve_wildcard_import(
             "helper",
             &["::app::helper".to_string(), "::helper".to_string()],
+            call_from("file:///caller.tcl"),
         );
         assert!(
             resolved.is_none(),
@@ -3004,6 +3661,7 @@ mod tests {
         let resolved = index.resolve_wildcard_import(
             "helper",
             &["::app::helper".to_string(), "::helper".to_string()],
+            call_from("file:///caller.tcl"),
         );
         assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
     }
@@ -3033,6 +3691,7 @@ mod tests {
         let resolved = index.resolve_wildcard_import(
             "helper",
             &["::app::helper".to_string(), "::helper".to_string()],
+            call_from("file:///caller.tcl"),
         );
         assert_eq!(
             resolved.as_deref(),
@@ -3061,11 +3720,525 @@ mod tests {
         let resolved = index.resolve_wildcard_import(
             "helper",
             &["::app::helper".to_string(), "::helper".to_string()],
+            call_from("file:///caller.tcl"),
         );
         assert!(
             resolved.is_none(),
             "an export written after the import in the same body is a later \
              statement of the running script: {resolved:?}",
+        );
+    }
+
+    // ---- the import edge's own lifecycle, cross-document (issue #1103) ---
+    //
+    // The workspace twin of `definition.rs`'s in-document block. Same oracle
+    // rows (tclsh 9.0.4 + 8.6.14, byte-identical), same shared decision
+    // function (`namespace_import::alias_live_at`), so the two tiers cannot
+    // drift.
+
+    #[test]
+    fn cross_file_forget_after_the_import_stops_resolving() {
+        // TN — the source lives in another file, so only this tier can
+        // answer; the forget and the call are in one document, so they are
+        // ordered.
+        let src = "namespace eval ::app {\n    namespace import ::mymod::*\n}\nnamespace eval ::app {\n    namespace forget ::mymod::helper\n}\nhelper\n";
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(src);
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let call = u32::try_from(app_src_offset(src, "\nhelper\n") + 1).expect("tiny source");
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+            CallSite {
+                uri: "file:///app.tcl",
+                at: call,
+            },
+        );
+        assert!(
+            resolved.is_none(),
+            "a call after the forget must not resolve through the alias: {resolved:?}"
+        );
+    }
+
+    #[test]
+    fn cross_file_call_before_the_forget_still_resolves() {
+        // TP — the same document, a call written before the forget.
+        let src = "namespace eval ::app {\n    namespace import ::mymod::*\n}\nhelper\nnamespace eval ::app {\n    namespace forget ::mymod::helper\n}\n";
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(src);
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let call = u32::try_from(app_src_offset(src, "\nhelper\n") + 1).expect("tiny source");
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+            CallSite {
+                uri: "file:///app.tcl",
+                at: call,
+            },
+        );
+        assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
+    }
+
+    #[test]
+    fn a_forget_in_another_file_revokes_nothing() {
+        // TN-for-abstention — no static load order between two files, so a
+        // foreign forget is passed unordered and cannot silently drop a real
+        // alias. Same direction as an unordered `namespace export -clear`
+        // (#1104 item 3).
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse("namespace eval ::app {\n    namespace import ::mymod::*\n}\n");
+        let teardown = analyse("namespace eval ::app {\n    namespace forget ::mymod::helper\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+            ("file:///teardown.tcl", &teardown),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+            call_from("file:///caller.tcl"),
+        );
+        assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
+    }
+
+    #[test]
+    fn cross_file_source_deletion_kills_the_alias() {
+        // TN — `rename ::mymod::helper {}` destroys the command object, and
+        // the alias holds the object. Ordered because the deletion and the
+        // call share a document.
+        let src = "namespace eval ::app {\n    namespace import ::mymod::*\n}\nrename ::mymod::helper {}\nhelper\n";
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(src);
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let call = u32::try_from(app_src_offset(src, "\nhelper\n") + 1).expect("tiny source");
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+            CallSite {
+                uri: "file:///app.tcl",
+                at: call,
+            },
+        );
+        assert!(resolved.is_none(), "{resolved:?}");
+    }
+
+    #[test]
+    fn cross_file_source_rename_leaves_the_alias_alive() {
+        // TP — the asymmetry again: `rename ::mymod::helper ::mymod::h2`
+        // moves the origin and keeps `::app::helper` working.
+        let src = "namespace eval ::app {\n    namespace import ::mymod::*\n}\nrename ::mymod::helper ::mymod::h2\nhelper\n";
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(src);
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let call = u32::try_from(app_src_offset(src, "\nhelper\n") + 1).expect("tiny source");
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+            CallSite {
+                uri: "file:///app.tcl",
+                at: call,
+            },
+        );
+        assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
+    }
+
+    #[test]
+    fn an_unforced_import_onto_an_existing_workspace_command_installs_nothing() {
+        // TN — `::app` already defines `helper`, so the non-`-force` import
+        // errors and installs nothing; the call reaches the local definition,
+        // not `::mymod::helper` (oracle: `namespace origin ::app::helper` →
+        // `::app::helper`).
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    proc helper {} {}\n    namespace import ::mymod::*\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+            call_from("file:///app.tcl"),
+        );
+        assert!(resolved.is_none(), "{resolved:?}");
+    }
+
+    #[test]
+    fn a_forced_import_onto_an_existing_workspace_command_installs() {
+        // TP — the same program with `-force` replaces the local command, so
+        // the call reaches `::mymod::helper` (oracle: `namespace origin
+        // ::app::helper` → `::mymod::helper`).
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    proc helper {} {}\n    namespace import -force ::mymod::*\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+            call_from("file:///app.tcl"),
+        );
+        assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
+    }
+
+    #[test]
+    fn an_exact_import_onto_an_existing_workspace_command_installs_no_link() {
+        // TN — the same conflict rule on the exact-import link path
+        // (`live_command_links`), so definition / references / the existence
+        // oracle all agree the import bound nothing.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    proc helper {} {}\n    namespace import ::mymod::helper\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        assert_eq!(
+            index.resolve_command_target("::app::helper"),
+            "::app::helper",
+            "a conflicting exact import installs no link"
+        );
+    }
+
+    #[test]
+    fn a_forced_exact_import_still_installs_its_link() {
+        // FN guard for the rule above.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    proc helper {} {}\n    namespace import -force ::mymod::helper\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        assert_eq!(
+            index.resolve_command_target("::app::helper"),
+            "::mymod::helper"
+        );
+    }
+
+    #[test]
+    fn a_cross_file_forget_cannot_revoke_on_unrelated_offsets() {
+        // FP guard (CRITICAL), issue #1116 finding 1 — the import lives in a
+        // short `imports.tcl` (small byte offset); the forget lives in a long
+        // `caller.tcl` (large byte offset) and names a namespace the caller
+        // never imported into itself. Nothing orders the two files, so the
+        // forget must revoke nothing — but comparing the raw offsets made the
+        // caller's larger number "later" and dropped a live alias.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let imports = analyse("namespace eval ::app { namespace import ::mymod::* }\n");
+        // Padding so the forget's offset is numerically far past the import's.
+        let pad = "# ".to_string() + &"x".repeat(400) + "\n";
+        let caller_src = format!(
+            "{pad}namespace eval ::app {{\n    namespace forget ::mymod::helper\n}}\nhelper\n"
+        );
+        let caller = analyse(&caller_src);
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///imports.tcl", &imports),
+            ("file:///caller.tcl", &caller),
+        ]);
+        let call =
+            u32::try_from(app_src_offset(&caller_src, "\nhelper\n") + 1).expect("tiny source");
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+            CallSite {
+                uri: "file:///caller.tcl",
+                at: call,
+            },
+        );
+        assert_eq!(
+            resolved.as_deref(),
+            Some("::mymod::helper"),
+            "a forget in another document has no order against the import and \
+             must not revoke it: {resolved:?}"
+        );
+    }
+
+    #[test]
+    fn a_same_file_forget_after_the_import_still_revokes() {
+        // TN, the other direction of finding 1 — when the import, the forget
+        // and the call really do share a document the offsets mean something
+        // and the ordering is unchanged.
+        let src = "namespace eval ::app {\n    namespace import ::mymod::*\n}\nnamespace eval ::app {\n    namespace forget ::mymod::helper\n}\nhelper\n";
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(src);
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let call = u32::try_from(app_src_offset(src, "\nhelper\n") + 1).expect("tiny source");
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+            CallSite {
+                uri: "file:///app.tcl",
+                at: call,
+            },
+        );
+        assert!(resolved.is_none(), "{resolved:?}");
+    }
+
+    #[test]
+    fn an_exact_import_link_dies_on_a_same_file_forget() {
+        // TN (CRITICAL), issue #1116 finding 2 — an exact `namespace import
+        // ::mymod::helper` produces a fixed link rather than a per-call glob
+        // lookup, and the lifecycle events never reached it: after the forget
+        // the link stayed live and cross-document definition / references
+        // still resolved `::app::helper` to `::mymod::helper`.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::helper\n    namespace forget ::mymod::helper\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        assert_eq!(
+            index.resolve_command_target("::app::helper"),
+            "::app::helper",
+            "a forgotten exact import installs no live link"
+        );
+        assert!(!index.workspace_command_exists("::app::helper"));
+    }
+
+    #[test]
+    fn an_exact_import_link_survives_a_forget_written_before_it() {
+        // FN guard for the row above — the forget is ordered against the
+        // *import*, and one written before it is undone by the import itself
+        // (a re-import after a forget reinstalls — oracle).
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace forget ::mymod::helper\n    namespace import ::mymod::helper\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        assert_eq!(
+            index.resolve_command_target("::app::helper"),
+            "::mymod::helper"
+        );
+    }
+
+    #[test]
+    fn an_exact_import_link_ignores_a_forget_in_another_file() {
+        // FP guard — finding 1's rule applied to the link tier: a forget with
+        // no static order against the import revokes nothing.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse("namespace eval ::app {\n    namespace import ::mymod::helper\n}\n");
+        let teardown = analyse("namespace eval ::app {\n    namespace forget ::mymod::helper\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+            ("file:///teardown.tcl", &teardown),
+        ]);
+        assert_eq!(
+            index.resolve_command_target("::app::helper"),
+            "::mymod::helper"
+        );
+    }
+
+    #[test]
+    fn an_exact_import_link_dies_when_the_source_command_is_destroyed() {
+        // TN — destroying the source is not order-ambiguous the way a forget
+        // is: the command *object* the alias holds is gone workspace-wide
+        // (oracle: `rename ::mymod::helper {}` makes `::app::helper` an
+        // `invalid command name` and empties `info commands ::app::*`), so the
+        // link dies even though the deletion sits in another document.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse("namespace eval ::app {\n    namespace import ::mymod::helper\n}\n");
+        let teardown = analyse("rename ::mymod::helper {}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+            ("file:///teardown.tcl", &teardown),
+        ]);
+        assert_eq!(
+            index.resolve_command_target("::app::helper"),
+            "::app::helper",
+            "destroying the source destroys the link"
+        );
+    }
+
+    #[test]
+    fn an_exact_import_link_dies_when_the_imported_name_is_redefined() {
+        // TN, issue #1116 finding 3 cross-document — a `proc ::app::helper`
+        // after the import recreates the name as an ordinary command
+        // (oracle: rc 0, `namespace origin` → `::app::helper`).
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::helper\n}\nproc ::app::helper {} {}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        assert_eq!(
+            index.resolve_command_target("::app::helper"),
+            "::app::helper"
+        );
+    }
+
+    #[test]
+    fn a_cross_file_live_alias_is_an_import_conflict_for_a_different_source() {
+        // TN, issue #1116 finding 4 cross-document — `::dst` imports `::A::*`
+        // and then, further down the same file, `::B::*` without `-force`.
+        // Oracle: the second import raises `can't import command "p": already
+        // exists` and `namespace origin ::dst::p` stays `::A::p`.
+        let a = analyse("namespace eval ::A { proc p {} { return AP }\n namespace export p }\n");
+        let b = analyse("namespace eval ::B { proc p {} { return BP }\n namespace export p }\n");
+        let dst = analyse(
+            "namespace eval ::dst {\n    namespace import ::A::*\n}\nnamespace eval ::dst {\n    namespace import ::B::*\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///dst.tcl", &dst),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "p",
+            &["::dst::p".to_string(), "::p".to_string()],
+            call_from("file:///dst.tcl"),
+        );
+        assert_eq!(
+            resolved.as_deref(),
+            Some("::A::p"),
+            "the failed second import leaves the first alias in place: {resolved:?}"
+        );
+    }
+
+    #[test]
+    fn a_cross_file_forced_import_replaces_a_live_alias() {
+        // TP, the other half — with `-force` the second import wins (oracle:
+        // `namespace origin ::dst::p` → `::B::p`).
+        let a = analyse("namespace eval ::A { proc p {} { return AP }\n namespace export p }\n");
+        let b = analyse("namespace eval ::B { proc p {} { return BP }\n namespace export p }\n");
+        let dst = analyse(
+            "namespace eval ::dst {\n    namespace import ::A::*\n}\nnamespace eval ::dst {\n    namespace import -force ::B::*\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///dst.tcl", &dst),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "p",
+            &["::dst::p".to_string(), "::p".to_string()],
+            call_from("file:///dst.tcl"),
+        );
+        assert_eq!(resolved.as_deref(), Some("::B::p"));
+    }
+
+    #[test]
+    fn a_cross_file_exact_link_conflicts_with_an_earlier_different_source() {
+        // TN — finding 4 on the exact-link tier.
+        let a = analyse("namespace eval ::A { proc p {} {}\n namespace export p }\n");
+        let b = analyse("namespace eval ::B { proc p {} {}\n namespace export p }\n");
+        let dst = analyse(
+            "namespace eval ::dst {\n    namespace import ::A::p\n    namespace import ::B::p\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///dst.tcl", &dst),
+        ]);
+        assert_eq!(
+            index.resolve_command_target("::dst::p"),
+            "::A::p",
+            "the second exact import fails and the first alias stays"
+        );
+    }
+
+    #[test]
+    fn a_cross_file_import_chain_follows_to_the_original_source() {
+        // TP — `::A` imports `::B::*`, `::B` imported `::C::*`, each in its
+        // own file. Oracle: `::A::p` runs `::C`'s body and `namespace origin
+        // ::A::p` → `::C::p`. The middle hop is in no workspace proc table,
+        // so a single-hop walk abstained.
+        let c = analyse("namespace eval ::C { proc p {} { return CP }\n namespace export p }\n");
+        let b = analyse("namespace eval ::B { namespace import ::C::*\n namespace export p }\n");
+        let a = analyse("namespace eval ::A { namespace import ::B::* }\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///c.tcl", &c),
+            ("file:///b.tcl", &b),
+            ("file:///a.tcl", &a),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "p",
+            &["::A::p".to_string(), "::p".to_string()],
+            call_from("file:///caller.tcl"),
+        );
+        assert_eq!(resolved.as_deref(), Some("::C::p"), "{resolved:?}");
+    }
+
+    #[test]
+    fn a_cross_file_chain_hop_that_was_never_re_exported_abstains() {
+        // FN guard — the middle hop keeps its own export gate.
+        let c = analyse("namespace eval ::C { proc p {} { return CP }\n namespace export p }\n");
+        let b = analyse("namespace eval ::B { namespace import ::C::* }\n");
+        let a = analyse("namespace eval ::A { namespace import ::B::* }\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///c.tcl", &c),
+            ("file:///b.tcl", &b),
+            ("file:///a.tcl", &a),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "p",
+            &["::A::p".to_string(), "::p".to_string()],
+            call_from("file:///caller.tcl"),
+        );
+        assert!(resolved.is_none(), "{resolved:?}");
+    }
+
+    #[test]
+    fn a_mutually_importing_pair_terminates_cross_file() {
+        // FP/hang guard — bounded by `MAX_COMMAND_NAME_HOPS`.
+        let a = analyse("namespace eval ::A { namespace import ::B::*\n namespace export * }\n");
+        let b = analyse("namespace eval ::B { namespace import ::A::*\n namespace export * }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert!(
+            index
+                .resolve_wildcard_import(
+                    "p",
+                    &["::A::p".to_string()],
+                    call_from("file:///caller.tcl"),
+                )
+                .is_none()
         );
     }
 
@@ -3306,6 +4479,87 @@ mod tests {
             "with no colliding builtin, the nested definition still counts \
              (e.g. `namespace which -command` probes, W120 existence checks)",
         );
+    }
+
+    #[test]
+    fn namespace_declarations_and_refs_are_indexed_across_documents() {
+        // TP (issue #1088) — the declaring `namespace eval` blocks live in
+        // one document and the `namespace children ::mypkg` consumer in
+        // another; both spellings name the one namespace.  Oracle (tclsh
+        // 9.0.4 / 8.6.16, byte-identical): reopening `::mypkg` extends the
+        // same namespace, and `namespace children ::mypkg` lists its
+        // children rather than erroring.
+        let decl = analyse("namespace eval mypkg {}\nnamespace eval mypkg {}\n");
+        let user = analyse("set t [namespace children ::mypkg]\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///decl.tcl", &decl),
+            ("file:///user.tcl", &user),
+        ]);
+        assert_eq!(
+            index
+                .namespace_declarations_qualified("::mypkg", "")
+                .iter()
+                .map(|n| n.uri.as_str())
+                .collect::<Vec<_>>(),
+            vec!["file:///decl.tcl", "file:///decl.tcl"],
+            "both declaring blocks are definition sites",
+        );
+        assert_eq!(
+            index
+                .namespace_refs_of("::mypkg", "")
+                .iter()
+                .map(|n| n.uri.as_str())
+                .collect::<Vec<_>>(),
+            vec!["file:///user.tcl"],
+        );
+        // The declaring document is excluded on request, which is how the
+        // cross-document definition tier avoids re-reporting local answers.
+        assert!(
+            index
+                .namespace_declarations_qualified("::mypkg", "file:///decl.tcl")
+                .is_empty(),
+        );
+    }
+
+    #[test]
+    fn namespace_rows_are_dropped_with_their_document() {
+        // A re-index (`remove_document` then `add_document`) must not leave
+        // stale namespace rows behind — the same discipline every other
+        // table follows.
+        let a = analyse("namespace eval gone {}\n");
+        let mut index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
+        assert_eq!(
+            index.namespace_declarations_qualified("::gone", "").len(),
+            1
+        );
+        index.remove_document("file:///a.tcl");
+        assert!(
+            index
+                .namespace_declarations_qualified("::gone", "")
+                .is_empty()
+        );
+        assert!(index.namespace_refs().is_empty());
+    }
+
+    #[test]
+    fn a_relative_namespace_word_is_indexed_rooted() {
+        // TP — the analyser roots a relative spelling against its own
+        // namespace before the index sees it, so a sibling document can
+        // match it by exact qualified name.  Oracle: inside `namespace eval
+        // ::outer`, `namespace children inner` means `::outer::inner`; the
+        // same words at global scope mean `::inner` (both interpreters).
+        let a = analyse(
+            "namespace eval ::outer {\n    namespace eval inner {}\n    namespace children inner\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
+        assert_eq!(
+            index
+                .namespace_declarations_qualified("::outer::inner", "")
+                .len(),
+            1,
+        );
+        assert_eq!(index.namespace_refs_of("::outer::inner", "").len(), 1);
+        assert!(index.namespace_refs_of("::inner", "").is_empty());
     }
 
     #[test]

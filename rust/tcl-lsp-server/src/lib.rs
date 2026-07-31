@@ -64,6 +64,7 @@ use tcl_lsp_core::implementation as core_implementation;
 use tcl_lsp_core::inlay_hints as core_inlay_hints;
 use tcl_lsp_core::linked_editing_range as core_linked_editing_range;
 use tcl_lsp_core::minify as core_minify;
+use tcl_lsp_core::namespace_symbol as core_namespace_symbol;
 use tcl_lsp_core::package_resolver::PackageResolver;
 use tcl_lsp_core::references as core_references;
 use tcl_lsp_core::rename as core_rename;
@@ -4282,6 +4283,18 @@ impl Backend {
         // collide with a sibling proc/class name produces a
         // false-positive go-to-definition jump.
         let on_command_head = position_is_command_head(&doc.text, pos, &analysis);
+        // A namespace-name argument is answered here, in full, and never
+        // reaches the tiers below.  Two reasons, both from the review of
+        // #1088: the position is *definitive* (a proc or class of the same
+        // spelling is not what it names), and the answer is the union of the
+        // local and workspace declaring blocks — reopening a namespace
+        // extends the same namespace, so a local block does not make a
+        // sibling document's block any less of a definition.
+        if let Some(cell) = Self::namespace_cell(&doc.text, &analysis, pos) {
+            return Ok(self
+                .namespace_declaration_locations(uri, &analysis, &cell)
+                .await);
+        }
         let text = doc.text.clone();
         let analysis_worker = Arc::clone(&analysis);
         let in_doc = tokio::task::spawn_blocking(move || {
@@ -4373,6 +4386,145 @@ impl Backend {
             pos.line,
             pos.character,
         )
+    }
+
+    /// The `::`-rooted namespace the cursor names, or `None` when it names
+    /// none — see [`core_namespace_symbol::namespace_cell_at`] for the two
+    /// cursor shapes that answer.  The one place the server decides "this
+    /// position is about a namespace", shared by the cross-document
+    /// definition, hover, and references tiers so they cannot disagree.
+    fn namespace_cell(source: &str, analysis: &AnalysisResult, pos: Position) -> Option<String> {
+        core_namespace_symbol::namespace_cell_at(source, analysis, pos.line, pos.character)
+    }
+
+    /// Every declaring `namespace eval` block of `cell`, local **and**
+    /// workspace, as LSP locations.
+    ///
+    /// The union is the contract, not an optimisation: reopening a namespace
+    /// extends the same namespace (tclsh 9.0.4 / 8.6.16, byte-identical —
+    /// `namespace eval ::a {}` twice leaves one namespace holding both
+    /// blocks' variables), so every block is a definition site and a local
+    /// one does not make a sibling document's block any less of one.  The
+    /// first cut returned as soon as the in-document provider answered, *and*
+    /// excluded the current URI from the index lookup, so a namespace opened
+    /// both here and next door reported only the local half (issue #1088
+    /// review, finding 2).
+    ///
+    /// The local half is read from the request's own analysis rather than the
+    /// index, so an unindexed or just-edited document still answers; rows are
+    /// deduplicated by `(uri, span)`, which is what makes overlapping with
+    /// the index harmless.
+    async fn namespace_declaration_locations(
+        &self,
+        uri: &Uri,
+        analysis: &AnalysisResult,
+        cell: &str,
+    ) -> Vec<Location> {
+        self.refresh_source_rehoming().await;
+        let mut targets: Vec<(String, tcl_lexer::Span)> =
+            core_namespace_symbol::namespace_declaration_spans(analysis, cell)
+                .into_iter()
+                .map(|span| (uri.as_str().to_owned(), span))
+                .collect();
+        {
+            let index = self.workspace_index.read().await;
+            targets.extend(
+                index
+                    .namespace_declarations_qualified(cell, "")
+                    .into_iter()
+                    .map(|n| (n.uri.clone(), n.span)),
+            );
+        }
+        dedup_span_targets(&mut targets);
+        self.resolve_target_locations(targets).await
+    }
+
+    /// Hover for the namespace `cell`, counted over the local document **and**
+    /// every indexed sibling.
+    ///
+    /// Counting only the document under the cursor contradicted
+    /// go-to-definition, which offers every declaring block wherever it lives
+    /// (issue #1088 review, finding 2).  The rendering itself stays in
+    /// [`core_namespace_symbol::namespace_hover_markdown`], so the
+    /// in-document provider and this tier cannot word the same fact
+    /// differently — they differ only in how wide a set they counted, which
+    /// the text states.
+    ///
+    /// `None` when nothing anywhere declares it: hover then shows nothing,
+    /// which is the correct answer for a namespace no file in view creates —
+    /// never a fall-through to command documentation.
+    async fn namespace_hover(
+        &self,
+        uri: &Uri,
+        analysis: &AnalysisResult,
+        cell: &str,
+    ) -> Option<CoreHover> {
+        self.refresh_source_rehoming().await;
+        let local = core_namespace_symbol::namespace_facts(analysis, cell);
+        let facts = {
+            let index = self.workspace_index.read().await;
+            let mut merged = local;
+            let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+            for row in index
+                .namespace_declarations_qualified(cell, uri.as_str())
+                .into_iter()
+                .chain(index.namespace_refs_of(cell, uri.as_str()))
+            {
+                if row.declares {
+                    merged.declarations += 1;
+                } else {
+                    merged.references += 1;
+                }
+                if seen.insert(row.uri.as_str()) {
+                    merged.documents += 1;
+                }
+            }
+            merged
+        };
+        core_hover::namespace_hover(cell, facts)
+    }
+
+    /// Every occurrence of the namespace `cell`, local **and** workspace —
+    /// declarations included when `include_declaration`.
+    ///
+    /// Excludes no document, the caller's own included: a document that
+    /// merely mentions `::tomato` holds no declaration to anchor a
+    /// single-document pass on, and the local half is read from the request's
+    /// own analysis so an unindexed document still contributes.  Rows are
+    /// deduplicated by `(uri, span)`, so an occurrence the index also holds
+    /// collapses rather than doubling.
+    async fn namespace_reference_locations(
+        &self,
+        uri: &Uri,
+        analysis: &AnalysisResult,
+        cell: &str,
+        include_declaration: bool,
+    ) -> Vec<Location> {
+        self.refresh_source_rehoming().await;
+        let mut targets: Vec<(String, tcl_lexer::Span)> =
+            core_namespace_symbol::namespace_all_spans(analysis, cell, include_declaration)
+                .into_iter()
+                .map(|span| (uri.as_str().to_owned(), span))
+                .collect();
+        {
+            let index = self.workspace_index.read().await;
+            targets.extend(
+                index
+                    .namespace_refs_of(cell, "")
+                    .into_iter()
+                    .map(|n| (n.uri.clone(), n.span)),
+            );
+            if include_declaration {
+                targets.extend(
+                    index
+                        .namespace_declarations_qualified(cell, "")
+                        .into_iter()
+                        .map(|n| (n.uri.clone(), n.span)),
+                );
+            }
+        }
+        dedup_span_targets(&mut targets);
+        self.resolve_target_locations(targets).await
     }
 
     /// Cross-document go-to-definition for a namespace variable: the
@@ -4960,7 +5112,22 @@ impl Backend {
         {
             let index = self.workspace_index.read().await;
             let registry = tcl_registry::registry_for_dialect(&analysis.dialect);
+            // A live `namespace import -force` has *replaced* the importing
+            // namespace's own command of this name, so no candidate naming it
+            // may settle the call — the call reaches the import's source,
+            // which the wildcard-import tier below resolves (issue #1103).
+            // Applied here because this is a separate resolver from
+            // `resolve_called_proc`, which already applies the same rule.
+            let forced_shadow = core_definition::forced_import_shadows_call(
+                analysis,
+                &inv.name,
+                &inv.resolution_candidates,
+                offset_u32,
+            );
             if let Some(cand) = inv.resolution_candidates.iter().find(|cand| {
+                if forced_shadow {
+                    return false;
+                }
                 let cand = cand.as_str();
                 // A candidate naming a real registry builtin only counts a
                 // same-file or cross-file proc definition when that
@@ -5011,9 +5178,14 @@ impl Backend {
             // `definition::resolve_called_proc` / `resolve_class_target_at`
             // already apply in-document, extended here to a source
             // namespace defined in another file.)
-            if let Some(target) =
-                index.resolve_wildcard_import(&inv.name, &inv.resolution_candidates)
-            {
+            if let Some(target) = index.resolve_wildcard_import(
+                &inv.name,
+                &inv.resolution_candidates,
+                core_workspace_index::CallSite {
+                    uri: uri.as_str(),
+                    at: inv.range.start(),
+                },
+            ) {
                 return vec![target];
             }
         }
@@ -5189,6 +5361,17 @@ impl Backend {
         position: Position,
         include_declaration: bool,
     ) -> Vec<Location> {
+        // A namespace-name argument is answered here, in full.  It must not
+        // reach the tiers below: the position is definitive, and an *empty*
+        // local set — which is what asking for references without
+        // declarations from a namespace's only declaring block produces —
+        // would otherwise route the query to `workspace_resolved_references`,
+        // the proc/class tier (issue #1088 review, finding 1).
+        if let Some(cell) = Self::namespace_cell(&doc.text, analysis, position) {
+            return self
+                .namespace_reference_locations(uri, analysis, &cell, include_declaration)
+                .await;
+        }
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
         let analysis_for_worker = analysis.clone();
@@ -5795,6 +5978,27 @@ impl Backend {
         pos: Position,
         new_name: &str,
     ) -> Option<jsonrpc::Result<Option<WorkspaceEdit>>> {
+        // Namespace names refuse outright.  This has to be a *refusal* and
+        // not an empty edit set: an empty set falls through to the ordinary
+        // and workspace-resolved rename tiers, which resolve the cursor
+        // **word** as a command — so `namespace children widget` beside a
+        // `proc widget` renamed the proc instead (issue #1088 review,
+        // finding 1).  Renaming a namespace itself is not implemented: the
+        // edit set would have to rewrite every qualified name declared
+        // beneath it and every `namespace eval` block that reopens it.
+        if let Some(cell) = Self::namespace_cell(&doc.text, analysis, pos) {
+            return Some(Err(rename_refusal_error(
+                &core_rename_safety::RenameRefusal {
+                    reason: format!(
+                        "`{cell}` is a namespace name. Renaming a namespace is not \
+                         supported: it would have to rewrite every qualified name \
+                         declared beneath it and every `namespace eval` block that \
+                         reopens it."
+                    ),
+                    range: None,
+                },
+            )));
+        }
         // Safety gate: when the cursor names a `TclOO` member whose dispatch
         // this rename cannot account for anywhere in the workspace, refuse
         // with a precise reason instead of emitting a partial edit set that
@@ -11875,6 +12079,18 @@ impl LanguageServer for Backend {
         // that happens to share a sibling proc's name would pop up that proc's
         // signature.  Computed here, while `analysis` is still in scope.
         let on_command_head = position_is_command_head(&doc.text, pos, &analysis);
+        // A namespace-name argument is answered here, in full, and never
+        // reaches the tiers below — the position is definitive, and the
+        // counts describe the whole workspace rather than just this document
+        // (issue #1088 review, findings 1 and 2).  `None` means no file in
+        // view declares the namespace, which is a real "no hover", not a
+        // licence to fall through to command documentation.
+        if let Some(cell) = Self::namespace_cell(&doc.text, &analysis, pos) {
+            return Ok(self
+                .namespace_hover(&uri, &analysis, &cell)
+                .await
+                .map(lift_hover));
+        }
         let text = doc.text.clone();
         let analysis_worker = Arc::clone(&analysis);
         let result = tokio::task::spawn_blocking(move || {
@@ -12230,6 +12446,23 @@ fn action_command_to_lsp(
 /// Deduplicate `Location`s by `(uri, range)`, preserving first-
 /// seen order.  Used to merge current-document and cross-
 /// document reference hits without double-listing a location.
+/// Sort `(uri, span)` targets into a stable document-then-position order and
+/// drop exact duplicates.
+///
+/// The union tiers (namespace declarations / references) read the same site
+/// from two places — the request document's own analysis and the workspace
+/// index — so overlap is the normal case, not an error.  Deduplicating on the
+/// pair rather than on the rendered `Location` keeps it independent of the
+/// (async, source-reading) span-to-range conversion.
+fn dedup_span_targets(targets: &mut Vec<(String, tcl_lexer::Span)>) {
+    targets.sort_by(|(au, a), (bu, b)| {
+        au.cmp(bu)
+            .then_with(|| a.start().cmp(&b.start()))
+            .then_with(|| a.end().cmp(&b.end()))
+    });
+    targets.dedup();
+}
+
 fn dedup_locations(locations: &mut Vec<Location>) {
     let mut seen: std::collections::HashSet<(String, u32, u32, u32, u32)> =
         std::collections::HashSet::new();

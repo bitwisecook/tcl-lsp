@@ -1779,12 +1779,36 @@ impl Analyser {
     /// disabled-code filter and the dedupe + canonical-order pass.  Shared by
     /// `analyse` / `analyse_chunked` / `analyse_commands` so the emitter set and
     /// ordering stay identical across every entry point.
+    /// Drop the conditional entries from
+    /// [`AnalysisResult::destroyed_commands`], keeping only destructions
+    /// written at **load level**.
+    ///
+    /// A `rename OLD {}` inside a proc/class body runs at *call* time, when
+    /// and if that definition is invoked — the same conditionality
+    /// [`AnalysisResult::offset_is_inside_any_definition_body`] already
+    /// governs for a nested `proc` shadow — and the consumer of this table
+    /// revokes an import alias on it (issue #1103), which would drop a
+    /// genuinely-live command. Removal events abstain toward keeping the
+    /// alias, so the conditional ones are simply not published.
+    ///
+    /// It also keeps the incremental per-item path byte-identical to the
+    /// whole-file one: an isolated body's destruction reaches the shell only
+    /// on one of the two paths, and this filter removes it from both.
+    fn publish_load_level_destructions(&mut self) {
+        let all = std::mem::take(&mut self.result.destroyed_commands);
+        self.result.destroyed_commands = all
+            .into_iter()
+            .filter(|&(_, off)| !self.result.offset_is_inside_any_definition_body(off))
+            .collect();
+    }
+
     pub(super) fn run_diagnostic_emitters(&mut self, source: &str) {
         // Settle every invocation's `resolved_qualified_name` with Tcl's
         // existence-checked two-step rule now that the walk has recorded
         // every definition in the file (a local candidate defined later in
         // the file still wins; an absent one falls back to global).
         self.finalise_invocation_resolutions();
+        self.publish_load_level_destructions();
         // Attach every namespace-qualified occurrence to the cell it names,
         // now that the whole file's `namespace eval` bodies have been walked
         // — a qualified read can precede its declaring `namespace eval`
@@ -1853,6 +1877,9 @@ impl Analyser {
             .sort_by_key(|r| (r.range.start(), r.range.end()));
         self.result
             .qualified_var_refs
+            .sort_by_key(|r| (r.span.start(), r.span.end()));
+        self.result
+            .namespace_refs
             .sort_by_key(|r| (r.span.start(), r.span.end()));
         self.result
             .regex_patterns

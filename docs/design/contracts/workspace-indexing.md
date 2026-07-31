@@ -20,6 +20,7 @@ entry has an identity another document can spell:
 | `invocations` | every call site, with its ordered resolution candidates | — |
 | `variables` | namespace- and global-scope variable declarations | **qualified name only** |
 | `variable_refs` | occurrences written with a `::` qualifier | **qualified name only** |
+| `namespace_refs` | every word naming a namespace, declaring or not | qualified name (rooted at record time) |
 | `sources` / `package_requires` / `command_links` / `glob_imports` / `namespace_exports` | the cross-file graph edges | — |
 
 `glob_imports` and `namespace_exports` each carry their document **and their
@@ -53,6 +54,56 @@ created would freeze a cross-document answer that goes stale as soon as the
 exporting file is edited.  `interp alias` / `rename` links, and imports merely
 *conjectured* from a tcllib `<NS>::import <ALIAS>` wrapper, carry no gate.
 
+The edge also has a **lifecycle** after it is installed (issue #1103), so the
+tier indexes its removals beside the exports: `namespace_forgets` (one row per
+`namespace forget` pattern, carrying the qualified pattern's source namespace
+or `None` for the simple form) and `command_deletions` (a *destroying* `rename
+OLD {}` / `interp alias {} NAME {}` — a plain rename is not one, because the
+alias holds the command object and survives it).  `glob_imports` and the exact
+form's `import_gate` both carry `forced`, so a non-`-force` import onto a name
+the target namespace already **defines** installs nothing, while a `-force` one
+replaces it.  `WorkspaceIndex::resolve_wildcard_import` therefore takes a
+`CallSite` (the calling document plus the call's own offset): removals are a
+question about the *call*, not the import, and the same shared decision
+function the same-document resolver uses
+(`tcl_lsp_core::namespace_import::alias_live_at`) answers it for both tiers.
+
+Ordering is per document on **both** sides of the comparison: an install
+whose document differs from the call's is passed unordered too, because a byte
+offset in the importing file and one in the calling file are unrelated numbers
+— comparing them let a `namespace forget` in the caller revoke a cross-file
+import purely because its local offset happened to be larger (issue #1116
+finding 1).  Unordered, the shared function keeps the alias.
+
+Three further points are deliberate.  A removal in a **different document**
+from the call revokes nothing, the same unordered-event rule the `-clear`
+tombstones follow.  Within one document the removal is ordered by a plain
+offset comparison rather than `in_effect_within`, because the index stores an
+enclosing-body span per *import* row, not per invocation, and building one per
+call site would be O(procs × invocations) at index time; the missing fact can
+only make a removal look not-yet-run, i.e. keep answering, never invent one.
+And **destroying** the source command is not treated as a slot event on a
+timeline at all — the command object is gone workspace-wide — so it revokes
+wherever it is written.
+
+The **exact**-import link tier runs the same decision function with no call
+site (`WildcardImportIndex::link_alias_live`, issue #1116 finding 2): the
+question a link answers is "does this alias exist for navigation", so every
+recorded removal counts as having run and the ordering that remains is the
+removal's position relative to the *import* — a forget or a redefinition of
+the imported name in the import's own document revokes the link when written
+after it, one before it is undone by the import, and one in another document
+revokes nothing.  A non-`-force` exact import also conflicts with an earlier
+exact import of the same name from a **different** source in the same document
+(`earlier_conflicting_link`), matching the glob tier's
+`conflicting_alias_at`.
+
+Resolution follows **import chains**: when the hop's source namespace does not
+itself define the name, the walk continues from there, bounded by
+`tcl_compiler::analyser::indirection::MAX_COMMAND_NAME_HOPS`, so `::A`
+importing `::B::*` where `::B` imported `::C::*` resolves to `::C::p` instead
+of abstaining.
+
 The variable tables are deliberately narrower than the proc/class ones.  A
 namespace variable has one cell in one namespace, so `$::ns::v` in any
 document names the same thing as `variable v` inside `namespace eval ns`,
@@ -66,6 +117,63 @@ The `variable_refs` rows come from `qualified_var_refs`, which the analyser
 (`tcl_compiler::analyser::QualifiedVarRef`) records whether or not the named
 cell resolves in the recording document: the cross-file case is precisely
 the one where it does not.
+
+### The namespace tier
+
+`namespace_refs` (issue #1088) holds one row per word the registry marks
+`ArgRole::NamespaceName`: the `namespace eval` target that **declares** a
+namespace (`declares: true`, from `Traits::DECLARES_NAMESPACE`) and every
+other spelling of it — `namespace children`, `exists`, `delete`, `parent`,
+`upvar`, `inscope`.  One table rather than two, because a namespace's
+declaring site *is* one of its spellings: it is both what go-to-definition
+answers with and a word find-references reports.
+
+This tier needs **no** qualified-only bound, unlike the variable one.  A
+namespace word roots against the command-resolution namespace in force where
+it is written, and that is a lexical fact the recording document already
+knows, so `tcl_compiler::analyser::NamespaceRef` stores the rooted name and
+every indexed row names one namespace absolutely.  Two consequences the
+providers rely on: a relative `inner` inside `namespace eval ::outer` is
+indexed as `::outer::inner` and matches a sibling document's
+`::outer::inner` exactly; and the index never has to re-derive the rooting
+rule, so it cannot disagree with the same-document resolver
+(`tcl_lsp_core::namespace_symbol::namespace_cell_at`, the single entry point
+definition, hover, and references all answer through).
+
+Two shapes are deliberately absent.  A **computed** target (`namespace eval
+$ns { … }`) names no static namespace and is recorded nowhere.  A namespace
+that exists only as an implicit **parent** — `namespace eval ::p::q::r {}`
+really does create `::p` and `::p::q` on tclsh 9.0.4 and 8.6.16 alike — has
+no declaring row, because its name is written nowhere; definition abstains
+rather than pointing into the middle of another namespace's name word.
+
+`observable_namespaces` (the discriminator between "this namespace does not
+export the name" and "this namespace is not in the workspace at all", which
+gates `live_command_links`) reads the declaring rows as a fourth source,
+alongside proc/class owners and `namespace_exports`.  A `namespace eval ::ns
+{ namespace import ::other::* }` block declaring no proc, class, or export
+of its own *is* a namespace the workspace can see.
+
+Both halves of a namespace query are a **union**, not a fallback: the
+request's own analysis supplies the local sites and the index supplies every
+other document's, deduplicated by `(uri, span)`.  Returning as soon as the
+in-document provider answered — and excluding the request's own URI from the
+index lookup, which the first cut did — reported only the local half of a
+namespace reopened in two files, contradicting the contract that every
+declaring block is a target (issue #1088 review, finding 2).  Reading the
+local half from the analysis rather than the index is deliberate: a document
+that is unindexed, or has been edited since it was indexed, still answers.
+Hover counts the same merged set and states how many documents it counted, so
+it cannot say "1 block" while go-to-definition offers three.
+
+A namespace-name position is also **definitive** in the server, not just in
+the providers: the query is answered by one branch taken before every other
+tier.  An empty answer must not reach the proc/class tiers — an empty local
+reference set (asking without declarations from a namespace's only declaring
+block) used to route the query to `workspace_resolved_references`, and an
+empty rename edit set falls through to the workspace-resolved rename branch
+by design, which renamed a same-spelled *proc* instead (issue #1088 review,
+finding 1).
 
 ### The variable tier's rename half
 
@@ -172,6 +280,8 @@ cache.
 
 - `rust/tcl-lsp-core/src/workspace_index.rs` (`mod tests`)
 - `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs`
+- `rust/tcl-lsp-server/tests/e2e/issue1088_namespace_symbols.rs` (the
+  namespace tier, single-file and cross-file)
 - `rust/tcl-lsp-server/tests/e2e/rename_safety.rs` (the variable tier's
   rename half: TP cross-document, TP out-of-namespace alias, FN-guard
   proc-local alias, TN sibling namespace, FP-guard computed variable name,

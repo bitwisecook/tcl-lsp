@@ -80,6 +80,10 @@ pub const ARG_ROLES: &[Variant] = &[
         "names a command that need not exist yet",
     ),
     v("LambdaLiteral", "an `apply`-style lambda literal"),
+    v(
+        "NamespaceName",
+        "names a namespace (`namespace children ::ns`)",
+    ),
 ];
 
 /// [`TclType`] — the intrep a value carries.
@@ -320,6 +324,7 @@ pub const ANALYSER_HOOKS: &[Variant] = &[
     v("NamespaceEnsemble", "namespace ensemble"),
     v("NamespaceImport", "namespace import"),
     v("NamespaceExport", "namespace export"),
+    v("NamespaceForget", "namespace forget"),
     v("NamespacePath", "namespace path"),
     v("NamespaceUnknown", "namespace unknown"),
     v("NamespaceUpvar", "namespace upvar"),
@@ -501,6 +506,10 @@ pub const TRAITS: &[Variant] = &[
     v(
         "TCLOO_REQUIRES_METHOD_FRAME",
         "calling it needs a real method invocation, not just an object frame",
+    ),
+    v(
+        "DECLARES_NAMESPACE",
+        "declares the namespace its NamespaceName word names",
     ),
 ];
 
@@ -705,7 +714,8 @@ mod tests {
             | ArgRole::CommandPrefix
             | ArgRole::CommandName
             | ArgRole::CommandNameProbe
-            | ArgRole::LambdaLiteral => true,
+            | ArgRole::LambdaLiteral
+            | ArgRole::NamespaceName => true,
         }
     }
 
@@ -950,6 +960,7 @@ mod tests {
             | AnalyserHookId::NamespaceEnsemble
             | AnalyserHookId::NamespaceImport
             | AnalyserHookId::NamespaceExport
+            | AnalyserHookId::NamespaceForget
             | AnalyserHookId::NamespacePath
             | AnalyserHookId::NamespaceUnknown
             | AnalyserHookId::NamespaceUpvar
