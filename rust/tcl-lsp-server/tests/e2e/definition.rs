@@ -328,6 +328,66 @@ fn wildcard_namespace_import_does_not_resolve_unexported_sibling_cross_document(
     );
 }
 
+// -- per-import-site export snapshots, cross-document (issue #1027) --
+//
+// `namespace import` binds the names exported *when it runs*. A later
+// `namespace export -clear` does not revoke the alias, and a later
+// `namespace export` does not create one. Both oracle-pinned against
+// tclsh 8.6.14 and 9.0.4; see `tcl_lsp_core::namespace_import` for the
+// transcripts. Ordering only exists within one document — which of two
+// files loads first is not a static fact — so both cases put the ordered
+// pair in the same file.
+
+#[test]
+fn wildcard_import_survives_a_later_export_clear_cross_document() {
+    // TP, direction A: `main.tcl` imports `::Lib::*` and then, further down
+    // the same file, clears `::Lib`'s exports. Real Tcl keeps the alias
+    // (`::dst::bar` still runs); before the per-import-site snapshot the
+    // resolver read `::Lib`'s final export state and stopped resolving the
+    // call entirely.
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n    namespace export bar\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &main_uri,
+        "namespace import ::Lib::*\nbar\nnamespace eval Lib {\n    namespace export -clear\n}\n",
+    );
+    let result = lsp.definition(&main_uri, 1, 0);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(locs[0].uri, lib_uri, "must still jump into lib.tcl");
+    assert_eq!(start_line(&locs[0]), 1, "proc bar is declared on line 1");
+}
+
+#[test]
+fn wildcard_import_ignores_an_export_written_after_it_cross_document() {
+    // FP guard (CRITICAL), direction B: `lib.tcl` exports nothing;
+    // `main.tcl` imports `::Lib::*` and only *afterwards* exports `bar`.
+    // Real Tcl never binds the alias (`invalid command name`), so the bare
+    // call must not resolve to `::Lib::bar`.
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &main_uri,
+        "namespace import ::Lib::*\nbar\nnamespace eval Lib {\n    namespace export bar\n}\n",
+    );
+    let result = lsp.definition(&main_uri, 1, 0);
+    assert!(
+        locations(&result).is_empty(),
+        "an export written after the import must not resolve the call \
+         retroactively: {result:?}"
+    );
+}
+
 /// idx 33 (differential-audit main audit wave, high severity): a class
 /// *instantiation* call (`GSA new`, the real corpus's
 /// `georgtree_tclopt`'s `arbitaryTest.tcl` idiom — `GSA new -funct

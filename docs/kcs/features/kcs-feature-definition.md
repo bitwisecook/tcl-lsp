@@ -46,6 +46,20 @@ When a name carries both a `rename` and an `interp alias`, the one written
 **later** is what the call reaches — an alias silently replaces whatever the
 name held, and so does a rename.
 
+A `namespace import ::src::*` is order-gated the same way, on the *export*
+side. The import binds the names `::src` exported **at the moment the import
+runs**, and the export list keeps changing afterwards without reaching back: a
+`namespace export -clear` written after the import does **not** revoke the
+alias (the bare call still jumps to the source proc), and a `namespace export`
+written after the import does **not** create one (the bare call resolves to
+nothing through that import). A second, later `namespace import` takes its own
+snapshot, so it can pick up a name the first one could not. Export patterns
+are glob *patterns*, not command references — `namespace export get*` covers
+`getX` and not `setX`, and `namespace export p` written before `proc p` still
+exports it. Ordering only exists inside one document; when the import and the
+export are in different files, nothing fixes which loads first, so navigation
+keeps answering rather than guessing a revocation.
+
 A proc declared twice in one file is two definitions of one command. A call
 between the two jumps to the **first** header, a call after both jumps to
 the second, and a cursor on either header stays on that header.
@@ -143,6 +157,12 @@ same name — Tcl keeps those in a separate table from variables.
 - `rust/tcl-lsp-server/tests/e2e/navigation.rs` — the caller-frame cases
 - `rust/tcl-lsp-core/src/caller_frame.rs` — unit tests for the binding scan
 - `rust/tcl-lsp-core/src/definition.rs` (`mod tests`)
+- `rust/tcl-lsp-core/src/namespace_import.rs` (`mod tests`) — the
+  per-import-site export snapshot, shared by the same-document and workspace
+  resolvers
+- `rust/tcl-lsp-server/tests/e2e/definition.rs`
+  (`wildcard_import_survives_a_later_export_clear_cross_document`,
+  `wildcard_import_ignores_an_export_written_after_it_cross_document`)
 - `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs` (cross-file namespace
   variables, cross-file class-reference arguments)
 - `rust/tcl-lsp-server/src/lib.rs` unit tests

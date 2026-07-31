@@ -22,6 +22,17 @@ entry has an identity another document can spell:
 | `variable_refs` | occurrences written with a `::` qualifier | **qualified name only** |
 | `sources` / `package_requires` / `command_links` / `glob_imports` / `namespace_exports` | the cross-file graph edges | — |
 
+`glob_imports` and `namespace_exports` each carry their document **and their
+byte offset within it**, because a `namespace import` binds the names its
+source namespace exported *at the import site*, not in the workspace's final
+export state (issue #1027). Offsets order events only *within* one document:
+which of two files loads first is not a static fact, so an export in a
+different file from the import is treated as unordered — its pattern still
+counts, and a `-clear` it carries revokes nothing. Both this tier and the
+same-document resolver in `definition.rs` decide through the one shared
+function `tcl_lsp_core::namespace_import::exported_at_import_site`, so they
+cannot disagree about what an import site sees.
+
 The variable tables are deliberately narrower than the proc/class ones.  A
 namespace variable has one cell in one namespace, so `$::ns::v` in any
 document names the same thing as `variable v` inside `namespace eval ns`,

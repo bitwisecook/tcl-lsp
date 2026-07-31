@@ -5304,9 +5304,13 @@ impl Analyser {
         if args.is_empty() {
             return;
         }
-        // Skip the subcommand word + an optional ``-force`` flag.
+        // Skip the subcommand word + any leading flag the registry declares
+        // for `namespace import` (`-force`). Read from the spec rather than
+        // matched by name here: which words are options of this subcommand is
+        // command-level knowledge, and it lives in the registry
+        // (`IMPORT_OPTIONS` in `tcl-registry`'s `namespace_` module).
         let mut idx = 1;
-        if idx < args.len() && args[idx] == "-force" {
+        while idx < args.len() && self.namespace_subcommand_flag("import", &args[idx]) {
             idx += 1;
         }
         // `namespace import` imports into the namespace current at the call —
@@ -5359,13 +5363,22 @@ impl Analyser {
     /// (cross-document) can gate a would-be import target on whether its
     /// source namespace actually exports it (issue #923 idx 18).
     ///
-    /// `-clear` resets the namespace's previously recorded patterns (in this
-    /// same forward pass) before any new patterns on the same call are
-    /// added, mirroring `Tcl_Export`'s own `-clear` semantics. A dynamic
-    /// pattern (`$`/`[` substitution) can't be statically resolved to a
-    /// glob text, so it is silently skipped — the wildcard-import resolver
-    /// then correctly abstains for names it might have covered, rather than
-    /// guessing.
+    /// `-clear` is recorded as an ordered **tombstone** entry rather than
+    /// applied by dropping the namespace's earlier entries: an import
+    /// snapshots the export list as it stood when the import ran, so a
+    /// `-clear` written *after* an import must not revoke what that import
+    /// already bound (issue #1027, oracle in
+    /// [`crate::signature_scan::types::SignatureNamespaceExport`]).
+    /// Collapsing it eagerly — as this handler originally did — destroys
+    /// exactly the ordering the snapshot needs. Consumers reconstruct the
+    /// export set as of an offset with
+    /// `tcl_lsp_core::namespace_import::exported_at_import_site`.
+    ///
+    /// A dynamic pattern (`$`/`[` substitution) can't be statically resolved
+    /// to a glob text, so it is silently skipped — the wildcard-import
+    /// resolver then correctly abstains for names it might have covered,
+    /// rather than guessing. A dynamic word cannot hide a `-clear`, which is
+    /// a literal flag word or nothing.
     ///
     /// Dispatched via
     /// [`tcl_registry::hooks::AnalyserHookId::NamespaceExport`] (stamped on
@@ -5384,10 +5397,21 @@ impl Analyser {
         // As for `import`: the exporting namespace is the one current at the
         // call, not the lexically enclosing one (issue #923 idx 85).
         let exporting_ns = self.command_resolution_namespace(scope_path);
-        if idx < args.len() && args[idx] == "-clear" {
-            self.result
-                .namespace_exports
-                .retain(|e| e.ns != exporting_ns);
+        // Which leading words are flags is registry data (`EXPORT_OPTIONS`),
+        // not a name match here. `-clear` is the only one, and it lands as a
+        // tombstone event at its own token so the ordering survives.
+        while idx < args.len()
+            && idx < arg_tokens.len()
+            && self.namespace_subcommand_flag("export", &args[idx])
+        {
+            self.result.namespace_exports.push(
+                crate::signature_scan::types::SignatureNamespaceExport {
+                    ns: exporting_ns.clone(),
+                    pattern: String::new(),
+                    range: arg_tokens[idx].span,
+                    clears: true,
+                },
+            );
             idx += 1;
         }
         while idx < args.len() && idx < arg_tokens.len() {
@@ -5401,10 +5425,38 @@ impl Analyser {
                     ns: exporting_ns.clone(),
                     pattern,
                     range: arg_tokens[idx].span,
+                    clears: false,
                 },
             );
             idx += 1;
         }
+    }
+
+    /// Whether `word` is a leading **flag** option the registry declares for
+    /// `namespace SUB` in the active dialect profile.
+    ///
+    /// `namespace import`'s `-force` and `namespace export`'s `-clear` are
+    /// the two that matter here; both are pure flags (they consume no value
+    /// word), so a caller that skips them advances by exactly one. Reading
+    /// the option set from the spec — the same route
+    /// [`Self::handle_namespace_ensemble`] takes for `-command`/`-map` — is
+    /// what keeps this argument-role knowledge in the registry rather than as
+    /// a literal in the walker.
+    ///
+    /// `false` when no registry is attached (the analyser runs registry-less
+    /// in some unit tests): a flagless read then treats `-clear` as an
+    /// ordinary pattern, which is inert — no command is named `-clear`.
+    fn namespace_subcommand_flag(&self, sub: &str, word: &str) -> bool {
+        use tcl_registry::ProfileQueries;
+        self.registry
+            .and_then(|r| r.get("namespace"))
+            .and_then(|spec| spec.subcommand(sub).map(|s| (spec, s)))
+            .is_some_and(|(spec, s)| {
+                self.profile
+                    .available_sub_option_specs(spec, s)
+                    .iter()
+                    .any(|o| o.matches(word) && !o.takes_value())
+            })
     }
 
     /// Handle `namespace unknown HANDLER` — installing a per-namespace
@@ -6749,8 +6801,9 @@ mod tests {
     }
 
     #[test]
-    fn handle_namespace_export_clear_resets_previous_patterns_for_the_namespace() {
+    fn handle_namespace_export_clear_records_an_ordered_tombstone() {
         let mut a = Analyser::new();
+        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
         a.handle_namespace_export_command(
             &["export".to_string(), "bar".to_string()],
             &[esc_tok(span(0, 6)), esc_tok(span(7, 10))],
@@ -6769,17 +6822,33 @@ mod tests {
             ],
             &[],
         );
-        let patterns: Vec<&str> = a
+        // `-clear` is an ordered event, not an eager delete: the earlier
+        // `bar` entry stays on the log so a `namespace import` that ran
+        // *before* the `-clear` can still see it (issue #1027).
+        let events: Vec<(&str, bool, u32)> = a
             .result
             .namespace_exports
             .iter()
-            .map(|e| e.pattern.as_str())
+            .map(|e| (e.pattern.as_str(), e.clears, e.range.start()))
             .collect();
         assert_eq!(
-            patterns,
-            vec!["baz"],
-            "-clear must drop the earlier `bar` entry"
+            events,
+            vec![("bar", false, 7), ("", true, 18), ("baz", false, 25)]
         );
+    }
+
+    #[test]
+    fn handle_namespace_export_bare_clear_records_a_tombstone() {
+        let mut a = Analyser::new();
+        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.handle_namespace_export_command(
+            &["export".to_string(), "-clear".to_string()],
+            &[esc_tok(span(0, 6)), esc_tok(span(7, 13))],
+            &[],
+        );
+        assert_eq!(a.result.namespace_exports.len(), 1);
+        assert!(a.result.namespace_exports[0].clears);
+        assert!(a.result.namespace_exports[0].pattern.is_empty());
     }
 
     #[test]

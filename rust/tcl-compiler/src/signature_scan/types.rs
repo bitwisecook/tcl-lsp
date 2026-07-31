@@ -178,23 +178,64 @@ pub struct SignatureNamespaceImport {
     pub conjectured: bool,
 }
 
-/// A `namespace export` declaration recorded by the signature scanner.
+/// One `namespace export` **event** recorded by the signature scanner.
 ///
 /// Gates which commands a wildcard `namespace import NS::*` elsewhere may
 /// actually reach: real Tcl only imports names `NS` has exported
 /// (`Tcl_Export`, `tclNamesp.c`) — an unexported sibling command living in
 /// `NS` is not reachable through the import at all (tclsh9.0/8.6-verified:
 /// `invalid command name` calling it bare). Issue #923 idx 18.
+///
+/// # Why an event log, not a set
+///
+/// A namespace's export list is *mutable state on a timeline*, and
+/// `namespace import` snapshots it at the instant the import runs — later
+/// changes never reach back (issue #1027). Both directions are observable
+/// (oracle, tclsh 8.6.14 / 9.0.4):
+///
+/// - `namespace export -clear` **after** an import does not revoke the alias
+///   the import already installed: with `::src` exporting `p`, `namespace
+///   import ::src::*` in `::dst`, then `namespace export -clear` in `::src`,
+///   `::dst::p` still runs `::src::p`.
+/// - Exporting a name **after** an import does not add it retroactively:
+///   importing `::src::*` while nothing is exported, then `namespace export
+///   p`, leaves `::dst::p` an `invalid command name`. Only a *later* import
+///   picks the new name up.
+///
+/// So the records are kept as an ordered, append-only log — one entry per
+/// pattern word, plus a [`Self::clears`] tombstone for each `-clear` — and
+/// consumers reconstruct the export set *as of a given offset* rather than
+/// reading a flat final set. Collapsing `-clear` eagerly (dropping the
+/// namespace's earlier entries, as this type's first implementation did)
+/// destroys exactly the ordering the snapshot needs.
+///
+/// Note that an export pattern is a *name pattern*, not a reference to a
+/// command: `namespace export p` before `proc p` is written still exports
+/// `p` (oracle-verified), so nothing here is gated on the command existing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignatureNamespaceExport {
     /// Exporting namespace, with leading `::`.
     pub ns: String,
     /// Exported pattern text, exactly as written. Always relative to `ns`
     /// (Tcl's `namespace export` patterns are simple, unqualified glob
-    /// patterns matched against a command's tail name — never `::`-qualified).
+    /// patterns matched against a command's tail name — never `::`-qualified;
+    /// a `::`-qualified one is a hard error in real Tcl: `invalid export
+    /// pattern "::foo": pattern can't specify a namespace`).
+    ///
+    /// Empty when this record is a [`Self::clears`] tombstone, which carries
+    /// no pattern of its own.
     pub pattern: String,
-    /// Source span of the pattern argument.
+    /// Source span of the pattern argument — of the `-clear` word itself for
+    /// a [`Self::clears`] tombstone.
     pub range: Span,
+    /// `true` when this record is the `-clear` tombstone of a `namespace
+    /// export -clear ?pattern …?` call rather than an exported pattern.
+    ///
+    /// A tombstone revokes every pattern this namespace recorded *before* it;
+    /// the same call's own patterns are recorded after it and survive
+    /// (`namespace export a b; namespace export -clear p` leaves exactly `p`
+    /// exported — oracle-verified).
+    pub clears: bool,
 }
 
 /// An `auto_path` mutation recorded by the signature scanner.

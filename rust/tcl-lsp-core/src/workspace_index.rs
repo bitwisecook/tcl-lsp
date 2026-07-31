@@ -387,23 +387,44 @@ pub struct WorkspaceGlobImport {
     /// or a literal tail) — matched against a call's bare name with Tcl
     /// glob semantics ([`tcl_syntax::glob::string_match`]).
     pub tail_pattern: String,
+    /// Byte offset of the import's pattern word within [`Self::uri`].
+    ///
+    /// The import's position on its own document's timeline: an import binds
+    /// the names its source namespace exported *when the import ran*, so an
+    /// export declared in the same file is judged against this offset (issue
+    /// #1027). Meaningless against another file's offsets — which document
+    /// loads first is not a static fact — so
+    /// [`WildcardImportIndex::exports_name_at`] only compares within one URI.
+    pub at: u32,
 }
 
-/// One `namespace export` declaration recorded in the index.
+/// One `namespace export` **event** recorded in the index.
 ///
 /// Aggregated workspace-wide (unlike
 /// [`tcl_compiler::analyser::AnalysisResult::namespace_exports`], which is
 /// per-document) so a wildcard import in one file can be checked against an
 /// export declared in *another* file — the cross-document half of issue
 /// #923 idx 18.
+///
+/// An *event*, not a member of a set: `-clear` tombstones and ordering are
+/// carried through so the cross-document tier applies the same per-import-site
+/// snapshot the same-document one does (issue #1027 — see
+/// [`crate::namespace_import`]). Ordering only means something *within* a
+/// document, which is why [`Self::uri`] and [`Self::at`] are always read
+/// together.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceNamespaceExport {
     /// Document the `namespace export` is in.
     pub uri: String,
     /// Exporting namespace, with leading `::`.
     pub ns: String,
-    /// Exported pattern text, exactly as written (relative to `ns`).
+    /// Exported pattern text, exactly as written (relative to `ns`). Empty
+    /// for a [`Self::clears`] tombstone.
     pub pattern: String,
+    /// Byte offset of the event within [`Self::uri`].
+    pub at: u32,
+    /// `true` for a `namespace export -clear` tombstone.
+    pub clears: bool,
 }
 
 /// Collect `items` into source order by the span `key` reports, so a
@@ -641,6 +662,8 @@ impl WorkspaceIndex {
                 uri: uri.to_owned(),
                 ns: exp.ns.clone(),
                 pattern: exp.pattern.clone(),
+                at: exp.range.start(),
+                clears: exp.clears,
             });
         }
         self.index_command_links(uri, analysis);
@@ -668,6 +691,7 @@ impl WorkspaceIndex {
                         ns: imp.ns.clone(),
                         source_ns: source_ns.to_owned(),
                         tail_pattern: tail_pattern.to_owned(),
+                        at: imp.range.start(),
                     });
                 }
                 continue;
@@ -1827,7 +1851,7 @@ impl WorkspaceIndex {
                 if !tcl_syntax::glob::string_match(&imp.tail_pattern, word) {
                     continue;
                 }
-                if !wci.exports_name(&imp.source_ns, word) {
+                if !wci.exports_name_at(&imp.source_ns, word, &imp.uri, imp.at) {
                     continue;
                 }
                 let target = format!("{}::{word}", imp.source_ns);
@@ -1846,7 +1870,7 @@ impl WorkspaceIndex {
 /// [`WorkspaceIndex::resolve_wildcard_import_indexed`]'s doc for why.
 struct WildcardImportIndex<'a> {
     imports_by_ns: std::collections::HashMap<&'a str, Vec<&'a WorkspaceGlobImport>>,
-    exports_by_ns: std::collections::HashMap<&'a str, Vec<&'a str>>,
+    exports_by_ns: std::collections::HashMap<&'a str, Vec<&'a WorkspaceNamespaceExport>>,
 }
 
 impl<'a> WildcardImportIndex<'a> {
@@ -1856,13 +1880,10 @@ impl<'a> WildcardImportIndex<'a> {
         for imp in &index.glob_imports {
             imports_by_ns.entry(imp.ns.as_str()).or_default().push(imp);
         }
-        let mut exports_by_ns: std::collections::HashMap<&str, Vec<&str>> =
+        let mut exports_by_ns: std::collections::HashMap<&str, Vec<&WorkspaceNamespaceExport>> =
             std::collections::HashMap::new();
         for exp in &index.namespace_exports {
-            exports_by_ns
-                .entry(exp.ns.as_str())
-                .or_default()
-                .push(exp.pattern.as_str());
+            exports_by_ns.entry(exp.ns.as_str()).or_default().push(exp);
         }
         Self {
             imports_by_ns,
@@ -1870,16 +1891,34 @@ impl<'a> WildcardImportIndex<'a> {
         }
     }
 
-    /// Whether `ns` (`::`-rooted) has recorded a `namespace export` pattern
-    /// that covers the unqualified `name` — the cross-document half of the
-    /// wildcard-import gate (issue #923 idx 18): real Tcl only imports names
-    /// a source namespace has actually exported (`Tcl_Export`,
-    /// `tclNamesp.c`).
-    fn exports_name(&self, ns: &str, name: &str) -> bool {
-        self.exports_by_ns.get(ns).is_some_and(|patterns| {
-            patterns
+    /// Whether `ns` (`::`-rooted) had exported the unqualified `name` **as of
+    /// the import site** at `import_at` in `import_uri` — the cross-document
+    /// half of the wildcard-import gate (issue #923 idx 18: real Tcl only
+    /// imports names a source namespace has actually exported, `Tcl_Export`,
+    /// `tclNamesp.c`), taken per import site rather than against the
+    /// workspace's final export state (issue #1027).
+    ///
+    /// Delegates to [`crate::namespace_import::exported_at_import_site`] — the
+    /// same function the same-document resolver
+    /// (`definition::exported_at_import`) calls, so the two tiers cannot
+    /// disagree about what an import site sees. The only tier-specific part
+    /// is which events are *ordered* against the import: those in the
+    /// import's own document, compared by offset. An export in another
+    /// document has no static order relative to this import (nothing fixes
+    /// which file loads first), so it is passed unordered and the shared
+    /// function abstains toward continuing to resolve.
+    fn exports_name_at(&self, ns: &str, name: &str, import_uri: &str, import_at: u32) -> bool {
+        self.exports_by_ns.get(ns).is_some_and(|exports| {
+            let mut events = exports
                 .iter()
-                .any(|p| tcl_syntax::glob::string_match(p, name))
+                .map(|e| crate::namespace_import::ExportEvent {
+                    pattern: e.pattern.as_str(),
+                    clears: e.clears,
+                    at: (e.uri == import_uri).then_some(e.at),
+                });
+            crate::namespace_import::exported_at_import_site(&mut events, name, &|at| {
+                at <= import_at
+            })
         })
     }
 }
@@ -2481,6 +2520,87 @@ mod tests {
             ("file:///mymod.tcl", &mymod),
             ("file:///imports.tcl", &imports),
             ("file:///caller.tcl", &caller),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+        );
+        assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
+    }
+
+    // Per-import-site export snapshots, cross-document tier (issue #1027).
+    // The workspace resolver applies the same shared decision function the
+    // same-document one does (`namespace_import::exported_at_import_site`),
+    // so the two tiers cannot disagree — but only events in the *import's own
+    // document* are ordered against it; another file's load order is not a
+    // static fact.
+
+    #[test]
+    fn resolve_wildcard_import_survives_a_later_export_clear_in_the_import_file() {
+        // TP, direction A, cross-document — the import and the later
+        // `namespace export -clear` are both in `app.tcl`, so they *are*
+        // ordered: the `-clear` runs after the import and cannot revoke what
+        // it bound (oracle tclsh 8.6.14/9.0.4). `::mymod`'s own export is in
+        // the other file and unordered, which the shared function keeps.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::*\n    proc run {} { helper }\n}\nnamespace eval ::mymod {\n    namespace export -clear\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+        );
+        assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
+    }
+
+    #[test]
+    fn resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import() {
+        // FP guard (CRITICAL), direction B, cross-document — the import and
+        // the export are both in `app.tcl` and the export comes *after*, so
+        // real Tcl never binds `::app::helper` (oracle: `invalid command
+        // name`). `mymod.tcl` exports nothing, so there is no unordered
+        // event to fall back on and the resolver must abstain.
+        let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::*\n    proc run {} { helper }\n}\nnamespace eval ::mymod {\n    namespace export helper\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+        );
+        assert!(
+            resolved.is_none(),
+            "an export written after the import in the same file must not \
+             apply retroactively: {resolved:?}"
+        );
+    }
+
+    #[test]
+    fn resolve_wildcard_import_keeps_answering_when_the_export_is_in_another_file() {
+        // TN-for-abstention — which of two files loads first is not a static
+        // fact, so a `namespace export -clear` in a *third* document cannot
+        // be ordered against this import and must not silently revoke it.
+        // Navigation keeps answering; the residual is documented in
+        // `namespace_import`'s module docs.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::*\n    proc run {} { helper }\n}\n",
+        );
+        let teardown = analyse("namespace eval ::mymod { namespace export -clear }\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+            ("file:///teardown.tcl", &teardown),
         ]);
         let resolved = index.resolve_wildcard_import(
             "helper",

@@ -1278,6 +1278,20 @@ mod tests {
     }
 
     #[test]
+    fn namespace_export_clear_tombstone_ordering_matches() {
+        // Issue #1027: `-clear` is recorded as an ordered tombstone rather
+        // than applied by deleting the namespace's earlier entries, so the
+        // export log now carries *more* rows and their relative order is
+        // load-bearing. Both walks must produce the identical log — a rebased
+        // offset or a dropped tombstone on either path would change what a
+        // per-import-site snapshot answers.
+        eq("namespace eval src {\n    proc p {} { return P }\n    \
+             namespace export p\n}\nnamespace eval dst {\n    \
+             namespace import ::src::*\n}\nnamespace eval src {\n    \
+             namespace export -clear q\n}\n");
+    }
+
+    #[test]
     fn namespace_export_inside_body_falls_back() {
         // A `namespace export` buried in a proc body leaks into the
         // whole-file walk's global export set (reached by a later
