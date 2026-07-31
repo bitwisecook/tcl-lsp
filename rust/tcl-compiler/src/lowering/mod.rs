@@ -214,6 +214,58 @@ fn qualify_proc_name(namespace: &str, proc_name: &str) -> String {
     normalise_qualified_name(&format!("{namespace}::{proc_name}"))
 }
 
+/// The namespace a `proc`'s **body** resolves names against: the namespace the
+/// proc is *defined in* (the qualifier prefix of its own qualified name), not
+/// the lexical namespace the `proc` command was written in.
+///
+/// The two agree for every proc whose name word carries no qualifier — the
+/// overwhelmingly common case, including `proc outer {} { proc inner … }` at
+/// top level — and diverge exactly when the name word is itself qualified, so
+/// the definition site and the defining namespace are different namespaces.
+///
+/// Oracle, identical on tclsh 9.0.4 and 8.6.16 (`self class`-style
+/// introspection is not involved; this is plain `info commands` after
+/// running the outer proc):
+///
+/// ```tcl
+/// namespace eval ::a {}
+/// proc a::outer {} { proc helper {x} { return $x } ; return [namespace current] }
+/// a::outer                        ;# -> ::a           (the body's frame namespace)
+/// info commands ::helper          ;# -> {}            (NOT the lexical ::)
+/// info commands ::a::helper       ;# -> ::a::helper
+///
+/// namespace eval ::b::c {}
+/// proc b::c::o2 {} { proc h2 {y} { return $y } }
+/// b::c::o2 ; info commands ::b::c::h2   ;# -> ::b::c::h2, and ::h2 is empty
+///
+/// # The *lexical* enclosing `namespace eval` loses to the name's own qualifier:
+/// namespace eval ::e {}
+/// namespace eval ::d { proc ::e::o3 {} { proc h3 {z} { return $z } } }
+/// ::e::o3 ; info commands ::e::h3       ;# -> ::e::h3, ::d::h3 and ::h3 empty
+///
+/// # Nesting composes — each level re-homes to its own defining namespace:
+/// namespace eval ::g {}
+/// proc g::o7 {} { proc o7b {} { proc h7 {u} { return $u } } }
+/// g::o7 ; ::g::o7b ; info commands ::g::h7   ;# -> ::g::h7, ::h7 empty
+/// ```
+///
+/// An absolutely-written nested name (`proc ::abs {q} {…}`) is unaffected —
+/// [`qualify_proc_name`] already short-circuits on the leading `::`.
+///
+/// `qualified` is always rooted (it comes from [`qualify_proc_name`], which
+/// routes every result through `normalise_qualified_name`), so the holder is
+/// never the empty "relative" marker [`tcl_syntax::naming::key_holder_and_tail`]
+/// returns for a bare simple name; `lexical_fallback` covers that
+/// impossible-by-construction case rather than silently producing `""`.
+fn proc_body_namespace(qualified: &str, lexical_fallback: &str) -> String {
+    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qualified);
+    if holder.is_empty() {
+        lexical_fallback.to_string()
+    } else {
+        holder.to_string()
+    }
+}
+
 /// Parse a Tcl parameter / variable list into its names.
 ///
 /// The list is a braced word, so a `\<newline>` line continuation collapses to
@@ -1384,6 +1436,12 @@ impl<'r> Lowerer<'r> {
         // and emit the runtime `proc` Call.
         let params = parse_param_names(&args[1]);
         let qualified = qualify_proc_name(namespace, proc_name);
+        // The body's own command/variable resolution namespace is the one the
+        // proc is *defined in* — the qualifier prefix of its own qualified
+        // name — not the lexical namespace the `proc` call was written in.
+        // See [`proc_body_namespace`] for the oracle transcript.
+        let body_namespace = proc_body_namespace(&qualified, namespace);
+        let body_namespace: &str = &body_namespace;
         let body_text = &args[2];
         // Fresh const-map frame for the nested proc body.
         // ``lower_body`` would otherwise inherit the enclosing
@@ -1396,7 +1454,7 @@ impl<'r> Lowerer<'r> {
         self.proc_depth += 1;
         self.const_map_stack.push(HashMap::new());
         let body = if let Some(text) = materialised_body {
-            self.lower_script(&text, namespace)
+            self.lower_script(&text, body_namespace)
         } else if body_is_dynamic {
             // Dynamic body, no materialisation possible — but the
             // proc name resolved via the const-map (otherwise we'd
@@ -1418,11 +1476,11 @@ impl<'r> Lowerer<'r> {
             // context-carrying sibling no longer disables the cache for this one.
             // Guarded by the corpus differential gates (`file_analysis_corpus` /
             // `compiler_check_corpus` / `per_item_corpus`).
-            let mut s = cache(body_text, namespace);
+            let mut s = cache(body_text, body_namespace);
             crate::lattice_rebase::rebase_script(&mut s, i64::from(body_offset));
             s
         } else {
-            self.lower_body(body_text, body_offset, namespace)
+            self.lower_body(body_text, body_offset, body_namespace)
         };
         self.const_map_stack.pop();
         self.proc_depth -= 1;
@@ -3536,6 +3594,106 @@ mod tests {
         let m = lower_to_ir("set x 1\nproc foo {} {return 1}", &r);
         assert_eq!(m.top_level.statements.len(), 2);
         assert!(m.procedures.contains_key("::foo"));
+    }
+
+    // ---- issue #1077: a proc body homes nested definitions to the proc's
+    // *defining* namespace, not the lexical namespace of the `proc` call. ----
+
+    #[test]
+    fn proc_body_namespace_peels_the_names_own_qualifier() {
+        // Unit-level: the helper is the inverse of `qualify_proc_name`.
+        assert_eq!(proc_body_namespace("::a::outer", "::"), "::a");
+        assert_eq!(proc_body_namespace("::b::c::o2", "::"), "::b::c");
+        assert_eq!(proc_body_namespace("::plain", "::ignored"), "::");
+        // A bare (unrooted) key can't come out of `qualify_proc_name`, but the
+        // fallback must not manufacture an empty namespace if it ever did.
+        assert_eq!(proc_body_namespace("plain", "::lex"), "::lex");
+    }
+
+    #[test]
+    fn nested_proc_homes_to_the_outer_procs_defining_namespace() {
+        // TP. Oracle (tclsh 9.0.4 and 8.6.16, identical):
+        //   namespace eval ::a {}
+        //   proc a::outer {} { proc helper {x} {return $x} }
+        //   a::outer ; info commands ::a::helper   -> ::a::helper
+        //              info commands ::helper      -> {}
+        let m = lower_to_ir(
+            "namespace eval ::a {}\nproc a::outer {} { proc helper {x} { return $x } }\n",
+            &reg(),
+        );
+        assert!(
+            m.procedures.contains_key("::a::helper"),
+            "nested proc must home to ::a, got {:?}",
+            m.procedures.keys().collect::<Vec<_>>(),
+        );
+        assert!(
+            !m.procedures.contains_key("::helper"),
+            "nested proc must NOT home lexically to ::",
+        );
+    }
+
+    #[test]
+    fn nested_proc_homing_composes_through_three_levels() {
+        // TP. Oracle: `proc g::o7 {} { proc o7b {} { proc h7 {u} … } }` →
+        // running `g::o7` then `::g::o7b` leaves `::g::h7` (never `::h7`).
+        let m = lower_to_ir(
+            "namespace eval ::g {}\nproc g::o7 {} { proc o7b {} { proc h7 {u} { return $u } } }\n",
+            &reg(),
+        );
+        assert!(m.procedures.contains_key("::g::o7b"));
+        assert!(
+            m.procedures.contains_key("::g::h7"),
+            "third level must stay in ::g, got {:?}",
+            m.procedures.keys().collect::<Vec<_>>(),
+        );
+        assert!(!m.procedures.contains_key("::h7"));
+    }
+
+    #[test]
+    fn nested_proc_name_qualifier_beats_the_lexical_namespace_eval() {
+        // TP. Oracle: inside `namespace eval ::d`, `proc ::e::o3` still homes
+        // its body to `::e` — `::e::h3` exists, `::d::h3` and `::h3` do not.
+        let m = lower_to_ir(
+            "namespace eval ::e {}\nnamespace eval ::d {\n    proc ::e::o3 {} { proc h3 {z} { return $z } }\n}\n",
+            &reg(),
+        );
+        assert!(
+            m.procedures.contains_key("::e::h3"),
+            "got {:?}",
+            m.procedures.keys().collect::<Vec<_>>(),
+        );
+        assert!(!m.procedures.contains_key("::d::h3"));
+        assert!(!m.procedures.contains_key("::h3"));
+    }
+
+    #[test]
+    fn unqualified_outer_proc_leaves_nested_homing_unchanged() {
+        // TN. The common shape: lexical and defining namespace agree, so the
+        // fix must be a no-op. Both at top level…
+        let m = lower_to_ir("proc outer {} { proc inner {} { return 1 } }\n", &reg());
+        assert!(m.procedures.contains_key("::inner"));
+        // …and inside a `namespace eval`, where both are `::ns`.
+        let m = lower_to_ir(
+            "namespace eval ::ns {\n    proc outer {} { proc inner {} { return 1 } }\n}\n",
+            &reg(),
+        );
+        assert!(
+            m.procedures.contains_key("::ns::inner"),
+            "got {:?}",
+            m.procedures.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn absolutely_named_nested_proc_is_unaffected() {
+        // TN. Oracle: `proc a::outer4 {} { proc ::abs {q} … }` creates `::abs`
+        // — an absolute inner name ignores the enclosing frame entirely.
+        let m = lower_to_ir(
+            "namespace eval ::a {}\nproc a::outer4 {} { proc ::abs {q} { return $q } }\n",
+            &reg(),
+        );
+        assert!(m.procedures.contains_key("::abs"));
+        assert!(!m.procedures.contains_key("::a::abs"));
     }
 
     #[test]

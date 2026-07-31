@@ -3410,6 +3410,47 @@ fn w214_two_unused_params_get_separate_tight_ranges() {
 }
 
 #[test]
+fn w214_nested_proc_names_its_defining_namespace_and_anchors_on_the_param() {
+    // Issue #1077. `proc a::outer` runs its body in `::a` (the namespace it is
+    // *defined* in), so the `proc helper` it executes creates `::a::helper` —
+    // NOT the lexical `::helper`. Oracle, identical on tclsh 9.0.4 / 8.6.16:
+    //
+    //   namespace eval ::a {}
+    //   proc a::outer {} { proc helper {x} {return $x} ; return [namespace current] }
+    //   a::outer                  ;# -> ::a
+    //   info commands ::helper    ;# -> {}
+    //   info commands ::a::helper ;# -> ::a::helper
+    //
+    // Before the fix, lowering homed `helper` lexically to `::helper`; the
+    // reported FQN was wrong AND — because the per-parameter name-span lookup
+    // is keyed on that FQN against the analyser's `all_procs` (which already
+    // homed it correctly) — the lookup missed and the squiggle fell back to
+    // the whole `proc` definition. Both halves are asserted here.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src =
+        "namespace eval ::a {}\nproc a::outer {} {\n    proc helper {unusedp} { return 1 }\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    let w214: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W214"))
+        .collect();
+    assert_eq!(w214.len(), 1, "expected exactly one W214: {diags:?}");
+    let message = w214[0]["message"].as_str().unwrap_or_default();
+    assert!(
+        message.contains("'::a::helper'"),
+        "W214 must name the defining-namespace FQN, got {message:?}",
+    );
+    // Line 2 (0-based), `    proc helper {unusedp} …` — `unusedp` starts at
+    // column 17 and ends at 24.
+    assert_eq!(
+        diag_range(w214[0]),
+        ((2, 17), (2, 24)),
+        "W214 must span only `unusedp`, not the whole nested definition",
+    );
+}
+
+#[test]
 fn ordering_compare_on_strings_has_no_s100() {
     // `$s < "banana"` compares two strings — Tcl stays on the string path and
     // never coerces `$s` to a number, so its intrep is untouched (verified on
