@@ -62,6 +62,33 @@ pub struct CommandTokens {
     pub expand_word: Option<Vec<bool>>,
 }
 
+impl CommandTokens {
+    /// Whether **argument** `idx` (0-based, so `argv[idx + 1]`) is a
+    /// brace-quoted literal word — `{…}`, the one word form Tcl leaves
+    /// completely unsubstituted.
+    ///
+    /// The IR stores argument *content*, which cannot tell `{$a}` (the
+    /// literal three-character name `$a`) from `$a` (a substitution); the
+    /// per-word token kind can.  A `$var` lexes to `Var`, a `[cmd]` to `Cmd`,
+    /// a `"…"` (which *does* substitute) to `Esc`, and only a brace-quoted
+    /// word to `Str`.
+    ///
+    /// The single-token conjunct is belt-and-braces: a word that opens with
+    /// `{` must be entirely brace-quoted (`set x {a}{b}` is a tclsh parse
+    /// error, "extra characters after close-brace"), so a `Str`
+    /// representative token already implies a single-token word.
+    ///
+    /// The one definition of this question in the compiler — the dynamic-name
+    /// barrier, the place bridge, the inliner's literal-argument binding and
+    /// the def/use naming layer all ask it here rather than re-deriving it
+    /// (issue #1078).
+    #[must_use]
+    pub fn arg_is_braced_literal(&self, idx: usize) -> bool {
+        self.argv_kinds.get(idx + 1) == Some(&tcl_lexer::TokenType::Str)
+            && self.single_token_word.get(idx + 1).copied().unwrap_or(true)
+    }
+}
+
 // IR node types
 //
 // IR node kinds are modelled as a flat enum with struct variants.

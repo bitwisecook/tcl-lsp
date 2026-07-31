@@ -151,7 +151,7 @@ use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 
 use crate::definition::LspRange;
-use crate::hover::{find_var_at_position, find_word_span_at_position};
+use crate::hover::find_word_span_at_position;
 
 /// Byte spans of every call site the namespace-aware proc resolver
 /// attributes to `proc_def` (whose `all_procs` map key is `qname`),
@@ -720,10 +720,19 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         include_declaration,
     } = *ctx;
     let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
-    let var_def = if let Some(var_name) = find_var_at_position(source, line, character) {
-        // Gated on the occurrence being one Tcl actually substitutes — a
-        // `$name`-shaped substring in a comment or a data brace is not a
-        // reference (issue #923 idx 24; see `lookup_var_read_at`).
+    // Resolved through the shared gate, not the raw character scan: the
+    // occurrence must be one Tcl actually substitutes — a `$name`-shaped
+    // substring in a comment or a data brace is not a reference (issue #923
+    // idx 24), and neither is the `$n` inside a brace-quoted *name* word
+    // (`set {$n} 1`), which falls through to the declaration-span search in
+    // the final `else` so it answers the literal cell (PR #1106 review, P2).
+    let var_def = if let Some(var_name) = crate::definition::substituting_var_at_position(
+        source,
+        dialect,
+        line,
+        character,
+        byte_offset,
+    ) {
         match crate::definition::lookup_var_read_at(
             &analysis.global_scope,
             source,
@@ -3166,8 +3175,15 @@ pub fn document_highlights(
 ) -> Vec<(LspRange, HighlightKind)> {
     let line_index = LineIndex::new(source);
 
-    if let Some(var_name) = find_var_at_position(source, line, character) {
-        let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    // Shared `$ref` gate — see `substituting_var_at_position`.
+    if let Some(var_name) = crate::definition::substituting_var_at_position(
+        source,
+        dialect,
+        line,
+        character,
+        byte_offset,
+    ) {
         let Some(var_def) = crate::definition::lookup_var_read_at(
             &analysis.global_scope,
             source,

@@ -65,7 +65,7 @@ mod rename;
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_lexer::{Span, TokenType};
+use tcl_lexer::Span;
 
 use crate::expr_ast::ExprNode;
 use crate::ir::{
@@ -1697,12 +1697,11 @@ fn build_param_bindings(
 /// Whether the call-site word at `args[idx]` was a braced literal (`{…}`)
 /// in source — so it must bind as an [`Statement::AssignConst`], preserving
 /// embedded `$`/`[` rather than re-substituting them at the inlined site.
-/// `argv[0]` is the command name, so `args[idx]` aligns with `argv[idx+1]`.
+///
+/// Thin wrapper over the shared [`CommandTokens::arg_is_braced_literal`] for
+/// the `Option<&CommandTokens>` the inliner carries.
 fn arg_is_braced_literal(tokens: Option<&CommandTokens>, idx: usize) -> bool {
-    let Some(t) = tokens else { return false };
-    t.argv_kinds
-        .get(idx + 1)
-        .is_some_and(|k| *k == TokenType::Str)
+    tokens.is_some_and(|t| t.arg_is_braced_literal(idx))
 }
 
 /// Try to fill missing positional args from declared defaults.

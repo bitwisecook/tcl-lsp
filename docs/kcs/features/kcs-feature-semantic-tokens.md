@@ -20,6 +20,16 @@ all-editors, analyser
 
 Semantic tokens add highlighting for constructs the TextMate grammar cannot handle: regular expression syntax inside `regexp`/`regsub`, `format`/`scan` specifiers, `binary format`/`scan` field descriptors, and `clock format`/`scan` directives.
 
+A word in a **variable-name argument position** is painted as a variable
+whether it is a bareword or brace-quoted: `set n 1` and `set {$n} 1` are both
+declarations, and `[set n]` / `[set {$n}]` both references. `{$n}` really does
+name a variable — tclsh reports `info exists {$n}` as 1 while `info exists n`
+is 0 — and quoting is the only way that variable can ever be written, so
+painting the word as a plain string hid the declaration and made the `$n`
+inside look like a substitution it is not. Which argument is a name comes from
+the registry's `VarWrite` / `VarRead` roles, so a brace-quoted word anywhere
+else (`puts {$n}`) stays a string.
+
 ## Performance and caching
 
 - **Delta encoding**: The server advertises `textDocument/semanticTokens/full/delta`. After the first full response, editors request deltas — only the changed portion of the token array is sent.  If the delta would be larger than a full response, the server falls back to full automatically.

@@ -38,7 +38,7 @@ use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 
-use crate::naming::{normalise_qualified_name, normalise_var_name, split_array_name};
+use crate::naming::normalise_qualified_name;
 
 use super::state::Analyser;
 use super::types::{ClassDef, ProcDef, Scope, ScopeKind, VarDef};
@@ -781,7 +781,10 @@ impl Analyser {
         // meaningful.
         let head_span = cmd.argv.first().map(|t| t.span);
         let source_len = u32::try_from(self.source.len()).unwrap_or(u32::MAX);
-        let mut reads: Vec<(String, tcl_lexer::Span)> = Vec::new();
+        // Each read carries whether it used the `${…}` brace form, whose
+        // content is a *literal* name: `${$n}` reads the variable called `$n`,
+        // not `n` (issue #1078).
+        let mut reads: Vec<(String, tcl_lexer::Span, bool)> = Vec::new();
         for tok in &cmd.all_tokens {
             if tok.kind != TokenType::Var {
                 continue;
@@ -795,10 +798,14 @@ impl Analyser {
             let Some(name) = var_name_from_span(&self.source, tok.span) else {
                 continue;
             };
-            reads.push((name.to_string(), tok.span));
+            let braced = self
+                .source
+                .get(tok.span.start() as usize..tok.span.end() as usize)
+                .is_some_and(|t| t.starts_with("${"));
+            reads.push((name.to_string(), tok.span, braced));
         }
-        for (name, span) in reads {
-            self.record_var_read(&name, span, scope_path);
+        for (name, span, braced) in reads {
+            self.record_var_read_braced(&name, span, scope_path, braced);
         }
 
         // `$var` reads also occur inside command substitutions
@@ -1517,13 +1524,33 @@ impl Analyser {
     /// is emitted by the SSA-based pass elsewhere — this helper only
     /// records the reference span.
     pub fn record_var_read(&mut self, name: &str, read_span: Span, scope_path: &[usize]) {
-        let base_name = normalise_var_name(name);
+        self.record_var_read_braced(name, read_span, scope_path, false);
+    }
+
+    /// [`Self::record_var_read`] for a read whose delimiters make its content
+    /// a **literal** name — a `${…}` reference or a brace-quoted word in a
+    /// variable-name role (`[set {$n}]`, `info exists {$n}`).
+    ///
+    /// Braces suppress every substitution, so the content is the name verbatim:
+    /// `${$n}` reads the variable *called* `$n`, which Tcl keeps distinct from
+    /// `n` (tclsh 9.0.4 / 8.6.14: `set {$n} v; set ${$n}` → `can't read "v"`,
+    /// i.e. it read `$n` and got `v`). Stripping the `$` here landed the
+    /// reference on the wrong variable and let Find-References / Rename merge
+    /// the two (issue #1078).
+    pub fn record_var_read_braced(
+        &mut self,
+        name: &str,
+        read_span: Span,
+        scope_path: &[usize],
+        braced_literal: bool,
+    ) {
+        let base_name = crate::naming::normalise_var_name_braced(name, braced_literal);
         if base_name.is_empty() {
             return;
         }
         self.record_qualified_var_ref(base_name, read_span, scope_path);
         // An `$arr(idx)` read records the element index on the array var.
-        let element = split_array_name(name)
+        let element = crate::naming::split_array_name_braced(name, braced_literal)
             .1
             .filter(|e| !e.is_empty())
             .map(ToString::to_string);
@@ -1668,6 +1695,16 @@ impl Analyser {
     /// ``"<scope_name>::<base_name>"``.  Re-defining an existing
     /// variable does not overwrite — it only escalates the
     /// `warn_if_unused` flag.
+    ///
+    /// `tok` is the token of the word that **spells the name**, and its kind
+    /// decides how that spelling reads: a brace-quoted word (`TokenType::Str`
+    /// — `set {$n} 1`, `foreach {$a} …`) substitutes nothing, so its content
+    /// is the literal name, `$` and all.  Tcl keeps `{$n}` and `n` apart
+    /// (tclsh 9.0.4 / 8.6.14: `set {$n} v; info exists {$n}` → 1 while
+    /// `info exists n` → 0); normalising the `$` away collapsed them into one
+    /// `VarDef`, so Find-References answered for both and a rename of `n`
+    /// rewrote the `{$n}` word (issue #1078). The array-element suffix still
+    /// comes off — `{arr($i)}` is element `$i` of the array `arr`.
     pub fn define_var(
         &mut self,
         name: &str,
@@ -1676,7 +1713,8 @@ impl Analyser {
         warn_if_unused: bool,
         definition_span: Option<Span>,
     ) {
-        let base_name = normalise_var_name(name);
+        let braced_literal = tok.kind == TokenType::Str;
+        let base_name = crate::naming::normalise_var_name_braced(name, braced_literal);
         if base_name.is_empty() {
             return;
         }
@@ -1684,7 +1722,7 @@ impl Analyser {
         let span = definition_span.unwrap_or(tok.span);
         self.record_qualified_var_ref(base_name, span, scope_path);
         // A `set arr(idx) …` definition records the element index on the array.
-        let element = split_array_name(name)
+        let element = crate::naming::split_array_name_braced(name, braced_literal)
             .1
             .filter(|e| !e.is_empty())
             .map(ToString::to_string);

@@ -284,9 +284,14 @@ fn terminator_read_vars(terminator: Option<&Terminator>) -> Vec<String> {
             let mut set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
             if let Some(v) = value {
                 set.extend(
-                    crate::var_refs::scan_var_ref_forms(v)
+                    crate::var_refs::scan_var_ref_forms_braced(v)
                         .into_iter()
-                        .map(|n| crate::naming::element_var_name(&n).to_string()),
+                        // A `${…}` read's content is a literal name — `${$n}`
+                        // reads the variable called `$n` — so its `$` must
+                        // survive canonicalisation (issue #1078).
+                        .map(|(n, braced)| {
+                            crate::naming::element_var_name_braced(&n, braced).to_string()
+                        }),
                 );
             }
             if let Some(e) = expr {

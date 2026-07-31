@@ -395,7 +395,11 @@ fn position_definition(
         character,
         analysis,
     } = ctx;
-    if let Some(var_name) = find_var_at_position(source, line, character) {
+    // Resolved through the shared gate, not the raw character scan: a cursor
+    // inside a brace-quoted variable-name word (`set {$n} 1`) is not a `$n`
+    // reference, and must fall through to the declaration-span search below
+    // so it answers the *literal* cell (PR #1106 review, P2).
+    if let Some(var_name) = substituting_var_at_position(source, "", line, character, cursor_off) {
         if let Some(var_def) = lookup_var_read_at(
             &analysis.global_scope,
             source,
@@ -419,9 +423,11 @@ fn position_definition(
         ));
     }
     let param_position = parameter_list_position_at(analysis, source, cursor_off);
-    if param_position != ParamListPosition::Computed
-        && let Some(var_def) = var_def_at_declaration_offset(&analysis.global_scope, cursor_off)
-    {
+    // No `Computed` guard is needed here any more: since #1079 a computed
+    // parameter list registers no per-parameter `VarDef` at all, so there is
+    // no stub named `"[makeargs]"` for this lookup to land on. (#1073 added
+    // the guard while the stub still existed.)
+    if let Some(var_def) = var_def_at_declaration_offset(&analysis.global_scope, cursor_off) {
         return Some(vec![span_to_range(
             source,
             line_index,
@@ -1515,19 +1521,9 @@ pub fn qualified_variable_cell_at(
 ) -> Option<String> {
     let line_index = LineIndex::new(source);
     let cursor_off = byte_offset_at(&line_index, source, line, character);
-    if let Some(name) = find_var_at_position(source, line, character) {
+    if let Some(name) = substituting_var_at_position(source, dialect, line, character, cursor_off) {
         let base = tcl_compiler::naming::normalise_var_name(&name);
         if !base.contains("::") {
-            return None;
-        }
-        if crate::inert_text::offset_in_comment(source, cursor_off)
-            || crate::inert_text::offset_in_data_brace(
-                source,
-                cursor_off,
-                tcl_registry::registry_for_dialect(dialect),
-                dialect,
-            )
-        {
             return None;
         }
         let here = innermost_namespace_at(&analysis.global_scope, cursor_off, &[]);
@@ -1613,14 +1609,60 @@ pub(crate) fn lookup_var_read_at<'a>(
     ns_global_fallback: bool,
 ) -> Option<&'a tcl_compiler::analyser::VarDef> {
     let var_def = lookup_var_in_scope_chain(global, cursor_off, name, ns_global_fallback)?;
-    let inert = crate::inert_text::offset_in_comment(source, cursor_off)
+    (!offset_is_inert(source, dialect, cursor_off)).then_some(var_def)
+}
+
+/// Whether `cursor_off` sits in text Tcl substitutes nothing in — a `#`
+/// comment or a braced *data* word.  The two [`crate::inert_text`] proofs
+/// under one name, so every caller asks the same question the same way.
+#[must_use]
+pub(crate) fn offset_is_inert(source: &str, dialect: &str, cursor_off: u32) -> bool {
+    crate::inert_text::offset_in_comment(source, cursor_off)
         || crate::inert_text::offset_in_data_brace(
             source,
             cursor_off,
             tcl_registry::registry_for_dialect(dialect),
             dialect,
-        );
-    (!inert).then_some(var_def)
+        )
+}
+
+/// **The one entry point** for "is the cursor on a live `$`-substitution, and
+/// which variable does it name?" — every variable provider (go-to-definition,
+/// hover, find-references, document-highlight, rename) resolves its `$ref`
+/// cursor through this, so the five cannot disagree.
+///
+/// [`crate::hover::find_var_at_position`] alone cannot answer it: it is a
+/// delimiter-based character scan, so it happily reports `n` for a cursor on
+/// the `n` of `set {$n} 1`. That word is **brace-quoted** — Tcl substitutes
+/// nothing inside it, so the `$n` there is not a reference to `n` at all; it
+/// is part of the literal *name* of a different variable (tclsh 9.0.4 /
+/// 8.6.14: `set {$n} v; info exists {$n}` → 1 while `info exists n` → 0).
+/// Answering `n` there made every provider report the unrelated plain cell's
+/// sites — or, once the scope gate rejected it, nothing at all — for a cursor
+/// sitting inside the literal cell's own declaration word (PR #1106 review,
+/// P2; the cursor half of issue #1108).
+///
+/// Returning `None` for such a cursor is what lets each provider fall through
+/// to its declaration-span search
+/// ([`var_def_at_declaration_offset`]), which resolves the literal cell
+/// correctly — exactly as it already did for a cursor on the word's opening
+/// `{`, where the character scan happened to find no `$`. The two columns of
+/// the same word now answer alike.
+///
+/// The same `None` covers the pre-existing inert cases (`puts {$v}`, a `$v`
+/// inside a `#` comment — issue #923 idx 24), which every caller already
+/// suppressed one layer further down; hoisting the proof here removes the
+/// short-circuit that hid the declaration-span search behind it.
+#[must_use]
+pub(crate) fn substituting_var_at_position(
+    source: &str,
+    dialect: &str,
+    line: u32,
+    character: u32,
+    cursor_off: u32,
+) -> Option<String> {
+    let name = find_var_at_position(source, line, character)?;
+    (!offset_is_inert(source, dialect, cursor_off)).then_some(name)
 }
 
 /// Whether `off` sits inside a **literal** parameter-list word of a proc or

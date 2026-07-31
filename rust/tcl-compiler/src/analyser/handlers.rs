@@ -559,7 +559,15 @@ impl Analyser {
         if args.len() >= 2 {
             self.define_var(&args[0], *name_tok, scope_path, true, None);
         } else {
-            self.record_var_read(&args[0], name_tok.span, scope_path);
+            // `[set {$n}]` reads the variable literally called `$n` — the
+            // braces suppressed substitution, so the word's content is the
+            // name (issue #1078).
+            self.record_var_read_braced(
+                &args[0],
+                name_tok.span,
+                scope_path,
+                name_tok.kind == TokenType::Str,
+            );
         }
 
         // Track constant-string assignments for regex propagation.
@@ -1219,7 +1227,27 @@ impl Analyser {
         // **W314** — the name has no absolute written form (#934).
         self.emit_w314_no_absolute_name(raw_name, name_span);
 
-        let params = parse_param_list(&args[1]);
+        // A **computed** parameter-list word (`proc p [makeargs] {…}`,
+        // `proc q $params {…}`) builds the formals from a run-time value, so
+        // nothing about them is knowable: the proc's params are unmodelled
+        // (issue #1079).  Reading the unresolved word as a one-parameter
+        // literal registered a `VarDef` literally named `"[makeargs]"` and
+        // made the call-site arity checker demand exactly one argument, which
+        // tclsh 9.0.4 / 8.6.16 contradict (`proc makeargs {} {return {a b}}`;
+        // `proc p [makeargs] {…}`; `info args p` → `a b`; `p 1 2` runs).
+        //
+        // Literal ⟺ the word is a *single* `Str` (brace-quoted) or `Esc`
+        // (bareword / substitution-free quoted) token: any `$` / `[` splits
+        // the word into several tokens (or lexes it as `Var` / `Cmd`), which
+        // is exactly the "computed" case.  `proc r "m n" {…}` stays literal —
+        // tclsh really does declare `m` and `n` for it.
+        let params_computed = !(arg_single.get(1).copied().unwrap_or(true)
+            && matches!(arg_tokens[1].kind, TokenType::Str | TokenType::Esc));
+        let params = if params_computed {
+            Vec::new()
+        } else {
+            parse_param_list(&args[1])
+        };
         // Doc string: prefer the preceding-comment harvest from
         // the segmenter; fall back to ``extract_body_docstring``
         // (leading comment block at the top of the body).
@@ -1245,6 +1273,7 @@ impl Analyser {
             name: simple,
             qualified_name: qualified.clone(),
             params: params.clone(),
+            params_computed,
             name_span,
             body_span,
             doc,
@@ -1496,6 +1525,10 @@ impl Analyser {
             name: simple,
             qualified_name: qualified.clone(),
             params: real_params,
+            // `tcl::OptProc`'s Tcl-level signature is always the single
+            // catch-all `args`, derived above — a known list, not a computed
+            // one.
+            params_computed: false,
             name_span,
             body_span,
             doc,
@@ -9251,6 +9284,7 @@ mod tests {
                 name: "b".to_string(),
                 qualified_name: "::a::b".to_string(),
                 params: Vec::new(),
+                params_computed: false,
                 name_span: span(0, 0),
                 body_span: span(0, 0),
                 doc: String::new(),
@@ -9278,6 +9312,7 @@ mod tests {
                     name: "inner".to_string(),
                     qualified_name: qname.to_string(),
                     params: Vec::new(),
+                    params_computed: false,
                     name_span: span(0, 0),
                     body_span: span(0, 0),
                     doc: String::new(),

@@ -1551,3 +1551,65 @@ fn bigip_conf_embedded_rule_body_is_tokenised_as_irules() {
         "an object reference in an embedded rule must read as an object: {seen:?}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Issue #1078 — a brace-quoted variable-name word is a variable, not a string
+// ---------------------------------------------------------------------------
+//
+// tclsh 9.0.4 / 8.6.14, byte-identical: `set {$n} v; info exists {$n}` → 1
+// while `info exists n` → 0, so `{$n}` names a real variable — and quoting is
+// the *only* way that variable can ever be written.  Painting the word as a
+// plain `string` hid the declaration and invited the reader to see the `$n`
+// inside as a substitution.
+
+#[test]
+fn brace_quoted_variable_name_word_paints_as_a_variable() {
+    let src = "proc f {} {\n    set {$n} 1\n    set n 2\n    puts [set {$n}]\n}\n";
+    let toks = decode(src, "tcl8.6");
+    let declaration_bit = legend_token_modifiers()
+        .iter()
+        .position(|m| *m == "declaration")
+        .map(|i| 1u32 << i)
+        .expect("legend carries `declaration`");
+
+    // The write target on line 1 — the whole `{$n}` word, tagged exactly like
+    // the plain `n` write on line 2.
+    let write = toks
+        .iter()
+        .find(|t| t.line == 1 && t.character == 8)
+        .expect("a token at the `{$n}` write word");
+    assert_eq!(write.ttype, "variable", "{write:?}");
+    assert_eq!(write.length, 4, "the whole `{{$n}}` word: {write:?}");
+    assert!(
+        write.mods & declaration_bit != 0,
+        "a write target is a declaration: {write:?}"
+    );
+    let plain_write = toks
+        .iter()
+        .find(|t| t.line == 2 && t.character == 8)
+        .expect("a token at the `n` write word");
+    assert_eq!(
+        (
+            plain_write.ttype.as_str(),
+            plain_write.mods & declaration_bit != 0
+        ),
+        (write.ttype.as_str(), true),
+        "the braced and plain write targets must be tagged alike"
+    );
+
+    // The one-arg read on line 3 — a variable *reference*, not a declaration.
+    let read = toks
+        .iter()
+        .find(|t| t.line == 3 && t.character == 14)
+        .expect("a token at the `{$n}` read word");
+    assert_eq!(read.ttype, "variable", "{read:?}");
+    assert_eq!(read.length, 4, "{read:?}");
+
+    // TN control: a brace-quoted word that is *not* in a variable-name role
+    // stays a string — the retag keys on the registry role, not on braces.
+    assert_eq!(
+        kind_of_word("puts {$n}\n", "tcl8.6", "{$n}").as_deref(),
+        Some("string"),
+        "`puts`'s argument is data, not a variable name"
+    );
+}

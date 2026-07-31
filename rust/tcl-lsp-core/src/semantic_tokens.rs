@@ -2960,7 +2960,16 @@ fn insert_var_role_overrides(
             return;
         };
         if seg.single_token_word.get(i + 1) == Some(&true) {
-            if matches!(word.kind, TokenType::Esc) && !word.in_quote {
+            // `Str` — a brace-quoted word — is a variable *name* here just as
+            // much as a bareword is: braces suppress every substitution, so
+            // `set {$n} 1` declares the variable literally called `$n` and
+            // `[set {$n}]` reads it (tclsh 9.0.4 / 8.6.14: `info exists {$n}`
+            // → 1 while `info exists n` → 0).  Falling through painted the
+            // word as a plain `string`, hiding a declaration and inviting the
+            // reader to see the `$n` inside as a substitution (issue #1078).
+            // It is the quoting that makes such a name writable at all, so
+            // this is the *only* spelling those variables ever have.
+            if matches!(word.kind, TokenType::Esc | TokenType::Str) && !word.in_quote {
                 overrides.entry(word.span.start()).or_insert(ov);
             }
             return;

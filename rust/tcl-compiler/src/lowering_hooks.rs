@@ -37,7 +37,6 @@ use tcl_registry::hooks::LoweringHookId;
 use crate::alias::{CommandAliasMap, expr_alias_names};
 use crate::expr_parser::parse_expr;
 use crate::ir::{CommandTokens, Statement};
-use crate::naming::normalise_var_name;
 
 /// Parsed command context passed to lowering hooks.
 pub struct LoweringCommand<'a> {
@@ -65,6 +64,23 @@ pub struct LoweringCommand<'a> {
     /// [`crate::expr_ast::ExprNode::Raw`] — which no downstream fold can
     /// evaluate.
     pub dialect: Option<&'a str>,
+}
+
+impl LoweringCommand<'_> {
+    /// Whether **argument** `idx` (0-based) is a brace-quoted literal word.
+    ///
+    /// Braces suppress every substitution, so such a word's content is a
+    /// *literal* variable name where the command's role says a name goes:
+    /// `unset {$n}` destroys the variable called `$n`, not `n` (issue #1078).
+    /// The de-braced `args` text cannot show that; the word's own token kind
+    /// can — `arg_kinds` is arg-indexed, `single_token_word` word-indexed
+    /// (index 0 is the command word).  Mirrors
+    /// [`crate::ir::CommandTokens::arg_is_braced_literal`] for the hook view.
+    #[must_use]
+    pub fn arg_is_braced_literal(&self, idx: usize) -> bool {
+        self.arg_kinds.get(idx) == Some(&ArgTokenKind::Str)
+            && self.single_token_word.get(idx + 1).copied().unwrap_or(true)
+    }
 }
 
 /// Simplified token kind for hook arg inspection.
@@ -371,7 +387,10 @@ fn lower_append_lappend(cmd: &LoweringCommand<'_>) -> Option<Statement> {
             Some(ArgTokenKind::Str | ArgTokenKind::Esc)
         );
     let defs = if name_is_literal {
-        vec![normalise_var_name(&cmd.args[0]).to_owned()]
+        vec![
+            crate::naming::normalise_var_name_braced(&cmd.args[0], cmd.arg_is_braced_literal(0))
+                .to_owned(),
+        ]
     } else {
         vec![]
     };
@@ -413,7 +432,10 @@ fn lower_unset(cmd: &LoweringCommand<'_>) -> Statement {
     }
     let var_names: Vec<String> = cmd.args[i..]
         .iter()
-        .map(|a| normalise_var_name(a).to_owned())
+        .enumerate()
+        .map(|(k, a)| {
+            crate::naming::normalise_var_name_braced(a, cmd.arg_is_braced_literal(i + k)).to_owned()
+        })
         .collect();
     Statement::Call {
         span: cmd.span,
@@ -438,7 +460,10 @@ fn lower_global(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     let var_names: Vec<String> = cmd
         .args
         .iter()
-        .map(|a| normalise_var_name(a).to_owned())
+        .enumerate()
+        .map(|(i, a)| {
+            crate::naming::normalise_var_name_braced(a, cmd.arg_is_braced_literal(i)).to_owned()
+        })
         .collect();
     Some(Statement::Call {
         span: cmd.span,
@@ -460,8 +485,11 @@ fn lower_variable(cmd: &LoweringCommand<'_>) -> Statement {
     let var_names: Vec<String> = cmd
         .args
         .iter()
+        .enumerate()
         .step_by(2)
-        .map(|a| normalise_var_name(a).to_owned())
+        .map(|(i, a)| {
+            crate::naming::normalise_var_name_braced(a, cmd.arg_is_braced_literal(i)).to_owned()
+        })
         .collect();
     Statement::Call {
         span: cmd.span,
@@ -501,7 +529,13 @@ fn lower_upvar(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     while i + 1 < rest.len() {
         let caller = &rest[i];
         if !caller.starts_with('$') && !caller.starts_with('[') {
-            my_vars.push(normalise_var_name(&rest[i + 1]).to_owned());
+            my_vars.push(
+                crate::naming::normalise_var_name_braced(
+                    &rest[i + 1],
+                    cmd.arg_is_braced_literal(start + i + 1),
+                )
+                .to_owned(),
+            );
         }
         i += 2;
     }

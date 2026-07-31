@@ -74,6 +74,24 @@ silent for the whole proc, and the optimiser stops removing stores there
 Removing a store the analyser cannot see the reader for would change what the
 program prints, so the analysis abstains instead.
 
+## A brace-quoted name is a *literal* name, not a computed one
+
+`{$n}` is not a computed name — braces suppress substitution, so `set {$n} 1`
+creates a variable literally called `$n`, unrelated to `n`:
+
+```tcl
+set {$n} v
+info exists {$n}      ;# 1
+info exists n         ;# 0  — a different variable entirely
+```
+
+Such a name is fully static, so it does **not** silence the check the way a
+computed `[set $v]` does: the assignment is analysed like any other, and
+`W220` / [`W211`](kcs-diagnostic-w211-variable-set-not-used.md) name the cell
+by its real spelling (`Assignment to '$n' is never read`). Reads of it —
+`[set {$n}]` and `${$n}` alike — count as reads of that cell and of no other,
+so an unrelated `set n …` nearby is judged entirely on its own merits.
+
 ## A procedure you call can read your variables
 
 A procedure can run a whole script in its **caller's** frame, so a store the
