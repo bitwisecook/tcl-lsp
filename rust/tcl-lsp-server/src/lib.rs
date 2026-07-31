@@ -143,6 +143,11 @@ struct DocumentState {
     /// line). Kept in lock-step with `text`: every mutation of `text` rebuilds
     /// this alongside it (see [`apply_content_change_indexed`]).
     line_index: tcl_lexer::LineIndex,
+    /// Whether `text` contains a bare `\r` — [`tcl_lexer::LineIndex::contains_bare_cr`]
+    /// at the last point `line_index` was rebuilt from scratch. `did_change`
+    /// uses this to decide whether [`tcl_lexer::LineIndex::apply_edit`] remains
+    /// sound for the next incremental edit (see [`apply_content_change_indexed`]).
+    has_bare_cr: bool,
     dialect: String,
     /// The LSP `languageId` the client opened this document with (empty
     /// for documents materialised from disk by the folder scan).  Retained
@@ -164,9 +169,11 @@ struct DocumentState {
 impl DocumentState {
     fn new(text: String, dialect: String) -> Self {
         let line_index = tcl_lexer::LineIndex::new_lsp(&text);
+        let has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&text);
         Self {
             text,
             line_index,
+            has_bare_cr,
             dialect,
             language_id: String::new(),
             revision: 0,
@@ -176,9 +183,11 @@ impl DocumentState {
 
     fn with_version(text: String, dialect: String, version: i32) -> Self {
         let line_index = tcl_lexer::LineIndex::new_lsp(&text);
+        let has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&text);
         Self {
             text,
             line_index,
+            has_bare_cr,
             dialect,
             language_id: String::new(),
             revision: 0,
@@ -10036,7 +10045,7 @@ impl LanguageServer for Backend {
             return;
         }
         let change_version = params.text_document.version;
-        let (dialect, language_id) = {
+        let (dialect, language_id, dialect_hint_may_have_changed) = {
             let mut docs = self.documents.lock().await;
             // tower-lsp-server 0.23 dispatches notification handlers
             // concurrently (`buffer_unordered(4)`), so a `didChange` can be
@@ -10056,11 +10065,30 @@ impl LanguageServer for Backend {
             // rebuilding it per edit / per position lookup.
             // Take it out, patch through the edit sequence, put it back.
             let mut index = std::mem::replace(&mut entry.line_index, tcl_lexer::LineIndex::new(""));
+            let mut has_bare_cr = entry.has_bare_cr;
+            // Only a generically-opened `tcl` buffer re-resolves the in-source
+            // dialect hint below (see the tail block), so only that case is
+            // worth watching the edits for a hint-touching change.
+            let watch_dialect_hint = entry.language_id == "tcl";
+            let mut dialect_hint_may_have_changed = false;
             for change in &params.content_changes {
-                text = apply_content_change_indexed(&text, change.range, &change.text, &mut index);
+                if watch_dialect_hint
+                    && !dialect_hint_may_have_changed
+                    && change_could_affect_dialect_hint(&text, change.range, &change.text, &index)
+                {
+                    dialect_hint_may_have_changed = true;
+                }
+                text = apply_content_change_indexed(
+                    &text,
+                    change.range,
+                    &change.text,
+                    &mut index,
+                    &mut has_bare_cr,
+                );
             }
             entry.text = text.clone();
             entry.line_index = index;
+            entry.has_bare_cr = has_bare_cr;
             entry.bump_revision(change_version);
             let dialect = entry.dialect.clone();
             let language_id = entry.language_id.clone();
@@ -10084,7 +10112,7 @@ impl LanguageServer for Backend {
             // file contributes no procs, classes or call sites at all).
             self.db_set_source(&uri, text, dialect.clone()).await;
             drop(docs);
-            (dialect, language_id)
+            (dialect, language_id, dialect_hint_may_have_changed)
         };
         // The splice and the salsa source are committed, so
         // hand the ordering turn on before the tail below (#1150).  Everything
@@ -10104,7 +10132,14 @@ impl LanguageServer for Backend {
         // the source (an explicit versioned / non-Tcl languageId is fixed), and
         // only the source hint is edit-sensitive, so this is the sole case that
         // can change.  When it does, commit the new dialect and re-analyse.
-        if language_id == "tcl" {
+        //
+        // `dialect_hint_may_have_changed` (computed above, alongside the
+        // splice) gates the whole-source `detect_dialect` re-scan and its
+        // text clone: the overwhelming majority of keystrokes land well past
+        // the directive/shebang lines and contain none of the content-signature
+        // marker words, so they cannot have changed what `detect_dialect`
+        // would return — re-running it on every such edit was pure waste.
+        if language_id == "tcl" && dialect_hint_may_have_changed {
             // Read the open buffer directly rather than through
             // `read_document`, which would wait for edits this one no longer
             // holds up and answer from a buffer this handler has already
@@ -13772,33 +13807,80 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
 /// char boundaries within `text`.
 #[cfg(test)]
 fn apply_content_change(text: &str, range: Option<Range>, new_text: &str) -> String {
-    // Throwaway index for the splice-behaviour tests; the live path persists one
-    // through [`apply_content_change_indexed`].
+    // Throwaway index + flag for the splice-behaviour tests; the live path
+    // persists both through [`apply_content_change_indexed`].
     let mut index = tcl_lexer::LineIndex::new_lsp(text);
-    apply_content_change_indexed(text, range, new_text, &mut index)
+    let mut has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(text);
+    apply_content_change_indexed(text, range, new_text, &mut index, &mut has_bare_cr)
+}
+
+/// Whether splicing `new_text` into `text[start..end)` could leave a bare
+/// `\r` — a `\r` not immediately followed by `\n` — somewhere the edit
+/// touches, given that `text` itself has none (checked by the caller via
+/// [`tcl_lexer::LineIndex::contains_bare_cr`] before relying on this).
+///
+/// A change can only ever *introduce* a bare `\r` at the seam it touches: a
+/// `\r` inside `new_text` itself, or a `\r` immediately before `start` that
+/// `new_text` no longer pairs with a following `\n`. Nothing elsewhere in
+/// `text` is affected, so this is a local, `O(new_text.len())` check — not a
+/// document-wide rescan.
+fn edit_introduces_bare_cr(text: &str, start: usize, end: usize, new_text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let new_bytes = new_text.as_bytes();
+    let stays_paired = |next: Option<u8>| next == Some(b'\n');
+    if start > 0
+        && bytes[start - 1] == b'\r'
+        && !stays_paired(
+            new_bytes
+                .first()
+                .copied()
+                .or_else(|| bytes.get(end).copied()),
+        )
+    {
+        return true;
+    }
+    new_bytes.iter().enumerate().any(|(i, &b)| {
+        b == b'\r'
+            && !stays_paired(
+                new_bytes
+                    .get(i + 1)
+                    .copied()
+                    .or_else(|| bytes.get(end).copied()),
+            )
+    })
 }
 
 /// [`apply_content_change`] that resolves the edit through a **persisted**
 /// [`tcl_lexer::LineIndex`] built with the LSP end-of-line model
-/// ([`tcl_lexer::LineIndex::new_lsp`]), then rebuilds it from the spliced
-/// result so it stays consistent with the returned text.
+/// ([`tcl_lexer::LineIndex::new_lsp`]), keeping it (and `has_bare_cr`) in
+/// lock-step with the returned text.
 ///
 /// The index **must** use the LSP EOL model (`\n`, `\r\n`, *and lone `\r`*):
 /// the client resolves the incoming `range` against that model, so a `\n`-only
 /// index would resolve a bare-`\r` file's edit to the wrong byte offset and
-/// corrupt the shadow buffer. The `\n`-only [`tcl_lexer::LineIndex::apply_edit`]
-/// cannot maintain an LSP index incrementally across CR/LF boundary ambiguity,
-/// and re-analysis after a change is whole-document regardless, so the index is
-/// rebuilt (not patched) — correctness over a micro-optimisation that never
-/// dominated the change handler's cost.
+/// corrupt the shadow buffer.
+///
+/// [`tcl_lexer::LineIndex::apply_edit`] only tracks `\n`-delimited breaks
+/// (plus the LF half of a CRLF pair), so it patches an `new_lsp`-built index
+/// exactly as a full [`tcl_lexer::LineIndex::new_lsp`] rebuild would **only**
+/// while the document has no bare `\r` to disambiguate — the same condition
+/// its own fuzz-equivalence test (`apply_edit_matches_rebuild_under_fuzz`,
+/// whose edit alphabet is `\n`/`x` only) relies on. `*has_bare_cr` is the
+/// document-level fast path (checked once per edit rather than rescanning);
+/// [`edit_introduces_bare_cr`] additionally catches an edit that would be the
+/// *first* to introduce one, so a document that opened clean stays on the
+/// incremental path for exactly as long as it stays clean, and falls back —
+/// correctly, not just fast — the moment it doesn't.
 fn apply_content_change_indexed(
     text: &str,
     range: Option<Range>,
     new_text: &str,
     index: &mut tcl_lexer::LineIndex,
+    has_bare_cr: &mut bool,
 ) -> String {
     let Some(range) = range else {
         *index = tcl_lexer::LineIndex::new_lsp(new_text);
+        *has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(new_text);
         return new_text.to_owned();
     };
     let a = index.offset_at_utf16(
@@ -13818,9 +13900,72 @@ fn apply_content_change_indexed(
     out.push_str(&text[..start]);
     out.push_str(new_text);
     out.push_str(&text[end..]);
-    // Rebuild the LSP-EOL index from the spliced document.
-    *index = tcl_lexer::LineIndex::new_lsp(&out);
+    if *has_bare_cr || edit_introduces_bare_cr(text, start, end, new_text) {
+        *index = tcl_lexer::LineIndex::new_lsp(&out);
+        *has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&out);
+    } else {
+        index.apply_edit(
+            u32::try_from(start).expect("splice start fits u32 (LineIndex's own 4 GiB budget)"),
+            u32::try_from(end).expect("splice end fits u32 (LineIndex's own 4 GiB budget)"),
+            new_text,
+        );
+    }
     out
+}
+
+/// Leading lines within which a directive/shebang dialect hint can appear —
+/// generous margin over [`tcl_registry::dialects::DIALECT_DIRECTIVE_SCAN_LINES`]
+/// (5 lines) and the shebang's line 0, so a short header comment ahead of one
+/// still counts as "near the top" for [`change_could_affect_dialect_hint`].
+const DIALECT_HINT_LINE_MARGIN: u32 = 20;
+
+/// Whether an edit could change what [`Backend::dialect_for_open`]'s in-source
+/// detection ([`tcl_registry::dialects::detect_dialect`]) returns for this
+/// document, so `did_change` can skip the whole-document clone + rescan it
+/// would otherwise pay on every keystroke of a `languageId: "tcl"` buffer.
+///
+/// A conservative superset, not an exact replay of the detector: `true` when
+/// the edit touches the leading [`DIALECT_HINT_LINE_MARGIN`] lines (covers the
+/// directive/shebang tiers with margin), or when either the removed or
+/// inserted text contains one of the substrings
+/// [`tcl_registry::dialects::dialect_hint_markers`] lists (covers the
+/// content-signature / version-guard tiers, wherever in the document they
+/// land). A `None` range (a full-document replacement) always returns `true`
+/// — there is no local edit to reason about.
+fn change_could_affect_dialect_hint(
+    text: &str,
+    range: Option<Range>,
+    new_text: &str,
+    index: &tcl_lexer::LineIndex,
+) -> bool {
+    let Some(range) = range else {
+        return true;
+    };
+    if range.start.line < DIALECT_HINT_LINE_MARGIN {
+        return true;
+    }
+    if contains_dialect_hint_marker(new_text) {
+        return true;
+    }
+    let a = index.offset_at_utf16(
+        range.start.line,
+        tcl_lexer::Utf16Col::new(range.start.character),
+        text,
+    ) as usize;
+    let b = index.offset_at_utf16(
+        range.end.line,
+        tcl_lexer::Utf16Col::new(range.end.character),
+        text,
+    ) as usize;
+    let len = text.len();
+    let start = a.min(b).min(len);
+    let end = a.max(b).min(len);
+    contains_dialect_hint_marker(&text[start..end])
+}
+
+/// Whether `s` contains any of [`tcl_registry::dialects::dialect_hint_markers`].
+fn contains_dialect_hint_marker(s: &str) -> bool {
+    tcl_registry::dialects::dialect_hint_markers().any(|m| s.contains(m))
 }
 
 fn lift_span(source: &str, line_index: &tcl_lexer::LineIndex, span: tcl_lexer::Span) -> Range {
@@ -17189,6 +17334,7 @@ mod tests {
         };
         let mut text = "abc\ndef\nghi\n".to_string();
         let mut index = tcl_lexer::LineIndex::new_lsp(&text);
+        let mut has_bare_cr = false;
         let edits = [
             (
                 Some(Range {
@@ -17213,8 +17359,15 @@ mod tests {
                 "Z",
             ), // collapse a line
         ];
+        // None of these edits ever puts a `\r` in the buffer, so every one of
+        // them stays on the incremental `LineIndex::apply_edit` path — the
+        // same `\r`-free alphabet `apply_edit_matches_rebuild_under_fuzz`
+        // (tcl-lexer's own fuzz-equivalence gate) proves patched-vs-rebuilt
+        // for. This test is the `did_change` integration of that guarantee.
         for (range, new_text) in edits {
-            text = apply_content_change_indexed(&text, range, new_text, &mut index);
+            text =
+                apply_content_change_indexed(&text, range, new_text, &mut index, &mut has_bare_cr);
+            assert!(!has_bare_cr, "no edit here ever introduces a bare CR");
             assert_eq!(
                 line_starts(&index),
                 line_starts(&tcl_lexer::LineIndex::new_lsp(&text)),
@@ -17225,12 +17378,22 @@ mod tests {
 
     /// `RUST_ISSUE_033`: an incremental edit on an old-Mac (bare-`\r`) buffer must
     /// resolve against the LSP EOL model so the splice lands at the right byte
-    /// and the shadow buffer stays correct.
+    /// and the shadow buffer stays correct. A bare-`\r` document is exactly the
+    /// case [`apply_content_change_indexed`] cannot patch incrementally (the
+    /// `\n`-only `LineIndex::apply_edit` has no way to place the extra `\r`
+    /// break), so it must fall back to a full rebuild here — asserted via
+    /// `has_bare_cr` staying `true`, not just via the result being correct
+    /// (both paths would produce the same index; only the fallback is sound).
     #[test]
     fn apply_content_change_indexed_handles_bare_cr_document() {
         // Client models "a\rb\rc" as 3 lines (0="a", 1="b", 2="c").
         let mut text = "a\rb\rc".to_string();
         let mut index = tcl_lexer::LineIndex::new_lsp(&text);
+        let mut has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&text);
+        assert!(
+            has_bare_cr,
+            "the fixture must actually be a bare-CR document"
+        );
         // Replace line 1 ("b") with "BB": range (1,0)..(1,1).
         text = apply_content_change_indexed(
             &text,
@@ -17240,14 +17403,99 @@ mod tests {
             }),
             "BB",
             &mut index,
+            &mut has_bare_cr,
         );
         assert_eq!(text, "a\rBB\rc", "edit spliced at the wrong offset");
+        assert!(has_bare_cr, "the document is still bare-CR after the edit");
         // The persisted index matches a fresh LSP rebuild.
         let rebuilt = tcl_lexer::LineIndex::new_lsp(&text);
         assert_eq!(index.line_count(), rebuilt.line_count());
         for l in 0..u32::try_from(index.line_count()).unwrap() {
             assert_eq!(index.line_start(l), rebuilt.line_start(l), "line {l}");
         }
+    }
+
+    /// An edit on a document already free of a bare CR takes the incremental
+    /// `LineIndex::apply_edit` path from then on, only falling back for the
+    /// *specific* edit that would introduce one — [`edit_introduces_bare_cr`]
+    /// is the decision function that draws that line.
+    #[test]
+    fn edit_introduces_bare_cr_detects_boundary_and_internal_lone_cr() {
+        // A `\r` inside `new_text` with no following `\n` is bare.
+        assert!(edit_introduces_bare_cr("abc", 1, 1, "\rX"));
+        // `\r\n` inside `new_text` is a valid pair, not bare.
+        assert!(!edit_introduces_bare_cr("abc", 1, 1, "\r\nX"));
+        // A trailing `\r` in `new_text` that lands right before a pre-existing
+        // `\n` (at `end`) is not bare — the pair straddles the edit boundary.
+        assert!(!edit_introduces_bare_cr("a\nb", 1, 1, "\r"));
+        // The same trailing `\r`, but nothing follows it, is bare.
+        assert!(edit_introduces_bare_cr("ab", 1, 1, "\r"));
+        // A `\r` already sitting just before `start`, still paired with the
+        // `\n` that follows the edit, is not bare.
+        assert!(!edit_introduces_bare_cr("a\r\nb", 2, 2, ""));
+        // The same `\r`, once the edit removes the `\n` it was paired with,
+        // becomes bare.
+        assert!(edit_introduces_bare_cr("a\r\nb", 2, 3, ""));
+        // No `\r` anywhere near the edit.
+        assert!(!edit_introduces_bare_cr("abcdef", 2, 3, "XY"));
+    }
+
+    /// Pure unit coverage of the dialect-hint edit gate — no async backend
+    /// needed, since [`change_could_affect_dialect_hint`] is a pure function
+    /// of the edit and the pre-edit buffer. A plain-file edit deep in the
+    /// document does not look hint-touching; the same edit landing on line 0
+    /// (or spelling out a directive/content-signature marker) does.
+    #[test]
+    fn dialect_hint_gate_skips_a_deep_plain_edit_but_catches_a_directive() {
+        use std::fmt::Write as _;
+        let mut body = String::from("# an ordinary Tcl script\n");
+        for i in 0..500 {
+            writeln!(body, "puts {i}").unwrap();
+        }
+        let index = tcl_lexer::LineIndex::new_lsp(&body);
+        // An edit at line 500 that only touches ordinary text: no hint marker
+        // anywhere near it, nowhere near the directive/shebang lines.
+        let deep_edit = Range {
+            start: pos(500, 5),
+            end: pos(500, 6),
+        };
+        assert!(
+            !change_could_affect_dialect_hint(&body, Some(deep_edit), "9", &index),
+            "an edit to a bare digit deep in a plain file must not re-trigger detection"
+        );
+        // The same line, but the inserted text spells out a directive form —
+        // caught by the marker-text check even though it's nowhere near the
+        // top of the file.
+        let deep_directive_edit = Range {
+            start: pos(500, 0),
+            end: pos(500, 0),
+        };
+        assert!(
+            change_could_affect_dialect_hint(
+                &body,
+                Some(deep_directive_edit),
+                "# tcl-dialect: tcl8.4\n",
+                &index
+            ),
+            "inserting a tcl-dialect directive text must re-trigger detection"
+        );
+        // An edit on line 0 (where a directive or shebang could land) always
+        // re-triggers, regardless of what the edit itself contains.
+        let top_edit = Range {
+            start: pos(0, 0),
+            end: pos(0, 0),
+        };
+        assert!(
+            change_could_affect_dialect_hint(&body, Some(top_edit), "x", &index),
+            "an edit on the leading lines must always re-trigger detection"
+        );
+        // A full-document replacement always re-triggers.
+        assert!(change_could_affect_dialect_hint(
+            &body,
+            None,
+            "puts hi\n",
+            &index
+        ));
     }
 
     /// The source-style pass must reach the
