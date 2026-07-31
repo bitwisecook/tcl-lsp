@@ -716,21 +716,39 @@ pub fn method_target_with_access(
         {
             return Some((class_q.to_owned(), method, false, MethodAccess::Internal));
         }
+        // Bare `ClassName method` — a classmethod dispatches on the class's
+        // **own** command, never an instance, so it's tried only when the
+        // receiver isn't `$`-prefixed (a `$var` can never name a class).
+        //
+        // Ordered ahead of the instance branch, and gated on the receiver
+        // resolving as a *class* rather than an object handle
+        // ([`MethodBucket`], which recomputes `receiver_instance_class`'s own
+        // instance test rather than inferring it from outside). Without the
+        // gate this arm was unreachable: `receiver_instance_class` answers for
+        // a bare class name too — its last resort is "this word names a class"
+        // — so every bare `ClassName member` was classified instance-side and
+        // resolved against the wrong table. That is why a class-side member
+        // could never reach the cross-file class-command dispatch, whatever
+        // the index held (issue #1119).
+        //
+        // The gate keeps the change to exactly the shape it is about: an
+        // object handle still takes the instance branch, and a bare class name
+        // whose class-object side has no such member falls through to it
+        // unchanged.
+        if !is_dollar
+            && crate::definition::receiver_method_bucket(analysis, &inst, is_dollar)
+                == crate::definition::MethodBucket::Class
+            && let Some(class_q) =
+                crate::definition::classmethod_dispatch_class(analysis, &inst, &method)
+        {
+            return Some((class_q, method, true, MethodAccess::External));
+        }
         // External `$obj method` — resolve `$obj`'s class.  Always
         // instance-context too: a classmethod is never reached via `$obj`.
         if let Some(class_q) =
             crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
         {
             return Some((class_q.clone(), method, false, MethodAccess::External));
-        }
-        // Bare `ClassName method` — a classmethod dispatches on the class's
-        // own command, never an instance, so it's tried only when the
-        // receiver isn't `$`-prefixed (a `$var` can never name a class).
-        if !is_dollar
-            && let Some(class_q) =
-                crate::definition::classmethod_dispatch_class(analysis, &inst, &method)
-        {
-            return Some((class_q, method, true, MethodAccess::External));
         }
     }
     // Inside a class body on one of its method / classmethod names — the
@@ -2695,6 +2713,93 @@ mod tests {
              the unrelated instance method and must be untouched: {edits:?}"
         );
         assert_eq!(edits[0].range.start_line, 2, "{edits:?}");
+    }
+
+    // `method_target_with_access`'s receiver-side split (issue #1119).
+
+    /// TP: a bare `ClassName member` naming a **class-side** member resolves as
+    /// a classmethod, so downstream cross-file resolution reads the
+    /// class-object side's tables.
+    ///
+    /// Previously unreachable: `receiver_instance_class`'s last resort is "this
+    /// bare word names a class", so it answered first and every bare
+    /// `ClassName member` was classified instance-side — which is why a
+    /// class-side member could never reach the cross-file class-command
+    /// dispatch, whatever the workspace index held.
+    #[test]
+    fn method_target_classifies_a_bare_class_receiver_as_a_classmethod() {
+        let src =
+            "oo::class create Widget {\n    self { method make {} { return 1 } }\n}\nWidget make\n";
+        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
+        assert_eq!(
+            method_target_with_access(src, 3, 8, &analysis),
+            Some((
+                "::Widget".to_owned(),
+                "make".to_owned(),
+                true,
+                crate::workspace_index::MethodAccess::External
+            )),
+        );
+    }
+
+    /// TN: an `$obj member` receiver is an object handle, never a class, so it
+    /// stays instance-side — the gate that keeps the reordering above confined
+    /// to the shape it is about.
+    #[test]
+    fn method_target_keeps_an_object_handle_receiver_instance_side() {
+        let src = "oo::class create Widget {\n    method make {} { return 1 }\n}\nset w [Widget new]\n$w make\n";
+        let analysis = analyse(src);
+        assert_eq!(
+            method_target_with_access(src, 4, 4, &analysis),
+            Some((
+                "::Widget".to_owned(),
+                "make".to_owned(),
+                false,
+                crate::workspace_index::MethodAccess::External
+            )),
+        );
+    }
+
+    /// TN: a bare class receiver whose class-object side has **no** such member
+    /// falls through to the instance branch unchanged.
+    #[test]
+    fn method_target_falls_through_when_the_class_side_lacks_the_member() {
+        let src = "oo::class create Widget {\n    method make {} { return 1 }\n}\nWidget make\n";
+        let analysis = analyse(src);
+        assert_eq!(
+            method_target_with_access(src, 3, 8, &analysis),
+            Some((
+                "::Widget".to_owned(),
+                "make".to_owned(),
+                false,
+                crate::workspace_index::MethodAccess::External
+            )),
+        );
+    }
+
+    /// TN (CRITICAL): a stock `self method` is **not inherited** — `Gadget
+    /// make` against a parent's `self method make` errors `unknown method
+    /// "make": must be create, destroy or new` on tclsh 8.6 and 9.0.4 alike —
+    /// so the subclass receiver must not resolve to the parent's class-side
+    /// member. `classmethod_dispatch_class` applies the same
+    /// `is_self_method` rule the in-document provider does.
+    #[test]
+    fn method_target_does_not_inherit_a_parents_self_method() {
+        let src = concat!(
+            "oo::class create Widget {\n",
+            "    self { method make {} { return 1 } }\n",
+            "}\n",
+            "oo::class create Gadget {\n",
+            "    superclass Widget\n",
+            "}\n",
+            "Gadget make\n",
+        );
+        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
+        let target = method_target_with_access(src, 6, 8, &analysis);
+        assert!(
+            target.is_none_or(|(_, _, is_classmethod, _)| !is_classmethod),
+            "an inherited `self method` is not the subclass's classmethod",
+        );
     }
 
     // `method_target_with_access`'s class-body fallback — the idx-113 link

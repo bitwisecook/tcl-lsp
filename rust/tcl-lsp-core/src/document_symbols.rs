@@ -1376,12 +1376,14 @@ mod tests {
     }
 
     #[test]
-    fn oo_unwrapped_renamed_member_leaves_only_the_sibling_listed() {
-        // Issue #1101 — the rename half. `renamemethod old new` drops `old`
-        // and deliberately records nothing for `new` (a false negative in
-        // preference to a stale entry). Oracle:
+    fn oo_unwrapped_renamed_member_is_listed_under_its_new_name() {
+        // Issue #1121 (the residual #1101/#1118 left). `renamemethod old new`
+        // is a move: `old` goes and `new` takes its place as a fully navigable
+        // outline entry. Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
         //   oo::class create ::I3 { method old {} {return o}; renamemethod old new }
-        //   info class methods ::I3  ->  new      ;  ::I3 old -> unknown method
+        //   info class methods ::I3        ->  new     ; ::I3 old -> unknown method
+        //   info class definition ::I3 new ->  {} { return o }
+        //   [::I3 new] new                 ->  o
         let source = concat!(
             "oo::class create Counter {\n",
             "    method old {} { return 1 }\n",
@@ -1390,12 +1392,25 @@ mod tests {
             "}\n",
         );
         for dialect in ["tcl8.6", "tcl9.0"] {
-            let names: Vec<String> = document_symbols(source, dialect)[0]
-                .children
+            let members = &document_symbols(source, dialect)[0].children;
+            let mut names: Vec<&str> = members.iter().map(|c| c.name.as_str()).collect();
+            names.sort_unstable();
+            assert_eq!(names, ["kept", "new"], "{dialect}");
+            // The entry's selection range is the `renamemethod` destination
+            // word — the only place `new` is written — so clicking the outline
+            // row lands on a real token rather than on the old declaration.
+            let new_entry = members
                 .iter()
-                .map(|c| c.name.clone())
-                .collect();
-            assert_eq!(names, ["kept"], "{dialect}");
+                .find(|c| c.name == "new")
+                .expect("`new` listed");
+            let line = new_entry.selection_range.start_line as usize;
+            assert!(
+                source
+                    .lines()
+                    .nth(line)
+                    .is_some_and(|l| l.contains("renamemethod")),
+                "{dialect}: selection range should sit on the renamemethod word, got line {line}",
+            );
         }
     }
 

@@ -26,10 +26,10 @@ analyser scans only the leading comment / blank lines, so the directive
 must appear before the first command.
 
 ```tcl
-# tcl-lsp: disable=W210,W315
+# tcl-lsp: disable=W210,W123
 
 proc demo {} {
-    # W210 (read-before-set) and W315 will not fire in this file.
+    # W210 (read-before-set) and W123 will not fire in this file.
 }
 ```
 

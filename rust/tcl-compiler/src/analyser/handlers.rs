@@ -1112,6 +1112,74 @@ impl Analyser {
         });
     }
 
+    /// **W315.** Drain `class`'s recorded
+    /// [`DefinitionAbort`](super::types::DefinitionAbort)s and report each as
+    /// "this class definition cannot run" (issue #1120).
+    ///
+    /// Three oracle-pinned shapes abort a whole `TclOO` definition body, so no
+    /// class is created at all — byte-identical on tclsh 9.0.4 and 8.6.14:
+    ///
+    /// ```tcl
+    /// oo::class create ::E1 { deletemethod ghost ; method ghost {} {} }
+    /// ;# -> method ghost does not exist              [info object isa class ::E1] -> 0
+    /// oo::class create ::E2 { self { method cm {} {} } ; deletemethod cm }
+    /// ;# -> method cm does not exist                 (cross-side: `cm` is class-side)
+    /// oo::class create ::E3 { method a {} {} ; method b {} {} ; renamemethod a b }
+    /// ;# -> method called b already exists
+    /// ```
+    ///
+    /// unlike a cross-side `export` / `unexport`, which is a **silent no-op**
+    /// and must stay silent here (`oo::define E { self unexport onlyinst }` over
+    /// an instance-only `onlyinst` succeeds and changes nothing).
+    ///
+    /// `via_define` is the gate, and it is exactly the right one: it marks the
+    /// records that describe a class **created in another file**, where a
+    /// retraction naming a member this record cannot see is the *normal*
+    /// cross-file shape (`oo::define ::C { deletemethod m }` against an `m`
+    /// declared in `a.tcl`) rather than an error — that retraction travels as a
+    /// [`ClassDef::retracted_members`](super::types::ClassDef::retracted_members)
+    /// tombstone instead. A same-file
+    /// `oo::define` extending a class created earlier in the file is **not** a
+    /// stub: it reuses that class's own record, member tables included, so its
+    /// table state is complete and an absent name really is the hard error.
+    /// The walker records both readings; this is where the one that applies is
+    /// kept and the other dropped.
+    ///
+    /// The partial class stays recorded either way — a body that cannot run has
+    /// no outline at all in real Tcl, but degrading navigation to nothing is
+    /// worse than describing what the author meant, the same judgement parse
+    /// errors already get.
+    pub(super) fn emit_w315_definition_cannot_run(&mut self, class: &mut super::types::ClassDef) {
+        let aborts = core::mem::take(&mut class.definition_aborts);
+        if class.via_define {
+            // A cross-file extension stub knows nothing about the class's real
+            // member tables, so it has no evidence for any of these — the
+            // retraction's tombstone carries the fact instead.
+            return;
+        }
+        // The walker records a tombstone *and* an abort for the same retraction,
+        // because only here is it known which reading applies. This record has
+        // complete tables, so the retraction is the hard error, not a cross-file
+        // removal: the tombstone would suppress a name in some other document
+        // for a body that never runs at all. Drop it and keep the diagnostic.
+        if !aborts.is_empty() {
+            class.retracted_members.retain(|(name, _)| {
+                !aborts.iter().any(|a| {
+                    a.kind == super::types::DefinitionAbortKind::MissingMember && a.member == *name
+                })
+            });
+        }
+        for abort in aborts {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: DiagCode::W315,
+                span: abort.span,
+                message: abort.message(),
+                severity: super::types::Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
     /// **W314**, namespace flavour: a `namespace eval` (or sibling) whose
     /// written name carries an **all-colon segment** (`namespace eval :`)
     /// creates a namespace no absolute path can spell — its entire contents
@@ -4420,6 +4488,19 @@ impl Analyser {
             );
         }
 
+        // No **W315** here, deliberately. `oo::objdefine` really does abort the
+        // same way (`oo::objdefine $o { deletemethod m }` naming a
+        // class-provided `m` errors `method m does not exist` on 9.0.4 and
+        // 8.6.14 alike — a per-object retraction reaches only the object's
+        // *own* table, never an inherited member), but this holder is built
+        // fresh for every `oo::objdefine` block and each block's members are
+        // handed off below rather than accumulated back into it. A second block
+        // retracting what the first declared would therefore see an empty table
+        // and report a member that plainly exists. The aborts are dropped with
+        // the holder; per-object retraction diagnostics need the per-object
+        // member state to have somewhere to live first — the same missing home
+        // that keeps per-object *visibility* out (issue #1119 item 3).
+        //
         // Record the per-object method declarations so `$obj m` navigation
         // resolves the per-object override ahead of a same-named class method.
         // Accumulate across multiple `oo::objdefine` blocks on the same object.
@@ -5065,6 +5146,10 @@ impl Analyser {
                 definer_disabled,
             );
         }
+        // **W315** — a retraction the body could not legally make (issue
+        // #1120). Drained here, after the whole body walk, so a class extended
+        // by several `oo::define` blocks reports each block's own aborts once.
+        self.emit_w315_definition_cannot_run(&mut class);
         // Register globally and in the current scope, the same as
         // the proc registration path: ``result.all_classes`` is keyed
         // by the fully-qualified name; the per-scope
@@ -5269,6 +5354,10 @@ impl Analyser {
             );
         }
 
+        // **W315** — as on the creation path, except that a `via_define` stub's
+        // aborts are dropped rather than reported: a class created in another
+        // file leaves this record with no member tables to judge against.
+        self.emit_w315_definition_cannot_run(&mut class_def);
         // Same dual-registration as ``oo::class create`` — keep
         // ``all_classes`` and the per-scope ``scope.classes`` in
         // sync.  ``oo::define`` may be redefining an existing

@@ -235,7 +235,7 @@ alongside the registry change — CI will fail if they're stale.
 - `python -c "from compiler.registry import REGISTRY; print(REGISTRY.get_any('sqlite3'))"`
   returns a `CommandSpec`, not `None`.
 - A Tcl file containing `package require sqlite3` followed by
-  `sqlite3 db :memory:` no longer raises the W315 "unresolved command"
+  `sqlite3 db :memory:` no longer raises the W123 "unresolved command"
   diagnostic on `sqlite3`.
 - Hovering `sqlite3` in VS Code shows the synopsis from the
   `HoverSnippet`.

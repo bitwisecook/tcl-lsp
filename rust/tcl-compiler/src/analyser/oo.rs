@@ -52,14 +52,14 @@
 
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::arg_role::ArgRole;
-use tcl_registry::definer::{
-    DefinitionBodyGrammar, MemberRefKind, MemberRetraction, MemberSpec, MemberVisibility,
-};
+use tcl_registry::definer::{DefinitionBodyGrammar, MemberRefKind, MemberSpec, MemberVisibility};
 
+use super::diagnostics::helpers::has_substitution;
 use super::scope::scope_at_mut;
 use super::state::Analyser;
 use super::types::{
-    ClassDef, MemberSide, MethodDef, PropertyDef, Scope, ScopeKind, UnknownProcInfo,
+    ClassDef, DefinitionAbort, DefinitionAbortKind, MemberSide, MethodDef, PropertyDef, Scope,
+    ScopeKind, UnknownProcInfo,
 };
 use super::utils::{param_name_spans_for_token, parse_param_list};
 use crate::ir::{Module, Statement, SwitchMode};
@@ -1841,11 +1841,20 @@ fn apply_oo_private(
         return;
     };
     // `private deletemethod m` removes an instance-side member — `private`'s
-    // own side — including one this same block just recorded.
-    retract_named_members(member, inner_args, class_def, MemberSide::Instance);
-    // `private unexport m` / `private { … export m … }` flip the *instance*
-    // side, exactly as the unwrapped spelling does (oracle below).
-    apply_visibility_member(member, inner_args, class_def, MemberSide::Instance);
+    // own side — including one this same block just recorded; `private unexport
+    // m` / `private { … export m … }` flip that same side, exactly as the
+    // unwrapped spelling does, and `private filter s` fills the *instance*
+    // filter slot (`info class filters` — pinned on tclsh 9.0.4; `private` does
+    // not exist on 8.6 at all, where the whole body is an `invalid command
+    // name` error).
+    apply_sided_member_effects(
+        member,
+        inner_subcmd,
+        inner_args,
+        inner_tokens,
+        class_def,
+        MemberSide::Instance,
+    );
     match inner_subcmd {
         "method" => {
             if let Some(md) =
@@ -1870,34 +1879,62 @@ fn apply_oo_private(
     }
 }
 
-/// Drop every member named by a *retracting* member word (`deletemethod m`,
-/// `self renamemethod old new`, `private deletemethod m`) from `side`'s method
-/// table.
+/// Apply a *retracting* member word (`deletemethod m`, `self renamemethod old
+/// new`, `private deletemethod m`) to `side`'s method table: remove every name
+/// it retracts, and — for a renaming word — re-record the removed member under
+/// the name it **arrives** at.
 ///
-/// This is an **abstention**, not a model of `deletemethod` / `renamemethod`:
-/// it stops a member the body goes on to delete from being retained, but it
-/// records nothing in its place (a `renamemethod old new` drops `old` without
-/// recording `new`). Keeping a member real Tcl removed would show a stale
-/// document symbol and let navigation and method validation resolve a name
-/// that does not exist — a false positive; dropping the renamed-to name is a
-/// false negative, which is the direction this campaign abstains toward.
+/// Which member words retract, and *which of their arguments* they retract or
+/// re-key, is registry data ([`MemberSpec::retraction`] /
+/// [`tcl_registry::definer::MemberRetraction::split`]), never a keyword matched
+/// here — the sibling
+/// [`MemberRefKind::Method`] members (`export` / `unexport` / `filter`) name a
+/// method without removing it and must not retract.
 ///
-/// Which member words retract, and *which of their arguments* they retract, is
-/// registry data ([`MemberSpec::retraction`]), never a keyword matched here —
-/// the sibling [`MemberRefKind::Method`] members (`export` / `unexport` /
-/// `filter`) name a method without removing it and must not retract, and
-/// `renamemethod OLD NEW` retracts only `OLD` ([`MemberRetraction`]).
+/// `arg_tokens` is the *same slice* as `names`, word for word: the arrival
+/// name's own token is the synthetic declaration site the moved member gets
+/// (see below), so it has to be reachable from the index the registry hands
+/// back.
 ///
-/// Source order needs no tracking: real Tcl makes retracting a
-/// not-yet-declared member a hard error that aborts the whole definition (see
-/// the oracle on [`MemberSpec::retraction`]), so the only legal
-/// order is declare-then-retract, and a body that violates it never creates a
-/// class for us to describe. That holds for the *unwrapped* spelling too, and
-/// across sides — `oo::class create ::C { self { method cm {} {…} } }` then
-/// `oo::define ::C { deletemethod cm }` fails with `method cm does not exist`
-/// (the instance side has no `cm`) and leaves the class-object side's `cm`
-/// intact, on both tclsh 9.0.4 and 8.6.14. So a cross-side retraction never
-/// reaches a live document either.
+/// # The rename really moves the member (issue #1121)
+///
+/// `renamemethod old new` is not a deletion — it is a move, and the destination
+/// is a fully dispatchable member carrying the *source's* body, parameters and
+/// visibility. Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
+///
+/// ```tcl
+/// oo::class create ::R1 { method old {} { return OLDBODY } ; renamemethod old new }
+/// info class methods ::R1              ;# -> new
+/// [::R1 new] new                       ;# -> OLDBODY            (the old body runs)
+/// info class definition ::R1 new       ;# -> {} { return OLDBODY }
+/// oo::class create ::R4 { method Priv {} {…} ; renamemethod Priv pub }
+/// info class methods ::R4              ;# -> (empty)   `pub` is still UNexported…
+/// info class methods ::R4 -private     ;# -> pub       …because `Priv` was
+/// oo::class create ::R5 { method low {} {…} ; renamemethod low Up }
+/// info class methods ::R5              ;# -> Up        …and `Up` is still exported
+/// ```
+///
+/// so the moved [`MethodDef`] keeps its `visibility` verbatim — the family's
+/// name-based default (`[a-z]*` is exported for `TclOO`) is applied when a
+/// member is *(re)declared*, never when one is renamed. Its `body_span` also
+/// stays pointing at the original body, which is the only real body there is;
+/// only `name` and `name_span` move, the latter onto the `renamemethod` call's
+/// own destination word — the natural go-to-definition target for a member
+/// whose sole textual mention of the new name is right there.
+///
+/// # Definition-aborting shapes (issue #1120)
+///
+/// Real Tcl aborts the *whole* definition — no class is created at all — when a
+/// retracting word names a member that does not exist on its own side, or
+/// renames onto a name that side already holds. Each is recorded as a
+/// [`DefinitionAbort`] for the class handlers to turn into a `W315`; the
+/// partial class is still built, so navigation degrades rather than vanishing.
+/// This is the one site that can detect them, because it is the only place that
+/// knows the side's table state *at the point the word runs* — which is exactly
+/// the granularity real Tcl uses (`method a ; method b ; deletemethod b ;
+/// renamemethod a b` is legal, and leaves `b`).
+///
+/// # Tombstones for what this record cannot see
 ///
 /// A name this record does **not** declare leaves a *tombstone* in
 /// [`ClassDef::retracted_members`] instead: that is the cross-document shape —
@@ -1909,23 +1946,86 @@ fn apply_oo_private(
 /// tombstone: it removed the entry outright, the order within one body is known,
 /// and exporting it would wrongly cancel a *different* document's redeclaration
 /// of the name, which no ordering evidence supports.
+///
+/// Tombstone and abort are the same fact read under different knowledge, so
+/// they are mutually exclusive by construction: whether this record is a
+/// cross-file stub is not knowable here, so *both* are recorded and the class
+/// handler — which does know ([`ClassDef::via_define`]) — keeps exactly one.
 fn retract_named_members(
     member: &MemberSpec,
     names: &[String],
+    arg_tokens: &[Token],
     class_def: &mut ClassDef,
     side: MemberSide,
 ) {
     let Some(retraction) = member.retraction else {
         return;
     };
-    let names = match retraction {
-        MemberRetraction::EveryArgument => names,
-        MemberRetraction::FirstArgument => &names[..names.len().min(1)],
-    };
-    for name in names {
-        if side.table(class_def).remove(name).is_none() {
-            class_def.retracted_members.push((name.clone(), side));
+    let words = retraction.split(names);
+    // The name the retracted member re-appears under, with the word whose span
+    // becomes its synthetic declaration site. A dynamic destination
+    // (`renamemethod old $new`) names nothing statically, so the move abstains
+    // and the source is simply retracted — a false negative, the direction this
+    // campaign abstains toward.
+    let arrival = words
+        .arrives_at
+        .and_then(|i| Some((names.get(i)?, *arg_tokens.get(i)?)))
+        .filter(|(name, tok)| !has_substitution(name, tok));
+    for (i, name) in words.retracted.iter().enumerate() {
+        let tok = arg_tokens.get(i).copied();
+        // A dynamic source name (`deletemethod $m`) resolves to nothing
+        // statically: it may or may not name a live member, so neither the
+        // removal, the tombstone, nor the abort has evidence behind it.
+        if tok.is_some_and(|t| has_substitution(name, &t)) {
+            continue;
         }
+        let Some(removed) = side.table(class_def).remove(name) else {
+            class_def.retracted_members.push((name.clone(), side));
+            if let Some(tok) = tok {
+                class_def.definition_aborts.push(DefinitionAbort {
+                    kind: DefinitionAbortKind::MissingMember,
+                    member: name.clone(),
+                    span: tok.span,
+                });
+            }
+            // Nothing was removed, so there is nothing to move and no
+            // destination question to ask: real Tcl fails on the source word
+            // first (`renamemethod ghost b` reports `method ghost does not
+            // exist`, never `method called b already exists`), and one word
+            // earns one report.
+            continue;
+        };
+        let Some((new_name, new_tok)) = arrival else {
+            continue;
+        };
+        // A rename real Tcl rejects moves nothing — and rather than let the
+        // wreckage take a declaration with it, the source stays under its own
+        // name and an existing destination keeps its own body. Both members the
+        // author wrote are then still navigable, which is the whole point of
+        // recording a class that cannot run.
+        let blocked = if new_name == name {
+            Some(DefinitionAbortKind::RenameToItself)
+        } else if side.table(class_def).contains_key(new_name) {
+            Some(DefinitionAbortKind::DestinationExists)
+        } else {
+            None
+        };
+        if let Some(kind) = blocked {
+            class_def.definition_aborts.push(DefinitionAbort {
+                kind,
+                member: new_name.clone(),
+                span: new_tok.span,
+            });
+            side.table(class_def).insert(name.clone(), removed);
+            continue;
+        }
+        let mut md = removed;
+        // Only the identity moves: the body span still points at the one real
+        // body, and the visibility is the source's (oracle above), not the
+        // destination name's family default.
+        md.name.clone_from(new_name);
+        md.name_span = new_tok.span;
+        side.table(class_def).insert(new_name.clone(), md);
     }
 }
 
@@ -1940,18 +2040,24 @@ fn retract_named_members(
 /// another class system gets the same handling by declaring the effect on its
 /// own member word.
 ///
-/// On the instance side the names also update the class-level `exports` /
-/// `unexports` sets, which consumers read as the *instance*-side export state
-/// (`workspace_index::method_dispatch_chain`'s effective-export union over
-/// `instance_method`, `rename_safety`'s "the class declares this name" test); a
-/// class-object-side flip must not enter them or it would silently re-state an
-/// unrelated instance method's export bit.
+/// The names also update the class-level visibility sets **of that side** —
+/// `exports`/`unexports` for the instance side, `class_exports`/
+/// `class_unexports` for the class-object side ([`MemberSide::visibility_sets`]).
+/// The pair is what carries the flip across documents: a `via_define` stub
+/// declares no member to flip, so without a recorded set a `self unexport m` in
+/// one file never reaches another file's class-command dispatch (issue #1119).
+/// The two pairs stay strictly apart — `exports`/`unexports` are the
+/// *instance*-side record by contract (`workspace_index`'s effective-export
+/// union over `instance_method`, `rename_safety`'s "the class declares this
+/// name" test), so a class-object-side flip landing there would silently
+/// re-state an unrelated instance method's export bit (issue #1098).
 ///
-/// The two sets are maintained **mutually exclusive**, because each is a record
-/// of the *last* writer for the name and the union consumer reads any `exports`
-/// entry as decisive: `method m {} {…} ; export m ; unexport m` must leave `m`
-/// in `unexports` alone, or cross-file dispatch would keep advertising a method
-/// that `[C new] m` rejects with `unknown method "m"` (tclsh 9.0.4 / 8.6.14).
+/// Within a pair the two sets are maintained **mutually exclusive**, because
+/// each is a record of the *last* writer for the name and the union consumer
+/// reads any `exports` entry as decisive: `method m {} {…} ; export m ;
+/// unexport m` must leave `m` in `unexports` alone, or cross-file dispatch would
+/// keep advertising a method that `[C new] m` rejects with `unknown method "m"`
+/// (tclsh 9.0.4 / 8.6.14).
 fn apply_visibility_member(
     member: &MemberSpec,
     names: &[String],
@@ -1965,17 +2071,67 @@ fn apply_visibility_member(
         MemberVisibility::Exported => "public",
         MemberVisibility::Unexported => "unexported",
     };
-    if side == MemberSide::Instance {
-        let (set, cleared) = match effect {
-            MemberVisibility::Exported => (&mut class_def.exports, &mut class_def.unexports),
-            MemberVisibility::Unexported => (&mut class_def.unexports, &mut class_def.exports),
-        };
-        for name in names {
-            set.insert(name.clone());
-            cleared.remove(name);
-        }
+    let (exports, unexports) = side.visibility_sets(class_def);
+    let (set, cleared) = match effect {
+        MemberVisibility::Exported => (exports, unexports),
+        MemberVisibility::Unexported => (unexports, exports),
+    };
+    for name in names {
+        set.insert(name.clone());
+        cleared.remove(name);
     }
     set_member_visibility(class_def, names, visibility, side);
+}
+
+/// Every effect a member word has on the members it *names*, applied to the one
+/// side the word is scoped to — the single decision path all three spellings go
+/// through (unwrapped, `self`-scoped, `private`-scoped).
+///
+/// Keeping it one function is what makes "which side does this word act on" a
+/// caller's single argument rather than three near-copies that can drift: the
+/// unwrapped and `private` spellings pass [`MemberSide::Instance`], `self`
+/// passes [`MemberSide::ClassObject`], and every effect below follows.
+///
+/// `names` / `arg_tokens` are the word's arguments after the member keyword,
+/// aligned index for index.
+fn apply_sided_member_effects(
+    member: &MemberSpec,
+    keyword: &str,
+    names: &[String],
+    arg_tokens: &[Token],
+    class_def: &mut ClassDef,
+    side: MemberSide,
+) {
+    retract_named_members(member, names, arg_tokens, class_def, side);
+    apply_visibility_member(member, names, class_def, side);
+    apply_filter_member(keyword, names, class_def, side);
+}
+
+/// `filter f…` / `self filter f…` — record the named methods as this side's
+/// method filters.
+///
+/// The two sides are separate slots that intercept different dispatches (see
+/// [`ClassDef::filters`] and [`ClassDef::class_filters`] for the oracle), so
+/// `filter` was the last member table still landing in one flat list regardless
+/// of the wrapper it was written under (issue #1119).
+///
+/// The keyword is matched here rather than read off the spec because *which
+/// `ClassDef` field a member routes to* is analyser-local semantics the registry
+/// deliberately does not model — the same judgement as the `superclass` /
+/// `mixin` / `variable` arms of [`apply_oo_subcommand`]. What the registry does
+/// decide is that `filter` neither retracts nor flips visibility
+/// ([`MemberSpec::retraction`] / [`MemberSpec::visibility_effect`] are both
+/// `None` for it), which is why the two calls above leave it alone.
+fn apply_filter_member(
+    keyword: &str,
+    names: &[String],
+    class_def: &mut ClassDef,
+    side: MemberSide,
+) {
+    if keyword != "filter" {
+        return;
+    }
+    *side.filter_list(class_def) = names.to_vec();
 }
 
 /// `self method NAME ARGS BODY` / `self classmethod NAME ARGS BODY`
@@ -2010,11 +2166,17 @@ fn apply_oo_self(
     let Some(member) = grammar.member(inner_subcmd) else {
         return;
     };
-    // `self deletemethod m` / `self renamemethod old new` remove class-side
-    // members — including ones this same block just recorded (issue #1095
-    // review). Handled before the declaration arms below so the wrapper's own
-    // side is the only table touched.
-    retract_named_members(member, inner_args, class_def, MemberSide::ClassObject);
+    // Every effect this word has on the members it names lands on the
+    // class-object side — the wrapper's own — and nowhere else. `self
+    // deletemethod m` / `self renamemethod old new` remove (or move) class-side
+    // members, including ones this same block just recorded (issue #1095
+    // review); `self filter f` fills the class object's own filter slot, which
+    // intercepts dispatches on the *class command* (`::B cls`, and even `::B
+    // new`) while leaving instances unfiltered — `info object filters ::B` ->
+    // `f`, `info class filters ::B` -> empty, on tclsh 9.0.4 and 8.6.14 alike
+    // (issue #1119). Handled before the declaration arms below so the wrapper's
+    // own side is the only table touched.
+    //
     // `self unexport m` / `self { … unexport m … }` flip the class-object
     // side's visibility and nothing else (issue #1098). Oracle, byte-identical
     // on tclsh 9.0.4 and 8.6.14:
@@ -2031,7 +2193,14 @@ fn apply_oo_self(
     // `oo::class create E { method onlyinst {} {…} }; oo::define E { self
     // unexport onlyinst }` succeeds and leaves `onlyinst` exported on the
     // instance side. Restricting the flip to this side reproduces both.
-    apply_visibility_member(member, inner_args, class_def, MemberSide::ClassObject);
+    apply_sided_member_effects(
+        member,
+        inner_subcmd,
+        inner_args,
+        inner_tokens,
+        class_def,
+        MemberSide::ClassObject,
+    );
     if !matches!(inner_subcmd, "method" | "classmethod") {
         return;
     }
@@ -2188,8 +2357,14 @@ pub(super) fn apply_oo_subcommand(
     // `onlyclass` exported and dispatchable on 9.0.4 and 8.6.14 alike
     // (issue #1098).
     if let Some(m) = member {
-        retract_named_members(m, sub_args, class_def, MemberSide::Instance);
-        apply_visibility_member(m, sub_args, class_def, MemberSide::Instance);
+        apply_sided_member_effects(
+            m,
+            subcmd,
+            sub_args,
+            sub_tokens,
+            class_def,
+            MemberSide::Instance,
+        );
     }
 
     match subcmd {
@@ -2253,9 +2428,9 @@ pub(super) fn apply_oo_subcommand(
             // first one declared (issue #923 idx 32, main audit wave).
             class_def.variables.extend(sub_args.iter().cloned());
         }
-        "filter" => {
-            class_def.filters = sub_args.to_vec();
-        }
+        // `filter` has no arm of its own: it is one of the sided member effects
+        // above ([`apply_filter_member`]), so the unwrapped and `self` spellings
+        // reach their own slot through the one shared path.
         "property" => {
             extract_property_defs(sub_args, sub_tokens, class_def);
         }
@@ -2437,6 +2612,20 @@ mod tests {
             body_span: tcl_lexer::Span::new(0, 0),
             ..Default::default()
         }
+    }
+
+    /// The `W315` messages an analysis produced, in emission order — the
+    /// "this class definition cannot run" reports of issue #1120.
+    fn w315_messages(r: &super::super::types::AnalysisResult) -> Vec<String> {
+        r.diagnostics
+            .iter()
+            .filter(|d| d.code == tcl_core_types::DiagCode::W315)
+            .map(|d| d.message.clone())
+            .collect()
+    }
+
+    fn has_w315(r: &super::super::types::AnalysisResult) -> bool {
+        !w315_messages(r).is_empty()
     }
 
     fn tok(span: (u32, u32)) -> Token {
@@ -2715,6 +2904,8 @@ mod tests {
         let argv = [tok((0, 6)), tok((7, 10)), tok((11, 16))];
         apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert_eq!(cd.filters, vec!["log", "trace"]);
+        // …and only the instance slot: the class object stays unfiltered.
+        assert!(cd.class_filters.is_empty(), "{:?}", cd.class_filters);
     }
 
     #[test]
@@ -3506,11 +3697,16 @@ mod tests {
     }
 
     #[test]
-    fn self_block_renamemethod_drops_the_source_name() {
-        // TP. Oracle: `self { method old {} {…} ; renamemethod old new }` gives
-        // `info object methods ::C2` -> new, and `::C2 old` is an unknown
-        // method. We drop `old` and record nothing for `new` — the
-        // false-negative direction, which is the one to abstain toward.
+    fn self_block_renamemethod_moves_the_member_on_the_class_side() {
+        // TP, class-side half of issue #1121. Oracle, byte-identical on tclsh
+        // 9.0.4 and 8.6.14:
+        //   oo::class create ::R2 { self { method old {} {return CLSOLD}
+        //                                  renamemethod old new } }
+        //   info object methods ::R2  -> new
+        //   ::R2 new                  -> CLSOLD   (shadowing the stock `new`!)
+        //   ::R2 old                  -> unknown method
+        // The move stays on the wrapper's own side: the instance table is not
+        // touched in either direction.
         let src = "oo::class create ::C {\n                   self {\n                   method old {} { return o }\n                   renamemethod old new\n                   }\n                   }";
         let mut a = Analyser::new();
         let r = a.analyse(src, "tcl9.0");
@@ -3520,6 +3716,17 @@ mod tests {
             "{:?}",
             c.class_methods
         );
+        let md = c.class_methods.get("new").expect("`new` is a class member");
+        assert_eq!(md.name, "new");
+        assert!(
+            src[md.body_span.start() as usize..md.body_span.end() as usize].contains("return o"),
+        );
+        assert!(
+            c.methods.is_empty(),
+            "instance side untouched: {:?}",
+            c.methods
+        );
+        assert!(!has_w315(&r), "{:?}", w315_messages(&r));
     }
 
     #[test]
@@ -3652,24 +3859,44 @@ mod tests {
     }
 
     #[test]
-    fn unwrapped_renamemethod_drops_the_old_name_and_records_no_new_one() {
-        // TP + deliberate false negative. Oracle:
+    fn unwrapped_renamemethod_moves_the_member_to_the_new_name() {
+        // TP, issue #1121 (the residual #1118 left deliberately). Oracle,
+        // byte-identical on tclsh 9.0.4 and 8.6.14:
         //   oo::class create ::I3 { method old {} {return o}; renamemethod old new }
-        //   info class methods ::I3  ->  new
-        //   [::I3 new] new           ->  o
-        //   ::I3 old                 ->  unknown method
-        // We drop `old` (keeping it would navigate to a name the interpreter
-        // does not have) and record nothing for `new` — a false negative,
-        // which is the direction this campaign abstains toward.
+        //   info class methods ::I3        ->  new
+        //   [::I3 new] new                 ->  o        (the old body runs)
+        //   info class definition ::I3 new ->  {} { return o }
+        //   ::I3 old                       ->  unknown method
+        // so `new` is a fully navigable member carrying `old`'s body: `old` goes,
+        // `new` arrives with the *same* `MethodDef`, its name span moved onto
+        // the `renamemethod` call's destination word (the only place the new
+        // name is written) and its body span left on the one real body.
         let mut a = Analyser::new();
-        let r = a.analyse(
-            "oo::class create ::C { method old {} { return o }\n\
-             renamemethod old new }",
-            "tcl9.0",
-        );
+        let src = "oo::class create ::C { method old {} { return o }\n\
+             renamemethod old new }";
+        let r = a.analyse(src, "tcl9.0");
         let c = r.all_classes.get("::C").expect("::C recorded");
         assert!(!c.methods.contains_key("old"));
-        assert!(!c.methods.contains_key("new"));
+        let md = c.methods.get("new").expect("`new` is a member");
+        assert_eq!(md.name, "new");
+        // The name span is the `renamemethod`'s destination word …
+        assert_eq!(
+            &src[md.name_span.start() as usize..md.name_span.end() as usize],
+            "new"
+        );
+        // … and it is the *second* `new` in the source (the one in the
+        // `renamemethod` call), not any earlier text.
+        assert!(md.name_span.start() as usize > src.find("renamemethod").expect("call"));
+        // … while the body span still points at the original body.
+        assert!(
+            src[md.body_span.start() as usize..md.body_span.end() as usize].contains("return o"),
+            "body span must stay on the original body",
+        );
+        // A rename is not a (re)declaration, so the family's name-based export
+        // default is not re-applied — the source's visibility travels with it.
+        assert_eq!(md.visibility, "public");
+        // TN for #1120: a rename onto a fresh name is a legal order.
+        assert!(!has_w315(&r), "{:?}", w315_messages(&r));
         // …and the *destination* name leaves no cross-document tombstone: the
         // rename creates `new`, it does not delete it, so another document's
         // `method new` must survive. Registry data decides which arguments a
@@ -3681,6 +3908,205 @@ mod tests {
             "a locally-declared retraction needs no tombstone: {:?}",
             c.retracted_members,
         );
+    }
+
+    // ---- issue #1119: the class-side visibility + filter channels ----
+
+    #[test]
+    fn self_scoped_visibility_words_fill_the_class_side_sets() {
+        // TP, issue #1119. A `self export` / `self unexport` has to leave a
+        // record of its own or the flip never travels to another file's
+        // class-command dispatch. Oracle, byte-identical on tclsh 9.0.4/8.6.14:
+        //   oo::class create ::X { self { method cm {} { return cm } } }
+        //   ::X cm                    ;# -> cm
+        //   oo::define X { self unexport cm }
+        //   ::X cm                    ;# -> unknown method "cm": must be create,
+        //                             ;#    destroy or new
+        //   info object methods ::X   ;# -> (empty)
+        //   info object methods ::X -all -private ;# -> … cm …  (still defined)
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { self { method cm {} { return c } } }\n\
+             oo::define ::C { self unexport cm }",
+            "tcl9.0",
+        );
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(c.class_unexports.contains("cm"), "{:?}", c.class_unexports);
+        assert!(c.class_exports.is_empty(), "{:?}", c.class_exports);
+        assert_eq!(c.class_methods["cm"].visibility, "unexported");
+        // …and the instance-side pair — the one every existing consumer reads
+        // as the instance record — stays untouched in both directions.
+        assert!(c.exports.is_empty(), "{:?}", c.exports);
+        assert!(c.unexports.is_empty(), "{:?}", c.unexports);
+    }
+
+    #[test]
+    fn a_rename_carries_the_sources_visibility_not_the_new_names_default() {
+        // CRITICAL pin, issue #1121. A rename is not a (re)declaration, so the
+        // family's name-based export default (`[a-z]*` is exported for `TclOO`)
+        // is NOT re-applied to the destination — the source's own visibility
+        // travels with the body. Both directions, byte-identical on tclsh 9.0.4
+        // and 8.6.14:
+        //   oo::class create ::R4 { method Priv {} {…} ; renamemethod Priv pub }
+        //   info class methods ::R4           ;# -> (empty)   `pub` is UNexported
+        //   info class methods ::R4 -private  ;# -> pub       despite the name
+        //   [::R4 new] pub                    ;# -> unknown method "pub"
+        //   oo::class create ::R5 { method low {} {…} ; renamemethod low Up }
+        //   info class methods ::R5           ;# -> Up        still EXPORTED
+        //   info class methods ::R5 -private  ;# -> Up        despite the name
+        //
+        // Applying the destination's default instead would flip both of these
+        // the wrong way — offering a `pub` no `$obj pub` can call, and hiding an
+        // `Up` that dispatches fine.
+        for (src_name, dst_name, want) in [("Priv", "pub", "unexported"), ("low", "Up", "public")] {
+            let src = format!(
+                "oo::class create ::C {{ method {src_name} {{}} {{ return 1 }}\n\
+                 renamemethod {src_name} {dst_name} }}"
+            );
+            let mut a = Analyser::new();
+            let r = a.analyse(&src, "tcl9.0");
+            let c = r.all_classes.get("::C").expect("::C recorded");
+            assert_eq!(
+                c.methods[dst_name].visibility, want,
+                "{src_name} -> {dst_name}",
+            );
+        }
+    }
+
+    #[test]
+    fn the_class_side_visibility_sets_keep_only_the_last_writer() {
+        // The class-side pair takes the identical last-writer-exclusive rule as
+        // the instance pair, because the workspace consumer reads any `exports`
+        // entry as decisive. Oracle: `oo::class create ::H1 { self { method
+        // lower {} {…} ; unexport lower ; export lower } }` leaves
+        // `info object methods ::H1` -> lower on 9.0.4 and 8.6.14 alike.
+        for (body, exported) in [
+            ("unexport m\nexport m", true),
+            ("export m\nunexport m", false),
+        ] {
+            let src = format!(
+                "oo::class create ::C {{ self {{ method m {{}} {{ return 1 }}\n{body} }} }}"
+            );
+            let mut a = Analyser::new();
+            let r = a.analyse(&src, "tcl9.0");
+            let c = r.all_classes.get("::C").expect("::C recorded");
+            let (winner, loser) = if exported {
+                (&c.class_exports, &c.class_unexports)
+            } else {
+                (&c.class_unexports, &c.class_exports)
+            };
+            assert!(winner.contains("m"), "{body}");
+            assert!(
+                !loser.contains("m"),
+                "{body}: superseded set still holds `m`"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unwrapped_visibility_word_never_touches_the_class_side_sets() {
+        // TN, the mirror of `a_self_scoped_visibility_word_never_touches_the_
+        // instance_sets`. The unwrapped spelling is instance-scoped, so an
+        // identically-named class-side member keeps its own state — oracle:
+        // `oo::class create E2 { self { method onlyclass {} {…} } }` then
+        // `oo::define E2 { unexport onlyclass }` leaves `onlyclass` exported and
+        // dispatchable via `::E2 onlyclass` on 9.0.4 and 8.6.14.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { self { method m {} { return c } } }\n\
+             oo::define ::C { unexport m }",
+            "tcl9.0",
+        );
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(c.class_exports.is_empty(), "{:?}", c.class_exports);
+        assert!(c.class_unexports.is_empty(), "{:?}", c.class_unexports);
+        assert_eq!(c.class_methods["m"].visibility, "public");
+        // The unwrapped word still records its own (instance-side) intent.
+        assert!(c.unexports.contains("m"));
+    }
+
+    #[test]
+    fn filters_are_sided_by_the_wrapper_they_are_written_under() {
+        // TP + TN, issue #1119 item 2 — `filters` was the last un-sided member
+        // table. The two slots are genuinely independent in `TclOO` and
+        // intercept different dispatches. Oracle, byte-identical on tclsh 9.0.4
+        // and 8.6.14:
+        //   oo::class create ::A { method real {} {…} ; method logit {args} {…}
+        //                          filter logit }
+        //   info class filters ::A   ;# -> logit      info object filters ::A -> {}
+        //   [::A new] real           ;# logit fires, `self target` -> `::A real`
+        //   oo::class create ::B { method inst {} {…}
+        //       self { method cls {} {…} ; method logit {args} {…} ; filter logit } }
+        //   info object filters ::B  ;# -> logit      info class filters ::B  -> {}
+        //   ::B cls                  ;# logit fires, `self target` -> `::B cls`
+        //   ::B new                  ;# logit fires too — the constructor path
+        //   [::B new] inst           ;# logit does NOT fire
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::A { method real {} { return r }\n\
+             method logit {args} { next }\n\
+             filter logit }\n\
+             oo::class create ::B { method inst {} { return i }\n\
+             self { method cls {} { return c }\n\
+             method logit {args} { next }\n\
+             filter logit } }",
+            "tcl9.0",
+        );
+        let a_cls = r.all_classes.get("::A").expect("::A recorded");
+        assert_eq!(a_cls.filters, vec!["logit"]);
+        assert!(a_cls.class_filters.is_empty(), "{:?}", a_cls.class_filters);
+        let b_cls = r.all_classes.get("::B").expect("::B recorded");
+        assert_eq!(b_cls.class_filters, vec!["logit"]);
+        assert!(b_cls.filters.is_empty(), "{:?}", b_cls.filters);
+    }
+
+    #[test]
+    fn a_private_scoped_filter_is_instance_side() {
+        // TN for the third spelling: `private` is a *visibility* wrapper over
+        // the instance side, not a third side, so its `filter` lands in the
+        // instance slot. Oracle (9.0 only — `private` does not exist on 8.6,
+        // where the same body fails with `invalid command name "private"`):
+        //   oo::class create ::P { private { method s {} {} ; filter s } }
+        //   info class filters ::P   ;# -> s
+        //   info object filters ::P  ;# -> (empty)
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { private { method s {} { return s }\n\
+             filter s } }",
+            "tcl9.0",
+        );
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert_eq!(c.filters, vec!["s"]);
+        assert!(c.class_filters.is_empty(), "{:?}", c.class_filters);
+    }
+
+    #[test]
+    fn per_object_visibility_is_still_unmodelled() {
+        // Documented residual, issue #1119 item 3 (unchanged by this change).
+        // `oo::objdefine $o { unexport m }` really works — oracle, 9.0.4 and
+        // 8.6.14 alike:
+        //   oo::class create ::C { method m {} {…} } ; set o [::C new]
+        //   oo::objdefine $o { unexport m } ; $o m
+        //   ;# -> unknown method "m": must be destroy or n
+        // but it routes into the deliberately-unregistered throwaway `ClassDef`
+        // the `oo::objdefine` handler builds, which never reaches
+        // `all_classes` — so there is nowhere for per-object export state to
+        // live and no consumer that could read it. The sided sets added here
+        // are class state, and giving the *object* one is a separate piece of
+        // machinery (the same missing home that keeps per-object retraction
+        // diagnostics out). This pins that the walk stays harmless: it neither
+        // panics nor leaks the flip onto the class.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { method m {} { return m } }\n\
+             set o [::C new]\n\
+             oo::objdefine $o { unexport m }",
+            "tcl9.0",
+        );
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert_eq!(c.methods["m"].visibility, "public");
+        assert!(c.unexports.is_empty(), "{:?}", c.unexports);
+        assert!(!r.all_classes.contains_key("::@objdefine@::o"));
     }
 
     #[test]
@@ -3698,6 +4124,289 @@ mod tests {
         let c = r.all_classes.get("::C").expect("::C recorded");
         assert!(!c.methods.contains_key("gone"));
         assert!(c.retracted_members.is_empty(), "{:?}", c.retracted_members);
+    }
+
+    // ---- issue #1120: W315, "this class definition cannot run" ----
+
+    #[test]
+    fn w315_fires_for_every_definition_aborting_retraction() {
+        // TP ×4. Real Tcl aborts the whole definition and creates no class at
+        // all for each of these — byte-identical on tclsh 9.0.4 and 8.6.14, with
+        // `[info object isa class …]` -> 0 in every case:
+        //   { deletemethod ghost ; method ghost {} {} }   method ghost does not exist
+        //   { self { method cm {} {} } ; deletemethod cm } method cm does not exist
+        //   { method a {} {} ; method b {} {} ; renamemethod a b }
+        //                                       method called b already exists
+        //   { method a {} {} ; renamemethod a a } cannot rename method to itself
+        // The message mirrors the interpreter's own text after a fixed preamble.
+        for (body, want) in [
+            (
+                "deletemethod ghost\nmethod ghost {} { return g }",
+                "this class definition cannot run: method \"ghost\" does not exist",
+            ),
+            (
+                "self { method cm {} { return c } }\ndeletemethod cm",
+                "this class definition cannot run: method \"cm\" does not exist",
+            ),
+            (
+                "method a {} { return a }\nmethod b {} { return b }\nrenamemethod a b",
+                "this class definition cannot run: method called \"b\" already exists",
+            ),
+            (
+                "method a {} { return a }\nrenamemethod a a",
+                "this class definition cannot run: cannot rename method to itself",
+            ),
+            // One word earns one report: a rename whose *source* is missing
+            // fails on the source in real Tcl (`method ghost does not exist`),
+            // never additionally on the destination it never reached.
+            (
+                "method b {} { return b }\nrenamemethod ghost b",
+                "this class definition cannot run: method \"ghost\" does not exist",
+            ),
+        ] {
+            let mut a = Analyser::new();
+            let r = a.analyse(&format!("oo::class create ::C {{ {body} }}"), "tcl9.0");
+            assert_eq!(w315_messages(&r), vec![want.to_string()], "body: {body}");
+            // Navigation resilience: the partial class is still recorded, the
+            // same degradation a parse error gets.
+            assert!(r.all_classes.contains_key("::C"), "body: {body}");
+        }
+    }
+
+    #[test]
+    fn w315_fires_on_the_class_side_too() {
+        // TP, the sided half. A `self deletemethod` of an instance-only member
+        // is the same hard error, because the class-object side has no such
+        // member: `oo::class create ::E6 { method im {} {} ; self { deletemethod
+        // im } }` -> `method im does not exist`, 9.0.4 and 8.6.14 alike. Same
+        // for the cross-side rename (`::R3`).
+        for body in [
+            "method im {} { return i }\nself { deletemethod im }",
+            "method im {} { return i }\nself { renamemethod im other }",
+        ] {
+            let mut a = Analyser::new();
+            let r = a.analyse(&format!("oo::class create ::C {{ {body} }}"), "tcl9.0");
+            assert_eq!(
+                w315_messages(&r),
+                vec!["this class definition cannot run: method \"im\" does not exist".to_string()],
+                "body: {body}",
+            );
+            // The member the word could not reach survives on its own side.
+            assert!(r.all_classes["::C"].methods.contains_key("im"), "{body}");
+        }
+    }
+
+    #[test]
+    fn w315_stays_silent_for_every_legal_order() {
+        // TN ×7, all oracle-pinned as succeeding on tclsh 9.0.4 and 8.6.14.
+        // Note especially the last two: rename onto a name *deleted earlier in
+        // the same body* is legal, so the check has to read the side's table
+        // state at the point the word runs, not the body's final contents.
+        for body in [
+            // declare-then-retract, both sides
+            "method a {} {}\nmethod b {} {}\ndeletemethod a",
+            "self { method a {} {}\nmethod b {} {}\ndeletemethod a }",
+            // rename onto a fresh name
+            "method a {} {}\nrenamemethod a fresh",
+            // rename onto a name that exists only on the *other* side — legal:
+            // `oo::class create ::R7 { method a {} {} ; self { method b {} {} }
+            //  ; renamemethod a b }` -> info class methods ::R7 -> b
+            "method a {} {}\nself { method b {} {} }\nrenamemethod a b",
+            // delete then redeclare the same name
+            "method a {} {}\ndeletemethod a\nmethod a {} {}",
+            // rename onto a name deleted earlier in the same body
+            "method a {} {}\nmethod b {} {}\ndeletemethod b\nrenamemethod a b",
+            // chained renames
+            "method a {} {}\nrenamemethod a b\nrenamemethod b c",
+        ] {
+            let mut a = Analyser::new();
+            let r = a.analyse(&format!("oo::class create ::C {{ {body} }}"), "tcl9.0");
+            assert!(!has_w315(&r), "body: {body} -> {:?}", w315_messages(&r));
+        }
+    }
+
+    #[test]
+    fn a_cross_side_visibility_word_is_not_a_w315() {
+        // TN (CRITICAL). `export`/`unexport` are the words whose cross-side form
+        // is a **silent no-op**, not the hard error `deletemethod` raises — the
+        // distinction #1118's oracle pinned. Byte-identical on 9.0.4 and 8.6.14:
+        //   oo::class create N1 { method onlyinst {} {} }
+        //   oo::define N1 { self unexport onlyinst }  ;# succeeds, no effect
+        //   oo::class create N2 { self { method onlyclass {} {} } }
+        //   oo::define N2 { unexport onlyclass }      ;# succeeds, no effect
+        //   oo::define N3 { export ghost }            ;# succeeds even for a
+        //   oo::define N4 { self export ghost }       ;# name nothing declares
+        for body in [
+            "method onlyinst {} {}\nself unexport onlyinst",
+            "self { method onlyclass {} {} }\nunexport onlyclass",
+            "export ghost",
+            "self export ghost",
+            "filter ghost",
+            "self filter ghost",
+        ] {
+            let mut a = Analyser::new();
+            let r = a.analyse(&format!("oo::class create ::C {{ {body} }}"), "tcl9.0");
+            assert!(!has_w315(&r), "body: {body} -> {:?}", w315_messages(&r));
+        }
+    }
+
+    #[test]
+    fn w315_abstains_on_a_dynamic_source_name() {
+        // TN. A `$var` / `[cmd]` *source* name resolves to nothing statically:
+        // it may or may not name a live member, so neither the removal, the
+        // tombstone, nor the abort has evidence behind it — abstain on all
+        // three rather than guess.
+        for body in [
+            "method m {} {}\ndeletemethod $gone",
+            "method m {} {}\nrenamemethod $old new",
+            "method m {} {}\ndeletemethod [pick]",
+        ] {
+            let mut a = Analyser::new();
+            let r = a.analyse(&format!("oo::class create ::C {{ {body} }}"), "tcl9.0");
+            assert!(!has_w315(&r), "body: {body} -> {:?}", w315_messages(&r));
+            assert!(
+                r.all_classes["::C"].methods.contains_key("m"),
+                "body: {body}: a dynamic retraction must not remove a member",
+            );
+            assert!(
+                r.all_classes["::C"].retracted_members.is_empty(),
+                "body: {body}: {:?}",
+                r.all_classes["::C"].retracted_members,
+            );
+        }
+    }
+
+    #[test]
+    fn a_dynamic_rename_destination_still_retracts_the_source() {
+        // TN for the *destination* half, which is not symmetric with the source.
+        // Whatever `$n` turns out to be, `renamemethod m $n` definitely takes
+        // `m` away — `::C m` is an unknown method afterwards on 9.0.4 and
+        // 8.6.14 alike — so retracting the source is the faithful answer even
+        // though the arrival name is unknowable. Only the arrival abstains, and
+        // with no static destination there is nothing to check for a collision.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { method m {} { return m }\n\
+             method n {} { return n }\n\
+             renamemethod m $n }",
+            "tcl9.0",
+        );
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(!c.methods.contains_key("m"), "{:?}", c.methods);
+        assert!(
+            c.methods.contains_key("n"),
+            "the collision guess is not made"
+        );
+        assert!(!has_w315(&r), "{:?}", w315_messages(&r));
+    }
+
+    #[test]
+    fn a_cross_file_stub_retraction_is_a_tombstone_not_a_w315() {
+        // TN (CRITICAL FP guard). This is the *normal* cross-file shape: the
+        // class is created in another file, so this record has no member tables
+        // to judge against and an absent name is expected, not an error. The
+        // retraction travels as a tombstone and nothing is reported.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::define ::C { deletemethod m }\n\
+             oo::define ::D { self deletemethod cm }\n\
+             oo::define ::E { renamemethod old new }",
+            "tcl9.0",
+        );
+        assert!(!has_w315(&r), "{:?}", w315_messages(&r));
+        assert_eq!(
+            r.all_classes["::C"].retracted_members,
+            vec![("m".to_string(), MemberSide::Instance)],
+        );
+        assert!(r.all_classes["::C"].via_define);
+    }
+
+    #[test]
+    fn a_same_file_define_extending_a_local_class_is_not_a_stub() {
+        // TP boundary of the `via_define` gate. An `oo::define` on a class this
+        // same file created reuses that class's record, member tables included,
+        // so its table state is complete and an absent name really is the hard
+        // error — oracle: `oo::class create ::C { method kept {} {} }` then
+        // `oo::define ::C { deletemethod ghost }` fails `method ghost does not
+        // exist` on 9.0.4 and 8.6.14.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { method kept {} { return k } }\n\
+             oo::define ::C { deletemethod ghost }",
+            "tcl9.0",
+        );
+        assert_eq!(
+            w315_messages(&r),
+            vec!["this class definition cannot run: method \"ghost\" does not exist".to_string()],
+        );
+        assert!(!r.all_classes["::C"].via_define);
+        // No tombstone: the two readings are mutually exclusive and the class
+        // handler kept the one its knowledge supports.
+        assert!(
+            r.all_classes["::C"].retracted_members.is_empty(),
+            "{:?}",
+            r.all_classes["::C"].retracted_members,
+        );
+    }
+
+    #[test]
+    fn a_blocked_rename_keeps_both_members_navigable() {
+        // Navigation-resilience pin for the aborting shapes. Real Tcl creates no
+        // class at all, so there is no "right" answer to mirror — the useful one
+        // keeps every declaration the author wrote reachable rather than letting
+        // the wreckage take one with it.
+        let src = "oo::class create ::C { method a {} { return a }\n\
+                   method b {} { return b }\n\
+                   renamemethod a b }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(c.methods.contains_key("a"), "source kept: {:?}", c.methods);
+        let b = c.methods.get("b").expect("destination kept");
+        assert!(
+            src[b.body_span.start() as usize..b.body_span.end() as usize].contains("return b"),
+            "the destination keeps its OWN body",
+        );
+    }
+
+    #[test]
+    fn w315_is_reported_once_per_offending_word() {
+        // A class extended by several `oo::define` blocks drains its aborts
+        // after each block, so an earlier block's report is never re-emitted
+        // when a later one runs.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { method kept {} { return k } }\n\
+             oo::define ::C { deletemethod ghost }\n\
+             oo::define ::C { method extra {} { return e } }\n\
+             oo::define ::C { deletemethod other }",
+            "tcl9.0",
+        );
+        assert_eq!(
+            w315_messages(&r),
+            vec![
+                "this class definition cannot run: method \"ghost\" does not exist".to_string(),
+                "this class definition cannot run: method \"other\" does not exist".to_string(),
+            ],
+        );
+    }
+
+    #[test]
+    fn w315_points_at_the_offending_word() {
+        // The span is the argument word, not the whole statement — a squiggle
+        // under `ghost` / the destination name, which is what the reader needs.
+        let src = "oo::class create ::C { deletemethod ghost }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let d = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == tcl_core_types::DiagCode::W315)
+            .expect("W315");
+        assert_eq!(
+            &src[d.span.start() as usize..d.span.end() as usize],
+            "ghost"
+        );
     }
 
     #[test]
@@ -3731,7 +4440,8 @@ mod tests {
         // `[::I3 new] new` answers), so tombstoning `new` would suppress a live
         // member another document legitimately declares. Which arguments a
         // retracting word removes is registry data
-        // ([`MemberRetraction::FirstArgument`]), not a keyword match here.
+        // ([`tcl_registry::definer::MemberRetraction::FirstArgument`]), not a
+        // keyword match here.
         let mut a = Analyser::new();
         let r = a.analyse("oo::define ::C { renamemethod old new }", "tcl9.0");
         assert_eq!(

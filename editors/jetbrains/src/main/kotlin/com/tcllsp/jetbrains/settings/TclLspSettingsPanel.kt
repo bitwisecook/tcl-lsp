@@ -153,6 +153,7 @@ class TclLspSettingsPanel {
     private val diagW250 = JBCheckBox("W250: Instantiating an oo::abstract class")
     private val diagW308 = JBCheckBox("W308: Unknown TclOO method")
     private val diagW314 = JBCheckBox("W314: Definition has no absolute (fully-qualified) name")
+    private val diagW315 = JBCheckBox("W315: Class definition cannot run")
 
     // Diagnostics — Variables
     private val diagW210 = JBCheckBox("W210: Variable read before set")
@@ -385,7 +386,7 @@ class TclLspSettingsPanel {
             diagW127, diagW128, diagW129, diagW135, diagW136, diagW137,
             diagW138, diagW139, diagW140, diagW141, diagW142, diagW143,
             diagW200, diagW201, diagW230, diagW231, diagW232, diagW233,
-            diagW240, diagW241, diagW250, diagW308, diagW314,
+            diagW240, diagW241, diagW250, diagW308, diagW314, diagW315,
         ).forEach { diagWarnPanel.add(it) }
         builder.addComponent(diagWarnPanel)
 
@@ -613,6 +614,7 @@ class TclLspSettingsPanel {
             diagW250.isSelected != s.diagnosticW250 ||
             diagW308.isSelected != s.diagnosticW308 ||
             diagW314.isSelected != s.diagnosticW314 ||
+            diagW315.isSelected != s.diagnosticW315 ||
             diagW210.isSelected != s.diagnosticW210 ||
             diagW211.isSelected != s.diagnosticW211 ||
             diagW212.isSelected != s.diagnosticW212 ||
@@ -856,6 +858,7 @@ class TclLspSettingsPanel {
         s.diagnosticW250 = diagW250.isSelected
         s.diagnosticW308 = diagW308.isSelected
         s.diagnosticW314 = diagW314.isSelected
+        s.diagnosticW315 = diagW315.isSelected
         s.diagnosticW210 = diagW210.isSelected
         s.diagnosticW211 = diagW211.isSelected
         s.diagnosticW212 = diagW212.isSelected
@@ -1116,6 +1119,7 @@ class TclLspSettingsPanel {
         diagW250.isSelected = s.diagnosticW250
         diagW308.isSelected = s.diagnosticW308
         diagW314.isSelected = s.diagnosticW314
+        diagW315.isSelected = s.diagnosticW315
         diagW210.isSelected = s.diagnosticW210
         diagW211.isSelected = s.diagnosticW211
         diagW212.isSelected = s.diagnosticW212

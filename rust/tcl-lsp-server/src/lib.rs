@@ -4325,12 +4325,12 @@ impl Backend {
         // still identifies the method, and access-context-aware so an
         // external call resolves the exported dispatch entry only
         // (issue #945 faults 4 + 6).
-        if let Some((class_q, method, _is_classmethod, access)) = self
+        if let Some((class_q, method, is_classmethod, access)) = self
             .resolve_method_target(uri, &doc.text, &doc.dialect, &analysis, pos)
             .await
         {
             let method_defs = self
-                .cross_file_method_definition(uri, &class_q, &method, access)
+                .cross_file_method_definition(uri, &class_q, &method, access, is_classmethod)
                 .await;
             if !method_defs.is_empty() {
                 return Ok(method_defs);
@@ -6543,20 +6543,32 @@ impl Backend {
     /// outranks the receiver class's own method in another.  (Same-file
     /// simple cases are answered by the in-document provider before this
     /// runs, with the same chain rule.)
+    ///
+    /// `is_classmethod` — the caller's already-resolved fact about which of a
+    /// possibly-same-named `method` / `classmethod` pair the cursor means —
+    /// picks the **side** the chain is walked on.  A `ClassName member`
+    /// dispatch goes through the class object's own tables, so it must honour
+    /// the class-side visibility channel: without it a `self unexport m` in one
+    /// file left this resolving a `::C m` the interpreter rejects with `unknown
+    /// method "m"` (issue #1119).
     async fn cross_file_method_definition(
         &self,
         _current_uri: &Uri,
         class_q: &str,
         method: &str,
         access: core_workspace_index::MethodAccess,
+        is_classmethod: bool,
     ) -> Vec<Location> {
         let chain: Vec<(String, String)> = {
             let index = self.workspace_index.read().await;
-            index
-                .method_dispatch_chain(class_q, method, access)
-                .into_iter()
-                .map(|wc| (wc.uri.clone(), wc.qualified_name.clone()))
-                .collect()
+            if is_classmethod {
+                index.class_method_dispatch_chain(class_q, method, access)
+            } else {
+                index.method_dispatch_chain(class_q, method, access)
+            }
+            .into_iter()
+            .map(|wc| (wc.uri.clone(), wc.qualified_name.clone()))
+            .collect()
         };
         // The chain's first record is the dispatch entry; later records are
         // the `next` chain, reachable through the call-hierarchy /
@@ -6571,11 +6583,20 @@ impl Backend {
             let analysis = self
                 .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
                 .await;
+            // The chain already picked the side; look the declaration up on
+            // that side first so a class that legally defines *both* a `method
+            // m` and a `self method m` renders the one the cursor's dispatch
+            // actually enters (the other table stays as a fallback for a record
+            // whose kinds the index and the re-analysis disagree on).
             if let Some(class_def) = analysis.all_classes.get(&cq)
-                && let Some(m) = class_def
-                    .methods
-                    .get(method)
-                    .or_else(|| class_def.class_methods.get(method))
+                && let Some(m) = {
+                    let (a, b) = if is_classmethod {
+                        (&class_def.class_methods, &class_def.methods)
+                    } else {
+                        (&class_def.methods, &class_def.class_methods)
+                    };
+                    a.get(method).or_else(|| b.get(method))
+                }
             {
                 return self.resolve_target_locations(vec![(u, m.name_span)]).await;
             }
@@ -22769,6 +22790,8 @@ mod tests {
                 "::Dog",
                 "speak",
                 core_workspace_index::MethodAccess::External,
+                // `$d speak` — an instance dispatch, so the instance-side chain.
+                false,
             )
             .await;
         assert_eq!(defs.len(), 1, "{defs:?}");

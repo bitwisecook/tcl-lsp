@@ -643,3 +643,207 @@ fn tn_subtraction_is_not_a_method_dispatch() {
         "only the declaration: {refs:?}"
     );
 }
+
+/// Whether any diagnostic in `diags` carries `code`.
+fn carries_code(diags: &[Value], code: &str) -> bool {
+    diags
+        .iter()
+        .any(|d| d.get("code").and_then(Value::as_str) == Some(code))
+}
+
+// Issue #1119 — the class-side visibility channel must cross files.
+
+/// TP: `decl.tcl` declares a class-side `Cm` and immediately `self unexport`s
+/// it, so its own document cannot dispatch `C Cm` — the in-document provider
+/// correctly declines.  `revive.tcl` then `self export`s it, and the call must
+/// resolve again.
+///
+/// This is the class-side visibility channel end to end: the export written in
+/// one file has to reach the other file's **class-command** dispatch.  Before
+/// the channel existed a `self export` / `self unexport` was recorded nowhere
+/// the workspace index could see, so it never travelled at all — the
+/// instance-side pair is the instance-side record by contract and a class-side
+/// flip must not enter it (issue #1098/#1119).
+///
+/// Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
+///
+/// ```tcl
+/// oo::class create C { self { method Cm {} {…} ; unexport Cm } }
+/// C Cm                             ;# -> unknown method "Cm"
+/// oo::define C { self export Cm }
+/// C Cm                             ;# -> 1
+/// ```
+#[test]
+fn tp_cross_file_self_export_revives_class_command_definition() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    let src = concat!(
+        "oo::class create C {\n",
+        "    self { method Cm {} { return 1 }\n",
+        "           unexport Cm }\n",
+        "}\n",
+        "C Cm\n",
+    );
+    let revive = unique_uri("tcl");
+    lsp.open_ready(&revive, "oo::define C { self export Cm }\n");
+    lsp.open_ready(&decl, src);
+    assert!(
+        !locations(&lsp.definition(&decl, 4, 3)).is_empty(),
+        "a cross-file `self export` must revive the class-side member's dispatch",
+    );
+}
+
+/// TN (CRITICAL FP guard): the same cross-file `self export` must not revive an
+/// identically-named *instance* method the class also unexports — the two
+/// sides never share a visibility record, so a class-side export says nothing
+/// about `$obj Cm` (oracle: `[C new] Cm` -> `unknown method "Cm"`).
+#[test]
+fn tn_cross_file_self_export_does_not_revive_the_instance_method() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    let src = concat!(
+        "oo::class create C {\n",
+        "    method Cm {} { return 1 }\n",
+        "    unexport Cm\n",
+        "    self { method Cm {} { return 2 }\n",
+        "           unexport Cm }\n",
+        "}\n",
+        "set o [C new]\n",
+        "$o Cm\n",
+    );
+    lsp.open_ready(&decl, src);
+    let revive = unique_uri("tcl");
+    lsp.open_ready(&revive, "oo::define C { self export Cm }\n");
+    lsp.open_ready(&decl, src);
+    assert!(
+        locations(&lsp.definition(&decl, 7, 4)).is_empty(),
+        "a class-side `self export` must not make an unexported instance method dispatch",
+    );
+}
+
+/// TN (CRITICAL FP guard): the same `self unexport cm` must leave an
+/// identically-named *instance* method alone — the two sides never share a
+/// visibility record.  Oracle: `[C new] cm` still answers after the flip.
+#[test]
+fn tn_cross_file_self_unexport_leaves_the_instance_method_dispatchable() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(
+        &decl,
+        concat!(
+            "oo::class create C {\n",
+            "    method cm {} { return 1 }\n",
+            "    self { method cm {} { return 2 } }\n",
+            "}\n",
+        ),
+    );
+    let flip = unique_uri("tcl");
+    lsp.open_ready(&flip, "oo::define C { self unexport cm }\n");
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(&consumer, "set o [C new]\n$o cm\n");
+    assert!(
+        !locations(&lsp.definition(&consumer, 1, 4)).is_empty(),
+        "an instance `$o cm` must survive a class-side unexport",
+    );
+}
+
+// Issue #1121 — the renamed destination is a navigable member.
+
+/// TP: `renamemethod old new` makes `new` a real member carrying `old`'s body
+/// (`[C new] new` -> the old body, `info class definition ::C new` -> the old
+/// parameter list and body, on 9.0.4 and 8.6.14).  Outline, hover and
+/// go-to-definition must all reach it.
+#[test]
+fn tp_renamed_member_is_navigable_under_its_new_name() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create C {\n",
+            "    method old {} { return OLDBODY }\n",
+            "    renamemethod old new\n",
+            "}\n",
+            "set o [C new]\n",
+            "$o new\n",
+        ),
+    );
+    // Outline lists the destination name, not the source.
+    let outline = lsp.document_symbols(&uri);
+    let listed = format!("{outline}");
+    assert!(
+        listed.contains("\"new\""),
+        "outline must list `new`: {outline}"
+    );
+    assert!(
+        !listed.contains("\"old\""),
+        "outline must not keep the retracted `old`: {outline}"
+    );
+    // Go-to-definition from the call site lands on a real span.
+    assert!(
+        !locations(&lsp.definition(&uri, 5, 4)).is_empty(),
+        "`$o new` must resolve",
+    );
+    // Hover on the renamed member answers rather than coming back empty.
+    assert!(
+        !hover_text(&lsp.hover(&uri, 5, 4)).is_empty(),
+        "hover on the renamed member must answer",
+    );
+}
+
+// Issue #1120 — W315 on a definition that cannot run.
+
+/// TP: retract-first aborts the whole class definition in real Tcl, so the
+/// file declares a class that never exists.  The server reports it — and still
+/// serves the partial class's outline, the same degradation a parse error gets.
+#[test]
+fn tp_retract_before_declare_reports_w315_and_keeps_the_outline() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create C {\n",
+            "    deletemethod ghost\n",
+            "    method ghost {} { return 1 }\n",
+            "    method kept {} { return 2 }\n",
+            "}\n",
+        ),
+    );
+    assert!(carries_code(&diags, "W315"), "expected W315: {diags:?}");
+    let outline = format!("{}", lsp.document_symbols(&uri));
+    assert!(
+        outline.contains("\"kept\""),
+        "the partial class must still serve an outline: {outline}"
+    );
+}
+
+/// TN (CRITICAL): a cross-side `export` / `unexport` is a **silent no-op** in
+/// real Tcl, not the hard error `deletemethod` raises — so it must draw no
+/// W315.  Oracle: `oo::class create E { method onlyinst {} {} }` then
+/// `oo::define E { self unexport onlyinst }` succeeds and changes nothing.
+#[test]
+fn tn_cross_side_visibility_word_draws_no_w315() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create E {\n",
+            "    method onlyinst {} { return 1 }\n",
+            "}\n",
+            "oo::define E { self unexport onlyinst }\n",
+        ),
+    );
+    assert!(!carries_code(&diags, "W315"), "unexpected W315: {diags:?}");
+}
+
+/// TN: a cross-file `oo::define` stub retracting a member declared elsewhere is
+/// the normal shape, not an error — this record has no tables to judge against.
+#[test]
+fn tn_cross_file_stub_retraction_draws_no_w315() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "oo::define C { deletemethod m }\n");
+    assert!(!carries_code(&diags, "W315"), "unexpected W315: {diags:?}");
+}

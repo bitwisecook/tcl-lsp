@@ -1167,7 +1167,18 @@ pub(crate) fn classmethod_dispatch_class(
     analysis
         .all_classes
         .get(provider_q)
-        .filter(|cd| cd.class_methods.contains_key(method))
+        .and_then(|cd| cd.class_methods.get(method))
+        // A stock `TclOO` `self method` is **not** inherited: it lives on the
+        // class object that declared it, and a subclass's own command never
+        // reaches it — `Gadget make` against a parent's `self method make`
+        // errors `unknown method "make": must be create, destroy or new` under
+        // tclsh 8.6 and 9.0.4 alike. An `ooutil`-style `classmethod` shares the
+        // receiver bucket but does propagate, which is what
+        // [`MethodDef::is_self_method`] distinguishes. Same rule
+        // [`crate::oo_dispatch::method_dispatch_provider`] applies for the
+        // in-document answer; without it here an inherited `self method` was
+        // reported as the receiver's dispatch target.
+        .filter(|md| !md.is_self_method)
         .map(|_| provider_q.to_string())
 }
 
