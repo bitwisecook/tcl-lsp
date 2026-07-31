@@ -90,6 +90,12 @@ Both of those are decided narrowly, so a real reference is never hidden:
   stays clickable, so `proc p [makeargs] {…}` still shows and jumps to
   `makeargs`, which really is called when the procedure is defined.
 
+- A **namespace-qualified variable** declared in another file is described
+  rather than passed over: hovering `$::tomato::version` names the cell
+  (`::tomato::version`) and how many times the declaring file itself uses
+  it. A bare `$v` is still a within-file question and shows nothing when the
+  file has no such variable.
+
 ### Caller-frame variables
 
 Some variables are created by the procedure you call, not by the code you are
@@ -133,7 +139,8 @@ in separate tables, so `$dataset` can never mean a method called `dataset`.
 ## File-path anchors
 
 - `rust/tcl-lsp-core/src/hover.rs` — the provider and its renderers, including
-  `qualified_symbol_hover` for a symbol defined in another document
+  `qualified_symbol_hover` for a symbol defined in another document and
+  `qualified_variable_hover` for a namespace variable declared in one
 - `rust/tcl-lsp-core/src/caller_frame.rs` — caller-frame variable resolution
   and the `$`-led abstention shared with Go to Definition and Find References
 - `rust/tcl-lsp-core/src/expr_context.rs` — the shared "is the cursor on an
@@ -142,8 +149,8 @@ in separate tables, so `$dataset` can never mean a method called `dataset`.
   keep hover silent on text Tcl never substitutes
 - `rust/tcl-registry/src/mathfunc.rs` — the registry's math-function query
   (bare name to command name, plus the two version axes)
-- `rust/tcl-lsp-server/src/lib.rs` — `cross_document_hover`, the workspace and
-  library-index fallback
+- `rust/tcl-lsp-server/src/lib.rs` — `cross_document_hover` /
+  `cross_document_variable_hover`, the workspace and library-index fallbacks
 
 ## Failure modes
 

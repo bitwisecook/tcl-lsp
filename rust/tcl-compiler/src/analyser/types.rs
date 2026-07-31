@@ -1009,6 +1009,10 @@ pub struct AnalysisResult {
     pub namespace_paths: HashMap<String, Vec<String>>,
     /// `auto_path` mutations (``lappend auto_path …`` / ``set auto_path …``).
     pub auto_path_entries: Vec<AutoPathEntry>,
+    /// Namespace-qualified variable occurrences, in source order — see
+    /// [`QualifiedVarRef`].  The cross-document variable reference set is
+    /// built from these; an unqualified occurrence is never recorded.
+    pub qualified_var_refs: Vec<QualifiedVarRef>,
     /// Byte spans where command resolution is pinned to a namespace by
     /// runtime context rather than lexical nesting (issue #923 idx 116):
     /// `apply {{params} body ns}` runs `body` in `ns`, not the namespace
@@ -1286,13 +1290,68 @@ pub struct PackageProvide {
     pub range: Span,
 }
 
+/// One **namespace-qualified** variable occurrence — a read or a write whose
+/// *written* name carries a `::` qualifier (`$::tomato::helper::TolEquals`,
+/// `set app::colors::palette …`).
+///
+/// Recorded regardless of whether the named cell is declared in this document,
+/// which is exactly what makes it useful: the declaring `namespace eval NS {
+/// variable v }` routinely lives in a sibling file, so the occurrence resolves
+/// to nothing locally and leaves no trace in the scope tree
+/// ([`Scope::variables`] / [`VarDef::references`] only ever record a *resolved*
+/// use).  The workspace index lifts these into the cross-document variable
+/// reference set (issue #923 differential-audit findings idx 65 / 75 / 78).
+///
+/// Deliberately **qualified-only**: an unqualified `$v` names whichever cell
+/// the local scope chain supplies, which is a per-document question, so
+/// indexing those would be whole-program variable indexing with no
+/// statically-sound cross-file meaning.  A qualified name, by contrast, names
+/// one cell in one namespace no matter where it is written.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QualifiedVarRef {
+    /// The `::`-rooted cell the occurrence names (`::tomato::helper::TolEquals`),
+    /// resolved against the occurrence's own namespace for a relative
+    /// qualifier (`app::colors::palette` at global scope → `::app::colors::palette`).
+    pub qualified_name: String,
+    /// Byte span of the name token as written.
+    pub span: Span,
+}
+
+/// Which `auto_path` mutation wrote an [`AutoPathEntry`].
+///
+/// The two forms differ in **arity**, so a consumer must not read them alike
+/// (verified against `tclsh8.6` / `tclsh9.0`):
+///
+/// | Written | `llength $auto_path` gains |
+/// |---------|----------------------------|
+/// | `lappend auto_path a b` | 2 — one element per argument *word* |
+/// | `lappend auto_path {p q}` | 1 — the word `p q`, spaces and all |
+/// | `set auto_path {/o/p1 /o/p2}` | 2 — the right-hand side is a *list* |
+/// | `set auto_path {/o/a {/o/w s} /o/b}` | 3 — the braced element stays one |
+///
+/// [`crate::auto_path_eval::evaluate_auto_path_entry`] is the consumer that
+/// applies the distinction; it is the only supported way to turn one of these
+/// records into directories.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AutoPathForm {
+    /// `lappend auto_path WORD …` — one record per argument word, and that
+    /// word is exactly one directory however many spaces it contains.
+    Append,
+    /// `set auto_path LIST` — one record holding the *whole* right-hand side,
+    /// which is a Tcl list and may therefore name several directories.
+    Assign,
+}
+
 /// `auto_path` mutation record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AutoPathEntry {
-    /// Raw path text as written.
+    /// Raw path text as written.  One directory for [`AutoPathForm::Append`];
+    /// a Tcl *list* of them for [`AutoPathForm::Assign`].
     pub raw_path: String,
     /// Span of the path argument.
     pub range: Span,
+    /// Which mutation wrote this record — see [`AutoPathForm`].
+    pub form: AutoPathForm,
 }
 
 /// One parameter declared inside a ``# tcl-lsp: stub NAME {ARGS}``

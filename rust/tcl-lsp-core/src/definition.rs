@@ -1475,6 +1475,77 @@ fn collect_shared_span_refs(
     }
 }
 
+/// The `::`-rooted **namespace variable cell** the cursor names, when it names
+/// one — the single entry point the cross-document variable tier
+/// (go-to-definition / hover / find-references against
+/// [`WorkspaceIndex`](crate::workspace_index::WorkspaceIndex)'s variable
+/// tables) resolves through.
+///
+/// Two cursor shapes answer, and only these two:
+///
+/// 1. A **qualified occurrence** — `$::tomato::version`, `$app::colors::palette`,
+///    `set ::ns::v 1`.  A relative qualifier roots against the cursor's own
+///    command-resolution namespace, exactly as
+///    [`lookup_var_in_scope_chain`] already roots the in-document lookup, so
+///    the local and cross-document tiers agree on which cell a written name
+///    means.
+/// 2. A **namespace-scoped declaration** the current document holds — the
+///    `version` token of `namespace eval tomato { variable version 1.3 }`, or
+///    any same-cell write.  This is what lets find-references run *from* the
+///    declaration and reach consumers in sibling files.
+///
+/// An **unqualified** occurrence that is not such a declaration answers
+/// `None`: a bare `$v` names whichever cell the local scope chain supplies,
+/// which no other document can know, so widening it to a workspace search
+/// would be a guess.  A `$name`-shaped substring inside a comment or a data
+/// brace answers `None` too — Tcl substitutes nothing there (issue #923
+/// idx 24), and the cross-document tier must not invent a reference the
+/// in-document one correctly refuses.
+///
+/// Findings idx 65 / 75 / 78 of the issue #923 differential audit are all
+/// this one gap: `$::NS::var` whose declaring `namespace eval NS { variable
+/// var }` lives in a sibling file.
+#[must_use]
+pub fn qualified_variable_cell_at(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    line: u32,
+    character: u32,
+) -> Option<String> {
+    let line_index = LineIndex::new(source);
+    let cursor_off = byte_offset_at(&line_index, source, line, character);
+    if let Some(name) = find_var_at_position(source, line, character) {
+        let base = tcl_compiler::naming::normalise_var_name(&name);
+        if !base.contains("::") {
+            return None;
+        }
+        if crate::inert_text::offset_in_comment(source, cursor_off)
+            || crate::inert_text::offset_in_data_brace(
+                source,
+                cursor_off,
+                tcl_registry::registry_for_dialect(dialect),
+                dialect,
+            )
+        {
+            return None;
+        }
+        let here = innermost_namespace_at(&analysis.global_scope, cursor_off, &[]);
+        return Some(tcl_compiler::naming::qualify(&here, base));
+    }
+    // A bareword sitting on a namespace-scoped declaration (or a later
+    // same-cell write): the scope tree already knows the cell's qualified
+    // name, so read it off rather than re-deriving one from the word.
+    tcl_compiler::analyser::namespace_variables(&analysis.global_scope)
+        .into_iter()
+        .find(|(_, var)| {
+            let contains =
+                |span: tcl_lexer::Span| span.start() <= cursor_off && cursor_off < span.end();
+            contains(var.definition_span) || var.references.iter().any(|&r| contains(r))
+        })
+        .map(|(qualified, _)| qualified)
+}
+
 /// Resolve the [`VarDef`](tcl_compiler::analyser::VarDef) whose declaration
 /// or a later same-cell bareword occupies `byte_offset` — i.e. the cursor
 /// sits on a plain name token (a `set` / `variable` / `global` / proc- or

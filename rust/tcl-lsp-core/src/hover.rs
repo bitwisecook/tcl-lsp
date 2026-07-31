@@ -181,6 +181,34 @@ pub fn qualified_symbol_hover(
     )))
 }
 
+/// Hover for a **namespace variable** declared in another document, rendered
+/// from that document's own analysis — the variable twin of
+/// [`qualified_symbol_hover`].
+///
+/// `qualified` is the `::`-rooted cell name
+/// ([`crate::definition::qualified_variable_cell_at`]); the reference count
+/// shown is the declaring document's, matching exactly what hovering the
+/// declaration itself renders (issue #923 idx 65 / 75 / 78).
+#[must_use]
+pub fn qualified_variable_hover(
+    defining_analysis: &AnalysisResult,
+    qualified: &str,
+) -> Option<Hover> {
+    let target = qualified.trim_start_matches("::");
+    let (qualified, var_def) =
+        tcl_compiler::analyser::namespace_variables(&defining_analysis.global_scope)
+            .into_iter()
+            .find(|(q, _)| q.trim_start_matches("::") == target)?;
+    // The qualified name, not the tail: the cursor is in a *different*
+    // document, so `palette` alone would not say which cell was found.  The
+    // reference count is the declaring document's own, and says so — the
+    // workspace-wide count is the code lens's job, not hover's.
+    Some(Hover::markdown(format!(
+        "**Variable** `{qualified}`\n\n{} reference(s) in the declaring document",
+        var_def.references.len()
+    )))
+}
+
 /// `<ensemble> <subcommand>` hover — a static `namespace ensemble create
 /// -map`/`-subcommands` mapping (issue #923 idx 106), the hover twin of
 /// `definition()`'s identical check. Extracted from

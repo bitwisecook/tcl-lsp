@@ -1600,11 +1600,11 @@ async fn files_with_covered_load_targets(
         .collect()
 }
 
+/// Returns whether this version is **settled** (published, intentionally
+/// skipped as superseded, or a BIG-IP no-op).  `false` means the run was
+/// cancelled mid-flight and the caller should retry the document's latest
+/// state.
 async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bool {
-    // Returns whether this version is **settled** (published, intentionally
-    // skipped as superseded, or a BIG-IP no-op).  `false` means the run was
-    // cancelled mid-flight and the caller should retry the document's latest
-    // state.
     let DiagInputs {
         client,
         registry,
@@ -1925,13 +1925,25 @@ async fn run_deep_diagnostics(
     } else {
         Vec::new()
     };
+    // idx 80: the workspace's own definitions, as the cross-file
+    // unknown-command refinement's known-name set — only when the toggle is
+    // on, and read from the index's own derived-set cache, so this is an `Arc`
+    // clone rather than a walk of every indexed symbol.
+    let workspace_known_names = if inputs.cross_file_resolution {
+        Some(inputs.workspace_index.read().await.command_names())
+    } else {
+        None
+    };
     let result = refine_and_lift_diagnostics(
         &analysis,
         analyser_diags,
         &compiler_diags,
-        &inherited_requires,
-        inputs.package_resolver,
-        inputs.registry,
+        &RefinementInputs {
+            inherited_requires: &inherited_requires,
+            package_resolver: inputs.package_resolver,
+            registry: inputs.registry,
+            workspace_known_names,
+        },
         lift_inputs,
     )
     .await;
@@ -2020,6 +2032,18 @@ struct LiftInputs<'a> {
     xc_diagnostics: bool,
 }
 
+/// The three workspace-wide inputs the W120 / W123 refinements resolve
+/// against, grouped so [`refine_and_lift_diagnostics`] takes them as one
+/// parameter: the requires this document inherits (#804), the package
+/// database (#723 / #832), and — when `crossFileResolution` is on — the
+/// workspace index's own command names (issue #923 idx 80).
+struct RefinementInputs<'a> {
+    inherited_requires: &'a [String],
+    package_resolver: &'a Arc<RwLock<PackageResolver>>,
+    registry: &'static CommandRegistry,
+    workspace_known_names: Option<Arc<HashSet<String>>>,
+}
+
 /// Refine the analyser's single-file W120 against the workspace package
 /// database (#723), then lift the analyser / compiler / source-style / XC
 /// diagnostics into LSP diagnostics on a `spawn_blocking` worker.  Returns the
@@ -2028,9 +2052,7 @@ async fn refine_and_lift_diagnostics(
     analysis: &Arc<AnalysisResult>,
     analyser_diags: Vec<tcl_compiler::analyser::Diagnostic>,
     compiler_diags: &Arc<tcl_lsp_db::CompilerDiagnostics>,
-    inherited_requires: &[String],
-    package_resolver: &Arc<RwLock<PackageResolver>>,
-    registry: &'static CommandRegistry,
+    refinement: &RefinementInputs<'_>,
     inputs: &LiftInputs<'_>,
 ) -> Result<Vec<tower_lsp_server::ls_types::Diagnostic>, tokio::task::JoinError> {
     // #723 + #804: refine the analyser's single-file W120 against the workspace
@@ -2039,9 +2061,9 @@ async fn refine_and_lift_diagnostics(
     let analyser_diags = refine_workspace_w120(
         analyser_diags,
         analysis.as_ref(),
-        inherited_requires,
-        package_resolver,
-        registry,
+        refinement.inherited_requires,
+        refinement.package_resolver,
+        refinement.registry,
     )
     .await;
     // #832: drop any W123 (unknown command) the package database can resolve —
@@ -2050,11 +2072,15 @@ async fn refine_and_lift_diagnostics(
     let analyser_diags = refine_workspace_w123(
         analyser_diags,
         analysis.as_ref(),
-        inherited_requires,
-        package_resolver,
+        refinement.inherited_requires,
+        refinement.package_resolver,
         inputs.dialect,
     )
     .await;
+    // idx 80: and any W123 the *workspace index* resolves — a proc / class in a
+    // sibling document.  Opt-in via `crossFileResolution` (`None` when off).
+    let analyser_diags =
+        refine_workspace_index_w123(analyser_diags, refinement.workspace_known_names.as_deref());
 
     let analysis_lifts = Arc::clone(analysis);
     let lift_text = inputs.text.to_owned();
@@ -4273,6 +4299,17 @@ impl Backend {
                 return Ok(method_defs);
             }
         }
+        // Cross-file namespace variable: `$::NS::var` whose declaring
+        // `namespace eval NS { variable var }` is in another document (issue
+        // #923 idx 65 / 75 / 78).  Not gated on `on_command_head` — a `$var`
+        // site never is one — and safe without that gate because the cell is
+        // named exactly, not matched by simple name.
+        let cross_var = self
+            .cross_document_variable_definition(uri, &doc.text, pos, &analysis)
+            .await;
+        if !cross_var.is_empty() {
+            return Ok(cross_var);
+        }
         if !on_command_head {
             return Ok(Vec::new());
         }
@@ -4289,7 +4326,62 @@ impl Backend {
         // library file (`tclIndex` / `pkgIndex.tcl` on the configured
         // `libraryPaths` / `TCLLIBPATH`) defines it.  Resolve that file, analyse
         // it on demand (memoised by `analysis_for`), and jump to the proc.
-        self.autoload_definition(&doc.text, pos, &analysis).await
+        self.autoload_definition(uri, &doc.text, pos, &analysis)
+            .await
+    }
+
+    /// The `::`-rooted namespace-variable cell the cursor names, or `None`
+    /// when it names none — see
+    /// [`core_definition::qualified_variable_cell_at`] for the two cursor
+    /// shapes that answer.  The one place the server decides "this position is
+    /// about a namespace variable", shared by the cross-document definition,
+    /// hover, and references tiers so they cannot disagree.
+    fn qualified_variable_cell(
+        source: &str,
+        dialect: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+    ) -> Option<String> {
+        core_definition::qualified_variable_cell_at(
+            source,
+            dialect,
+            analysis,
+            pos.line,
+            pos.character,
+        )
+    }
+
+    /// Cross-document go-to-definition for a namespace variable: the
+    /// declaration sites the workspace index holds for the cell at `pos`, in
+    /// *other* documents.
+    ///
+    /// Only ever consulted after the in-document provider came back empty, so
+    /// a locally-declared cell always answers locally.  The index lookup is an
+    /// exact qualified-name match over the index's variable table — no scan of
+    /// other documents, no re-analysis (issue #923 idx 65 / 75 / 78).
+    async fn cross_document_variable_definition(
+        &self,
+        uri: &Uri,
+        source: &str,
+        pos: Position,
+        analysis: &AnalysisResult,
+    ) -> Vec<Location> {
+        let Some(cell) = Self::qualified_variable_cell(source, &analysis.dialect, analysis, pos)
+        else {
+            return Vec::new();
+        };
+        // The index answers under source-site namespaces too (M9), so
+        // reconcile before asking, exactly as the proc/class tier does.
+        self.refresh_source_rehoming().await;
+        let targets: Vec<(String, tcl_lexer::Span)> = {
+            let index = self.workspace_index.read().await;
+            index
+                .variable_definitions_qualified(&cell, uri.as_str())
+                .into_iter()
+                .map(|v| (v.uri.clone(), v.name_span))
+                .collect()
+        };
+        self.resolve_target_locations(targets).await
     }
 
     /// Autoload-tier go-to-definition (M8): resolve a command head that the
@@ -4303,6 +4395,7 @@ impl Backend {
     /// never overrides an in-workspace definition.
     async fn autoload_definition(
         &self,
+        uri: &Uri,
         source: &str,
         pos: Position,
         analysis: &AnalysisResult,
@@ -4315,7 +4408,10 @@ impl Backend {
         ) else {
             return Ok(Vec::new());
         };
-        let Some(qualified) = self.ensure_autoload_indexed(&word, &namespace).await else {
+        let Some(qualified) = self
+            .ensure_library_indexed(uri, analysis, &word, &namespace)
+            .await
+        else {
             return Ok(Vec::new());
         };
         let targets: Vec<(String, tcl_lexer::Span)> = {
@@ -4355,18 +4451,120 @@ impl Backend {
     /// could read `package_resolver` before that scan has (re)built it and
     /// wrongly conclude the command isn't auto-loadable at all (issue
     /// #1003).
+    /// Both library tiers in priority order: the `tclIndex` auto-load index
+    /// ([`Self::ensure_autoload_indexed`]) first, since it names the command
+    /// directly, then the document's own `package require`s
+    /// ([`Self::ensure_required_packages_indexed`]).  The one entry point the
+    /// definition / hover / workspace-symbol fallbacks share, so they cannot
+    /// resolve different sets of library commands.
+    async fn ensure_library_indexed(
+        &self,
+        uri: &Uri,
+        analysis: &AnalysisResult,
+        word: &str,
+        namespace: &str,
+    ) -> Option<String> {
+        if let Some(hit) = self.ensure_autoload_indexed(word, namespace).await {
+            return Some(hit);
+        }
+        self.ensure_required_packages_indexed(uri, analysis, word, namespace)
+            .await
+    }
+
     async fn ensure_autoload_indexed(&self, word: &str, namespace: &str) -> Option<String> {
         drop(self.workspace_scan_gate.lock().await);
-        let (files, candidates) = {
+        let files = {
             let resolver = self.package_resolver.read().await;
-            (
-                resolver.resolve_auto_command(word, namespace),
-                tcl_lsp_core::package_resolver::auto_qualify(word, namespace),
-            )
+            resolver.resolve_auto_command(word, namespace)
         };
+        self.merge_library_files(word, namespace, files).await
+    }
+
+    /// Package tier: the library files the document's own `package require`s
+    /// bring in, merged into the workspace index so a command one of them
+    /// defines resolves like any other workspace definition.
+    ///
+    /// The `tclIndex` tier ([`Self::ensure_autoload_indexed`]) answers only for
+    /// commands an `auto_index` names.  A repo-local package declared by a
+    /// `pkgIndex.tcl` has no `tclIndex` at all — its commands become reachable
+    /// by `package require` evaluating the `ifneeded` script — so nothing
+    /// reached them unless the file happened to sit under a configured
+    /// workspace root and get swept up by the blunt recursive scan (issue #923
+    /// differential-audit finding idx 73; with `auto_path` now fed from the
+    /// document's own mutations, see
+    /// [`extend_resolver_with_document_auto_paths`], the resolver knows the
+    /// package even when the root does not enclose it).
+    ///
+    /// Bounded by **this document's** `package require` list, not the
+    /// workspace's: a handful of packages, each contributing the files its own
+    /// `ifneeded` script sources.  Only fires on a genuine miss, and the merged
+    /// analyses are memoised, so a repeat query costs an index lookup.
+    async fn ensure_required_packages_indexed(
+        &self,
+        uri: &Uri,
+        analysis: &AnalysisResult,
+        word: &str,
+        namespace: &str,
+    ) -> Option<String> {
+        if analysis.package_requires.is_empty() {
+            return None;
+        }
+        drop(self.workspace_scan_gate.lock().await);
+        // This document's own `auto_path` mutations, folded in first: the
+        // workspace scan already did this for every file it read from disk,
+        // but an **open** document is deliberately skipped by that scan (its
+        // buffer, not the disk copy, is authoritative), and a document opened
+        // after the scan was never seen at all.  Bounded by this one
+        // document's entries, and a directory the resolver has already
+        // scanned costs nothing, so this stays a miss-path lookup rather than
+        // a rescan.
+        {
+            let dirs = document_auto_path_dirs(uri, analysis);
+            if !dirs.is_empty() {
+                let mut resolver = self.package_resolver.write().await;
+                for dir in &dirs {
+                    resolver.scan_path(dir);
+                }
+            }
+        }
+        let files = {
+            let resolver = self.package_resolver.read().await;
+            let mut files: Vec<PathBuf> = Vec::new();
+            for req in &analysis.package_requires {
+                // The document's own constraint decides which release is
+                // indexed: `package require widget 2.0` against a workspace
+                // holding 1.5 and 2.3 must navigate into 2.3 (`package
+                // vsatisfies` semantics — see `PackageResolver::resolve`), not
+                // whichever directory the scan happened to read first.  `None`
+                // when the require carried no version, which keeps the
+                // unconstrained case on the first-discovered provider.
+                for f in resolver.resolve(&req.name, req.version.as_deref()) {
+                    if !files.contains(&f) {
+                        files.push(f);
+                    }
+                }
+            }
+            files
+        };
+        self.merge_library_files(word, namespace, files).await
+    }
+
+    /// Merge `files` (library / package implementation files) into the shared
+    /// workspace index and report which auto-qualified candidate of
+    /// `word` in `namespace` they define, if any.  The shared tail of
+    /// [`Self::ensure_autoload_indexed`] and
+    /// [`Self::ensure_required_packages_indexed`] — the two differ only in
+    /// where the file list comes from.
+    async fn merge_library_files(
+        &self,
+        word: &str,
+        namespace: &str,
+        files: Vec<PathBuf>,
+    ) -> Option<String> {
         if files.is_empty() {
             return None;
         }
+        let candidates = tcl_lsp_core::package_resolver::auto_qualify(word, namespace);
         // The index and `all_procs` key absolute (`::`-prefixed) names, while
         // `auto_qualify` yields a bare name for a global command.
         let absolute: Vec<String> = candidates
@@ -4468,7 +4666,9 @@ impl Backend {
             pos.line,
             pos.character,
         )?;
-        let qualified = self.ensure_autoload_indexed(&word, &namespace).await?;
+        let qualified = self
+            .ensure_library_indexed(uri, analysis, &word, &namespace)
+            .await?;
         self.hover_for_indexed_symbol(&qualified).await
     }
 
@@ -4477,6 +4677,45 @@ impl Backend {
     /// A name several documents declare renders from the first that yields a
     /// body; go-to-definition offers every site, but a hover has one popup, so
     /// picking one is the only option and the index's own order decides.
+    /// Hover for a namespace variable declared in a sibling document — the
+    /// hover twin of [`Self::cross_document_variable_definition`], rendered
+    /// from the *declaring* document's own analysis (memoised by
+    /// [`Self::analysis_for`], so this is a cache hit once that document has
+    /// been analysed once).
+    async fn cross_document_variable_hover(
+        &self,
+        uri: &Uri,
+        source: &str,
+        pos: Position,
+        analysis: &AnalysisResult,
+    ) -> Option<CoreHover> {
+        let cell = Self::qualified_variable_cell(source, &analysis.dialect, analysis, pos)?;
+        self.refresh_source_rehoming().await;
+        let target_uris: Vec<String> = {
+            let index = self.workspace_index.read().await;
+            index
+                .variable_definitions_qualified(&cell, uri.as_str())
+                .into_iter()
+                .map(|v| v.uri.clone())
+                .collect()
+        };
+        for target_uri in target_uris {
+            let Ok(parsed) = Uri::from_str(&target_uri) else {
+                continue;
+            };
+            let Some(target_doc) = self.read_document(&parsed).await else {
+                continue;
+            };
+            let target_analysis = self
+                .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
+                .await;
+            if let Some(hover) = core_hover::qualified_variable_hover(&target_analysis, &cell) {
+                return Some(hover);
+            }
+        }
+        None
+    }
+
     async fn hover_for_indexed_symbol(&self, qualified: &str) -> Option<CoreHover> {
         let target_uris: Vec<String> = {
             let index = self.workspace_index.read().await;
@@ -4766,7 +5005,7 @@ impl Backend {
         ) else {
             return Vec::new();
         };
-        self.ensure_autoload_indexed(&word, &namespace)
+        self.ensure_library_indexed(uri, analysis, &word, &namespace)
             .await
             .into_iter()
             .collect()
@@ -4967,6 +5206,19 @@ impl Backend {
                 .await
         };
         locations.extend(cross);
+        // Cross-document namespace-variable sites: `$::NS::var` consumers in
+        // sibling documents, and the declaration(s) of the cell when asked
+        // for. The single-document provider above only sees this file, and a
+        // consumer document holds no `VarDef` for a cell it merely reads.
+        locations.extend(
+            self.cross_document_variable_references(
+                &doc.text,
+                analysis,
+                position,
+                include_declaration,
+            )
+            .await,
+        );
         // Cross-document `TclOO` method sites: when the cursor names a method
         // (its declaration inside a class body, or an `$obj method` / `my
         // method` call), gather the method's sites across its override family
@@ -4984,6 +5236,62 @@ impl Backend {
         );
         dedup_locations(&mut locations);
         locations
+    }
+
+    /// Workspace references for the namespace variable at `pos`: every
+    /// qualified occurrence of the cell anywhere in the index, plus its
+    /// declaration sites when `include_declaration`.
+    ///
+    /// Unlike the proc / class tier this excludes **no** document, including
+    /// the caller's own.  Two reasons, both structural:
+    ///
+    /// * A pure consumer (`$::ns::v` with the declaring `namespace eval` in a
+    ///   sibling file) holds no `VarDef` for the cell at all, so the
+    ///   single-document pass reported nothing — the same case
+    ///   [`Self::workspace_resolved_references`] exists for on the proc side.
+    /// * A *relative*-qualified occurrence (`$app::colors::palette`) is not
+    ///   attached to the declaring `VarDef` by the single-document walk
+    ///   either, even when both are in one file.
+    ///
+    /// The caller dedupes ([`dedup_locations`]), and the index records the
+    /// exact same spans the single-document pass does, so an occurrence
+    /// already reported collapses rather than doubling.  A declaration site
+    /// that is *itself* written qualified (`set ::ns::v 1`) is a declaration,
+    /// not a reference, so it is filtered out of the occurrence set and only
+    /// reappears under `include_declaration`.
+    async fn cross_document_variable_references(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        include_declaration: bool,
+    ) -> Vec<Location> {
+        let Some(cell) = Self::qualified_variable_cell(source, &analysis.dialect, analysis, pos)
+        else {
+            return Vec::new();
+        };
+        self.refresh_source_rehoming().await;
+        let targets: Vec<(String, tcl_lexer::Span)> = {
+            let index = self.workspace_index.read().await;
+            let declarations: Vec<(String, tcl_lexer::Span)> = index
+                .variable_definitions_qualified(&cell, "")
+                .into_iter()
+                .map(|v| (v.uri.clone(), v.name_span))
+                .collect();
+            let mut t: Vec<(String, tcl_lexer::Span)> = index
+                .variable_refs_of(&cell, "")
+                .into_iter()
+                .map(|v| (v.uri.clone(), v.span))
+                .filter(|site| !declarations.contains(site))
+                .collect();
+            if include_declaration {
+                t.extend(declarations);
+            }
+            t.sort_by_key(|(u, s)| (u.clone(), s.start(), s.end()));
+            t.dedup();
+            t
+        };
+        self.resolve_target_locations(targets).await
     }
 
     /// Analyse `source` with the **workspace class set** supplied to instance
@@ -7655,6 +7963,15 @@ impl Backend {
             &dialect,
         )
         .await;
+        // idx 80: and any W123 the workspace index resolves, when
+        // `crossFileResolution` is on — again mirroring the push path.
+        let workspace_known_names = if cross_file_on {
+            Some(self.workspace_index.read().await.command_names())
+        } else {
+            None
+        };
+        let analyser_diags =
+            refine_workspace_index_w123(analyser_diags, workspace_known_names.as_deref());
         let style_line_length = self.resolved_style_line_length(uri).await;
         let severity_overrides = self.resolved_severity_overrides(uri).await;
         tokio::task::spawn_blocking(move || {
@@ -7797,7 +8114,7 @@ impl Backend {
             method: "workspace/didChangeWatchedFiles".to_owned(),
             register_options: serde_json::to_value(DidChangeWatchedFilesRegistrationOptions {
                 watchers: vec![FileSystemWatcher {
-                    glob_pattern: GlobPattern::String("**/*.{tcl,tm,itcl,irule,irul}".to_owned()),
+                    glob_pattern: GlobPattern::String(tcl_source_glob()),
                     kind: Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete),
                 }],
             })
@@ -8047,8 +8364,11 @@ impl Backend {
         .unwrap_or_else(|_| (PackageResolver::new(), Vec::new()));
         let (resolver, analysed) = analysed;
 
-        // Publish the freshly-scanned package database for the diagnostics
-        // worker, then merge the per-file analysis into the index + salsa db.
+        // Fold in the `auto_path` the workspace's own files install
+        // (`lappend auto_path [file dirname [file dirname [info script]]]`),
+        // then publish the package database for the diagnostics worker and
+        // merge the per-file analysis into the index + salsa db.
+        let resolver = extend_resolver_with_document_auto_paths(resolver, &analysed);
         *self.package_resolver.write().await = resolver;
         // The package database changed: drop the library files the autoload
         // tier (M8) merged under the previous database.  A stale entry would
@@ -11255,9 +11575,19 @@ impl LanguageServer for Backend {
         if let Some(hover) = result {
             return Ok(Some(lift_hover(hover)));
         }
-        // Nothing in this document explains the word.  If it is a command
-        // head, resolve it the way go-to-definition does — across the
-        // workspace, then through the autoload / package database (#1018).
+        // Nothing in this document explains the word.  A namespace-qualified
+        // variable whose declaration is in a sibling document is answered
+        // first — a `$var` site is never a command head, so it would never
+        // reach the tiers below (issue #923 idx 65 / 75 / 78).
+        if let Some(hover) = self
+            .cross_document_variable_hover(&uri, &doc.text, pos, &analysis)
+            .await
+        {
+            return Ok(Some(lift_hover(hover)));
+        }
+        // If the word is a command head, resolve it the way go-to-definition
+        // does — across the workspace, then through the autoload / package
+        // database (#1018).
         if !on_command_head {
             return Ok(None);
         }
@@ -12766,6 +13096,45 @@ fn refine_w123_diagnostics(
         .collect()
 }
 
+/// Drop every W123 whose command the **workspace index** defines — a proc or
+/// class in a sibling document, in any of the three name forms a call site may
+/// spell.
+///
+/// The analyser's own known-name set (`build_w123_known_names`) is
+/// single-document by construction, so a command whose `proc` lives in another
+/// file is "unknown" to it however plainly the workspace defines it.  That put
+/// two subsystems of the same server in flat contradiction: go-to-definition
+/// and find-references resolved `Pi()` to `::tcl::mathfunc::Pi` in the sibling
+/// file while the diagnostic called it unknown *and* offered a quick-fix that
+/// would have rewritten it to the unrelated `ni` operator, breaking working
+/// code (issue #923 differential-audit finding idx 80).
+///
+/// Gated on `crossFileResolution` — `names` is `None` when the toggle is off,
+/// and the function is then a no-op.  Unlike the package / auto-load
+/// refinements (which are always on, because a library command is ambient like
+/// a builtin), this one *is* the cross-file inference the toggle governs.
+///
+/// Cost is one hash lookup per surviving W123: `names` is the
+/// generation-keyed memo, so nothing is walked or rebuilt here.
+fn refine_workspace_index_w123(
+    diags: Vec<tcl_compiler::analyser::Diagnostic>,
+    names: Option<&HashSet<String>>,
+) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    let Some(names) = names.filter(|n| !n.is_empty()) else {
+        return diags;
+    };
+    if !diags.iter().any(|d| d.code == DiagCode::W123) {
+        return diags;
+    }
+    diags
+        .into_iter()
+        .filter(|d| {
+            d.code != DiagCode::W123
+                || !w123_command_name(&d.message).is_some_and(|name| names.contains(name))
+        })
+        .collect()
+}
+
 /// Apply the issue-#832 workspace W123 refinement to `analyser_diags`: resolve
 /// each unknown-command diagnostic against the shared package database and drop
 /// any whose command an installed library / available package provides. Shared
@@ -13252,6 +13621,107 @@ fn build_package_resolver(
     resolver
 }
 
+/// Cap on how many distinct `auto_path` directories the workspace's own files
+/// may contribute to the package database.  Each one costs a
+/// [`PackageResolver::scan_path`] (one directory plus its immediate
+/// subdirectories, and already-scanned directories are free), so the bound is
+/// generous — but a generated file that appends in a loop must not turn the
+/// startup scan into an unbounded filesystem walk.
+const DOCUMENT_AUTO_PATH_DIR_CAP: usize = 64;
+
+/// Fold the `auto_path` mutations the workspace's own files perform into
+/// `resolver`'s search path.
+///
+/// Real Tcl resolves `package require` against the `auto_path` **as the
+/// program builds it**, and the near-universal idiom for a repo-local package
+/// is for a script to add its own tree:
+///
+/// ```tcl
+/// lappend auto_path [file dirname [file dirname [info script]]]
+/// package require mypix
+/// ```
+///
+/// The resolver used to see only configured roots and `libraryPaths`, so this
+/// worked *by luck* — a workspace root enclosing the package directory got
+/// swept up by [`PackageResolver::scan_tree`]'s blunt recursive descent — and
+/// failed outright when it didn't (opening just `examples/`, or a single
+/// file): go-to-definition and hover on a command the package provides
+/// answered nothing, though tclsh resolves it deterministically (issue #923
+/// differential-audit finding idx 73).
+///
+/// Only **statically resolvable** entries contribute:
+/// [`tcl_compiler::auto_path_eval::evaluate_auto_path_expr`] folds literals,
+/// `~`, `[info script]`, `[file dirname …]`, and `[file join …]` — the exact
+/// evaluator the `source`-graph tier (`resolve_source_edge`) already trusts —
+/// and returns `None` for anything else, including any `$var`.  A dynamic
+/// mutation therefore adds nothing here; it stays handled the established way,
+/// by [`AnalysisResult::has_dynamic_providers`] widening the document's
+/// command availability to conditional so the unknown-command pass abstains
+/// rather than guessing.
+///
+/// Cost is one pass over the already-computed per-file analyses, bounded by
+/// [`DOCUMENT_AUTO_PATH_DIR_CAP`] directories; it runs once per workspace
+/// scan, never per request.
+fn extend_resolver_with_document_auto_paths(
+    mut resolver: PackageResolver,
+    analysed: &[(Uri, String, String, AnalysisResult)],
+) -> PackageResolver {
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    for (uri, _, _, analysis) in analysed {
+        for dir in document_auto_path_dirs(uri, analysis) {
+            if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {
+                break;
+            }
+            if !dirs.contains(&dir) {
+                dirs.push(dir);
+            }
+        }
+    }
+    for dir in &dirs {
+        resolver.scan_path(dir);
+    }
+    resolver
+}
+
+/// The directories one document's `auto_path` mutations statically resolve to
+/// — see [`extend_resolver_with_document_auto_paths`] for the rationale and
+/// the abstention rule.  `uri` supplies `[info script]`.
+///
+/// One record can name several directories (`set auto_path` assigns a *list*),
+/// so the fold is
+/// [`tcl_compiler::auto_path_eval::evaluate_auto_path_entry`] rather than the
+/// single-expression evaluator — it owns both the list grammar and the
+/// slash-form path arithmetic that keeps a native Windows `[info script]`
+/// (`C:\repo\user.tcl`, which is what `Uri::to_file_path` yields there)
+/// resolving against its own directory.  It returns slash form, which
+/// `PathBuf` accepts on every host.
+fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf> {
+    if analysis.auto_path_entries.is_empty() {
+        return Vec::new();
+    }
+    let Some(file_path) = uri.to_file_path() else {
+        return Vec::new();
+    };
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    for entry in &analysis.auto_path_entries {
+        if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {
+            break;
+        }
+        for folded in
+            tcl_compiler::auto_path_eval::evaluate_auto_path_entry(entry, file_path.to_str())
+        {
+            if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {
+                break;
+            }
+            let dir = PathBuf::from(folded);
+            if !dirs.contains(&dir) {
+                dirs.push(dir);
+            }
+        }
+    }
+    dirs
+}
+
 /// The effective `auto_path` for the package database, layering the configured
 /// sources plus on-disk discovery (deduped, in priority order):
 ///
@@ -13312,6 +13782,29 @@ fn is_skipped_scan_dir(path: &Path) -> bool {
     }
 }
 
+/// The Tcl-family source extensions the analyser can usefully index — the
+/// **single** list behind [`is_tcl_source`] (the workspace scan's on-disk
+/// filter), the `workspace/didChangeWatchedFiles` registration, and the
+/// `willRename` / `didRename` file-operation filter.
+///
+/// One list because the three must agree: a file the scan indexes but the
+/// watcher ignores goes stale the moment it changes outside the editor, and a
+/// file the scan indexes but the rename filter ignores keeps its old `source`
+/// references after a rename.  They did not agree — the watcher and rename
+/// filter listed five of the eleven — which is the residual half of issue #923
+/// differential-audit finding idx 27.
+///
+/// `test` is the standard `tcltest` test-file extension (tcllib's own suite,
+/// and every mined corpus, use it throughout — e.g. `test/argparse.test`).
+/// Omitting it made a proc's call sites inside an un-opened `.test` file
+/// invisible to the background workspace scan, so cross-document
+/// find-references / rename-safety silently missed them (finding idx 10 /
+/// idx 27) — even though opening the file directly worked fine, since that
+/// path doesn't go through this filter at all.
+const TCL_SOURCE_EXTENSIONS: &[&str] = &[
+    "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl", "test",
+];
+
 /// `true` when `path` has a Tcl-family source extension the analyser
 /// can usefully index, so the startup workspace scan picks
 /// up unopened files — otherwise cross-document definition /
@@ -13319,32 +13812,15 @@ fn is_skipped_scan_dir(path: &Path) -> bool {
 /// definitions that live in `.itcl`/`.irule`/`.iapp`/… files until they
 /// are opened.
 fn is_tcl_source(path: &Path) -> bool {
-    matches!(
-        path.extension().and_then(|e| e.to_str()),
-        Some(
-            "tcl"
-                | "tk"
-                | "itcl"
-                | "tm"
-                | "irul"
-                | "irule"
-                | "iapp"
-                | "iappimpl"
-                | "impl"
-                | "exp"
-                | "apl"
-                // The standard `tcltest` test-file extension (tcllib's own
-                // test suite, and every mined corpus, use it throughout —
-                // e.g. `test/argparse.test`). Omitting it meant a proc's
-                // call sites inside an un-opened `.test` file were invisible
-                // to the background workspace scan, so cross-document
-                // find-references / rename-safety silently missed them
-                // (issue #923 differential-audit finding idx 10, main audit
-                // wave) — even though opening the file directly worked fine,
-                // since that path doesn't go through this scan at all.
-                | "test"
-        )
-    )
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|ext| TCL_SOURCE_EXTENSIONS.contains(&ext))
+}
+
+/// The `**/*.{…}` glob naming exactly [`TCL_SOURCE_EXTENSIONS`], for the
+/// LSP registrations that take a glob rather than a predicate.
+fn tcl_source_glob() -> String {
+    format!("**/*.{{{}}}", TCL_SOURCE_EXTENSIONS.join(","))
 }
 
 /// Iteratively walk `root`, appending the paths of Tcl source
@@ -13609,13 +14085,13 @@ fn build_server_capabilities(
 }
 
 /// File-operation filter for `willRename` / `didRename`: match the Tcl
-/// source extensions (`.tcl` / `.tm` / `.itcl` / `.irule` / `.irul`).
+/// source extensions the workspace scan indexes ([`TCL_SOURCE_EXTENSIONS`]).
 fn rename_file_operation_options() -> FileOperationRegistrationOptions {
     FileOperationRegistrationOptions {
         filters: vec![FileOperationFilter {
             scheme: Some("file".to_owned()),
             pattern: FileOperationPattern {
-                glob: "**/*.{tcl,tm,itcl,irule,irul}".to_owned(),
+                glob: tcl_source_glob(),
                 matches: None,
                 options: None,
             },
@@ -15854,6 +16330,70 @@ mod tests {
         );
     }
 
+    /// Issue #923 idx 80 — TP + TN: a `tcl::mathfunc` proc declared in a
+    /// sibling document makes a bare `Pi()` inside `expr` resolvable
+    /// cross-file, so W123 must not fire on it once `crossFileResolution` is
+    /// on — and must still fire on a genuinely undefined name in the same
+    /// document, and on `Pi()` while the toggle is off.
+    ///
+    /// tclsh 9.0.4 / 8.6.16 oracle: sourcing the two files and calling the
+    /// consumer prints `3.141592653589793` — `Pi()` really does dispatch to
+    /// `::tcl::mathfunc::Pi` in the other file.
+    #[tokio::test]
+    async fn cross_file_w123_consults_the_workspace_index() {
+        let backend = test_backend();
+        let helper = Uri::from_str("file:///helper.tcl").unwrap();
+        let vector = Uri::from_str("file:///vector.tcl").unwrap();
+        register(
+            &backend,
+            &helper,
+            "namespace eval tcl::mathfunc {\n    proc Pi {} { return 3.14159 }\n}\n",
+        )
+        .await;
+        let vector_src = "namespace eval tomato::v {}\n\
+                          proc tomato::v::A {} { return [expr {Pi()}] }\n\
+                          proc tomato::v::B {} { return [NeverDefinedAnywhere] }\n";
+
+        // Toggle OFF: the single-document pass sees neither name.
+        let off = backend
+            .full_diagnostics_for(&vector, vector_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        let off_names: Vec<&str> = off
+            .iter()
+            .filter(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W123"))
+            .filter_map(|d| w123_command_name(&d.message))
+            .collect();
+        assert!(
+            off_names.contains(&"Pi"),
+            "with the toggle off the cross-file Pi stays unknown, got: {off_names:?}",
+        );
+
+        // Toggle ON: `Pi` resolves through the workspace index; the undefined
+        // name does not.
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "crossFileResolution": true })
+                .as_object()
+                .unwrap(),
+        );
+        let on = backend
+            .full_diagnostics_for(&vector, vector_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        let on_names: Vec<&str> = on
+            .iter()
+            .filter(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W123"))
+            .filter_map(|d| w123_command_name(&d.message))
+            .collect();
+        assert!(
+            !on_names.contains(&"Pi"),
+            "the workspace index defines ::tcl::mathfunc::Pi, so W123 must not \
+             fire on the cross-file call, got: {on_names:?}",
+        );
+        assert!(
+            on_names.contains(&"NeverDefinedAnywhere"),
+            "a genuinely undefined command must still draw W123, got: {on_names:?}",
+        );
+    }
+
     /// Fix #1: the pull path (`full_diagnostics_for`) must feed the IRULE4002
     /// compiler check the *URI-scoped* generic-variable patterns, so a folder's
     /// `diagnostics.genericVariablePatterns` override applies on the pull path
@@ -16299,6 +16839,313 @@ mod tests {
             backend2.package_resolver.read().await.provides("rootpkg"),
             "with a root and no library paths, the tree scan must still populate \
              the resolver",
+        );
+    }
+
+    /// Issue #923 idx 73 — TP: a file's own `lappend auto_path [file dirname
+    /// [file dirname [info script]]]` must feed the package database, so the
+    /// repo-local package it points at resolves even when the workspace root
+    /// is the `examples/` subfolder that does **not** enclose it.
+    ///
+    /// tclsh 9.0.4 / 8.6.16 oracle on this exact layout: running
+    /// `examples/user.tcl` by absolute path prints `loaded:foo.png` — the
+    /// `package require` resolves deterministically through the computed
+    /// `auto_path` entry.
+    #[tokio::test]
+    async fn document_auto_path_mutation_feeds_the_package_database() {
+        let ws = TmpWs::new("autopath");
+        ws.write(
+            "reporoot/pkgIndex.tcl",
+            "package ifneeded mypix 1.0 [list source [file join $dir mypix.tcl]]\n",
+        );
+        ws.write(
+            "reporoot/mypix.tcl",
+            "package provide mypix 1.0\nproc ::mypix::readImage {path} { return \"loaded:$path\" }\n",
+        );
+        ws.write(
+            "reporoot/examples/user.tcl",
+            "lappend auto_path [file dirname [file dirname [info script]]]\n\
+             package require mypix\n\
+             puts [::mypix::readImage foo.png]\n",
+        );
+
+        let backend = test_backend();
+        // Root is `examples/` only: the package directory is the *parent*, so
+        // the recursive tree scan can never reach it.
+        let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
+        *backend.workspace_folders.lock().await = vec![narrow_root];
+        backend.scan_workspace_folders().await;
+        assert!(
+            backend.package_resolver.read().await.provides("mypix"),
+            "the file's own auto_path mutation must put the package directory \
+             on the resolver's search path",
+        );
+
+        // NEGATIVE control: the identical workspace with the `auto_path` line
+        // removed leaves the package unknown — proving the resolution above
+        // comes from the mutation, not from the root scan.
+        let bare = TmpWs::new("autopath-bare");
+        bare.write(
+            "reporoot/pkgIndex.tcl",
+            "package ifneeded mypix2 1.0 [list source [file join $dir mypix.tcl]]\n",
+        );
+        bare.write("reporoot/mypix.tcl", "package provide mypix2 1.0\n");
+        bare.write(
+            "reporoot/examples/user.tcl",
+            "package require mypix2\nputs hi\n",
+        );
+        let backend2 = test_backend();
+        let bare_root = Uri::from_file_path(bare.0.join("reporoot/examples")).unwrap();
+        *backend2.workspace_folders.lock().await = vec![bare_root];
+        backend2.scan_workspace_folders().await;
+        assert!(
+            !backend2.package_resolver.read().await.provides("mypix2"),
+            "without an auto_path mutation a package outside the root must stay \
+             unknown — the fix must not widen the search path on its own",
+        );
+    }
+
+    /// Issue #923 idx 73 — TP end to end: with the package directory outside
+    /// the workspace root, go-to-definition on a command the required package
+    /// provides resolves through the package tier
+    /// (`ensure_required_packages_indexed`) seeded by the file's own
+    /// `auto_path` mutation.
+    #[tokio::test]
+    async fn definition_resolves_through_a_document_auto_path_package() {
+        let ws = TmpWs::new("autopath-def");
+        ws.write(
+            "reporoot/pkgIndex.tcl",
+            "package ifneeded mypix 1.0 [list apply {dir {source [file join $dir mypix.tcl]}} $dir]\n",
+        );
+        ws.write(
+            "reporoot/mypix.tcl",
+            "package provide mypix 1.0\nproc ::mypix::readImage {path} { return \"loaded:$path\" }\n",
+        );
+        let user_src = "lappend auto_path [file dirname [file dirname [info script]]]\n\
+                        package require mypix\n\
+                        puts [::mypix::readImage foo.png]\n";
+        ws.write("reporoot/examples/user.tcl", user_src);
+
+        let backend = test_backend();
+        let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
+        *backend.workspace_folders.lock().await = vec![narrow_root];
+        backend.scan_workspace_folders().await;
+
+        let user_uri = Uri::from_file_path(ws.0.join("reporoot/examples/user.tcl")).unwrap();
+        register(&backend, &user_uri, user_src).await;
+        let locs = backend
+            .compute_definition(
+                &user_uri,
+                Position {
+                    line: 2,
+                    character: 16,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            locs.len(),
+            1,
+            "the package's proc must resolve through the auto_path-seeded \
+             package tier, got: {locs:?}",
+        );
+        assert!(
+            locs[0].uri.as_str().ends_with("mypix.tcl"),
+            "unexpected target: {:?}",
+            locs[0].uri,
+        );
+    }
+
+    /// PR #1086 finding 2 — TP: `set auto_path` assigns a **list**, so every
+    /// element becomes a search directory; TN: a brace-quoted element holding
+    /// a space stays exactly one directory.
+    ///
+    /// Oracle (`tclsh8.6` 8.6.14 / `tclsh9.0` 9.0.4) on this layout: with
+    /// `set auto_path {…/p1 …/p2 {…/with space}}`, `llength $auto_path` is 3
+    /// and `package require` finds `alpha`, `beta` **and** `spaced`.
+    #[tokio::test]
+    async fn set_auto_path_puts_every_list_element_on_the_search_path() {
+        let ws = TmpWs::new("autopath-set");
+        for (dir, pkg) in [("p1", "alpha"), ("p2", "beta"), ("with space", "spaced")] {
+            ws.write(
+                &format!("reporoot/{dir}/pkgIndex.tcl"),
+                &format!("package ifneeded {pkg} 1.0 [list source [file join $dir {pkg}.tcl]]\n"),
+            );
+            ws.write(
+                &format!("reporoot/{dir}/{pkg}.tcl"),
+                &format!("package provide {pkg} 1.0\nproc ::{pkg}::go {{}} {{}}\n"),
+            );
+        }
+        let root = ws.0.join("reporoot");
+        let root_s = root.to_str().unwrap();
+        ws.write(
+            "reporoot/examples/user.tcl",
+            &format!(
+                "set auto_path {{{root_s}/p1 {root_s}/p2 {{{root_s}/with space}}}}\n\
+                 package require alpha\npackage require beta\npackage require spaced\n"
+            ),
+        );
+
+        let backend = test_backend();
+        // Root is `examples/` only, so nothing but the assignment can reach
+        // the three package directories.
+        let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
+        *backend.workspace_folders.lock().await = vec![narrow_root];
+        backend.scan_workspace_folders().await;
+
+        let resolver = backend.package_resolver.read().await;
+        for pkg in ["alpha", "beta"] {
+            assert!(
+                resolver.provides(pkg),
+                "`set auto_path` names {pkg}'s directory as one list element, \
+                 so it must be searched — the whole right-hand side is not one \
+                 space-containing path",
+            );
+        }
+        assert!(
+            resolver.provides("spaced"),
+            "a brace-quoted element is ONE directory, spaces and all, and must \
+             still be searched",
+        );
+    }
+
+    /// PR #1086 finding 3 — TP: with two releases of one package on the search
+    /// path, the document's own `package require NAME VERSION` decides which
+    /// one go-to-definition navigates into.
+    ///
+    /// Oracle (`tclsh8.6` / `tclsh9.0`, `widget` 1.5 and 2.3 both on
+    /// `auto_path`): `package require widget 2.0` loads **2.3**.
+    #[tokio::test]
+    async fn a_versioned_require_indexes_the_release_it_asks_for() {
+        let ws = TmpWs::new("pkgver");
+        for (dir, ver, marker) in [("v1", "1.5", "OLD"), ("v2", "2.3", "NEW")] {
+            ws.write(
+                &format!("reporoot/{dir}/pkgIndex.tcl"),
+                &format!(
+                    "package ifneeded widget {ver} [list source [file join $dir widget.tcl]]\n"
+                ),
+            );
+            ws.write(
+                &format!("reporoot/{dir}/widget.tcl"),
+                &format!(
+                    "package provide widget {ver}\n\
+                     proc ::widget::render {{}} {{ return {marker} }}\n"
+                ),
+            );
+        }
+        let root = ws.0.join("reporoot");
+        let root_s = root.to_str().unwrap();
+        // `v1` is listed first, so a first-provider-wins resolve would answer
+        // 1.5 — the bug this pins.
+        let user_src = format!(
+            "set auto_path {{{root_s}/v1 {root_s}/v2}}\n\
+             package require widget 2.0\n\
+             ::widget::render\n"
+        );
+        ws.write("reporoot/examples/user.tcl", &user_src);
+
+        let backend = test_backend();
+        let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
+        *backend.workspace_folders.lock().await = vec![narrow_root];
+        backend.scan_workspace_folders().await;
+
+        let user_uri = Uri::from_file_path(ws.0.join("reporoot/examples/user.tcl")).unwrap();
+        register(&backend, &user_uri, &user_src).await;
+        let locs = backend
+            .compute_definition(
+                &user_uri,
+                Position {
+                    line: 2,
+                    character: 4,
+                },
+            )
+            .await
+            .unwrap_or_default();
+        assert_eq!(locs.len(), 1, "expected one definition, got: {locs:?}");
+        assert!(
+            locs[0].uri.as_str().contains("/v2/"),
+            "`package require widget 2.0` selects 2.3, so definition must land \
+             in v2/widget.tcl, got: {:?}",
+            locs[0].uri,
+        );
+    }
+
+    /// Issue #923 idx 72 — TP: a `load`-only `pkgIndex.tcl` whose directory
+    /// holds no companion `.tcl` is still a declared package, so `provides`
+    /// answers `true` and requiring it no longer erases every other W120 in
+    /// the document.
+    #[test]
+    fn load_only_pkg_index_declares_a_known_package() {
+        let dir = Path::new("/pkg");
+        let infos = tcl_lsp_core::package_resolver::parse_pkg_index(
+            "package ifneeded pix 0.8 [list apply {dir {load [file join $dir libpix.so] Pix}} $dir]\n",
+            dir,
+            &dir.join("pkgIndex.tcl"),
+            &|_| false,
+            &|_| Vec::new(),
+        );
+        assert_eq!(infos.len(), 1, "the literal declaration must be recorded");
+        assert_eq!(infos[0].name, "pix");
+        assert_eq!(infos[0].version, "0.8");
+        assert!(
+            infos[0].source_files.is_empty(),
+            "a binary-only package has no statically enumerable Tcl source",
+        );
+
+        // NEGATIVE control: text that is not a literal `package ifneeded NAME
+        // VERSION` is still recorded as nothing.
+        let none = tcl_lsp_core::package_resolver::parse_pkg_index(
+            "package ifneeded $name $version [list load whatever]\n",
+            dir,
+            &dir.join("pkgIndex.tcl"),
+            &|_| false,
+            &|_| Vec::new(),
+        );
+        assert!(
+            none.is_empty(),
+            "a non-literal name/version declares no package: {none:?}",
+        );
+    }
+
+    /// Issue #923 idx 72 — TN: requiring a `load`-only package must no longer
+    /// suppress an unrelated W120 elsewhere in the same document.
+    #[test]
+    fn requiring_a_load_only_package_keeps_other_w120s() {
+        let ws = TmpWs::new("loadonly");
+        ws.write(
+            "testpix/pkgIndex.tcl",
+            "package ifneeded testpix 0.8 [list apply {dir {load [file join $dir libtestpix.so] Pix}} $dir]\n",
+        );
+        let mut resolver = PackageResolver::new();
+        resolver.scan_tree(&ws.0, 100);
+        assert!(
+            resolver.provides("testpix"),
+            "a load-only package is declared, so the database knows it",
+        );
+        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let kept = refine_w120_diagnostics(
+            vec![w120_diag("http")],
+            &["testpix".to_owned()],
+            &resolver,
+            registry,
+        );
+        assert_eq!(
+            kept.len(),
+            1,
+            "an unrelated W120 must survive a require of a binary-only package",
+        );
+
+        // NEGATIVE control: a package nothing declares is still "unknowable",
+        // and the blanket suppression still applies.
+        let dropped = refine_w120_diagnostics(
+            vec![w120_diag("http")],
+            &["neverheardof".to_owned()],
+            &resolver,
+            registry,
+        );
+        assert!(
+            dropped.is_empty(),
+            "a genuinely unknown package must still suppress W120",
         );
     }
 
@@ -18819,6 +19666,30 @@ mod tests {
         // living in an un-opened `.test` file were invisible to
         // cross-document find-references / rename-safety.
         assert!(is_tcl_source(Path::new("/ws/test/argparse.test")));
+    }
+
+    /// The file-watcher registration and the `willRename` / `didRename` filter
+    /// must name exactly the extensions the workspace scan indexes.  They used
+    /// to list five of the twelve, so a `.test` / `.iapp` / `.exp` file the
+    /// scan had indexed went stale the moment it changed on disk and kept its
+    /// old `source` references through a rename — the residual half of issue
+    /// #923 differential-audit finding idx 27.
+    #[test]
+    fn watcher_and_rename_globs_cover_every_indexed_extension() {
+        let glob = tcl_source_glob();
+        for ext in TCL_SOURCE_EXTENSIONS {
+            assert!(
+                glob.contains(&format!("{ext},")) || glob.contains(&format!("{ext}}}")),
+                "watcher glob {glob} omits .{ext}",
+            );
+        }
+        assert_eq!(
+            rename_file_operation_options().filters[0].pattern.glob,
+            glob,
+            "the rename filter must use the same one list",
+        );
+        // NEGATIVE control: an extension the scan does not index is absent.
+        assert!(!glob.contains("txt"), "{glob}");
     }
 
     #[test]

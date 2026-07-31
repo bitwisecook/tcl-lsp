@@ -377,7 +377,9 @@ export async function activate(context: ExtensionContext) {
     synchronize: {
       configurationSection: "tclLsp",
       fileEvents: [
-        workspace.createFileSystemWatcher("**/*.{tcl,tk,itcl,tm,irul,irule,iapp,iappimpl,impl}"),
+        workspace.createFileSystemWatcher(
+          "**/*.{tcl,tk,itcl,tm,test,irul,irule,iapp,iappimpl,impl}",
+        ),
         // Project config — the server live-reloads its layered settings when
         // a workspace `.tcl-lsp.ini` changes.
         workspace.createFileSystemWatcher("**/.tcl-lsp.ini"),

@@ -59,6 +59,8 @@ mod irules;
 mod issue1001;
 #[path = "e2e/issue923_class_refs.rs"]
 mod issue923_class_refs;
+#[path = "e2e/issue923_crossdoc.rs"]
+mod issue923_crossdoc;
 #[path = "e2e/issue945.rs"]
 mod issue945;
 #[path = "e2e/issue954_followup.rs"]

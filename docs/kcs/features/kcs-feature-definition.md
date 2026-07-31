@@ -62,6 +62,40 @@ actually made callable. An un-linked bare sibling call raises `invalid
 command name` in real Tcl, so Go to Definition abstains on it — in the
 current file and across the workspace alike.
 
+A **namespace-qualified variable** jumps across files. `$::tomato::version`
+lands on the `variable version` token of the `namespace eval tomato { … }`
+that declares it, wherever that block lives, and so does the relative
+spelling `$tomato::version` written at the global level. A **bare** `$v`
+does not: it names whatever the surrounding scope chain supplies, which no
+other file can know, so it stays a within-file question. A `$name`-shaped
+run of characters inside a comment or a data brace substitutes nothing in
+real Tcl and is likewise never a jump target.
+
+A command a `package require`d package provides also jumps: the package's
+`pkgIndex.tcl` is resolved through the search path, including the one the
+file builds for itself with `lappend auto_path [file dirname [file dirname
+[info script]]]` and friends. Only statically resolvable path expressions
+count — literals, `~`, `[info script]`, `[file dirname …]`, `[file join …]`.
+A path built from a variable resolves to nothing rather than to a guess.
+
+Three details of that search path follow Tcl exactly rather than
+approximately:
+
+- **`set` assigns a list, `lappend` appends words.** `set auto_path {/o/p1
+  /o/p2}` names *two* directories, and `{/o/with space}` inside it names
+  *one*; `lappend auto_path a b` names two, while `lappend auto_path {p q}`
+  names the single directory `p q`.
+- **Paths are Tcl slash form on every host.** `[file dirname [info script]]`
+  resolves against the file's own directory on Windows too — `C:\repo\pkg`
+  and `\\server\share\pkg` fold like `/repo/pkg` does, and `..` never climbs
+  out of a drive or a UNC share. A *drive-relative* `C:lib` names a
+  per-drive working directory nothing static can know, so it abstains.
+- **A version constraint picks the release Tcl would load.** With 1.5 and 2.3
+  both on the search path, `package require widget 2.0` navigates into 2.3 —
+  `package vsatisfies` semantics (`2.0` means up to but excluding the next
+  major), highest satisfying release wins. An unconstrained require still
+  answers the first provider found.
+
 ### Caller-frame variables
 
 A variable can be created by the procedure you call rather than by the code
@@ -94,6 +128,9 @@ same name — Tcl keeps those in a separate table from variables.
 ## Failure modes
 
 - Definition not found after proc lookup or namespace resolution changes.
+- A cross-file namespace variable stops resolving when the declaring file is
+  no longer in the workspace index (it was closed *and* is outside every
+  workspace folder).
 - A callee that binds a *literal* caller-side name (`upvar 1 options options`)
   names it nowhere at the call site, so there is no word to jump to.
 - A callee whose `upvar` level is not `1` (`upvar 0`, `upvar #0`, `upvar 2`)
@@ -105,6 +142,17 @@ same name — Tcl keeps those in a separate table from variables.
 - `tests/test_definition.py`
 - `rust/tcl-lsp-server/tests/e2e/navigation.rs` — the caller-frame cases
 - `rust/tcl-lsp-core/src/caller_frame.rs` — unit tests for the binding scan
+- `rust/tcl-lsp-core/src/definition.rs` (`mod tests`)
+- `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs` (cross-file namespace
+  variables, cross-file class-reference arguments)
+- `rust/tcl-lsp-server/src/lib.rs` unit tests
+  (`definition_resolves_through_a_document_auto_path_package`,
+  `set_auto_path_puts_every_list_element_on_the_search_path`,
+  `a_versioned_require_indexes_the_release_it_asks_for`)
+- `rust/tcl-compiler/src/auto_path_eval.rs` (`mod tests`) — the list-arity and
+  slash-form path rules
+- `rust/tcl-lsp-core/src/package_resolver/tests.rs`
+  (`resolve_picks_the_highest_release_satisfying_the_constraint`)
 
 ## Screenshots
 

@@ -392,6 +392,66 @@ fn resolver_scans_immediate_subdirs_like_tcl_pkg_unknown() {
     assert!(resolver.resolve("nonexistent", None).is_empty());
 }
 
+/// A version constraint selects the release Tcl would load, with `package
+/// vsatisfies` semantics — not the first-discovered one, and not a string
+/// prefix.
+///
+/// Oracle (`tclsh8.6` 8.6.14 and `tclsh9.0` 9.0.4, two `pkgIndex.tcl`
+/// directories declaring `widget` 1.5 and 2.3 on `auto_path`):
+///
+/// ```text
+/// package vsatisfies 1.5 2.0     -> 0      package vsatisfies 2.9 2.0 -> 1
+/// package vsatisfies 2.3 2.0     -> 1      package vsatisfies 3.0 2.0 -> 0
+/// package vsatisfies 2.3 2.0-    -> 1      package vsatisfies 2.3 2.0-2.2 -> 0
+/// package require widget 2.0     -> 2.3
+/// ```
+#[test]
+fn resolve_picks_the_highest_release_satisfying_the_constraint() {
+    let td = TempDir::new("vsat");
+    let root = td.path();
+    for (dir, ver, file) in [("v1", "1.5", "widget15.tcl"), ("v2", "2.3", "widget23.tcl")] {
+        let pkg_dir = root.join(dir);
+        write(&pkg_dir.join(file), "proc widget::init {} {}\n");
+        write(
+            &pkg_dir.join("pkgIndex.tcl"),
+            &format!("package ifneeded widget {ver} [list source [file join $dir {file}]]\n"),
+        );
+    }
+    let mut resolver = PackageResolver::new();
+    resolver.scan_path(root);
+
+    // TP: `2.0` means [2.0, 3) — 2.3 satisfies it, 1.5 does not.
+    assert_eq!(
+        resolver.resolve("widget", Some("2.0")),
+        vec![root.join("v2").join("widget23.tcl")],
+        "`package require widget 2.0` loads 2.3 in real tclsh",
+    );
+    // A constraint only 1.5 satisfies picks 1.5, whichever was scanned first.
+    assert_eq!(
+        resolver.resolve("widget", Some("1.0")),
+        vec![root.join("v1").join("widget15.tcl")],
+    );
+    // Open-ended and ranged forms.
+    assert_eq!(
+        resolver.resolve("widget", Some("2.0-")),
+        vec![root.join("v2").join("widget23.tcl")],
+    );
+    assert!(
+        resolver.resolve("widget", Some("2.0-2.2")).is_empty(),
+        "`2.0-2.2` excludes its upper bound, so neither release satisfies it",
+    );
+    // TN: a constraint no release satisfies resolves to nothing — never a
+    // silent fallback to the first provider.
+    assert!(resolver.resolve("widget", Some("9.9")).is_empty());
+    assert!(resolver.resolve("widget", Some("3.0")).is_empty());
+
+    // TN: an unconstrained require keeps the first-discovered provider.
+    assert_eq!(
+        resolver.resolve("widget", None),
+        vec![root.join("v1").join("widget15.tcl")],
+    );
+}
+
 #[test]
 fn resolver_auto_command_uses_auto_qualify_candidates() {
     let td = TempDir::new("autocmd");

@@ -69,8 +69,16 @@ pub struct PackageInfo {
     pub name: String,
     /// Declared version.
     pub version: String,
-    /// Absolute paths to the implementation files the `ifneeded` script
-    /// would `source` / `load`.
+    /// Absolute paths to the Tcl implementation files the `ifneeded` script
+    /// would `source`.
+    ///
+    /// **Empty** means "declared, but its command set is not statically
+    /// enumerable" — a binary-only C extension whose `ifneeded` body just
+    /// `load`s a shared object, with no companion `.tcl` in its directory.
+    /// The package genuinely exists ([`PackageResolver::provides`] answers
+    /// `true`, so a `package require` of it is not an unknown package), but
+    /// nothing can be said about which commands it installs, so a consumer
+    /// must neither claim its commands are missing nor claim they exist.
     pub source_files: Vec<PathBuf>,
     /// The `pkgIndex.tcl` that declared this entry.
     pub pkg_index_path: PathBuf,
@@ -326,8 +334,8 @@ fn is_version_word(word: &str) -> bool {
 // Public parsers.
 // ---------------------------------------------------------------------------
 
-/// Parse a `pkgIndex.tcl`'s `content`, returning a [`PackageInfo`] per
-/// `package ifneeded` declaration whose script names (existing) source files.
+/// Parse a `pkgIndex.tcl`'s `content`, returning a [`PackageInfo`] per literal
+/// `package ifneeded NAME VERSION …` declaration.
 ///
 /// `pkg_dir` is the directory the index lives in (`$dir` in the script);
 /// `exists` decides whether a candidate implementation file is real (pass
@@ -335,7 +343,10 @@ fn is_version_word(word: &str) -> bool {
 /// `ifneeded` body names no source file, this falls back to every `*.tcl`
 /// (other than `pkgIndex.tcl`) reported by `list_tcl_files` — matching C
 /// Tcl-era `pkg_mkIndex` output, where the index always sources concrete
-/// files but hand-written indices sometimes don't.
+/// files but hand-written indices sometimes don't.  When *that* finds nothing
+/// either the declaration is still returned, with an empty `source_files` —
+/// see [`PackageInfo::source_files`] for what that state means and why
+/// dropping it was issue #923 differential-audit finding idx 72.
 ///
 /// Declarations are found through the [`reachability`] scan, so a declaration
 /// nested inside an `if` branch is found (the TEA "pick a Tcl 8 or Tcl 9
@@ -388,15 +399,28 @@ pub fn parse_pkg_index(
                 }
             }
         }
-        if !source_files.is_empty() {
-            out.push(PackageInfo {
-                name: name.to_owned(),
-                version: version.to_owned(),
-                source_files,
-                pkg_index_path: pkg_index_path.to_owned(),
-                conditions,
-            });
-        }
+        // A declaration with no implementation *file* is still a declaration.
+        // The `load`-only C extension (`package ifneeded pix 0.8 [list apply
+        // {dir {… load [file join $dir $os $lib] Pix}} $dir]`, whose directory
+        // holds nothing but `pkgIndex.tcl` and the shared object) is the real
+        // shape this used to drop on the floor — name and version parsed
+        // successfully, then thrown away, so `provides("pix")` was false for a
+        // package plainly declared in the workspace and every W120 in any
+        // document requiring it was suppressed as "unknowable" (issue #923
+        // differential-audit finding idx 72).
+        //
+        // Recording it with an empty `source_files` is the honest state: the
+        // package **exists**, its command set is **not statically
+        // enumerable**.  Consumers already distinguish the two — `resolve`
+        // answers an empty file list, so nothing tries to read a shared object
+        // as Tcl, while `provides` answers `true`.
+        out.push(PackageInfo {
+            name: name.to_owned(),
+            version: version.to_owned(),
+            source_files,
+            pkg_index_path: pkg_index_path.to_owned(),
+            conditions,
+        });
     });
     out
 }
@@ -679,15 +703,13 @@ impl PackageResolver {
         if !dir.is_dir() {
             return;
         }
-        // The directory itself, then each immediate subdirectory.
+        // The directory itself, then each immediate subdirectory in name
+        // order — `read_dir` order is filesystem-dependent, and discovery
+        // order decides which provider an unconstrained `resolve` answers, so
+        // it must not vary across machines.
         self.scan_single_dir(dir);
-        if let Ok(read) = std::fs::read_dir(dir) {
-            for entry in read.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    self.scan_single_dir(&path);
-                }
-            }
+        for path in sorted_subdirs(dir) {
+            self.scan_single_dir(&path);
         }
     }
 
@@ -711,13 +733,10 @@ impl PackageResolver {
             }
             visited += 1;
             self.scan_single_dir(&dir);
-            if let Ok(read) = std::fs::read_dir(&dir) {
-                for entry in read.flatten() {
-                    let path = entry.path();
-                    if path.is_dir() {
-                        stack.push(path);
-                    }
-                }
+            // Reverse-sorted push so the LIFO pop visits children in name
+            // order, keeping discovery order machine-independent.
+            for path in sorted_subdirs(&dir).into_iter().rev() {
+                stack.push(path);
             }
         }
     }
@@ -754,25 +773,49 @@ impl PackageResolver {
     /// Resolve a `package require NAME ?VERSION?` to its implementation files.
     ///
     /// With no version constraint, the first-discovered provider's files are
-    /// returned (Tcl `auto_path`-order semantics). With a version, an entry
-    /// whose version equals or is prefixed by the request is preferred. Empty
-    /// when the package is unknown to the scanned paths.
+    /// returned. Empty when the package is unknown to the scanned paths.
+    ///
+    /// A constraint is evaluated with **`package vsatisfies` semantics**
+    /// ([`tcl_dialect::version_satisfies`], the same implementation
+    /// the bytecode VM and the `pkgIndex.tcl` guard evaluation use), and the
+    /// *highest* satisfying release wins — both verified against `tclsh8.6`
+    /// and `tclsh9.0`:
+    ///
+    /// | Written | Means | 1.5 | 2.3 |
+    /// |---------|-------|-----|-----|
+    /// | `2.0`   | `[2.0, 3)` — up to but excluding the next major | no | yes |
+    /// | `2.0-`  | `[2.0, ∞)` | no | yes |
+    /// | `2.0-2.2` | `[2.0, 2.2)` | no | no |
+    ///
+    /// With 1.5 and 2.3 both present, `package require widget 2.0` loads 2.3 —
+    /// so this returns 2.3's files. String prefixing would have missed it.
+    ///
+    /// Two bounds, both deliberate:
+    ///
+    /// * `-exact` is **not** modelled. The flag is parsed and dropped when the
+    ///   requirement is recorded (`SignaturePackageRequire` carries no
+    ///   `exact`), so `package require -exact widget 2.0` reads here as the
+    ///   ranged `2.0` and resolves 2.3, where real Tcl would error. For a
+    ///   navigation tier that is a generous answer rather than a wrong one.
+    /// * An **unconstrained** require answers the first-discovered provider,
+    ///   while Tcl picks the highest available. Left as-is so the common
+    ///   single-version workspace keeps its `auto_path`-order behaviour.
     #[must_use]
     pub fn resolve(&self, name: &str, version: Option<&str>) -> Vec<PathBuf> {
         let Some(infos) = self.packages.get(name) else {
             return Vec::new();
         };
-        if let Some(ver) = version {
-            for info in infos {
-                if info.version == ver || info.version.starts_with(ver) {
-                    return info.source_files.clone();
-                }
-            }
-            return Vec::new();
-        }
+        let Some(req) = version else {
+            return infos
+                .first()
+                .map(|i| i.source_files.clone())
+                .unwrap_or_default();
+        };
         infos
-            .first()
-            .map(|i| i.source_files.clone())
+            .iter()
+            .filter(|info| tcl_dialect::version_satisfies(&info.version, req))
+            .max_by(|a, b| tcl_dialect::compare_versions(&a.version, &b.version))
+            .map(|info| info.source_files.clone())
             .unwrap_or_default()
     }
 
@@ -917,7 +960,26 @@ impl PackageResolver {
     }
 }
 
-/// List the `*.tcl` files directly in `dir` (the `pkg_mkIndex` fallback).
+/// The immediate subdirectories of `dir`, sorted by name — `read_dir` yields
+/// filesystem order, and everything downstream of a scan (which provider is
+/// first-discovered, the order of a package's source files) must be identical
+/// on every machine.
+fn sorted_subdirs(dir: &Path) -> Vec<PathBuf> {
+    let mut subdirs = Vec::new();
+    if let Ok(read) = std::fs::read_dir(dir) {
+        for entry in read.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                subdirs.push(path);
+            }
+        }
+    }
+    subdirs.sort();
+    subdirs
+}
+
+/// List the `*.tcl` files directly in `dir` (the `pkg_mkIndex` fallback),
+/// sorted by name for machine-independent output.
 fn list_tcl_files(dir: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
     if let Ok(read) = std::fs::read_dir(dir) {
@@ -928,6 +990,7 @@ fn list_tcl_files(dir: &Path) -> Vec<PathBuf> {
             }
         }
     }
+    files.sort();
     files
 }
 

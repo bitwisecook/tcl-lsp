@@ -587,6 +587,14 @@ externally unexported method resolves nowhere (as in C Tcl), and
 per-object `oo::objdefine` methods resolve per receiver binding, so
 same-named locals in different procs never collide.
 
+Namespace variables navigate across files too. `$::tomato::version` jumps
+to — and hovers, and finds references for — the `variable version` inside
+whichever file's `namespace eval tomato { … }` declares it, in either
+direction. Only *qualified* occurrences take part: a bare `$v` names
+whatever the surrounding scope supplies, which is a within-file question, so
+it is never widened to a same-named variable somewhere else in the
+workspace.
+
 ### Signature help
 
 As you type arguments, the server shows the expected parameter list with the

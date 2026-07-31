@@ -34,6 +34,16 @@ Triggering from the classmethod's own bare dispatch site (not just its declarati
 
 A class is found through every use of its name, not only `<Class> new` instantiations: a `superclass`, `mixin`, or `[incr Tcl]` `inherit` argument that names the class is a reference to it, and a `forward` member's delegated command is a reference to that command. These references are resolved by the class's namespace exactly as a call would be, so a fully-qualified `superclass ::ns::Base` in one file is found from `::ns::Base`'s declaration in another, and a same-named class in an unrelated namespace is never cross-linked. Because the same references drive rename, renaming a class rewrites every `superclass` / `mixin` / `inherit` site that names it, keeping the inheritance graph intact.
 
+A **namespace variable** is found across files, in both directions: from the
+`variable v` token inside `namespace eval ns { … }` to every `$::ns::v` /
+`$ns::v` occurrence in sibling documents, and from any of those occurrences
+back to the declaration and to each other. Only *qualified* occurrences
+count — a bare `$v` names whatever the local scope chain supplies, so it is
+not attributable to a namespace cell from outside its own file, and a
+`$name`-shaped run inside a comment or data brace is not an occurrence at
+all. Proc locals are unaffected: they keep their existing within-file
+reference set.
+
 A command reached through a **mutated command table** is found too. An
 `interp alias {} sayHi {} greet` makes every `sayHi` call a real call site of
 `greet`, and a `rename greet hello` makes every later `hello` one, so both
@@ -189,6 +199,8 @@ only ever be the variable.
   `dispatch_scan_depth_guard_stops_runaway_nesting`,
   `tn_expect_clause_flags_not_decomposed`)
 - `rust/tcl-lsp-server/tests/e2e/issue923_class_refs.rs` (cross-file)
+- `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs` (cross-file namespace
+  variables, TP + TN)
 - `rust/tcl-lsp-server/tests/e2e/tcloo_navigation.rs` (rename / references /
   code-lens agreement on the same `TclOO` member — issues #991, #993)
 - `rust/tcl-lsp-server/tests/e2e/name_resolution.rs`
