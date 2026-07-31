@@ -154,6 +154,11 @@ User-facing compiler troubleshooting and how-tos live in
   derived from one file's call sites may be trusted as a fact about every
   caller: cross-file evidence, registry-declared unit boundaries, and the
   interprocedural constant seed's gate.
+- [object-type-lattice.md](object-type-lattice.md) — the object-handle →
+  class carrier (`ObjectHandleFacts`): the four maps that answer
+  "what class does `$obj` hold?", owner attribution per VTA edge, the
+  `by_scope` vs `any_scope` soundness directions each consumer must read,
+  and the empty-seed fast path's three-part gate.
 
 ## Optimisation passes
 

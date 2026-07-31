@@ -1105,6 +1105,33 @@ pub struct AnalysisResult {
     /// last assignment wins, matching the global-by-var-name
     /// shape the W308 emitter already uses.
     pub instance_classes: HashMap<String, String>,
+    /// Owner-attributed object-handle provenance from the compilation unit's
+    /// VTA-lite lattice ([`crate::object_types::object_handle_facts`]) — the
+    /// carrier issue #994's unification is built on.
+    ///
+    /// **Contract.** Best-effort, exactly like [`Self::instance_classes`]: an
+    /// absent key means *no evidence was found in this document*, never *proof
+    /// that the name holds no object*.  An empty value (the default) is what
+    /// every CU-less analysis path produces, so a consumer must degrade to its
+    /// pre-lattice behaviour rather than concluding anything from emptiness.
+    ///
+    /// **Which map to read.**  `by_scope` is keyed by the owning unit and is
+    /// the *narrow* map: it never merges a `chart` in one proc with a `chart`
+    /// in another.  `any_scope` is the union across every scope and is the
+    /// *wide* map.  So:
+    ///
+    /// | consumer | map | why |
+    /// |---|---|---|
+    /// | edits (rename), find-references | `by_scope` only | widening here rewrites an unrelated variable — a wrong edit, not a missed one |
+    /// | navigation (definition, type-definition), hover | `by_scope`, then `any_scope` labelled as a guess | a wrong jump is recoverable; a missing one is not |
+    /// | semantic tokens / highlighting | either | colour-only, and the union is what shipped before |
+    /// | "provably a *different* class, so refuse/skip" gates | `by_scope` singletons only | widening turns an abstention into a false certainty, which silences a refusal that protects the user |
+    ///
+    /// Populated once per analysis, from the same `CompilationUnit` the
+    /// CFG/SSA diagnostics ride on (`analyser/diagnostics.rs`); no other
+    /// producer writes it and the per-item incremental path inherits it from
+    /// the shell, so there is nothing to merge per grafted body.
+    pub object_handle_facts: crate::object_types::ObjectHandleFacts,
     /// Simple names of instance commands created by a `CLASS create NAME …`
     /// construct — both when `CLASS` is a known user class *and* when it is an
     /// unresolved (external-package) command whose `create NAME` idiom clearly

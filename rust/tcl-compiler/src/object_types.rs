@@ -35,14 +35,128 @@
 //! `TclOO` corpora, factory-return / cross-method dominating).  An
 //! un-provenanced receiver is still left to the generic shape-based option
 //! fallback rather than resolved with a wrong-or-abstain lattice.
+//!
+//! [`object_handle_facts`] is the widened entry point issue #994's staged
+//! unification (C5a) is built on: the same union **plus** a scope-keyed twin,
+//! an owner-span index, the collection map, the factory-return fact, and the
+//! `::`-qualified subset — one fact for all five dispatch consumers instead of
+//! four maps that can disagree on the same document.
+//! [`object_handle_classes`] is that entry point restricted to the union, so
+//! every existing consumer is untouched.  Contract and consumer/soundness
+//! tables: `docs/design/compiler/object-type-lattice.md`.
 
 use std::collections::{HashMap, HashSet};
 
+use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::Statement;
 use crate::value_shapes::parse_command_substitution;
+
+/// The source extent of one owning scope, plus the keys a
+/// [`ObjectHandleFacts::by_scope`] lookup at an offset inside it may use.
+///
+/// `unit` is the [`FunctionUnit`] key (`::proc`, `::Class::method`,
+/// `::Class::<constructor>`, `::top`).  `class` is `Some` for a method body —
+/// an *instance-variable* name is owned by the class, not by the method that
+/// happens to write it, so a consumer resolving a receiver inside a method
+/// tries `(unit, var)` first and `(class, var)` second.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnerSpan {
+    /// Byte extent of the owning definition, absolute in the analysed source.
+    pub span: Span,
+    /// The [`FunctionUnit`] key that owns names written in this extent.
+    pub unit: String,
+    /// The enclosing class qualified name, for a method/constructor body.
+    pub class: Option<String>,
+}
+
+/// Owner-attributed object-handle provenance for one
+/// [`CompilationUnit`] — the carrier issue #994's staged unification (C5a)
+/// puts on [`crate::analyser::types::AnalysisResult`].
+///
+/// Every map is **best-effort**: an absent key means *no evidence was found*,
+/// never *proof that the name holds no object*.  A consumer that needs a sound
+/// "provably a different class" answer must read [`Self::by_scope`] singletons
+/// and treat every other shape as an abstention.
+///
+/// Soundness directions, by map:
+///
+/// | map | key | widening risk | safe for |
+/// |---|---|---|---|
+/// | [`Self::any_scope`] | bare name | same name in two procs collides | highlighting, navigation (labelled) |
+/// | [`Self::by_scope`] | `(owner, name)` | none beyond the union join | edits, references, rename, refusal gates |
+/// | [`Self::collections`] | bare name | cross-scope union (deliberate — the #797 bridge) | highlighting, collection dispatch |
+/// | [`Self::returns_object`] | proc qname | none (one return type per proc) | factory-call typing |
+/// | [`Self::global_object_cells`] | `::`-qualified name | none (the name *is* the cell) | cross-document index seeds |
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ObjectHandleFacts {
+    /// The scope-blind union — **verbatim** what [`object_handle_classes`]
+    /// returns, so a consumer can migrate one map at a time.
+    pub any_scope: HashMap<String, HashSet<String>>,
+    /// The same bindings keyed by `(owner_qualified_name, var)`, where the
+    /// owner is the unit the binding edge actually binds in: an alias / proc
+    /// return binds in the *assigning* unit, a proc-parameter edge in the
+    /// *callee*, a constructor-parameter edge in the *constructor*, and a
+    /// class instance variable in the *class* (unioned across its methods —
+    /// that union is the interprocedural bridge issue #797 needs).
+    pub by_scope: HashMap<(String, String), HashSet<String>>,
+    /// Owning-scope extents, sorted by start (then by end descending) for the
+    /// binary search in [`Self::owner_at`].  One entry per procedure and
+    /// method, plus a whole-file entry for the top level.
+    pub owner_spans: Vec<OwnerSpan>,
+    /// [`object_collection_classes`] verbatim: `List`/`Dict` variable → the
+    /// classes of its elements.
+    pub collections: HashMap<String, HashSet<String>>,
+    /// Procedure qualified name → the class of the object it returns.  The
+    /// factory-proc fact the VTA fixpoint computes internally and used to
+    /// discard; exported so a cross-document index can seed on it (#1099).
+    pub returns_object: HashMap<String, String>,
+    /// The `::`-qualified subset of [`Self::any_scope`] — object handles that
+    /// live in a *global* cell rather than a local, so another document's
+    /// analysis can join against them.
+    pub global_object_cells: HashMap<String, HashSet<String>>,
+}
+
+impl ObjectHandleFacts {
+    /// The innermost owning scope containing `offset`, or `None` at a byte no
+    /// tracked definition covers (top-level code outside every proc/method).
+    ///
+    /// [`Self::owner_spans`] is sorted by start ascending (then end
+    /// *descending*), so the candidates are found by binary search and the walk
+    /// back from the partition point returns the last entry that still contains
+    /// `offset` — which for the properly-nested definition spans of a Tcl file
+    /// is the innermost scope, including when a scope and its enclosing one
+    /// begin at the same byte.
+    #[must_use]
+    pub fn owner_at(&self, offset: u32) -> Option<&OwnerSpan> {
+        let upto = self
+            .owner_spans
+            .partition_point(|o| o.span.start() <= offset);
+        self.owner_spans[..upto]
+            .iter()
+            .rev()
+            .find(|o| o.span.end() >= offset)
+    }
+
+    /// The classes `var` can hold **in the scope containing `offset`**: the
+    /// owning unit's binding, else the enclosing class's instance-variable
+    /// binding.  `None` when there is no evidence — which is *not* proof the
+    /// name holds no object (see the type-level contract).
+    #[must_use]
+    pub fn classes_in_scope(&self, offset: u32, var: &str) -> Option<&HashSet<String>> {
+        let owner = self.owner_at(offset)?;
+        self.by_scope
+            .get(&(owner.unit.clone(), var.to_owned()))
+            .or_else(|| {
+                owner
+                    .class
+                    .as_ref()
+                    .and_then(|c| self.by_scope.get(&(c.clone(), var.to_owned())))
+            })
+    }
+}
 
 /// Map every variable that holds an object handle to the set of class names it
 /// can hold, across the top level, procedures, and method bodies of `cu`.
@@ -65,26 +179,348 @@ pub fn object_handle_classes(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
 ) -> HashMap<String, HashSet<String>> {
-    let mut out: HashMap<String, HashSet<String>> = HashMap::new();
+    build_facts(cu, registry, FactMode::AnyScopeOnly)
+        .0
+        .any_scope
+}
+
+/// [`object_handle_classes`] **without** the empty-seed fast path — the
+/// propagation walk exactly as it ran before issue #994's C5a.
+///
+/// Exists so the measurement harness (`examples/object_lattice_cost.rs`) and
+/// the unit test below can pin the fast path as behaviour-preserving and
+/// quantify what it saves on a file with no object seeds.  Never call this
+/// from shipping code: it is strictly slower and, by construction, produces
+/// the same map.
+#[doc(hidden)]
+#[must_use]
+pub fn object_handle_classes_full_walk(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+) -> HashMap<String, HashSet<String>> {
+    build_facts_gated(cu, registry, FactMode::AnyScopeOnly, false)
+        .0
+        .any_scope
+}
+
+/// The type-propagation edge a binding came from — the VTA edge taxonomy,
+/// carried so the measurement harness can report bindings by edge kind.
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObjectFlowEdge {
+    /// `set A $B`.
+    Alias,
+    /// `set A [factoryProc …]`.
+    ProcReturn,
+    /// `f $obj` → `f`'s parameter.
+    ProcParam,
+    /// `C new $obj` → `C`'s constructor parameter.
+    CtorParam,
+}
+
+/// Shape/cost counters for one lattice build — the measurement gate M1's
+/// per-file row (`examples/object_lattice_cost.rs`).  Not a shipping fact.
+#[doc(hidden)]
+#[derive(Debug, Clone, Default)]
+pub struct LatticeStats {
+    /// Handles the harvest seeded before any propagation.
+    pub seeds: usize,
+    /// Fixpoint rounds actually run (0 when the fast path fired).
+    pub rounds: u32,
+    /// Whether the empty-seed fast path skipped the propagation walk.
+    pub fast_path_hit: bool,
+    /// Bindings produced per [`ObjectFlowEdge`], summed over all rounds.
+    pub alias_bindings: usize,
+    /// See [`Self::alias_bindings`].
+    pub return_bindings: usize,
+    /// See [`Self::alias_bindings`].
+    pub param_bindings: usize,
+    /// See [`Self::alias_bindings`].
+    pub ctor_param_bindings: usize,
+}
+
+/// [`object_handle_facts`] plus the build's [`LatticeStats`].
+#[doc(hidden)]
+#[must_use]
+pub fn object_handle_facts_instrumented(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+) -> (ObjectHandleFacts, LatticeStats) {
+    build_facts_gated(cu, registry, FactMode::Full, true)
+}
+
+/// The full owner-attributed object-handle fact set for `cu` — the C5a
+/// carrier described on [`ObjectHandleFacts`].
+///
+/// [`object_handle_classes`] is this entry point restricted to
+/// [`ObjectHandleFacts::any_scope`]; the union it returns is byte-identical
+/// either way, so the scope-keyed maps are pure addition.  The extra work over
+/// the union-only path is the owner attribution, the owner-span index, the
+/// collection map, and the two exported sub-facts.
+#[must_use]
+pub fn object_handle_facts(cu: &CompilationUnit, registry: &CommandRegistry) -> ObjectHandleFacts {
+    build_facts(cu, registry, FactMode::Full).0
+}
+
+/// How much of [`ObjectHandleFacts`] a build populates.
+///
+/// The union-only mode exists so [`object_handle_classes`]'s existing
+/// consumers (the optimiser, the compilation-unit interprocedural seed,
+/// `type_infer`, semantic tokens) keep paying exactly what they paid before
+/// the scope-keyed carrier was added.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FactMode {
+    /// Populate [`ObjectHandleFacts::any_scope`] only.
+    AnyScopeOnly,
+    /// Populate every map.
+    Full,
+}
+
+fn build_facts(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    mode: FactMode,
+) -> (ObjectHandleFacts, LatticeStats) {
+    build_facts_gated(cu, registry, mode, true)
+}
+
+/// The one implementation behind both public entry points.
+///
+/// `empty_seed_fast_path` is `true` for every production caller; only
+/// [`object_handle_classes_full_walk`] passes `false`, to reproduce the
+/// pre-#994 walk for the behaviour-equality test and the cost measurement.
+fn build_facts_gated(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    mode: FactMode,
+    empty_seed_fast_path: bool,
+) -> (ObjectHandleFacts, LatticeStats) {
+    let owners = OwnerIndex::build(cu, mode);
+    let mut sink = FactSink {
+        facts: ObjectHandleFacts::default(),
+        owners: &owners,
+        mode,
+        saw_constructor_arg: false,
+        stats: LatticeStats::default(),
+    };
     let units = std::iter::once(&cu.top_level)
         .chain(cu.procedures.values())
         .chain(cu.methods.values());
     for fu in units {
-        harvest_unit(fu, registry, &mut out);
+        harvest_unit(fu, registry, &mut sink);
     }
-    // VTA-lite object-flow propagation.  Having seeded the handles that are
-    // locally provable (constructor assignments + SSA `OBJECT` values), push
-    // those classes along the type-propagation edges of Variable Type Analysis
-    // (Sundaresan et al., OOPSLA'00) to a bounded fixpoint:
-    //   - *aliasing*         `set A $B`            → A ⊇ classes(B)
-    //   - *proc return*      `set A [make …]`      → A ⊇ return-class(make)
-    //   - *proc parameter*   `f $obj`              → f's param ⊇ classes($obj)
-    //   - *constructor param* `C new $obj`         → C's ctor param ⊇ classes($obj)
-    // Nodes are name-keyed (field-based, object-insensitive) and joins are set
-    // union — the economy VTA trades precision for.  Highlight-only, matching
-    // the imprecision tolerance documented above.
-    propagate_object_flow(cu, registry, &mut out);
-    out
+    sink.stats.seeds = sink.facts.any_scope.len();
+    let returns = returning_procs(cu);
+    // Fast path (issue #994 C5a).  The early-out inside `propagate_object_flow`
+    // checks the *callee-side* maps (returns / proc params / ctor params),
+    // which are non-empty for any file that merely defines a proc — so every
+    // ordinary non-OO file paid a full statement walk to discover that it had
+    // nothing to propagate.  Skip the walk when no edge can fire, which is
+    // exactly when all three of these hold:
+    //
+    //  - the harvest seeded no handle, so every `out`-driven edge (aliasing,
+    //    and the `$var` half of both parameter edges) is dead;
+    //  - no procedure returns an object, so the proc-return edge is dead; and
+    //  - no argument is a bracketed registry constructor, so the *other* half
+    //    of the parameter edges — `arg_classes`' `[Factory new]` branch, which
+    //    reads no seed at all — is dead too.
+    //
+    // The third condition is why `out.is_empty()` alone is **not**
+    // behaviour-preserving: `proc take {dev} {…}; take [listbox .l]` binds
+    // `dev` from an empty seed set, as do `Wrap new [listbox .l]` and
+    // `take [struct::graph]`.  `empty_seed_fast_path_is_behaviour_preserving`
+    // pins all three shapes.
+    let any_edge_can_fire =
+        !sink.facts.any_scope.is_empty() || !returns.is_empty() || sink.saw_constructor_arg;
+    sink.stats.fast_path_hit = !any_edge_can_fire && empty_seed_fast_path;
+    if any_edge_can_fire || !empty_seed_fast_path {
+        // VTA-lite object-flow propagation.  Having seeded the handles that are
+        // locally provable (constructor assignments + SSA `OBJECT` values), push
+        // those classes along the type-propagation edges of Variable Type
+        // Analysis (Sundaresan et al., OOPSLA'00) to a bounded fixpoint:
+        //   - *aliasing*         `set A $B`            → A ⊇ classes(B)
+        //   - *proc return*      `set A [make …]`      → A ⊇ return-class(make)
+        //   - *proc parameter*   `f $obj`              → f's param ⊇ classes($obj)
+        //   - *constructor param* `C new $obj`         → C's ctor param ⊇ classes($obj)
+        // Nodes are name-keyed (field-based, object-insensitive) and joins are
+        // set union — the economy VTA trades precision for.  Highlight-only,
+        // matching the imprecision tolerance documented above.
+        propagate_object_flow(cu, registry, &returns, &mut sink);
+    }
+    let stats = sink.stats;
+    let mut facts = sink.facts;
+    if mode == FactMode::Full {
+        facts.owner_spans = owners.spans;
+        facts.returns_object = returns
+            .into_iter()
+            .map(|(k, v)| (k.to_owned(), v.to_owned()))
+            .collect();
+        facts.collections = object_collection_classes(cu);
+        facts.global_object_cells = facts
+            .any_scope
+            .iter()
+            .filter(|(name, _)| name.starts_with("::"))
+            .map(|(name, classes)| (name.clone(), classes.clone()))
+            .collect();
+    }
+    (facts, stats)
+}
+
+/// Which unit — or class — owns a name written inside a given
+/// [`FunctionUnit`], plus the sorted span index consumers resolve an offset
+/// against.
+struct OwnerIndex {
+    /// Method [`FunctionUnit`] key → its class's qualified name.
+    method_class: HashMap<String, String>,
+    /// Class qualified name → the instance-variable names in scope for any of
+    /// its methods.  A name in this set is owned by the *class*, so a handle
+    /// stored in one method is visible to a dispatch in another (issue #797).
+    class_instance_vars: HashMap<String, HashSet<String>>,
+    /// [`ObjectHandleFacts::owner_spans`], already sorted.
+    spans: Vec<OwnerSpan>,
+}
+
+impl OwnerIndex {
+    fn build(cu: &CompilationUnit, mode: FactMode) -> Self {
+        let mut method_class: HashMap<String, String> = HashMap::new();
+        let mut class_instance_vars: HashMap<String, HashSet<String>> = HashMap::new();
+        let mut spans: Vec<OwnerSpan> = Vec::new();
+        if mode == FactMode::AnyScopeOnly {
+            return Self {
+                method_class,
+                class_instance_vars,
+                spans,
+            };
+        }
+        for (mqname, m) in &cu.ir_module.methods {
+            method_class.insert(mqname.clone(), m.class_name.clone());
+            class_instance_vars
+                .entry(m.class_name.clone())
+                .or_default()
+                .extend(m.instance_vars.iter().cloned());
+            if let Some(span) = m.span {
+                spans.push(OwnerSpan {
+                    span,
+                    unit: mqname.clone(),
+                    class: Some(m.class_name.clone()),
+                });
+            }
+        }
+        for p in cu.ir_module.procedures.values() {
+            spans.push(OwnerSpan {
+                span: p.span,
+                unit: p.qualified_name.clone(),
+                class: None,
+            });
+        }
+        // The top level owns everything no proc or method body covers.  Its
+        // span starts at 0, so it sorts first and `owner_at`'s
+        // greatest-start-that-contains walk still finds the enclosing proc for
+        // a byte inside one — but a top-level `set chart [Chart new]` now has
+        // an owner to resolve against instead of falling off the index.
+        //
+        // Synthetic *body units* (`apply` lambdas, `namespace eval` blocks)
+        // deliberately get **no** span: the harvest does not visit them
+        // (`build_facts_gated` iterates top level / procedures / methods), so a
+        // byte inside one resolves to its enclosing owner, which is where any
+        // knowledge about the name actually lives.
+        spans.push(OwnerSpan {
+            span: Span::new(0, u32::try_from(cu.source.len()).unwrap_or(u32::MAX)),
+            unit: cu.top_level.name.clone(),
+            class: None,
+        });
+        // Sorted by start ascending for the binary search, then by end
+        // *descending* so that when two scopes begin at the same byte — a proc
+        // written at offset 0 and the whole-file `::top` entry — the wider one
+        // sorts first and `owner_at`'s backward walk still reaches the narrower
+        // (innermost) one first.  The unit key is the final tie-break, so the
+        // vector is a deterministic function of the source rather than of
+        // `HashMap` iteration order (the per-item differential gate compares
+        // whole `AnalysisResult`s for equality).
+        spans.sort_by(|a, b| {
+            (a.span.start(), std::cmp::Reverse(a.span.end()), &a.unit).cmp(&(
+                b.span.start(),
+                std::cmp::Reverse(b.span.end()),
+                &b.unit,
+            ))
+        });
+        Self {
+            method_class,
+            class_instance_vars,
+            spans,
+        }
+    }
+
+    /// The owner key for `name` as written inside `unit`: the enclosing class
+    /// when `name` is one of its instance variables, else the unit itself.
+    fn owner_for<'a>(&'a self, unit: &'a str, name: &str) -> &'a str {
+        if let Some(class) = self.method_class.get(unit)
+            && self
+                .class_instance_vars
+                .get(class)
+                .is_some_and(|vars| vars.contains(name))
+        {
+            return class;
+        }
+        unit
+    }
+}
+
+/// Accumulator threaded through the harvest and the fixpoint so the union and
+/// the scope-keyed map are filled from the same binding events.
+struct FactSink<'a> {
+    facts: ObjectHandleFacts,
+    owners: &'a OwnerIndex,
+    mode: FactMode,
+    /// Whether the harvest saw an argument that could be a bracketed registry
+    /// constructor — the one type-propagation edge that fires without any
+    /// seeded handle.  Over-approximate on purpose; see
+    /// [`may_be_constructor_word`].
+    saw_constructor_arg: bool,
+    /// Cost/shape counters for the measurement gate.
+    stats: LatticeStats,
+}
+
+impl FactSink<'_> {
+    /// Record that `name`, written in `unit`, can hold `class`.
+    fn bind(&mut self, unit: &str, name: &str, class: &str) {
+        self.facts
+            .any_scope
+            .entry(name.to_owned())
+            .or_default()
+            .insert(class.to_owned());
+        if self.mode == FactMode::Full {
+            let owner = self.owners.owner_for(unit, name).to_owned();
+            self.facts
+                .by_scope
+                .entry((owner, name.to_owned()))
+                .or_default()
+                .insert(class.to_owned());
+        }
+    }
+
+    /// Record whether any of `args` could be the seed-free constructor
+    /// argument the fast-path gate must not skip past.
+    fn note_constructor_args(&mut self, args: &[String], registry: &CommandRegistry) {
+        if self.saw_constructor_arg {
+            return;
+        }
+        self.saw_constructor_arg = args.iter().any(|a| may_be_constructor_word(a, registry));
+    }
+}
+
+/// Callee proc qualified name → the class of the object it returns (the
+/// factory-proc signal behind `set c [makeThing]`).
+fn returning_procs(cu: &CompilationUnit) -> HashMap<&str, &str> {
+    cu.procedures
+        .values()
+        .filter_map(|fu| {
+            (fu.return_type.tcl_type() == Some(tcl_registry::TclType::Object))
+                .then_some(fu.return_type.class_name())
+                .flatten()
+                .map(|c| (fu.name.as_str(), c))
+        })
+        .collect()
 }
 
 /// VTA-lite object-flow fixpoint.  Propagates object classes from the seeded
@@ -94,23 +530,12 @@ pub fn object_handle_classes(
 /// regardless of scope, VTA's field-based object-insensitive economy) and the
 /// join is set union.  Highlight-only and union-imprecise, matching the rest of
 /// this module.
-fn propagate_object_flow(
-    cu: &CompilationUnit,
+fn propagate_object_flow<'a>(
+    cu: &'a CompilationUnit,
     registry: &CommandRegistry,
-    out: &mut HashMap<String, HashSet<String>>,
+    returns: &HashMap<&'a str, &'a str>,
+    sink: &mut FactSink,
 ) {
-    // Callee proc qualified name → returned object class (the factory-proc
-    // signal `set c [makeThing]`).
-    let returns: HashMap<&str, &str> = cu
-        .procedures
-        .values()
-        .filter_map(|fu| {
-            (fu.return_type.tcl_type() == Some(tcl_registry::TclType::Object))
-                .then_some(fu.return_type.class_name())
-                .flatten()
-                .map(|c| (fu.name.as_str(), c))
-        })
-        .collect();
     // Callee proc qualified name → parameter names.
     let proc_params: HashMap<&str, &[String]> = cu
         .ir_module
@@ -118,36 +543,88 @@ fn propagate_object_flow(
         .values()
         .map(|p| (p.qualified_name.as_str(), p.params.as_slice()))
         .collect();
-    // Class qualified name → constructor parameter names (keyed
-    // `::Class::<constructor>` in the IR module).
-    let ctor_params: HashMap<&str, &[String]> = cu
+    // Class qualified name → its constructor's `FunctionUnit` key + parameter
+    // names (the IR module keys a constructor `::Class::<constructor>`).
+    let ctor_params: HashMap<&str, (&str, &[String])> = cu
         .ir_module
         .methods
         .iter()
         .filter_map(|(k, m)| {
             k.ends_with("::<constructor>")
-                .then_some((m.class_name.as_str(), m.params.as_slice()))
+                .then_some((m.class_name.as_str(), (k.as_str(), m.params.as_slice())))
         })
         .collect();
     if returns.is_empty() && proc_params.is_empty() && ctor_params.is_empty() {
         return;
     }
+    let index = FlowIndex {
+        returns: returns.clone(),
+        proc_params,
+        ctor_params,
+    };
 
     // Bounded fixpoint: a handful of rounds cover realistic alias/call chains
     // without risking a runaway on a cyclic call graph.
     for _ in 0..6 {
-        let bindings = scan_flow_edges(cu, registry, out, &returns, &proc_params, &ctor_params);
+        let bindings = scan_flow_edges(cu, registry, &sink.facts.any_scope, &index);
+        sink.stats.rounds += 1;
         let mut changed = false;
-        for (name, classes) in bindings {
-            let entry = out.entry(name).or_default();
-            for c in classes {
-                changed |= entry.insert(c);
+        for binding in bindings {
+            match binding.kind {
+                ObjectFlowEdge::Alias => sink.stats.alias_bindings += 1,
+                ObjectFlowEdge::ProcReturn => sink.stats.return_bindings += 1,
+                ObjectFlowEdge::ProcParam => sink.stats.param_bindings += 1,
+                ObjectFlowEdge::CtorParam => sink.stats.ctor_param_bindings += 1,
+            }
+            // Convergence is decided by the union alone, so the scope-keyed
+            // twin can never change the number of rounds (nor, therefore,
+            // `any_scope`'s contents).
+            let entry = sink
+                .facts
+                .any_scope
+                .entry(binding.name.clone())
+                .or_default();
+            let mut fresh = false;
+            for c in &binding.classes {
+                fresh |= entry.insert(c.clone());
+            }
+            changed |= fresh;
+            if sink.mode == FactMode::Full {
+                let owner = sink
+                    .owners
+                    .owner_for(&binding.owner, &binding.name)
+                    .to_owned();
+                sink.facts
+                    .by_scope
+                    .entry((owner, binding.name))
+                    .or_default()
+                    .extend(binding.classes);
             }
         }
         if !changed {
             break;
         }
     }
+}
+
+/// The callee-side maps one fixpoint round resolves call edges against.
+struct FlowIndex<'a> {
+    /// Proc qualified name → returned object class.
+    returns: HashMap<&'a str, &'a str>,
+    /// Proc qualified name → parameter names.
+    proc_params: HashMap<&'a str, &'a [String]>,
+    /// Class qualified name → (constructor unit key, constructor parameters).
+    ctor_params: HashMap<&'a str, (&'a str, &'a [String])>,
+}
+
+/// One type-propagation edge's product: the classes `name` gains, and the unit
+/// the edge binds that name **in** (the assigning unit for an alias / return,
+/// the callee for a parameter, the constructor for a constructor parameter).
+struct Binding {
+    owner: String,
+    name: String,
+    classes: HashSet<String>,
+    kind: ObjectFlowEdge,
 }
 
 /// One round of the VTA-lite fixpoint: scan every statement, reading current
@@ -158,10 +635,13 @@ fn scan_flow_edges(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
     out: &HashMap<String, HashSet<String>>,
-    returns: &HashMap<&str, &str>,
-    proc_params: &HashMap<&str, &[String]>,
-    ctor_params: &HashMap<&str, &[String]>,
-) -> Vec<(String, HashSet<String>)> {
+    index: &FlowIndex,
+) -> Vec<Binding> {
+    let FlowIndex {
+        returns,
+        proc_params,
+        ctor_params,
+    } = index;
     // Resolve a proc call head to its callee key, tolerating the `::` global
     // qualifier the way `CommandRegistry::get` does.
     let resolve_proc = |cmd: &str, canonical: Option<&str>| -> Option<&str> {
@@ -172,13 +652,6 @@ fn scan_flow_edges(
         }
         let q = format!("::{}", cmd.trim_start_matches("::"));
         proc_params.get_key_value(q.as_str()).map(|(k, _)| *k)
-    };
-    let resolve_return = |cmd: &str| -> Option<&str> {
-        if let Some((k, _)) = returns.get_key_value(cmd) {
-            return Some(*k);
-        }
-        let q = format!("::{}", cmd.trim_start_matches("::"));
-        returns.get_key_value(q.as_str()).map(|(k, _)| *k)
     };
     // Resolve a constructor-call head (`Pin`, `::ns::Pin`) to a class that
     // declares a constructor.  Prefers an exact / `::`-qualified match, then
@@ -199,44 +672,31 @@ fn scan_flow_edges(
             .map(|k| (*k).to_owned())
     };
 
-    let mut bindings: Vec<(String, HashSet<String>)> = Vec::new();
+    let mut bindings: Vec<Binding> = Vec::new();
     let units = std::iter::once(&cu.top_level)
         .chain(cu.procedures.values())
         .chain(cu.methods.values());
     for fu in units {
+        let ctx = ScanContext {
+            ctor_params,
+            out,
+            registry,
+        };
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
                 match stmt {
                     Statement::AssignValue { name, value, .. } => {
-                        let v = value.trim();
-                        // Aliasing edge: `set A $B` copies B's classes to A.
-                        if let Some(src) = deref_arg_var(v)
-                            && let Some(classes) = out.get(src).filter(|s| !s.is_empty())
-                        {
-                            bindings.push((name.clone(), classes.clone()));
-                        }
-                        // Proc-return edge: `set A [make …]`.
-                        if v.starts_with('[')
-                            && let Some((cmd, args)) = parse_command_substitution(v)
-                        {
-                            if let Some(callee) = resolve_return(&cmd) {
-                                bindings.push((
-                                    name.clone(),
-                                    std::iter::once(returns[callee].to_owned()).collect(),
-                                ));
-                            }
-                            // Constructor-parameter edge for a nested
-                            // `[Class new …]` / `[Class create …]`.
-                            emit_ctor_param_bindings(
-                                &cmd,
-                                &args,
-                                &resolve_ctor_class,
-                                ctor_params,
-                                out,
-                                registry,
-                                &mut bindings,
-                            );
-                        }
+                        scan_assign_edges(
+                            AssignSite {
+                                unit: &fu.name,
+                                name,
+                                value,
+                            },
+                            &resolve_ctor_class,
+                            returns,
+                            ctx,
+                            &mut bindings,
+                        );
                     }
                     Statement::Call {
                         command,
@@ -244,27 +704,25 @@ fn scan_flow_edges(
                         args,
                         ..
                     } => {
-                        // Proc-parameter edge: `f $obj` binds f's params.
+                        // Proc-parameter edge: `f $obj` binds f's params — in
+                        // the *callee*, which is where the name lives.
                         if let Some(callee) = resolve_proc(command, canonical_command.as_deref()) {
-                            let params = proc_params[callee];
-                            for (i, arg) in args.iter().enumerate() {
-                                let Some(pname) = params.get(i) else { break };
-                                if pname == "args" {
-                                    break;
-                                }
-                                if let Some(classes) = arg_classes(arg, out, registry) {
-                                    bindings.push((pname.clone(), classes));
-                                }
-                            }
+                            emit_proc_param_bindings(
+                                callee,
+                                proc_params[callee],
+                                args,
+                                ctx,
+                                &mut bindings,
+                            );
                         }
                         // Constructor-parameter edge: `Class create NAME …`.
                         emit_ctor_param_bindings(
-                            command,
-                            args,
+                            CtorCall {
+                                head: command,
+                                verb_and_args: args,
+                            },
                             &resolve_ctor_class,
-                            ctor_params,
-                            out,
-                            registry,
+                            ctx,
                             &mut bindings,
                         );
                     }
@@ -276,19 +734,124 @@ fn scan_flow_edges(
     bindings
 }
 
+/// One `set NAME VALUE` statement, with the unit it is written in.
+#[derive(Clone, Copy)]
+struct AssignSite<'a> {
+    unit: &'a str,
+    name: &'a str,
+    value: &'a str,
+}
+
+/// The two edges an assignment can carry — aliasing (`set A $B`) and proc
+/// return (`set A [make …]`) — plus the nested-constructor parameter edge of a
+/// `set W [Class new $obj]` value.  Both assignment edges bind in the
+/// *assigning* unit; the constructor edge binds in the constructor.
+fn scan_assign_edges(
+    site: AssignSite,
+    resolve_ctor_class: &impl Fn(&str) -> Option<String>,
+    returns: &HashMap<&str, &str>,
+    ctx: ScanContext,
+    bindings: &mut Vec<Binding>,
+) {
+    let v = site.value.trim();
+    // Aliasing edge: `set A $B` copies B's classes to A.
+    if let Some(src) = deref_arg_var(v)
+        && let Some(classes) = ctx.out.get(src).filter(|s| !s.is_empty())
+    {
+        bindings.push(Binding {
+            owner: site.unit.to_owned(),
+            name: site.name.to_owned(),
+            classes: classes.clone(),
+            kind: ObjectFlowEdge::Alias,
+        });
+    }
+    if !v.starts_with('[') {
+        return;
+    }
+    let Some((cmd, args)) = parse_command_substitution(v) else {
+        return;
+    };
+    // Proc-return edge: `set A [make …]`, tolerating the `::` global
+    // qualifier the way `CommandRegistry::get` does.
+    let qualified = format!("::{}", cmd.trim_start_matches("::"));
+    if let Some(class) = returns
+        .get(cmd.as_str())
+        .or_else(|| returns.get(qualified.as_str()))
+    {
+        bindings.push(Binding {
+            owner: site.unit.to_owned(),
+            name: site.name.to_owned(),
+            classes: std::iter::once((*class).to_owned()).collect(),
+            kind: ObjectFlowEdge::ProcReturn,
+        });
+    }
+    // Constructor-parameter edge for a nested `[Class new …]` / `[Class create …]`.
+    emit_ctor_param_bindings(
+        CtorCall {
+            head: &cmd,
+            verb_and_args: &args,
+        },
+        resolve_ctor_class,
+        ctx,
+        bindings,
+    );
+}
+
+/// Bind `callee`'s parameters to the object classes of a call's arguments.
+/// Stops at `args` (a variadic tail is not positionally bindable).
+fn emit_proc_param_bindings(
+    callee: &str,
+    params: &[String],
+    args: &[String],
+    ctx: ScanContext,
+    bindings: &mut Vec<Binding>,
+) {
+    for (i, arg) in args.iter().enumerate() {
+        let Some(pname) = params.get(i) else { break };
+        if pname == "args" {
+            break;
+        }
+        if let Some(classes) = arg_classes(arg, ctx.out, ctx.registry) {
+            bindings.push(Binding {
+                owner: callee.to_owned(),
+                name: pname.clone(),
+                classes,
+                kind: ObjectFlowEdge::ProcParam,
+            });
+        }
+    }
+}
+
+/// A candidate constructor call: the class command and everything after it.
+#[derive(Clone, Copy)]
+struct CtorCall<'a> {
+    head: &'a str,
+    verb_and_args: &'a [String],
+}
+
+/// The read-only context one scan round resolves an argument's classes
+/// against.
+#[derive(Clone, Copy)]
+struct ScanContext<'a> {
+    ctor_params: &'a HashMap<&'a str, (&'a str, &'a [String])>,
+    out: &'a HashMap<String, HashSet<String>>,
+    registry: &'a CommandRegistry,
+}
+
 /// Bind a constructor's parameters to the object classes of its arguments for a
 /// `Class new ARGS…` / `Class create NAME ARGS…` call.  `head` is the class
 /// command; `verb_and_args` is everything after it (`["new", "$x"]` /
 /// `["create", "foo", "$x"]`).
 fn emit_ctor_param_bindings(
-    head: &str,
-    verb_and_args: &[String],
+    call: CtorCall,
     resolve_ctor_class: &impl Fn(&str) -> Option<String>,
-    ctor_params: &HashMap<&str, &[String]>,
-    out: &HashMap<String, HashSet<String>>,
-    registry: &CommandRegistry,
-    bindings: &mut Vec<(String, HashSet<String>)>,
+    ctx: ScanContext,
+    bindings: &mut Vec<Binding>,
 ) {
+    let CtorCall {
+        head,
+        verb_and_args,
+    } = call;
     let ctor_args: &[String] = match verb_and_args.split_first() {
         Some((verb, rest)) if verb == "new" => rest,
         // `create NAME …` — skip the instance name.
@@ -304,7 +867,7 @@ fn emit_ctor_param_bindings(
     let Some(class) = resolve_ctor_class(head) else {
         return;
     };
-    let Some(params) = ctor_params.get(class.as_str()) else {
+    let Some((ctor_unit, params)) = ctx.ctor_params.get(class.as_str()) else {
         return;
     };
     for (i, arg) in ctor_args.iter().enumerate() {
@@ -312,8 +875,13 @@ fn emit_ctor_param_bindings(
         if pname == "args" {
             break;
         }
-        if let Some(classes) = arg_classes(arg, out, registry) {
-            bindings.push((pname.clone(), classes));
+        if let Some(classes) = arg_classes(arg, ctx.out, ctx.registry) {
+            bindings.push(Binding {
+                owner: (*ctor_unit).to_owned(),
+                name: pname.clone(),
+                classes,
+                kind: ObjectFlowEdge::CtorParam,
+            });
         }
     }
 }
@@ -376,11 +944,7 @@ pub fn object_collection_classes(cu: &CompilationUnit) -> HashMap<String, HashSe
     out
 }
 
-fn harvest_unit(
-    fu: &FunctionUnit,
-    registry: &CommandRegistry,
-    out: &mut HashMap<String, HashSet<String>>,
-) {
+fn harvest_unit(fu: &FunctionUnit, registry: &CommandRegistry, sink: &mut FactSink) {
     // Syntactic constructor assignments (`set VAR [Class new|create …]`) and
     // naming object-factories (`struct::graph myG` — the created object command
     // is `myG`, not a `set` target the SSA lattice can carry).
@@ -388,10 +952,14 @@ fn harvest_unit(
         for stmt in &block.statements {
             match stmt {
                 Statement::AssignValue { name, value, .. } => {
-                    if let Some(class) = constructor_class(value, registry) {
-                        out.entry(name.clone())
-                            .or_default()
-                            .insert(class.to_string());
+                    if let Some((head, args)) = parse_command_substitution(value.trim()) {
+                        if let Some(class) = constructor_class_of(&head, &args, registry) {
+                            sink.bind(&fu.name, name, class);
+                        }
+                        // The nested-constructor half of the fast-path gate:
+                        // `set w [Wrap new [listbox .l]]` reaches `arg_classes`
+                        // through `emit_ctor_param_bindings`.
+                        sink.note_constructor_args(&args, registry);
                     }
                 }
                 // A registry naming factory (`creates_instance_at` + a class)
@@ -406,10 +974,12 @@ fn harvest_unit(
                         && let Some(name) = args.get(idx as usize)
                         && is_plain_object_name(name)
                     {
-                        out.entry(name.clone())
-                            .or_default()
-                            .insert(oc.class_name.to_string());
+                        sink.bind(&fu.name, name, oc.class_name);
                     }
+                    // Both parameter edges read a call's arguments through
+                    // `arg_classes`, whose `[Factory new]` branch needs no
+                    // seeded handle — so the fast-path gate must see them.
+                    sink.note_constructor_args(args, registry);
                 }
                 _ => {}
             }
@@ -421,9 +991,8 @@ fn harvest_unit(
         if t.tcl_type() == Some(tcl_registry::TclType::Object)
             && let Some(class) = t.class_name()
         {
-            out.entry(fu.ssa.var_name(*sym).to_owned())
-                .or_default()
-                .insert(class.to_owned());
+            let name = fu.ssa.var_name(*sym).to_owned();
+            sink.bind(&fu.name, &name, class);
         }
     }
 }
@@ -434,18 +1003,62 @@ fn harvest_unit(
 /// [`CommandRegistry::object_class`] strips it as [`CommandRegistry::get`] does.
 fn constructor_class<'r>(value: &str, registry: &'r CommandRegistry) -> Option<&'r str> {
     let (head, args) = parse_command_substitution(value.trim())?;
+    constructor_class_of(&head, &args, registry)
+}
+
+/// [`constructor_class`] on an already-parsed command substitution, so a caller
+/// that needs the parsed words for something else does not parse twice.
+fn constructor_class_of<'r>(
+    head: &str,
+    args: &[String],
+    registry: &'r CommandRegistry,
+) -> Option<&'r str> {
     // `[Class new|create …]` — or a registry naming factory returning its own
     // instance (`[struct::graph]` / `[struct::graph name]`), matching the SSA
     // lattice's `return_type_for_command` object-factory typing so the syntactic
     // and lattice signals agree.
     if args.first().is_some_and(|s| s == "new" || s == "create") {
-        return registry.object_class(&head).map(|c| c.class_name);
+        return registry.object_class(head).map(|c| c.class_name);
     }
     registry
-        .get(&head)
+        .get(head)
         .filter(|s| s.creates_instance_at.is_some())
         .and_then(|s| s.object_class)
         .map(|c| c.class_name)
+}
+
+/// Could `word` be the bracketed registry-constructor call that makes
+/// [`arg_classes`] yield a class with **no** seeded handle in play
+/// (`take [listbox .l]`)?
+///
+/// Deliberately over-approximate and deliberately cheap: it reads the head word
+/// with a string split instead of lexing, because it runs on every argument of
+/// every call during the harvest.  A false "yes" only costs the propagation
+/// walk that would have run anyway; a false "no" would drop a binding, so a
+/// head this cannot read as a bareword (a braced, quoted, substituted, or
+/// expanded head) answers "yes".
+fn may_be_constructor_word(word: &str, registry: &CommandRegistry) -> bool {
+    let trimmed = word.trim();
+    if !trimmed.starts_with('[') {
+        return false;
+    }
+    let Some(inner) = trimmed
+        .strip_prefix('[')
+        .and_then(|w| w.strip_suffix(']'))
+        .map(str::trim_start)
+    else {
+        return false;
+    };
+    let head = inner
+        .find(char::is_whitespace)
+        .map_or(inner, |end| &inner[..end]);
+    if head.is_empty() || head.starts_with(['{', '"', '$', '[', '\\']) {
+        return true;
+    }
+    registry.object_class(head).is_some()
+        || registry
+            .get(head)
+            .is_some_and(|s| s.creates_instance_at.is_some())
 }
 
 /// Whether `name` is a plain object-command name a naming factory binds — a
@@ -756,6 +1369,297 @@ mod tests {
             map.get("Pins").map(|s| s.contains("::SpiceGenTcl::Pin")),
             Some(true),
             "Pins should be a collection of ::SpiceGenTcl::Pin; got {map:?}"
+        );
+    }
+
+    /// Build a unit and its full fact set in one step (the C5a tests below all
+    /// want both).
+    fn facts_for(src: &str) -> (CommandRegistry, ObjectHandleFacts) {
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let facts = object_handle_facts(&cu, &registry);
+        (registry, facts)
+    }
+
+    /// The classes `by_scope` binds for `(owner, var)`, sorted for a stable
+    /// assertion message.
+    fn scoped(facts: &ObjectHandleFacts, owner: &str, var: &str) -> Vec<String> {
+        let mut v: Vec<String> = facts
+            .by_scope
+            .get(&(owner.to_owned(), var.to_owned()))
+            .map(|s| s.iter().cloned().collect())
+            .unwrap_or_default();
+        v.sort();
+        v
+    }
+
+    #[test]
+    fn any_scope_is_verbatim_object_handle_classes() {
+        // The widened carrier must not perturb the map every existing consumer
+        // reads: `any_scope` is the old return value, byte-for-byte.
+        for src in [
+            "set chart [ticklecharts::chart new]\n$chart Xaxis -name x\n",
+            "oo::class create Pin { method cfg {args} {} }\n\
+             proc connect {dev} { $dev cfg }\n\
+             set p [Pin new]\nconnect $p\n",
+            "set x [expr {1 + 2}]\n",
+            "",
+        ] {
+            let registry = CommandRegistry::build_default();
+            let cu = CompilationUnit::build_for(src, &registry, false);
+            assert_eq!(
+                object_handle_facts(&cu, &registry).any_scope,
+                object_handle_classes(&cu, &registry),
+                "any_scope must equal object_handle_classes for `{src}`"
+            );
+        }
+    }
+
+    #[test]
+    fn empty_seed_fast_path_is_behaviour_preserving() {
+        // The fast path skips the propagation walk when no edge can fire.  Pin
+        // it against the pre-#994 unconditional walk on every shape that binds
+        // from an *empty seed set* — a bare `out.is_empty()` gate (the obvious
+        // one) silently drops all four of the middle cases here.
+        for src in [
+            // Nothing at all: the fast path fires.
+            "proc noop {} { return 1 }\nset a 1\nputs $a\n",
+            "proc a {x} { b $x }\nproc b {y} { puts $y }\na 1\n",
+            // Proc-return edge from a factory whose object never lands in a
+            // `set` target the harvest can see.
+            "oo::class create Pin { method cfg {args} {} }\n\
+             proc make {} { return [Pin new] }\n\
+             set c [make]\n$c cfg\n",
+            // `arg_classes`' direct-constructor branch: a registry factory
+            // written straight into a proc-parameter, a constructor
+            // parameter, and a bare naming factory.
+            "proc take {dev} { $dev curselection }\ntake [listbox .l]\n",
+            "oo::class create Wrap { constructor {inner} { $inner curselection } }\n\
+             Wrap new [listbox .l]\n",
+            "proc take {dev} { $dev walk root }\ntake [struct::graph]\n",
+            // Nested inside an assigned value.
+            "oo::class create Wrap { constructor {inner} {} }\n\
+             set w [Wrap new [listbox .l]]\n",
+        ] {
+            let registry = CommandRegistry::build_default();
+            let cu = CompilationUnit::build_for(src, &registry, false);
+            assert_eq!(
+                object_handle_classes(&cu, &registry),
+                object_handle_classes_full_walk(&cu, &registry),
+                "the empty-seed fast path changed the map for `{src}`"
+            );
+        }
+    }
+
+    #[test]
+    fn owner_attribution_alias_edge_binds_in_the_assigning_unit() {
+        // `set b $a` inside `mk` binds `b` in `::mk`, not globally — the
+        // same-name collision across procs `any_scope` cannot avoid.
+        let (_r, facts) = facts_for(
+            "oo::class create Pin { method cfg {args} {} }\n\
+             proc mk {} { set a [Pin new]\n set b $a\n $b cfg }\n\
+             proc other {} { set b 7\n puts $b }\n",
+        );
+        assert_eq!(scoped(&facts, "::mk", "b"), vec!["::Pin".to_owned()]);
+        assert!(
+            scoped(&facts, "::other", "b").is_empty(),
+            "`b` in ::other is an unrelated integer; by_scope must not widen \
+             onto it (any_scope does: {:?})",
+            facts.any_scope.get("b")
+        );
+    }
+
+    #[test]
+    fn owner_attribution_return_edge_binds_in_the_assigning_unit() {
+        let (_r, facts) = facts_for(
+            "oo::class create Pin { method cfg {args} {} }\n\
+             proc make {} { set p [Pin new]\n return $p }\n\
+             proc use {} { set q [make]\n $q cfg }\n",
+        );
+        assert_eq!(scoped(&facts, "::use", "q"), vec!["::Pin".to_owned()]);
+        assert_eq!(
+            facts.returns_object.get("::make").map(String::as_str),
+            Some("::Pin"),
+            "the factory-proc return fact must be exported; got {:?}",
+            facts.returns_object
+        );
+    }
+
+    #[test]
+    fn owner_attribution_param_edge_binds_in_the_callee() {
+        // `connect $p` binds `dev` in `::connect` — the callee, where the name
+        // lives — not in the caller that supplied the argument.
+        let (_r, facts) = facts_for(
+            "oo::class create Pin { method cfg {args} {} }\n\
+             proc connect {dev} { $dev cfg }\n\
+             set p [Pin new]\nconnect $p\n",
+        );
+        assert_eq!(scoped(&facts, "::connect", "dev"), vec!["::Pin".to_owned()]);
+        assert!(
+            scoped(&facts, "::top", "dev").is_empty(),
+            "the param edge must not bind `dev` at the call site's scope"
+        );
+        assert_eq!(scoped(&facts, "::top", "p"), vec!["::Pin".to_owned()]);
+    }
+
+    #[test]
+    fn owner_attribution_ctor_param_edge_binds_in_the_constructor() {
+        let (_r, facts) = facts_for(
+            "oo::class create Pin { method cfg {args} {} }\n\
+             oo::class create Wrap {\n\
+               variable held\n\
+               constructor {inner} { $inner cfg; set held $inner }\n\
+             }\n\
+             set p [Pin new]\nset w [Wrap new $p]\n",
+        );
+        assert_eq!(
+            scoped(&facts, "::Wrap::<constructor>", "inner"),
+            vec!["::Pin".to_owned()],
+            "the ctor param is owned by the constructor unit; by_scope={:?}",
+            facts.by_scope
+        );
+    }
+
+    #[test]
+    fn owner_attribution_instance_var_is_owned_by_the_class() {
+        // The #797 bridge: `engine` is written in `Car`'s constructor and read
+        // in `Car`'s `go`.  Keying it by the *class* (not by either method)
+        // is what makes the cross-method dispatch resolvable at all.
+        let (_r, facts) = facts_for(
+            "oo::class create Motor { method spin {args} {} }\n\
+             oo::class create Car {\n\
+               variable engine\n\
+               constructor {e} { set engine $e }\n\
+               method go {} { $engine spin }\n\
+             }\n\
+             set m [Motor new]\nset c [Car new $m]\n",
+        );
+        assert_eq!(
+            scoped(&facts, "::Car", "engine"),
+            vec!["::Motor".to_owned()],
+            "instance var `engine` is owned by ::Car; by_scope={:?}",
+            facts.by_scope
+        );
+        assert!(
+            scoped(&facts, "::Car::<constructor>", "engine").is_empty(),
+            "an instance variable must not also be keyed by the writing method"
+        );
+        // …and `classes_in_scope` finds it from a byte inside the *other*
+        // method, via the class fallback.
+        let offset = facts
+            .owner_spans
+            .iter()
+            .find(|o| o.unit == "::Car::go")
+            .expect("::Car::go has an owner span")
+            .span
+            .start();
+        assert_eq!(
+            facts
+                .classes_in_scope(offset, "engine")
+                .map(|s| s.contains("::Motor")),
+            Some(true),
+            "classes_in_scope inside ::Car::go must reach the class-owned name"
+        );
+    }
+
+    #[test]
+    fn collection_and_global_cell_facts_are_exported() {
+        let (_r, facts) = facts_for(
+            "oo::class create Pin { method cfg {args} {} }\n\
+             dict set pins a [Pin new]\n\
+             set ::board [listbox .l]\n",
+        );
+        assert_eq!(
+            facts.collections.get("pins").map(|s| s.contains("::Pin")),
+            Some(true),
+            "collections must carry object_collection_classes verbatim; got {:?}",
+            facts.collections
+        );
+        assert_eq!(
+            facts
+                .global_object_cells
+                .get("::board")
+                .map(|s| s.contains("listbox")),
+            Some(true),
+            "a `::`-qualified handle must be exported as a global cell; got {:?}",
+            facts.global_object_cells
+        );
+        assert!(
+            !facts.global_object_cells.contains_key("pins"),
+            "an unqualified local is not a global cell"
+        );
+    }
+
+    #[test]
+    fn registry_factory_operator_form_binds_nothing_by_scope() {
+        // The `by_scope` twin of `registry_factory_operator_form_binds_nothing`:
+        // the deserialise operator words name no object command, so the
+        // abstention must survive in the scope-keyed map too — a bogus `=`
+        // binding there would be read by the C5b rename/refusal consumers.
+        let registry = CommandRegistry::build_default();
+        for op in ["=", ":=", "as", "deserialize"] {
+            let src = format!("struct::graph {op} $serial\n");
+            let cu = CompilationUnit::build_for(&src, &registry, false);
+            let facts = object_handle_facts(&cu, &registry);
+            assert!(
+                !facts.any_scope.contains_key(op),
+                "`struct::graph {op}` must not track `{op}` in any_scope"
+            );
+            assert!(
+                facts.by_scope.keys().all(|(_owner, name)| name != op),
+                "`struct::graph {op}` must not track `{op}` in by_scope; got {:?}",
+                facts.by_scope
+            );
+        }
+    }
+
+    #[test]
+    fn owner_spans_are_sorted_and_resolve_the_innermost_scope() {
+        let (_r, facts) = facts_for(
+            "set g 1\n\
+             proc alpha {} { set a 1 }\n\
+             oo::class create K { method m {} { set b 2 } }\n\
+             proc beta {} { set c 3 }\n",
+        );
+        assert!(
+            facts
+                .owner_spans
+                .windows(2)
+                .all(|w| w[0].span.start() <= w[1].span.start()),
+            "owner_spans must be start-sorted for binary search; got {:?}",
+            facts.owner_spans
+        );
+        // Top-level bytes resolve to `::top`, so a top-level handle has an
+        // owner to key against rather than falling off the index.
+        assert_eq!(
+            facts.owner_at(0).map(|o| o.unit.as_str()),
+            Some("::top"),
+            "byte 0 is top-level code; got {:?}",
+            facts.owner_at(0)
+        );
+        for unit in ["::alpha", "::beta", "::K::m"] {
+            let span = facts
+                .owner_spans
+                .iter()
+                .find(|o| o.unit == unit)
+                .unwrap_or_else(|| panic!("{unit} must have an owner span"))
+                .span;
+            assert_eq!(
+                facts.owner_at(span.start()).map(|o| o.unit.as_str()),
+                Some(unit),
+                "owner_at must resolve a byte inside {unit} to it, not to the \
+                 enclosing top level; owner_spans={:?}",
+                facts.owner_spans
+            );
+        }
+        assert_eq!(
+            facts
+                .owner_spans
+                .iter()
+                .find(|o| o.unit == "::K::m")
+                .and_then(|o| o.class.as_deref()),
+            Some("::K"),
+            "a method's owner span must name its class for the fallback key"
         );
     }
 }
