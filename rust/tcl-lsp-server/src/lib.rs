@@ -361,6 +361,67 @@ struct SemanticTokensRefreshCtx {
     refresh_pending: Arc<std::sync::atomic::AtomicBool>,
 }
 
+/// URIs whose detached semantic-token convergence continuation is still in
+/// flight (#1147) — the dedup set behind [`ConvergenceGuard`].
+///
+/// A `std::sync::Mutex`: every critical section is a single `HashSet` insert or
+/// remove, never held across an await, and the remove has to happen from
+/// [`ConvergenceGuard`]'s `Drop`, which cannot await.
+type ConvergenceInFlight = Arc<std::sync::Mutex<HashSet<Uri>>>;
+
+/// A claim on one URI's convergence continuation: at most one may be detached
+/// per document at a time (#1147).
+///
+/// A `semanticTokens/range` or `semanticTokens/full` request that overruns
+/// [`SEMANTIC_TOKENS_FAST_PATH_BUDGET`] detaches a continuation that holds the
+/// document's text and its coarse token stream and queues a blocking recompute.
+/// Nothing bounded that: an editor scrolling a cold file issues a viewport
+/// request per frame, so N in-flight range requests on one document meant N live
+/// document copies and N queued jobs, and the pre-existing coalescing
+/// ([`SemanticTokensRefreshCtx::request_refresh_coalesced`]) collapsed only the
+/// resulting notification, never the work behind it.
+///
+/// The continuations are redundant with each other by construction: the only
+/// output is a *workspace-scoped* `workspace/semanticTokens/refresh`, which asks
+/// the client to re-pull tokens for every open document. So a pending
+/// continuation already covers every later request for the same URI, and the
+/// `range` and `full` paths share one set for that reason.
+///
+/// A guard rather than a bare flag so an aborted or panicking continuation
+/// releases the claim as its frame unwinds — a stuck marker would silence the
+/// URI's convergence for the rest of the session.
+struct ConvergenceGuard {
+    uri: Uri,
+    in_flight: ConvergenceInFlight,
+}
+
+impl ConvergenceGuard {
+    /// Claim `uri`, or `None` when a continuation for it is already pending — in
+    /// which case the caller skips detaching and settles as `coalesced`.
+    fn claim(in_flight: &ConvergenceInFlight, uri: &Uri) -> Option<Self> {
+        let claimed = in_flight
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(uri.clone());
+        claimed.then(|| Self {
+            uri: uri.clone(),
+            in_flight: Arc::clone(in_flight),
+        })
+    }
+}
+
+impl Drop for ConvergenceGuard {
+    fn drop(&mut self) {
+        // Recovering from a poisoned lock rather than skipping the removal: the
+        // set holds no invariant a panic could have broken, and leaving a marker
+        // behind would permanently silence this URI's convergence.
+        self.in_flight
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&self.uri);
+    }
+}
+
 /// Per-URI cache of the last semantic-token stream served: `(resultId, packed
 /// integer data)`. Shared type alias for [`Backend::last_semantic_tokens`] and
 /// [`SemanticTokensRefreshCtx::last_semantic_tokens`] — the same cache, read
@@ -393,7 +454,10 @@ struct RangeConvergenceInputs {
     /// The coarse token stream already served, to diff the enriched recompute against.
     served: Vec<u32>,
     registry: &'static CommandRegistry,
-    text: String,
+    /// The document text, shared with the request's own coarse tokenisation
+    /// rather than cloned for the continuation (#1147): one buffer per request,
+    /// not one per tier.
+    text: Arc<str>,
     dialect: String,
     range: CoreLspRange,
 }
@@ -525,6 +589,10 @@ enum FullSettleOutcome {
     /// The document has no salsa input, so the response was computed enriched
     /// from a freshly-built unit + analysis.
     NoAnalysis,
+    /// A convergence continuation for this document was already in flight, so
+    /// no second one was detached (#1147): the pending one's workspace-scoped
+    /// refresh covers this request too.
+    Coalesced,
 }
 
 impl FullSettleOutcome {
@@ -533,6 +601,7 @@ impl FullSettleOutcome {
             Self::Landed => "landed",
             Self::Cancelled => "cancelled",
             Self::NoAnalysis => "no-analysis",
+            Self::Coalesced => "coalesced",
         }
     }
 }
@@ -2577,6 +2646,13 @@ pub struct Backend {
     /// not coalesce them itself (VS Code does; eglot may not) would re-pull
     /// every open document once per refresh.
     semantic_tokens_refresh_pending: Arc<std::sync::atomic::AtomicBool>,
+    /// URIs with a detached semantic-token convergence continuation in flight
+    /// (#1147).  `semantic_tokens_refresh_pending` above coalesces the resulting
+    /// *notification*; this bounds the **work**, which is what holds a document
+    /// copy and a queued blocking job.  Shared by the `range` and `full` timeout
+    /// paths, since both settle into the same workspace-scoped refresh — see
+    /// [`ConvergenceGuard`].
+    semantic_tokens_convergence: ConvergenceInFlight,
     /// Abort handle for the most recent [`Backend::spawn_workspace_warm`] task, so
     /// a fresh warm (from `initialize` / folder-add / config-change) supersedes any
     /// still-running one. Without it, overlapping warms each hold their own
@@ -3045,6 +3121,7 @@ impl Backend {
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashSet::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
         }
@@ -4093,31 +4170,10 @@ impl Backend {
                 .await;
             }
             () = tokio::time::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => {
-                // Too slow for a synchronous first paint. Detach a
-                // continuation that keeps waiting on the still-running
-                // enriched computation and asks the client to re-request once
-                // it lands, instead of blocking this response on it.
-                let refresh_ctx = SemanticTokensRefreshCtx {
-                    client: self.client.clone(),
-                    last_semantic_tokens: Arc::clone(&self.last_semantic_tokens),
-                    refresh_pending: Arc::clone(&self.semantic_tokens_refresh_pending),
-                };
-                let uri = uri.clone();
-                tokio::spawn(async move {
-                    // Settle either way — including on a cancelled read — so a
-                    // waiter can key on the marker instead of racing the
-                    // debounced refresh that only *sometimes* follows.
-                    let (refreshed, outcome) = match enriched.await {
-                        Ok(Some(tokens)) => (
-                            refresh_ctx.deliver_if_changed(&uri, &tokens.data).await,
-                            FullSettleOutcome::Landed,
-                        ),
-                        _ => (false, FullSettleOutcome::Cancelled),
-                    };
-                    refresh_ctx
-                        .log_full_convergence_settled(&uri, refreshed, outcome)
-                        .await;
-                });
+                // Too slow for a synchronous first paint: hand the still-running
+                // enriched read to a detached continuation rather than blocking
+                // this response on it, and serve the coarse tier below.
+                self.spawn_full_convergence(uri, enriched).await;
             }
         }
 
@@ -4132,6 +4188,53 @@ impl Backend {
             message: format!("semantic_tokens worker panicked: {err}").into(),
             data: None,
         })
+    }
+
+    /// Detach the `semanticTokens/full` convergence continuation for a request
+    /// whose enriched read overran [`SEMANTIC_TOKENS_FAST_PATH_BUDGET`]: keep
+    /// awaiting the read and ask the client to re-request once it lands, so the
+    /// enrichment reaches the editor without waiting for the next edit.
+    ///
+    /// At most one continuation per document (#1147), on the same claim set the
+    /// `range` path uses: both end in the same workspace-scoped
+    /// `workspace/semanticTokens/refresh`, so a continuation already pending for
+    /// this URI covers this request too and a second one would only hold a
+    /// second live read for the same answer. The skipped request still settles,
+    /// as `coalesced` — the marker is emitted on *every* path by contract.
+    async fn spawn_full_convergence(
+        &self,
+        uri: &Uri,
+        enriched: tokio::task::JoinHandle<Option<tcl_lsp_core::semantic_tokens::SemanticTokens>>,
+    ) {
+        let Some(guard) = ConvergenceGuard::claim(&self.semantic_tokens_convergence, uri) else {
+            log_full_convergence_settled(&self.client, uri, false, FullSettleOutcome::Coalesced)
+                .await;
+            return;
+        };
+        let refresh_ctx = SemanticTokensRefreshCtx {
+            client: self.client.clone(),
+            last_semantic_tokens: Arc::clone(&self.last_semantic_tokens),
+            refresh_pending: Arc::clone(&self.semantic_tokens_refresh_pending),
+        };
+        let uri = uri.clone();
+        tokio::spawn(async move {
+            // Settle either way — including on a cancelled read — so a waiter can
+            // key on the marker instead of racing the debounced refresh that only
+            // *sometimes* follows.
+            let (refreshed, outcome) = match enriched.await {
+                Ok(Some(tokens)) => (
+                    refresh_ctx.deliver_if_changed(&uri, &tokens.data).await,
+                    FullSettleOutcome::Landed,
+                ),
+                _ => (false, FullSettleOutcome::Cancelled),
+            };
+            refresh_ctx
+                .log_full_convergence_settled(&uri, refreshed, outcome)
+                .await;
+            // Release the per-URI claim only now the decision is made, so every
+            // request that arrived while this ran rode along with it.
+            drop(guard);
+        });
     }
 
     /// Re-index a (now-closed) document from its on-disk contents so
@@ -9488,10 +9591,15 @@ impl Backend {
     /// `workspace/semanticTokens/refresh` if it genuinely differs from the coarse
     /// `served` stream. The range stream is never in `last_semantic_tokens`, so
     /// the diff is against the exact `served` bytes rather than the token cache.
+    ///
+    /// `guard` is the caller's per-URI claim (#1147); it is held for the
+    /// continuation's whole life so a later request for the same document skips
+    /// detaching a redundant second one.
     fn spawn_range_convergence(
         &self,
         inputs: RangeConvergenceInputs,
         pending: RangeConvergencePending,
+        guard: ConvergenceGuard,
     ) {
         let RangeConvergenceInputs {
             uri,
@@ -9560,6 +9668,9 @@ impl Backend {
                 RangeSettleOutcome::Compared
             };
             log_range_convergence_settled(&refresh_ctx.client, &uri, refreshed, outcome).await;
+            // Release the per-URI claim only now the decision is made, so every
+            // viewport request that arrived while this ran rode along with it.
+            drop(guard);
         });
     }
 }
@@ -9582,6 +9693,10 @@ enum RangeSettleOutcome {
     /// unindexed buffer, or a `did_close` racing the two reads), so there is no
     /// enriched tier for this request to converge to.
     NoAnalysis,
+    /// A convergence continuation for this document was already in flight, so
+    /// no second one was detached (#1147): the pending one's workspace-scoped
+    /// refresh covers this viewport too.
+    Coalesced,
 }
 
 impl RangeSettleOutcome {
@@ -9591,6 +9706,7 @@ impl RangeSettleOutcome {
             Self::Cancelled => "cancelled",
             Self::ServedEnriched => "served-enriched",
             Self::NoAnalysis => "no-analysis",
+            Self::Coalesced => "coalesced",
         }
     }
 }
@@ -11313,13 +11429,18 @@ impl LanguageServer for Backend {
         // handles at all.
         let served_enriched = cached_cu.is_some() || cached_analysis.is_some();
         // Pure-CPU tokenisation on a worker so a parser panic is contained
-        // as a JSON-RPC error.
-        let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
+        // as a JSON-RPC error.  The text goes in behind an `Arc` so the
+        // convergence continuation below shares this buffer instead of taking a
+        // second full-document copy (#1147).
+        let text: Arc<str> = Arc::from(doc.text.as_str());
+        let dialect = doc.dialect.clone();
+        let serve_text = Arc::clone(&text);
+        let serve_dialect = dialect.clone();
         let serve_registry = registry;
         let core_data = tokio::task::spawn_blocking(move || {
             core_semantic_tokens::range_with_cu_and_analysis(
-                &text,
-                &dialect,
+                &serve_text,
+                &serve_dialect,
                 core_range,
                 serve_registry,
                 cached_cu.as_deref(),
@@ -11338,17 +11459,37 @@ impl LanguageServer for Backend {
         // enriched reads overran the budget, detach a continuation that awaits
         // them and refreshes once the enriched viewport differs.
         if let Some(pending) = pending {
-            self.spawn_range_convergence(
-                RangeConvergenceInputs {
-                    uri: uri.as_str().to_owned(),
-                    served: core_data.clone(),
-                    registry,
-                    text: doc.text.clone(),
-                    dialect: doc.dialect.clone(),
-                    range: core_range,
-                },
-                pending,
-            );
+            // At most one continuation per document (#1147): a client scrolling
+            // a cold file issues a viewport request per frame, and each detached
+            // continuation holds the document and queues a blocking recompute
+            // only to ask for the same workspace-wide refresh the pending one
+            // will already ask for.
+            if let Some(guard) = ConvergenceGuard::claim(&self.semantic_tokens_convergence, uri) {
+                self.spawn_range_convergence(
+                    RangeConvergenceInputs {
+                        uri: uri.as_str().to_owned(),
+                        served: core_data.clone(),
+                        registry,
+                        text,
+                        dialect,
+                        range: core_range,
+                    },
+                    pending,
+                    guard,
+                );
+            } else {
+                // Settle here: the in-flight continuation settles under its own
+                // request's marker, so without this one an observer waiting on
+                // *this* request's decision would wait for a line that never
+                // comes.
+                log_range_convergence_settled(
+                    &self.client,
+                    uri.as_str(),
+                    false,
+                    RangeSettleOutcome::Coalesced,
+                )
+                .await;
+            }
         } else {
             // No continuation to detach, so settle here instead: this request's
             // convergence decision is already final and an observer waiting on
@@ -18380,6 +18521,7 @@ mod tests {
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashSet::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
         }
@@ -23977,6 +24119,64 @@ mod tests {
                 .is_none(),
             "deliver_if_changed must not resurrect a cache entry for a \
              closed document",
+        );
+    }
+
+    /// #1147: only the first of several concurrent convergence attempts on one
+    /// URI may detach a continuation, and the claim is released once it
+    /// finishes, so the next request converges normally. Other URIs are
+    /// independent.
+    #[test]
+    fn convergence_guard_admits_one_continuation_per_uri() {
+        let in_flight: ConvergenceInFlight = Arc::new(std::sync::Mutex::new(HashSet::new()));
+        let uri = Uri::from_str("file:///cold.tcl").unwrap();
+        let other = Uri::from_str("file:///warm.tcl").unwrap();
+
+        let first = ConvergenceGuard::claim(&in_flight, &uri).expect("the first attempt detaches");
+        assert!(
+            ConvergenceGuard::claim(&in_flight, &uri).is_none(),
+            "a second attempt on the same URI must not detach a redundant \
+             continuation",
+        );
+        let sibling =
+            ConvergenceGuard::claim(&in_flight, &other).expect("a different URI is unaffected");
+
+        // The continuation finishes: the URI converges again on the next request.
+        drop(first);
+        let again = ConvergenceGuard::claim(&in_flight, &uri)
+            .expect("a completed continuation releases its URI");
+        drop(again);
+        drop(sibling);
+        assert!(
+            in_flight
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_empty(),
+            "every released claim must leave the in-flight set",
+        );
+    }
+
+    /// #1147: the claim is a guard, not a flag, so a continuation that is
+    /// aborted mid-flight (or panics) still releases its URI — a stuck marker
+    /// would silence convergence for that document for the session.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn convergence_guard_releases_on_cancellation() {
+        let in_flight: ConvergenceInFlight = Arc::new(std::sync::Mutex::new(HashSet::new()));
+        let uri = Uri::from_str("file:///aborted.tcl").unwrap();
+        let guard = ConvergenceGuard::claim(&in_flight, &uri).expect("claimed");
+
+        let task = tokio::spawn(async move {
+            // Never completes; the abort below drops the future — and the guard
+            // it owns — instead.
+            tokio::time::sleep(std::time::Duration::from_hours(1)).await;
+            drop(guard);
+        });
+        task.abort();
+        assert!(task.await.is_err(), "the continuation was cancelled");
+
+        assert!(
+            ConvergenceGuard::claim(&in_flight, &uri).is_some(),
+            "a cancelled continuation must release its URI",
         );
     }
 
