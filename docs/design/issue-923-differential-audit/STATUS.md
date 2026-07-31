@@ -940,6 +940,27 @@ here because the reasoning generalises to any new symbol kind.
   `{:: }` among `namespace children ::`, so there is no whitespace skip to
   add.
 
+**2026-07-31 ledger correction — five findings were fixed by earlier merged
+PRs but never credited here, discovered while splitting the remainder into
+per-mechanism issues (see issue #1019's index comment).** Verified against
+the code and the idx-named tests on `rust`, not from PR-comment history:
+**idx 16** (class-reopening `oo::define` members — `class_body_spans` /
+`enclosing_class_at` in `definition.rs`, residual pinned by tests naming
+"issue #1019 idx 16"), **idx 42** (vsatisfies-guarded `package ifneeded`
+over-flagging — `package_resolver::reachability`, pinned by
+`both_arms_of_a_tea_version_branch_declare_the_package_923_idx42` and its
+e2e), **idx 47** and **idx 62** (the same trace-callback prefix-head defect
+filed under two features — `extract_list_quoted_prefix_head` /
+`list_quoted_command_segment`, `BUILDS_COMMAND_PREFIX`-gated; idx 62 is
+inferred from being the identical defect/file/proc rather than from an
+idx-62-named test), and **idx 85** (`namespace ensemble create -map` call
+sites — `handle_namespace_ensemble` via `command_resolution_namespace`, five
+`_923_idx85` tests). **Corrected count: tier 1 24/24 + tier 2 50/61 = 74
+fixed / 11 remaining of 85 CONFIRMED.** The 11 (idx 14, 22, 41, 50, 51, 67,
+91, 98, 99, 100, 102) are now individually tracked in issues #1137–#1143,
+grouped by mechanism — see #1019's index comment for the full idx → issue
+table.
+
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
 strings in the raw data — same corpus), tomato 7, pix 8.
