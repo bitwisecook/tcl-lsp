@@ -112,6 +112,7 @@
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::analyser::indirection;
 use tcl_lexer::{LineIndex, Utf16Col};
 
 use crate::hover::{find_var_at_position, find_word_span_at_position};
@@ -211,6 +212,7 @@ pub fn definition(
                 source,
                 "::",
                 target,
+                cursor_offset,
                 Some(tcl_registry::registry_for_dialect(&analysis.dialect)),
             )
         {
@@ -287,6 +289,7 @@ pub fn definition(
         source,
         &namespace,
         &word,
+        cursor_offset,
         Some(tcl_registry::registry_for_dialect(&analysis.dialect)),
     ) {
         // A proc redefined later in the document is two definitions sharing
@@ -340,8 +343,14 @@ fn indirect_definition_target(
 ) -> Option<tcl_lexer::Span> {
     let hop = command_indirection(analysis, word, cursor_off)?;
     let registry = tcl_registry::registry_for_dialect(&analysis.dialect);
-    if let Some(proc_def) = resolve_called_proc(analysis, source, "::", &hop.target, Some(registry))
-    {
+    if let Some(proc_def) = resolve_called_proc(
+        analysis,
+        source,
+        "::",
+        &hop.target,
+        cursor_off,
+        Some(registry),
+    ) {
         let captured = analysis
             .proc_def_in_effect_at(&proc_def.qualified_name, hop.resolve_at)
             .unwrap_or(proc_def);
@@ -2260,21 +2269,18 @@ pub fn itcl_class_proc_target_at(
 
 /// Resolve a bareword `word` (`namespace` context, honouring `namespace
 /// path` exactly like [`proc_visible_from_namespace`]) through an
-/// in-document wildcard `namespace import NS::*` — a glob (or exact)
-/// pattern recorded in `analysis.namespace_imports`.
+/// in-document `namespace import NS::*` — a glob (or exact) pattern
+/// recorded in `analysis.namespace_imports`, as the call at `call_off` sees
+/// it.
 ///
 /// For each candidate qualified name Tcl's own lookup would try (the
 /// caller's namespace, then each `namespace path` entry, then global — the
 /// same order [`proc_visible_from_namespace`] walks), this checks whether
-/// that candidate's namespace has an in-scope import whose pattern's tail
-/// glob-matches `word`. A wildcard import only ever imports names its
-/// source namespace has actually `namespace export`ed (`Tcl_Export`,
-/// `tclNamesp.c`) — an unexported sibling command living in the same
-/// namespace is **not** reachable through the import (tclsh9.0/8.6-verified:
-/// `invalid command name` calling it bare) — so this also requires the source
-/// namespace to have exported a covering pattern **as of that import's own
-/// position** ([`crate::namespace_import::exported_at_import_site`], issue
-/// #1027), not in the document's final export state.
+/// that candidate's namespace **still holds a live imported alias** for
+/// `word` at `call_off` — see [`live_import_at`] for the lifecycle that
+/// question covers (issue #1103), and
+/// [`crate::namespace_import::exported_at_import_site`] for the export
+/// snapshot each import site is judged by (issue #1027).
 ///
 /// Only resolves a source namespace defined in **this** document
 /// (`analysis.all_procs`); a source namespace defined in another file is
@@ -2284,27 +2290,143 @@ fn proc_visible_via_wildcard_import<'a>(
     analysis: &'a AnalysisResult,
     namespace: &str,
     word: &str,
+    call_off: u32,
 ) -> Option<&'a tcl_compiler::analyser::ProcDef> {
+    let source_ns = wildcard_import_source_namespace(analysis, namespace, word, call_off)?;
+    analysis
+        .all_procs
+        .get(&tcl_syntax::naming::qualify(&source_ns, word))
+}
+
+/// Whether a live `namespace import -force` covering `word` has taken the
+/// name away from `namespace`'s own command table by the time the call at
+/// `call_off` runs — the only import that outranks a same-named command the
+/// importing namespace already holds.
+///
+/// Oracle (tclsh 8.6.14 / 9.0.4, byte-identical): with `proc ::dst::p`
+/// returning `LOCAL` and `::src::p` returning `SRC`, `namespace eval ::dst
+/// {namespace import -force ::src::*}` makes `::dst::p` return `SRC` and
+/// `namespace origin ::dst::p` answer `::src::p`. Without `-force` the same
+/// import raises `can't import command "p": already exists` and installs
+/// nothing at all — which [`live_import_at`] models by declining the import
+/// outright, so the two cases agree by construction.
+///
+/// Consulted *before* [`proc_visible_from_namespace`] in
+/// [`resolve_called_proc`], because that is the whole point of `-force`:
+/// from the import's own position onward, the local definition is gone. It
+/// answers a plain boolean rather than a `ProcDef` because the shadow holds
+/// whether or not this document can see the source — a `-force` import of a
+/// namespace defined in *another* file still deletes the local command, and
+/// answering with that local definition would be wrong; the cross-document
+/// resolver takes it from there.
+fn forced_import_shadows(
+    analysis: &AnalysisResult,
+    namespace: &str,
+    word: &str,
+    call_off: u32,
+) -> bool {
+    if word.contains("::") {
+        return false;
+    }
     let path = analysis
         .namespace_paths
         .get(namespace)
         .map_or(&[][..], Vec::as_slice);
-    let source_ns = wildcard_import_source_namespace(analysis, namespace, path, word)?;
-    analysis
-        .all_procs
-        .get(&tcl_syntax::naming::qualify(source_ns, word))
+    import_hop(
+        analysis,
+        namespace,
+        path,
+        word,
+        call_off,
+        ImportQuery::ForcedShadow,
+    )
+    .is_some()
 }
 
-/// Shared candidate walk behind [`proc_visible_via_wildcard_import`] and
-/// [`resolve_class_target_at`]'s wildcard-import fallback: find the first
-/// in-scope `namespace import` whose pattern covers `word`, whose source
-/// namespace has actually exported a matching pattern, and return that
-/// source namespace. `path` is the caller's own `namespace path` entries
-/// (empty for the class resolver, which — like
-/// [`tcl_syntax::naming::bareword_resolution_candidates`] — does not
-/// consult it). The caller joins the result with `word`
-/// ([`tcl_syntax::naming::qualify`]) and looks the qualified name up in
-/// whichever map (`all_procs` / `all_classes`) applies.
+/// [`forced_import_shadows`] over a call's already-computed candidate list —
+/// the shape the cross-document resolver has in hand.
+///
+/// `resolve_workspace_symbols` (`tcl-lsp-server`) is a separate resolver, not
+/// a caller of [`resolve_called_proc`], so it needs its own application of the
+/// same rule: a candidate naming this document's own `proc bar` must not
+/// settle the call while a live `namespace import -force ::Lib::*` has
+/// replaced it — the call reaches `::Lib::bar`, which only the workspace tier
+/// can find. Without this the two resolvers disagree, and the one that answers
+/// first wins with the definition the program no longer has.
+#[must_use]
+pub fn forced_import_shadows_call(
+    analysis: &AnalysisResult,
+    word: &str,
+    resolution_candidates: &[String],
+    call_off: u32,
+) -> bool {
+    if word.contains("::") {
+        return false;
+    }
+    live_import_over_candidates(
+        analysis,
+        resolution_candidates.iter().map(String::as_str),
+        word,
+        call_off,
+        ImportQuery::ForcedShadow,
+    )
+    .is_some()
+}
+
+/// Which question [`import_hop`] / [`live_import_at`] are being asked, and
+/// therefore what an *absent* `namespace export` record means.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ImportQuery {
+    /// "Which namespace does this call really reach?" Every import counts,
+    /// and the export gate is strict: a name the source did not export
+    /// installs nothing, so it must not resolve.
+    Resolve,
+    /// "Has a `namespace import -force` taken this name away from the
+    /// importing namespace's own command table?" ([`forced_import_shadows`])
+    /// Only forced imports count, and the export gate abstains for a source
+    /// namespace this document cannot see at all: `namespace import -force
+    /// ::Lib::*` deletes the local command whether or not `::Lib`'s export
+    /// declaration happens to live in *this* file, and answering with the
+    /// deleted definition would be worse than abstaining. The same
+    /// "absence of an export is evidence only where the definitions are
+    /// visible too" rule `WorkspaceIndex::live_command_links` applies
+    /// cross-document.
+    ForcedShadow,
+}
+
+/// Whether this document can say anything at all about `source_ns` — it holds
+/// a proc or class of that namespace, or an export declaration for it.
+///
+/// The in-document twin of `WorkspaceIndex::observable_namespaces`, and the
+/// discriminator [`ImportQuery::ForcedShadow`] needs between "this namespace
+/// did not export the name" (a fact) and "this namespace is in another file"
+/// (no information).
+fn namespace_is_observable(analysis: &AnalysisResult, source_ns: &str) -> bool {
+    let bare = source_ns.trim_start_matches("::");
+    let owns = |qualified: &String| {
+        qualified
+            .trim_start_matches("::")
+            .rsplit_once("::")
+            .is_some_and(|(ns, _)| ns == bare)
+    };
+    analysis.all_procs.keys().any(owns)
+        || analysis.all_classes.keys().any(owns)
+        || analysis
+            .namespace_exports
+            .iter()
+            .any(|e| e.ns.trim_start_matches("::") == bare)
+}
+
+/// Shared candidate walk behind [`proc_visible_via_wildcard_import`],
+/// [`proc_visible_via_forced_import`] and [`resolve_class_target_at`]'s
+/// import fallback: find the namespace whose command `word` really names
+/// when the call at `call_off` reaches it through one or more import edges,
+/// or `None`.
+///
+/// The caller joins the result with `word` ([`tcl_syntax::naming::qualify`])
+/// and looks the qualified name up in whichever map (`all_procs` /
+/// `all_classes`) applies — which is also the map this walk consults to
+/// decide whether a chain has terminated.
 ///
 /// Restricted to a genuine bareword `word` (no embedded `::`) — `namespace
 /// import` / `namespace export` patterns only ever name simple command
@@ -2313,43 +2435,264 @@ fn proc_visible_via_wildcard_import<'a>(
 /// abstains rather than risk mismatching a namespace-path segment against
 /// an unrelated import.
 ///
-/// The export check is taken **at each import's own position** rather than
-/// against the document's final export state: an import binds the names
-/// exported when it runs, and neither a later `-clear` nor a later `namespace
-/// export` reaches back (issue #1027 — see
-/// [`crate::namespace_import`] for the oracle). Every import site in scope is
-/// tried, so a second, later import that *does* see a name still resolves it.
-fn wildcard_import_source_namespace<'a, S: AsRef<str>>(
-    analysis: &'a AnalysisResult,
+/// # Import chains
+///
+/// An import edge may land on a name that is *itself* imported: with `::C`
+/// exporting `p`, `::B` importing `::C::*` and re-exporting, and `::A`
+/// importing `::B::*`, `::A::p` runs `::C`'s body and `namespace origin
+/// ::A::p` answers `::C::p` (oracle tclsh 8.6.14 / 9.0.4 — issue #1103).
+/// Statically the middle hop is in no `all_procs`, so a single-hop walk
+/// found nothing. This one follows the chain while every hop is provable,
+/// bounded by [`indirection::MAX_COMMAND_NAME_HOPS`] — the same cap the
+/// `rename` / `interp alias` walk applies to the same kind of chain, so a
+/// mutually-importing pair cannot spin — and abstains otherwise.
+///
+/// The whole chain is judged at the *call's* offset, not at each import's:
+/// a forget anywhere along it kills the call (oracle: forgetting `::C::p`
+/// inside `::B` makes `::A::p` an `invalid command name` too, because
+/// deleting an imported command deletes the commands imported *from* it).
+fn wildcard_import_source_namespace(
+    analysis: &AnalysisResult,
     namespace: &str,
-    path: &[S],
     word: &str,
-) -> Option<&'a str> {
+    call_off: u32,
+) -> Option<String> {
     if word.contains("::") {
         return None;
     }
-    for candidate in tcl_syntax::naming::command_resolution_candidates(namespace, path, word) {
-        let Some((prefix, _)) = candidate.rsplit_once("::") else {
+    let mut current = namespace.to_owned();
+    let mut first_hop = true;
+    for _ in 0..indirection::MAX_COMMAND_NAME_HOPS {
+        let path = if first_hop {
+            analysis
+                .namespace_paths
+                .get(current.as_str())
+                .map_or(&[][..], Vec::as_slice)
+        } else {
+            // A chain's inner hop starts from the previous hop's source
+            // namespace, where the alias is an ordinary command of that
+            // namespace — `namespace path` is a *caller*-side search rule and
+            // has no bearing on it.
+            &[][..]
+        };
+        let hop = import_hop(
+            analysis,
+            &current,
+            path,
+            word,
+            call_off,
+            ImportQuery::Resolve,
+        )?;
+        // The chain terminates where a real definition lives: everything the
+        // caller can look the name up in.
+        let qualified = tcl_syntax::naming::qualify(&hop, word);
+        if analysis.all_procs.contains_key(&qualified)
+            || analysis.all_classes.contains_key(&qualified)
+        {
+            return Some(hop);
+        }
+        current = hop;
+        first_hop = false;
+    }
+    None
+}
+
+/// One hop of [`wildcard_import_source_namespace`]: the source namespace of
+/// the live import that makes `word` callable from `namespace` (or one of its
+/// `path` entries) at `call_off`.
+fn import_hop<S: AsRef<str>>(
+    analysis: &AnalysisResult,
+    namespace: &str,
+    path: &[S],
+    word: &str,
+    call_off: u32,
+    query: ImportQuery,
+) -> Option<String> {
+    let candidates = tcl_syntax::naming::command_resolution_candidates(namespace, path, word);
+    live_import_over_candidates(
+        analysis,
+        candidates.iter().map(String::as_str),
+        word,
+        call_off,
+        query,
+    )
+}
+
+/// [`import_hop`] over an already-computed candidate list: the first candidate
+/// namespace holding a live import edge for `word` wins, in Tcl's own
+/// resolution order.
+fn live_import_over_candidates<'c>(
+    analysis: &AnalysisResult,
+    candidates: impl Iterator<Item = &'c str>,
+    word: &str,
+    call_off: u32,
+    query: ImportQuery,
+) -> Option<String> {
+    for candidate in candidates {
+        let Some((prefix, tail)) = candidate.rsplit_once("::") else {
             continue;
         };
+        if tail != word {
+            continue;
+        }
         let candidate_ns = if prefix.is_empty() { "::" } else { prefix };
-        for imp in analysis
-            .namespace_imports
-            .iter()
-            .filter(|i| i.ns == candidate_ns)
-        {
-            let Some((source_ns, export_tail)) = imp.pattern.rsplit_once("::") else {
-                continue;
-            };
-            if source_ns.is_empty() || !tcl_syntax::glob::string_match(export_tail, word) {
-                continue;
-            }
-            if exported_at_import(analysis, source_ns, word, imp.range.start()) {
-                return Some(source_ns);
-            }
+        if let Some(hop) = live_import_at(analysis, candidate_ns, word, call_off, query) {
+            return Some(hop);
         }
     }
     None
+}
+
+/// The source namespace of the import alias `importing_ns` holds for `word`
+/// **at `call_off`**, or `None` when it holds none — the same-document
+/// binding of the shared lifecycle decision
+/// [`crate::namespace_import::alias_live_at`] (issue #1103).
+///
+/// An import edge is a link with a lifecycle, not a standing name-visibility
+/// fact. Four events bear on it, all oracle-confirmed byte-identically on
+/// tclsh 9.0.4 and 8.6.14:
+///
+/// 1. **The import installs it** — gated by the source namespace's export
+///    snapshot at the import's own position
+///    ([`exported_at_import`], issue #1027).
+/// 2. **A conflict makes it install nothing.** Without `-force`, importing
+///    onto a name the target namespace already holds raises `can't import
+///    command "p": already exists`; the local command survives and
+///    `namespace origin` still answers the local. Such an import is declined
+///    here. (Modelling the *error* — that the rest of that script never runs
+///    — is deliberately out of scope; only the "installed nothing" half is
+///    modelled.) With `-force` the import wins instead, which is what
+///    [`ImportQuery::ForcedShadow`] selects for.
+/// 3. **`namespace forget` removes it** — `namespace forget ::src::p`, or the
+///    simple form `namespace forget p`, and a later bare call is `invalid
+///    command name`.
+/// 4. **Deleting the source command removes it** — the alias holds the
+///    command *object*, so `rename ::src::p {}` kills `::dst::p` too, while a
+///    plain `rename ::src::p ::src::pp` leaves it alive (only the origin
+///    moves) and a redefinition of `::src::p` is seen straight through the
+///    link. That asymmetry is `indirection`'s own
+///    rename-captures-object-identity rule, which is why only the *deletion*
+///    appears here.
+///
+/// Ordering is [`indirection::in_effect`] — the same "had this statement
+/// run?" primitive the export snapshot and the `rename` / `interp alias`
+/// timeline use, so none of them can disagree about what "already ran" means.
+/// It gates the *removals*; whether a call written before its own import
+/// should stop resolving is #1104 item 1's separate, still-open leniency (see
+/// [`crate::namespace_import::alias_live_at`]).
+fn live_import_at(
+    analysis: &AnalysisResult,
+    importing_ns: &str,
+    word: &str,
+    call_off: u32,
+    query: ImportQuery,
+) -> Option<String> {
+    use crate::namespace_import::{AliasEvent, AliasEventKind};
+    let visible = |at: u32| indirection::in_effect(analysis, at, call_off);
+    // The install events: every import of this namespace whose pattern covers
+    // `word`, whose source had exported it, and which a conflict did not
+    // reduce to a no-op.
+    let mut latest: Option<(u32, &str)> = None;
+    let mut installs: Vec<(u32, &str)> = Vec::new();
+    for imp in analysis
+        .namespace_imports
+        .iter()
+        .filter(|i| i.ns == importing_ns)
+    {
+        if query == ImportQuery::ForcedShadow && !imp.forced {
+            continue;
+        }
+        let Some((source_ns, export_tail)) = imp.pattern.rsplit_once("::") else {
+            continue;
+        };
+        if source_ns.is_empty() || !tcl_syntax::glob::string_match(export_tail, word) {
+            continue;
+        }
+        let at = imp.range.start();
+        if !exported_at_import(analysis, source_ns, word, at)
+            && (query == ImportQuery::Resolve || namespace_is_observable(analysis, source_ns))
+        {
+            continue;
+        }
+        if !imp.forced && local_command_in_effect_at(analysis, importing_ns, word, at) {
+            continue;
+        }
+        installs.push((at, source_ns));
+        // The latest install wins the source namespace — a second import of
+        // the same name from elsewhere replaces the first alias, exactly as a
+        // second `namespace import` re-snapshots the export list. Deliberately
+        // *not* filtered by `visible`: whether a call written before its own
+        // import should stop resolving is the separate, still-open leniency
+        // #1104 item 1 — see `crate::namespace_import::alias_live_at`.
+        if latest.is_none_or(|(best, _)| at > best) {
+            latest = Some((at, source_ns));
+        }
+    }
+    let (_, source_ns) = latest?;
+    let removals = analysis
+        .namespace_forgets
+        .iter()
+        .filter(|f| {
+            f.ns == importing_ns
+                && f.source_ns.as_deref().is_none_or(|src| {
+                    src.trim_start_matches("::") == source_ns.trim_start_matches("::")
+                })
+                && tcl_syntax::glob::string_match(&f.pattern, word)
+        })
+        .map(|f| AliasEvent {
+            kind: AliasEventKind::Remove,
+            at: Some(f.range.start()),
+        })
+        .chain(
+            analysis
+                .destroyed_commands
+                .get(&tcl_syntax::naming::qualify(source_ns, word))
+                .map(|&at| AliasEvent {
+                    kind: AliasEventKind::Remove,
+                    at: Some(at),
+                }),
+        );
+    // Only the winning source's own installs order against its removals: an
+    // import of the same name from a *different* namespace is a different
+    // edge, and letting it out-date this edge's forget would resurrect it.
+    let mut events = installs
+        .iter()
+        .filter(|(_, ns)| *ns == source_ns)
+        .map(|&(at, _)| AliasEvent {
+            kind: AliasEventKind::Install,
+            at: Some(at),
+        })
+        .chain(removals);
+    crate::namespace_import::alias_live_at(&mut events, &visible).then(|| source_ns.to_owned())
+}
+
+/// Whether `importing_ns` already holds its own command named `word` by the
+/// time the import at `import_at` runs — the conflict a non-`-force`
+/// `namespace import` aborts on (case 2 of [`live_import_at`]).
+///
+/// A definition written *after* the import is not a conflict: the import
+/// succeeds and the later `proc` simply replaces the alias, which the
+/// ordinary namespace lookup already answers. So every declaration is
+/// order-gated by [`indirection::in_effect`] — the same "had this statement
+/// run?" primitive the rest of this module uses — rather than tested for mere
+/// presence. (`AnalysisResult::proc_def_in_effect_at` answers a different
+/// question — *which* of several declarations a call captured — and
+/// deliberately falls back to the winner when none precedes the offset, so it
+/// cannot serve as an existence gate here.)
+fn local_command_in_effect_at(
+    analysis: &AnalysisResult,
+    importing_ns: &str,
+    word: &str,
+    import_at: u32,
+) -> bool {
+    let qualified = tcl_syntax::naming::qualify(importing_ns, word);
+    analysis
+        .proc_declarations(&qualified)
+        .any(|p| indirection::in_effect(analysis, p.name_span.start(), import_at))
+        || analysis
+            .all_classes
+            .get(&qualified)
+            .is_some_and(|c| indirection::in_effect(analysis, c.name_span.start(), import_at))
 }
 
 /// Whether `source_ns` had exported `word` by the time the `namespace import`
@@ -2382,8 +2725,23 @@ pub(crate) fn exported_at_import(
             at: Some(e.range.start()),
         });
     crate::namespace_import::exported_at_import_site(&mut events, word, &|at| {
-        tcl_compiler::analyser::indirection::in_effect(analysis, at, import_at)
+        indirection::in_effect(analysis, at, import_at)
     })
+}
+
+/// Whether the call at `call_off` in `namespace` reaches `def_qualified`
+/// through a live import edge — the entry point `references.rs` shares with
+/// go-to-definition so the two cannot disagree about an import's lifecycle.
+///
+/// Returns the terminal source namespace the chain lands on, which the caller
+/// compares against the definition it is gathering references for.
+pub(crate) fn import_chain_target(
+    analysis: &AnalysisResult,
+    namespace: &str,
+    word: &str,
+    call_off: u32,
+) -> Option<String> {
+    wildcard_import_source_namespace(analysis, namespace, word, call_off)
 }
 
 /// Resolve a call `word` written in `namespace` to the proc it denotes:
@@ -2416,10 +2774,21 @@ pub(crate) fn resolve_called_proc<'a>(
     source: &str,
     namespace: &str,
     word: &str,
+    call_off: u32,
     registry: Option<&tcl_registry::CommandRegistry>,
 ) -> Option<&'a tcl_compiler::analyser::ProcDef> {
     let has_builtin = registry.is_some_and(|r| r.get(word).is_some());
-    if let Some(proc_def) = proc_visible_from_namespace(analysis, namespace, word) {
+    // A `namespace import -force` *replaces* a same-named command the
+    // importing namespace already holds, so from its own position onward the
+    // local definition is no longer what a bare call reaches (oracle on
+    // [`forced_import_shadows`]). The ordinary namespace lookup is therefore
+    // skipped entirely while such a shadow is live — including when the
+    // import's source lives in another file, where answering with the local
+    // definition would be the wrong answer and the cross-document resolver is
+    // the one that can answer.
+    let forced_shadow = forced_import_shadows(analysis, namespace, word, call_off);
+    if !forced_shadow && let Some(proc_def) = proc_visible_from_namespace(analysis, namespace, word)
+    {
         let nested_shadow = has_builtin
             && analysis.offset_is_inside_any_definition_body(proc_def.name_span.start());
         if !nested_shadow {
@@ -2433,14 +2802,20 @@ pub(crate) fn resolve_called_proc<'a>(
     // priority tier (same nested-shadow gate) so an unconditional
     // top-level import still outranks a same-named builtin, matching how
     // an equivalent top-level `proc` redefinition already would.
-    if let Some(proc_def) = proc_visible_via_wildcard_import(analysis, namespace, word) {
+    if let Some(proc_def) = proc_visible_via_wildcard_import(analysis, namespace, word, call_off) {
         let nested_shadow = has_builtin
             && analysis.offset_is_inside_any_definition_body(proc_def.name_span.start());
         if !nested_shadow {
             return Some(proc_def);
         }
     }
-    if has_builtin {
+    if has_builtin || forced_shadow {
+        // With a `-force` shadow live, this document's own command of that
+        // name is gone; the lenient tail match must not resurrect it (nor
+        // reach for a same-named proc in some unrelated namespace). Whatever
+        // the import's source namespace holds is the answer, and the
+        // cross-document resolver is the one that can find it when the source
+        // lives in another file.
         return None;
     }
     fallback_proc_by_simple_name(analysis, source, word)
@@ -2515,7 +2890,7 @@ pub(crate) fn resolve_proc_target_at<'a>(
         cursor_off,
         &analysis.namespace_overrides,
     );
-    let proc_def = resolve_called_proc(analysis, source, &ns, word, registry)?;
+    let proc_def = resolve_called_proc(analysis, source, &ns, word, cursor_off, registry)?;
     analysis.all_procs.get_key_value(&proc_def.qualified_name)
 }
 
@@ -2565,10 +2940,10 @@ pub(crate) fn resolve_class_target_at<'a>(
     // callable bare — see [`proc_visible_via_wildcard_import`] for the full
     // rationale (issue #923 idx 18); classes never consult `namespace path`,
     // matching `bareword_resolution_candidates` above.
-    let source_ns = wildcard_import_source_namespace(analysis, &ns, &[] as &[&str], word)?;
+    let source_ns = wildcard_import_source_namespace(analysis, &ns, word, cursor_off)?;
     analysis
         .all_classes
-        .get_key_value(&tcl_syntax::naming::qualify(source_ns, word))
+        .get_key_value(&tcl_syntax::naming::qualify(&source_ns, word))
 }
 
 /// Deterministic replacement for the old first-`HashMap`-hit tail match: of
@@ -3017,7 +3392,7 @@ mod tests {
         // visible, not the gate this test is proving.
         let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    proc other {} { return 2 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nother\n";
         let analysis = analyse(src);
-        let hit = proc_visible_via_wildcard_import(&analysis, "::", "other");
+        let hit = proc_visible_via_wildcard_import(&analysis, "::", "other", u32::MAX);
         assert!(
             hit.is_none(),
             "an unexported sibling must stay unresolved through the wildcard import: {hit:?}"
@@ -3107,7 +3482,7 @@ mod tests {
         // and `info commands ::dst::*` still lists `::dst::p`.
         let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export -clear\n}\n";
         let analysis = analyse(src);
-        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p");
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
         assert!(
             hit.is_some_and(|p| p.qualified_name == "::src::p"),
             "a `-clear` written after the import must not revoke it: {hit:?}"
@@ -3123,7 +3498,7 @@ mod tests {
         // p}; ::dst::p` → `invalid command name "::dst::p"`.
         let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\n";
         let analysis = analyse(src);
-        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p");
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
         assert!(
             hit.is_none(),
             "an export written after the import must not apply retroactively: {hit:?}"
@@ -3142,7 +3517,7 @@ mod tests {
         let src = "namespace eval src {\n    proc p {} { return P }\n    proc q {} { return Q }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export -clear p q\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
         let analysis = analyse(src);
         for name in ["p", "q"] {
-            let hit = proc_visible_via_wildcard_import(&analysis, "dst", name);
+            let hit = proc_visible_via_wildcard_import(&analysis, "dst", name, u32::MAX);
             assert!(
                 hit.is_some(),
                 "the second import must see `{name}`: {hit:?}"
@@ -3158,7 +3533,7 @@ mod tests {
         // returns the empty list, and the later import binds no command.
         let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n    namespace export -clear\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
         let analysis = analyse(src);
-        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p");
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
         assert!(
             hit.is_none(),
             "a `-clear` before the import leaves nothing exported: {hit:?}"
@@ -3173,11 +3548,11 @@ mod tests {
         let src = "namespace eval src {\n    proc a {} { return A }\n    proc p {} { return P }\n    namespace export a\n    namespace export -clear p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
         let analysis = analyse(src);
         assert!(
-            proc_visible_via_wildcard_import(&analysis, "dst", "p").is_some(),
+            proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX).is_some(),
             "the `-clear` call's own pattern survives it"
         );
         assert!(
-            proc_visible_via_wildcard_import(&analysis, "dst", "a").is_none(),
+            proc_visible_via_wildcard_import(&analysis, "dst", "a", u32::MAX).is_none(),
             "the pattern cleared by the same call must not survive"
         );
     }
@@ -3192,7 +3567,7 @@ mod tests {
         let analysis = analyse(src);
         for name in ["a", "b"] {
             assert!(
-                proc_visible_via_wildcard_import(&analysis, "dst", name).is_some(),
+                proc_visible_via_wildcard_import(&analysis, "dst", name, u32::MAX).is_some(),
                 "`{name}` must stay exported — `namespace export` is additive"
             );
         }
@@ -3205,8 +3580,8 @@ mod tests {
         // `getX` (`::dst::setX` → `invalid command name`).
         let src = "namespace eval src {\n    proc getX {} { return GX }\n    proc setX {} { return SX }\n    namespace export get*\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
         let analysis = analyse(src);
-        assert!(proc_visible_via_wildcard_import(&analysis, "dst", "getX").is_some());
-        assert!(proc_visible_via_wildcard_import(&analysis, "dst", "setX").is_none());
+        assert!(proc_visible_via_wildcard_import(&analysis, "dst", "getX", u32::MAX).is_some());
+        assert!(proc_visible_via_wildcard_import(&analysis, "dst", "setX", u32::MAX).is_none());
     }
 
     #[test]
@@ -3219,7 +3594,7 @@ mod tests {
         let src = "namespace eval src {\n    namespace export p\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
         let analysis = analyse(src);
         assert!(
-            proc_visible_via_wildcard_import(&analysis, "dst", "p").is_some(),
+            proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX).is_some(),
             "`namespace export` names a pattern, not an existing command"
         );
     }
@@ -3237,7 +3612,7 @@ mod tests {
         // plain offset compare did not, which is what the review caught.
         let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    proc setup {} { namespace import ::src::* }\n}\nnamespace eval src {\n    namespace export p\n}\n";
         let analysis = analyse(src);
-        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p");
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
         assert!(
             hit.is_some_and(|p| p.qualified_name == "::src::p"),
             "a body-local import observes a top-level export written later in \
@@ -3254,7 +3629,7 @@ mod tests {
         // p}}` then `::dst::setup` leaves `::dst::p` an invalid command name.
         let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    proc setup {} { namespace import ::src::* ; namespace eval ::src { namespace export p } }\n}\n";
         let analysis = analyse(src);
-        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p");
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
         assert!(
             hit.is_none(),
             "an export written after the import in the same body has not run \
@@ -3272,7 +3647,7 @@ mod tests {
         // Consuming both words as flags dropped the export entirely.
         let src = "namespace eval src {\n    proc -clear {} { return DC }\n    namespace export -clear -clear\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
         let analysis = analyse(src);
-        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "-clear");
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "-clear", u32::MAX);
         assert!(
             hit.is_some_and(|p| p.qualified_name == "::src::-clear"),
             "the second `-clear` is an export pattern, not a second flag: {hit:?}"
@@ -3296,6 +3671,332 @@ mod tests {
             locs[0].start_line, 1,
             "must resolve to Foo::bar's declaration"
         );
+    }
+
+    // ---- the import edge's own lifecycle (issue #1103) -------------------
+    //
+    // #1102 made the import edge a *snapshot* fact; these pin it as a **link
+    // with a lifetime**. Every case is oracle-pinned against tclsh 9.0.4 and
+    // 8.6.14, byte-identical on both, and drives
+    // `proc_visible_via_wildcard_import` / `proc_visible_via_forced_import`
+    // directly for the same reason the #1027 block above does: the lenient
+    // `fallback_proc_by_simple_name` in `resolve_called_proc` would answer
+    // either way and prove nothing about this gate.
+
+    /// Byte offset just past the last occurrence of `needle`.
+    fn after_last(src: &str, needle: &str) -> u32 {
+        u32::try_from(src.rfind(needle).expect("needle present") + needle.len())
+            .expect("tiny test source")
+    }
+
+    /// Byte offset of the first occurrence of `needle`.
+    fn at_first(src: &str, needle: &str) -> u32 {
+        u32::try_from(src.find(needle).expect("needle present")).expect("tiny test source")
+    }
+
+    // Behaviour 1 — `namespace forget`.
+
+    #[test]
+    fn a_forget_after_the_import_stops_resolving_the_alias() {
+        // TN (the bug): oracle
+        //   namespace eval ::src { proc p {} {return P}; namespace export p }
+        //   namespace eval ::dst { namespace import ::src::* }
+        //   namespace eval ::dst { p }                        → P
+        //   namespace eval ::dst { namespace forget ::src::p }
+        //   namespace eval ::dst { p }                        → invalid command name "p"
+        //   info commands ::dst::*                            → (empty)
+        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
+        assert!(
+            hit.is_none(),
+            "a forgotten alias must stop resolving after the forget: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_call_before_the_forget_still_resolves() {
+        // TP — the forget is order-gated, not file-wide: a call written
+        // between the import and the forget still reaches `::src::p`.
+        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\np\nnamespace eval dst {\n    namespace forget ::src::p\n}\n";
+        let analysis = analyse(src);
+        let call = at_first(src, "\np\n") + 1;
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", call);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::src::p"),
+            "a call before the forget is unaffected by it: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_glob_forget_removes_every_matching_alias() {
+        // TN — oracle: `namespace forget ::src::*` empties `info commands
+        // ::dst::*` entirely.
+        let src = "namespace eval src {\n    proc p {} { return P }\n    proc q {} { return Q }\n    namespace export *\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::*\n}\n";
+        let analysis = analyse(src);
+        for name in ["p", "q"] {
+            assert!(
+                proc_visible_via_wildcard_import(&analysis, "dst", name, u32::MAX).is_none(),
+                "`{name}` must be forgotten by the glob pattern"
+            );
+        }
+    }
+
+    #[test]
+    fn a_simple_forget_pattern_removes_the_alias_too() {
+        // TN — `Tcl_ForgetImport`'s unqualified branch: the pattern is matched
+        // against this namespace's own imported command names, whatever their
+        // origin. Oracle: `namespace eval ::dst {namespace forget p}` leaves
+        // `info commands ::dst::*` empty and raises no error.
+        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget p\n}\n";
+        let analysis = analyse(src);
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX).is_none(),
+            "an unqualified forget pattern removes the alias too"
+        );
+    }
+
+    #[test]
+    fn a_forget_of_an_unrelated_source_leaves_the_alias_alone() {
+        // FP guard — a qualified forget names the source whose imports it
+        // removes; one naming a *different* namespace must not touch this
+        // alias.
+        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval other {\n    proc p {} { return O }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::other::p\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::src::p"),
+            "a forget aimed at another source namespace revokes nothing: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_re_import_after_a_forget_resolves_again() {
+        // TP — the log is ordered, not a one-way tombstone: re-running the
+        // import after the forget installs the alias again (oracle: the bare
+        // call works once more).
+        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::src::p"),
+            "a later re-import reinstates the alias: {hit:?}"
+        );
+    }
+
+    // Behaviour 2 — `-force` / import-conflict semantics.
+
+    #[test]
+    fn a_forced_import_shadows_the_local_command() {
+        // TP (the bug): oracle
+        //   namespace eval ::src { proc p {} {return SRC}; namespace export p }
+        //   namespace eval ::dst { proc p {} {return LOCAL} }
+        //   ::dst::p                                   → LOCAL
+        //   namespace eval ::dst { namespace import -force ::src::* }
+        //   ::dst::p                                   → SRC
+        //   namespace origin ::dst::p                  → ::src::p
+        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    p\n}\n";
+        let analysis = analyse(src);
+        let call = after_last(src, "    p\n");
+        let hit = resolve_called_proc(&analysis, src, "::dst", "p", call, None);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::src::p"),
+            "a `-force` import replaces the local command: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn an_unforced_import_onto_an_existing_command_installs_nothing() {
+        // TN (the other bug): the same program without `-force` raises `can't
+        // import command "p": already exists`, the local survives, and
+        // `namespace origin ::dst::p` answers `::dst::p`. The import must not
+        // make the call a reference to `::src::p`.
+        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let analysis = analyse(src);
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX).is_none(),
+            "a conflicting non-`-force` import installs nothing"
+        );
+        // …and the ordinary namespace lookup still answers the local.
+        let hit = resolve_called_proc(&analysis, src, "::dst", "p", u32::MAX, None);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::dst::p"),
+            "the local definition survives the failed import: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_local_defined_after_the_import_is_not_a_conflict() {
+        // FP guard — the conflict is judged at the *import's* position: a
+        // `proc` written after it simply replaces the alias, which the
+        // ordinary namespace lookup answers, and must not retroactively make
+        // the import a no-op for calls sitting between the two.
+        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::src::p"),
+            "a later local definition is not a conflict at the import: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn an_unforced_import_without_a_conflict_still_installs() {
+        // FN guard — the conflict rule must not fire when the importing
+        // namespace holds nothing of that name (the overwhelmingly common
+        // case, oracle `H` row: `::dst::p` → `SRC`).
+        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let analysis = analyse(src);
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX).is_some(),
+            "an unconflicted import still installs"
+        );
+    }
+
+    #[test]
+    fn a_forced_import_before_the_call_does_not_shadow_a_later_call_site() {
+        // FP guard on the `-force` shortcut: it outranks the local lookup
+        // only where a live import edge really covers the word. With the
+        // forced import forgotten again, the local definition wins back.
+        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\nnamespace eval dst {\n    p\n}\n";
+        let analysis = analyse(src);
+        let call = after_last(src, "    p\n");
+        let hit = resolve_called_proc(&analysis, src, "::dst", "p", call, None);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::dst::p"),
+            "after the forget the local definition is what the call reaches: {hit:?}"
+        );
+    }
+
+    // Behaviour 3 — source rename / delete / redefine after the import.
+
+    #[test]
+    fn deleting_the_source_command_kills_the_alias() {
+        // TN (the bug): oracle
+        //   namespace eval ::src { proc p {} {return P}; namespace export p }
+        //   namespace eval ::dst { namespace import ::src::* }
+        //   ::dst::p              → P
+        //   rename ::src::p {}
+        //   ::dst::p              → invalid command name "::dst::p"
+        //   info commands ::dst::* → (empty)
+        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nrename ::src::p {}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
+        assert!(
+            hit.is_none(),
+            "the alias holds the command object, so deleting it kills the alias: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn renaming_the_source_command_leaves_the_alias_alive() {
+        // TP — the crucial asymmetry: oracle
+        //   rename ::src::p ::src::pp
+        //   ::dst::p                  → P          (still works)
+        //   namespace origin ::dst::p → ::src::pp  (only the origin moved)
+        //   info commands ::dst::*    → ::dst::p
+        // A model that treated any `rename` of the source as a removal would
+        // lose a genuinely-live command here.
+        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nrename ::src::p ::src::pp\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::src::p"),
+            "a rename moves the origin but keeps the alias: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_call_before_the_source_deletion_still_resolves() {
+        // FP guard — the deletion is order-gated like every other lifecycle
+        // event, so a call written before it is unaffected.
+        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\np\nrename ::src::p {}\n";
+        let analysis = analyse(src);
+        let call = at_first(src, "\np\n") + 1;
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "dst", "p", call).is_some(),
+            "a call before the deletion still reaches the source"
+        );
+    }
+
+    #[test]
+    fn a_redefinition_of_the_source_is_seen_through_the_link() {
+        // TP — oracle: redefining `::src::p` after the import makes `::dst::p`
+        // run the *new* body (`SECOND`), with `namespace origin ::dst::p`
+        // still `::src::p`. The alias re-reads the source at call time, so the
+        // definition a call reaches is the one in effect at the *call*, not
+        // the one in effect at the import.
+        let src = "namespace eval src {\n    proc p {} { return FIRST }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    proc p {} { return SECOND }\n}\ndst::p\n";
+        let analysis = analyse(src);
+        let call = after_last(src, "dst::p");
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", call).expect("alias");
+        let captured = analysis
+            .proc_def_in_effect_at(&hit.qualified_name, call)
+            .expect("definition in effect at the call");
+        assert_eq!(
+            captured.name_span.start(),
+            at_first(src, "p {} { return SECOND }"),
+            "the redefinition is seen through the link"
+        );
+    }
+
+    // Behaviour 4 — import chains.
+
+    #[test]
+    fn an_import_chain_follows_to_the_original_source() {
+        // TP (the bug): oracle
+        //   namespace eval ::C { proc p {} {return CP}; namespace export p }
+        //   namespace eval ::B { namespace import ::C::*; namespace export p }
+        //   namespace eval ::A { namespace import ::B::* }
+        //   ::A::p                    → CP
+        //   namespace origin ::A::p   → ::C::p
+        // Statically `::B::p` is in no `all_procs`, so a single-hop walk found
+        // nothing and navigation abstained.
+        let src = "namespace eval C {\n    proc p {} { return CP }\n    namespace export p\n}\nnamespace eval B {\n    namespace import ::C::*\n    namespace export p\n}\nnamespace eval A {\n    namespace import ::B::*\n}\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "A", "p", u32::MAX);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::C::p"),
+            "the chain must follow ::A → ::B → ::C: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_forget_in_the_middle_of_a_chain_kills_the_whole_chain() {
+        // TN — oracle: `namespace eval ::B {namespace forget ::C::p}` makes
+        // `::A::p` an `invalid command name` too, because deleting an imported
+        // command deletes the commands imported *from* it. Both `info commands
+        // ::A::*` and `::B::*` come back empty.
+        let src = "namespace eval C {\n    proc p {} { return CP }\n    namespace export p\n}\nnamespace eval B {\n    namespace import ::C::*\n    namespace export p\n}\nnamespace eval A {\n    namespace import ::B::*\n}\nnamespace eval B {\n    namespace forget ::C::p\n}\n";
+        let analysis = analyse(src);
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "A", "p", u32::MAX).is_none(),
+            "a forget in the middle hop kills the outer alias too"
+        );
+    }
+
+    #[test]
+    fn a_chain_hop_that_was_never_exported_does_not_resolve() {
+        // FN guard — each hop keeps its own export gate: with `::B` importing
+        // `::C::*` but never re-exporting `p`, `::A`'s import of `::B::*`
+        // binds nothing (oracle: `::A::p` → invalid command name).
+        let src = "namespace eval C {\n    proc p {} { return CP }\n    namespace export p\n}\nnamespace eval B {\n    namespace import ::C::*\n}\nnamespace eval A {\n    namespace import ::B::*\n}\n";
+        let analysis = analyse(src);
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "A", "p", u32::MAX).is_none(),
+            "the middle hop must have exported the name for the chain to run"
+        );
+    }
+
+    #[test]
+    fn a_mutually_importing_pair_terminates() {
+        // FP/hang guard — two namespaces importing each other's `*` form a
+        // cycle with no definition at either end; the walk is bounded by
+        // `indirection::MAX_COMMAND_NAME_HOPS` and must simply abstain.
+        let src = "namespace eval A {\n    namespace import ::B::*\n    namespace export *\n}\nnamespace eval B {\n    namespace import ::A::*\n    namespace export *\n}\n";
+        let analysis = analyse(src);
+        assert!(proc_visible_via_wildcard_import(&analysis, "A", "p", u32::MAX).is_none());
+        assert!(proc_visible_via_wildcard_import(&analysis, "B", "p", u32::MAX).is_none());
     }
 
     #[test]

@@ -1574,9 +1574,14 @@ fn inline_proc_action(
         head_off,
         &analysis.namespace_overrides,
     );
-    let Some(proc_def) =
-        crate::definition::resolve_called_proc(analysis, source, &ns, head, Some(registry))
-    else {
+    let Some(proc_def) = crate::definition::resolve_called_proc(
+        analysis,
+        source,
+        &ns,
+        head,
+        head_off,
+        Some(registry),
+    ) else {
         return Vec::new();
     };
     // Body text (strip the outer braces). `body_span` may exclude the proc's

@@ -142,6 +142,52 @@ not change the rule, and must not grow bespoke resolution logic. Every
   (`tcl_lsp_core::namespace_import::exported_at_import_site`), under one
   shared execution-order rule (`analyser::indirection::in_effect` /
   `in_effect_within`). Issue #1027.
+
+  The import edge is a **link with a lifecycle**, not a standing
+  name-visibility fact (issue #1103; every row below oracle-pinned on tclsh
+  9.0.4 + 8.6.14, byte-identical):
+
+  - **`namespace forget` removes the alias.** `namespace forget ::src::p`
+    empties `info commands ::dst::*` of it and a later bare call is `invalid
+    command name`. Both `Tcl_ForgetImport` pattern shapes hold: a *qualified*
+    pattern names the source namespace whose imports are dropped, a *simple*
+    one matches the forgetting namespace's own imported command names whatever
+    their origin. Forgetting a name that was never imported is a silent no-op;
+    only an unknown namespace in a qualified pattern errors. A later re-import
+    reinstates the alias.
+  - **`-force` decides the conflict.** Importing onto a name the target
+    namespace already holds aborts (`can't import command "p": already
+    exists`) and installs nothing — the local command survives and `namespace
+    origin` still answers it; with `-force` the import silently replaces the
+    local command and `namespace origin` answers the source. Statically the
+    "installed nothing" / "replaced the local" halves are both modelled; the
+    error's *control-flow* consequence (nothing after it in that script runs)
+    is deliberately out of scope.
+  - **A source *delete* kills the alias, a source *rename* does not.**
+    `rename ::src::p {}` makes `::dst::p` an `invalid command name`, while
+    `rename ::src::p ::src::pp` leaves it working and merely moves the origin
+    — the alias holds the command *object*, the same
+    rename-captures-object-identity rule `analyser::indirection` already
+    models. A redefinition of the source is seen straight through the link.
+  - **Chains follow.** `::A` importing `::B::*` where `::B` imported `::C::*`
+    makes `::A::p` run `::C`'s body, with `namespace origin ::A::p` → `::C::p`;
+    a forget anywhere along the chain kills the whole thing (deleting an
+    imported command deletes the commands imported from it). Both LSP tiers
+    follow the chain while every hop is provable, bounded by
+    `analyser::indirection::MAX_COMMAND_NAME_HOPS`, and abstain otherwise.
+
+  Statically the removals join the same ordered event log: `namespace forget`
+  as `SignatureNamespaceForget`, a destroying `rename OLD {}` /
+  `interp alias {} NAME {}` as `AnalysisResult::destroyed_commands` (a *re*name
+  is deliberately absent from it), and `-force` as
+  `SignatureNamespaceImport::forced` — read, like `-clear`, as "the declared
+  leading option word was consumed", never as a `-force` name match. Both tiers
+  answer through one shared decision function
+  (`tcl_lsp_core::namespace_import::alias_live_at`), under the same
+  `in_effect` / `in_effect_within` order rule as the export snapshot. Removals
+  abstain toward *keeping* the alias: one in another file has no static load
+  order and revokes nothing, and one written inside a proc/class body is
+  conditional and is not published at all.
 - **`unknown` / `namespace unknown`** fire only after the full candidate
   walk (path included) misses. `namespace unknown` handlers are
   **per-namespace, NOT inherited** by children; the global namespace's

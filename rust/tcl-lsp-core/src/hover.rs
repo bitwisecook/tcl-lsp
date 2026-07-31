@@ -233,8 +233,14 @@ fn ensemble_subcommand_hover(
         &analysis.namespace_overrides,
     );
     let target = crate::definition::ensemble_subcommand_target(analysis, &namespace, &head, &sub)?;
-    let proc_def =
-        crate::definition::resolve_called_proc(analysis, source, "::", target, registry)?;
+    let proc_def = crate::definition::resolve_called_proc(
+        analysis,
+        source,
+        "::",
+        target,
+        cursor_offset,
+        registry,
+    )?;
     let text = format!(
         "**Ensemble subcommand** of `{head}`\n\n{}",
         proc_hover_text(proc_def)
@@ -302,8 +308,14 @@ fn proc_hover_at(
         cursor_offset,
         &analysis.namespace_overrides,
     );
-    let proc_def =
-        crate::definition::resolve_called_proc(analysis, source, &namespace, word, registry)?;
+    let proc_def = crate::definition::resolve_called_proc(
+        analysis,
+        source,
+        &namespace,
+        word,
+        cursor_offset,
+        registry,
+    )?;
     Some(Hover::markdown(proc_hover_text(proc_def)))
 }
 

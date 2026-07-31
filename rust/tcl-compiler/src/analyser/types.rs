@@ -28,7 +28,7 @@ use tcl_lexer::Span;
 
 use crate::signature_scan::types::{
     ParamDef, SignatureCommandAlias, SignatureCommandInvocation, SignatureNamespaceExport,
-    SignatureNamespaceImport, SignaturePackageRequire, SignatureSource,
+    SignatureNamespaceForget, SignatureNamespaceImport, SignaturePackageRequire, SignatureSource,
 };
 
 pub use tcl_core_types::DiagCode;
@@ -1054,6 +1054,42 @@ pub struct AnalysisResult {
     pub ensemble_subcommand_targets: HashMap<String, HashMap<String, String>>,
     /// Namespace import records.
     pub namespace_imports: Vec<SignatureNamespaceImport>,
+    /// Namespace `forget` records — the removal half of the import edge's
+    /// ordered lifecycle log (issue #1103). See
+    /// [`SignatureNamespaceForget`] for the oracle: an import installs an
+    /// alias, `namespace forget` takes it away again, and a bare call after
+    /// the forget is `invalid command name`. Consumed together with
+    /// [`Self::namespace_imports`] by
+    /// `tcl_lsp_core::namespace_import::alias_live_at`, under the same
+    /// order gate ([`super::indirection::in_effect`]) the export snapshot
+    /// and the `rename` / `interp alias` timeline already use.
+    pub namespace_forgets: Vec<SignatureNamespaceForget>,
+    /// Byte offset of the statement that **destroyed** each qualified command
+    /// — `rename OLD {}` and `interp alias {} NAME {}`, the two forms that
+    /// delete the command *object* rather than move it.
+    ///
+    /// A destruction is a lifecycle event on every `namespace import` edge
+    /// pointing at the command: the alias holds the object, so destroying it
+    /// kills the alias too (oracle tclsh 8.6.14 / 9.0.4 — with `::dst::p`
+    /// imported from `::src::p`, `rename ::src::p {}` makes `::dst::p` an
+    /// `invalid command name` and empties `info commands ::dst::*`). Issue
+    /// #1103.
+    ///
+    /// A **rename** is deliberately absent, which is why this is not
+    /// [`super::state::Analyser::deleted_commands`] (whose "`OLD` is no
+    /// longer callable under that name" meaning covers both forms, because
+    /// that is what its W123 / arity consumers ask). `rename ::src::p
+    /// ::src::pp` keeps `::dst::p` working and merely moves the origin
+    /// (`namespace origin ::dst::p` → `::src::pp`) — the same
+    /// rename-captures-object-identity rule
+    /// [`super::indirection`] already models.
+    ///
+    /// Only straight-line (non-conditional) **load-level** destructions are
+    /// recorded: one written inside a proc/class body runs at call time, when
+    /// and if that definition is invoked, and a consumer that revoked an alias
+    /// on it would drop a genuinely-live command
+    /// ([`super::state::Analyser::publish_load_level_destructions`]).
+    pub destroyed_commands: HashMap<String, u32>,
     /// Namespace `export` records — see [`SignatureNamespaceExport`] for why
     /// they exist (gating wildcard-import bareword resolution, issue #923
     /// idx 18).

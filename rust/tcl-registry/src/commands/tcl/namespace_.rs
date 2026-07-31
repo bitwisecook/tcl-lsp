@@ -348,6 +348,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // suppression.
         destructive: true,
         return_type: Some(TclType::String),
+        // The removal half of the import edge's lifecycle: the analyser
+        // records each pattern as an ordered event so a bare call written
+        // after the forget stops resolving through the alias it removed
+        // (issue #1103; `namespace import`'s own hook is the install half).
+        analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceForget),
         ..SubCommand::DEFAULT
     },
     SubCommand {

@@ -53,6 +53,35 @@ created would freeze a cross-document answer that goes stale as soon as the
 exporting file is edited.  `interp alias` / `rename` links, and imports merely
 *conjectured* from a tcllib `<NS>::import <ALIAS>` wrapper, carry no gate.
 
+The edge also has a **lifecycle** after it is installed (issue #1103), so the
+tier indexes its removals beside the exports: `namespace_forgets` (one row per
+`namespace forget` pattern, carrying the qualified pattern's source namespace
+or `None` for the simple form) and `command_deletions` (a *destroying* `rename
+OLD {}` / `interp alias {} NAME {}` — a plain rename is not one, because the
+alias holds the command object and survives it).  `glob_imports` and the exact
+form's `import_gate` both carry `forced`, so a non-`-force` import onto a name
+the target namespace already **defines** installs nothing, while a `-force` one
+replaces it.  `WorkspaceIndex::resolve_wildcard_import` therefore takes a
+`CallSite` (the calling document plus the call's own offset): removals are a
+question about the *call*, not the import, and the same shared decision
+function the same-document resolver uses
+(`tcl_lsp_core::namespace_import::alias_live_at`) answers it for both tiers.
+
+Two abstentions are deliberate here.  A removal in a **different document**
+from the call has no static load order and revokes nothing — the same
+unordered-event rule the `-clear` tombstones follow.  And within one document
+the removal is ordered by a plain offset comparison rather than
+`in_effect_within`, because the index stores an enclosing-body span per
+*import* row, not per invocation, and building one per call site would be
+O(procs × invocations) at index time; the missing fact can only make a removal
+look not-yet-run, i.e. keep answering, never invent one.
+
+Resolution follows **import chains**: when the hop's source namespace does not
+itself define the name, the walk continues from there, bounded by
+`tcl_compiler::analyser::indirection::MAX_COMMAND_NAME_HOPS`, so `::A`
+importing `::B::*` where `::B` imported `::C::*` resolves to `::C::p` instead
+of abstaining.
+
 The variable tables are deliberately narrower than the proc/class ones.  A
 namespace variable has one cell in one namespace, so `$::ns::v` in any
 document names the same thing as `variable v` inside `namespace eval ns`,

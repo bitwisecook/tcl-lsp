@@ -388,6 +388,166 @@ fn wildcard_import_ignores_an_export_written_after_it_cross_document() {
     );
 }
 
+// -- the import edge's lifecycle, cross-document (issue #1103) --
+//
+// #1027 made the edge a per-import-site *snapshot*; these pin it as a link
+// with a lifetime. Rows oracle-confirmed byte-identically on tclsh 9.0.4 and
+// 8.6.14 (transcripts in `tcl_lsp_core::namespace_import`). Ordering exists
+// only within one document, so every ordered pair sits in the same file.
+
+#[test]
+fn a_forgotten_wildcard_import_stops_resolving_cross_document() {
+    // TN (issue #1103 behaviour 1): `main.tcl` imports `::Lib::*`, forgets
+    // it, and only then calls `bar`. Oracle: `namespace forget ::Lib::bar`
+    // empties `info commands` of the alias and the later bare call raises
+    // `invalid command name "bar"`.
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n    namespace export bar\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &main_uri,
+        "namespace import ::Lib::*\nnamespace forget ::Lib::bar\nbar\n",
+    );
+    let result = lsp.definition(&main_uri, 2, 0);
+    assert!(
+        locations(&result).is_empty(),
+        "a call after `namespace forget` must not resolve through the alias: {result:?}"
+    );
+}
+
+#[test]
+fn a_call_before_the_forget_still_resolves_cross_document() {
+    // TP — the forget is order-gated, not file-wide: the same file, with the
+    // call written between the import and the forget, still jumps into
+    // `lib.tcl`.
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n    namespace export bar\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &main_uri,
+        "namespace import ::Lib::*\nbar\nnamespace forget ::Lib::bar\n",
+    );
+    let result = lsp.definition(&main_uri, 1, 0);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(locs[0].uri, lib_uri);
+    assert_eq!(start_line(&locs[0]), 1, "proc bar is declared on line 1");
+}
+
+#[test]
+fn a_forced_import_shadows_the_local_command_cross_document() {
+    // TP (issue #1103 behaviour 2): `main.tcl` defines its own `bar`, then
+    // `namespace import -force ::Lib::*`. Oracle: the local command is
+    // replaced, the later bare call runs `::Lib::bar`, and `namespace origin
+    // ::bar` answers `::Lib::bar` — so go-to-definition must land in
+    // `lib.tcl`, not on the local `proc bar`.
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n    namespace export bar\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &main_uri,
+        "proc bar {} { return 0 }\nnamespace import -force ::Lib::*\nbar\n",
+    );
+    let result = lsp.definition(&main_uri, 2, 0);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        locs[0].uri, lib_uri,
+        "a `-force` import replaces the local command: {locs:?}"
+    );
+}
+
+#[test]
+fn an_unforced_conflicting_import_leaves_the_local_command_cross_document() {
+    // FP guard for the row above — without `-force` the same program raises
+    // `can't import command "bar": already exists` and installs nothing, so
+    // the call still reaches the *local* definition (line 0), never
+    // `lib.tcl`.
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n    namespace export bar\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &main_uri,
+        "proc bar {} { return 0 }\nnamespace import ::Lib::*\nbar\n",
+    );
+    let result = lsp.definition(&main_uri, 2, 0);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        locs[0].uri, main_uri,
+        "a failed import leaves the local definition in place: {locs:?}"
+    );
+    assert_eq!(start_line(&locs[0]), 0);
+}
+
+#[test]
+fn a_wildcard_import_chain_follows_to_the_original_source_cross_document() {
+    // TP (issue #1103 behaviour 4): three files — `::C` defines and exports
+    // `p`, `::B` imports `::C::*` and re-exports, `main.tcl` imports
+    // `::B::*` and calls `p` bare. Oracle: the call runs `::C`'s body and
+    // `namespace origin` answers `::C::p`, so definition must jump to
+    // `c.tcl`. The middle hop is in no proc table, so this previously
+    // abstained entirely.
+    let mut lsp = Lsp::tcl();
+    let c_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &c_uri,
+        "namespace eval C {\n    proc p {} { return CP }\n    namespace export p\n}\n",
+    );
+    let b_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &b_uri,
+        "namespace eval B {\n    namespace import ::C::*\n    namespace export p\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(&main_uri, "namespace import ::B::*\np\n");
+    let result = lsp.definition(&main_uri, 1, 0);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "the chain must resolve: {locs:?}");
+    assert_eq!(locs[0].uri, c_uri, "must follow ::B through to ::C");
+    assert_eq!(start_line(&locs[0]), 1, "proc p is declared on line 1");
+}
+
+#[test]
+fn deleting_the_source_command_kills_the_import_cross_document() {
+    // TN (issue #1103 behaviour 3): the alias holds the command *object*, so
+    // `rename ::Lib::bar {}` makes the later bare call an `invalid command
+    // name`. A plain rename would not — that row is pinned as a unit test in
+    // `tcl_lsp_core::definition`.
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n    namespace export bar\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &main_uri,
+        "namespace import ::Lib::*\nrename ::Lib::bar {}\nbar\n",
+    );
+    let result = lsp.definition(&main_uri, 2, 0);
+    assert!(
+        locations(&result).is_empty(),
+        "destroying the source command destroys the alias: {result:?}"
+    );
+}
+
 /// idx 33 (differential-audit main audit wave, high severity): a class
 /// *instantiation* call (`GSA new`, the real corpus's
 /// `georgtree_tclopt`'s `arbitaryTest.tcl` idiom — `GSA new -funct

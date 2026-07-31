@@ -96,6 +96,10 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         ("namespace", "ensemble", H::NamespaceEnsemble),
         ("namespace", "import", H::NamespaceImport),
         ("namespace", "export", H::NamespaceExport),
+        // The removal half of the import edge's lifecycle: `namespace forget`
+        // takes an imported alias away again, so a bare call after it stops
+        // resolving (issue #1103).
+        ("namespace", "forget", H::NamespaceForget),
         // `inscope` shares the namespace-eval handler: same `[subcmd, ns,
         // body]` shape, body analysed in the named namespace's scope.
         ("namespace", "inscope", H::NamespaceEval),

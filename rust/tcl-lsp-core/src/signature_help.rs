@@ -108,16 +108,18 @@ pub fn signature_help(
     // Tcl's own command resolution would (caller namespace, then global), so a
     // same-named proc in an unrelated namespace never hijacks the signature and
     // a same-named builtin keeps its synopsis unless a proc is actually visible.
-    let namespace = {
+    let cursor_off = {
         let line_index = tcl_lexer::LineIndex::new(source);
-        let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
-        crate::definition::namespace_context_at(
-            &analysis.global_scope,
-            cursor_off,
-            &analysis.namespace_overrides,
-        )
+        crate::definition::byte_offset_at(&line_index, source, line, character)
     };
-    if let Some(proc_def) = lookup_proc(analysis, source, &namespace, &command, registry) {
+    let namespace = crate::definition::namespace_context_at(
+        &analysis.global_scope,
+        cursor_off,
+        &analysis.namespace_overrides,
+    );
+    if let Some(proc_def) =
+        lookup_proc(analysis, source, &namespace, &command, cursor_off, registry)
+    {
         return Some(proc_signature_help(proc_def, active_param));
     }
     let registry = registry?;
@@ -317,18 +319,26 @@ fn lookup_proc<'a>(
     source: &str,
     namespace: &str,
     name: &str,
+    call_off: u32,
     registry: Option<&CommandRegistry>,
 ) -> Option<&'a ProcDef> {
-    if let Some(proc_def) =
-        crate::definition::resolve_called_proc(analysis, source, namespace, name, registry)
-    {
+    if let Some(proc_def) = crate::definition::resolve_called_proc(
+        analysis, source, namespace, name, call_off, registry,
+    ) {
         return Some(proc_def);
     }
     // Alias resolution.  When the cursor's command isn't a visible proc, check
     // whether it matches an `interp alias {} ALIAS {} TARGET` record and follow
     // the chain, resolving the target the same namespace-aware way.
     let resolved_target = resolve_alias_chain(analysis, name)?;
-    crate::definition::resolve_called_proc(analysis, source, namespace, &resolved_target, registry)
+    crate::definition::resolve_called_proc(
+        analysis,
+        source,
+        namespace,
+        &resolved_target,
+        call_off,
+        registry,
+    )
 }
 
 /// Follow the alias chain from `name` to its terminal
