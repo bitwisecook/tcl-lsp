@@ -29,6 +29,30 @@ offers `length`, `lsort -ncoase` offers `-nocase`, and `$bnaana` offers
 never mixed with fuzzy ones — a fragment that matches something today keeps
 exactly today's list.
 
+### After a `TclOO` receiver
+
+A `$obj ` completion offers the receiver class's *instance* members and a
+`ClassName ` completion offers the class object's own members — two separate
+tables, exactly as the interpreter keeps them. Which of them a member word
+touches follows the wrapper it was written under: an unwrapped (or
+`private`-scoped) `method` / `export` / `unexport` / `filter` / `deletemethod`
+acts on the instance side, the same word under `self` acts on the class-object
+side, and neither reaches across.
+
+That siding matters to the offered list in both directions. A `self unexport m`
+must not stop `$obj m` being offered, and — since the class-side flip now
+travels between files on a channel of its own — a `self unexport m` written in
+one file *does* stop `ClassName m` being offered in another (#1119). Before
+that channel existed the class-side flip was simply lost, so completion went on
+offering a member the interpreter answers with `unknown method "m"`.
+
+A member a later word in the same body deletes is not offered; one a
+`renamemethod` moves is offered under its **new** name, carrying the source's
+body and visibility (#1121). A body real Tcl would reject outright still
+completes normally — the partial class is kept for exactly that reason — but
+the offending word carries a
+[`W315`](../codes/kcs-diagnostic-w315-class-definition-cannot-run.md).
+
 ### Inside an `expr` expression
 
 Where the cursor sits in an expression, the `expr` math functions are offered
@@ -52,6 +76,8 @@ there.
 ## File-path anchors
 
 - `rust/tcl-lsp-core/src/completion.rs`
+- `rust/tcl-lsp-core/src/oo_dispatch.rs` — same-document member visibility (`method_dispatch_provider`, per `MethodBucket`)
+- `rust/tcl-lsp-core/src/workspace_index.rs` — `method_dispatch_chain` / `class_method_dispatch_chain` (the cross-file per-side export union)
 - `rust/tcl-lsp-core/src/expr_context.rs` — the expression-argument test
 - `rust/tcl-registry/src/mathfunc.rs` — the registry's math-function query
 

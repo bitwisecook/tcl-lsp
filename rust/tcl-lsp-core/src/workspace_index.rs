@@ -130,11 +130,33 @@ pub struct WorkspaceClass {
     /// re-analyses each family member's document to collect the precise
     /// decl / call sites.
     pub methods: Vec<WorkspaceMethod>,
-    /// Methods this record explicitly `export`s (an `oo::define` extension
-    /// stub can flip visibility on a class defined elsewhere).
+    /// Methods this record explicitly `export`s **on the instance side** (an
+    /// `oo::define` extension stub can flip visibility on a class defined
+    /// elsewhere).
     pub exports: Vec<String>,
-    /// Methods this record explicitly `unexport`s.
+    /// Methods this record explicitly `unexport`s on the instance side.
     pub unexports: Vec<String>,
+    /// Members this record explicitly `self export`s — the **class-object**
+    /// side's counterpart of [`Self::exports`], from
+    /// [`tcl_compiler::analyser::ClassDef::class_exports`].
+    ///
+    /// Its own channel because the instance-side pair is the instance-side
+    /// record by contract: a `self unexport m` folded into `exports`/`unexports`
+    /// would flip an identically-named *instance* method the wrapper never
+    /// touched (issue #1098).  Without a channel of its own the flip did not
+    /// travel at all, so a `self unexport m` in `a.tcl` left `b.tcl`'s
+    /// class-command dispatch advertising a member `::C m` rejects with
+    /// `unknown method "m"` (issue #1119).
+    ///
+    /// Read by [`WorkspaceIndex::class_method_dispatch_chain`] under the same
+    /// union rule, and carrying the same unordered-cross-file caveat, as the
+    /// instance-side pair and [`Self::retracted_members`]: true load order is
+    /// not knowable from the index, so any exporting record keeps the member
+    /// dispatchable.
+    pub class_exports: Vec<String>,
+    /// Members this record explicitly `self unexport`s — see
+    /// [`Self::class_exports`].
+    pub class_unexports: Vec<String>,
     /// Members this record **retracts** (`deletemethod` / `renamemethod`)
     /// without declaring them itself — the cross-document tombstones of
     /// [`tcl_compiler::analyser::ClassDef::retracted_members`].
@@ -670,6 +692,20 @@ where
 
 /// The names of a `HashSet`-valued analyser table, in a stable order.  See
 /// [`sorted_by_span`] for why the source order matters.
+/// One class record's `(exports, unexports)` pair **for `side`** — the sided
+/// visibility lookup [`WorkspaceIndex::dispatch_chain`] reads.
+///
+/// `exports`/`unexports` are the instance-side record by contract and
+/// `class_exports`/`class_unexports` the class-object-side one; naming the
+/// choice once is what keeps a `self unexport m` from ever silencing an
+/// identically-named instance method (issues #1098 / #1119).
+fn visibility_sets_for(c: &WorkspaceClass, side: MemberSide) -> (&[String], &[String]) {
+    match side {
+        MemberSide::Instance => (&c.exports, &c.unexports),
+        MemberSide::ClassObject => (&c.class_exports, &c.class_unexports),
+    }
+}
+
 fn sorted_names(names: &std::collections::HashSet<String>) -> Vec<String> {
     let mut out: Vec<String> = names.iter().cloned().collect();
     out.sort();
@@ -1018,6 +1054,8 @@ impl WorkspaceIndex {
                 methods,
                 exports: sorted_names(&class_def.exports),
                 unexports: sorted_names(&class_def.unexports),
+                class_exports: sorted_names(&class_def.class_exports),
+                class_unexports: sorted_names(&class_def.class_unexports),
                 retracted_members: class_def.retracted_members.clone(),
                 via_define: class_def.via_define,
                 metaclass: class_def.metaclass.clone(),
@@ -1596,6 +1634,55 @@ impl WorkspaceIndex {
         method: &str,
         access: MethodAccess,
     ) -> Vec<&'a WorkspaceClass> {
+        self.dispatch_chain(receiver_class, method, access, MemberSide::Instance)
+    }
+
+    /// The dispatch chain for a call on the **class's own command**
+    /// (`::C cm`) rather than on an instance — the class-object-side twin of
+    /// [`Self::method_dispatch_chain`] (issue #1119).
+    ///
+    /// Same rules, read against the other side's tables: `class_method`
+    /// declarations instead of `instance_method` ones,
+    /// [`WorkspaceClass::class_exports`] / [`WorkspaceClass::class_unexports`]
+    /// instead of the instance pair, and [`MemberSide::ClassObject`]
+    /// tombstones.  Without it a `self unexport m` was invisible across files:
+    /// the flip had no channel, so the workspace kept resolving a `::C m` the
+    /// interpreter answers with `unknown method "m"` (tclsh 9.0.4 / 8.6.14).
+    ///
+    /// One `TclOO` rule is class-side only: a stock `self method` lives on the
+    /// class object that declared it and a **subclass's** class command never
+    /// reaches it (`Gadget make` against a parent's `self method make` errors
+    /// `unknown method "make"` on 8.6 and 9.0.4), whereas an `ooutil`
+    /// `classmethod` does propagate.  Both share the `"classmethod"` receiver
+    /// kind, so a `self method` is kept only when the providing record *is* the
+    /// receiver class — the same test
+    /// `tcl_lsp_core::oo_dispatch::method_dispatch_provider` applies
+    /// same-document.
+    #[must_use]
+    pub fn class_method_dispatch_chain<'a>(
+        &'a self,
+        receiver_class: &str,
+        method: &str,
+        access: MethodAccess,
+    ) -> Vec<&'a WorkspaceClass> {
+        self.dispatch_chain(receiver_class, method, access, MemberSide::ClassObject)
+    }
+
+    /// The one dispatch-chain walk both sides go through — see
+    /// [`Self::method_dispatch_chain`] for the rules and
+    /// [`Self::class_method_dispatch_chain`] for what the class side changes.
+    ///
+    /// Sharing the walk is what keeps the two sides' answers consistent: the
+    /// record ordering, the retraction gate, the effective-export union and the
+    /// visibility filter are decided once, and `side` only selects *which*
+    /// table each of them reads.
+    fn dispatch_chain<'a>(
+        &'a self,
+        receiver_class: &str,
+        method: &str,
+        access: MethodAccess,
+        side: MemberSide,
+    ) -> Vec<&'a WorkspaceClass> {
         let mut out: Vec<&WorkspaceClass> = Vec::new();
         for class_q in self.class_linearisation(receiver_class) {
             // Several records of one class (its creation site plus every
@@ -1610,15 +1697,17 @@ impl WorkspaceIndex {
                 .filter(|c| c.qualified_name == class_q)
                 .collect();
             records.sort_by_key(|c| (c.uri.as_str(), c.name_span.start(), c.name_span.end()));
-            // The class-level effective export union: any record exporting
-            // the name keeps it callable; explicit unexports matter only
-            // when no record exports it.
+            // The class-level effective export union **for this side**: any
+            // record exporting the name keeps it callable; explicit unexports
+            // matter only when no record exports it.  The two sides never share
+            // a set — a `self unexport m` must not silence an identically-named
+            // instance method, and vice versa (issue #1098/#1119).
             let any_exports = records
                 .iter()
-                .any(|c| c.exports.iter().any(|e| e == method));
+                .any(|c| visibility_sets_for(c, side).0.iter().any(|e| e == method));
             let any_unexports = records
                 .iter()
-                .any(|c| c.unexports.iter().any(|e| e == method));
+                .any(|c| visibility_sets_for(c, side).1.iter().any(|e| e == method));
             // A `deletemethod` / `renamemethod` in *another* document's
             // `oo::define` stub really removes the member (issue #1101 review):
             //   a.tcl  oo::class create ::C { method m {} {…} }
@@ -1628,17 +1717,29 @@ impl WorkspaceIndex {
             // method no record defines. The union is taken per class — a
             // subclass cannot retract an inherited member (real Tcl: `method …
             // does not exist`), so a retraction never reaches past the record's
-            // own `class_q`. Only the instance side matters here;
-            // `instance_method` never answers with a class-side member.
+            // own `class_q`. The tombstone carries the side it removed from, so
+            // a `self deletemethod m` never empties the instance chain and an
+            // unwrapped one never empties the class chain.
             if records.iter().any(|c| {
                 c.retracted_members
                     .iter()
-                    .any(|(n, side)| n == method && *side == MemberSide::Instance)
+                    .any(|(n, s)| n == method && *s == side)
             }) {
                 continue;
             }
             for record in records {
-                let Some(m) = record.instance_method(method) else {
+                let declared = match side {
+                    MemberSide::Instance => record.instance_method(method),
+                    // A stock `self method` is not inherited: the class object
+                    // that declared it is the only one whose command reaches it
+                    // (`Gadget make` against a parent's `self method make` ->
+                    // `unknown method "make"`, 8.6 / 9.0.4). An `ooutil`
+                    // `classmethod` shares the receiver kind but does propagate.
+                    MemberSide::ClassObject => record
+                        .class_method(method)
+                        .filter(|m| !m.is_self_method || record.qualified_name == receiver_class),
+                };
+                let Some(m) = declared else {
                     continue;
                 };
                 // Effective export across the class's records: an explicit
@@ -3093,6 +3194,159 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["file:///b.tcl"],
             "the superclass's own `m` must still provide the dispatch entry",
+        );
+    }
+
+    #[test]
+    fn a_cross_file_self_unexport_removes_the_member_from_class_dispatch() {
+        // TP, issue #1119 — the whole point of the class-side channel. Oracle,
+        // byte-identical on tclsh 9.0.4 and 8.6.14:
+        //   a.tcl  oo::class create ::C { self { method cm {} { return cm } } }
+        //          ::C cm  ->  cm
+        //   b.tcl  oo::define ::C { self unexport cm }
+        //          ::C cm  ->  unknown method "cm": must be create, destroy or new
+        //          info object methods ::C -all -private  ->  … cm …
+        // Before the channel existed the flip had nowhere to travel, so b.tcl's
+        // `self unexport` was invisible and `::C cm` still resolved.
+        let a = analyse("oo::class create ::C { self { method cm {} { return 1 } } }\n");
+        let b = analyse("oo::define ::C { self unexport cm }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert!(
+            index
+                .class_method_dispatch_chain("::C", "cm", MethodAccess::External)
+                .is_empty(),
+            "a cross-file `self unexport` must remove the member from class dispatch",
+        );
+        // …but the member is only *unexported*, not gone: an internal (`my`)
+        // dispatch still reaches it, exactly as `info object methods -all
+        // -private` still lists it.
+        assert_eq!(
+            index
+                .class_method_dispatch_chain("::C", "cm", MethodAccess::Internal)
+                .iter()
+                .map(|c| c.uri.as_str())
+                .collect::<Vec<_>>(),
+            ["file:///a.tcl"],
+        );
+    }
+
+    #[test]
+    fn a_cross_file_self_export_revives_a_class_side_member() {
+        // TP, the other direction. `self export` travels the same way, and the
+        // union rule is the class side's too: any record exporting the name
+        // keeps it dispatchable, because true cross-file load order is not
+        // knowable from the index.
+        let a =
+            analyse("oo::class create ::C { self { method Cm {} { return 1 }\n unexport Cm } }\n");
+        let b = analyse("oo::define ::C { self export Cm }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert_eq!(
+            index
+                .class_method_dispatch_chain("::C", "Cm", MethodAccess::External)
+                .iter()
+                .map(|c| c.uri.as_str())
+                .collect::<Vec<_>>(),
+            ["file:///a.tcl"],
+        );
+    }
+
+    #[test]
+    fn the_two_sides_visibility_channels_never_cross() {
+        // TN (CRITICAL FP guard), issue #1098 + #1119. A class that defines the
+        // same name on both sides must have each side answer for itself:
+        //   a.tcl  oo::class create ::C { method m {} {…}
+        //                                 self { method m {} {…} } }
+        //   b.tcl  oo::define ::C { self unexport m }
+        //   ::C m        ->  unknown method "m"     (class side flipped)
+        //   [::C new] m  ->  inst-m                 (instance side untouched)
+        let a = analyse(
+            "oo::class create ::C { method m {} { return 1 }\n\
+             self { method m {} { return 2 } } }\n",
+        );
+        let b = analyse("oo::define ::C { self unexport m }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert!(
+            index
+                .class_method_dispatch_chain("::C", "m", MethodAccess::External)
+                .is_empty(),
+            "the class side is unexported",
+        );
+        assert_eq!(
+            index
+                .method_dispatch_chain("::C", "m", MethodAccess::External)
+                .iter()
+                .map(|c| c.uri.as_str())
+                .collect::<Vec<_>>(),
+            ["file:///a.tcl"],
+            "the instance side must be untouched by a `self unexport`",
+        );
+    }
+
+    #[test]
+    fn an_unwrapped_cross_file_unexport_leaves_the_class_side_dispatchable() {
+        // TN, the mirror. Oracle: `oo::class create E2 { self { method onlyclass
+        // {} {…} } }` then `oo::define E2 { unexport onlyclass }` is a silent
+        // no-op and `::E2 onlyclass` still answers (9.0.4 / 8.6.14).
+        let a = analyse("oo::class create ::C { self { method m {} { return 1 } } }\n");
+        let b = analyse("oo::define ::C { unexport m }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert_eq!(
+            index
+                .class_method_dispatch_chain("::C", "m", MethodAccess::External)
+                .iter()
+                .map(|c| c.uri.as_str())
+                .collect::<Vec<_>>(),
+            ["file:///a.tcl"],
+        );
+    }
+
+    #[test]
+    fn a_cross_file_self_deletemethod_empties_only_the_class_chain() {
+        // TP + TN for the sided tombstone, which the class-side chain now reads
+        // as its own. `self deletemethod m` in b.tcl removes the class-object
+        // side's `m` and leaves an identically-named instance method alone.
+        let a = analyse(
+            "oo::class create ::C { method m {} { return 1 }\n\
+             self { method m {} { return 2 } } }\n",
+        );
+        let b = analyse("oo::define ::C { self deletemethod m }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert!(
+            index
+                .class_method_dispatch_chain("::C", "m", MethodAccess::Internal)
+                .is_empty(),
+            "the class-side member is gone, not merely unexported",
+        );
+        assert!(
+            !index
+                .method_dispatch_chain("::C", "m", MethodAccess::External)
+                .is_empty(),
+            "an unwrapped-side member must survive a `self deletemethod`",
+        );
+    }
+
+    #[test]
+    fn a_cross_file_renamed_member_dispatches_under_its_new_name() {
+        // TP, issue #1121 reaching the workspace. The rename happens inside
+        // a.tcl, so the moved member is an ordinary indexed declaration by the
+        // time b.tcl consumes it — `[::C new] new` really runs the old body
+        // (`info class definition ::C new` -> `{} { return 1 }`, 9.0.4/8.6.14).
+        let a =
+            analyse("oo::class create ::C { method old {} { return 1 }\n renamemethod old new }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
+        assert_eq!(
+            index
+                .method_dispatch_chain("::C", "new", MethodAccess::External)
+                .iter()
+                .map(|c| c.uri.as_str())
+                .collect::<Vec<_>>(),
+            ["file:///a.tcl"],
+        );
+        assert!(
+            index
+                .method_dispatch_chain("::C", "old", MethodAccess::External)
+                .is_empty(),
+            "the source name must not survive the move",
         );
     }
 

@@ -835,7 +835,10 @@ fn hierarchy_for<S: std::hash::BuildHasher + Clone>(
         let mut stripped = index.clone();
         for cd in stripped.values_mut() {
             cd.mixins.clear();
+            // Both filter slots — the ablation removes *filtering*, and the
+            // class object's own slot is as much of it as the instance one.
             cd.filters.clear();
+            cd.class_filters.clear();
         }
         build_class_hierarchy(stripped)
     }

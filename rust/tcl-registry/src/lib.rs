@@ -103,7 +103,7 @@ pub mod prelude {
     pub use crate::command_table::CommandTableEffect;
     pub use crate::definer::{
         DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberRefKind, MemberRetraction,
-        MemberSpec, MemberVisibility,
+        MemberSpec, MemberVisibility, RetractionWords,
     };
     pub use crate::dialects::DialectSet;
     pub use crate::events::EventRequires;

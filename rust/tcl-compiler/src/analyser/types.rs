@@ -656,6 +656,114 @@ impl MemberSide {
             Self::ClassObject => &mut class_def.class_methods,
         }
     }
+
+    /// This side's `(exports, unexports)` visibility sets — the pair
+    /// `export` / `unexport` writes when scoped to this side.
+    ///
+    /// The sided counterpart of [`Self::table`], and the reason
+    /// `apply_visibility_member` has no `if side == Instance` branch: both
+    /// sides take the identical last-writer-exclusive update, they just land in
+    /// a different pair.  [`ClassDef::exports`] / [`ClassDef::unexports`] are
+    /// the **instance**-side pair by contract (issue #1098) and
+    /// [`ClassDef::class_exports`] / [`ClassDef::class_unexports`] the
+    /// class-object-side one (issue #1119).
+    #[must_use]
+    pub fn visibility_sets(
+        self,
+        class_def: &mut ClassDef,
+    ) -> (&mut HashSet<String>, &mut HashSet<String>) {
+        match self {
+            Self::Instance => (&mut class_def.exports, &mut class_def.unexports),
+            Self::ClassObject => (&mut class_def.class_exports, &mut class_def.class_unexports),
+        }
+    }
+
+    /// This side's declared method-filter list — what `filter` (instance) and
+    /// `self filter` (class object) each assign.
+    ///
+    /// The two are genuinely separate slots in `TclOO`, not one list read
+    /// twice, and they intercept different dispatches (see
+    /// [`ClassDef::filters`] / [`ClassDef::class_filters`] for the oracle).
+    #[must_use]
+    pub fn filter_list(self, class_def: &mut ClassDef) -> &mut Vec<String> {
+        match self {
+            Self::Instance => &mut class_def.filters,
+            Self::ClassObject => &mut class_def.class_filters,
+        }
+    }
+}
+
+/// A reason one `TclOO` definition body **cannot run at all** — real Tcl
+/// aborts the whole `oo::class create` / `oo::define` and creates no class
+/// (issue #1120).
+///
+/// Recorded by the member walker where the retracting word is applied (the one
+/// site that knows the side's table state at that point in the body) and
+/// drained by the class handlers, which turn each into a `W315`.  Every arm is
+/// oracle-pinned byte-identical on tclsh 9.0.4 and 8.6.14, and each carries the
+/// interpreter's own error text so the diagnostic reads as the failure the user
+/// will actually hit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DefinitionAbortKind {
+    /// A retracting word (`deletemethod m`, `renamemethod m x`) named a member
+    /// that does not exist **on the side the word is scoped to** — either never
+    /// declared, or declared only on the other side.
+    ///
+    /// ```tcl
+    /// oo::class create ::E1 { deletemethod ghost ; method ghost {} {} }
+    /// ;# -> method ghost does not exist        (and ::E1 is never created)
+    /// oo::class create ::E2 { self { method cm {} {} } ; deletemethod cm }
+    /// ;# -> method cm does not exist
+    /// ```
+    MissingMember,
+    /// `renamemethod a b` where `b` is already a member of the same side.
+    ///
+    /// ```tcl
+    /// oo::class create ::E3 { method a {} {} ; method b {} {} ; renamemethod a b }
+    /// ;# -> method called b already exists
+    /// ```
+    ///
+    /// Side-scoped like everything else: `method a` + `self method b` +
+    /// `renamemethod a b` is legal and leaves the instance side with `b`.
+    DestinationExists,
+    /// `renamemethod a a` — the source and destination are the same name.
+    ///
+    /// ```tcl
+    /// oo::class create ::A4 { method a {} {} ; renamemethod a a }
+    /// ;# -> cannot rename method to itself
+    /// ```
+    RenameToItself,
+}
+
+/// One recorded [`DefinitionAbortKind`] with the member name it names and the
+/// span of the offending word.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DefinitionAbort {
+    /// Why the definition cannot run.
+    pub kind: DefinitionAbortKind,
+    /// The member name the offending word named.
+    pub member: String,
+    /// Span of the offending argument word — the name that does not exist, or
+    /// the destination that is already taken.
+    pub span: Span,
+}
+
+impl DefinitionAbort {
+    /// The diagnostic message for this abort, mirroring the interpreter's own
+    /// error text after a fixed "cannot run" preamble.
+    #[must_use]
+    pub fn message(&self) -> String {
+        let reason = match self.kind {
+            DefinitionAbortKind::MissingMember => {
+                format!("method \"{}\" does not exist", self.member)
+            }
+            DefinitionAbortKind::DestinationExists => {
+                format!("method called \"{}\" already exists", self.member)
+            }
+            DefinitionAbortKind::RenameToItself => "cannot rename method to itself".to_string(),
+        };
+        format!("this class definition cannot run: {reason}")
+    }
 }
 
 /// Class definition record.
@@ -699,11 +807,43 @@ pub struct ClassDef {
     pub variables: Vec<String>,
     /// Configurable properties keyed by name.
     pub properties: HashMap<String, PropertyDef>,
-    /// Method filters declared via ``filter``.
+    /// **Instance-side** method filters declared via an unwrapped (or
+    /// `private`-wrapped) ``filter`` — the class's `info class filters` slot.
+    /// They intercept dispatches on *instances* of the class.
+    ///
+    /// Sided because `TclOO` keeps two independent filter slots, exactly as it
+    /// keeps two method tables (issue #1119). Oracle, byte-identical on tclsh
+    /// 9.0.4 and 8.6.14:
+    ///
+    /// ```tcl
+    /// oo::class create ::A { method real {} {…} ; method logit {args} {…} ; filter logit }
+    /// info class filters ::A    ;# -> logit
+    /// info object filters ::A   ;# -> (empty)      the class object is unfiltered
+    /// [::A new] real            ;# -> logit fires, `self target` is `::A real`
+    /// oo::class create ::P { private { method s {} {} ; filter s } }
+    /// info class filters ::P    ;# -> s            `private` is instance-side too
+    /// ```
     pub filters: Vec<String>,
-    /// Methods explicitly exported via ``export``.
+    /// **Class-object-side** method filters declared via ``self filter`` — the
+    /// class object's own `info object filters` slot.
+    ///
+    /// A class-side filter intercepts dispatches on the *class command itself*,
+    /// including the constructor path, and never touches instance dispatch.
+    /// Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
+    ///
+    /// ```tcl
+    /// oo::class create ::B { method inst {} {…}
+    ///                        self { method cls {} {…} ; method logit {args} {…} ; filter logit } }
+    /// info object filters ::B   ;# -> logit
+    /// info class filters ::B    ;# -> (empty)      instances are unfiltered
+    /// ::B cls                   ;# -> logit fires, `self target` is `::B cls`
+    /// ::B new                   ;# -> logit fires, `self target` is `::oo::class new`
+    /// [::B new] inst            ;# -> logit does NOT fire
+    /// ```
+    pub class_filters: Vec<String>,
+    /// Methods explicitly exported via an **instance-side** ``export``.
     pub exports: HashSet<String>,
-    /// Methods explicitly unexported via ``unexport``.
+    /// Methods explicitly unexported via an **instance-side** ``unexport``.
     ///
     /// Kept **mutually exclusive** with [`Self::exports`] — each set records the
     /// last explicit writer for a name, and the cross-file consumer
@@ -711,6 +851,27 @@ pub struct ClassDef {
     /// decisive, so a name left in both would advertise a method the interpreter
     /// rejects.
     pub unexports: HashSet<String>,
+    /// Methods explicitly exported via ``self export`` — the **class-object**
+    /// side's counterpart of [`Self::exports`], maintained under the identical
+    /// last-writer-exclusive rule ([`MemberSide::visibility_sets`]).
+    ///
+    /// A separate pair rather than a side tag on the existing one because
+    /// `exports`/`unexports` are the instance-side record *by contract*: the
+    /// workspace effective-export union and `rename_safety` both read them that
+    /// way, so a class-side flip landing there would silently re-state an
+    /// unrelated instance method's export bit (issue #1098). Without this pair a
+    /// `self unexport m` in one file never reached another file's class-command
+    /// dispatch, which went on advertising a member `::C m` rejects with
+    /// `unknown method "m"` (issue #1119).
+    ///
+    /// Rides the same cross-file channel as [`Self::retracted_members`] — a
+    /// `via_define` stub carries it — and shares that channel's documented
+    /// unordered caveat: cross-file load order is not knowable from the index,
+    /// so the workspace takes the union rather than a last writer.
+    pub class_exports: HashSet<String>,
+    /// Methods explicitly unexported via ``self unexport`` — see
+    /// [`Self::class_exports`].
+    pub class_unexports: HashSet<String>,
     /// Members this record **retracts** (`deletemethod` / `renamemethod`)
     /// without itself declaring them — a *tombstone* for a cross-document
     /// consumer, keyed by member name and the side the retracting word was
@@ -727,6 +888,22 @@ pub struct ClassDef {
     /// unprovable, so the tombstone is unordered — exactly as a cross-file
     /// `oo::define ::C { method extra … }` is an unordered addition today.
     pub retracted_members: Vec<(String, MemberSide)>,
+    /// Reasons this record's definition body **cannot run at all** (issue
+    /// #1120) — a retraction of a member absent from its side's table, or a
+    /// `renamemethod` onto a name already taken.
+    ///
+    /// **Transient.** Recorded by the member walker, which is the only place
+    /// that knows a side's table state at the point the offending word runs,
+    /// and *drained* by the class handlers the moment the body walk returns —
+    /// so the record that reaches `all_classes` (and the workspace index)
+    /// always has this empty. It is not part of the class's published shape;
+    /// it is the walker's channel to the diagnostic emitter.
+    ///
+    /// The partial class is still recorded, deliberately: a body that cannot
+    /// run has no outline at all in real Tcl, but degrading navigation to
+    /// nothing is worse than describing what the author clearly meant —
+    /// the same judgement parse errors already get.
+    pub definition_aborts: Vec<DefinitionAbort>,
     /// Names genuinely bareword-callable from any method body of this
     /// class, because ``link`` (``oo::Helpers::link``) installed a
     /// per-object-namespace alias — keyed by the alias name, valued by
@@ -783,9 +960,13 @@ impl Default for ClassDef {
             variables: Vec::new(),
             properties: HashMap::new(),
             filters: Vec::new(),
+            class_filters: Vec::new(),
             exports: HashSet::new(),
             unexports: HashSet::new(),
+            class_exports: HashSet::new(),
+            class_unexports: HashSet::new(),
             retracted_members: Vec::new(),
+            definition_aborts: Vec::new(),
             linked_members: HashMap::new(),
             doc: String::new(),
             via_define: false,

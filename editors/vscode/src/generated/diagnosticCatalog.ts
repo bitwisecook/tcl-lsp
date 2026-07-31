@@ -365,6 +365,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W315",
+    section: "warning",
+    description:
+      "Class definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to, or renames onto a name already taken, which aborts the whole definition so no class is created.",
+    defaultEnabled: true,
+  },
+  {
     code: "W210",
     section: "variable",
     description: "Variable read before set.",

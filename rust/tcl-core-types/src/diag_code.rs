@@ -462,6 +462,7 @@ diagnostic_codes! {
     W312 => "W312", diag_internal(Security, true, "`interp eval` with multiple or unbraced script words — concatenated like `eval`, injection risk.");
     W313 => "W313", diag(Security, true, "Destructive file operation with variable path — path-traversal risk.");
     W314 => "W314", diag(Warning, true, "Definition has no absolute (fully-qualified) name — an all-colon name or namespace segment (e.g. a proc or namespace named `:`) is reachable only by relative lookup.");
+    W315 => "W315", diag(Warning, true, "Class definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to, or renames onto a name already taken, which aborts the whole definition so no class is created.");
 }
 
 impl DiagCode {

@@ -195,9 +195,20 @@ fn unlocatable_member_reference(
         let Some(class_def) = analysis.all_classes.get(class_q) else {
             continue;
         };
+        // Both sides count. The word is load-bearing wherever it was written,
+        // and a `self export X` / `self filter X` left behind breaks the class
+        // command's dispatch of the renamed member exactly as an unwrapped one
+        // breaks an instance's (issue #1119) — so the class-side sets have to
+        // be consulted here or the refusal silently stops covering them.
         let recorded = class_def.exports.contains(target.method)
             || class_def.unexports.contains(target.method)
-            || class_def.filters.iter().any(|f| f == target.method);
+            || class_def.class_exports.contains(target.method)
+            || class_def.class_unexports.contains(target.method)
+            || class_def
+                .filters
+                .iter()
+                .chain(class_def.class_filters.iter())
+                .any(|f| f == target.method);
         if !recorded {
             continue;
         }

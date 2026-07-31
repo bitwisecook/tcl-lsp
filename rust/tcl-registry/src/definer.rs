@@ -97,6 +97,51 @@ pub enum MemberRetraction {
     FirstArgument,
 }
 
+impl MemberRetraction {
+    /// Split a retracting member's argument words into the **retracted** names
+    /// and the *0-based argument index* of the name the retracted member
+    /// **arrives** under, when the word has one.
+    ///
+    /// The one place the `deletemethod` / `renamemethod` argument shapes are
+    /// spelled out, so neither the member walker nor a cross-document consumer
+    /// re-derives them by matching a keyword:
+    ///
+    /// * [`Self::EveryArgument`] — every word is retracted, nothing arrives
+    ///   (`deletemethod a b` removes both `a` and `b`).
+    /// * [`Self::FirstArgument`] — word 0 is retracted and word 1 is the
+    ///   arrival name (`renamemethod OLD NEW` moves `OLD`'s definition to
+    ///   `NEW`; `info class definition ::C NEW` really answers with `OLD`'s
+    ///   original parameter list and body, byte-identical on tclsh 9.0.4 and
+    ///   8.6.14).
+    ///
+    /// `arrives_at` is `None` when the call is too short to carry one — a
+    /// bare `renamemethod old` is a `wrong # args` error in real Tcl, so
+    /// there is no arrival to model.
+    #[must_use]
+    pub fn split(self, args: &[String]) -> RetractionWords<'_> {
+        match self {
+            Self::EveryArgument => RetractionWords {
+                retracted: args,
+                arrives_at: None,
+            },
+            Self::FirstArgument => RetractionWords {
+                retracted: &args[..args.len().min(1)],
+                arrives_at: (args.len() > 1).then_some(1),
+            },
+        }
+    }
+}
+
+/// The words of one retracting member call, split by [`MemberRetraction::split`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RetractionWords<'a> {
+    /// The argument words naming members this call **removes**.
+    pub retracted: &'a [String],
+    /// The 0-based argument index of the name the retracted member arrives
+    /// under, or `None` when this member word moves nothing.
+    pub arrives_at: Option<usize>,
+}
+
 /// The visibility a member word imposes on the members its arguments name.
 ///
 /// The sibling of [`MemberSpec::retraction`] for the *other* kind

@@ -109,6 +109,7 @@ for historical reference.
 - [W309 — eval with subst](kcs-diagnostic-w309-eval-with-subst.md)
 - [W313 — destructive file variable path](kcs-diagnostic-w313-destructive-file-variable-path.md)
 - [W314 — no absolute name](kcs-diagnostic-w314-no-absolute-name.md)
+- [W315 — class definition cannot run](kcs-diagnostic-w315-class-definition-cannot-run.md)
 
 ## Variables (W2xx)
 

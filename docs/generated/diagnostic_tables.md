@@ -66,6 +66,7 @@
 | W250 | warning | Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass. | ✓ |
 | W308 | warning | Unknown TclOO method — the method is not defined on the receiver's statically-known class or any of its superclasses. | ✓ |
 | W314 | warning | Definition has no absolute (fully-qualified) name — an all-colon name or namespace segment (e.g. a proc or namespace named `:`) is reachable only by relative lookup. | ✓ |
+| W315 | warning | Class definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to, or renames onto a name already taken, which aborts the whole definition so no class is created. | ✓ |
 | W210 | variable | Variable read before set. | ✓ |
 | W211 | variable | Variable set but never used. | ✓ |
 | W212 | variable | Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.). | ✓ |
