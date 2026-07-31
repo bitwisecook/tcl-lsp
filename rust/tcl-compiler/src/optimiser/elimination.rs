@@ -901,6 +901,50 @@ fn scan_set_read_refs(slice: &str, out: &mut HashSet<String>) {
         {
             name_cursor += 1;
         }
+        // A **brace-quoted** name word (`[set {$n}]`, `[set {a b}]`,
+        // `[set {arr($i)}]`) is Tcl's literal spelling for a name the bareword
+        // scan below cannot match: the braces suppress substitution, so the
+        // content *is* the name (issue #1078).  Without this arm the read went
+        // unseen and its `set {$n} 1` was reported unused (W211) / dead (W220)
+        // where the identical plain-named script was not.
+        if bytes[name_cursor] == b'{' {
+            let inner_start = name_cursor + 1;
+            let mut depth = 1usize;
+            let mut scan = inner_start;
+            while scan < bytes.len() && depth > 0 {
+                match bytes[scan] {
+                    b'{' => depth += 1,
+                    b'}' => depth -= 1,
+                    _ => {}
+                }
+                if depth > 0 {
+                    scan += 1;
+                }
+            }
+            if depth == 0 {
+                let mut tail = scan + 1;
+                while tail < bytes.len() && (bytes[tail] == b' ' || bytes[tail] == b'\t') {
+                    tail += 1;
+                }
+                if tail < bytes.len()
+                    && bytes[tail] == b']'
+                    && let Ok(name) = std::str::from_utf8(&bytes[inner_start..scan])
+                    && !name.is_empty()
+                {
+                    // Both the element-qualified spelling and its array base,
+                    // matching the two naming modes the consumers use.
+                    out.insert(name.to_owned());
+                    let base = crate::naming::normalise_var_name_braced(name, true);
+                    if !base.is_empty() {
+                        out.insert(base.to_owned());
+                    }
+                }
+                pos = scan + 1;
+                continue;
+            }
+            pos = open + 1;
+            continue;
+        }
         let name_start = name_cursor;
         while name_cursor < bytes.len() {
             let byte = bytes[name_cursor];
@@ -1009,6 +1053,7 @@ pub(crate) fn collect_rmw_hidden_reads(
         // bias.
         out.extend(dollar_reads_in_cmd_subs(word));
     };
+    let mut terminator_values: Vec<String> = Vec::new();
     for block in fu.cfg.blocks.values() {
         for stmt in &block.statements {
             match stmt {
@@ -1027,6 +1072,31 @@ pub(crate) fn collect_rmw_hidden_reads(
                 _ => {}
             }
         }
+        // A `return`'s value word is a terminator, not a statement, so the
+        // loop above never saw it — yet `return [set x]` / `return [incr i]`
+        // read exactly as the same word would in an argument position.
+        // Missing it reported the feeding `set x 2` as a dead store on code
+        // that reads it (tclsh 9.0.4 / 8.6.14: `proc f {} {set n 1; set n 2;
+        // return [set n]}; f` → 2).
+        //
+        // Deliberately the *precise* deep-minus-shallow scan only, without the
+        // `dollar_reads_in_cmd_subs` over-approximation the argument scan adds:
+        // that one credits every `$x` inside any `[…]`, which on a terminator
+        // (`return [subst {$a$b}]`) would silence a genuine dead store of `b`
+        // earlier in the proc (FP-DS-12's TN control).  A terminator read is
+        // recoverable exactly, so approximating it buys nothing.
+        if let Some(crate::cfg::Terminator::Return { value: Some(v), .. }) = &block.terminator
+            && v.contains('[')
+        {
+            terminator_values.push(v.clone());
+        }
+    }
+    // Collected above rather than scanned in place: `scan` holds `deep` /
+    // `shallow` / `out` mutably borrowed for the duration of the walk.
+    for v in &terminator_values {
+        let d = deep.scan_word(v, registry);
+        let sh = shallow.scan_word(v, registry);
+        out.extend(d.difference(&sh).cloned());
     }
     out
 }

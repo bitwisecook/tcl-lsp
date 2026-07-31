@@ -136,7 +136,16 @@ code. The gate refuses when:
   already exists, a file in that namespace **computes a variable name**
   (`set $n 1`, `variable $n`) that might be this very cell, or a file
   **aliases a cell computed at run time** (`namespace upvar $ns v local`)
-  that could be this one.
+  that could be this one;
+- the variable's **name can only be written quoted** — `set {$n} 1` creates a
+  variable literally called `$n`, `set {a b} 1` one called `a b`. These are
+  ordinary variables (tclsh: `info exists {$n}` is 1 while `info exists n` is
+  0) and rename knows they are separate cells, so renaming an ordinary `n`
+  leaves every `{$n}` word alone. Renaming the quoted cell *itself* is
+  refused: each occurrence carries delimiters that are not part of the name,
+  and whether the new name needs delimiters at all depends on the new name —
+  rewriting the recorded span would yield `set q} 1`. Rename the cell by hand,
+  brackets and all.
 
 The gate is checked across **every file the rename would edit** — the class's
 own file, every file defining or extending a class in its override family,

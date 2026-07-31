@@ -277,15 +277,11 @@ fn scan_statement(stmt: &Statement, registry: &CommandRegistry, barrier: &mut Dy
         } => {
             // `args` is the segmenter's *reconstructed* text, which cannot
             // tell a brace-quoted `{$a}` (literal) from a substituted `$a`;
-            // the per-word token kinds can. Index 0 of `argv_kinds` /
-            // `single_token_word` is the command word, so the argument
-            // entries start at 1.
+            // the per-word token kinds can — asked via the shared
+            // `CommandTokens::arg_is_braced_literal`.
             let braced: Option<Vec<bool>> = tokens.as_ref().map(|t| {
-                t.argv_kinds
-                    .iter()
-                    .zip(t.single_token_word.iter())
-                    .skip(1)
-                    .map(|(kind, &single)| single && *kind == tcl_lexer::TokenType::Str)
+                (0..args.len())
+                    .map(|i| t.arg_is_braced_literal(i))
                     .collect()
             });
             // `command` likewise reports the head word's *content*, so a

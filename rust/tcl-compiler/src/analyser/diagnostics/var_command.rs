@@ -626,7 +626,7 @@ impl Analyser {
                 .get(target)
                 .or_else(|| self.result.all_procs.get(&format!("::{target}")))
             {
-                arity = Some(crate::signature_scan::arity::arity_of(&def.params));
+                arity = Some(def.arity());
                 break;
             }
             if !bare.contains("::")

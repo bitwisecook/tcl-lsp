@@ -343,6 +343,21 @@ pub fn rename_with_diagnosis(
     {
         return Err(refusal);
     }
+    // Safety gate: a variable whose *name* can only be written quoted
+    // (`set {$n} 1`) cannot be renamed by substituting into the recorded
+    // spans — see the gate's own doc (issue #1078).  Checked before
+    // `rename_variable_at`, whose `$`-reference cursor search would otherwise
+    // read the `$n` *inside* the braces as a reference to the unrelated
+    // variable `n` and rename that one instead.
+    if let Some(refusal) = crate::rename_safety::literal_name_variable_rename_refusal(
+        source,
+        line,
+        character,
+        analysis,
+        &line_index,
+    ) {
+        return Err(refusal);
+    }
 
     if let Some(edits) =
         rename_variable_at(source, line, character, new_name, analysis, &line_index)

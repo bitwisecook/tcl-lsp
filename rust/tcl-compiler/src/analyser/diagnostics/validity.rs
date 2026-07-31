@@ -2061,7 +2061,7 @@ impl Analyser {
                 if !via_rename_hop && self.fact_superseded_by_deletion(c, proc_off, cand) {
                     continue;
                 }
-                let arity = crate::signature_scan::arity::arity_of(&def.params);
+                let arity = def.arity();
                 return Some(shift_arity(arity, prepended_total));
             }
             if let Some(old) = candidates.iter().find_map(|c| {

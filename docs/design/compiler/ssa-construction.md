@@ -334,26 +334,70 @@ Two gaps remain, both needing a fact the analyser does not record yet:
   in the model changed; the workspace layer still has to merge the maps
   before `prepare_cfg_context` runs.
 
-### Known limitation — a brace-quoted `$`-bearing name is mis-keyed
+### A brace-quoted `$`-bearing name is its own variable (issue #1078)
 
-A variable whose literal name contains a `$` (`set {$n} 1`) is recognised as
-*not dynamic* by the barrier, but the SSA naming layer below still mis-keys
-it. `is_dynamic_write_target` reads the name text without consulting the IR's
-`name_braced` flag, so it calls `$n` a dynamic target: the assignment produces
-no def, and `uses_of` records a read of `n` instead — surfacing as
-`W210 Variable 'n' is read before it is set` on code that never touches `n`.
+Braces suppress every substitution, so a brace-quoted word in a variable-name
+position spells a **literal** name: `set {$n} 1` creates the variable *called*
+`$n`, which Tcl keeps entirely separate from `n`. tclsh 9.0.4 and 8.6.14 give
+byte-identical transcripts:
 
-This is pre-existing and independent of the barrier. Making the target
-braced-aware is *not* a local fix: `element_var_name_braced` normalises a
-braced `$n` down to `n`, so the def would be recorded against the wrong
-variable — measured, that trades the false positive for a *missed* one
-(`set {$n} 1; puts $n` stops warning, though tclsh errors `can't read "n"`)
-plus two fresh false `W220`s. A correct fix has to teach the shared naming
-helper that a braced literal keeps its `$`, which reaches defs, reads, rename,
-and highlighting together.
+```text
+set {$n} v ; set {$n}             -> v
+info exists {$n} / info exists n  -> 1 / 0     two distinct variables
+set n other ; set {$n}            -> v         `n` never affects it
+set {$m} 1 ; set m                -> can't read "m": no such variable
+set ${$n}                         -> can't read "v"   `${$n}` read `$n`
+set {a b} v2 ; set x ${a b}       -> v2        a space is a legal name char
+set i 5 ; set {arr($i)} 1
+  array names arr                 -> {$i}      the key is literal
+  info exists arr(5)              -> 0
+  set arr($i) 2 ; array names arr -> {$i} 5    two distinct elements
+unset {$n} ; info exists {$n} / n -> 0 / 1
+```
 
-The shape is rare and the current verdict is a false positive rather than a
-missed error, so it is recorded here rather than half-fixed.
+The rule lives in the shared naming helpers, once:
+`element_var_name_braced` / `normalise_var_name_braced` /
+`split_array_name_braced` return the word's content **verbatim** when the
+`braced_literal` flag is set — no `$` stripped, no `${…}` unwrapped, the array
+key literal whatever it spells (`normalise_var_name_braced` still takes the
+`(key)` suffix off, since `{arr($i)}` is element `$i` of the array `arr`).
+`is_dynamic_write_target` takes the same flag and answers *not dynamic* for a
+braced target. Which words are braced is one question with one answer:
+`CommandTokens::arg_is_braced_literal` (and its hook-side twin
+`LoweringCommand::arg_is_braced_literal`) — the `Str` representative token
+kind, since the IR stores de-braced content that cannot show the difference.
+
+Every consumer of the naming layer was moved onto it together, which is what
+made the fix land: defs (`defs_of_with_registry`, `collect_defs_from_script`,
+the `set`/`incr`/`unset`/`append`/`global`/`variable`/`upvar` lowering hooks,
+`lower_default`'s registry role harvest), reads (`var_token_name`,
+`scan_var_read_role_names`, `collect_ref_forms` +
+`scan_var_ref_forms_braced`, `scan_command_words`'s name-role skip), the
+analyser scope layer (`define_var` from the name word's token kind,
+`record_var_read_braced`), rename, and semantic highlighting.
+
+Measurements, against the two the reverted one-parameter attempt produced:
+
+| shape | before | after |
+| --- | --- | --- |
+| `set {$n} 1` | false `W210` on `n` | silent for `n`; `W211` names `$n` |
+| `set {$n} 1; puts $n` | *missed* TP (tclsh errors) | `W210` on `n` fires |
+| `set {$n} 1; set {$n} 2; return [set {$n}]` | two false `W220`s | silent — and byte-identical to the plain-named control |
+| `unset {$n}` after `set {$n} 1` | false `W213` on `n` | silent |
+
+Two adjacent recoveries were needed to reach the last two rows, and they fix
+the *plain* spelling as well: the `[set NAME]` textual read scan now also
+recognises the brace-quoted name word, and the substitution-hidden-read scan
+now looks at a `return`'s value word (a terminator, which it never walked), so
+`proc f {} {set n 1; set n 2; return [set n]}` no longer reports two dead
+stores on code tclsh runs to `2`.
+
+Rename **refuses** rather than guesses for these cells
+(`rename_safety::literal_name_variable_rename_refusal`, the #1091 typed-refusal
+precedent): the recorded spans cover a word's content, not its delimiters, and
+the delimiters a *new* name needs are a property of that new name — rewriting
+`{$n}`'s span with `q` would produce `set q} 1`. Renaming the plain `n` is
+unaffected and no longer touches the `{$n}` word.
 
 ## Related docs
 

@@ -562,6 +562,53 @@ pub fn namespace_variable_rename_hazard(
     ))
 }
 
+/// Refuse a **variable** rename whose target's name can only be written
+/// quoted — `{$n}` / `${$n}`, `{a b}` / `${a b}`, `{[gen]}`.
+///
+/// Such a variable is perfectly legal and, since #1078, correctly modelled as
+/// its own cell (tclsh 9.0.4 / 8.6.14: `set {$n} v; info exists {$n}` → 1
+/// while `info exists n` → 0).  What it is *not* is renameable by span
+/// substitution, which is all the variable-rename edit builder does:
+///
+/// * the recorded spans cover a word's **content**, not its delimiters — the
+///   `{$n}` definition span starts at the `{` and stops before the `}`, so
+///   writing `q` over it yields `set q} 1`;
+/// * whether the *new* name needs delimiters at all is a property of the new
+///   name, so every occurrence would need its quoting recomputed — including
+///   read sites spelt `${$n}`, whose `${…}` may or may not survive.
+///
+/// Guessing produces a script that no longer parses, so the rename is refused
+/// with the reason, following the #1091 typed-refusal precedent.  A rename
+/// **to** such a name never gets this far: `is_safe_symbol_name` already
+/// rejects new names carrying `$` / whitespace / brackets.
+#[must_use]
+pub fn literal_name_variable_rename_refusal(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Option<RenameRefusal> {
+    let off = crate::definition::byte_offset_at(line_index, source, line, character);
+    let def = crate::definition::var_def_at_declaration_offset(&analysis.global_scope, off)?;
+    if !tcl_syntax::naming::var_name_requires_quoting(&def.name) {
+        return None;
+    }
+    Some(RenameRefusal::new(
+        format!(
+            "cannot rename `{name}`: the variable's name can only be written quoted \
+             (`{{{name}}}` / `${{{name}}}`), so each occurrence carries delimiters that \
+             are not part of the recorded name, and the delimiters a new name needs \
+             depend on that new name. Rewriting the recorded spans would produce a \
+             script that no longer parses, so the rename is refused rather than guessed.",
+            name = def.name,
+        ),
+        source,
+        line_index,
+        Some(def.definition_span),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

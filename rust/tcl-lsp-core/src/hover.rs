@@ -391,15 +391,12 @@ fn variable_hover(
     }
 
     let decl_byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
-    // A *computed* parameter list (`proc p [makeargs] …`) is live code, not a
-    // declaration site: the analyser records a stub `VarDef` named after the
-    // whole word (`"[makeargs]"`), so trusting it here would render a bogus
-    // variable hover over what is really a call (Codex review of PR #1073).
-    if crate::definition::parameter_list_position_at(analysis, source, decl_byte_offset)
-        == crate::definition::ParamListPosition::Computed
-    {
-        return None;
-    }
+    // #1073 guarded this lookup against a *computed* parameter list
+    // (`proc p [makeargs] …`), where the analyser used to record a stub
+    // `VarDef` named after the whole word (`"[makeargs]"`) and hovering it
+    // rendered a bogus variable card over what is really a call.  Since #1079
+    // no such stub is registered, so the lookup simply finds nothing and the
+    // caller falls through to the command hover — the guard is gone.
     let var_def =
         crate::definition::var_def_at_declaration_offset(&analysis.global_scope, decl_byte_offset)?;
     let (type_info, taint_info) =

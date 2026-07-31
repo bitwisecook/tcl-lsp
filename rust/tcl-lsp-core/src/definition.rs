@@ -419,9 +419,11 @@ fn position_definition(
         ));
     }
     let param_position = parameter_list_position_at(analysis, source, cursor_off);
-    if param_position != ParamListPosition::Computed
-        && let Some(var_def) = var_def_at_declaration_offset(&analysis.global_scope, cursor_off)
-    {
+    // No `Computed` guard is needed here any more: since #1079 a computed
+    // parameter list registers no per-parameter `VarDef` at all, so there is
+    // no stub named `"[makeargs]"` for this lookup to land on. (#1073 added
+    // the guard while the stub still existed.)
+    if let Some(var_def) = var_def_at_declaration_offset(&analysis.global_scope, cursor_off) {
         return Some(vec![span_to_range(
             source,
             line_index,

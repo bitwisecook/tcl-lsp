@@ -2071,3 +2071,88 @@ fn rename_classmethod_is_scoped_in_the_other_direction_too() {
     let edits = rename(src, "tcl8.6", 8, 20, "produce", &analysis, None);
     assert_eq!(edit_lines(&edits), vec![8, 10], "{edits:?}");
 }
+
+// ---------------------------------------------------------------------------
+// Issue #1078 — a brace-quoted `$`-bearing name is its own variable
+// ---------------------------------------------------------------------------
+//
+// tclsh 9.0.4 and 8.6.14, byte-identical:
+//
+//   set {$n} v ; set {$n}             -> v
+//   info exists {$n} / info exists n  -> 1 / 0     (two distinct variables)
+//   set n other ; set {$n}            -> v         (`n` never affects it)
+//   set ${$n}                         -> can't read "v"  (`${$n}` read `$n`)
+//
+// So `{$n}` and `n` are two cells, and an edit to one must never touch the
+// other.  Before the fix the analyser normalised `{$n}` down to `n`, merged
+// the two into one `VarDef`, and renaming the *plain* `n` emitted an edit
+// over the `{$n` span — turning `set {$n} 1` into `set q} 1`, which no longer
+// parses.
+
+/// The mixed script: line 1 writes the literal `$n`, line 2 the plain `n`,
+/// line 3 reads the plain one, line 4 reads the literal one.
+const BRACE_LITERAL_MIX: &str = "proc f {} {\n    \
+set {$n} 1\n    \
+set n 2\n    \
+puts $n\n    \
+puts [set {$n}]\n\
+}\n";
+
+#[test]
+fn references_of_the_plain_name_exclude_the_brace_literal_cell() {
+    let analysis = analyse(BRACE_LITERAL_MIX);
+    // Cursor on the `n` of `set n 2` (line 2).
+    let refs = references(BRACE_LITERAL_MIX, "tcl", 2, 8, &analysis, true);
+    assert_eq!(
+        ref_lines(&refs),
+        vec![2, 3],
+        "the plain `n`'s sites are its own write and its own `$n` read — the \
+`{{$n}}` word on line 1 is a different variable; got {refs:?}"
+    );
+}
+
+#[test]
+fn rename_of_the_plain_name_never_rewrites_a_brace_literal_word() {
+    let analysis = analyse(BRACE_LITERAL_MIX);
+    let edits = rename(BRACE_LITERAL_MIX, "tcl8.6", 2, 8, "q", &analysis, None);
+    assert_eq!(
+        edit_lines(&edits),
+        vec![2, 3],
+        "renaming `n` must leave both `{{$n}}` words alone; got {edits:?}"
+    );
+    // And the applied result is still the same program for the literal cell.
+    assert!(
+        edits
+            .iter()
+            .all(|e| e.range.start_line != 1 && e.range.start_line != 4),
+        "no edit may land on a `{{$n}}` word; got {edits:?}"
+    );
+}
+
+#[test]
+fn rename_of_a_brace_literal_name_is_refused_with_a_reason() {
+    use tcl_lsp_core::rename::rename_with_diagnosis;
+    let analysis = analyse(BRACE_LITERAL_MIX);
+    // Cursor inside the `{$n}` word on line 1.
+    let refusal = rename_with_diagnosis(BRACE_LITERAL_MIX, "tcl8.6", 1, 10, "q", &analysis, None)
+        .expect_err("a quoted-only name cannot be renamed by span substitution");
+    assert!(
+        refusal.reason.contains("$n") && refusal.reason.contains("quoted"),
+        "the refusal must name the cell and say why; got {:?}",
+        refusal.reason
+    );
+    // The refusal is typed, not an empty edit set: an empty set would fall
+    // through to the server's cross-document rename branches.
+    assert!(refusal.range.is_some(), "{refusal:?}");
+}
+
+#[test]
+fn rename_of_an_ordinary_name_is_still_allowed() {
+    // TN control for the refusal gate: it must key on the *target's* spelling,
+    // not merely on a brace-quoted word being present in the document.
+    use tcl_lsp_core::rename::rename_with_diagnosis;
+    let analysis = analyse(BRACE_LITERAL_MIX);
+    let edits = rename_with_diagnosis(BRACE_LITERAL_MIX, "tcl8.6", 2, 8, "q", &analysis, None)
+        .expect("an ordinary local is renameable");
+    assert_eq!(edit_lines(&edits), vec![2, 3], "{edits:?}");
+}
