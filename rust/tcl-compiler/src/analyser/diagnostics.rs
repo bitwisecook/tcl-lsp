@@ -115,6 +115,106 @@ mod var_command;
 pub(in crate::analyser) mod version_gate;
 pub(in crate::analyser) mod widget_command;
 
+/// Which IR object owns the body the per-function dispatcher is running over.
+///
+/// Supplied by the caller: every diagnostic loop iterates exactly one of the
+/// compilation unit's body maps (`procedures`, `methods`, `body_units`) and
+/// therefore already knows the kind.  It must **not** be re-derived by
+/// probing those maps for the unit's qualified name, because a `TclOO` method
+/// and a namespace procedure may legitimately carry the same key.  Verified
+/// on tclsh 9.0.4 and 8.6.14 — `oo::class create C` does not create a
+/// namespace, so the procedure needs one made first, after which both exist
+/// as wholly separate entities:
+///
+/// ```tcl
+/// oo::class create C { variable x; constructor {} { set x 42 }
+///                      method m {p} { list method [info exists p] $p $x } }
+/// namespace eval ::C {}
+/// proc ::C::m {q} { list proc [info exists q] $q [info exists x] }
+/// [C new] m hello    ;# → method 1 hello 42
+/// ::C::m world       ;# → proc 1 world 0
+/// ```
+///
+/// A name probe would hand the method the procedure's parameters (so its own
+/// `[info exists p]` folds "always false") and hand the procedure the class's
+/// instance variables (so it abstains on names it fully owns).
+#[derive(Clone, Copy, Default)]
+pub enum BodyFrame<'a> {
+    /// The compilation unit's top level — no parameters, no object state.
+    #[default]
+    TopLevel,
+    /// A named procedure, an `apply` lambda body, or a `namespace eval` body:
+    /// a fresh frame whose bound-at-entry names are its formal parameters.
+    Procedure(&'a crate::ir::Procedure),
+    /// A `TclOO` method body: its own parameters *plus* the class's instance
+    /// variables, which the runtime links into the frame at entry.
+    Method(&'a crate::ir::MethodDef),
+}
+
+/// The two connection-scope name sets an iRule event handler inherits, as
+/// `(dead-store / unused suppression, read-before-set suppression)`.
+///
+/// The first is `cross_event_defs | cross_event_imports`: a variable another
+/// event on the same connection reads is not a dead store here.  The second is
+/// `cross_event_imports` alone: a variable another event *defines* (and the
+/// event registry's scope gate accepted the pair) is already set by the time
+/// this event reads it — `set g 1` in `HTTP_REQUEST` feeds `set x $g` in
+/// `HTTP_RESPONSE`, so that read is not read-before-set.
+///
+/// Both are empty for anything that is not a `::when::*` procedure, and for
+/// any unit with no connection scope at all.
+fn when_proc_cross_event_names(
+    cu: &crate::compilation_unit::CompilationUnit,
+    qname: &str,
+) -> (HashSet<String>, HashSet<String>) {
+    let Some(scope) = cu.connection_scope.as_ref().filter(|_| {
+        // `crate::ir::when_event_name`'s prefix — an iRule event handler.
+        qname.starts_with("::when::")
+    }) else {
+        return (HashSet::new(), HashSet::new());
+    };
+    (
+        scope
+            .cross_event_defs
+            .iter()
+            .chain(scope.cross_event_imports.iter())
+            .cloned()
+            .collect(),
+        scope.cross_event_imports.iter().cloned().collect(),
+    )
+}
+
+impl<'a> BodyFrame<'a> {
+    /// The [`crate::ir::Procedure`] backing this frame, or `None` when the
+    /// body is not a procedure-shaped one.  The parameter-specific emitters
+    /// (W214 unused-parameter, and the W210 read-before-set parameter
+    /// suppression) key off this.
+    #[must_use]
+    fn procedure(self) -> Option<&'a crate::ir::Procedure> {
+        match self {
+            Self::Procedure(p) => Some(p),
+            Self::TopLevel | Self::Method(_) => None,
+        }
+    }
+
+    /// The entry facts the `[info exists]` fold needs (issue #1129): the
+    /// frame's formal parameters, plus a method's instance variables.
+    #[must_use]
+    fn existence_frame(self) -> crate::sccp::ExistenceFrame<'a> {
+        match self {
+            Self::TopLevel => crate::sccp::ExistenceFrame::default(),
+            Self::Procedure(p) => crate::sccp::ExistenceFrame {
+                params: &p.params,
+                object_state: None,
+            },
+            Self::Method(m) => crate::sccp::ExistenceFrame {
+                params: &m.params,
+                object_state: Some(&m.instance_vars),
+            },
+        }
+    }
+}
+
 impl Analyser {
     /// Scope-tree-driven variable diagnostic emitter.
     ///
@@ -331,7 +431,7 @@ impl Analyser {
         // module through.
         self.emit_cfg_ssa_diagnostics_for_function_full(
             &cu.top_level,
-            &cu.ir_module,
+            BodyFrame::TopLevel,
             &top_level_known_defined,
             &top_level_cross_event_vars,
         );
@@ -342,21 +442,8 @@ impl Analyser {
             // ConnectionScope so dead-store / unused-variable
             // diagnostics suppress vars that may be read in a
             // different iRule event.
-            let mut cross_event_vars: HashSet<String> =
-                if let Some(scope) = cu.connection_scope.as_ref() {
-                    if qname.starts_with("::when::") {
-                        scope
-                            .cross_event_defs
-                            .iter()
-                            .chain(scope.cross_event_imports.iter())
-                            .cloned()
-                            .collect()
-                    } else {
-                        HashSet::new()
-                    }
-                } else {
-                    HashSet::new()
-                };
+            let (mut cross_event_vars, extra_known_defined) =
+                when_proc_cross_event_names(cu, qname);
             // Suppress dead-store on caller-locals this
             // proc passes by name to an upvar callee.
             cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
@@ -364,27 +451,12 @@ impl Analyser {
                 &cbn_proc_index,
             ));
             cross_event_vars.extend(traced_globals.iter().cloned());
-            // Consumer-side cross-event suppression for W210: a variable
-            // another event on the same connection defines (and the event
-            // registry's scope gate accepted the pair) is set by the time
-            // this event reads it — `set g 1` in HTTP_REQUEST feeds
-            // `set x $g` in HTTP_RESPONSE, so the read is not
-            // read-before-set. `cross_event_imports` is exactly that set;
-            // without threading it here the RBS pass saw only an empty
-            // `extra_known_defined` and flagged every such read.
-            let extra_known_defined: HashSet<String> =
-                if let Some(scope) = cu.connection_scope.as_ref() {
-                    if qname.starts_with("::when::") {
-                        scope.cross_event_imports.iter().cloned().collect()
-                    } else {
-                        HashSet::new()
-                    }
-                } else {
-                    HashSet::new()
-                };
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
-                &cu.ir_module,
+                cu.ir_module
+                    .procedures
+                    .get(qname)
+                    .map_or(BodyFrame::TopLevel, BodyFrame::Procedure),
                 &extra_known_defined,
                 &cross_event_vars,
             );
@@ -493,7 +565,7 @@ impl Analyser {
             cross_event_vars.extend(traced_globals.iter().cloned());
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
-                &cu.ir_module,
+                method_ir.map_or(BodyFrame::TopLevel, BodyFrame::Method),
                 &known_bound,
                 &cross_event_vars,
             );
@@ -555,7 +627,7 @@ impl Analyser {
             cross_event_vars.extend(traced_globals.iter().cloned());
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
-                &cu.ir_module,
+                BodyFrame::Procedure(ir_proc),
                 &known_bound,
                 &cross_event_vars,
             );
@@ -571,11 +643,11 @@ impl Analyser {
     pub fn emit_cfg_ssa_diagnostics_for_function(
         &mut self,
         function_unit: &crate::compilation_unit::FunctionUnit,
-        ir_module: &crate::ir::Module,
+        frame: BodyFrame<'_>,
     ) {
         self.emit_cfg_ssa_diagnostics_for_function_full(
             function_unit,
-            ir_module,
+            frame,
             &HashSet::new(),
             &HashSet::new(),
         );
@@ -593,12 +665,12 @@ impl Analyser {
     pub fn emit_cfg_ssa_diagnostics_for_function_with_extra(
         &mut self,
         function_unit: &crate::compilation_unit::FunctionUnit,
-        ir_module: &crate::ir::Module,
+        frame: BodyFrame<'_>,
         extra_known_defined: &HashSet<String>,
     ) {
         self.emit_cfg_ssa_diagnostics_for_function_full(
             function_unit,
-            ir_module,
+            frame,
             extra_known_defined,
             &HashSet::new(),
         );
@@ -618,7 +690,7 @@ impl Analyser {
     pub fn emit_cfg_ssa_diagnostics_for_function_full(
         &mut self,
         function_unit: &crate::compilation_unit::FunctionUnit,
-        ir_module: &crate::ir::Module,
+        frame: BodyFrame<'_>,
         extra_known_defined: &HashSet<String>,
         cross_event_vars: &HashSet<String>,
     ) {
@@ -652,21 +724,14 @@ impl Analyser {
                 registry,
             ));
         }
-        let ir_proc = ir_module.procedures.get(&function_unit.name);
-        // A `TclOO` method body is in `ir_module.methods`, never
-        // `ir_module.procedures`, so `ir_proc` is `None` for one — its entry
-        // facts (params, plus the class's instance variables) come from the
-        // `MethodDef` instead.  Without them the `[info exists]` fold read an
-        // instance variable as a never-defined local and called it always
-        // absent (issue #1129).
-        let method_ir = ir_module.methods.get(&function_unit.name);
-        let existence_frame = crate::sccp::ExistenceFrame {
-            params: ir_proc
-                .map(|p| p.params.as_slice())
-                .or_else(|| method_ir.map(|m| m.params.as_slice()))
-                .unwrap_or_default(),
-            object_state: method_ir.map(|m| &m.instance_vars),
-        };
+        // Frame identity comes from the caller, which knows which of the
+        // compilation unit's body maps it is iterating.  It must not be
+        // re-derived by probing those maps for `function_unit.name`: a
+        // `TclOO` method and a namespace procedure may legitimately share a
+        // qualified name, so the name alone cannot tell them apart (see
+        // [`BodyFrame`]).
+        let ir_proc = frame.procedure();
+        let existence_frame = frame.existence_frame();
         self.emit_dead_store_diagnostics(function_unit, &defined, &scope_aliases, cross_event_vars);
         self.emit_unused_variable_diagnostics(
             function_unit,

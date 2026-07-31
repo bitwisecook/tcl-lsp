@@ -5710,6 +5710,141 @@ fn info_exists_folds_true_not_false_for_method_parameter() {
     );
 }
 
+/// Every I230 message emitted for `src`, in emission order.
+fn i230_messages(src: &str) -> Vec<String> {
+    let mut a = Analyser::new();
+    a.emit_cfg_ssa_diagnostics(src);
+    a.result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::I230)
+        .map(|d| d.message.clone())
+        .collect()
+}
+
+#[test]
+fn info_exists_folds_true_for_method_parameter_shadowing_an_instance_var() {
+    // Codex P2 on PR #1175, finding A — confirmed against the oracle.  A
+    // formal parameter whose name collides with a class-level `variable`
+    // declaration **shadows** it outright: the name is an ordinary local that
+    // always exists, and writes through it never reach object state.  So the
+    // instance-variable abstention must not swallow it.
+    //
+    // tclsh 9.0.4 (TclOO 1.3.1) and 8.6.14 (TclOO 1.1.0), identical:
+    //
+    //   oo::class create A1 { variable x; constructor {} { set x 42 }
+    //                         method m {x} { set r [list [info exists x] $x]
+    //                                        set x 9; return $r }
+    //                         method peek {} { list [info exists x] $x } }
+    //   set a [A1 new]; $a m hello  ;# → exists 1 value hello
+    //   $a peek                     ;# → exists 1 value 42   (`set x 9` did
+    //                                                         not reach it)
+    //
+    // and with the instance variable never assigned, the parameter still
+    // binds (`A2 in-method: exists 1 value hello`, `A2 after m: 0`).
+    let msgs = i230_messages(
+        "oo::class create A {\n variable x\n constructor {} { set x 42 }\n \
+         method m {x} { if {[info exists x]} { puts hi } }\n}\n",
+    );
+    assert_eq!(
+        msgs.len(),
+        1,
+        "the shadowing parameter must still fold; got {msgs:?}",
+    );
+    assert!(
+        msgs[0].contains("always true"),
+        "a parameter shadowing an instance variable always exists — the fold \
+         must be true, got {msgs:?}",
+    );
+}
+
+#[test]
+fn info_exists_still_abstains_on_the_non_shadowed_instance_vars() {
+    // Companion control for the shadowing case: shadowing is per-name.  `x`
+    // is shadowed by the parameter and folds; the sibling instance variable
+    // `y`, which nothing in this method binds, must keep abstaining.
+    let msgs = i230_messages(
+        "oo::class create A {\n variable x y\n constructor {} { set x 42 }\n \
+         method m {x} {\n if {[info exists x]} { puts hi }\n \
+         if {[info exists y]} { puts ho }\n }\n}\n",
+    );
+    assert_eq!(
+        msgs.len(),
+        1,
+        "only the shadowed name may fold; got {msgs:?}",
+    );
+    assert!(msgs[0].contains("always true"), "got {msgs:?}");
+}
+
+#[test]
+fn info_exists_frame_facts_survive_a_proc_method_qname_collision() {
+    // Codex P2 on PR #1175, finding B — confirmed against the oracle.  A
+    // `TclOO` method and a namespace procedure can carry the same qualified
+    // name, so the per-function dispatcher must take its frame identity from
+    // the caller (which knows the map it is walking) rather than probing
+    // `ir_module.procedures` / `.methods` by name.
+    //
+    // tclsh 9.0.4 and 8.6.14, identical — note `oo::class create C` does not
+    // create namespace `::C`, so the procedure needs `namespace eval` first:
+    //
+    //   oo::class create C { variable x; constructor {} { set x 42 }
+    //                        method m {p} { list method [info exists p] $p $x } }
+    //   namespace eval ::C {}
+    //   proc ::C::m {q} { list proc [info exists q] $q [info exists x] }
+    //   [C new] m hello   ;# → method 1 hello 42
+    //   ::C::m world      ;# → proc 1 world 0
+    //
+    // Both frames are wholly separate: the procedure sees none of the class's
+    // instance state. Pre-fix the name probe gave the *method* the
+    // procedure's parameter list (so its own `[info exists p]` folded "always
+    // false") and gave the *procedure* the class's instance variables (so it
+    // abstained on `x`, a name it fully owns as a never-set local).
+    let msgs = i230_messages(
+        "oo::class create C {\n variable x\n constructor {} { set x 42 }\n \
+         method m {p} { if {[info exists p]} { puts inmethod } }\n}\n\
+         namespace eval ::C {}\n\
+         proc ::C::m {q} {\n if {[info exists q]} { puts inproc }\n \
+         if {[info exists x]} { puts nope }\n}\n",
+    );
+    // Method: `p` is its own parameter → always true.
+    // Proc: `q` is its own parameter → always true; `x` is a never-set local
+    // of the *procedure* (the class's instance state is not in scope there)
+    // → always false.
+    assert_eq!(
+        msgs.len(),
+        3,
+        "each frame must fold its own three guards; got {msgs:?}",
+    );
+    assert_eq!(
+        msgs.iter().filter(|m| m.contains("always true")).count(),
+        2,
+        "both parameter guards must fold true; got {msgs:?}",
+    );
+    assert_eq!(
+        msgs.iter().filter(|m| m.contains("always false")).count(),
+        1,
+        "the procedure's never-set `x` must fold false — it is not object \
+         state in a procedure frame; got {msgs:?}",
+    );
+}
+
+#[test]
+fn info_exists_folds_true_for_an_apply_lambda_parameter() {
+    // Follow-on from finding B's remedy: the lambda loop now hands the
+    // dispatcher the body unit's own `Procedure` rather than letting it probe
+    // `ir_module.procedures` for a key that map never holds, so a lambda's
+    // parameters reach the fold like a proc's.  A lambda is an anonymous
+    // procedure with a fresh frame whose bound names are exactly its
+    // parameter list — tclsh 9.0.4 / 8.6.14: `apply {{a} {info exists a}} 1`
+    // → 1.
+    let msgs = i230_messages("apply {{a} { if {[info exists a]} { puts hi } }} 1\n");
+    assert_eq!(msgs.len(), 1, "a lambda parameter must fold; got {msgs:?}");
+    assert!(
+        msgs[0].contains("always true"),
+        "a lambda parameter exists at entry, got {msgs:?}",
+    );
+}
+
 #[test]
 fn analyse_w307_suppressed_for_known_class_constructor_chain() {
     // ``[Dog new] bark`` — ``Dog`` is a user class so
