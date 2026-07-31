@@ -288,6 +288,11 @@ struct FunctionBuildInputs<'a> {
     extra_global_escaping: &'a HashSet<String>,
     /// Whole-module variable-trace facts.
     trace_facts: ModuleTraceFacts<'a>,
+    /// Names auto-bound to out-of-frame *object* storage on entry — a
+    /// `TclOO` method body's [`crate::ir::MethodDef::instance_vars`].  `None`
+    /// for procs, lambdas, and the top level, none of which have any.  The
+    /// `[info exists]` fold must abstain on these (issue #1129).
+    object_state: Option<&'a HashSet<String>>,
 }
 
 impl ModuleTraceFacts<'_> {
@@ -393,6 +398,69 @@ impl FunctionUnit {
                 known_classes,
                 extra_global_escaping: &no_extra_escaping,
                 trace_facts,
+                object_state: None,
+            },
+        )
+    }
+
+    /// Build the compilation unit's **top-level** body unit — no parameters,
+    /// no interprocedural seeds, no object state, but a non-empty
+    /// `extra_global_escaping` (top-level names already live in the global
+    /// frame, so another procedure's `global NAME` can reassign them; see
+    /// [`crate::sccp::sccp_with_extra_escaping`]).
+    #[must_use]
+    pub fn build_top_level(
+        cfg: CfgFunction,
+        registry: &CommandRegistry,
+        known_classes: &HashSet<String>,
+        extra_global_escaping: &HashSet<String>,
+        trace_facts: ModuleTraceFacts<'_>,
+    ) -> Self {
+        Self::build_full(
+            "::top",
+            cfg,
+            FunctionBuildInputs {
+                params: &[],
+                registry,
+                param_constants: None,
+                known_classes,
+                extra_global_escaping,
+                trace_facts,
+                object_state: None,
+            },
+        )
+    }
+
+    /// Build a **`TclOO` method body**'s unit from its typed
+    /// [`crate::ir::MethodDef`], so the analyses see the method's own params
+    /// *and* the class's instance variables (the cross-definition-block union
+    /// lowering computes — see [`crate::ir::MethodDef::instance_vars`]).
+    ///
+    /// Only the existence fold consumes the instance-variable half today: a
+    /// class-level `variable x` binds `x` in every method frame with no
+    /// binding command in the body, so without it `[info exists x]` folded to
+    /// "always absent" (issue #1129).
+    #[must_use]
+    pub fn build_for_method(
+        name: impl Into<String>,
+        cfg: CfgFunction,
+        method: &crate::ir::MethodDef,
+        registry: &CommandRegistry,
+        known_classes: &HashSet<String>,
+        trace_facts: ModuleTraceFacts<'_>,
+    ) -> Self {
+        let no_extra_escaping = HashSet::new();
+        Self::build_full(
+            name,
+            cfg,
+            FunctionBuildInputs {
+                params: &method.params,
+                registry,
+                param_constants: None,
+                known_classes,
+                extra_global_escaping: &no_extra_escaping,
+                trace_facts,
+                object_state: Some(&method.instance_vars),
             },
         )
     }
@@ -421,6 +489,7 @@ impl FunctionUnit {
             known_classes,
             extra_global_escaping,
             trace_facts,
+            object_state,
         } = inputs;
         // Complexity guard (block-count half): a pathologically large body
         // would cost seconds of SSA + dataflow for near-zero findings, so skip
@@ -459,9 +528,10 @@ impl FunctionUnit {
         // as constant branches so the optimiser's O101 fold / DCE sees
         // them. The analyser's I230 uses the same fold via
         // `existence_constant_branches`; the SCCP pass proper has no
-        // parameter/existence facts to fold them itself.
-        let param_set: std::collections::HashSet<&str> =
-            params.iter().map(String::as_str).collect();
+        // parameter/existence facts to fold them itself.  A method body's
+        // instance variables are handed over too, so the fold abstains on
+        // object state instead of calling it absent (issue #1129).
+        //
         // Dynamic-name facts (issue #923 audit cluster C10): a `set $var v`
         // means any name may be defined, an `unset $n` that any name may have
         // stopped existing — so the existence fold must abstain in that
@@ -470,7 +540,10 @@ impl FunctionUnit {
         sccp.constant_branches
             .extend(crate::sccp::existence_constant_branches(
                 &cfg,
-                &param_set,
+                crate::sccp::ExistenceFrame {
+                    params,
+                    object_state,
+                },
                 registry,
                 dynamic_names,
             ));
@@ -1140,17 +1213,12 @@ impl CompilationUnit {
             traced_variables: &ir_module.traced_variables,
             has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
         };
-        let top_level = FunctionUnit::build_full(
-            "::top",
+        let top_level = FunctionUnit::build_top_level(
             cfg_module.top_level.clone(),
-            FunctionBuildInputs {
-                params: &[],
-                registry,
-                param_constants: None,
-                known_classes: &known_class_set,
-                extra_global_escaping: &top_level_extra_escaping,
-                trace_facts,
-            },
+            registry,
+            &known_class_set,
+            &top_level_extra_escaping,
+            trace_facts,
         );
         let built = build_procedure_units(
             &ProcedureBuildContext {
@@ -1258,12 +1326,11 @@ impl CompilationUnit {
                 let fu = if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
                     FunctionUnit::trivial_guarded(mqname, cfg)
                 } else {
-                    FunctionUnit::build_with_param_constants_and_classes(
+                    FunctionUnit::build_for_method(
                         mqname,
                         cfg,
-                        &method.params,
+                        method,
                         registry,
-                        None,
                         known_class_set,
                         trace_facts,
                     )

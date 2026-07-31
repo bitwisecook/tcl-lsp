@@ -835,6 +835,26 @@ fn collect_constant_branches(
     constant_branches
 }
 
+/// The entry facts one function frame contributes to the existence fold
+/// ([`existence_constant_branches`]), sourced from the typed IR for whichever
+/// kind of body it is — a [`crate::ir::Procedure`], a
+/// [`crate::ir::MethodDef`], or neither (the top level, a lambda).
+///
+/// Bundled rather than passed positionally so a new fact reaches both
+/// consumers of the fold — the analyser's I230 and the optimiser's O101 — by
+/// construction: the two build the same struct from the same IR, so they
+/// cannot drift (they did, on method parameters — issue #1129).
+#[derive(Clone, Copy, Default)]
+pub struct ExistenceFrame<'a> {
+    /// The body's formal parameter names: bound on entry, so they exist.
+    /// Empty for the top level and for any body with no parameter list.
+    pub params: &'a [String],
+    /// Names auto-bound to out-of-frame *object* storage on entry — a
+    /// `TclOO` method body's [`crate::ir::MethodDef::instance_vars`].
+    /// `None` for every body kind that has none.
+    pub object_state: Option<&'a HashSet<String>>,
+}
+
 /// Fold `[info exists X]` / `[array exists X]`
 /// if-conditions into [`ConstantBranch`] entries for the two
 /// false-positive-free cases — a parameter always exists (`true`); a
@@ -843,7 +863,7 @@ fn collect_constant_branches(
 ///
 /// SCCP itself can't fold these (the predicate is an opaque
 /// `ExprNode::Command`, and SCCP has neither parameter nor existence
-/// facts), so this runs as a post-pass with the proc's `params`.  The
+/// facts), so this runs as a post-pass with the frame's own facts.  The
 /// result feeds both the analyser's I230 (constant condition) and the
 /// optimiser's O101 (constant-branch fold / DCE).  Only simple local
 /// names are folded, and only in functions free of opaque barriers (an
@@ -863,10 +883,36 @@ fn collect_constant_branches(
 ///
 /// Both abstain by declining the fold, which silences I230 and leaves O101
 /// with nothing to fold — say less rather than say something wrong.
+///
+/// [`ExistenceFrame::object_state`] carries the frame's *auto-bound*
+/// out-of-frame names — a `TclOO` method body's
+/// [`crate::ir::MethodDef::instance_vars`] (issue
+/// #1129).  A class-level `variable x` declaration binds `x` in **every**
+/// method's frame with no `variable` statement in the body itself, so
+/// [`crate::optimiser::elimination::scan_scope_aliases`] (which only sees the
+/// body's own commands) cannot find it — the name looks like a never-defined
+/// local and the fold used to call it "always absent".  It is not: existence
+/// is per-instance runtime state, set by whichever method or constructor
+/// assigned it first.  tclsh 9.0.4 and 8.6.14 agree:
+///
+/// ```tcl
+/// oo::class create C { variable x; constructor {} { set x 1 }
+///                      method m {} { info exists x } }   ;# [C new] m → 1
+/// oo::class create D { variable x
+///                      method m {} { info exists x } }   ;# [D new] m → 0
+/// oo::class create F { variable x; method setit {} { set x 42 }
+///                      method m {} { info exists x } }
+/// set f [F new]; $f m   ;# → 0
+/// $f setit; $f m        ;# → 1
+/// ```
+///
+/// The declaration alone does not create the variable, but *any earlier call
+/// on the same instance* may have — a dynamic fact no per-method analysis can
+/// decide, so these names join `aliased` and never fold either way.
 #[must_use]
-pub fn existence_constant_branches<S: std::hash::BuildHasher>(
+pub fn existence_constant_branches(
     cfg: &CfgFunction,
-    params: &HashSet<&str, S>,
+    frame: ExistenceFrame<'_>,
     registry: &tcl_registry::CommandRegistry,
     dynamic_names: crate::dynamic_names::DynamicNameBarrier,
 ) -> Vec<ConstantBranch> {
@@ -921,7 +967,13 @@ pub fn existence_constant_branches<S: std::hash::BuildHasher>(
     // `::safe::CheckInterp` guard shape (safe.tcl:109).  The scanner also
     // returns `trace` targets, which only widens the skip — conservative,
     // never a false fold.
-    let aliased = crate::optimiser::elimination::scan_scope_aliases(cfg, registry);
+    let mut aliased = crate::optimiser::elimination::scan_scope_aliases(cfg, registry);
+    // Object state is aliased the same way, minus a visible binding command:
+    // `TclOO` links every class-level `variable` declaration into each method
+    // frame at entry, so the body's own command scan cannot see it (#1129).
+    if let Some(instance_vars) = frame.object_state {
+        aliased.extend(instance_vars.iter().cloned());
+    }
     for block in cfg.blocks.values() {
         let Some(Terminator::Branch {
             condition,
@@ -946,7 +998,7 @@ pub fn existence_constant_branches<S: std::hash::BuildHasher>(
         if aliased.contains(var.as_str()) {
             continue;
         }
-        let exists = if params.contains(var.as_str()) {
+        let exists = if frame.params.iter().any(|p| p == &var) {
             // A literal `unset x` already blocks this; a computed
             // `unset $n` can name the parameter just as well
             // (tclsh 9.0.4 / 8.6.14: `proc f {p n} {unset $n; info exists p}`

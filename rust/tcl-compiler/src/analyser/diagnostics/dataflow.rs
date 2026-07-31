@@ -1783,28 +1783,31 @@ file; this call falls through to the 'unknown' handler."
     /// SCCP can't fold these (the predicate lowers to an
     /// opaque `ExprNode::Command`, and SCCP has no parameter/existence
     /// facts), so the fold is computed by
-    /// [`crate::sccp::existence_constant_branches`] using
-    /// `ir_proc.params` — the same helper whose result
+    /// [`crate::sccp::existence_constant_branches`] using the frame's formal
+    /// parameters — the same helper whose result
     /// `FunctionUnit::build` appends to `sccp.constant_branches` for the
     /// optimiser's O101 fold / DCE.  Emitting the I230 here (rather than
     /// via [`Self::emit_constant_branch_diagnostics`]) is deliberate:
     /// that emitter gates on the not-taken arm being unreachable in
     /// `executable_blocks`, which these post-pass folds don't update, so
     /// it skips them and there is no double emission.
+    ///
+    /// `frame` supplies the typed entry facts for whichever kind of body
+    /// this is (issue #1129): a procedure contributes its parameters, a
+    /// `TclOO` method body contributes its parameters **and** its class's
+    /// instance variables, on which the fold must abstain.  Both halves come
+    /// from the same IR the optimiser's copy of the fold reads, so the two
+    /// consumers cannot drift.
     pub(super) fn emit_existence_constant_branch_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
-        ir_proc: Option<&crate::ir::Procedure>,
+        frame: crate::sccp::ExistenceFrame<'_>,
     ) {
         // The fold consults the registry's scope-alias roles to skip
         // out-of-frame-linked locals; a registry-less analyser falls back to
         // the cached default registry (the same convention as
         // `command_takes_regex_pattern` — direct handler calls in unit
         // tests), so the alias skip stays sound there too.
-        let params: HashSet<&str> = match ir_proc {
-            Some(p) => p.params.iter().map(String::as_str).collect(),
-            None => HashSet::new(),
-        };
         let branches = {
             // Scoped borrow: `self.registry` must release before the
             // `&mut self` diagnostic pushes below.
@@ -1812,7 +1815,7 @@ file; this call falls through to the 'unknown' handler."
                 || tcl_registry::cache::registry_for_dialect("tcl8.6"),
                 |r| r,
             );
-            crate::sccp::existence_constant_branches(&fu.cfg, &params, registry, fu.dynamic_names)
+            crate::sccp::existence_constant_branches(&fu.cfg, frame, registry, fu.dynamic_names)
         };
         for cb in branches {
             let Some(span) = cb.span.map(|s| fu.abs_span(s)) else {

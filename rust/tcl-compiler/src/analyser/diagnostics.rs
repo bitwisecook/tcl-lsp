@@ -653,6 +653,20 @@ impl Analyser {
             ));
         }
         let ir_proc = ir_module.procedures.get(&function_unit.name);
+        // A `TclOO` method body is in `ir_module.methods`, never
+        // `ir_module.procedures`, so `ir_proc` is `None` for one — its entry
+        // facts (params, plus the class's instance variables) come from the
+        // `MethodDef` instead.  Without them the `[info exists]` fold read an
+        // instance variable as a never-defined local and called it always
+        // absent (issue #1129).
+        let method_ir = ir_module.methods.get(&function_unit.name);
+        let existence_frame = crate::sccp::ExistenceFrame {
+            params: ir_proc
+                .map(|p| p.params.as_slice())
+                .or_else(|| method_ir.map(|m| m.params.as_slice()))
+                .unwrap_or_default(),
+            object_state: method_ir.map(|m| &m.instance_vars),
+        };
         self.emit_dead_store_diagnostics(function_unit, &defined, &scope_aliases, cross_event_vars);
         self.emit_unused_variable_diagnostics(
             function_unit,
@@ -702,7 +716,7 @@ impl Analyser {
         // W210 on reads of a provably-no-match regexp / scan output var.
         self.emit_provably_unset_w210(function_unit, &considered, &defined);
         self.emit_constant_branch_diagnostics(function_unit);
-        self.emit_existence_constant_branch_diagnostics(function_unit, ir_proc);
+        self.emit_existence_constant_branch_diagnostics(function_unit, existence_frame);
         self.emit_invalid_ip_diagnostics(function_unit);
         self.emit_w233_divide_by_zero(function_unit);
         self.emit_interval_bounds_diagnostics(function_unit);
