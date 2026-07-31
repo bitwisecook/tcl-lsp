@@ -611,15 +611,14 @@ pub fn references(
 fn namespace_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     let RefCtx {
         source,
-        dialect,
         line_index,
         line,
         character,
         analysis,
         include_declaration,
+        ..
     } = *ctx;
-    let cell =
-        crate::namespace_symbol::namespace_cell_at(source, dialect, analysis, line, character)?;
+    let cell = crate::namespace_symbol::namespace_cell_at(source, analysis, line, character)?;
     Some(
         crate::namespace_symbol::namespace_all_spans(analysis, &cell, include_declaration)
             .into_iter()

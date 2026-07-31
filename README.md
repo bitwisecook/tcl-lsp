@@ -603,7 +603,10 @@ wherever those live, since reopening a namespace extends the same one. A
 relative name resolves against the namespace it is written in, exactly as
 Tcl does. Words that only look like namespace names are left alone:
 `namespace tail` / `qualifiers` take arbitrary strings, `import` / `export`
-/ `forget` take glob patterns, and `origin` / `which` name commands.
+/ `forget` take glob patterns, and `origin` / `which` name commands. A
+namespace whose name also happens to be a command's never resolves to that
+command — the two are different kinds of symbol — and renaming a namespace
+is refused with a reason rather than quietly renaming the command instead.
 
 ### Signature help
 

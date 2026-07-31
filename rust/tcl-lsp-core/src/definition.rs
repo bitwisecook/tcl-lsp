@@ -437,7 +437,7 @@ fn position_definition(
     // 8.6.16).  An empty answer means this document declares it nowhere —
     // the cross-document tier picks it up from there.
     if let Some(cell) =
-        crate::namespace_symbol::namespace_cell_at_offset(source, "", analysis, cursor_off)
+        crate::namespace_symbol::namespace_cell_at_offset(source, analysis, cursor_off)
     {
         return Some(
             crate::namespace_symbol::namespace_declaration_spans(analysis, &cell)

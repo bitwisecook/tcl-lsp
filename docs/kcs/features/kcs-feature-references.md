@@ -135,7 +135,10 @@ Relative names count: inside `namespace eval ::outer`, a bare `inner` names
 `::outer::inner` and is listed with the qualified spellings of the same
 namespace. Words that merely look like namespace names are not listed —
 `namespace tail` and `namespace qualifiers` take arbitrary strings, and
-`namespace import` / `export` / `forget` take glob patterns.
+`namespace import` / `export` / `forget` take glob patterns. Asking from a
+namespace name never falls back to a command or proc of the same spelling,
+even when the namespace is declared only in another file and the local set is
+empty: the two are different kinds of symbol.
 
 ### Method-name references in a class body
 

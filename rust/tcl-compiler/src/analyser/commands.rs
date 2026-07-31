@@ -2146,10 +2146,31 @@ impl Analyser {
     /// exactly what [`Self::command_resolution_namespace`] reports.
     ///
     /// A dynamic word (`namespace eval $ns { … }`) names no static namespace
-    /// and is skipped, as is an empty one. The declaring flag comes from the
-    /// registry's [`tcl_registry::Traits::DECLARES_NAMESPACE`], never from
-    /// the subcommand's spelling: `namespace eval` declares, `namespace
-    /// inscope` — same argument layout, same analyser hook — does not.
+    /// and is the **only** skip. The declaring flag comes from the registry's
+    /// [`tcl_registry::Traits::DECLARES_NAMESPACE`], never from the
+    /// subcommand's spelling: `namespace eval` declares, `namespace inscope`
+    /// — same argument layout, same analyser hook — does not.
+    ///
+    /// The **empty** literal is a real namespace name and is recorded like
+    /// any other relative one.  It needs no special case, because it *is* the
+    /// ordinary relative rule: `crate::naming::qualify` maps it to `::` at
+    /// global scope and to `::outer::` inside `namespace eval ::outer`, which
+    /// is exactly what tclsh 9.0.4 and 8.6.16 do (byte-identical). At global
+    /// scope `namespace exists {}` is `1`, `namespace children {}` equals
+    /// `namespace children ::`, `namespace inscope {} {namespace current}` is
+    /// `::`, and `namespace eval {} {…}` reopens the global namespace
+    /// (`namespace current` inside is `::`, and the variables it sets land in
+    /// `::`). Inside `namespace eval ::outer` the very same word means a
+    /// namespace that cannot exist: `namespace exists {}` is `0`, `namespace
+    /// children {}` fails `namespace "" not found in "::outer"`, and
+    /// `namespace eval {} {…}` fails `can't create namespace "": only global
+    /// namespace can have empty name`.  Recording it as `::outer::` — a name
+    /// nothing ever declares — makes navigation abstain there, which is the
+    /// right answer.
+    ///
+    /// A **whitespace-only** word is not empty and is not special either:
+    /// `namespace eval " " {…}` genuinely creates a namespace named `" "`,
+    /// which both interpreters list as `{:: }` among `namespace children ::`.
     fn record_namespace_name_references(
         &mut self,
         cmd_name: &str,
@@ -2177,7 +2198,7 @@ impl Analyser {
             let (Some(name), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) else {
                 continue;
             };
-            if name.is_empty() || crate::naming::is_dynamic_word(name) {
+            if crate::naming::is_dynamic_word(name) {
                 continue;
             }
             self.result.namespace_refs.push(super::types::NamespaceRef {

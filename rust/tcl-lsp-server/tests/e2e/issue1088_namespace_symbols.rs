@@ -336,3 +336,245 @@ fn fn_inscope_target_is_a_reference_not_a_declaration() {
         locations(&def),
     );
 }
+
+// ---------------------------------------------------------------------------
+// Review of PR #1112 — three P2 tier-completeness findings.
+// ---------------------------------------------------------------------------
+
+// TN (finding 1) — a namespace-name position is **definitive**: it must never
+// fall through to command resolution.  `namespace exists string` with
+// `::string` declared in a sibling document produced the built-in `string`
+// command's documentation, and because that is an answer the server returned
+// it and never consulted the cross-document namespace tier at all.
+#[test]
+fn tn_command_hover_never_claims_a_namespace_word() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(&decl, "namespace eval ::string {}\n");
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "puts [namespace exists string]\n");
+
+    let text = hover_text(&lsp.hover(&user, 0, 24));
+    assert!(
+        !text.contains("built-in command"),
+        "command hover claimed a namespace word: {text:?}",
+    );
+    assert!(
+        text.contains("::string") && text.contains("Namespace"),
+        "the sibling declaration must answer instead: {text:?}",
+    );
+}
+
+// TN (finding 1) — the same rule for find-references.  Asking *without*
+// declarations from a namespace's only declaring block leaves the local set
+// empty, which is exactly what used to route the query to the proc/class
+// workspace tier.
+#[test]
+fn tn_references_never_fall_through_to_the_proc_tier() {
+    let mut lsp = Lsp::tcl();
+    let lib = unique_uri("tcl");
+    lsp.open_ready(&lib, "proc widget {} { return 1 }\nwidget\n");
+    let here = unique_uri("tcl");
+    lsp.open_ready(&here, "namespace eval widget {}\n");
+
+    let refs = lsp.references(&here, 0, 16, false);
+    assert!(
+        lines_in(&refs, &lib).is_empty(),
+        "proc sites claimed a namespace word: {:?}",
+        locations(&refs),
+    );
+}
+
+// TN (finding 1) — and for rename.  Prepare must offer no UI, and a client
+// that skips prepare must meet a *refusal*, not an empty edit set: an empty
+// set falls through to the server's workspace-resolved rename branch, which
+// resolved the word as a command and rewrote the same-spelled proc — pointing
+// the editor's highlight at a declaration on a completely different line.
+#[test]
+fn tn_rename_refuses_a_namespace_word_rather_than_renaming_a_proc() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc widget {} { return 1 }\nnamespace eval widget {}\nnamespace children widget\n",
+    );
+
+    assert!(
+        lsp.prepare_rename(&uri, 2, 20).is_null(),
+        "prepare-rename must not offer to rename a namespace word",
+    );
+    let err = lsp.rename_error(&uri, 2, 20, "gadget");
+    let message = err
+        .get("message")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    assert!(
+        message.contains("is a namespace name"),
+        "rename must refuse with a reason naming the namespace, got {err}",
+    );
+}
+
+// TP (finding 2) — a namespace reopened here **and** next door reports both
+// blocks.  Returning as soon as the in-document provider answered (and
+// excluding the current URI from the index lookup) reported only the local
+// half, contradicting the feature's own contract that every declaring block
+// is a target.
+//
+// Oracle — tclsh 9.0.4 and 8.6.16, byte-identical: sourcing both files,
+// `namespace eval mypkg` twice leaves one namespace holding both blocks'
+// contents (`info vars ::mypkg::*` -> `::mypkg::v`, `::mypkg::p` callable).
+#[test]
+fn tp_definition_unions_local_and_sibling_declaring_blocks() {
+    let mut lsp = Lsp::tcl();
+    let sib = unique_uri("tcl");
+    lsp.open_ready(&sib, "namespace eval mypkg {\n    variable v 1\n}\n");
+    let here = unique_uri("tcl");
+    lsp.open_ready(
+        &here,
+        "namespace eval mypkg {\n    proc p {} {}\n}\nset t [namespace children ::mypkg]\n",
+    );
+
+    let def = lsp.definition(&here, 3, 28);
+    assert_eq!(
+        lines_in(&def, &here),
+        vec![0],
+        "the local block is a target"
+    );
+    assert_eq!(
+        lines_in(&def, &sib),
+        vec![0],
+        "so is the sibling document's block: {:?}",
+        locations(&def),
+    );
+}
+
+// TP (finding 2) — find-references unions both documents' sites too.
+#[test]
+fn tp_references_union_local_and_sibling_sites() {
+    let mut lsp = Lsp::tcl();
+    let sib = unique_uri("tcl");
+    lsp.open_ready(&sib, "namespace eval mypkg {}\nnamespace exists ::mypkg\n");
+    let here = unique_uri("tcl");
+    lsp.open_ready(
+        &here,
+        "namespace eval mypkg {}\nnamespace children ::mypkg\n",
+    );
+
+    let refs = lsp.references(&here, 1, 22, true);
+    assert_eq!(lines_in(&refs, &here), vec![0, 1], "local sites");
+    assert_eq!(
+        lines_in(&refs, &sib),
+        vec![0, 1],
+        "sibling sites: {:?}",
+        locations(&refs),
+    );
+}
+
+// TP (finding 2) — hover counts the whole workspace, not just this file.  A
+// hover saying "1 block" while go-to-definition offers three contradicts
+// itself.
+#[test]
+fn tp_hover_counts_declaring_blocks_across_the_workspace() {
+    let mut lsp = Lsp::tcl();
+    let sib = unique_uri("tcl");
+    lsp.open_ready(&sib, "namespace eval mypkg {}\nnamespace eval mypkg {}\n");
+    let here = unique_uri("tcl");
+    lsp.open_ready(
+        &here,
+        "namespace eval mypkg {}\nnamespace children ::mypkg\n",
+    );
+
+    let text = hover_text(&lsp.hover(&here, 1, 22));
+    assert!(
+        text.contains("3 `namespace eval` blocks") && text.contains("across 2 documents"),
+        "hover must count every declaring block: {text:?}",
+    );
+}
+
+// TP (finding 3) — the **empty literal** names the global namespace at global
+// scope, so `namespace eval {} { … }` is a declaration of `::` and
+// `namespace children {}` is a reference to it.
+//
+// Oracle — tclsh 9.0.4 and 8.6.16, byte-identical:
+//   namespace exists {}                       -> 1
+//   namespace children {}                     == namespace children ::
+//   namespace inscope {} {namespace current}  -> ::
+//   namespace eval {} {namespace current}     -> ::
+//   namespace eval :: {variable a 1}; namespace eval {} {variable b 1}
+//                                             -> both ::a and ::b exist
+#[test]
+fn tp_empty_literal_is_the_global_namespace_at_global_scope() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "namespace eval :: {}\nnamespace eval {} {}\nnamespace children {}\n",
+    );
+
+    let def = lsp.definition(&uri, 2, 20);
+    assert_eq!(
+        lines_in(&def, &uri),
+        vec![0, 1],
+        "both spellings declare the same global namespace: {:?}",
+        locations(&def),
+    );
+    let refs = lsp.references(&uri, 0, 15, true);
+    assert_eq!(
+        lines_in(&refs, &uri),
+        vec![0, 1, 2],
+        "every spelling is one symbol: {:?}",
+        locations(&refs),
+    );
+}
+
+// TN (finding 3) — inside another namespace the very same word names a
+// namespace that *cannot exist*, so it must resolve to nothing rather than to
+// the enclosing namespace's declarations.
+//
+// Oracle — tclsh 9.0.4 and 8.6.16, byte-identical, inside `namespace eval
+// ::outer`:
+//   namespace exists {}     -> 0
+//   namespace children {}   -> namespace "" not found in "::outer"        (rc 1)
+//   namespace eval {} {…}   -> can't create namespace "": only global
+//                              namespace can have empty name              (rc 1)
+#[test]
+fn tn_empty_literal_inside_a_namespace_names_nothing() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "namespace eval ::outer {\n    namespace exists {}\n}\n",
+    );
+
+    let def = lsp.definition(&uri, 1, 21);
+    assert!(
+        locations(&def).is_empty(),
+        "`{{}}` inside `::outer` is not `::outer`: {:?}",
+        locations(&def),
+    );
+}
+
+// TP (finding 3, adjacent) — a **braced** namespace name is an ordinary name,
+// so the data-brace inertness test must not veto it.
+//
+// Oracle — tclsh 9.0.4 and 8.6.16, byte-identical: `namespace eval {my ns} {
+// variable v 7; proc p {} {return P} }` gives `namespace exists {my ns}` -> 1,
+// `namespace children ::` listing `{::my ns}`, `set {::my ns::v}` -> 7, and
+// `{::my ns::p}` -> P.
+#[test]
+fn tp_a_braced_namespace_name_is_navigable() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "namespace eval {my ns} { variable v 7 }\nnamespace children {my ns}\n",
+    );
+
+    let def = lsp.definition(&uri, 1, 22);
+    assert_eq!(
+        lines_in(&def, &uri),
+        vec![0],
+        "a braced namespace name is a real name: {:?}",
+        locations(&def),
+    );
+}

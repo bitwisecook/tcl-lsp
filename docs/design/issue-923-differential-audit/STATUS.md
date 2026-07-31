@@ -849,7 +849,9 @@ issue:
 - **Rename is not wired to the namespace tier.** Definition, hover, and
   references answer; renaming a namespace would have to rewrite every
   qualified proc/variable name under it, which is a materially bigger edit
-  set than the variable tier's and is not attempted here.
+  set than the variable tier's and is not attempted here. It now **refuses
+  with a reason** rather than answering nothing — see the review section
+  below for why that distinction is load-bearing.
 - **A computed target (`namespace eval $ns { … }`) resolves nowhere**, by
   design — it names no static namespace. The per-call-site synthetic domain
   the analyser already builds for it (`@dynns@<offset>`) could in principle
@@ -861,6 +863,82 @@ issue:
   own, so no `ArgRole` reaches it; the analyser already models its
   *semantics* (`AnalysisResult::namespace_overrides`), just not its identity
   as a reference.
+
+**Codex review of PR #1112 (P2 × 3)** — all three were *tier-completeness*
+faults on the new feature, and all three are fixed in the same PR. Recorded
+here because the reasoning generalises to any new symbol kind.
+
+- **A span-definitive position must be definitive in every provider**
+  (finding 1). The design point was that a `NamespaceName`-role word is
+  span-precise, so no word-based resolver may claim it — but hover only
+  returned early when it had a *local* answer, and otherwise fell through to
+  the command resolvers. `namespace exists string`, with `::string` declared
+  in a sibling document, therefore rendered the built-in `string` command's
+  documentation; and because that is an answer, the server returned it and
+  never reached the cross-document namespace tier at all. `None` now means
+  "no local answer" — the signal that tier needs — and never "try something
+  else". The same fall-through class was audited across the other providers:
+  definition and references were already definitive in core, but the
+  *server's* references handler routes an empty local set to
+  `workspace_resolved_references` (the proc/class tier), which an empty
+  namespace answer reaches whenever `includeDeclaration` is false and the
+  cursor sits on the namespace's only declaring block. **Rename was the worst
+  of the family**: `Ok(vec![])` is documented to fall through to the
+  workspace-resolved rename branch, so `namespace children widget` beside a
+  `proc widget` offered to rename the *proc*, with the editor's highlight
+  pointing at the proc's declaration on a different line. Rename now refuses
+  with a reason (`rename_safety::RenameRefusal`), prepare-rename answers
+  `None`, and every namespace query is answered by one server-side branch
+  taken *before* any other tier runs.
+- **Every declaring block is a target, wherever it lives** (finding 2). The
+  first cut returned as soon as the in-document provider answered *and*
+  excluded the request's own URI from the index lookup, so a namespace
+  reopened both locally and in a sibling reported only the local half —
+  contradicting the feature's own contract. Definition and references now
+  union the local analysis with the index (deduplicated by `(uri, span)`),
+  and hover counts the same merged set, saying how many documents it looked
+  at. Rendering stays in one function
+  (`namespace_symbol::namespace_hover_markdown`) fed by a
+  `NamespaceFacts { declarations, references, documents }`, so the
+  in-document and workspace tiers cannot word the same fact differently —
+  they differ only in how wide a set they counted. References already
+  unioned; that was verified rather than assumed, with a test pinning it.
+- **The empty literal is a namespace name** (finding 3), and the oracle
+  refines the claim. tclsh 9.0.4 and 8.6.16 agree byte-for-byte that it is an
+  ordinary **relative** name, not a synonym for `::`. At global scope
+  `namespace exists {}` is `1`, `namespace children {}` equals `namespace
+  children ::`, `namespace inscope {} {namespace current}` is `::`, and
+  `namespace eval {} { … }` reopens the global namespace. Written *inside*
+  `namespace eval ::outer` the same word means `::outer`'s empty-named child:
+  `namespace exists {}` is `0`, `namespace children {}` fails `namespace ""
+  not found in "::outer"`, and `namespace eval {} { … }` fails `can't create
+  namespace "": only global namespace can have empty name`. Dropping the
+  `name.is_empty()` skip is therefore the whole fix — `naming::qualify`
+  already maps the word to `::` at global scope and to `::outer::` inside a
+  namespace, which is exactly Tcl's rule. Two consequences had to be fixed
+  with it: the root-collapsing comparison must fold **only** the root, or
+  `::outer::` (a namespace that cannot exist) would answer with `::outer`'s
+  declarations; and the data-brace inertness proof must **not** run on a
+  namespace word, because a namespace name may legitimately *be* a braced
+  word — `namespace eval {my ns} { variable v 7; proc p {} {return P} }`
+  creates a real namespace on both interpreters (`namespace children ::`
+  lists `{::my ns}`, `set {::my ns::v}` is `7`, `{::my ns::p}` runs). That
+  gate was redundant anyway: a `NamespaceRef` exists only because the
+  analyser walked the command as live code, which is a strictly stronger
+  liveness proof than the textual test.
+
+**Further residuals from that review**:
+
+- **A braced name's recorded span omits its closing brace** (`{my ns` for
+  `{my ns}`). This is a pre-existing, product-wide token-span convention —
+  `proc {my p}`'s own `name_span` is `{my p` — not a namespace-tier fact, so
+  it is left alone rather than fixed asymmetrically here. It is cosmetic: the
+  range an editor highlights is one character short, and resolution is
+  unaffected.
+- **Whitespace-only namespace names are recorded, deliberately.** `namespace
+  eval " " { … }` genuinely creates a namespace both interpreters list as
+  `{:: }` among `namespace children ::`, so there is no whitespace skip to
+  add.
 
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label

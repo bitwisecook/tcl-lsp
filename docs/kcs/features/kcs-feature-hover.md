@@ -97,11 +97,14 @@ Both of those are decided narrowly, so a real reference is never hidden:
   file has no such variable.
 - A **namespace name** is described as one. Hovering the `::tomato` of
   `namespace children ::tomato` — or of the `namespace eval ::tomato { … }`
-  block itself — names the namespace, says how many `namespace eval` blocks
-  declare it, and how many other places in the declaring file refer to it.
-  The declaring block may be in another file. Nothing is shown for a
-  namespace no file in view declares, so a guess is never presented as an
-  answer.
+  block itself — names the namespace and counts every `namespace eval` block
+  that declares it and every other place that refers to it, **across the
+  whole workspace**, saying how many documents it looked at. Nothing is shown
+  for a namespace no file in view declares, so a guess is never presented as
+  an answer. In particular, a namespace whose name also happens to be a
+  command's — `namespace exists string` — never shows that *command's*
+  documentation instead: the two are different kinds of symbol, and the
+  position says which one is meant.
 
 ### Caller-frame variables
 

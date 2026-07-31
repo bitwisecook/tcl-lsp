@@ -104,6 +104,27 @@ alongside proc/class owners and `namespace_exports`.  A `namespace eval ::ns
 { namespace import ::other::* }` block declaring no proc, class, or export
 of its own *is* a namespace the workspace can see.
 
+Both halves of a namespace query are a **union**, not a fallback: the
+request's own analysis supplies the local sites and the index supplies every
+other document's, deduplicated by `(uri, span)`.  Returning as soon as the
+in-document provider answered — and excluding the request's own URI from the
+index lookup, which the first cut did — reported only the local half of a
+namespace reopened in two files, contradicting the contract that every
+declaring block is a target (issue #1088 review, finding 2).  Reading the
+local half from the analysis rather than the index is deliberate: a document
+that is unindexed, or has been edited since it was indexed, still answers.
+Hover counts the same merged set and states how many documents it counted, so
+it cannot say "1 block" while go-to-definition offers three.
+
+A namespace-name position is also **definitive** in the server, not just in
+the providers: the query is answered by one branch taken before every other
+tier.  An empty answer must not reach the proc/class tiers — an empty local
+reference set (asking without declarations from a namespace's only declaring
+block) used to route the query to `workspace_resolved_references`, and an
+empty rename edit set falls through to the workspace-resolved rename branch
+by design, which renamed a same-spelled *proc* instead (issue #1088 review,
+finding 1).
+
 ### The variable tier's rename half
 
 Go-to-definition, hover, and find-references answer a namespace variable

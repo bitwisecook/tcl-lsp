@@ -110,6 +110,16 @@ name commands. A namespace that exists only because it is a parent
 (`namespace eval ::p::q::r { … }` really does create `::p::q`) has no name
 of its own written anywhere, so nothing is reported for it.
 
+Two spellings surprise people, and both follow the same relative rule. The
+**empty** word names the global namespace at the top level — `namespace eval
+{} { … }` really does reopen `::`, and `namespace children {}` lists the same
+children as `namespace children ::` — so all three spellings are one symbol.
+Written inside another namespace the same word means that namespace's
+empty-named child, which Tcl refuses to create at all, so it resolves to
+nothing rather than to the namespace around it. And a **braced** name is an
+ordinary name: `namespace eval {my ns} { … }` creates a real namespace, and
+`namespace children {my ns}` jumps to it.
+
 A command a `package require`d package provides also jumps: the package's
 `pkgIndex.tcl` is resolved through the search path, including the one the
 file builds for itself with `lappend auto_path [file dirname [file dirname
