@@ -1303,6 +1303,13 @@ pub struct WorkspaceIndex {
     /// same set with the names links introduce — see
     /// [`WorkspaceIndex::defined_command_names`].
     defined_names: [Derived<HashSet<String>>; 2],
+    /// `linked name -> target name` over the live links — see
+    /// [`WorkspaceIndex::command_link_map`].
+    command_link_map: Derived<std::collections::HashMap<String, String>>,
+    /// Every invocation's settled target, grouped by that target, with and
+    /// without link-following — see
+    /// [`WorkspaceIndex::invocations_by_settled_target`].
+    settled_invocations: [Derived<SettledTargets>; 2],
 }
 
 /// A whole-index **derived view**: a value that is a pure function of the
@@ -1336,6 +1343,25 @@ impl<T> Derived<T> {
         Arc::clone(self.0.get_or_init(|| Arc::new(build())))
     }
 }
+
+/// Every invocation's **settled target**, grouped by that target's
+/// `::`-stripped qualified name: `target -> [(doc slot, index within that
+/// slot's invocations)]`.
+///
+/// [`WorkspaceIndex::invocations_of`] (code-lens's per-proc / per-class
+/// reference count, issue #1152) used to re-settle *every* invocation in the
+/// workspace against the candidate target on every call — `code_lenses`
+/// calls it once per proc and once per class, so an N-proc document paid an
+/// O(N × invocations) walk, each rebuilding [`WildcardImportIndex`] (five
+/// `HashMap`s over the whole index) from scratch. Settling every invocation
+/// once per generation and grouping the results turns each subsequent
+/// `invocations_of` call into a hash lookup plus a direct index into the
+/// owning document's slot — the indices are stable because a document's
+/// `Vec<WorkspaceInvocation>` is only ever cleared and refilled wholesale
+/// (`DocumentRecords::clear` / `index_document`), never reordered in place,
+/// and any mutation that could invalidate a stored `(slot, index)` pair also
+/// bumps the generation and drops the [`Derived`] view holding it.
+type SettledTargets = std::collections::HashMap<String, Vec<(usize, usize)>>;
 
 impl WorkspaceIndex {
     /// Empty index.
@@ -1486,6 +1512,8 @@ impl WorkspaceIndex {
         self.command_names = Derived::default();
         self.live_links = Derived::default();
         self.defined_names = <[Derived<HashSet<String>>; 2]>::default();
+        self.command_link_map = Derived::default();
+        self.settled_invocations = <[Derived<SettledTargets>; 2]>::default();
     }
 
     /// The command name-links that are actually installed — every `interp
@@ -2673,6 +2701,13 @@ impl WorkspaceIndex {
     /// names and the winning candidate is chased along the link map to its
     /// ultimate target; without it, only real proc/class definitions settle a
     /// call (the direct-reference behaviour rename relies on).
+    ///
+    /// A hash lookup into [`Self::invocations_by_settled_target`] plus a
+    /// direct index into each hit's owning document slot — the settlement
+    /// walk itself (which needs [`Self::defined_command_names`],
+    /// [`Self::command_link_map`] and a [`WildcardImportIndex`]) runs at most
+    /// once per generation, not once per call (issue #1152: `code_lenses`
+    /// calls this once per proc *and* once per class in the document).
     fn invocations_settling_to<'a>(
         &'a self,
         qualified_name: &str,
@@ -2680,39 +2715,71 @@ impl WorkspaceIndex {
         follow_links: bool,
     ) -> Vec<&'a WorkspaceInvocation> {
         let target = qualified_name.trim_start_matches("::");
-        // Build the workspace command set once (normalised qualified names of
-        // every proc and class, plus linked names when following), so each
-        // candidate existence check is O(1). Same reasoning for the
-        // wildcard-import index — see `WildcardImportIndex`'s own doc.
-        let defined = self.defined_command_names(follow_links);
-        let links = follow_links.then(|| self.command_link_map());
-        let wci = WildcardImportIndex::build(self);
-        self.invocations()
+        let by_target = self.invocations_by_settled_target(follow_links);
+        let Some(sites) = by_target.get(target) else {
+            return Vec::new();
+        };
+        sites
+            .iter()
+            .map(|&(slot, idx)| &self.docs[slot].invocations[idx])
             .filter(|i| i.uri != exclude_uri)
-            .filter(|i| self.invocation_resolves_to(i, &defined, links.as_ref(), &wci, target))
             .collect()
     }
 
-    /// Whether call site `inv` resolves to the command whose `::`-stripped
-    /// qualified name is `target`: the first of its candidates defined anywhere
-    /// in the workspace is the call's true target, chased along `links` (when
-    /// supplied) to the command it ultimately names.
-    fn invocation_resolves_to(
+    /// Every indexed invocation's settled target, `::`-stripped and grouped
+    /// into `target -> [(doc slot, index within that slot's invocations)]`
+    /// — one entry per invocation that settles to *some* command, in the
+    /// same relative order [`Self::invocations`] would visit them in.
+    /// A [`Derived`] view, one reading per `follow_links` value; see
+    /// [`SettledTargets`] for why the stored `(slot, index)` pairs stay valid
+    /// for the view's whole lifetime.
+    fn invocations_by_settled_target(&self, follow_links: bool) -> Arc<SettledTargets> {
+        self.settled_invocations[usize::from(follow_links)].get_or_build(|| {
+            // Built once per generation (both the command set and the
+            // wildcard-import index — see `WildcardImportIndex`'s own doc),
+            // then reused for every invocation in the workspace.
+            let defined = self.defined_command_names(follow_links);
+            let links = follow_links.then(|| self.command_link_map());
+            let wci = WildcardImportIndex::build(self);
+            let mut by_target: SettledTargets = std::collections::HashMap::new();
+            for (slot, doc) in self.docs.iter().enumerate() {
+                for (idx, inv) in doc.invocations.iter().enumerate() {
+                    if let Some(target) =
+                        self.settle_invocation(inv, &defined, links.as_deref(), &wci)
+                    {
+                        by_target.entry(target).or_default().push((slot, idx));
+                    }
+                }
+            }
+            by_target
+        })
+    }
+
+    /// The command `inv` settles to, `::`-stripped, or `None` when nothing in
+    /// the workspace resolves it: the first of its candidates defined
+    /// anywhere in the workspace, chased along `links` (when supplied) to its
+    /// ultimate target — falling back, when following links, to a wildcard
+    /// `namespace import NS::*` in scope (issue #923 idx 18). The settlement
+    /// logic itself is unchanged from the pre-#1152 `invocation_resolves_to`,
+    /// restated as "what does this settle to" (grouped by the answer) rather
+    /// than "does this settle to the one target the caller named" (checked
+    /// once per candidate target).
+    fn settle_invocation(
         &self,
         inv: &WorkspaceInvocation,
         defined: &HashSet<String>,
-        links: Option<&std::collections::HashMap<&str, &str>>,
+        links: Option<&std::collections::HashMap<String, String>>,
         wci: &WildcardImportIndex<'_>,
-        target: &str,
-    ) -> bool {
+    ) -> Option<String> {
         if let Some(winner) = inv
             .resolution_candidates
             .iter()
             .find(|c| defined.contains(c.trim_start_matches("::")))
         {
             let winner = winner.trim_start_matches("::");
-            let settled = links.map_or(winner, |m| Self::follow_links(m, winner));
-            return settled == target;
+            return Some(
+                links.map_or_else(|| winner.to_owned(), |m| Self::follow_links(m, winner)),
+            );
         }
         // No real command or name-link settled this call — try a wildcard
         // `namespace import NS::*` in scope for the call's own namespace
@@ -2722,49 +2789,50 @@ impl WorkspaceIndex {
         // by find-references) and never the direct-only view rename relies
         // on — a call spelling the local imported name is not text-rewritten
         // just because its ultimate source is renamed.
-        links.is_some()
-            && self
-                .resolve_wildcard_import_indexed(
-                    &inv.name,
-                    &inv.resolution_candidates,
-                    CallSite {
-                        uri: &inv.uri,
-                        at: inv.range.start(),
-                        enclosing_body: inv.enclosing_body,
-                    },
-                    wci,
-                )
-                .is_some_and(|resolved| resolved.trim_start_matches("::") == target)
+        links?;
+        self.resolve_wildcard_import_indexed(
+            &inv.name,
+            &inv.resolution_candidates,
+            CallSite {
+                uri: &inv.uri,
+                at: inv.range.start(),
+                enclosing_body: inv.enclosing_body,
+            },
+            wci,
+        )
+        .map(|resolved| resolved.trim_start_matches("::").to_owned())
     }
 
     /// The command name-link map (`::`-stripped `linked → immediate target`)
     /// used to chase an import / alias / rename to the command it names.
-    fn command_link_map(&self) -> std::collections::HashMap<&str, &str> {
-        self.live_command_links()
-            .into_iter()
-            .map(|l| {
-                (
-                    l.linked_qname.trim_start_matches("::"),
-                    l.target_qname.trim_start_matches("::"),
-                )
-            })
-            .collect()
+    /// A [`Derived`] view rather than a fresh walk of
+    /// [`Self::live_command_links`] per call (issue #1152); owned (`String`,
+    /// not `&str`) so the view is independent of any one call's borrow.
+    fn command_link_map(&self) -> Arc<std::collections::HashMap<String, String>> {
+        self.command_link_map.get_or_build(|| {
+            self.live_command_links()
+                .into_iter()
+                .map(|l| {
+                    (
+                        l.linked_qname.trim_start_matches("::").to_owned(),
+                        l.target_qname.trim_start_matches("::").to_owned(),
+                    )
+                })
+                .collect()
+        })
     }
 
     /// Chase `start` along the link map to its ultimate target, stopping at a
     /// name that is not itself a linked name.  Bounded by cycle detection (an
     /// alias-of-an-alias loop) so a malformed chain cannot spin.
-    fn follow_links<'a>(
-        links: &std::collections::HashMap<&'a str, &'a str>,
-        start: &'a str,
-    ) -> &'a str {
-        let mut cur = start;
+    fn follow_links(links: &std::collections::HashMap<String, String>, start: &str) -> String {
+        let mut cur = start.to_owned();
         let mut seen = std::collections::HashSet::new();
-        while let Some(&next) = links.get(cur) {
-            if !seen.insert(cur) {
+        while let Some(next) = links.get(&cur) {
+            if !seen.insert(cur.clone()) {
                 break;
             }
-            cur = next;
+            cur.clone_from(next);
         }
         cur
     }
@@ -2898,14 +2966,17 @@ impl WorkspaceIndex {
     /// alias / rename introduces join the set, so a call reaching one of them
     /// settles (and is then chased to its ultimate target).
     ///
-    /// A [`Derived`] view rather than a fresh walk (issue #1105): it is
-    /// `O(procs + classes + links)` to build, and
+    /// A [`Derived`] view rather than a fresh walk (issues #1105 / #1152): it
+    /// is `O(procs + classes + links)` to build, and
     /// [`Self::workspace_command_exists`] asks for it *per candidate* inside
-    /// [`Self::follow_import_chain`]'s loop, which turned an existence test
-    /// into a workspace-wide scan. The two `include_links` readings are two
-    /// separate views because a consumer wants exactly one of them: the
-    /// direct-only set is what rename relies on, and folding the link names
-    /// into it would let a call spelling an imported name be text-rewritten.
+    /// [`Self::follow_import_chain`]'s loop — and
+    /// [`Self::invocations_by_settled_target`] once per settling pass — which
+    /// turned an existence test into a workspace-wide scan. Owned (`String`,
+    /// not `&str`) so the view is independent of any one call's borrow. The
+    /// two `include_links` readings are two separate views because a consumer
+    /// wants exactly one of them: the direct-only set is what rename relies
+    /// on, and folding the link names into it would let a call spelling an
+    /// imported name be text-rewritten.
     fn defined_command_names(&self, include_links: bool) -> Arc<HashSet<String>> {
         self.defined_names[usize::from(include_links)].get_or_build(|| {
             let mut names: HashSet<String> = self
@@ -2972,7 +3043,7 @@ impl WorkspaceIndex {
     /// The indexed core of [`Self::resolve_wildcard_import`], taking a
     /// precomputed [`WildcardImportIndex`] instead of scanning
     /// `glob_imports`/`namespace_exports` in full — the fast path
-    /// [`Self::invocation_resolves_to`] uses so a workspace-wide
+    /// [`Self::settle_invocation`] uses so a workspace-wide
     /// invocation-settling pass builds the index once (O(every glob import
     /// / export in the workspace)) rather than once per invocation (which
     /// would be O(invocation count × workspace-wide glob-import count) —
@@ -6145,6 +6216,104 @@ mod tests {
         // A clone starts with a fresh (empty) cache and rebuilds identically.
         let cloned = index.clone();
         assert_eq!(*cloned.command_names(), *third);
+    }
+
+    /// Issue #1152: `defined_command_names` used to rebuild its `HashSet`
+    /// from scratch on every call. It is now cached — one slot per
+    /// `include_links` value — and dropped only by a mutation, same
+    /// `Arc::ptr_eq` proof as [`command_names_are_cached_until_the_index_changes`].
+    #[test]
+    fn defined_command_names_are_cached_per_generation() {
+        let a = analyse("proc ::alpha {} {}\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        let first = index.defined_command_names(false);
+        assert!(first.contains("alpha"), "{first:?}");
+        assert!(
+            Arc::ptr_eq(&first, &index.defined_command_names(false)),
+            "an unchanged index must serve the cache, not rebuild it",
+        );
+        // The `include_links` variants are cached independently: reading one
+        // must not populate (or invalidate) the other's slot.
+        let with_links_first = index.defined_command_names(true);
+        assert!(
+            !Arc::ptr_eq(&first, &with_links_first),
+            "the two `include_links` slots are distinct caches",
+        );
+        assert!(
+            Arc::ptr_eq(&with_links_first, &index.defined_command_names(true)),
+            "the with-links slot must also serve from cache once built",
+        );
+
+        let b = analyse("proc ::beta {} {}\n");
+        index.add_document("file:///b.tcl", &b);
+        let after_mutation = index.defined_command_names(false);
+        assert!(
+            !Arc::ptr_eq(&first, &after_mutation),
+            "indexing a document must drop both cached slots",
+        );
+        assert!(after_mutation.contains("beta"), "{after_mutation:?}");
+    }
+
+    /// Issue #1152: `command_link_map` used to rebuild its `HashMap` (from
+    /// `live_command_links`, itself already cached) on every call. It is now
+    /// cached directly, same discipline as `command_names`.
+    #[test]
+    fn command_link_map_is_cached_per_generation() {
+        let a = analyse("proc ::real {} {}\ninterp alias {} ::aliased {} ::real\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        let first = index.command_link_map();
+        assert_eq!(first.get("aliased").map(String::as_str), Some("real"));
+        assert!(
+            Arc::ptr_eq(&first, &index.command_link_map()),
+            "an unchanged index must serve the cache, not rebuild it",
+        );
+        index.remove_document("file:///a.tcl");
+        assert!(
+            !Arc::ptr_eq(&first, &index.command_link_map()),
+            "a mutation must drop the cache",
+        );
+    }
+
+    /// Issue #1152: `invocations_of` (via `invocations_by_settled_target`)
+    /// used to re-settle every invocation in the workspace, and rebuild
+    /// `WildcardImportIndex` from scratch, on every call — the cost
+    /// `code_lenses` multiplied by one call per proc *and* per class in the
+    /// document. The settled-target grouping is now cached per generation;
+    /// repeated `invocations_of` calls against an unchanged index must
+    /// share it rather than re-settle.
+    #[test]
+    fn invocations_by_settled_target_is_cached_per_generation() {
+        let a = analyse("proc helper {} {}\nproc other {} {}\n");
+        let b = analyse("helper\nhelper\nother\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        index.add_document("file:///b.tcl", &b);
+
+        let first = index.invocations_by_settled_target(false);
+        assert_eq!(first.get("helper").map(Vec::len), Some(2), "{first:?}");
+        assert!(
+            Arc::ptr_eq(&first, &index.invocations_by_settled_target(false)),
+            "an unchanged index must serve the cache, not re-settle",
+        );
+        // Querying different targets against the same generation must hit
+        // the same cached map, not re-settle per target.
+        let helper_calls = index.invocations_of("::helper", "");
+        let other_calls = index.invocations_of("::other", "");
+        assert_eq!(helper_calls.len(), 2, "{helper_calls:?}");
+        assert_eq!(other_calls.len(), 1, "{other_calls:?}");
+
+        // A mutation invalidates the cache and the next call re-settles
+        // against the new state.
+        let c = analyse("helper\n");
+        index.add_document("file:///c.tcl", &c);
+        let after_mutation = index.invocations_by_settled_target(false);
+        assert!(
+            !Arc::ptr_eq(&first, &after_mutation),
+            "indexing a document must drop the settled-invocations cache",
+        );
+        assert_eq!(index.invocations_of("::helper", "").len(), 3);
     }
 
     #[test]

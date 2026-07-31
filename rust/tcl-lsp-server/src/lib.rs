@@ -12009,33 +12009,19 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        // Share the workspace index with the worker via a refcounted
-        // handle and take the read lock inside the blocking closure,
-        // so the recomputed count walk holds a shared read lock
-        // rather than a private copy.
-        let workspace_index = Arc::clone(&self.workspace_index);
-        let uri_str = uri.to_string();
-        let analysis_for_count = Arc::clone(&analysis);
-        let count_text = doc.text.clone();
-        let count_dialect = doc.dialect.clone();
-        let lenses = tokio::task::spawn_blocking(move || {
-            let workspace = workspace_index.blocking_read();
-            core_code_lens::code_lenses(
-                &count_text,
-                &count_dialect,
-                Some(&analysis_for_count),
-                Some(&*workspace),
-                &uri_str,
-            )
-        })
-        .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("code_lens_resolve worker panicked: {err}").into(),
-            data: None,
-        })?;
         let mut lens = lens;
-        if lenses.iter().any(|l| l.qname == qname) {
+        // Existence check only — is `qname` one of *this* document's own
+        // lenses at all? Previously answered by recomputing the whole
+        // document's lens set (`code_lenses`, O(every proc + every class +
+        // every member's own reference-resolution walk)) and searching it for
+        // a matching `qname`, even though that result was discarded the
+        // moment the check passed — the title below always comes from
+        // `reference_locations_at`, never from `code_lenses`'s own count
+        // (issue #991). `lens_qname_exists` answers the same question with
+        // direct lookups against `analysis`'s own tables (issue #1152), so a
+        // click on one lens no longer re-derives every *other* lens in the
+        // document.
+        if core_code_lens::lens_qname_exists(&analysis, &qname) {
             // Resolve the actual reference locations so clicking the lens opens
             // a peek (the lens title alone is informational — a bare title with
             // no command is rendered but inert, the "reference is not active"

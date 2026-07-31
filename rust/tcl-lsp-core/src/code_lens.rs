@@ -370,6 +370,72 @@ pub fn reference_count_title(count: usize) -> String {
     }
 }
 
+/// Whether `qname` names a symbol [`code_lenses`] would emit a lens for in
+/// this document — a proc, a class, or one of a class's members (method /
+/// classmethod / property / constructor / destructor), matching exactly the
+/// same "declared members only" guards `code_lenses` /
+/// `emit_class_member_lenses` apply (a member with an empty `name_span`
+/// gets no lens, so it must not answer `true` here either).
+///
+/// `codeLens/resolve` (issue #1152) used this existence check to decide
+/// whether a lens is genuinely one of this document's own lenses before
+/// resolving its click locations — previously by calling [`code_lenses`] in
+/// full and searching its output for a matching `qname`, which recomputed
+/// every *other* proc's / class's / member's reference count (each itself a
+/// resolver walk) just to answer one boolean. This answers the same
+/// question with direct `HashMap`/`Vec` lookups: O(1) for a plain proc or
+/// class, O(the document's own class count) for a member qname (bounded by
+/// how many classes share its `{class}::…` prefix, never by proc count or
+/// by any reference-resolution work).
+#[must_use]
+pub fn lens_qname_exists(analysis: &AnalysisResult, qname: &str) -> bool {
+    if analysis.all_procs.contains_key(qname) || analysis.all_classes.contains_key(qname) {
+        return true;
+    }
+    for (class_q, class_def) in &analysis.all_classes {
+        let Some(rest) = qname.strip_prefix(class_q.as_str()) else {
+            continue;
+        };
+        // A shorter `class_q` can still produce a `rest` that happens to
+        // start with one of these markers (e.g. a class literally named
+        // `method` nested under this one) — only trust a *hit*, and keep
+        // checking the other classes on a miss rather than trusting a wrong
+        // split's "not found" as the final answer.
+        let found = if let Some(name) = rest.strip_prefix("::method::") {
+            class_def
+                .methods
+                .get(name)
+                .is_some_and(|m| !m.name_span.is_empty())
+        } else if let Some(name) = rest.strip_prefix("::classmethod::") {
+            class_def
+                .class_methods
+                .get(name)
+                .is_some_and(|m| !m.name_span.is_empty())
+        } else if let Some(name) = rest.strip_prefix("::property::") {
+            class_def
+                .properties
+                .get(name)
+                .is_some_and(|p| !p.name_span.is_empty())
+        } else if rest == "::constructor" {
+            class_def
+                .constructors
+                .last()
+                .is_some_and(|c| !c.name_span.is_empty())
+        } else if rest == "::destructor" {
+            class_def
+                .destructor
+                .as_ref()
+                .is_some_and(|d| !d.name_span.is_empty())
+        } else {
+            false
+        };
+        if found {
+            return true;
+        }
+    }
+    false
+}
+
 /// Count invocations targeting the given class — `ClassName
 /// new ...`, `ClassName create instance`, and inheritance
 /// references in `oo::class create Sub { superclass ClassName
@@ -1238,5 +1304,121 @@ mod tests {
         let li = LineIndex::new(src);
         let name_line = li.position_at_utf16(build_span.start(), src).line;
         assert_lens_matches_references(src, name_line);
+    }
+
+    // lens_qname_exists (issue #1152: codeLens/resolve's targeted existence
+    // check, replacing a full `code_lenses` walk)
+
+    #[test]
+    fn lens_qname_exists_finds_a_plain_proc() {
+        let analysis = analyse("proc foo {} {}\n");
+        assert!(lens_qname_exists(&analysis, "::foo"));
+        assert!(!lens_qname_exists(&analysis, "::bar"));
+    }
+
+    #[test]
+    fn lens_qname_exists_finds_a_plain_class() {
+        let analysis = analyse("oo::class create Widget {}\n");
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        assert!(lens_qname_exists(&analysis, "::Widget"));
+        assert!(!lens_qname_exists(&analysis, "::Other"));
+    }
+
+    #[test]
+    fn lens_qname_exists_finds_a_method_and_classmethod_and_disambiguates() {
+        let src = "oo::class create C {\n    method foo {} {}\n    classmethod foo {} {}\n}\n";
+        let analysis = analyse(src);
+        assert!(lens_qname_exists(
+            &analysis,
+            &tcl_compiler::analyser::class_member_key("::C", "foo", false)
+        ));
+        assert!(lens_qname_exists(
+            &analysis,
+            &tcl_compiler::analyser::class_member_key("::C", "foo", true)
+        ));
+        // A name neither table declares must not exist.
+        assert!(!lens_qname_exists(
+            &analysis,
+            &tcl_compiler::analyser::class_member_key("::C", "missing", false)
+        ));
+    }
+
+    #[test]
+    fn lens_qname_exists_finds_a_property() {
+        let src = "oo::class create Widget {\n    property size\n}\n";
+        let analysis = analyse90(src);
+        assert!(lens_qname_exists(
+            &analysis,
+            &tcl_compiler::analyser::class_property_key("::Widget", "size")
+        ));
+        assert!(!lens_qname_exists(
+            &analysis,
+            &tcl_compiler::analyser::class_property_key("::Widget", "missing")
+        ));
+    }
+
+    #[test]
+    fn lens_qname_exists_finds_constructor_and_destructor() {
+        let src = "oo::class create Bar {\n    constructor {} {}\n    destructor {}\n}\n";
+        let analysis = analyse(src);
+        assert!(lens_qname_exists(
+            &analysis,
+            &tcl_compiler::analyser::class_constructor_key("::Bar")
+        ));
+        assert!(lens_qname_exists(
+            &analysis,
+            &tcl_compiler::analyser::class_destructor_key("::Bar")
+        ));
+        // A class with no explicit constructor/destructor gets neither.
+        let plain = analyse("oo::class create Plain {\n    method use {} {}\n}\n");
+        assert!(!lens_qname_exists(
+            &plain,
+            &tcl_compiler::analyser::class_constructor_key("::Plain")
+        ));
+        assert!(!lens_qname_exists(
+            &plain,
+            &tcl_compiler::analyser::class_destructor_key("::Plain")
+        ));
+    }
+
+    #[test]
+    fn lens_qname_exists_rejects_an_unrelated_qname() {
+        let src = "proc foo {} {}\noo::class create Bar {\n    method m {} {}\n}\n";
+        let analysis = analyse(src);
+        assert!(!lens_qname_exists(&analysis, "::nope"));
+        assert!(!lens_qname_exists(&analysis, "::Bar::method::nope"));
+        assert!(!lens_qname_exists(&analysis, "::NoSuchClass::method::m"));
+    }
+
+    #[test]
+    fn lens_qname_exists_agrees_with_code_lenses_output() {
+        // Structural parity: every qname `code_lenses` actually emits a lens
+        // for must be found by the targeted check, and nothing else is.
+        let src = concat!(
+            "proc helper {} {}\n",
+            "oo::class create Bar {\n",
+            "    variable _x\n",
+            "    constructor {} { set _x 0 }\n",
+            "    destructor {}\n",
+            "    method get {} { return $_x }\n",
+            "    classmethod make {} { return [Bar new] }\n",
+            "    property colour\n",
+            "}\n",
+            "helper\n",
+            "set b [Bar new]\n",
+            "$b get\n",
+        );
+        let analysis = analyse90(src);
+        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        assert!(!lenses.is_empty(), "sanity: some lenses expected");
+        for lens in &lenses {
+            assert!(
+                lens_qname_exists(&analysis, &lens.qname),
+                "code_lenses emitted a qname the targeted check rejects: {}",
+                lens.qname,
+            );
+        }
     }
 }
