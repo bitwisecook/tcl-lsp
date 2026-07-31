@@ -2359,6 +2359,15 @@ pub struct Backend {
     /// server-side lift.  Folders without such overrides fall back to
     /// [`Backend::db_config`].
     folder_db_configs: Arc<Mutex<Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>>,
+    /// Retired per-folder `AnalyserConfig` handles, keyed by folder URI (#1145).
+    ///
+    /// The `AnalyserConfig` half of [`Backend::db_tombstones`], and there for
+    /// the same reason: a folder whose override set empties (or which leaves the
+    /// workspace) drops its handle, and re-enabling an override would allocate a
+    /// second one salsa can never reclaim.  A `.tcl-lsp.ini` watcher re-pulls the
+    /// whole layered config on every save, so the churn is per keystroke-save,
+    /// not per session.
+    folder_db_config_tombstones: Arc<Mutex<HashMap<Uri, tcl_lsp_db::AnalyserConfig>>>,
     /// W108 non-ASCII detection mode (`tclLsp.style.nonAscii`).
     /// [`NonAsciiMode::Default`] until an editor configures it via
     /// `initializationOptions` or `workspace/didChangeConfiguration`.
@@ -2476,6 +2485,22 @@ pub struct Backend {
     /// Per-URI salsa `SourceFile` input handles — the input-of-record the
     /// query graph reads.  Kept current by `did_open` / `did_change`.
     db_files: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
+    /// Retired `SourceFile` handles, keyed by the URI they belonged to (#1145).
+    ///
+    /// Salsa never reclaims an input: `SourceFile::new` only ever allocates, so
+    /// a URI that is removed and later re-created would strand its old input —
+    /// full text and every memo keyed on it — for the process's life.  A watched
+    /// `DELETED`→`CREATED` pair (a `git checkout` retriggers one per file), an
+    /// untitled buffer closing, a workspace folder being removed and re-added,
+    /// and a rename's [`Backend::retire_renamed_uri`] all take that path.
+    ///
+    /// So a removal *retires* the handle here with its payload cleared instead
+    /// of dropping it, and [`Backend::db_set_source`] revives it rather than
+    /// allocating a second one.  The cost is one input per distinct URI the
+    /// session ever saw, each holding near-nothing while retired.  Retired
+    /// handles are never in `db_files`, so they never reach the salsa
+    /// [`tcl_lsp_db::Project`] file set either.
+    db_tombstones: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
     /// The salsa `Project` input — the workspace file set, kept in lock-step with
     /// `db_files` (re-set only when membership changes, on open/close), driving
     /// the cross-file `project_diagnostics` query.
@@ -2986,6 +3011,7 @@ impl Backend {
             folder_dialects: Mutex::new(Vec::new()),
             folder_configs: Mutex::new(Vec::new()),
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
+            folder_db_config_tombstones: Arc::new(Mutex::new(HashMap::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(default_disabled_set()),
             severity_overrides: Mutex::new(HashMap::new()),
@@ -3009,6 +3035,7 @@ impl Backend {
             style_line_length: Mutex::new(120),
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
+            db_tombstones: Arc::new(Mutex::new(HashMap::new())),
             db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -3025,7 +3052,7 @@ impl Backend {
 
     /// Create or update the salsa `SourceFile` input for `uri`.  Called by
     /// `did_open` / `did_change` so the query graph always reads current text.
-    /// Lock order is always `db` then `db_files`.
+    /// Lock order is always `db` → `db_files` → `db_tombstones` → `db_project`.
     async fn db_set_source(&self, uri: &Uri, text: String, dialect: String) {
         use salsa::Setter as _;
         let mut db = self.db.lock().await;
@@ -3036,8 +3063,10 @@ impl Backend {
             file.set_text(&mut *db).to(text);
             file.set_dialect(&mut *db).to(dialect);
         } else {
-            let path = uri.to_file_path().map(|p| p.display().to_string());
-            let file = tcl_lsp_db::SourceFile::new(&*db, text, dialect, path);
+            let file = {
+                let mut tombstones = self.db_tombstones.lock().await;
+                Self::revive_or_create_db_source(&mut db, &mut tombstones, uri, text, dialect)
+            };
             files.insert(uri.clone(), file);
             // Membership changed — re-set the `Project` file set.
             let mut project = self.db_project.lock().await;
@@ -3045,14 +3074,67 @@ impl Backend {
         }
     }
 
-    /// Drop the salsa `SourceFile` input for `uri` (on `did_close`).  Lock order
-    /// is `db` → `db_files` → `db_project`, matching [`Self::db_set_source`].
+    /// Retire the salsa `SourceFile` input for `uri` (on `did_close`).  Lock
+    /// order is `db` → `db_files` → `db_tombstones` → `db_project`, matching
+    /// [`Self::db_set_source`].
     async fn db_remove_source(&self, uri: &Uri) {
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
-        if files.remove(uri).is_some() {
+        let retired = {
+            let mut tombstones = self.db_tombstones.lock().await;
+            Self::retire_db_source(&mut db, &mut files, &mut tombstones, uri)
+        };
+        if retired {
             let mut project = self.db_project.lock().await;
             Self::sync_db_project(&mut db, &files, &mut project);
+        }
+    }
+
+    /// Move `uri`'s live `SourceFile` handle into the tombstone map with its
+    /// payload released, returning whether there was one (#1145).
+    ///
+    /// Salsa 0.27 allocates inputs and never frees them, so dropping the handle
+    /// would strand the text and every memo keyed on it.  Emptying the text and
+    /// clearing the cross-file evidence releases the payload *and* backdates the
+    /// memos that read them, which is the closest a caller can get to reclaiming
+    /// the input.  `path` and `dialect` are left alone: both are small, and the
+    /// path is a pure function of the URI this handle is filed under, so a
+    /// revival re-derives the same value.
+    fn retire_db_source(
+        db: &mut tcl_lsp_db::TclDatabase,
+        files: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
+        tombstones: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
+        uri: &Uri,
+    ) -> bool {
+        use salsa::Setter as _;
+        let Some(file) = files.remove(uri) else {
+            return false;
+        };
+        file.set_text(db).to(String::new());
+        file.set_external_call_sites(db).to(None);
+        tombstones.insert(uri.clone(), file);
+        true
+    }
+
+    /// The `SourceFile` handle to file under `uri`: its retired one revived with
+    /// the new text, or a fresh input when the session has never seen this URI
+    /// (#1145).  Reviving keeps one input per distinct URI however many
+    /// delete/re-create cycles the URI goes through.
+    fn revive_or_create_db_source(
+        db: &mut tcl_lsp_db::TclDatabase,
+        tombstones: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
+        uri: &Uri,
+        text: String,
+        dialect: String,
+    ) -> tcl_lsp_db::SourceFile {
+        use salsa::Setter as _;
+        if let Some(file) = tombstones.remove(uri) {
+            file.set_text(db).to(text);
+            file.set_dialect(db).to(dialect);
+            file
+        } else {
+            let path = uri.to_file_path().map(|p| p.display().to_string());
+            tcl_lsp_db::SourceFile::new(&*db, text, dialect, path)
         }
     }
 
@@ -3061,7 +3143,7 @@ impl Backend {
     /// if membership changed — not once per file (which would be O(files²) over a
     /// large tree).  Used so cross-file diagnostics resolve against the *whole*
     /// workspace (matching `workspace_index`), not only open documents.  Lock order
-    /// is `db` → `db_files` → `db_project`, as everywhere.
+    /// is `db` → `db_files` → `db_tombstones` → `db_project`, as everywhere.
     async fn db_set_sources_batch(&self, entries: &[(Uri, String, String)]) {
         use salsa::Setter as _;
         if entries.is_empty() {
@@ -3069,39 +3151,48 @@ impl Backend {
         }
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
+        let mut tombstones = self.db_tombstones.lock().await;
         let mut membership_changed = false;
         for (uri, text, dialect) in entries {
             if let Some(&file) = files.get(uri) {
                 file.set_text(&mut *db).to(text.clone());
                 file.set_dialect(&mut *db).to(dialect.clone());
             } else {
-                let path = uri.to_file_path().map(|p| p.display().to_string());
-                let file = tcl_lsp_db::SourceFile::new(&*db, text.clone(), dialect.clone(), path);
+                let file = Self::revive_or_create_db_source(
+                    &mut db,
+                    &mut tombstones,
+                    uri,
+                    text.clone(),
+                    dialect.clone(),
+                );
                 files.insert(uri.clone(), file);
                 membership_changed = true;
             }
         }
+        drop(tombstones);
         if membership_changed {
             let mut project = self.db_project.lock().await;
             Self::sync_db_project(&mut db, &files, &mut project);
         }
     }
 
-    /// Drop many salsa `SourceFile` inputs at once (files under a removed workspace
-    /// folder), re-setting the `Project` once if membership changed.  Lock order is
-    /// `db` → `db_files` → `db_project`.
+    /// Retire many salsa `SourceFile` inputs at once (files under a removed
+    /// workspace folder), re-setting the `Project` once if membership changed.
+    /// Lock order is `db` → `db_files` → `db_tombstones` → `db_project`.
     async fn db_remove_sources_batch(&self, uris: &[Uri]) {
         if uris.is_empty() {
             return;
         }
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
+        let mut tombstones = self.db_tombstones.lock().await;
         let mut membership_changed = false;
         for uri in uris {
-            if files.remove(uri).is_some() {
+            if Self::retire_db_source(&mut db, &mut files, &mut tombstones, uri) {
                 membership_changed = true;
             }
         }
+        drop(tombstones);
         if membership_changed {
             let mut project = self.db_project.lock().await;
             Self::sync_db_project(&mut db, &files, &mut project);
@@ -7923,6 +8014,14 @@ impl Backend {
     /// overrides the disabled-diagnostics set or non-ASCII mode (others inherit
     /// [`Backend::db_config`]); existing handles are reused across re-pulls so
     /// the salsa store does not accumulate dead config inputs.
+    ///
+    /// A folder that stops overriding anything — or leaves the workspace — has
+    /// its handle *retired* into [`Backend::folder_db_config_tombstones`] with
+    /// its payload cleared, not dropped, and a folder that starts overriding
+    /// again revives the retired handle (#1145).  Salsa never frees an input, so
+    /// dropping one leaks it: `.tcl-lsp.ini` re-pulls the whole layered config
+    /// on every save, which would otherwise allocate a fresh config input per
+    /// save for a folder toggling an override.
     async fn apply_folder_configs(&self, parsed: Vec<(Uri, FolderConfig)>) {
         use salsa::Setter as _;
         {
@@ -7941,6 +8040,12 @@ impl Backend {
             let global_generic = self.generic_variable_patterns.lock().await.clone();
             let mut db = self.db.lock().await;
             let mut handles = self.folder_db_configs.lock().await;
+            let mut tombstones = self.folder_db_config_tombstones.lock().await;
+            // Every live handle starts out claimed-back; whatever is still here
+            // when the loop ends belongs to a folder that no longer needs one and
+            // is retired below.
+            let mut reclaimable: HashMap<Uri, tcl_lsp_db::AnalyserConfig> =
+                handles.drain(..).collect();
             let mut next: Vec<(Uri, tcl_lsp_db::AnalyserConfig)> = Vec::new();
             for (folder, fc) in &parsed {
                 // A handle is only needed when the folder overrides one of the
@@ -7967,17 +8072,32 @@ impl Backend {
                     FolderGenericPatterns::BuiltinDefaults => None,
                     FolderGenericPatterns::Replace(list) => Some(list.clone()),
                 };
-                if let Some((_, handle)) = handles.iter().find(|(u, _)| u == folder) {
+                // The folder's own live handle first, then its retired one, and
+                // only then a fresh input.
+                if let Some(handle) = reclaimable
+                    .remove(folder)
+                    .or_else(|| tombstones.remove(folder))
+                {
                     handle.set_disabled_diagnostics(&mut *db).to(disabled);
                     handle.set_non_ascii_mode(&mut *db).to(mode);
                     handle.set_extra_commands(&mut *db).to(extra);
                     handle.set_generic_variable_patterns(&mut *db).to(generic);
-                    next.push((folder.clone(), *handle));
+                    next.push((folder.clone(), handle));
                 } else {
                     let handle =
                         tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode, extra, generic, None);
                     next.push((folder.clone(), handle));
                 }
+            }
+            for (folder, handle) in reclaimable {
+                // Release the payload before retiring, so a folder that toggles
+                // an override off does not keep its old code lists (and the
+                // memos keyed on them) alive until it is toggled back on.
+                handle.set_disabled_diagnostics(&mut *db).to(Vec::new());
+                handle.set_extra_commands(&mut *db).to(Vec::new());
+                handle.set_generic_variable_patterns(&mut *db).to(None);
+                handle.set_bigip_version(&mut *db).to(None);
+                tombstones.insert(folder, handle);
             }
             *handles = next;
         }
@@ -18226,6 +18346,7 @@ mod tests {
             folder_dialects: Mutex::new(Vec::new()),
             folder_configs: Mutex::new(Vec::new()),
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
+            folder_db_config_tombstones: Arc::new(Mutex::new(HashMap::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(default_disabled_set()),
             severity_overrides: Mutex::new(HashMap::new()),
@@ -18249,6 +18370,7 @@ mod tests {
             style_line_length: Mutex::new(120),
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
+            db_tombstones: Arc::new(Mutex::new(HashMap::new())),
             db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -19141,6 +19263,204 @@ mod tests {
             "deleting a closed file must clear its badge",
         );
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// #1145: removing a source retires its salsa input with an emptied payload
+    /// instead of dropping it, and re-creating the same URI revives that handle
+    /// rather than allocating a second one salsa can never free.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn db_remove_source_retires_input_for_reuse() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///retired.tcl").unwrap();
+        backend
+            .db_set_source(&uri, "proc foo {} {}\n".to_owned(), "tcl8.6".to_owned())
+            .await;
+        let first = *backend
+            .db_files
+            .lock()
+            .await
+            .get(&uri)
+            .expect("the source is tracked once set");
+
+        backend.db_remove_source(&uri).await;
+
+        assert!(
+            !backend.db_files.lock().await.contains_key(&uri),
+            "a removed source must leave the live file set",
+        );
+        {
+            let db = backend.db.lock().await;
+            let tombstones = backend.db_tombstones.lock().await;
+            let retired = *tombstones
+                .get(&uri)
+                .expect("the input must be retired, not dropped — salsa never frees one");
+            assert!(retired == first, "the retired handle is the original input");
+            assert!(
+                retired.text(&*db).is_empty(),
+                "a retired input must release its text: {:?}",
+                retired.text(&*db),
+            );
+            assert!(
+                retired.external_call_sites(&*db).is_none(),
+                "a retired input must release its cross-file evidence",
+            );
+        }
+
+        backend
+            .db_set_source(&uri, "proc bar {} {}\n".to_owned(), "tcl8.6".to_owned())
+            .await;
+        let second = *backend
+            .db_files
+            .lock()
+            .await
+            .get(&uri)
+            .expect("the re-created source is tracked again");
+        assert!(
+            first == second,
+            "re-creating a removed URI must revive its retired input",
+        );
+        assert!(
+            backend.db_tombstones.lock().await.is_empty(),
+            "a revived input must leave the tombstone map",
+        );
+        // The revived handle carries the new text and is the project's only file.
+        {
+            let db = backend.db.lock().await;
+            assert_eq!(second.text(&*db), "proc bar {} {}\n");
+            let project = backend.db_project.lock().await;
+            let files = project
+                .expect("a project exists once a file is tracked")
+                .files(&*db);
+            assert!(
+                files.as_slice() == [second],
+                "the project file set must hold exactly the one live input",
+            );
+        }
+    }
+
+    /// #1145: a watched `DELETED` → `CREATED` pair — what a `git checkout` or
+    /// branch switch fires for every changed file — must not allocate a second
+    /// salsa input per cycle.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn watched_delete_then_create_reuses_source_input() {
+        let root = unique_scratch_dir("watched-recreate");
+        let on_disk = root.join("switched.tcl");
+        std::fs::write(&on_disk, "proc foo {} {}\n").unwrap();
+        let backend = test_backend();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        backend
+            .db_set_source(&uri, "proc foo {} {}\n".to_owned(), "tcl8.6".to_owned())
+            .await;
+        let before = *backend
+            .db_files
+            .lock()
+            .await
+            .get(&uri)
+            .expect("the scanned file is tracked");
+
+        // The branch switch: the file disappears, then reappears with new content.
+        std::fs::remove_file(&on_disk).unwrap();
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::DELETED,
+                }],
+            })
+            .await;
+        std::fs::write(&on_disk, "proc bar {} {}\n").unwrap();
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::CREATED,
+                }],
+            })
+            .await;
+
+        let after = *backend
+            .db_files
+            .lock()
+            .await
+            .get(&uri)
+            .expect("the re-created file is tracked again");
+        assert!(
+            before == after,
+            "a delete/re-create cycle must reuse the retired input, not leak it",
+        );
+        assert!(
+            backend.db_tombstones.lock().await.is_empty(),
+            "the revived input must leave the tombstone map",
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// #1145: a folder whose override set empties retires its `AnalyserConfig`
+    /// handle (payload cleared) and revives it when the override comes back —
+    /// `.tcl-lsp.ini` churn must not allocate a config input per save.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn folder_db_config_handle_is_retired_and_revived() {
+        let backend = test_backend();
+        let folder = Uri::from_str("file:///proj-a").unwrap();
+        *backend.workspace_folders.lock().await = vec![folder.clone()];
+        let overriding = || FolderConfig {
+            disabled_diagnostics: Some(std::iter::once("W100".to_owned()).collect()),
+            ..FolderConfig::default()
+        };
+
+        backend
+            .apply_folder_configs(vec![(folder.clone(), overriding())])
+            .await;
+        let first = backend
+            .folder_db_configs
+            .lock()
+            .await
+            .iter()
+            .find(|(u, _)| u == &folder)
+            .map(|(_, handle)| *handle)
+            .expect("an overriding folder gets its own AnalyserConfig handle");
+
+        // The next re-pull drops the override, so the folder needs no handle.
+        backend
+            .apply_folder_configs(vec![(folder.clone(), FolderConfig::default())])
+            .await;
+        assert!(
+            backend.folder_db_configs.lock().await.is_empty(),
+            "a folder with no overrides must not keep a live handle",
+        );
+        {
+            let db = backend.db.lock().await;
+            let tombstones = backend.folder_db_config_tombstones.lock().await;
+            let retired = *tombstones
+                .get(&folder)
+                .expect("the handle must be retired, not dropped");
+            assert!(retired == first, "the retired handle is the original input");
+            assert!(
+                retired.disabled_diagnostics(&*db).is_empty(),
+                "a retired config must release its code list",
+            );
+        }
+
+        // Re-enabling the override revives the retired handle.
+        backend
+            .apply_folder_configs(vec![(folder.clone(), overriding())])
+            .await;
+        let second = backend
+            .folder_db_configs
+            .lock()
+            .await
+            .iter()
+            .find(|(u, _)| u == &folder)
+            .map(|(_, handle)| *handle)
+            .expect("the re-enabled folder has a handle again");
+        assert!(
+            first == second,
+            "re-enabling an override must revive the retired config input",
+        );
+        assert!(
+            backend.folder_db_config_tombstones.lock().await.is_empty(),
+            "a revived config must leave the tombstone map",
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
