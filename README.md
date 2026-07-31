@@ -703,6 +703,16 @@ package require http        ;# click → opens http package source
 source lib/utils.tcl        ;# click → opens lib/utils.tcl
 ```
 
+When a package ships more than one version on the search path, the link opens
+the release `package require` would actually load: the highest one the version
+requirement admits, preferring a stable release over an alpha or beta.  So
+`package require widget 2.0` opens 2.3 rather than 1.5 (a bare requirement
+means "at least this, below the next major"), `package require widget 1.2`
+opens 1.5 rather than 2.3, and range forms (`1.2-2.0`, `2.0-`) are honoured.
+`package require -exact widget 2.0` opens 2.0 and nothing else — if that exact
+release is not on the path the link resolves to nothing, rather than jumping
+into a version the script will never load.
+
 ### Formatting
 
 Full-document and range formatting with 25 configurable options.  Defaults

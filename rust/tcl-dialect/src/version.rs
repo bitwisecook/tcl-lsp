@@ -184,34 +184,83 @@ pub fn requirement_names_patch_level(requirement: &str) -> bool {
 // | `SelectPackage` (best/best-stable loop) | [`select_package_version`] |
 // ---------------------------------------------------------------------------
 
-/// The segment `CheckVersionAndConvert` substitutes for an `a` (alpha)
-/// separator, and the pad `RequirementSatisfied` appends to a bound so an
-/// unstable release of the bound's own version still counts as at-or-above it.
-const SEG_ALPHA: i64 = -2;
-/// The segment substituted for a `b` (beta) separator.
-const SEG_BETA: i64 = -1;
-/// The segment substituted for a `.` separator.
-const SEG_DOT: i64 = 0;
-
-/// A version in C Tcl's *internal representation*: the sequence of numbers
-/// `CheckVersionAndConvert` builds, where every separator becomes a number of
-/// its own (`.` → `0`, `a` → `-2`, `b` → `-1`).
+/// One element of a version's internal representation.
 ///
-/// `1.2` is `[1, 0, 2]`, `1.2a1` is `[1, 0, 2, -2, 1]`, `1.2.3` is
-/// `[1, 0, 2, 0, 3]`. Encoding the separator as a *number* is what makes an
-/// alpha/beta release order below the corresponding dotted patch release
-/// without a second comparison rule: `1.2a1` < `1.2.1` falls straight out of
-/// `-2 < 0`.
+/// `CheckVersionAndConvert` rewrites a version into a space-separated list of
+/// numbers in which every separator becomes a number of its own: `.` → `0`,
+/// `a` → `-2`, `b` → `-1`.  Encoding the separator as a *number* is what makes
+/// an alpha/beta release order below the dotted patch release at the same
+/// position without a second comparison rule.
+///
+/// The numeric components are kept as **digit strings**, not integers, because
+/// `CompareVersions` does not compute a numeric value either — its comment
+/// says so outright:
+///
+/// > Rewritten to not compute a numeric value for the extracted version
+/// > number, but do string comparison. Skip any leading zeros for that to
+/// > work. This change breaks through the 32bit-limit on version numbers.
+///
+/// So a component of any length compares exactly: `package vcompare
+/// 9223372036854775807 9223372036854775808` is `-1` on both interpreters, and
+/// a forty-digit component still orders correctly.  Parsing into any fixed
+/// integer width would collapse everything past that width into one value
+/// (issue #1090 review, finding 2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Segment<'v> {
+    /// The `a` (alpha) separator — C's `-2`, below every other segment.
+    Alpha,
+    /// The `b` (beta) separator — C's `-1`.
+    Beta,
+    /// A numeric component, **leading zeros already stripped**, so `""` is
+    /// zero and `"0005"` is held as `"5"`.  C strips them by advancing past
+    /// `'0'` before measuring the run, which is also why a literal `0`
+    /// component and a component that simply ran out compare equal.
+    Number(&'v str),
+}
+
+/// Zero — the value a version that has run out of components compares as.
+///
+/// C reaches the same state by running off the end of the shorter string: the
+/// leading-zero skip leaves an empty run, which then ties with a literal `0`,
+/// sorts below any longer digit run, and sorts above the negative separator
+/// markers via the sign shortcut.
+const ZERO: Segment<'static> = Segment::Number("");
+
+impl Segment<'_> {
+    /// The `CompareVersions` per-segment rule.
+    ///
+    /// * A separator marker is negative in C, so it loses against any number
+    ///   (the sign shortcut), and `a` (`-2`) loses to `b` (`-1`) — C compares
+    ///   the two magnitudes and flips the result.
+    /// * Two numbers compare by **digit count first**, then lexicographically
+    ///   ("shorter string is smaller number", then `strcmp` on equal lengths).
+    ///   With leading zeros stripped that is exact numeric ordering at any
+    ///   width.
+    fn cmp(self, other: Self) -> core::cmp::Ordering {
+        use core::cmp::Ordering;
+        match (self, other) {
+            (Self::Alpha, Self::Alpha) | (Self::Beta, Self::Beta) => Ordering::Equal,
+            (Self::Alpha, _) | (Self::Beta, Self::Number(_)) => Ordering::Less,
+            (_, Self::Alpha) | (Self::Number(_), Self::Beta) => Ordering::Greater,
+            (Self::Number(a), Self::Number(b)) => a.len().cmp(&b.len()).then_with(|| a.cmp(b)),
+        }
+    }
+}
+
+/// A version in C Tcl's internal representation, plus its stability flag.
+///
+/// `1.2` is `[1, 0, 2]`, `1.2a1` is `[1, 0, 2, a, 1]`, `1.2.3` is
+/// `[1, 0, 2, 0, 3]` — the `0`s being the segments the `.` separators inject.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct ParsedVersion {
+struct ParsedVersion<'v> {
     /// The internal-rep segments.
-    segments: Vec<i64>,
+    segments: Vec<Segment<'v>>,
     /// `false` when an `a` or `b` separator occurred — C Tcl's `hasunstable`,
     /// the flag `SelectPackage` uses to maintain its "best stable" candidate.
     stable: bool,
 }
 
-impl ParsedVersion {
+impl<'v> ParsedVersion<'v> {
     /// Validate and convert `string`, or `None` when it is not a well-formed
     /// version — a port of `CheckVersionAndConvert`'s TIP 268 rules:
     ///
@@ -224,47 +273,45 @@ impl ParsedVersion {
     /// Real Tcl raises `expected version number but got "…"` where this
     /// answers `None`; every caller here turns that into the conservative
     /// static answer (unsatisfiable / unselectable) rather than a panic.
-    fn parse(string: &str) -> Option<Self> {
-        let mut chars = string.chars();
-        let first = chars.next()?;
-        if !first.is_ascii_digit() {
+    fn parse(string: &'v str) -> Option<Self> {
+        let bytes = string.as_bytes();
+        if !bytes.first().is_some_and(u8::is_ascii_digit) {
             return None;
         }
         let mut segments = Vec::new();
-        let mut current: i64 = i64::from(first as u8 - b'0');
+        let mut run_start = 0usize;
         let mut has_unstable = false;
-        let mut prev = first;
-        for c in chars {
+        let mut prev = bytes[0];
+        for (i, &c) in bytes.iter().enumerate().skip(1) {
             if c.is_ascii_digit() {
-                current = current
-                    .saturating_mul(10)
-                    .saturating_add(i64::from(c as u8 - b'0'));
                 prev = c;
                 continue;
             }
             let separator = match c {
-                '.' => SEG_DOT,
-                'a' => SEG_ALPHA,
-                'b' => SEG_BETA,
+                b'.' => ZERO,
+                b'a' => Segment::Alpha,
+                b'b' => Segment::Beta,
                 _ => return None,
             };
-            // Rule 3 — a second `a`/`b`; rules 4 — a separator adjacent to a
+            // Rule 3 — a second `a`/`b`; rule 4 — a separator adjacent to a
             // `.`, or a `.` adjacent to any separator.
-            if (has_unstable && c != '.') || (matches!(prev, 'a' | 'b') && c == '.') || prev == '.'
+            if (has_unstable && c != b'.')
+                || (matches!(prev, b'a' | b'b') && c == b'.')
+                || prev == b'.'
             {
                 return None;
             }
-            has_unstable |= c != '.';
-            segments.push(current);
+            has_unstable |= c != b'.';
+            segments.push(number_segment(&string[run_start..i]));
             segments.push(separator);
-            current = 0;
+            run_start = i + 1;
             prev = c;
         }
         // Rule 5 — a trailing separator.
-        if matches!(prev, '.' | 'a' | 'b') {
+        if matches!(prev, b'.' | b'a' | b'b') {
             return None;
         }
-        segments.push(current);
+        segments.push(number_segment(&string[run_start..]));
         Some(Self {
             segments,
             stable: !has_unstable,
@@ -273,47 +320,55 @@ impl ParsedVersion {
 
     /// A best-effort rep for a string [`Self::parse`] rejects, so the *total*
     /// [`compare_versions`] never has to invent an answer out of nothing: digit
-    /// runs become segments, recognised separators become their codes, and any
-    /// other character is skipped. Never used to decide satisfaction — only to
-    /// order two strings that are not versions in the first place.
-    fn lenient(string: &str) -> Vec<i64> {
+    /// runs become segments, recognised separators become their markers, and
+    /// any other character is skipped. Never used to decide satisfaction —
+    /// only to order two strings that are not versions in the first place.
+    fn lenient(string: &'v str) -> Vec<Segment<'v>> {
+        let bytes = string.as_bytes();
         let mut segments = Vec::new();
-        let mut current: Option<i64> = None;
-        for c in string.chars() {
-            if let Some(d) = c.to_digit(10) {
-                let acc = current.unwrap_or(0);
-                current = Some(acc.saturating_mul(10).saturating_add(i64::from(d)));
+        let mut run_start = 0usize;
+        for (i, &c) in bytes.iter().enumerate() {
+            if c.is_ascii_digit() {
                 continue;
             }
             let separator = match c {
-                '.' => SEG_DOT,
-                'a' => SEG_ALPHA,
-                'b' => SEG_BETA,
-                _ => continue,
+                b'.' => ZERO,
+                b'a' => Segment::Alpha,
+                b'b' => Segment::Beta,
+                _ => {
+                    // Skipped entirely: close the run before it and reopen
+                    // after, so `1x2` still reads as two components.
+                    segments.push(number_segment(&string[run_start..i]));
+                    run_start = i + 1;
+                    continue;
+                }
             };
-            segments.push(current.take().unwrap_or(0));
+            segments.push(number_segment(&string[run_start..i]));
             segments.push(separator);
+            run_start = i + 1;
         }
-        segments.push(current.unwrap_or(0));
+        segments.push(number_segment(&string[run_start..]));
         segments
     }
+}
+
+/// A digit run as a [`Segment::Number`], with C's leading-zero skip applied so
+/// `"0005"`, `"5"` compare equal and `"000"`, `"0"`, `""` all read as zero.
+fn number_segment(run: &str) -> Segment<'_> {
+    Segment::Number(run.trim_start_matches('0'))
 }
 
 /// Compare two internal reps, returning the ordering plus whether the deciding
 /// difference was in the **first** segment (C Tcl's `isMajorPtr` out-param).
 ///
-/// A rep shorter than the other is padded with `0` — the exact effect of the
-/// C loop, which runs off the end of the shorter string and then compares an
-/// empty number against the other side: empty ties with a literal `0` (the
-/// leading-zero skip makes both empty), sorts *below* any positive segment
-/// (shorter string is the smaller number), and *above* a negative one (the
-/// sign shortcut). `0` reproduces all three.
-fn compare_internal(a: &[i64], b: &[i64]) -> (core::cmp::Ordering, bool) {
+/// A rep shorter than the other is padded with [`ZERO`] — the exact effect of
+/// the C loop running off the end of the shorter string.
+fn compare_internal(a: &[Segment<'_>], b: &[Segment<'_>]) -> (core::cmp::Ordering, bool) {
     use core::cmp::Ordering;
     for i in 0..a.len().max(b.len()) {
-        let x = a.get(i).copied().unwrap_or(0);
-        let y = b.get(i).copied().unwrap_or(0);
-        match x.cmp(&y) {
+        let x = a.get(i).copied().unwrap_or(ZERO);
+        let y = b.get(i).copied().unwrap_or(ZERO);
+        match x.cmp(y) {
             Ordering::Equal => {}
             other => return (other, i == 0),
         }
@@ -323,10 +378,13 @@ fn compare_internal(a: &[i64], b: &[i64]) -> (core::cmp::Ordering, bool) {
 
 /// Compare two version numbers exactly as `package vcompare` does.
 ///
-/// Trailing zero components are *not* significant (`1.2` == `1.2.0`), and an
-/// alpha/beta release orders below the release it leads up to but above the
-/// previous one (`1.2` < `1.2b1` is false, `1.2` < `1.3b1` is true) — both
-/// pinned against `tclsh8.6` and `tclsh9.0` in
+/// Trailing zero components are *not* significant (`1.2` == `1.2.0`), leading
+/// zeros are not either (`0005` == `5`), and an alpha/beta release orders below
+/// the release it leads up to but above the previous one (`1.2` < `1.2b1` is
+/// false, `1.2` < `1.3b1` is true).  Numeric components compare exactly at any
+/// width — `9223372036854775807` < `9223372036854775808` — because they are
+/// never parsed into a fixed integer type.  All of it is pinned against
+/// `tclsh8.6` and `tclsh9.0` in
 /// `tcl-dialect/tests/package_version_oracle.rs`.
 ///
 /// Total: a string that is not a well-formed version is compared through a
@@ -383,7 +441,7 @@ pub fn version_satisfies(version: &str, requirement: &str) -> bool {
 /// [`version_satisfies`] against an already-parsed candidate — the form
 /// [`select_package_version`] needs so a candidate is converted once for the
 /// whole requirement list.
-fn satisfies_internal(have: &[i64], requirement: &str) -> bool {
+fn satisfies_internal(have: &[Segment<'_>], requirement: &str) -> bool {
     use core::cmp::Ordering;
     let Some((lo, hi)) = requirement.split_once('-') else {
         // No dash: a simple version. The requirement is padded with an alpha
@@ -393,7 +451,7 @@ fn satisfies_internal(have: &[i64], requirement: &str) -> bool {
         let Some(mut req) = ParsedVersion::parse(requirement).map(|p| p.segments) else {
             return false;
         };
-        req.push(SEG_ALPHA);
+        req.push(Segment::Alpha);
         let (ord, is_major) = compare_internal(have, &req);
         return ord == Ordering::Equal || (ord == Ordering::Greater && !is_major);
     };
@@ -407,7 +465,7 @@ fn satisfies_internal(have: &[i64], requirement: &str) -> bool {
     if hi.is_empty() {
         // `min-` — open-ended above.
         let mut min = min;
-        min.push(SEG_ALPHA);
+        min.push(Segment::Alpha);
         return compare_internal(have, &min).0 != Ordering::Less;
     }
     let Some(max) = ParsedVersion::parse(hi).map(|p| p.segments) else {
@@ -419,8 +477,8 @@ fn satisfies_internal(have: &[i64], requirement: &str) -> bool {
         return compare_internal(&min, have).0 == Ordering::Equal;
     }
     let (mut min, mut max) = (min, max);
-    min.push(SEG_ALPHA);
-    max.push(SEG_ALPHA);
+    min.push(Segment::Alpha);
+    max.push(Segment::Alpha);
     compare_internal(&min, have).0 != Ordering::Greater
         && compare_internal(have, &max).0 == Ordering::Less
 }
@@ -477,8 +535,8 @@ pub fn select_package_version<S: AsRef<str>>(
     prefer: PackagePrefer,
 ) -> Option<usize> {
     use core::cmp::Ordering;
-    let mut best: Option<(usize, Vec<i64>)> = None;
-    let mut best_stable: Option<(usize, Vec<i64>)> = None;
+    let mut best: Option<(usize, Vec<Segment<'_>>)> = None;
+    let mut best_stable: Option<(usize, Vec<Segment<'_>>)> = None;
     for (i, candidate) in available.iter().enumerate() {
         let Some(parsed) = ParsedVersion::parse(candidate.as_ref()) else {
             continue;
