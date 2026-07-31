@@ -542,6 +542,21 @@ impl Analyser {
             self.result.object_methods.entry(k).or_default().extend(v);
         }
         self.result.instance_classes.extend(r.instance_classes);
+        // `object_handle_facts` is deliberately **not** merged here (issue #994
+        // C5a).  It has exactly one producer — `emit_cfg_ssa_diagnostics_with_cu`
+        // — which runs on the *shell*, once, against the whole-file compilation
+        // unit the per-item path supplies via `set_cu_override`.  An isolated
+        // body fragment never reaches that producer (`analyse_proc_body_isolated`
+        // calls `analyse_body`, not `analyse`, so the diagnostic tail never
+        // runs), so `r.object_handle_facts` is always the empty default and a
+        // merge here could only ever be a no-op — or, if the fragment ever did
+        // gain facts, a *wrong* one: the fragment's owner keys are body-local
+        // and its spans are offset-0, neither of which `rebase_fragment` knows
+        // how to correct.  The `per_item_corpus` differential gate pins the
+        // equality this comment asserts; the assertion below pins the premise
+        // it rests on, so a future change that starts producing facts inside a
+        // body fragment fails loudly here instead of silently dropping them.
+        assert_no_body_object_facts(&r.object_handle_facts);
         self.result
             .created_instance_commands
             .extend(r.created_instance_commands);
@@ -856,6 +871,19 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         w304: a.pending_w304,
         instances: a.pending_instances.unwrap_or_default(),
     }
+}
+
+/// Debug-only pin for the premise `graft_proc_body`'s `object_handle_facts`
+/// comment rests on: an isolated body fragment never reaches the fact's one
+/// producer, so there is nothing to merge.  A future change that starts
+/// producing facts inside a body fails here instead of silently dropping them.
+fn assert_no_body_object_facts(facts: &crate::object_types::ObjectHandleFacts) {
+    debug_assert_eq!(
+        *facts,
+        crate::object_types::ObjectHandleFacts::default(),
+        "an isolated body fragment must not produce object_handle_facts — see \
+         `graft_proc_body` before adding a merge"
+    );
 }
 
 /// Merge body-derived variables into a scope/`all_variables` map: an existing

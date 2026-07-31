@@ -186,6 +186,42 @@ impl Analyser {
         }));
     }
 
+    /// The compilation-unit-derived object-fact seam, run before any emitter
+    /// that reads those facts.
+    ///
+    /// Issue #923 idx 121: the pending `$class`-headed `TclOO`
+    /// instance-creation sites must settle against `cu`'s flow-sensitive value
+    /// model **first** — `emit_var_command_diagnostics` reads
+    /// `instance_classes` to suppress W307 / validate W308, so the settle must
+    /// land before that read, not after (unlike `settle_const_dispatches`,
+    /// which only feeds `command_invocations` and has no such in-pass reader).
+    fn settle_cu_derived_object_facts(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        self.settle_pending_instance_class_sites(cu);
+        self.produce_object_handle_facts(cu, registry);
+    }
+
+    /// Issue #994 (C5a): the **one** producer of
+    /// [`crate::analyser::types::AnalysisResult::object_handle_facts`], from
+    /// the same `cu` the CFG/SSA diagnostics ride on.
+    ///
+    /// Both analysis paths reach it — the whole-file
+    /// [`Self::emit_cfg_ssa_diagnostics`] build and the per-item incremental
+    /// path's memoised shell unit — so the fact is produced exactly once per
+    /// analysis and never merged per grafted body (`analyser/per_item.rs`
+    /// pins that with the same reasoning).  No consumer reads it in this PR;
+    /// the five dispatch sites and semantic tokens migrate in C5b.
+    fn produce_object_handle_facts(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        self.result.object_handle_facts = crate::object_types::object_handle_facts(cu, registry);
+    }
+
     /// Emit the CFG/SSA-derived diagnostics from an already-built
     /// [`crate::compilation_unit::CompilationUnit`].
     ///
@@ -200,14 +236,7 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        // Issue #923 idx 121: resolve pending `$class`-headed `TclOO`
-        // instance-creation sites against `cu`'s flow-sensitive value
-        // model *first* — `emit_var_command_diagnostics` below reads
-        // `instance_classes` to suppress W307 / validate W308, so the
-        // settle must land before that read, not after (unlike
-        // `settle_const_dispatches`, which only feeds `command_invocations`
-        // and has no such in-pass reader).
-        self.settle_pending_instance_class_sites(cu);
+        self.settle_cu_derived_object_facts(cu, registry);
 
         // **W128.** Flag calls to commands renamed or
         // deleted earlier in the file via the flow-sensitive
