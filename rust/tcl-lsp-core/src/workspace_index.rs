@@ -711,47 +711,47 @@ pub struct WorkspaceIndex {
     namespace_forgets: Vec<WorkspaceNamespaceForget>,
     command_deletions: Vec<WorkspaceCommandDeletion>,
     generation: u64,
-    command_names: CommandNameCache,
-    live_links: LiveLinkCache,
+    /// Every command name the workspace defines, in each spelling a call site
+    /// may write — see [`WorkspaceIndex::command_names`].
+    command_names: Derived<HashSet<String>>,
+    /// Parallel liveness mask over `command_links` — see
+    /// [`WorkspaceIndex::live_command_links`].
+    live_links: Derived<Vec<bool>>,
+    /// `::`-stripped qualified names of every indexed proc and class, and the
+    /// same set with the names links introduce — see
+    /// [`WorkspaceIndex::defined_command_names`].
+    defined_names: [Derived<HashSet<String>>; 2],
 }
 
-/// Lazily-built cache of [`WorkspaceIndex::command_names`], reset by every
-/// index mutation.
+/// A whole-index **derived view**: a value that is a pure function of the
+/// index's contents, built at most once per [`WorkspaceIndex::generation`] and
+/// dropped by the mutation hook that bumps it.
 ///
-/// The set is a pure function of the index's procs and classes, so it is
-/// excluded from equality and dropped on clone (rebuilt on demand) — the same
-/// discipline `tcl_compiler::analyser::HierarchyCache` uses for the class
-/// hierarchy it derives from `all_classes`.
-#[derive(Debug, Default)]
-struct CommandNameCache(std::sync::OnceLock<Arc<HashSet<String>>>);
+/// The workspace-indexing contract's rule 5 in one type, so the reset/build
+/// boilerplate is written once rather than per view (issue #1105). Excluded
+/// from equality and dropped on clone — the same discipline
+/// `tcl_compiler::analyser::HierarchyCache` uses for the class hierarchy it
+/// derives from `all_classes`. `Arc` because a caller may hold the view while
+/// the index it came from is dropped or re-derived.
+#[derive(Debug)]
+struct Derived<T>(std::sync::OnceLock<Arc<T>>);
 
-impl Clone for CommandNameCache {
-    fn clone(&self) -> Self {
+impl<T> Default for Derived<T> {
+    fn default() -> Self {
         Self(std::sync::OnceLock::new())
     }
 }
 
-/// Lazily-built parallel mask over [`WorkspaceIndex::command_links`]: `true`
-/// where the link is actually installed.
-///
-/// An `interp alias` / `rename` link always is; an **exact** `namespace
-/// import` link is only installed when its
-/// [`WorkspaceCommandLink::import_gate`] passes against the whole current
-/// index (the export it depends on typically lives in another document).
-/// That makes liveness a function of the *entire* index, not of the link's
-/// own document — so, per the workspace-indexing contract's "a whole-index
-/// derived view lives on the index, built lazily and dropped by the same
-/// mutation hook that bumps `generation()`" rule, it is cached here rather
-/// than recomputed per consumer, and dropped by
-/// [`WorkspaceIndex::invalidate`]. Deciding it eagerly at link-creation time
-/// would instead freeze a cross-document answer that goes stale as soon as
-/// the exporting file is edited.
-#[derive(Debug, Default)]
-struct LiveLinkCache(std::sync::OnceLock<Arc<Vec<bool>>>);
-
-impl Clone for LiveLinkCache {
+impl<T> Clone for Derived<T> {
     fn clone(&self) -> Self {
-        Self(std::sync::OnceLock::new())
+        Self::default()
+    }
+}
+
+impl<T> Derived<T> {
+    /// The cached value, building it with `build` on first use.
+    fn get_or_build(&self, build: impl FnOnce() -> T) -> Arc<T> {
+        Arc::clone(self.0.get_or_init(|| Arc::new(build())))
     }
 }
 
@@ -796,7 +796,7 @@ impl WorkspaceIndex {
     /// serve from the cache.
     #[must_use]
     pub fn command_names(&self) -> Arc<HashSet<String>> {
-        Arc::clone(self.command_names.0.get_or_init(|| {
+        self.command_names.get_or_build(|| {
             let mut names: HashSet<String> = HashSet::new();
             for p in &self.procs {
                 tcl_compiler::analyser::utils::insert_qualified_and_tail(
@@ -810,15 +810,16 @@ impl WorkspaceIndex {
                     &c.qualified_name,
                 );
             }
-            Arc::new(names)
-        }))
+            names
+        })
     }
 
     /// Note a mutation: bump the generation and drop every derived cache.
     fn invalidate(&mut self) {
         self.generation = self.generation.wrapping_add(1);
-        self.command_names = CommandNameCache::default();
-        self.live_links = LiveLinkCache::default();
+        self.command_names = Derived::default();
+        self.live_links = Derived::default();
+        self.defined_names = <[Derived<HashSet<String>>; 2]>::default();
     }
 
     /// The command name-links that are actually installed — every `interp
@@ -844,52 +845,50 @@ impl WorkspaceIndex {
     /// visible too — otherwise this abstains and keeps the link, the same
     /// abstain-toward-silence rule the unknown-command pass follows.
     fn live_command_links(&self) -> Vec<&WorkspaceCommandLink> {
-        let mask = Arc::clone(self.live_links.0.get_or_init(|| {
+        let mask = self.live_links.get_or_build(|| {
             let wci = WildcardImportIndex::build(self);
             let observable = self.observable_namespaces();
-            Arc::new(
-                self.command_links
-                    .iter()
-                    .map(|l| {
-                        l.import_gate.as_ref().is_none_or(|g| {
-                            if !observable.contains(g.source_ns.trim_start_matches("::")) {
-                                return true;
-                            }
-                            if !wci.exports_name_at(&g.source_ns, &g.name, g.site(&l.uri)) {
-                                return false;
-                            }
-                            // A non-`-force` import onto a name the target
-                            // namespace already holds installs nothing at all
-                            // (oracle on `WorkspaceGlobImport::forced`), so
-                            // the link it would introduce is not live either.
-                            // "Already holds" is a real *definition* or an
-                            // earlier live alias from a **different** source
-                            // in the same document (issue #1116 finding 4);
-                            // a same-source re-import is a silent no-op, and
-                            // two links cancelling each other out is what the
-                            // different-source test rules out.
-                            let importing_ns = importing_namespace_of(&l.linked_qname);
-                            if !g.forced
-                                && (self.defines_command(&l.linked_qname)
-                                    || wci.conflicting_alias_at(
-                                        importing_ns,
-                                        &g.source_ns,
-                                        &g.name,
-                                        g.site(&l.uri),
-                                    ))
-                            {
-                                return false;
-                            }
-                            // …and the alias it installed can be taken away
-                            // again: `namespace forget`, a redefinition of the
-                            // imported name, or destruction of the source
-                            // command (issue #1116 finding 2).
-                            wci.link_alias_live(importing_ns, g, &l.uri)
-                        })
+            self.command_links
+                .iter()
+                .map(|l| {
+                    l.import_gate.as_ref().is_none_or(|g| {
+                        if !observable.contains(g.source_ns.trim_start_matches("::")) {
+                            return true;
+                        }
+                        if !wci.exports_name_at(&g.source_ns, &g.name, g.site(&l.uri)) {
+                            return false;
+                        }
+                        // A non-`-force` import onto a name the target
+                        // namespace already holds installs nothing at all
+                        // (oracle on `WorkspaceGlobImport::forced`), so
+                        // the link it would introduce is not live either.
+                        // "Already holds" is a real *definition* or an
+                        // earlier live alias from a **different** source
+                        // in the same document (issue #1116 finding 4);
+                        // a same-source re-import is a silent no-op, and
+                        // two links cancelling each other out is what the
+                        // different-source test rules out.
+                        let importing_ns = importing_namespace_of(&l.linked_qname);
+                        if !g.forced
+                            && (self.defines_command(&l.linked_qname)
+                                || wci.conflicting_alias_at(
+                                    importing_ns,
+                                    &g.source_ns,
+                                    &g.name,
+                                    g.site(&l.uri),
+                                ))
+                        {
+                            return false;
+                        }
+                        // …and the alias it installed can be taken away
+                        // again: `namespace forget`, a redefinition of the
+                        // imported name, or destruction of the source
+                        // command (issue #1116 finding 2).
+                        wci.link_alias_live(importing_ns, g, &l.uri)
                     })
-                    .collect(),
-            )
-        }));
+                })
+                .collect()
+        });
         self.command_links
             .iter()
             .zip(mask.iter())
@@ -2317,7 +2316,7 @@ impl WorkspaceIndex {
     fn invocation_resolves_to(
         &self,
         inv: &WorkspaceInvocation,
-        defined: &std::collections::HashSet<&str>,
+        defined: &HashSet<String>,
         links: Option<&std::collections::HashMap<&str, &str>>,
         wci: &WildcardImportIndex<'_>,
         target: &str,
@@ -2520,25 +2519,36 @@ impl WorkspaceIndex {
     /// [`Self::invocations_of`].  With `include_links`, the names an import /
     /// alias / rename introduces join the set, so a call reaching one of them
     /// settles (and is then chased to its ultimate target).
-    fn defined_command_names(&self, include_links: bool) -> std::collections::HashSet<&str> {
-        let mut names: std::collections::HashSet<&str> = self
-            .procs
-            .iter()
-            .map(|p| p.qualified_name.trim_start_matches("::"))
-            .chain(
-                self.classes
-                    .iter()
-                    .map(|c| c.qualified_name.trim_start_matches("::")),
-            )
-            .collect();
-        if include_links {
-            names.extend(
-                self.live_command_links()
-                    .into_iter()
-                    .map(|l| l.linked_qname.trim_start_matches("::")),
-            );
-        }
-        names
+    ///
+    /// A [`Derived`] view rather than a fresh walk (issue #1105): it is
+    /// `O(procs + classes + links)` to build, and
+    /// [`Self::workspace_command_exists`] asks for it *per candidate* inside
+    /// [`Self::follow_import_chain`]'s loop, which turned an existence test
+    /// into a workspace-wide scan. The two `include_links` readings are two
+    /// separate views because a consumer wants exactly one of them: the
+    /// direct-only set is what rename relies on, and folding the link names
+    /// into it would let a call spelling an imported name be text-rewritten.
+    fn defined_command_names(&self, include_links: bool) -> Arc<HashSet<String>> {
+        self.defined_names[usize::from(include_links)].get_or_build(|| {
+            let mut names: HashSet<String> = self
+                .procs
+                .iter()
+                .map(|p| p.qualified_name.trim_start_matches("::").to_owned())
+                .chain(
+                    self.classes
+                        .iter()
+                        .map(|c| c.qualified_name.trim_start_matches("::").to_owned()),
+                )
+                .collect();
+            if include_links {
+                names.extend(
+                    self.live_command_links()
+                        .into_iter()
+                        .map(|l| l.linked_qname.trim_start_matches("::").to_owned()),
+                );
+            }
+            names
+        })
     }
 
     /// Resolve a bare call through a wildcard `namespace import NS::*` —
@@ -5413,6 +5423,49 @@ mod tests {
         // A clone starts with a fresh (empty) cache and rebuilds identically.
         let cloned = index.clone();
         assert_eq!(*cloned.command_names(), *third);
+    }
+
+    #[test]
+    fn defined_command_names_are_cached_per_reading_and_dropped_on_mutation() {
+        // Issue #1105 — `workspace_command_exists` asks for this set once per
+        // candidate inside the import-chain loop, so it has to be a derived
+        // view like `command_names`, not a fresh O(procs + classes + links)
+        // walk. The two `include_links` readings are separate views: folding
+        // the link names into the direct one would let rename rewrite a call
+        // that merely spells an imported name.
+        let a = analyse(
+            "namespace eval ::lib { proc alpha {} {}\n namespace export alpha }\nnamespace eval ::app { namespace import ::lib::alpha }\n",
+        );
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+
+        let direct = index.defined_command_names(false);
+        let linked = index.defined_command_names(true);
+        assert!(direct.contains("lib::alpha"));
+        assert!(
+            !direct.contains("app::alpha"),
+            "the direct reading must not admit a link: {direct:?}",
+        );
+        assert!(
+            linked.contains("app::alpha"),
+            "the linked reading must: {linked:?}",
+        );
+        assert!(
+            Arc::ptr_eq(&direct, &index.defined_command_names(false))
+                && Arc::ptr_eq(&linked, &index.defined_command_names(true)),
+            "an unchanged index must serve both caches, not rebuild them",
+        );
+
+        let b = analyse("proc ::beta {} {}\n");
+        index.add_document("file:///b.tcl", &b);
+        let after = index.defined_command_names(false);
+        assert!(
+            !Arc::ptr_eq(&direct, &after),
+            "indexing a document must drop the cache",
+        );
+        assert!(after.contains("beta"), "{after:?}");
+        // A clone starts with a fresh cache and rebuilds identically.
+        assert_eq!(*index.clone().defined_command_names(false), *after);
     }
 
     #[test]
