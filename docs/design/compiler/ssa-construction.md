@@ -302,6 +302,38 @@ providers need the same map plus the call site's scope, which the analyser's
 caller-frame injection model above.  They still lower to
 `Statement::Barrier`, so the per-consumer barrier rules apply as well.
 
+**What PR C1b took, and what is left.**  The *navigation* half landed in
+[`tcl-lsp-core/src/caller_frame.rs`](../../../rust/tcl-lsp-core/src/caller_frame.rs),
+but it consumes two per-parameter facts on `ProcDef` rather than this
+summary, so a navigation provider reaches them without lowering the document
+to IR on every hover:
+
+* `ProcArgTrait::VarWrite` / `VarRead` — the parameter's value is used as a
+  variable name through an `upvar`, and whether the callee writes through the
+  alias or only reads it.
+* `ProcDef::caller_frame_params` — the alias lands in the **immediate
+  caller's** frame.  The traits carry no level at all, so this is the analyser
+  side of the very gate `record_upvar_call` applies here
+  (`FrameLevel::is_caller_frame`): `upvar 0` aliases the callee's own frame,
+  `upvar #0` the global one, `upvar 2` the caller's caller, and none of them
+  creates anything at the call site.  Computed by
+  `analyser::param_traits::caller_frame_upvar_params`, which shares `upvar`'s
+  arity-parity split with the trait scan through the registry's
+  `FrameEffectSpec`, so the two views of a proc cannot drift apart.  It is a
+  deliberate near-duplicate of `param_targets`, differing only in reading the
+  proc's *source* rather than its lowered IR; if the interning below lands,
+  merging them is the obvious follow-up.
+
+Two gaps remain, both needing a fact the analyser does not record yet:
+
+* `literal_targets` (`upvar 1 name name`, audit idx 22/98) has no call-site
+  word to key on, so navigation abstains.  It needs a per-proc *literal
+  caller-frame target* list on `ProcDef`, computed by the same body walk
+  `infer_param_traits` already makes.
+* Cross-document (idx 59) still needs the interning described above.  Nothing
+  in the model changed; the workspace layer still has to merge the maps
+  before `prepare_cfg_context` runs.
+
 ### Known limitation — a brace-quoted `$`-bearing name is mis-keyed
 
 A variable whose literal name contains a `$` (`set {$n} 1`) is recognised as

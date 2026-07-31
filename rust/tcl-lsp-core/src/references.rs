@@ -481,6 +481,25 @@ pub fn references(
         return out;
     }
 
+    // A `$`-led read is definitive even when nothing resolved: Tcl's variable
+    // and command namespaces are disjoint, so falling through to the bareword
+    // resolvers below answered a caller-frame `$dataset` read with the
+    // declaration of an unrelated same-named TclOO method (issue #923 audit
+    // idx 58).  `variable_references` returns `None` for both "not a variable
+    // position" and "a variable that resolved to nothing", so the stop has to
+    // be made here, on the token kind.
+    if crate::caller_frame::substituted_var_read_at(
+        source,
+        dialect,
+        line,
+        character,
+        crate::definition::byte_offset_at(&line_index, source, line, character),
+    )
+    .is_some()
+    {
+        return Vec::new();
+    }
+
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
     };
@@ -615,6 +634,65 @@ struct RefCtx<'a> {
 }
 
 /// Build `decl + references` ranges for a variable at the cursor.
+/// Find-All-References for a **caller-frame** variable — one no statement in
+/// this frame assigns because a callee creates it here through `upvar`.
+///
+/// The reference set is deliberately both halves of the idiom: the bare
+/// call-site word that names the variable *and* every `$name` read it feeds.
+/// `include_declaration` selects the **creating** call-site words, which are
+/// the nearest thing the frame has to a declaration; a call site whose callee
+/// only upvar-*reads* the alias is a plain reference and survives either way.
+/// `None` (rather than an empty set) when no call site binds the name, so the
+/// caller keeps abstaining.
+fn caller_frame_references(
+    ctx: &RefCtx<'_>,
+    byte_offset: u32,
+    name: &str,
+) -> Option<Vec<LspRange>> {
+    let RefCtx {
+        source,
+        dialect,
+        line_index,
+        analysis,
+        include_declaration,
+        ..
+    } = *ctx;
+    let bindings = crate::caller_frame::caller_frame_bindings(
+        analysis,
+        source,
+        dialect,
+        Some(tcl_registry::registry_for_dialect(dialect)),
+        byte_offset,
+        name,
+    );
+    if bindings.is_empty() {
+        return None;
+    }
+    // Only a *creating* call site is the declaration. A `read_only` binding —
+    // a callee that upvar-READS through the alias and never writes it
+    // (`peek x`) — is an ordinary reference to the variable, so dropping it
+    // with `include_declaration = false` would lose a real use.
+    let declarations: Vec<tcl_lexer::Span> = bindings
+        .iter()
+        .filter(|b| !b.read_only)
+        .map(|b| b.arg_span)
+        .collect();
+    let mut out: Vec<LspRange> = crate::caller_frame::caller_frame_reference_spans(
+        analysis,
+        source,
+        dialect,
+        Some(tcl_registry::registry_for_dialect(dialect)),
+        byte_offset,
+        name,
+    )
+    .into_iter()
+    .filter(|span| include_declaration || !declarations.contains(span))
+    .map(|span| span_to_range(source, line_index, span))
+    .collect();
+    dedup_ranges(&mut out);
+    Some(out)
+}
+
 fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     let RefCtx {
         source,
@@ -630,14 +708,37 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         // Gated on the occurrence being one Tcl actually substitutes — a
         // `$name`-shaped substring in a comment or a data brace is not a
         // reference (issue #923 idx 24; see `lookup_var_read_at`).
-        crate::definition::lookup_var_read_at(
+        match crate::definition::lookup_var_read_at(
             &analysis.global_scope,
             source,
             dialect,
             byte_offset,
             &var_name,
             analysis.ns_var_global_fallback(),
-        )?
+        ) {
+            Some(def) => def,
+            // Nothing in this frame assigns it — but a callee may create it
+            // here through `upvar`, in which case the call-site word that
+            // names it and every `$name` read are one variable (issue #923
+            // audit idx 58).
+            None => return caller_frame_references(ctx, byte_offset, &var_name),
+        }
+    } else if let Some(binding) = crate::caller_frame::binding_at_offset(
+        analysis,
+        source,
+        dialect,
+        Some(tcl_registry::registry_for_dialect(dialect)),
+        byte_offset,
+        &find_word_span_at_position(source, line, character)
+            .map(|(w, _, _)| w)
+            .unwrap_or_default(),
+    ) {
+        // The cursor is on the bare call-site word itself.
+        let name = source
+            .get(binding.arg_span.as_range())
+            .unwrap_or_default()
+            .to_owned();
+        return caller_frame_references(ctx, byte_offset, &name);
     } else {
         // Bareword declaration / same-cell write site (a `set x`/
         // `variable x` target, a proc/method parameter, a `catch`
@@ -2434,7 +2535,8 @@ fn strip_outer_braces(source: &str, span: tcl_lexer::Span) -> (usize, usize) {
 /// own `MAX_BODY_DEPTH` (`tcl_compiler::analyser::commands`): a guard against
 /// a stack overflow on pathologically nested / generated / minified Tcl, not
 /// a limit any hand-written script should ever approach.
-const MAX_DISPATCH_SCAN_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
+pub(crate) const MAX_DISPATCH_SCAN_DEPTH: tcl_core_types::RecursionLimit =
+    tcl_core_types::RecursionLimit(256);
 
 /// Every nested region reachable from one segmented command that a
 /// dispatch scan (`my` / `next` / `nextto` / `$obj method` call-site search)
@@ -2457,7 +2559,7 @@ const MAX_DISPATCH_SCAN_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::
 /// and Rename) — registry-driven, so it needs no per-command-name branch
 /// here and covers any command whose spec declares a `Plain` body role, not
 /// just the control-flow keywords a hand-written list would enumerate.
-fn nested_dispatch_regions(
+pub(crate) fn nested_dispatch_regions(
     source: &str,
     dialect: &str,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,

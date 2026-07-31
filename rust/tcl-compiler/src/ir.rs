@@ -866,6 +866,17 @@ pub struct Module {
     /// runtime via its command's own `Statement::Barrier`, so bytecode is
     /// byte-identical whether or not a body unit is recorded.
     pub body_units: std::collections::HashMap<String, Procedure>,
+    /// The subset of [`Self::body_units`] that are **lambda** frames — an
+    /// `apply` literal's body, whose parameter list binds real locals exactly
+    /// as a `proc`'s does.
+    ///
+    /// A `namespace eval` body unit is *not* one: its variables are the
+    /// namespace's, shared with every other body that opens the same
+    /// namespace, so a name it reads without writing is routinely defined
+    /// elsewhere.  The read-before-set family (`W210`) therefore runs over
+    /// this subset only — a lambda body is a closed frame and an unwritten
+    /// read in it is a genuine error (issue #1070).
+    pub lambda_body_units: std::collections::BTreeSet<String>,
     /// Procedure names that were defined more than once.
     pub redefined_procedures: std::collections::HashSet<String>,
     /// `TclOO` method qnames defined more than once (a later

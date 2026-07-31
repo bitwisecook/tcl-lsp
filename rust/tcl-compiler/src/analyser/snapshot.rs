@@ -190,6 +190,7 @@ mod tests {
             body_span: Span::new(0, 0),
             doc: String::new(),
             param_traits: std::collections::HashMap::new(),
+            caller_frame_params: std::collections::HashSet::new(),
         }
     }
 

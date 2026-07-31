@@ -822,6 +822,7 @@ fn codegen_module_with_no_procs() {
         procedures: HashMap::new(),
         methods: HashMap::new(),
         body_units: HashMap::new(),
+        lambda_body_units: std::collections::BTreeSet::new(),
         redefined_procedures: HashSet::new(),
         redefined_methods: HashSet::new(),
         namespace_imports: Vec::new(),

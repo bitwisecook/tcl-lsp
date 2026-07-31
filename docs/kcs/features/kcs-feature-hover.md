@@ -90,10 +90,52 @@ Both of those are decided narrowly, so a real reference is never hidden:
   stays clickable, so `proc p [makeargs] {…}` still shows and jumps to
   `makeargs`, which really is called when the procedure is defined.
 
+### Caller-frame variables
+
+Some variables are created by the procedure you call, not by the code you are
+reading. `upvar` links a name in the caller's frame to a local in the callee,
+so this is legal and common:
+
+```tcl
+proc setdef {varName} {
+    upvar 1 $varName target
+    set target "default"
+}
+proc build {} {
+    setdef options          ;# creates `options` in build's own frame
+    return $options         ;# …and this reads it
+}
+```
+
+`build` never assigns `options`, so there is no `set` to hover. Hover on
+`$options` shows a **Caller-frame variable** card naming `setdef` and the
+parameter (`varName`) that carried the name, which is the whole explanation of
+where the value comes from.
+
+The call may be written inside an `if`, `while`, `foreach`, `catch` or
+`switch` body — those run in the very frame they are written in, so the
+variable still belongs to the enclosing procedure and hover still finds it. A
+call inside a nested `proc`, an `apply` lambda, a `namespace eval` or an
+`uplevel` body is a *different* frame, so it contributes nothing here.
+
+Only `upvar 1` (or an omitted level, which means the same) reaches the
+caller's frame. `upvar 0` aliases the callee's own local, `upvar #0` a global,
+and `upvar 2` the caller's caller — none of them creates anything where you
+are reading, so hover stays silent for those.
+
+Two further limits are deliberate. A callee that binds a *literal* caller-side
+name (`upvar 1 options options`) spells nothing at the call site, so there is
+no word to attribute the variable to and hover stays silent. And a `$`-led
+read that nothing binds shows **nothing at all** rather than falling back to a
+command or method of the same name: Tcl keeps variable names and command names
+in separate tables, so `$dataset` can never mean a method called `dataset`.
+
 ## File-path anchors
 
 - `rust/tcl-lsp-core/src/hover.rs` — the provider and its renderers, including
   `qualified_symbol_hover` for a symbol defined in another document
+- `rust/tcl-lsp-core/src/caller_frame.rs` — caller-frame variable resolution
+  and the `$`-led abstention shared with Go to Definition and Find References
 - `rust/tcl-lsp-core/src/expr_context.rs` — the shared "is the cursor on an
   `expr` math-function call, and what does it resolve to" helper
 - `rust/tcl-lsp-core/src/inert_text.rs` — the comment / data-brace tests that

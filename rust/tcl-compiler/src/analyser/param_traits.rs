@@ -634,7 +634,7 @@ fn scan_command<'p>(
 
     // Per-command structural handlers.
     match cmd_name {
-        "upvar" => handle_upvar(cmd_args, param_set, traits, aliases),
+        "upvar" => handle_upvar(cmd_args, ctx, traits, aliases),
         "namespace" if cmd_args.first().map(String::as_str) == Some("upvar") => {
             handle_namespace_upvar(cmd_args, param_set, traits, aliases);
         }
@@ -931,23 +931,106 @@ fn apply_eval_traits<'a>(
     }
 }
 
+/// Split an `upvar` argument list into the frame its level word selects and
+/// the `otherVar myVar …` pairs that follow.
+///
+/// C Tcl decides whether the level word is present from the **argument count
+/// parity** (`Tcl_UpvarObjCmd` tests `objc`), not from the word's text.
+/// Sniffing the text instead dropped the commonest by-reference idiom of all:
+/// `upvar $lvl a b` has three words, so `$lvl` *is* the level and `(a, b)` is
+/// the pair, but a digits-or-`#` test sees no level and pairs `($lvl, a)` —
+/// losing the `a`/`b` binding entirely.  tclsh 9.0.4 / 8.6.14 agree; the rule
+/// itself lives in the registry as
+/// [`tcl_registry::frame_effect::FrameLevelWord::ArityParity`], queried here
+/// through the spec rather than re-derived, so this stays the one description
+/// of `upvar`'s shape (issue #1069).
+///
+/// A level word whose value is not a frame at all (C Tcl's `bad level "…"`)
+/// answers [`FrameLevel::Dynamic`] — unplaceable, which is the abstaining
+/// direction every consumer here wants.
+fn upvar_level_and_pairs<'a>(
+    args: &'a [String],
+    registry: &CommandRegistry,
+) -> (tcl_registry::frame_effect::FrameLevel, &'a [String]) {
+    use tcl_registry::frame_effect::FrameLevel;
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let taken = registry.frame_effect("upvar").map_or_else(
+        || usize::from(args.len() % 2 == 1),
+        |s| s.level_word_len(&refs),
+    );
+    let level = if taken == 0 {
+        FrameLevel::DEFAULT
+    } else {
+        FrameLevel::parse(&args[0]).unwrap_or(FrameLevel::Dynamic)
+    };
+    (level, args.get(taken..).unwrap_or(&[]))
+}
+
 fn handle_upvar<'p>(
     args: &[String],
-    param_set: &HashSet<&'p str>,
+    ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     aliases: &mut Aliases<'p>,
 ) {
-    // `upvar ?level? otherVar myVar ?otherVar myVar ...?` — C Tcl decides
-    // whether the level word is present from the **argument count parity**
-    // (`Tcl_UpvarObjCmd` tests `objc`), not from the word's text.  Sniffing
-    // the text instead dropped the commonest by-reference idiom of all:
-    // `upvar $lvl a b` has three words, so `$lvl` *is* the level and `(a, b)`
-    // is the pair, but a digits-or-`#` test sees no level and pairs
-    // `($lvl, a)` — losing the `a`/`b` binding entirely.  tclsh 9.0.4 /
-    // 8.6.14 agree; see `tcl_registry::frame_effect::FrameLevelWord`.
-    let has_level = args.len() % 2 == 1;
-    let pairs = args.get(usize::from(has_level)..).unwrap_or(&[]);
-    record_upvar_pairs(pairs, param_set, traits, aliases);
+    let (_, pairs) = upvar_level_and_pairs(args, ctx.registry);
+    record_upvar_pairs(pairs, ctx.param_set, traits, aliases);
+}
+
+/// The parameters whose **value names a variable in the immediate caller's
+/// frame** — `upvar 1 $param local` and its default-level spelling `upvar
+/// $param local`, and nothing else.
+///
+/// This is the fact call-site navigation needs, and it is strictly narrower
+/// than [`ProcArgTrait::VarWrite`] / [`ProcArgTrait::VarRead`], which record
+/// only *that* a parameter's value is used as a variable name through an
+/// `upvar`, never *which frame* the alias lands in.  Every other level names a
+/// different frame, pinned identical on tclsh 9.0.4 and 8.6.14:
+///
+/// | callee body | `p x` from a proc writes … |
+/// |---|---|
+/// | `upvar 1 $n a; set a 1` | the caller's `x` |
+/// | `upvar 0 $n a; set a 1` | the **callee's own** `x` — caller's `x` never exists |
+/// | `upvar #0 $n a; set a 1` | the **global** `::x` |
+/// | `upvar 2 $n a; set a 1` | the caller's **caller** — the immediate caller is skipped |
+///
+/// `namespace upvar ns $token local` is deliberately absent too: it aliases a
+/// *namespace* variable, so a call site passing `token` creates nothing in the
+/// calling frame either.
+///
+/// Only the top-level command scan is walked, matching the shallow trait pass
+/// exactly — a consumer that requires both facts is then never widened by a
+/// disagreement between them, only narrowed.
+#[must_use]
+pub fn caller_frame_upvar_params(
+    params: &[&str],
+    body_source: &str,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> HashSet<String> {
+    let mut out = HashSet::new();
+    if params.is_empty() || body_source.trim().is_empty() {
+        return out;
+    }
+    let param_set: HashSet<&str> = params.iter().copied().collect();
+    for seg in &segment_commands_with_offset_and_config(body_source, 0, config) {
+        if seg.texts.first().map(String::as_str) != Some("upvar") {
+            continue;
+        }
+        let (level, pairs) = upvar_level_and_pairs(&seg.texts[1..], registry);
+        if !level.is_caller_frame() {
+            continue;
+        }
+        let mut i = 0;
+        while i + 1 < pairs.len() {
+            if let Some(vn) = extract_var_name(&pairs[i])
+                && let Some(p) = param_set.get(vn)
+            {
+                out.insert((*p).to_string());
+            }
+            i += 2;
+        }
+    }
+    out
 }
 
 /// `namespace upvar namespace ?otherVar myVar ...?` — the pairs alias namespace
@@ -1282,6 +1365,80 @@ mod tests {
         assert_trait(&traits, "var", ProcArgTrait::VarRead);
         // Write through the alias upgrades to VarWrite.
         assert_trait(&traits, "var", ProcArgTrait::VarWrite);
+    }
+
+    /// The frame level the trait map cannot record.  Pinned against tclsh
+    /// 9.0.4 and 8.6.14 (byte-identical): with `proc q {n} {upvar L $n a; set
+    /// a 1}` called as `q y` from a proc, the caller's `y` exists afterwards
+    /// only for `L` = `1` (or an omitted level).  `0` aliases the callee's
+    /// own frame, `#0` the global one, `2` the caller's caller.
+    #[test]
+    fn caller_frame_upvar_params_accepts_only_the_caller_frame_level() {
+        let registry = CommandRegistry::build_default();
+        let params = ["n"];
+        for (body, expected) in [
+            ("upvar 1 $n a; set a 1", true),
+            ("upvar $n a; set a 1", true),
+            ("upvar +1 $n a", true),
+            ("upvar 0x1 $n a", true),
+            ("upvar 0 $n a; set a 1", false),
+            ("upvar #0 $n a; set a 1", false),
+            ("upvar 2 $n a; set a 1", false),
+            ("upvar -1 $n a", false),
+            ("upvar $lvl $n a", false),
+            ("upvar bogus $n a", false),
+            // `namespace upvar` aliases a namespace variable, never the
+            // calling frame.
+            ("namespace upvar ::cfg $n a", false),
+            // The `myVar` slot names a callee-local alias, not a caller
+            // variable.
+            ("upvar 1 caller $n", false),
+        ] {
+            let got = caller_frame_upvar_params(&params, body, &registry, LexerConfig::default());
+            assert_eq!(
+                got.contains("n"),
+                expected,
+                "{body:?} -> {got:?} (expected caller-frame param: {expected})"
+            );
+        }
+    }
+
+    /// The fact is strictly narrower than the trait: `upvar 0 $n a; set a 1`
+    /// still records `VarWrite` (the parameter's value *is* used as a
+    /// variable name through an `upvar`) while contributing no caller-frame
+    /// parameter — which is exactly why a call-site consumer must intersect
+    /// the two.
+    #[test]
+    fn caller_frame_params_is_narrower_than_the_var_traits() {
+        let registry = CommandRegistry::build_default();
+        let body = "upvar 0 $n a; set a 1";
+        let traits = infer(&["n"], body);
+        assert_trait(&traits, "n", ProcArgTrait::VarWrite);
+        assert!(
+            caller_frame_upvar_params(&["n"], body, &registry, LexerConfig::default()).is_empty(),
+            "the level fact must reject what the trait alone accepts"
+        );
+    }
+
+    /// `upvar $lvl a b` has three words, so parity puts `$lvl` in the level
+    /// slot and `(a, b)` in the pair slot — the level is unplaceable, so no
+    /// caller-frame parameter is claimed, but the *pair* handling (and hence
+    /// the trait map) is unchanged by the refactor.
+    #[test]
+    fn dynamic_level_word_keeps_parity_pairing_but_claims_no_frame() {
+        let registry = CommandRegistry::build_default();
+        let traits = infer(&["lvl", "v"], "upvar $lvl $v local\nset local 1");
+        assert_trait(&traits, "v", ProcArgTrait::VarWrite);
+        assert!(
+            caller_frame_upvar_params(
+                &["lvl", "v"],
+                "upvar $lvl $v local\nset local 1",
+                &registry,
+                LexerConfig::default()
+            )
+            .is_empty(),
+            "a computed level names no statically-known frame"
+        );
     }
 
     #[test]

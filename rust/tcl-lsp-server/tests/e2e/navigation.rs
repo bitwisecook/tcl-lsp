@@ -154,3 +154,97 @@ fn sourced_file_resolves_under_the_source_site_namespace_m9() {
         "the qualified call is a reference of the sourced declaration: {refs:?}"
     );
 }
+
+// -- Caller-frame variables (issue #923 audit idx 58) ---------------------
+
+/// The ticklecharts shape, minimised: `gridlayoutHasDataSetObj dataset` names
+/// a variable in the CALLER's frame, the callee's `upvar 1 $dts dataset`
+/// creates it there, and a sibling accessor **method** happens to share the
+/// name.  tclsh 9.0.4 / 8.6.14 both run the real thing to completion.
+const CALLER_FRAME_SRC: &str = "\
+proc gridlayoutHasDataSetObj {dts} {
+    upvar 1 $dts dataset
+    set dataset MY-SHARED-DATASET
+}
+oo::class create chart {
+    constructor {} {
+        gridlayoutHasDataSetObj dataset
+        set _dataset $dataset
+    }
+    method dataset {} { return 1 }
+}
+";
+
+#[test]
+fn hover_on_a_caller_frame_read_names_the_creating_call_not_a_method() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, CALLER_FRAME_SRC);
+    // Line 7 col 23 — inside the `dataset` of `set _dataset $dataset`.
+    let text = hover_text(&lsp.hover(&uri, 7, 23));
+    assert!(
+        text.contains("Caller-frame variable") && text.contains("gridlayoutHasDataSetObj"),
+        "expected the caller-frame card: {text:?}"
+    );
+    assert!(
+        !text.contains("method"),
+        "a `$`-led read must never render the same-named method's card: {text:?}"
+    );
+}
+
+#[test]
+fn definition_on_a_caller_frame_read_reaches_the_call_site_word() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, CALLER_FRAME_SRC);
+    let locs = locations(&lsp.definition(&uri, 7, 23));
+    assert_eq!(locs.len(), 1, "one definition: {locs:?}");
+    assert_eq!(
+        locs[0].range["start"]["line"].as_i64(),
+        Some(6),
+        "the creating write is the call-site word: {locs:?}"
+    );
+}
+
+#[test]
+fn references_link_the_call_site_word_and_the_caller_frame_read() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, CALLER_FRAME_SRC);
+    let from_read = start_lines(&lsp.references(&uri, 7, 23, true));
+    assert_eq!(
+        from_read.iter().copied().collect::<Vec<i64>>(),
+        vec![6, 7],
+        "both halves of the idiom are one variable: {from_read:?}"
+    );
+    // The bare call-site word is the same anchor.
+    let from_call = start_lines(&lsp.references(&uri, 6, 33, true));
+    assert_eq!(from_call, from_read, "{from_call:?}");
+    // …and never the unrelated same-named method's declaration (line 9).
+    assert!(!from_read.contains(&9), "{from_read:?}");
+}
+
+/// TN — an unbound `$`-led read abstains rather than resolving to a
+/// coincidentally same-named method.  This is the wrong-kind conflation the
+/// audit confirmed: Tcl's variable and command namespaces are disjoint.
+#[test]
+fn an_unbound_dollar_read_never_resolves_to_a_same_named_method() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create widget {\n    constructor {} { puts $thing }\n    method thing {} { return 1 }\n}\n",
+    );
+    assert!(
+        hover_text(&lsp.hover(&uri, 1, 28)).is_empty(),
+        "an unbound `$`-led read must draw no hover"
+    );
+    assert!(
+        locations(&lsp.definition(&uri, 1, 28)).is_empty(),
+        "…and no definition"
+    );
+    assert!(
+        start_lines(&lsp.references(&uri, 1, 28, true)).is_empty(),
+        "…and no references"
+    );
+}

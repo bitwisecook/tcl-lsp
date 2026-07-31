@@ -491,6 +491,7 @@ mod tests {
                 procedures: HashMap::new(),
                 methods: HashMap::new(),
                 body_units: HashMap::new(),
+                lambda_body_units: std::collections::BTreeSet::new(),
                 redefined_procedures: std::collections::HashSet::new(),
                 redefined_methods: std::collections::HashSet::new(),
                 namespace_imports: Vec::new(),

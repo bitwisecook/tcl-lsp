@@ -345,6 +345,20 @@ fn variable_hover(
         {
             return Some(Hover::markdown(special_var_hover_text(spec, dialect)));
         }
+        // Still no definition — but a variable this frame never assigns may
+        // be one a callee creates here through `upvar` (issue #923 audit
+        // idx 58).  The call site names it, so hover can say so.
+        let bindings = crate::caller_frame::caller_frame_bindings(
+            analysis,
+            source,
+            profile.name,
+            registry,
+            var_byte_offset,
+            &var_name,
+        );
+        if let Some(binding) = crate::caller_frame::primary_binding(&bindings) {
+            return Some(Hover::markdown(caller_frame_hover_text(&var_name, binding)));
+        }
         return None;
     }
 
@@ -369,6 +383,75 @@ fn variable_hover(
     )))
 }
 
+/// The hover the cursor's *position* decides — a variable read or a bareword
+/// declaration — or `Some(None)` when the position forbids every word-based
+/// resolver from answering.  `None` falls through to those resolvers.
+///
+/// A `$`-led read resolving to nothing is **definitive**, not a
+/// fall-through: Tcl keeps variables and commands in disjoint namespaces, so
+/// `$dataset` can never denote a proc, a method, or a class member of that
+/// name.  Without this stop, hover answered a caller-frame `$dataset` read
+/// with the card of an unrelated same-named `TclOO` accessor method (issue
+/// #923 audit idx 58) — a wrong-kind answer, worse than none.
+/// `definition` has always forced this abstention (`position_definition`);
+/// hover and find-references did not.
+fn variable_position_hover(
+    source: &str,
+    line: u32,
+    character: u32,
+    line_index: &tcl_lexer::LineIndex,
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> PositionHover {
+    if let Some(hover) = variable_hover(
+        source, line, character, line_index, analysis, registry, profile,
+    ) {
+        return PositionHover::Answer(hover);
+    }
+    let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    if crate::caller_frame::substituted_var_read_at(
+        source,
+        profile.name,
+        line,
+        character,
+        cursor_offset,
+    )
+    .is_some()
+    {
+        return PositionHover::Abstain;
+    }
+    PositionHover::FallThrough
+}
+
+/// What [`variable_position_hover`] decided.
+enum PositionHover {
+    /// The position resolved to this card.
+    Answer(Hover),
+    /// The position forbids every word-based resolver from answering.
+    Abstain,
+    /// Not a variable position — try the word-based resolvers.
+    FallThrough,
+}
+
+/// The format-string hovers: when the cursor sits on the format-string
+/// argument of a known format-bearing command, render a table of the
+/// specifiers it contains.  Covers `clock format` / `clock scan`, `format` /
+/// `scan`, `binary format` / `binary scan`, and `regsub`'s subspec.
+fn format_string_hover(source: &str, line: u32, character: u32) -> Option<Hover> {
+    if let Some(text) = clock_format_string_at_position(source, line, character) {
+        return Some(Hover::markdown(clock_format_hover_text(&text)));
+    }
+    if let Some(text) = sprintf_format_string_at_position(source, line, character) {
+        return Some(Hover::markdown(sprintf_format_hover_text(&text)));
+    }
+    if let Some(ctx) = binary_format_context_at_position(source, line, character) {
+        return Some(Hover::markdown(binary_format_hover_text(&ctx)));
+    }
+    let text = regsub_subspec_at_position(source, line, character)?;
+    Some(Hover::markdown(regsub_hover_text(&text)))
+}
+
 /// [`hover`] resolving prefix-abbreviated subcommands and option / special-
 /// variable availability against a specific dialect profile, so e.g.
 /// `info class def` hovers `definition` under 8.6 but nothing (ambiguous
@@ -385,7 +468,10 @@ pub fn hover_with_profile(
     // One index shared by the position conversions below.
     let line_index = tcl_lexer::LineIndex::new(source);
 
-    if let Some(hover) = variable_hover(
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    // Everything the cursor's *position* decides, before any word-based
+    // resolver runs. `Some` is definitive, including `Some(None)`.
+    match variable_position_hover(
         source,
         line,
         character,
@@ -394,10 +480,10 @@ pub fn hover_with_profile(
         registry,
         profile,
     ) {
-        return Some(hover);
+        PositionHover::Answer(hover) => return Some(hover),
+        PositionHover::Abstain => return None,
+        PositionHover::FallThrough => {}
     }
-
-    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
 
     // `expr` math-function hover (issue #974 defect 1) — asked before every
     // remaining path: inside an expression a `NAME(` word is a function-call
@@ -418,22 +504,8 @@ pub fn hover_with_profile(
         return None;
     }
 
-    // Format-string hover: when the cursor
-    // sits on the format-string argument of a known
-    // format-bearing command, surface a markdown table of the
-    // specifiers it contains.  Currently covers `clock format`
-    // / `clock scan` and `format` / `scan`.
-    if let Some(text) = clock_format_string_at_position(source, line, character) {
-        return Some(Hover::markdown(clock_format_hover_text(&text)));
-    }
-    if let Some(text) = sprintf_format_string_at_position(source, line, character) {
-        return Some(Hover::markdown(sprintf_format_hover_text(&text)));
-    }
-    if let Some(ctx) = binary_format_context_at_position(source, line, character) {
-        return Some(Hover::markdown(binary_format_hover_text(&ctx)));
-    }
-    if let Some(text) = regsub_subspec_at_position(source, line, character) {
-        return Some(Hover::markdown(regsub_hover_text(&text)));
+    if let Some(hover) = format_string_hover(source, line, character) {
+        return Some(hover);
     }
     if let Some(text) = glob_pattern_at_position(source, line, character) {
         return Some(Hover::markdown(glob_hover_text(&text)));
@@ -2787,6 +2859,31 @@ fn class_hover_text(analysis: &AnalysisResult, class_def: &ClassDef) -> String {
         parts.push(class_def.doc.clone());
     }
     parts.join("\n\n")
+}
+
+/// Hover markdown for a **caller-frame** variable — one this frame never
+/// assigns because a callee creates it here through `upvar`.
+///
+/// The card names the callee and the parameter that carried the name, because
+/// that pair is the whole explanation of where the value comes from; without
+/// it the read looks like a bug.  tclsh 9.0.4 / 8.6.14 both run
+/// `proc setdef {d} {upvar 1 $d dst; set dst SET}` /
+/// `proc build {} {setdef options; return $options}` to `SET`.
+fn caller_frame_hover_text(
+    name: &str,
+    binding: &crate::caller_frame::CallerFrameBinding,
+) -> String {
+    let verb = if binding.read_only {
+        "read by"
+    } else {
+        "created in this frame by"
+    };
+    format!(
+        "**Caller-frame variable** `{name}`\n\n\
+         {verb} `{}`, through its `{}` parameter's `upvar`.\n\n\
+         The name is passed at the call site, so this frame never assigns it directly.",
+        binding.callee, binding.param
+    )
 }
 
 fn var_hover_text(var_def: &VarDef, type_info: Option<&str>, taint_info: Option<&str>) -> String {
