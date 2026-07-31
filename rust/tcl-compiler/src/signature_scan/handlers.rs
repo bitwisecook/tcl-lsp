@@ -407,13 +407,13 @@ pub(super) fn handle_namespace_import(
 
 /// Handler for `package require ?-exact? NAME ?VERSION?`.
 ///
-/// Records a
-/// `SignaturePackageRequire`; the optional `-exact` flag is parsed
-/// and skipped (we do not currently distinguish exact from
-/// minimum-version requires); the optional `VERSION` is captured
-/// when present.  The subcommand word resolves through the registry's
-/// ensemble rule, so C Tcl's accepted abbreviation (`package req Tcl`)
-/// records the requirement too.
+/// Records a `SignaturePackageRequire`: the optional `-exact` flag is
+/// captured on the record's `exact` field (it turns the version into
+/// the degenerate range `V-V`, which selects a different release —
+/// issue #1090), and the optional `VERSION` is captured when present.
+/// The subcommand word resolves through the registry's ensemble rule,
+/// so C Tcl's accepted abbreviation (`package req Tcl`) records the
+/// requirement too.
 pub(super) fn handle_package(
     texts: &[String],
     argv: &[Token],
@@ -425,7 +425,8 @@ pub(super) fn handle_package(
         return;
     }
     let mut idx = 2;
-    if texts[idx] == "-exact" && texts.len() > idx + 1 {
+    let exact = texts[idx] == "-exact" && texts.len() > idx + 1;
+    if exact {
         idx += 1;
     }
     let pkg_name = texts[idx].clone();
@@ -437,6 +438,7 @@ pub(super) fn handle_package(
     result.package_requires.push(SignaturePackageRequire {
         name: pkg_name,
         version,
+        exact,
         range: argv[idx].span,
         conditional,
     });
@@ -1030,6 +1032,9 @@ mod tests {
         assert_eq!(req.version.as_deref(), Some("8.6"));
         assert_eq!(req.range, Span::new(16, 19));
         assert!(!req.conditional);
+        // TN — no `-exact` word, so the version stays the *ranged*
+        // requirement `8.6`, which 8.6.14 satisfies.
+        assert!(!req.exact);
     }
 
     #[test]
@@ -1047,6 +1052,7 @@ mod tests {
         assert_eq!(req.name, "Tcl");
         assert!(req.version.is_none());
         assert!(req.conditional);
+        assert!(!req.exact);
     }
 
     #[test]
@@ -1113,6 +1119,9 @@ mod tests {
         assert_eq!(req.name, "Tcl");
         assert_eq!(req.version.as_deref(), Some("8.6"));
         assert_eq!(req.range, Span::new(23, 26));
+        // TP — the flag is recorded, not dropped: without it the resolver
+        // reads `8.6` as `[8.6, 9)` and can pick 8.6.14 (issue #1090).
+        assert!(req.exact);
     }
 
     #[test]

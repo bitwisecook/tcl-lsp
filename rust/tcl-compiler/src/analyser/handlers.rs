@@ -4453,9 +4453,11 @@ impl Analyser {
     ///
     /// - ``package require ?-exact? NAME ?VERSION?`` — appends a
     ///   ``SignaturePackageRequire`` record to
-    ///   ``result.package_requires`` and flips
-    ///   ``has_dynamic_providers`` when the name argument is a
-    ///   ``$``-substitution / ``[…]``-substitution token.
+    ///   ``result.package_requires`` (carrying ``exact`` when the
+    ///   flag is present, which narrows the version to the
+    ///   degenerate range ``V-V`` for the resolver — issue #1090)
+    ///   and flips ``has_dynamic_providers`` when the name argument
+    ///   is a ``$``-substitution / ``[…]``-substitution token.
     /// - ``package provide NAME ?VERSION?`` — consumed silently;
     ///   there's no field to record it on yet.
     ///
@@ -4484,8 +4486,9 @@ impl Analyser {
             return;
         }
         // ``package require -exact NAME ?VERSION?`` —
-        // strip the flag and shift the name index.
-        let (name_idx, name_text) = if args[1] == "-exact" && args.len() >= 3 {
+        // record the flag and shift the name index.
+        let exact = args[1] == "-exact" && args.len() >= 3;
+        let (name_idx, name_text) = if exact {
             (2usize, args[2].clone())
         } else {
             (1usize, args[1].clone())
@@ -4514,6 +4517,7 @@ impl Analyser {
             .push(crate::signature_scan::types::SignaturePackageRequire {
                 name: name_text,
                 version,
+                exact,
                 range: cmd_tok.span,
                 conditional: self.conditional_depth > 0,
             });
@@ -10610,6 +10614,7 @@ mod tests {
         assert_eq!(p.name, "Tcl");
         assert_eq!(p.version.as_deref(), Some("8.6"));
         assert!(!p.conditional);
+        assert!(!p.exact, "no `-exact` word means the ranged requirement");
     }
 
     #[test]
@@ -10619,6 +10624,14 @@ mod tests {
         let p = &r.package_requires[0];
         assert_eq!(p.name, "Tcl");
         assert_eq!(p.version.as_deref(), Some("8.6"));
+        // TP — issue #1090: the flag reaches the record, so the resolver can
+        // narrow `8.6` to the degenerate range `8.6-8.6`.
+        assert!(p.exact);
+        // FP guard — a package *named* `-exact` is not the flag.
+        let r = a.analyse("package require -exact", "tcl");
+        let p = &r.package_requires[0];
+        assert_eq!(p.name, "-exact");
+        assert!(!p.exact);
     }
 
     #[test]

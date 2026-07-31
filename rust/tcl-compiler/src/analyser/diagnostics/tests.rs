@@ -8200,6 +8200,7 @@ fn analyse_w123_package_require_gate_suppresses_when_recorded() {
     a.result.package_requires.push(SignaturePackageRequire {
         name: "Tcl".to_string(),
         version: Some("8.6".to_string()),
+        exact: false,
         range: Span::new(0, 24),
         conditional: false,
     });

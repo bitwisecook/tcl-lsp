@@ -96,6 +96,13 @@ pub struct SignaturePackageRequire {
     /// Optional version constraint (the `VERSION` argument); `None`
     /// when no version is supplied.
     pub version: Option<String>,
+    /// `true` when the call carried the `-exact` flag, which turns
+    /// `version` from the ranged requirement `V` (`[V, next major)`)
+    /// into the degenerate range `V-V` — see
+    /// [`tcl_dialect::exact_requirement`].  Meaningless without a
+    /// `version`: `package require -exact NAME` is a syntax error in
+    /// real Tcl, and consumers treat the pair as unconstrained.
+    pub exact: bool,
     /// Source span of the name argument.
     pub range: Span,
     /// `true` when the call is inside a guarded branch.
