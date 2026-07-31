@@ -903,6 +903,26 @@ impl DeliveryCtx<'_> {
                 diagnostics: diags.clone(),
             },
         );
+        // Announce the publish *before* enqueuing it. Both go through the same
+        // ordered client channel, so a client that reads up to this marker has
+        // provably NOT yet read the publish it announces — the publish is the
+        // next thing on the wire. That is the only way to observe "the worker
+        // has committed to publishing version N" without consuming version N's
+        // publish, which is what `diagnostics_delivery_smoke`'s burst phase
+        // needs to hold two publishes in flight at once (review of #1100).
+        // Emitted after the currency check, so a marker is always followed by
+        // its publish.
+        self.client
+            .log_message(
+                MessageType::LOG,
+                format!(
+                    "[timing] diagnostics.publish.enqueued (uri={}, version={})",
+                    self.uri.as_str(),
+                    self.version
+                        .map_or_else(|| "none".to_owned(), |v| v.to_string()),
+                ),
+            )
+            .await;
         deliver_diagnostics(
             self.client,
             self.uri,

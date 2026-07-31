@@ -474,6 +474,31 @@ fn published_at_least(frames: &[String], version: i64) -> bool {
         .any(|(v, _)| *v >= version)
 }
 
+/// Whether `frames` carries the server's `diagnostics.publish.enqueued` marker
+/// for [`ORDER_URI`] at or beyond `version`.
+///
+/// The marker is logged immediately *before* the publish it announces, down the
+/// same ordered channel, so a drain that stops here has read the commitment but
+/// not the publish — which is what lets the burst phase keep that publish in
+/// flight while it sends the next sub-burst.
+fn publish_announced_at_least(frames: &[String], version: i64) -> bool {
+    frames.iter().any(|f| {
+        if !f.contains("diagnostics.publish.enqueued") || !f.contains(ORDER_URI) {
+            return false;
+        }
+        f.split("version=")
+            .nth(1)
+            .and_then(|rest| {
+                rest.chars()
+                    .take_while(char::is_ascii_digit)
+                    .collect::<String>()
+                    .parse::<i64>()
+                    .ok()
+            })
+            .is_some_and(|v| v >= version)
+    })
+}
+
 /// Every version-tagged `publishDiagnostics` for `uri` in `frames`, in arrival
 /// order, paired with the raw frame.
 fn version_tagged_publishes(frames: &[String], uri: &str) -> Vec<(i64, String)> {
@@ -523,18 +548,27 @@ fn version_tagged_publishes(frames: &[String], uri: &str) -> Vec<(i64, String)> 
 ///   version-tagged publishes is a structural property of the phase, not a race
 ///   the machine can lose. Frames are kept as they are read, so the ordering
 ///   check still sees true arrival order.
-/// * **Phase B — concurrent publishes, and no loss under backpressure.** A
-///   burst fired with the client deliberately **not reading**, so edits pile up
-///   on a worker that is already running and the publishes queue in the
-///   transport rather than being consumed one at a time. This is the phase that
-///   observes publishes that were *produced concurrently*: Phase A's barrier
-///   deliberately forbids that, so the ordering assertion would otherwise only
-///   ever see a serialized stream (review of #1089). Here coalescing is expected
-///   and fine — under load the burst may collapse to a single publish, and the
-///   number of publishes is therefore never asserted, only that whatever arrives
-///   arrives in non-decreasing version order and that the *final* state is not
-///   dropped. Both are drained for by a terminal signal (the final version's
-///   publish), not a fixed window, so neither claim depends on the machine.
+/// * **Phase B — two publishes provably in flight at once, and no loss under
+///   backpressure.** Phase A's barrier deliberately forbids concurrency, so the
+///   ordering assertion would otherwise only ever see a serialized stream
+///   (review of #1089). Phase B fires two sub-bursts with the client reading
+///   nothing of the publish stream, and gets its concurrency guarantee from a
+///   *pre-publish* marker rather than from out-racing the debounce with a sleep
+///   (review of #1100 — a single burst legitimately coalesces to one version,
+///   which makes monotonicity vacuous).
+///
+///   The server logs `[timing] diagnostics.publish.enqueued (uri=…, version=…)`
+///   immediately before enqueuing a publish, down the same ordered client
+///   channel. Draining up to that marker therefore proves the worker has
+///   committed to publishing that version while leaving the publish itself
+///   unread on the wire. Sub-burst 2 then goes out with nothing being read, so
+///   when its publish is enqueued sub-burst 1's is still queued: two distinct
+///   version-tagged publishes, produced concurrently, racing the read path.
+///   Coalescing *within* a sub-burst is expected and irrelevant — the
+///   assertions need two distinct versions across the two sub-bursts, and the
+///   barrier guarantees that, so the strengthened "≥2 distinct AND monotone"
+///   check cannot go vacuous and cannot flake. Both drains stop on a terminal
+///   signal, not a fixed window, so neither claim depends on the machine.
 ///
 /// # What the ordering assertion does and does not prove (measured)
 ///
@@ -629,28 +663,54 @@ async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
         );
     }
 
-    // Phase B — concurrent publishes + no loss under backpressure. A burst with
-    // the client deliberately NOT reading, so the edits pile onto a worker that
-    // is already running and the publishes queue in the transport instead of
-    // being consumed one at a time. Long enough (and alternating clean / E003,
-    // so consecutive versions differ) that the worker gets the chance to produce
-    // several publishes while nothing is draining them — that, not a count, is
-    // the point: it is the only phase where the ordering assertion below sees
-    // publishes that were produced concurrently. How many survive coalescing is
-    // the machine's business and is never asserted.
+    // Phase B — two publishes provably in flight at once, then no loss under
+    // backpressure.
+    //
+    // Sub-burst 1 is fired and then barriered on the server's *pre-publish*
+    // marker, not on the publish. Both travel the same ordered client channel
+    // and the marker is emitted first, so reading up to it proves the worker has
+    // committed to publishing that version while leaving the publish itself
+    // unread on the wire. Sub-burst 2 then goes out with the client reading
+    // nothing at all, so by the time its publish is enqueued sub-burst 1's is
+    // still sitting there: two version-tagged publishes in flight, produced
+    // concurrently, guaranteed structurally rather than by out-racing the 50 ms
+    // debounce with a sleep (review of #1100 — the previous single burst
+    // legitimately coalesced to one version, which made the monotonicity check
+    // vacuous).
+    //
+    // Within each sub-burst coalescing is expected and irrelevant: what the
+    // assertions need is two *distinct* versions across the two, and the
+    // marker barrier guarantees that — sub-burst 2's edits all post-date a
+    // committed publish, so the worker's next run necessarily publishes a
+    // higher version.
     let first_burst_version = 8;
-    let burst = [
+    let sub_burst_one = [
         ("set var 10\n", 8),
         ("set var 10 10\n", 9),
         ("set var 10\n", 10),
+    ];
+    for (text, version) in sub_burst_one {
+        send_full_replace(&mut client_write, text, version).await;
+    }
+    let committed = drain_until(&mut reader, &mut frames, ORDER_BACKSTOP, |f| {
+        publish_announced_at_least(f, first_burst_version)
+    })
+    .await;
+    assert!(
+        committed,
+        "no diagnostics.publish.enqueued marker at version >= {first_burst_version} within \
+         {ORDER_BACKSTOP:?} — the per-URI diagnostics worker stopped publishing: {frames:?}",
+    );
+
+    let sub_burst_two = [
         ("set var 10 10\n", 11),
         ("set var 10\n", 12),
         ("set a 1 2 3 4 5\n", 13),
     ];
-    for (text, version) in burst {
+    for (text, version) in sub_burst_two {
         send_full_replace(&mut client_write, text, version).await;
     }
-    let final_version = burst[burst.len() - 1].1;
+    let final_version = sub_burst_two[sub_burst_two.len() - 1].1;
     let arrived = drain_until(&mut reader, &mut frames, ORDER_BACKSTOP, |f| {
         version_tagged_publishes(f, ORDER_URI)
             .iter()
@@ -706,12 +766,28 @@ fn assert_delivery_invariants(
         .copied()
         .filter(|v| *v >= first_burst_version)
         .collect();
+    // Monotonicity over one repeated version is vacuous, so require the two
+    // distinct versions the marker barrier guarantees *before* checking their
+    // order (review of #1100). This is structural, not a race: sub-burst 2's
+    // edits were all sent after the server had committed to publishing
+    // sub-burst 1's version, so the worker's next run has to publish a higher
+    // one. Coalescing *within* a sub-burst is still free to collapse either
+    // side to a single publish.
+    let mut distinct: Vec<i64> = burst_versions.clone();
+    distinct.sort_unstable();
+    distinct.dedup();
+    assert!(
+        distinct.len() >= 2,
+        "the burst phase must deliver ≥2 distinct version-tagged publishes — with only \
+         {distinct:?} the ordering check below compares a version with itself and proves \
+         nothing (whole stream: {versions:?})",
+    );
     for pair in burst_versions.windows(2) {
         assert!(
             pair[0] <= pair[1],
             "the unread burst's publishes must arrive in non-decreasing version order — \
-             versions may skip (coalescing is expected here) but never go backwards: \
-             {burst_versions:?} (whole stream: {versions:?})",
+             versions may skip (coalescing within a sub-burst is expected) but never go \
+             backwards: {burst_versions:?} (whole stream: {versions:?})",
         );
     }
     // 2) No loss of the final state: the last edit's version must arrive with
