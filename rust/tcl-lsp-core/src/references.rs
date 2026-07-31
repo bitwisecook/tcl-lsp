@@ -316,16 +316,17 @@ fn invocation_references_via_indirection(
 /// references only, never by cross-document rename's
 /// `invocations_of`-based edit gathering).
 ///
-/// The export gate is applied **per import site**, at that import's own
-/// position, through the same shared decision function the go-to-definition
-/// resolver uses (`definition::exported_at_import` →
-/// [`crate::namespace_import::exported_at_import_site`]): an import binds the
-/// names exported when it runs, so a later `namespace export -clear` does not
-/// revoke this call site's alias and a later `namespace export` does not
-/// create one (issue #1027). Testing "some import matches" and "the final
-/// export set covers the name" as two independent conditions — as this
-/// originally did — gets both directions wrong, and lets an import whose own
-/// snapshot excluded the name borrow an unrelated import's export.
+/// The whole import **lifecycle** is applied, not just "some import matches":
+/// the export snapshot at that import's own position (issue #1027), the
+/// non-`-force` conflict that makes an import install nothing, a `namespace
+/// forget` or a deletion of the source command that takes the alias away
+/// again, and an import *chain* that reaches the definition through an
+/// intermediate namespace (issue #1103). All of it comes from the one shared
+/// entry point go-to-definition resolves through
+/// (`definition::import_chain_target`), so references and definition cannot
+/// disagree about what a call site reaches. Testing "some import matches" and
+/// "the final export set covers the name" as two independent conditions — as
+/// this originally did — gets both directions wrong.
 #[must_use]
 fn invocation_references_via_wildcard_import(
     analysis: &AnalysisResult,
@@ -340,27 +341,13 @@ fn invocation_references_via_wildcard_import(
         .trim_start_matches("::")
         .rsplit_once("::")
         .map_or(String::new(), |(ns, _)| ns.to_owned());
-    let call_ns = crate::definition::innermost_namespace_at(
+    let call_ns = crate::definition::namespace_context_at(
         &analysis.global_scope,
         inv.range.start(),
         &analysis.namespace_overrides,
     );
-    analysis.namespace_imports.iter().any(|imp| {
-        imp.ns.trim_start_matches("::") == call_ns
-            && imp
-                .pattern
-                .rsplit_once("::")
-                .is_some_and(|(source_ns, tail)| {
-                    source_ns.trim_start_matches("::") == target_ns
-                        && tcl_syntax::glob::string_match(tail, def_name)
-                        && crate::definition::exported_at_import(
-                            analysis,
-                            source_ns,
-                            def_name,
-                            imp.range.start(),
-                        )
-                })
-    })
+    crate::definition::import_chain_target(analysis, &call_ns, def_name, inv.range.start())
+        .is_some_and(|source_ns| source_ns.trim_start_matches("::") == target_ns)
 }
 
 #[must_use]
@@ -3507,6 +3494,81 @@ mod tests {
             !lines.contains(&5),
             "an export written after the import must not make the bare call a \
              reference: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_drop_a_call_after_a_namespace_forget() {
+        // TN, issue #1103 behaviour 1 — the alias the import installed is
+        // gone by the time the second `p` runs (oracle: `invalid command
+        // name "p"`), so that call is not a reference to `::src::p`. The
+        // call *before* the forget still is.
+        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n    p\n    namespace forget ::src::p\n    p\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `p` declaration (line 1, col 9).
+        let refs = references(src, "tcl", 1, 9, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&6),
+            "the call before the forget is still a reference: {refs:?}"
+        );
+        assert!(
+            !lines.contains(&8),
+            "the call after the forget reaches no command: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_drop_a_conflicting_unforced_imports_call_site() {
+        // FP guard (CRITICAL), issue #1103 behaviour 2 — `::dst` already has
+        // its own `p`, so the non-`-force` import errors and installs
+        // nothing (oracle: `can't import command "p": already exists`, and
+        // `namespace origin ::dst::p` → `::dst::p`). The bare `p` inside
+        // `::dst` runs the *local* proc and is not a reference to `::src::p`.
+        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n    namespace import ::src::*\n    p\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `::src::p`'s declaration (line 1, col 9).
+        let refs = references(src, "tcl", 1, 9, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(
+            !lines.contains(&7),
+            "a failed import makes no call site of the source: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_include_a_forced_imports_call_site() {
+        // TP, the other half of the row above — with `-force` the import
+        // replaces the local `p`, so the bare call *is* a reference to
+        // `::src::p` (oracle: `namespace origin ::dst::p` → `::src::p`).
+        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n    namespace import -force ::src::*\n    p\n}\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 1, 9, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(
+            lines.contains(&7),
+            "a `-force` import makes the bare call a reference to the source: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_include_a_call_through_an_import_chain() {
+        // TP, issue #1103 behaviour 4 — `::A` imports `::B::*`, `::B`
+        // imported `::C::*` and re-exported; the bare `p` in `::A` runs
+        // `::C::p` (oracle: `namespace origin ::A::p` → `::C::p`), so it is
+        // a reference to it. The middle hop is in no `all_procs`, so this
+        // previously found nothing.
+        let src = "namespace eval C {\n    proc p {} { return CP }\n    namespace export p\n}\nnamespace eval B {\n    namespace import ::C::*\n    namespace export p\n}\nnamespace eval A {\n    namespace import ::B::*\n    p\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `::C::p`'s declaration (line 1, col 9).
+        let refs = references(src, "tcl", 1, 9, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&10),
+            "the chained bare call is a reference to ::C::p: {refs:?}"
         );
     }
 

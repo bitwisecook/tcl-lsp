@@ -3976,6 +3976,11 @@ impl Analyser {
     /// subcommand word the detectors expect.
     pub fn handle_interp_alias(&mut self, args: &[String], scope_path: &[usize], offset: u32) {
         if let Some(deleted) = crate::alias::detect_interp_alias_delete(args) {
+            // Deleting an alias destroys the command object, so every
+            // `namespace import` edge pointing at it dies too (issue #1103).
+            self.result
+                .destroyed_commands
+                .insert(deleted.clone(), offset);
             self.deleted_commands.insert(deleted, offset);
             return;
         }
@@ -4272,6 +4277,12 @@ impl Analyser {
             return false;
         }
         if new.is_empty() {
+            // `rename OLD {}` destroys the command object — unlike `rename OLD
+            // NEW`, which hands it over and leaves every import edge alive
+            // (issue #1103).
+            self.result
+                .destroyed_commands
+                .insert(old.clone(), deletion_offset);
             self.deleted_commands.insert(old, deletion_offset);
             return false;
         }
@@ -5357,8 +5368,14 @@ impl Analyser {
         // Skip the subcommand word + the leading flag words the registry says
         // `namespace import` consumes (`-force`, at most one). Both facts are
         // read from the spec rather than matched by name or bounded by a
-        // literal here — see [`Self::namespace_leading_flag_words`].
-        let mut idx = 1 + self.namespace_leading_flag_words("import", &args[1..]);
+        // literal here — see [`Self::namespace_leading_flag_words`]. That the
+        // option word was consumed *is* `-force` (`IMPORT_OPTIONS` declares
+        // exactly one option and `max_leading_option_words` caps it at one),
+        // so the conflict semantics below need no name match either — the
+        // same reading `namespace export`'s `-clear` tombstone already gets.
+        let flag_words = self.namespace_leading_flag_words("import", &args[1..]);
+        let forced = flag_words > 0;
+        let mut idx = 1 + flag_words;
         // `namespace import` imports into the namespace current at the call —
         // the command-resolution namespace, so an import inside
         // `proc ::ns::p {}` lands in `::ns` (issue #923 idx 85).
@@ -5391,6 +5408,84 @@ impl Analyser {
                     pattern: pat,
                     range: arg_tokens[idx].span,
                     conjectured: false,
+                    forced,
+                },
+            );
+            idx += 1;
+        }
+    }
+
+    /// Record `namespace forget ?PATTERN ...?` events — the removal half of
+    /// the import edge's lifecycle log (issue #1103).
+    ///
+    /// A `namespace import` is not a permanent name: `namespace forget`
+    /// removes the alias and a later bare call raises `invalid command name`
+    /// (oracle in
+    /// [`crate::signature_scan::types::SignatureNamespaceForget`], tclsh
+    /// 8.6.14 / 9.0.4 byte-identical). Recorded as an ordered event beside
+    /// the `namespace export` tombstones so the resolvers in `tcl-lsp-core`
+    /// can ask "does this namespace still hold an alias for NAME *here*?"
+    /// rather than "was one ever installed"
+    /// (`tcl_lsp_core::namespace_import::alias_live_at`).
+    ///
+    /// The pattern shapes follow `Tcl_ForgetImport` exactly: a qualified
+    /// pattern names the *source* namespace whose commands lose their import
+    /// here, a simple one matches this namespace's own imported command
+    /// names whatever their origin. Both are oracle-confirmed; see the record
+    /// type.
+    ///
+    /// A dynamic pattern (`$`/`[` substitution) can't be statically resolved
+    /// to a glob text and is skipped rather than guessed at: revoking an
+    /// alias on a guess would silently drop real references, the same
+    /// abstain-toward-answering direction the unordered `-clear` takes.
+    /// `namespace forget` declares no options, so — unlike `import` /
+    /// `export` — there is no leading flag word to consume; the registry's
+    /// own [`Self::namespace_leading_flag_words`] is still what says so.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceForget`] (stamped on
+    /// `namespace`'s `forget` subcommand); `args[0]` is still the subcommand
+    /// word.
+    pub fn handle_namespace_forget_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if args.is_empty() {
+            return;
+        }
+        let mut idx = 1 + self.namespace_leading_flag_words("forget", &args[1..]);
+        // As for `import` / `export`: the namespace losing the aliases is the
+        // one current at the call, not the lexically enclosing one.
+        let forgetting_ns = self.command_resolution_namespace(scope_path);
+        while idx < args.len() && idx < arg_tokens.len() {
+            let raw = &args[idx];
+            if raw.contains('$') || raw.contains('[') {
+                idx += 1;
+                continue;
+            }
+            let (source_ns, pattern) = match raw.rsplit_once("::") {
+                Some((prefix, tail)) => {
+                    let prefix = if prefix.is_empty() {
+                        "::".to_string()
+                    } else if prefix.starts_with("::") {
+                        prefix.to_string()
+                    } else if forgetting_ns == "::" {
+                        format!("::{prefix}")
+                    } else {
+                        format!("{forgetting_ns}::{prefix}")
+                    };
+                    (Some(prefix), tail.to_string())
+                }
+                None => (None, raw.clone()),
+            };
+            self.result.namespace_forgets.push(
+                crate::signature_scan::types::SignatureNamespaceForget {
+                    ns: forgetting_ns.clone(),
+                    source_ns,
+                    pattern,
+                    range: arg_tokens[idx].span,
                 },
             );
             idx += 1;
@@ -5618,6 +5713,13 @@ impl Analyser {
                 pattern: format!("{source_ns}::*"),
                 range: cmd_tok.span,
                 conjectured: true,
+                // The wrapper's own body is not read, so whether the
+                // `namespace import` it `uplevel`s carries `-force` is
+                // unknown. `false` is the conservative reading for the one
+                // thing the flag decides: a conjectured import never claims
+                // to have replaced a command the target namespace already
+                // holds.
+                forced: false,
             },
         );
     }

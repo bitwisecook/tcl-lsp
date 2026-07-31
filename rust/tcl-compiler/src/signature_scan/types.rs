@@ -183,6 +183,88 @@ pub struct SignatureNamespaceImport {
     /// `<NS>::import <ALIAS>` call rather than a direct `namespace
     /// import` invocation.
     pub conjectured: bool,
+    /// `true` when the call consumed its leading option word — i.e. the
+    /// import is `namespace import -force …`.
+    ///
+    /// The distinction is not cosmetic: it decides what the import does to a
+    /// command of the same name that the importing namespace *already* holds
+    /// (oracle tclsh 8.6.14 / 9.0.4, issue #1103).
+    ///
+    /// - Without `-force`, the import **fails**: `namespace eval ::dst {proc
+    ///   p {} {return LOCAL}}` then `namespace eval ::dst {namespace import
+    ///   ::src::*}` raises `can't import command "p": already exists`, the
+    ///   rest of that script never runs, and `::dst::p` still runs `LOCAL`
+    ///   (`namespace origin ::dst::p` → `::dst::p`). The import installed
+    ///   nothing.
+    /// - With `-force`, the import silently **replaces** the local command:
+    ///   `::dst::p` then runs `SRC` and `namespace origin ::dst::p` →
+    ///   `::src::p`.
+    ///
+    /// Which leading words are options, and how many are consumed, is
+    /// registry data (`IMPORT_OPTIONS` + `SubCommand::max_leading_option_words`
+    /// = 1) — this flag is "the declared leading option word was consumed",
+    /// not a `-force` string match, exactly as `namespace export`'s
+    /// [`SignatureNamespaceExport::clears`] is.
+    pub forced: bool,
+}
+
+/// A `namespace forget` **event** recorded by the signature scanner.
+///
+/// `namespace import` does not create a permanent name: `namespace forget`
+/// removes the alias again, and a later bare call is `invalid command name`
+/// (oracle tclsh 8.6.14 / 9.0.4, byte-identical — issue #1103):
+///
+/// ```tcl
+/// namespace eval ::src { proc p {} {return P}; namespace export p }
+/// namespace eval ::dst { namespace import ::src::* }
+/// namespace eval ::dst { p }                  ;# → P
+/// namespace eval ::dst { namespace forget ::src::p }
+/// namespace eval ::dst { p }                  ;# → invalid command name "p"
+/// ```
+///
+/// So the import edge is not a static name-visibility fact but a link with a
+/// lifecycle, and these records are the *removal* half of its ordered event
+/// log — the exact counterpart of [`SignatureNamespaceExport`]'s `-clear`
+/// tombstones, consumed the same way (latest visible event wins, order-gated
+/// by `analyser::indirection::in_effect`) through
+/// `tcl_lsp_core::namespace_import::alias_live_at`.
+///
+/// # Two pattern shapes
+///
+/// `Tcl_ForgetImport` (`tclNamesp.c`) branches on whether the pattern is
+/// qualified, and both forms are oracle-confirmed:
+///
+/// - **Qualified** (`namespace forget ::src::p`, `::src::*`) — every command
+///   in `::src` matching the tail pattern has its *import* in the current
+///   namespace removed. [`Self::source_ns`] is `Some("::src")`.
+/// - **Simple** (`namespace forget p`, `*`) — every *imported* command of the
+///   current namespace whose own name matches the pattern is removed,
+///   whatever it was imported from. [`Self::source_ns`] is `None`.
+///   (Oracle: with `::dst::p` imported from `::src`, `namespace eval ::dst
+///   {namespace forget p}` leaves `info commands ::dst::*` empty and raises
+///   no error.)
+///
+/// Forgetting a name that was never imported is a silent no-op, not an error
+/// — only an unknown *namespace* in a qualified pattern errors (`unknown
+/// namespace in namespace forget pattern "::nope::x"`), which is a
+/// diagnostics question, not a resolution one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignatureNamespaceForget {
+    /// The namespace the forget runs in — the one losing the aliases, with
+    /// leading `::`.
+    pub ns: String,
+    /// The pattern's source namespace with leading `::` when the pattern was
+    /// qualified (`::src` for `::src::p`), `None` for a simple pattern.
+    ///
+    /// `None` matches *any* source: a simple pattern is matched against the
+    /// forgetting namespace's own imported command names.
+    pub source_ns: Option<String>,
+    /// The pattern's final `::`-segment, exactly as written (`p`, `*`,
+    /// `get*`) — matched against a command's bare name with Tcl glob
+    /// semantics.
+    pub pattern: String,
+    /// Source span of the pattern argument.
+    pub range: Span,
 }
 
 /// One `namespace export` **event** recorded by the signature scanner.
@@ -388,6 +470,9 @@ pub struct SignatureScanResult {
     pub renames: BTreeMap<String, SignatureRename>,
     /// Every recorded `namespace import` (direct + conjectured).
     pub namespace_imports: Vec<SignatureNamespaceImport>,
+    /// Every recorded `namespace forget` event — the removal half of the
+    /// import edge's lifecycle log (issue #1103).
+    pub namespace_forgets: Vec<SignatureNamespaceForget>,
     /// Every `auto_path` mutation (one record per path element).
     pub auto_path_entries: Vec<SignatureAutoPathEntry>,
     /// Every command invocation visited (lightweight: name + range).

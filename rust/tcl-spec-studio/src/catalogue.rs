@@ -324,6 +324,7 @@ pub const ANALYSER_HOOKS: &[Variant] = &[
     v("NamespaceEnsemble", "namespace ensemble"),
     v("NamespaceImport", "namespace import"),
     v("NamespaceExport", "namespace export"),
+    v("NamespaceForget", "namespace forget"),
     v("NamespacePath", "namespace path"),
     v("NamespaceUnknown", "namespace unknown"),
     v("NamespaceUpvar", "namespace upvar"),
@@ -959,6 +960,7 @@ mod tests {
             | AnalyserHookId::NamespaceEnsemble
             | AnalyserHookId::NamespaceImport
             | AnalyserHookId::NamespaceExport
+            | AnalyserHookId::NamespaceForget
             | AnalyserHookId::NamespacePath
             | AnalyserHookId::NamespaceUnknown
             | AnalyserHookId::NamespaceUpvar
