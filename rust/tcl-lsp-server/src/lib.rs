@@ -5439,36 +5439,61 @@ impl Backend {
     /// `Location`s, converting each span against the *target*
     /// document's source.  Targets whose document isn't in the
     /// store, or whose URI doesn't parse, are dropped.
+    ///
+    /// `targets` holds one entry per reference **site**, but many sites
+    /// share a URI (a heavily-`source`d proc can have hundreds of call sites
+    /// in a handful of files). Resolving per site used to call
+    /// [`Self::read_document`] — a full `DocumentState` clone, or a
+    /// `std::fs::read_to_string` for a closed file, plus an `edits_settled()`
+    /// wait — once per site; on 800 sites across 60 files that was 800 reads
+    /// for 60 documents' worth of real work (issue #1153). Read each unique
+    /// URI once instead, then look every site's span up against its
+    /// document's already-resolved `line_index`. `targets`' own order is
+    /// untouched (a document is read once, on its first site, but sites are
+    /// still emitted in their original relative order — some callers dedup
+    /// results and others (the code-lens click target, #991) rely on the
+    /// order matching `textDocument/references`'), so no caller needs to
+    /// change.
     async fn resolve_target_locations(
         &self,
         targets: Vec<(String, tcl_lexer::Span)>,
     ) -> Vec<Location> {
-        let mut locations = Vec::new();
-        for (target_uri, span) in targets {
-            let Ok(parsed) = Uri::from_str(&target_uri) else {
+        let mut docs: HashMap<&str, Option<(Uri, DocumentState)>> = HashMap::new();
+        for (target_uri, _) in &targets {
+            if docs.contains_key(target_uri.as_str()) {
                 continue;
+            }
+            let resolved = match Uri::from_str(target_uri) {
+                Ok(parsed) => self.read_document(&parsed).await.map(|doc| (parsed, doc)),
+                Err(_) => None,
             };
-            let Some(target_doc) = self.read_document(&parsed).await else {
-                continue;
-            };
-            let line_index = target_doc.line_index.clone();
-            let start = line_index.position_at_utf16(span.start(), &target_doc.text);
-            let end = line_index.position_at_utf16(span.end(), &target_doc.text);
-            locations.push(Location {
-                uri: parsed,
-                range: Range {
-                    start: Position {
-                        line: start.line,
-                        character: start.character.get(),
-                    },
-                    end: Position {
-                        line: end.line,
-                        character: end.character.get(),
-                    },
-                },
-            });
+            docs.insert(target_uri.as_str(), resolved);
         }
-        locations
+        targets
+            .iter()
+            .filter_map(|(target_uri, span)| {
+                let (uri, target_doc) = docs.get(target_uri.as_str())?.as_ref()?;
+                let start = target_doc
+                    .line_index
+                    .position_at_utf16(span.start(), &target_doc.text);
+                let end = target_doc
+                    .line_index
+                    .position_at_utf16(span.end(), &target_doc.text);
+                Some(Location {
+                    uri: uri.clone(),
+                    range: Range {
+                        start: Position {
+                            line: start.line,
+                            character: start.character.get(),
+                        },
+                        end: Position {
+                            line: end.line,
+                            character: end.character.get(),
+                        },
+                    },
+                })
+            })
+            .collect()
     }
 
     /// Resolve the proc / class symbol at `pos` (a bare command word, not a
@@ -22170,6 +22195,76 @@ mod tests {
             .write()
             .await
             .add_document(uri.as_str(), &analysis);
+    }
+
+    /// Issue #1153: `resolve_target_locations` now reads each unique target
+    /// URI once rather than once per site. Correctness check: several sites
+    /// interleaved across two documents must all resolve, each against the
+    /// *right* document's source, and the result must keep the exact input
+    /// order (some callers, e.g. the code-lens click target, rely on
+    /// `resolve_target_locations`'s order matching `textDocument/references`'
+    /// own).
+    #[tokio::test]
+    async fn resolve_target_locations_groups_by_uri_and_preserves_site_order() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///a.tcl").unwrap();
+        let b = Uri::from_str("file:///b.tcl").unwrap();
+        // a.tcl: "aaa\nbbb\nccc\n" — three one-word lines.
+        // b.tcl: "xxx\nyyy\n" — two one-word lines.
+        register(&backend, &a, "aaa\nbbb\nccc\n").await;
+        register(&backend, &b, "xxx\nyyy\n").await;
+        let span_at = |line_start_byte: u32, len: u32| {
+            tcl_lexer::Span::new(line_start_byte, line_start_byte + len)
+        };
+        // Interleaved: b, a, b, a, a — deliberately not grouped by URI, and
+        // not in either document's own line order, so a naive "sort by URI"
+        // implementation would be caught by the order assertion below.
+        let targets = vec![
+            (b.to_string(), span_at(4, 3)), // b.tcl line 1: "yyy"
+            (a.to_string(), span_at(8, 3)), // a.tcl line 2: "ccc"
+            (b.to_string(), span_at(0, 3)), // b.tcl line 0: "xxx"
+            (a.to_string(), span_at(0, 3)), // a.tcl line 0: "aaa"
+            (a.to_string(), span_at(4, 3)), // a.tcl line 1: "bbb"
+        ];
+        let locations = backend.resolve_target_locations(targets).await;
+        assert_eq!(locations.len(), 5, "{locations:?}");
+        let got: Vec<(String, u32)> = locations
+            .iter()
+            .map(|l| (l.uri.to_string(), l.range.start.line))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                (b.to_string(), 1),
+                (a.to_string(), 2),
+                (b.to_string(), 0),
+                (a.to_string(), 0),
+                (a.to_string(), 1),
+            ],
+            "grouping by URI must not reorder the result",
+        );
+    }
+
+    /// A target URI that fails to parse, or has no document, is dropped
+    /// (matching the pre-#1153 per-site behaviour) without disturbing the
+    /// other targets' resolution or order.
+    #[tokio::test]
+    async fn resolve_target_locations_drops_unresolvable_targets_and_keeps_the_rest() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///a.tcl").unwrap();
+        register(&backend, &a, "aaa\nbbb\n").await;
+        let targets = vec![
+            ("not a uri".to_owned(), tcl_lexer::Span::new(0, 3)),
+            (a.to_string(), tcl_lexer::Span::new(0, 3)),
+            (
+                "file:///never-opened-and-not-on-disk.tcl".to_owned(),
+                tcl_lexer::Span::new(0, 3),
+            ),
+            (a.to_string(), tcl_lexer::Span::new(4, 7)),
+        ];
+        let locations = backend.resolve_target_locations(targets).await;
+        let got: Vec<u32> = locations.iter().map(|l| l.range.start.line).collect();
+        assert_eq!(got, vec![0, 1], "{locations:?}");
     }
 
     #[tokio::test]
