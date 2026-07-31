@@ -130,6 +130,26 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         arg_values: &[(0, SELF_SUBCOMMAND_VALUES)],
         closed_value_args: &[0],
+        // `class` is the one word of the nine whose value the *source* fixes:
+        // the defining class is the class whose definition body lexically
+        // encloses the method, unchanged by inheritance, mixins, and `next`
+        // (each chain link reports its own definer).  See
+        // [`OoContextFact::DefiningClass`] for the 9.0.4/8.6.16 transcript and
+        // the two shapes a consumer must still abstain on.
+        //
+        // The other eight are deliberately absent.  `object` and `namespace`
+        // name the *receiving instance* — a fresh `::oo::ObjNN` per `new`, so
+        // never a source constant, which is why issue #1080's "`self object`
+        // folds too" framing does not survive the oracle:
+        //
+        //     oo::class create ::A { method m {} { list [self] [self object] \
+        //                                               [self namespace] } }
+        //     [::A new] m   ;# -> ::oo::Obj22 ::oo::Obj22 ::oo::Obj22
+        //
+        // and `method`/`call`/`caller`/`filter`/`next`/`target` describe the
+        // live call chain, which mixins, filters, and `next` reshape at run
+        // time.
+        oo_context_facts: &[("class", OoContextFact::DefiningClass)],
         hover: Some(HoverSnippet {
             summary: "query information about the current method invocation",
             synopsis: &["self ?subcommand?"],

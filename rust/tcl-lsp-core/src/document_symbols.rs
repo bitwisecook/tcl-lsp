@@ -1170,6 +1170,192 @@ mod tests {
     }
 
     #[test]
+    fn oo_self_block_form_emits_class_side_method_symbols() {
+        // Issue #1081 — TP. `self { method … }` is `self method …` spelled as
+        // a block; both declare a method on the class *object*. Oracle
+        // (tclsh 9.0.4 / 8.6.16, identical):
+        //   oo::class create ::C { self { method make {n} {…} } }
+        //   ::C make 7               -> made-7
+        //   info object methods ::C  -> make      (class-object side)
+        //   info class methods ::C   -> {}        (instance side untouched)
+        // Only the prefix spelling reached the outline before the fix.
+        for source in [
+            concat!(
+                "oo::class create Counter {\n",
+                "    self {\n",
+                "        method make {n} { return $n }\n",
+                "        method reset {} { return 0 }\n",
+                "    }\n",
+                "    method tick {} { return 1 }\n",
+                "}\n",
+            ),
+            concat!(
+                "oo::class create Counter {}\n",
+                "oo::define Counter {\n",
+                "    self {\n",
+                "        method make {n} { return $n }\n",
+                "        method reset {} { return 0 }\n",
+                "    }\n",
+                "    method tick {} { return 1 }\n",
+                "}\n",
+            ),
+        ] {
+            for dialect in ["tcl8.6", "tcl9.0"] {
+                let symbols = document_symbols(source, dialect);
+                let cls = &symbols[0];
+                let make = cls
+                    .children
+                    .iter()
+                    .find(|c| c.name == "make")
+                    .unwrap_or_else(|| panic!("expected `make` in outline for {dialect}"));
+                assert_eq!(make.kind, SymbolKind::Method);
+                assert_eq!(
+                    make.detail.as_deref(),
+                    Some("classmethod (n)"),
+                    "block-form `self method` must carry the same detail the \
+                     prefix form does",
+                );
+                assert!(
+                    cls.children.iter().any(|c| c.name == "reset"),
+                    "every member of the block must be emitted, not just the first",
+                );
+                // The plain instance method alongside it is untouched.
+                let tick = cls
+                    .children
+                    .iter()
+                    .find(|c| c.name == "tick")
+                    .expect("expected instance method `tick`");
+                assert_eq!(tick.detail.as_deref(), Some("()"));
+            }
+        }
+    }
+
+    #[test]
+    fn oo_self_block_method_selection_range_covers_the_inner_name() {
+        // The symbol must select the member's own name word inside the block,
+        // not the enclosing `self` keyword — otherwise the outline jump lands
+        // on the wrapper.
+        let source = concat!(
+            "oo::class create Counter {\n",
+            "    self {\n",
+            "        method make {n} { return $n }\n",
+            "    }\n",
+            "}\n",
+        );
+        let symbols = document_symbols(source, "tcl9.0");
+        let make = symbols[0]
+            .children
+            .iter()
+            .find(|c| c.name == "make")
+            .expect("expected `make`");
+        // Line 2 (0-based): `        method make {n} { return $n }`.
+        assert_eq!(make.selection_range.start_line, 2);
+        assert_eq!(make.selection_range.start_character, 15);
+        assert_eq!(make.selection_range.end_character, 19);
+    }
+
+    #[test]
+    fn self_introspection_call_in_a_method_body_emits_no_symbol() {
+        // Issue #1081 — TN. A `self` *introspection* call inside a method body
+        // is not a definer member at all; it must contribute nothing to the
+        // outline. (`self class` there is an ordinary command substitution —
+        // tclsh returns the defining class, it declares nothing.)
+        let source = concat!(
+            "oo::class create Counter {\n",
+            "    method whoami {} {\n",
+            "        set c [self class]\n",
+            "        return [self object]\n",
+            "    }\n",
+            "}\n",
+        );
+        let symbols = document_symbols(source, "tcl9.0");
+        let names: Vec<&str> = symbols[0]
+            .children
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect();
+        assert_eq!(
+            names,
+            ["whoami"],
+            "only the method itself is a symbol; `self class`/`self object` are not",
+        );
+    }
+
+    #[test]
+    fn oo_self_block_deleted_member_is_not_in_the_outline() {
+        // Issue #1095 review. A member the same block goes on to delete must
+        // not appear in the outline — a stale entry navigates to a name the
+        // interpreter does not have. Oracle (tclsh 9.0.4 / 8.6.16, identical):
+        //   oo::class create ::C1 {
+        //       self { method gone {} {…} ; method kept {} {…} ; deletemethod gone }
+        //   }
+        //   info object methods ::C1  ->  kept
+        //   ::C1 gone                 ->  unknown method "gone"
+        let source = concat!(
+            "oo::class create Counter {\n",
+            "    self {\n",
+            "        method gone {} { return 1 }\n",
+            "        method kept {} { return 2 }\n",
+            "        deletemethod gone\n",
+            "    }\n",
+            "}\n",
+        );
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let symbols = document_symbols(source, dialect);
+            let names: Vec<&str> = symbols[0]
+                .children
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect();
+            assert_eq!(names, ["kept"], "{dialect}: stale member in outline");
+        }
+    }
+
+    #[test]
+    fn oo_self_block_non_destructive_reference_keeps_the_member_listed() {
+        // TN for the same mechanism: `export` / `unexport` / `filter` name a
+        // method without removing it, so the member stays in the outline.
+        // Oracle: `self { method a {} {…} ; unexport a ; export a }` leaves
+        // `info object methods ::A` -> a, and `::A a` -> 1.
+        let source = concat!(
+            "oo::class create Counter {\n",
+            "    self {\n",
+            "        method a {} { return 1 }\n",
+            "        unexport a\n",
+            "        export a\n",
+            "    }\n",
+            "}\n",
+        );
+        let symbols = document_symbols(source, "tcl9.0");
+        assert!(
+            symbols[0].children.iter().any(|c| c.name == "a"),
+            "export/unexport must not drop the outline entry",
+        );
+    }
+
+    #[test]
+    fn oo_private_block_form_emits_instance_method_symbols() {
+        // Issue #1081, symmetric half: `private` is the other registry member
+        // marked wrapper-with-block-body, so the same normalisation gives it
+        // the outline node its prefix form already had.
+        let source = concat!(
+            "oo::class create Counter {\n",
+            "    private {\n",
+            "        method secret {k} { return $k }\n",
+            "    }\n",
+            "}\n",
+        );
+        let symbols = document_symbols(source, "tcl9.0");
+        let secret = symbols[0]
+            .children
+            .iter()
+            .find(|c| c.name == "secret")
+            .expect("expected private method `secret` in the outline");
+        assert_eq!(secret.kind, SymbolKind::Method);
+        assert_eq!(secret.detail.as_deref(), Some("(k)"));
+    }
+
+    #[test]
     fn merge_ranges_takes_outer_bounds() {
         let a = LineRange {
             start_line: 1,

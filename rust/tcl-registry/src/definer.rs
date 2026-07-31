@@ -105,6 +105,34 @@ pub struct MemberSpec {
     /// not exist in the 8.6 `TclOO` definition grammar — so a document using it
     /// under an older core is flagged rather than silently accepted.
     pub dialects: Option<crate::dialects::DialectSet>,
+    /// Whether this member **removes** the members its arguments name, rather
+    /// than merely referring to them.
+    ///
+    /// Distinguishes `deletemethod m` / `renamemethod old new` from the other
+    /// [`MemberRefKind::Method`] members (`export` / `unexport` / `filter`),
+    /// which name a method without retracting it.  A consumer that records
+    /// members from a definition body must not keep a member some later word
+    /// in the same body deletes.  Oracle, identical on tclsh 9.0.4 and 8.6.16:
+    ///
+    /// ```tcl
+    /// oo::class create ::C1 {
+    ///     self { method gone {} {…} ; method kept {} {…} ; deletemethod gone }
+    /// }
+    /// info object methods ::C1   ;# -> kept          (`gone` really is gone)
+    /// ::C1 gone                  ;# -> unknown method "gone"
+    ///
+    /// oo::class create ::C2 { self { method old {} {…} ; renamemethod old new } }
+    /// info object methods ::C2   ;# -> new
+    /// ::C2 old                   ;# -> unknown method "old"
+    /// ```
+    ///
+    /// Source order is not a consumer concern: naming a member that does not
+    /// exist *yet* is a hard error, not a no-op, so the only legal order is
+    /// declare-then-retract —
+    /// `oo::class create ::C3 { self { deletemethod ghost ; method ghost {} {…} } }`
+    /// fails with `method ghost does not exist` and no class is created at all
+    /// (same on both interpreters), as does deleting a never-declared name.
+    pub retracts_named_members: bool,
 }
 
 impl MemberSpec {
@@ -119,6 +147,7 @@ impl MemberSpec {
             kind: MemberKind::Flat,
             wrapper_block_body: false,
             dialects: None,
+            retracts_named_members: false,
         }
     }
 
@@ -134,6 +163,7 @@ impl MemberSpec {
             kind: MemberKind::Flat,
             wrapper_block_body: false,
             dialects: None,
+            retracts_named_members: false,
         }
     }
 
@@ -148,6 +178,7 @@ impl MemberSpec {
             kind: MemberKind::Flat,
             wrapper_block_body: false,
             dialects: None,
+            retracts_named_members: false,
         }
     }
 
@@ -163,6 +194,7 @@ impl MemberSpec {
             kind: MemberKind::Flat,
             wrapper_block_body: false,
             dialects: None,
+            retracts_named_members: false,
         }
     }
 
@@ -179,6 +211,7 @@ impl MemberSpec {
             kind: MemberKind::Wrapper,
             wrapper_block_body: false,
             dialects: None,
+            retracts_named_members: false,
         }
     }
 
@@ -198,6 +231,7 @@ impl MemberSpec {
             kind: MemberKind::Wrapper,
             wrapper_block_body: true,
             dialects: None,
+            retracts_named_members: false,
         }
     }
 
@@ -207,6 +241,15 @@ impl MemberSpec {
     #[must_use]
     const fn with_dialects(mut self, dialects: crate::dialects::DialectSet) -> Self {
         self.dialects = Some(dialects);
+        self
+    }
+
+    /// Mark this member as one that **retracts** the members its arguments
+    /// name (a builder over the constructors above) — see
+    /// [`Self::retracts_named_members`].
+    #[must_use]
+    const fn retracting(mut self) -> Self {
+        self.retracts_named_members = true;
         self
     }
 
@@ -221,6 +264,7 @@ impl MemberSpec {
             kind: MemberKind::FlagKeyed,
             wrapper_block_body: false,
             dialects: None,
+            retracts_named_members: false,
         }
     }
 
@@ -359,7 +403,7 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     MemberSpec::all_refs("filter", MemberRefKind::Method),
     MemberSpec::all_refs("export", MemberRefKind::Method),
     MemberSpec::all_refs("unexport", MemberRefKind::Method),
-    MemberSpec::all_refs("deletemethod", MemberRefKind::Method),
+    MemberSpec::all_refs("deletemethod", MemberRefKind::Method).retracting(),
     // `forward NAME cmd ?arg…?` declares NAME as a method; the word after it
     // (`cmd`) is the delegated command's name — a first-class command
     // reference the walker records so navigation reaches it, exactly like the
@@ -367,7 +411,9 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     // ordinary values.
     MemberSpec::flat("forward", FORWARD_ROLES),
     // `renamemethod FROM TO` — both name methods.
-    MemberSpec::all_refs("renamemethod", MemberRefKind::Method),
+    // Both words name methods; the FROM word is retracted (and the TO word is
+    // a member this walker does not record), so the whole call retracts.
+    MemberSpec::all_refs("renamemethod", MemberRefKind::Method).retracting(),
     MemberSpec::keyword_only("definitionnamespace").with_dialects(TCL90_MEMBERS),
     // Structurally irregular — a nested-member wrapper (`self method …`) and a
     // flag-keyed body form (`property … -get/-set …`); their body indices come

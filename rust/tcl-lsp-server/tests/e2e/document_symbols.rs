@@ -310,6 +310,108 @@ fn classmethod_detail() {
     );
 }
 
+#[test]
+fn self_block_form_members_appear_in_the_outline() {
+    // Issue #1081 — TP, end to end. `self { method … }` declares exactly what
+    // `self method …` does; only the prefix spelling used to reach the outline.
+    // Oracle (tclsh 9.0.4 / 8.6.16, identical):
+    //   oo::class create ::C { self { method make {n} {…} } ; method tick {} {…} }
+    //   ::C make 7               -> made-7
+    //   info object methods ::C  -> make     (class-object side)
+    //   info class methods ::C   -> tick     (instance side)
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create Counter {\n",
+            "    self {\n",
+            "        method make {n} { return $n }\n",
+            "        method reset {} { return 0 }\n",
+            "    }\n",
+            "    method tick {} { return 1 }\n",
+            "}\n",
+        ),
+    );
+    let syms = top(&mut lsp, &uri);
+    let cls = &syms[0];
+    assert_eq!(kind(cls), CLASS);
+    let kids = children(cls);
+    let make: Vec<&Value> = kids.iter().filter(|c| name(c) == "make").collect();
+    assert_eq!(make.len(), 1, "expected `make` in the outline: {kids:?}");
+    assert_eq!(kind(make[0]), METHOD);
+    assert!(
+        detail(make[0]).contains("classmethod"),
+        "a `self`-scoped member carries the classmethod detail, got {:?}",
+        detail(make[0]),
+    );
+    assert!(
+        kids.iter().any(|c| name(c) == "reset"),
+        "every member of the block lists, not just the first: {kids:?}",
+    );
+    // The instance method alongside it keeps its own (non-classmethod) detail.
+    let tick: Vec<&Value> = kids.iter().filter(|c| name(c) == "tick").collect();
+    assert_eq!(tick.len(), 1);
+    assert!(!detail(tick[0]).contains("classmethod"));
+}
+
+#[test]
+fn self_block_deleted_member_is_absent_from_the_outline() {
+    // Issue #1095 review — TN, end to end. A member the block deletes must not
+    // reach the outline. Oracle (tclsh 9.0.4 / 8.6.16, identical):
+    //   oo::class create ::C1 {
+    //       self { method gone {} {…} ; method kept {} {…} ; deletemethod gone }
+    //   }
+    //   info object methods ::C1  ->  kept
+    //   ::C1 gone                 ->  unknown method "gone"
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create Counter {\n",
+            "    self {\n",
+            "        method gone {} { return 1 }\n",
+            "        method kept {} { return 2 }\n",
+            "        deletemethod gone\n",
+            "    }\n",
+            "}\n",
+        ),
+    );
+    let syms = top(&mut lsp, &uri);
+    let kids = children(&syms[0]);
+    let names: Vec<&str> = kids.iter().map(name).collect();
+    assert_eq!(
+        names,
+        ["kept"],
+        "stale deleted member in outline: {names:?}"
+    );
+}
+
+#[test]
+fn self_introspection_inside_a_method_body_adds_no_symbol() {
+    // Issue #1081 — TN, end to end. `self class` / `self object` in a method
+    // body are introspection calls, not definer members: the outline must show
+    // the method and nothing else.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create Counter {\n",
+            "    method whoami {} {\n",
+            "        set c [self class]\n",
+            "        return [self object]\n",
+            "    }\n",
+            "}\n",
+        ),
+    );
+    let syms = top(&mut lsp, &uri);
+    let kids = children(&syms[0]);
+    let names: Vec<&str> = kids.iter().map(name).collect();
+    assert_eq!(names, ["whoami"], "unexpected outline members: {names:?}");
+}
+
 // -- tcltest test cases (issue #790) -------------------------------------
 
 #[test]

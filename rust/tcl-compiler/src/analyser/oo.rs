@@ -437,17 +437,38 @@ impl Analyser {
             if let (Some(subcmd), Some(tok)) = (texts.first(), argv.first()) {
                 self.emit_w002_oo_member_disabled(grammar, subcmd, *tok, definer_disabled);
             }
-            apply_oo_subcommand(grammar, texts, argv, class_def);
-            // A member argument that *names* a command — the class a
-            // `superclass`/`mixin` extends, the command a `forward` delegates to
-            // — is a first-class command reference.  Record it so references /
-            // go-to-definition / rename / call-hierarchy reach it the same as a
-            // direct call.  Which arguments name commands is registry data (the
-            // member grammar's `all_args_ref` / `ArgRole::CommandName`), never a
-            // member keyword the walker knows by name.
-            self.record_member_command_references(grammar, texts, argv, scope_path);
-            if let Some(mb) = collect_method_body(grammar, texts, argv) {
-                method_bodies.push(mb);
+            // A wrapper member's bare *script-block* form (`self { method m …
+            // }`, `private { … }`) declares exactly the members its block
+            // spells out — so rewrite each inner command into the equivalent
+            // prefix form (`self method m …`) and feed the one member walker
+            // below.  Which members take a block is registry data
+            // (`MemberKind::Wrapper` + `wrapper_block_body`), never a keyword
+            // matched here; `None` means "not a block form", i.e. the command
+            // stands for itself.
+            let expanded = expand_wrapper_block_members(grammar, texts, argv, self.lexer_config());
+            let member_calls: Vec<(&[String], &[Token])> = expanded.as_ref().map_or_else(
+                || vec![(texts, argv)],
+                |inner| {
+                    inner
+                        .iter()
+                        .map(|(t, a)| (t.as_slice(), a.as_slice()))
+                        .collect()
+                },
+            );
+            for (texts, argv) in member_calls {
+                apply_oo_subcommand(grammar, texts, argv, class_def);
+                // A member argument that *names* a command — the class a
+                // `superclass`/`mixin` extends, the command a `forward`
+                // delegates to — is a first-class command reference.  Record it
+                // so references / go-to-definition / rename / call-hierarchy
+                // reach it the same as a direct call.  Which arguments name
+                // commands is registry data (the member grammar's
+                // `all_args_ref` / `ArgRole::CommandName`), never a member
+                // keyword the walker knows by name.
+                self.record_member_command_references(grammar, texts, argv, scope_path);
+                if let Some(mb) = collect_method_body(grammar, texts, argv) {
+                    method_bodies.push(mb);
+                }
             }
             match texts.first().map(String::as_str) {
                 Some("property") => {
@@ -1587,6 +1608,101 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
 /// word carries its own true source range and downstream consumers
 /// (document symbols, `my`-dispatch, hover) get real positions rather than
 /// the whole-list span.
+/// Expand a wrapper member's bare **script-block** form into the equivalent
+/// prefix forms, so one walker handles both spellings of the same declaration.
+///
+/// `TclOO`'s `self` and `private` are the two members the registry marks
+/// [`MemberKind::Wrapper`] *with* `wrapper_block_body`: each takes both
+/// `self method NAME ARGS BODY` (prefix) and `self { method NAME ARGS BODY; … }`
+/// (block, a definition script evaluated against the class object / with
+/// private visibility).  Only the prefix form was ever walked, so every member
+/// declared in a block was invisible to the whole analysis — no `ClassDef`
+/// entry, hence no document-symbol node, no dispatch arity, and no body walk
+/// (issue #1081).
+///
+/// Returns `Some(calls)` — each `(texts, argv)` being the block's inner command
+/// with the wrapper keyword (and its token) spliced back on at index 0 — for a
+/// block form, and `None` for everything else, including the prefix form, which
+/// the caller already handles as written.
+///
+/// Oracle, identical on tclsh 9.0.4 and 8.6.16 — the block form declares
+/// exactly the same class-side methods the prefix form does:
+///
+/// ```tcl
+/// oo::class create ::C {
+///     self { method make {n} {return "made-$n"} ; method other {} {return other} }
+///     method inst {} {return inst}
+/// }
+/// ::C make 7                  ;# -> made-7
+/// info class methods ::C      ;# -> inst          (instance side untouched)
+/// info object methods ::C     ;# -> other make    (class-object side)
+/// oo::class create ::F { superclass ::C }
+/// ::F make 1                  ;# -> error: unknown method "make"  (not inherited)
+/// ```
+///
+/// and `export`/`unexport` inside the block act on the class-object side:
+/// `oo::class create ::E { self { method hidden {} {…} ; unexport hidden } }`
+/// leaves `info object methods ::E` empty while `-all -private` still lists
+/// `hidden`.
+///
+/// Abstains — returning `None`, so the command is walked exactly as it is
+/// today — on a dynamic (non-`Str`) block word, which cannot be re-segmented
+/// statically, and on any shape carrying words after the block.
+fn expand_wrapper_block_members(
+    grammar: &DefinitionBodyGrammar,
+    texts: &[String],
+    argv: &[Token],
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<(Vec<String>, Vec<Token>)>> {
+    use tcl_registry::definer::MemberKind;
+    let keyword = texts.first()?;
+    let keyword_tok = *argv.first()?;
+    let member = grammar.member(keyword)?;
+    if member.kind != MemberKind::Wrapper || !member.wrapper_block_body {
+        return None;
+    }
+    // The prefix form — the word after the wrapper is itself a member keyword —
+    // is already the spelling the walker consumes; leave it alone.
+    let inner_first = texts.get(1)?;
+    if grammar.member(inner_first).is_some() {
+        return None;
+    }
+    // `+ 1` because a member's registry arg-role indices are relative to its
+    // *arguments*, while `texts`/`argv` still carry the keyword at 0.
+    let body_idx = member.indices_for(ArgRole::Body).next()? + 1;
+    if texts.len() != body_idx + 1 {
+        return None;
+    }
+    let body_text = texts.get(body_idx)?;
+    let body_tok = *argv.get(body_idx)?;
+    if body_tok.kind != TokenType::Str {
+        return None;
+    }
+    let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+    let cmds =
+        crate::segmenter::segment_commands_with_offset_and_config(body_text, base_offset, config);
+    let mut out: Vec<(Vec<String>, Vec<Token>)> = Vec::new();
+    for cmd in &cmds {
+        if cmd.is_partial || cmd.argv.is_empty() {
+            continue;
+        }
+        let spliced = splice_static_member_expansions(cmd);
+        let (inner_texts, inner_argv) = spliced
+            .as_ref()
+            .map_or((cmd.texts.as_slice(), cmd.argv.as_slice()), |(t, a)| {
+                (t.as_slice(), a.as_slice())
+            });
+        let mut wrapped_texts = Vec::with_capacity(inner_texts.len() + 1);
+        wrapped_texts.push(keyword.clone());
+        wrapped_texts.extend(inner_texts.iter().cloned());
+        let mut wrapped_argv = Vec::with_capacity(inner_argv.len() + 1);
+        wrapped_argv.push(keyword_tok);
+        wrapped_argv.extend(inner_argv.iter().copied());
+        out.push((wrapped_texts, wrapped_argv));
+    }
+    Some(out)
+}
+
 fn splice_static_member_expansions(
     cmd: &crate::segmenter::SegmentedCommand,
 ) -> Option<(Vec<String>, Vec<Token>)> {
@@ -1720,6 +1836,9 @@ fn apply_oo_private(
     let Some(member) = grammar.member(inner_subcmd) else {
         return;
     };
+    // `private deletemethod m` removes an instance-side member — `private`'s
+    // own side — including one this same block just recorded.
+    retract_wrapped_members(member, inner_args, &mut class_def.methods);
     match inner_subcmd {
         "method" => {
             if let Some(md) =
@@ -1744,6 +1863,41 @@ fn apply_oo_private(
     }
 }
 
+/// Drop every member named by a *retracting* wrapper-scoped member word
+/// (`self deletemethod m`, `private renamemethod old new`) from `table` — the
+/// method table of the side the wrapper targets.
+///
+/// This is an **abstention**, not a model of `deletemethod` / `renamemethod`:
+/// it stops a member the body goes on to delete from being retained, but it
+/// records nothing in its place (a `renamemethod old new` drops `old` without
+/// recording `new`). Keeping a member real Tcl removed would show a stale
+/// document symbol and let navigation and method validation resolve a name
+/// that does not exist — a false positive; dropping the renamed-to name is a
+/// false negative, which is the direction this campaign abstains toward.
+///
+/// Which member words retract is registry data
+/// ([`MemberSpec::retracts_named_members`]), never a keyword matched here —
+/// the sibling [`MemberRefKind::Method`] members (`export` / `unexport` /
+/// `filter`) name a method without removing it and must not retract.
+///
+/// Source order needs no tracking: real Tcl makes retracting a
+/// not-yet-declared member a hard error that aborts the whole definition (see
+/// the oracle on [`MemberSpec::retracts_named_members`]), so the only legal
+/// order is declare-then-retract, and a body that violates it never creates a
+/// class for us to describe.
+fn retract_wrapped_members(
+    member: &MemberSpec,
+    names: &[String],
+    table: &mut std::collections::HashMap<String, MethodDef>,
+) {
+    if !member.retracts_named_members {
+        return;
+    }
+    for name in names {
+        table.remove(name);
+    }
+}
+
 /// `self method NAME ARGS BODY` / `self classmethod NAME ARGS BODY`
 /// (issue #923 idx 120) — `TclOO`'s own spelling for a class-level method,
 /// the stock-library counterpart to `ooutil`'s `classmethod` keyword (both
@@ -1753,9 +1907,10 @@ fn apply_oo_private(
 /// inherited the way an `ooutil`-style `classmethod` is (real tclsh: a
 /// subclass with no override does not gain a `self method` at all).
 ///
-/// Scoped to the prefix form only; `self { method NAME ARGS BODY; … }`'s
-/// block form is a documented, symmetric (`private { … }` shares the same
-/// gap) follow-up, not fixed here.
+/// Consumes the **prefix** form only.  `self { method NAME ARGS BODY; … }`'s
+/// block form (and `private`'s symmetric one) is normalised *into* this form
+/// by [`expand_wrapper_block_members`] before the member walker runs, so both
+/// spellings land here (issue #1081).
 fn apply_oo_self(
     grammar: &DefinitionBodyGrammar,
     sub_args: &[String],
@@ -1775,6 +1930,11 @@ fn apply_oo_self(
     let Some(member) = grammar.member(inner_subcmd) else {
         return;
     };
+    // `self deletemethod m` / `self renamemethod old new` remove class-side
+    // members — including ones this same block just recorded (issue #1095
+    // review). Handled before the declaration arms below so the wrapper's own
+    // side is the only table touched.
+    retract_wrapped_members(member, inner_args, &mut class_def.class_methods);
     if !matches!(inner_subcmd, "method" | "classmethod") {
         return;
     }
@@ -2903,6 +3063,323 @@ mod tests {
         let body = r"switch -exact $cmd { foo { return 1 } }";
         let info = a.extract_unknown_proc_info(body, &[]);
         assert!(info.dispatch_targets.contains("foo"));
+    }
+
+    // ---- issue #1081: the `self { … }` / `private { … }` block forms ----
+
+    #[test]
+    fn self_block_form_records_every_member_as_a_class_method() {
+        // TP. Oracle (tclsh 9.0.4 / 8.6.16, identical):
+        //   oo::class create ::C {
+        //       self { method make {n} {…} ; method other {} {…} }
+        //       method inst {} {…}
+        //   }
+        //   ::C make 7               -> made-7
+        //   info object methods ::C  -> other make   (class-object side)
+        //   info class methods ::C   -> inst         (instance side)
+        //   oo::class create ::F {superclass ::C} ; ::F make 1
+        //                            -> error: unknown method "make"
+        // i.e. exactly what the `self method …` prefix form declares — which
+        // is why both spellings land on the same recording path.
+        let src = "oo::class create ::C {\n\
+                   self {\n\
+                   method make {n} { return $n }\n\
+                   method other {} { return other }\n\
+                   }\n\
+                   method inst {} { return inst }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        for name in ["make", "other"] {
+            let md = c
+                .class_methods
+                .get(name)
+                .unwrap_or_else(|| panic!("`{name}` must record as a class method"));
+            assert_eq!(md.kind, "classmethod");
+            assert!(
+                md.is_self_method,
+                "`self`-scoped members are not inherited by subclasses",
+            );
+            assert_eq!(md.visibility, "public");
+        }
+        // The instance side is untouched — `inst` stays an instance method and
+        // the block's members never leak into it.
+        assert!(c.methods.contains_key("inst"));
+        assert!(!c.methods.contains_key("make"));
+        assert!(!c.methods.contains_key("other"));
+    }
+
+    #[test]
+    fn self_block_form_records_through_oo_define_too() {
+        // TP. Same block, reached through `oo::define` rather than the class
+        // creation body (oracle: `oo::define ::D { self { method mk {} {…} } }`
+        // → `info object methods ::D` is `mk`).
+        let src = "oo::class create ::D {}\n\
+                   oo::define ::D {\n\
+                   self {\n\
+                   method mk {} { return dmk }\n\
+                   }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::D").expect("::D recorded");
+        assert!(c.class_methods.contains_key("mk"));
+    }
+
+    #[test]
+    fn self_block_member_records_but_block_scoped_unexport_abstains() {
+        // Documented residual, pinned so it cannot regress silently.
+        //
+        // Oracle: `oo::class create ::E { self { method hidden {} {…} ;
+        // unexport hidden } }` leaves `info object methods ::E` empty while
+        // `-all -private` still lists `hidden`, and `::E hidden` errors
+        // "unknown method" — so the block's `unexport` really does apply to
+        // the class-object side.
+        //
+        // We record the *member* (that is #1081's outline gap) but abstain on
+        // the visibility effect, exactly as the `self unexport hidden` prefix
+        // form already does: `set_member_visibility` flips by bare name across
+        // BOTH the instance and class tables, so honouring it here would also
+        // un-export an identically-named instance method that the block never
+        // touched. Fixing that needs a side-scoped visibility setter, which is
+        // its own change.
+        let src = "oo::class create ::E {\n\
+                   self {\n\
+                   method hidden {} { return h }\n\
+                   unexport hidden\n\
+                   }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::E").expect("::E recorded");
+        assert!(c.class_methods.contains_key("hidden"));
+        assert_eq!(c.class_methods["hidden"].visibility, "public");
+    }
+
+    #[test]
+    fn private_block_form_records_instance_methods() {
+        // TP, symmetric half — `private` is the other registry member marked
+        // wrapper-with-block-body.
+        let src = "oo::class create ::P {\n\
+                   private {\n\
+                   method secret {k} { return $k }\n\
+                   }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::P").expect("::P recorded");
+        assert_eq!(c.methods["secret"].visibility, "private");
+        assert!(!c.class_methods.contains_key("secret"));
+    }
+
+    #[test]
+    fn self_block_does_not_declare_instance_variables() {
+        // TN / abstention boundary. `self { variable x }` declares a variable
+        // on the *class object*, not an instance variable of the class — the
+        // prefix form (`self variable x`) is not recorded either, and the
+        // block form must not start recording it as one.
+        let src = "oo::class create ::V {\n\
+                   self {\n\
+                   variable classlevel\n\
+                   }\n\
+                   variable instancelevel\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::V").expect("::V recorded");
+        assert_eq!(c.variables, vec!["instancelevel".to_string()]);
+    }
+
+    #[test]
+    fn self_introspection_prefix_is_not_a_block_member() {
+        // TN. Inside a *method body*, `self class` is an introspection call,
+        // not a definer member. The body is walked as a script (never as a
+        // definition body), so nothing here may reach `class_methods`.
+        let src = "oo::class create ::W {\n\
+                   method whoami {} { return [self class] }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::W").expect("::W recorded");
+        assert!(c.methods.contains_key("whoami"));
+        assert!(c.class_methods.is_empty(), "{:?}", c.class_methods);
+    }
+
+    #[test]
+    fn dynamic_self_block_abstains() {
+        // Abstention boundary: a non-literal block word cannot be re-segmented
+        // statically, so the expansion declines and the class records nothing
+        // rather than guessing.
+        let src = "set b {method make {n} { return $n }}\n\
+                   oo::class create ::Dyn {\n\
+                   self $b\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::Dyn").expect("::Dyn recorded");
+        assert!(c.class_methods.is_empty(), "{:?}", c.class_methods);
+        assert!(c.methods.is_empty(), "{:?}", c.methods);
+    }
+
+    #[test]
+    fn self_block_destructive_member_drops_the_member_it_deletes() {
+        // TP — issue #1095 review. Oracle (tclsh 9.0.4 / 8.6.16, identical):
+        //   oo::class create ::C1 {
+        //       self { method gone {} {…} ; method kept {} {…} ; deletemethod gone }
+        //   }
+        //   info object methods ::C1  ->  kept
+        //   ::C1 gone                 ->  unknown method "gone"
+        // Retaining `gone` would show a stale document symbol and let
+        // navigation resolve a name the interpreter does not have.
+        let src = "oo::class create ::C {\n                   self {\n                   method gone {} { return g }\n                   method kept {} { return k }\n                   deletemethod gone\n                   }\n                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(
+            !c.class_methods.contains_key("gone"),
+            "{:?}",
+            c.class_methods
+        );
+        assert!(c.class_methods.contains_key("kept"));
+    }
+
+    #[test]
+    fn self_block_renamemethod_drops_the_source_name() {
+        // TP. Oracle: `self { method old {} {…} ; renamemethod old new }` gives
+        // `info object methods ::C2` -> new, and `::C2 old` is an unknown
+        // method. We drop `old` and record nothing for `new` — the
+        // false-negative direction, which is the one to abstain toward.
+        let src = "oo::class create ::C {\n                   self {\n                   method old {} { return o }\n                   renamemethod old new\n                   }\n                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(
+            !c.class_methods.contains_key("old"),
+            "{:?}",
+            c.class_methods
+        );
+    }
+
+    #[test]
+    fn private_block_destructive_member_drops_the_instance_side_member() {
+        // TP, symmetric half. Oracle (9.0 — `private` is a 9.0 member):
+        //   oo::class create ::C5 {
+        //       private { method secret {} {…} ; method other {} {…} ;
+        //                 deletemethod secret }
+        //   }
+        //   info class methods ::C5 -all -private   ->  no `secret`
+        let src = "oo::class create ::C {\n                   private {\n                   method secret {} { return s }\n                   method other {} { return o }\n                   deletemethod secret\n                   }\n                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(!c.methods.contains_key("secret"), "{:?}", c.methods);
+        assert!(c.methods.contains_key("other"));
+    }
+
+    #[test]
+    fn wrapper_block_and_prefix_forms_retract_identically() {
+        // The block form is normalised into the prefix form, so both spellings
+        // must land on the same result. Oracle for the prefix side:
+        //   oo::define ::C7 { self method sgone {} {…} }
+        //   info object methods ::C7                  ->  sgone
+        //   oo::define ::C7 { self deletemethod sgone }
+        //   info object methods ::C7                  ->  (empty)
+        let src = "oo::class create ::C {}\n                   oo::define ::C { self method gone {} { return g } }\n                   oo::define ::C { self deletemethod gone }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(c.class_methods.is_empty(), "{:?}", c.class_methods);
+    }
+
+    #[test]
+    fn a_retraction_does_not_cross_to_the_other_side() {
+        // TN. `self deletemethod` touches only the class-object side. Oracle:
+        //   oo::class create ::D { method m {} {return inst}
+        //                          self { method m {} {return cls} } }
+        //   oo::define ::D { self deletemethod m }
+        //   info class methods ::D   ->  m        (instance side survives)
+        //   info object methods ::D  ->  (empty)
+        //   [::D new] m              ->  inst
+        let src = "oo::class create ::D {\n                   method m {} { return inst }\n                   self { method m {} { return cls } }\n                   }\n                   oo::define ::D { self deletemethod m }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::D").expect("::D recorded");
+        assert!(c.methods.contains_key("m"), "instance side must survive");
+        assert!(!c.class_methods.contains_key("m"), "class side must go");
+    }
+
+    #[test]
+    fn non_retracting_method_reference_members_keep_their_member() {
+        // TN, the discrimination the registry flag exists for: `export`,
+        // `unexport`, and `filter` are the sibling `MemberRefKind::Method`
+        // members — they *name* a method without removing it, so they must not
+        // retract. Oracle:
+        //   oo::class create ::A { self { method a {} {…} ; unexport a ; export a } }
+        //   info object methods ::A  ->  a   ;  ::A a  ->  1
+        //   oo::class create ::B { self { method f {} {…} ; filter f } }
+        //   info object methods ::B  ->  f
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::A {\n self {\n method a {} { return 1 }\n unexport a\n export a\n }\n}",
+            "tcl9.0",
+        );
+        assert!(
+            r.all_classes["::A"].class_methods.contains_key("a"),
+            "export/unexport must not retract",
+        );
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::B {\n self {\n method f {} { return 1 }\n filter f\n }\n}",
+            "tcl9.0",
+        );
+        assert!(
+            r.all_classes["::B"].class_methods.contains_key("f"),
+            "filter must not retract",
+        );
+    }
+
+    #[test]
+    fn a_retracted_member_can_be_redeclared_by_a_later_body() {
+        // Source-order guard. Oracle:
+        //   oo::class create ::C { method m {} {return 1} }
+        //   oo::define ::C { self method m {} {return 2} }
+        //   oo::define ::C { self deletemethod m }
+        //   oo::define ::C { self method m {} {return 3} }
+        //   ::C m        ->  3     (class side, redeclared after the delete)
+        //   [::C new] m  ->  1     (instance side, never touched)
+        // Retraction happens where the body is walked, so a later declaration
+        // wins — it is not a whole-document erasure of the name.
+        let src = "oo::class create ::C { method m {} { return 1 } }\n                   oo::define ::C { self method m {} { return 2 } }\n                   oo::define ::C { self deletemethod m }\n                   oo::define ::C { self method m {} { return 3 } }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert!(c.class_methods.contains_key("m"), "redeclaration must win");
+        assert!(c.methods.contains_key("m"), "instance side untouched");
+    }
+
+    #[test]
+    fn unwrapped_destructive_members_are_a_documented_residual() {
+        // Residual pin (reported for its own issue, deliberately NOT fixed
+        // here): an *unwrapped* `deletemethod` — in a class-creation body or an
+        // `oo::define` body, with no `self` / `private` wrapper — is still
+        // ignored, exactly as it was before the wrapper-block work. Real Tcl
+        // does delete it:
+        //   oo::class create ::C6 { method gone {} {…} ; method kept {} {…} }
+        //   oo::define ::C6 { deletemethod gone }
+        //   info class methods ::C6  ->  kept
+        // Fixing it is one more `apply_oo_subcommand` arm on this same
+        // `retracts_named_members` flag, but it changes the recorded shape of
+        // bodies this PR never touched, so it belongs to its own change.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { method gone {} { return g } }\n             oo::define ::C { deletemethod gone }",
+            "tcl9.0",
+        );
+        assert!(
+            r.all_classes["::C"].methods.contains_key("gone"),
+            "if this now fails the residual was fixed — update the note",
+        );
     }
 
     // snit (tcllib) type / widget support.  Verified against real
