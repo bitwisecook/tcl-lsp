@@ -337,11 +337,7 @@ impl Analyser {
             self.registry.expect("registry just stashed"),
             &self.extra_commands,
         );
-        let known: HashSet<&str> = self
-            .recovery_known_commands
-            .iter()
-            .map(String::as_str)
-            .collect();
+        let known: HashSet<&str> = self.recovery_known_commands.iter().collect();
         crate::segmenter::segment_commands_with_recovery_and_config(
             source,
             &known,

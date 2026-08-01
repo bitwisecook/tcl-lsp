@@ -23,6 +23,7 @@
 //! …) but all operate on the same ``&mut Analyser``.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
@@ -200,7 +201,16 @@ pub struct Analyser {
     pub disabled_diagnostics: HashSet<String>,
     /// User-declared extra command names (`tclLsp.extraCommands`) treated as
     /// known, so calling them never draws an unknown-command W123.
-    pub extra_commands: HashSet<String>,
+    ///
+    /// Shared behind an `Arc` because the LSP's unclosed-delimiter recovery
+    /// path widens this set with every workspace-indexed proc / class and every
+    /// auto-loadable command name (`widen_recovery_extra_commands` in
+    /// `tcl-lsp-server`) — tens of thousands of names on a large workspace.
+    /// That set is a pure function of the workspace index and the package
+    /// database, so the server caches it and hands the same allocation to every
+    /// analyser it configures; an owned `HashSet` here would deep-copy it on
+    /// each keystroke.
+    pub extra_commands: Arc<HashSet<String>>,
     /// Last seen comment text, for proc / class doc-comment
     /// harvesting.
     pub last_comment: String,
@@ -521,7 +531,7 @@ pub struct Analyser {
     /// scan-to-next recovery and the E100/E201/E202/E203 diagnostics agree
     /// on what counts as a "real command" starting a new line. Empty
     /// outside an active analysis run.
-    pub recovery_known_commands: HashSet<String>,
+    pub recovery_known_commands: super::utils::RecoveryKnownCommands,
     /// When `true`, the proc handler runs the deep-recursive
     /// pass of [`super::param_traits::infer_param_traits_deep`]
     /// after the shallow pass and unions the results via
@@ -872,7 +882,7 @@ impl Analyser {
             source: String::new(),
             profile: tcl_dialect::DialectProfile::plain_tcl(),
             disabled_diagnostics: disabled,
-            extra_commands: HashSet::new(),
+            extra_commands: Arc::new(HashSet::new()),
             last_comment: String::new(),
             file_path: None,
             const_strings: HashMap::new(),
@@ -919,7 +929,7 @@ impl Analyser {
             interp_var_bindings: HashMap::new(),
             unresolved_commands_emitted: false,
             registry: None,
-            recovery_known_commands: HashSet::new(),
+            recovery_known_commands: super::utils::RecoveryKnownCommands::default(),
             deep_param_traits: false,
             stub_overlay: None,
             line_offsets: None,
@@ -970,7 +980,15 @@ impl Analyser {
     /// returning `self` for builder-style configuration. These names are
     /// treated as known commands by the unknown-command (W123) check.
     #[must_use]
-    pub fn with_extra_commands(mut self, extra: HashSet<String>) -> Self {
+    pub fn with_extra_commands(self, extra: HashSet<String>) -> Self {
+        self.with_shared_extra_commands(Arc::new(extra))
+    }
+
+    /// [`Self::with_extra_commands`] taking an already-shared set, so a caller
+    /// that caches the (potentially very large) widened recovery name set hands
+    /// it over as a refcount bump rather than a deep copy.
+    #[must_use]
+    pub fn with_shared_extra_commands(mut self, extra: Arc<HashSet<String>>) -> Self {
         self.extra_commands = extra;
         self
     }
@@ -1146,11 +1164,7 @@ impl Analyser {
             self.registry.expect("registry just stashed"),
             &self.extra_commands,
         );
-        let known_commands: HashSet<&str> = self
-            .recovery_known_commands
-            .iter()
-            .map(String::as_str)
-            .collect();
+        let known_commands: HashSet<&str> = self.recovery_known_commands.iter().collect();
         let mut commands = crate::segmenter::segment_commands_with_recovery_and_config(
             source,
             &known_commands,
@@ -1677,7 +1691,7 @@ impl Analyser {
     pub(super) fn fresh_full_analyse(&self, new_text: &str, dialect: &str) -> AnalysisResult {
         let mut fresh = Analyser::with_disabled_diagnostics(self.disabled_diagnostics.clone())
             .with_non_ascii_mode(self.non_ascii_mode)
-            .with_extra_commands(self.extra_commands.clone());
+            .with_shared_extra_commands(Arc::clone(&self.extra_commands));
         fresh.analyse(new_text, dialect)
     }
 

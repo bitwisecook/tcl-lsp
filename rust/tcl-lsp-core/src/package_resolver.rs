@@ -664,11 +664,39 @@ fn collapse_colons(cmd: &str) -> (String, usize) {
 /// first discovered — and *ties are broken by discovery order*, so listing a
 /// workspace-local copy first still shadows an equally-versioned installed
 /// one.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct PackageResolver {
     packages: HashMap<String, Vec<PackageInfo>>,
     auto_index: HashMap<String, Vec<PathBuf>>,
     scanned_dirs: Vec<PathBuf>,
+    revision: u64,
+}
+
+/// Source of [`PackageResolver::revision`] values.
+///
+/// Drawn from one process-wide counter (rather than a per-resolver `+= 1`) so a
+/// revision identifies *which* database state, not just how many mutations it
+/// has seen: the server replaces the resolver wholesale on a rescan
+/// (`*package_resolver.write().await = resolver`), and a per-instance counter
+/// would let a fresh resolver's low revision collide with an older, already-
+/// cached one. Every value handed out here is unique for the process lifetime,
+/// so "same revision" means "same resolver contents" for any consumer caching
+/// a derived view.
+static RESOLVER_REVISION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn next_resolver_revision() -> u64 {
+    RESOLVER_REVISION.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
+impl Default for PackageResolver {
+    fn default() -> Self {
+        Self {
+            packages: HashMap::new(),
+            auto_index: HashMap::new(),
+            scanned_dirs: Vec::new(),
+            revision: next_resolver_revision(),
+        }
+    }
 }
 
 impl PackageResolver {
@@ -678,10 +706,28 @@ impl PackageResolver {
         Self::default()
     }
 
+    /// An opaque token identifying this resolver's current contents.
+    ///
+    /// Bumped by every mutation ([`Self::add_pkg_index`], [`Self::add_tcl_index`],
+    /// [`Self::scan_path`], [`Self::scan_tree`]) and unique across resolver
+    /// instances, so a consumer caching something derived from the package
+    /// database (the recovery known-command widening in `tcl-lsp-server`) can
+    /// tell whether its cache is still valid without diffing the database.
+    #[must_use]
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    /// Note a mutation: take a fresh, process-unique revision.
+    fn invalidate(&mut self) {
+        self.revision = next_resolver_revision();
+    }
+
     /// Record a parsed `pkgIndex.tcl`'s declarations, appended in discovery
     /// order (selection among them is
     /// [`Self::resolve_require`]'s job, not this one's).
     pub fn add_pkg_index(&mut self, infos: Vec<PackageInfo>) {
+        self.invalidate();
         for info in infos {
             self.packages
                 .entry(info.name.clone())
@@ -692,6 +738,7 @@ impl PackageResolver {
 
     /// Record a parsed `tclIndex`'s declarations.
     pub fn add_tcl_index(&mut self, entries: Vec<AutoIndexEntry>) {
+        self.invalidate();
         for entry in entries {
             self.auto_index
                 .entry(entry.proc_name)

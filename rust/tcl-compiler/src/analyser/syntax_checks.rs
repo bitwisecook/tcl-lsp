@@ -48,10 +48,10 @@ use crate::segmenter::SegmentedCommand;
 /// token it picks, in priority order, where the `]` belongs: before a `#`
 /// comment line, a known-command line, or a `{`; otherwise it anchors at
 /// the `[`.
-pub(crate) fn unterminated_bracket_diagnostics<S: std::hash::BuildHasher>(
+pub(crate) fn unterminated_bracket_diagnostics(
     cmd: &SegmentedCommand,
     source: &str,
-    known: &HashSet<String, S>,
+    known: &super::utils::RecoveryKnownCommands,
 ) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     for tok in &cmd.all_tokens {
@@ -95,11 +95,11 @@ fn is_unterminated_cmd(tok: &Token, source: &str) -> bool {
 /// Build the E201 diagnostic for an unterminated `[`, choosing the
 /// insertion point via the comment / known-command / brace heuristics
 /// (in priority order), falling back to the bare `[`.
-fn detect_e201<S: std::hash::BuildHasher>(
+fn detect_e201(
     content: &str,
     content_start: u32,
     bracket_off: u32,
-    known: &HashSet<String, S>,
+    known: &super::utils::RecoveryKnownCommands,
 ) -> Diagnostic {
     // The heuristics *propose* an insertion offset (semantic); the
     // structural index *validates* it (syntactic). A proposed `]` that
@@ -214,11 +214,11 @@ fn e201_at_comment(content: &str, content_start: u32, bracket_off: u32) -> Optio
 /// content captured real commands inside a brace word. `detect_e201` uses
 /// that to suppress the `e201_at_brace` fallback, which would otherwise
 /// insert `]` before the `{` and hide the swallowed command from analysis.
-fn e201_at_command<S: std::hash::BuildHasher>(
+fn e201_at_command(
     content: &str,
     content_start: u32,
     bracket_off: u32,
-    known: &HashSet<String, S>,
+    known: &super::utils::RecoveryKnownCommands,
     index: &tcl_lexer::BracketIndex,
 ) -> (Option<Diagnostic>, bool) {
     let lines: Vec<&str> = content.split('\n').collect();
@@ -297,12 +297,12 @@ fn e201_at_brace(content: &str, content_start: u32, bracket_off: u32) -> Option<
 /// when scanning a nested body whose tokens are absolute spans into the
 /// full `source`. The "reaches EOF" / "no closing delimiter" tests are
 /// relative to that end.
-pub(crate) fn unterminated_delimiter_diagnostics<S: std::hash::BuildHasher>(
+pub(crate) fn unterminated_delimiter_diagnostics(
     cmd: &SegmentedCommand,
     source: &str,
     region_end: usize,
     registry: Option<&CommandRegistry>,
-    known: &HashSet<String, S>,
+    known: &super::utils::RecoveryKnownCommands,
 ) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     for (idx, tok) in cmd.all_tokens.iter().enumerate() {
@@ -420,10 +420,10 @@ fn is_suspicious_str(tok: &Token, source: &str, region_end: usize) -> bool {
 /// Build the E202 diagnostic for an unterminated `"`: the known-command
 /// heuristic (insert `"` right after the opener) or the fix-less
 /// fallback.
-fn detect_e202<S: std::hash::BuildHasher>(
+fn detect_e202(
     tok: &Token,
     source: &str,
-    known: &HashSet<String, S>,
+    known: &super::utils::RecoveryKnownCommands,
 ) -> Diagnostic {
     let quote_off = tok.span.start();
     let diag_span = Span::new(quote_off, quote_off);
@@ -469,12 +469,12 @@ fn detect_e202<S: std::hash::BuildHasher>(
 /// Build the E203 diagnostic for an unterminated `{`: the de-indented
 /// known-command heuristic (insert `}` at the newline before that line)
 /// or the fix-less fallback.
-fn detect_e203<S: std::hash::BuildHasher>(
+fn detect_e203(
     tok: &Token,
     cmd: &SegmentedCommand,
     source: &str,
     registry: Option<&CommandRegistry>,
-    known: &HashSet<String, S>,
+    known: &super::utils::RecoveryKnownCommands,
 ) -> Diagnostic {
     let brace_off = tok.span.start();
     let diag_span = Span::new(brace_off, brace_off);
@@ -543,11 +543,11 @@ fn unterminated_arg_is_expr(
 /// braces the line must be **de-indented** (the conservative heuristic);
 /// for `expr_role` braces any following known-command line qualifies (the
 /// aggressive command-break via `ArgRole` routing).
-fn e203_brace_fix<S: std::hash::BuildHasher>(
+fn e203_brace_fix(
     tok: &Token,
     source: &str,
     content_start: u32,
-    known: &HashSet<String, S>,
+    known: &super::utils::RecoveryKnownCommands,
     expr_role: bool,
 ) -> Option<CodeFix> {
     let text = token_inner(source, tok)?;

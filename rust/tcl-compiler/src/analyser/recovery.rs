@@ -807,7 +807,7 @@ mod tests {
         // running the braced prose through command analysis.
         let source = "switch $x\na { puts hi }\nrenderReport { prose text }";
         let mut a = analyser_with_source(source);
-        a.extra_commands.insert("renderReport".to_string());
+        a.extra_commands = std::sync::Arc::new(["renderReport".to_owned()].into_iter().collect());
         let commands: Vec<SegmentedCommand> = segment_commands_with_offset(source, 0);
         let mut switch_cmd = commands[0].clone();
         let consumed = a.recover_missing_open_brace(&mut switch_cmd, &commands, 0);
