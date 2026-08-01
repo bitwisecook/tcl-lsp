@@ -3095,6 +3095,42 @@ fn longest_folder_match<'a, T>(entries: &'a [(Uri, T)], uri: &Uri) -> Option<&'a
     best.map(|(_, value)| value)
 }
 
+/// Drive `futures` to completion with at most `concurrency` live at once,
+/// collecting the `Some` results (`None` — an unreadable / no-longer-a-file
+/// entry — is dropped).  Used by the `did_change_watched_files` batch reindex
+/// (#1161), which analyses its whole (bounded, per-event) file set in one
+/// pass; [`Backend::scan_workspace_folders`] (#1151) needs to merge completed
+/// analyses into the index in batches rather than all at once (a large tree's
+/// `AnalysisResult`s must not all be live in memory together), so it runs the
+/// same acquire-before-spawn dispatch inline instead of reusing this return-a-
+/// `Vec` shape. Mirrors [`Backend::spawn_workspace_warm`]'s permit pattern: a
+/// permit is held for the caller's whole future, so `concurrency` bounds files
+/// genuinely in flight, not merely tasks parked waiting for one.
+async fn run_bounded<R, F>(futures: Vec<F>, concurrency: usize) -> Vec<R>
+where
+    R: Send + 'static,
+    F: std::future::Future<Output = Option<R>> + Send + 'static,
+{
+    let permits = Arc::new(Semaphore::new(concurrency.max(1)));
+    let mut tasks = tokio::task::JoinSet::new();
+    for fut in futures {
+        let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
+            break;
+        };
+        tasks.spawn(async move {
+            let _permit = permit;
+            fut.await
+        });
+    }
+    let mut out = Vec::with_capacity(tasks.len());
+    while let Some(res) = tasks.join_next().await {
+        if let Ok(Some(item)) = res {
+            out.push(item);
+        }
+    }
+    out
+}
+
 impl std::fmt::Debug for Backend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend").finish_non_exhaustive()
@@ -3845,6 +3881,39 @@ impl Backend {
     ///    URLs, use the deepest-matching folder's dialect.
     /// 4. The session-wide ``default_dialect`` fallback.
     async fn dialect_for_open(&self, uri: &Uri, language_id: &str, text: &str) -> String {
+        let folder_dialects = self.folder_dialects.lock().await.clone();
+        let default_dialect = self.default_dialect.lock().await.clone();
+        Self::dialect_for_open_sync(uri, language_id, text, &folder_dialects, &default_dialect)
+    }
+
+    /// Pure core of [`Self::dialect_for_open`] (and so of
+    /// [`Self::dialect_for_closed`]): every input the resolution needs reduced
+    /// to plain arguments, so a caller that already holds a `folder_dialects` /
+    /// `default_dialect` snapshot — a batched watched-file reindex resolving
+    /// many URIs at once (#1161) — can resolve a dialect without a per-file
+    /// `&self` lock round trip. `dialect_for_open` is the only other caller;
+    /// keeping the logic in one place is what makes the two paths agree.
+    ///
+    /// Resolution order:
+    ///
+    /// 1. The LSP ``languageId`` field — when it names a known
+    ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl9.0"``
+    ///    / etc.), use it directly.
+    /// 2. Detection over the document itself — for the bare ``"tcl"``
+    ///    id every editor sends for a `.tcl` buffer, the shared
+    ///    [`tcl_registry::dialects::detect_dialect`] (directive,
+    ///    shebang, version guard, content signatures, then extension).
+    /// 3. The per-folder override map (`folder_dialects`) — when
+    ///    the document URI sits under one of the configured folder
+    ///    URLs, use the deepest-matching folder's dialect.
+    /// 4. The session-wide ``default_dialect`` fallback.
+    fn dialect_for_open_sync(
+        uri: &Uri,
+        language_id: &str,
+        text: &str,
+        folder_dialects: &[(Uri, String)],
+        default_dialect: &str,
+    ) -> String {
         // An explicit BIG-IP language id (`tcl-bigip`, advertised by the VS
         // Code extension, or the canonical `f5-bigip`) selects the BIG-IP
         // config dialect even when the basename is not a canonical
@@ -3912,10 +3981,10 @@ impl Backend {
         {
             return d.to_owned();
         }
-        if let Some(d) = self.resolve_folder_dialect(uri).await {
+        if let Some(d) = folder_dialect_for(uri, folder_dialects) {
             return d;
         }
-        self.default_dialect.lock().await.clone()
+        default_dialect.to_owned()
     }
 
     /// Whether `dialect` denotes an F5 BIG-IP config document — the
@@ -4457,42 +4526,135 @@ impl Backend {
         }
     }
 
-    async fn reindex_index_from_disk(&self, uri: &Uri) {
-        // Read + analyse off-lock.  Keep the source text + dialect too: the salsa
-        // db (cross-file diagnostics) must track the same on-disk population as the
-        // workspace index, so a proc defined in a closed/never-opened file still
-        // suppresses W123 / drives the arity error in its siblings.
-        let scanned: Option<(String, String, AnalysisResult)> =
-            if let Some(path) = uri.to_file_path().map(std::borrow::Cow::into_owned) {
-                // Read the on-disk text off-lock first, then resolve the dialect
-                // from its content the way `did_open` would (#865): a BIG-IP
-                // config, an iRule, or a `# tcl-dialect:`-pinned file keeps its
-                // real dialect rather than defaulting to generic Tcl.  The salsa
-                // `file_analysis_incremental` base pass reads the dialect from the
-                // stored `SourceFile`, so it must be right here — not just on the
-                // `publish_closed_file_diagnostics` lift path.
-                match tokio::task::spawn_blocking(move || std::fs::read_to_string(path).ok())
-                    .await
-                    .ok()
-                    .flatten()
-                {
-                    Some(text) => {
-                        let dialect = self.dialect_for_closed(uri, &text).await;
-                        let (a_text, a_dialect) = (text.clone(), dialect.clone());
-                        match tokio::task::spawn_blocking(move || {
-                            Analyser::new().analyse(&a_text, &a_dialect)
-                        })
-                        .await
-                        {
-                            Ok(analysis) => Some((text, dialect, analysis)),
-                            Err(_) => None,
-                        }
-                    }
-                    None => None,
+    /// Read `uri` from disk, resolve its dialect and run a full uncached
+    /// `Analyser::analyse`, all on one blocking-pool call.  Returns `None`
+    /// when the file no longer reads as one (deleted, or unreadable, since
+    /// the caller queued it) — the caller then routes it through the
+    /// tombstone retire path, exactly like a `DELETED` watched-file event.
+    /// Shared by [`Self::reindex_index_from_disk`] (the single-file path used
+    /// by `did_close` / `didRenameFiles`) and the watched-files batch
+    /// reindex (#1161), so both agree on exactly how a disk-backed file is
+    /// turned into an index/salsa entry.
+    async fn scan_disk_file(
+        uri: Uri,
+        folder_dialects: Arc<Vec<(Uri, String)>>,
+        default_dialect: Arc<String>,
+    ) -> Option<(Uri, String, String, AnalysisResult)> {
+        tokio::task::spawn_blocking(move || {
+            let path = uri.to_file_path()?;
+            let text = std::fs::read_to_string(&path).ok()?;
+            let dialect =
+                Self::dialect_for_closed_sync(&uri, &text, &folder_dialects, &default_dialect);
+            let analysis = Analyser::new().analyse(&text, &dialect);
+            Some((uri, text, dialect, analysis))
+        })
+        .await
+        .ok()
+        .flatten()
+    }
+
+    /// Batched counterpart of [`Self::reindex_index_from_disk`] for the
+    /// `did_change_watched_files` CREATED/CHANGED set (#1161): reads and
+    /// analyses every URI in `uris` across the bounded worker pool
+    /// [`run_bounded`] drives (shared with `scan_workspace_folders`, #1151),
+    /// then applies one batched `db_set_sources_batch` / `db_remove_sources_batch`
+    /// pair and one batched `workspace_index` mutation instead of
+    /// `uris.len()` sequential full analyses.
+    ///
+    /// Currency: `documents` is re-checked once, right before the batched
+    /// apply — the same guard [`Self::reindex_index_from_disk`] uses (closed
+    /// re-check under the lock, `RUST_ISSUE_098`) — so a `did_open` racing in
+    /// for one of the URIs mid-batch still wins for that URI: its scanned
+    /// copy is dropped rather than clobbering the live buffer, exactly as the
+    /// single-file path behaves for that same race. An entry that reads as
+    /// unreadable / no-longer-a-file (named by the event but gone by the time
+    /// its read landed) is folded into the same batched retire call a
+    /// `DELETED` entry uses, rather than a separate per-file `db_remove_source`.
+    async fn batch_reindex_from_disk(&self, uris: &[Uri]) {
+        if uris.is_empty() {
+            return;
+        }
+        let folder_dialects = Arc::new(self.folder_dialects.lock().await.clone());
+        let default_dialect = Arc::new(self.default_dialect.lock().await.clone());
+        let concurrency = std::thread::available_parallelism()
+            .map_or(4, std::num::NonZeroUsize::get)
+            .min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
+        let futures: Vec<_> = uris
+            .iter()
+            .cloned()
+            .map(|uri| {
+                let folder_dialects = Arc::clone(&folder_dialects);
+                let default_dialect = Arc::clone(&default_dialect);
+                async move {
+                    let scanned =
+                        Self::scan_disk_file(uri.clone(), folder_dialects, default_dialect).await;
+                    Some((uri, scanned))
                 }
-            } else {
-                None
-            };
+            })
+            .collect();
+        let results = run_bounded(futures, concurrency).await;
+
+        // Hold `documents` across the still-closed re-check and both updates
+        // (the `documents` → db → `workspace_index` order established by
+        // `did_open`), matching the single-file path.
+        let docs = self.documents.lock().await;
+        let mut applied: Vec<(Uri, String, String, AnalysisResult)> = Vec::new();
+        let mut to_remove: Vec<Uri> = Vec::new();
+        for (uri, scanned) in results {
+            if docs.contains_key(&uri) {
+                continue;
+            }
+            match scanned {
+                Some((uri, text, dialect, analysis)) => {
+                    applied.push((uri, text, dialect, analysis));
+                }
+                None => to_remove.push(uri),
+            }
+        }
+        // Salsa db first (locks db → db_files → db_project, all *before* the
+        // workspace_index lock) to preserve the global lock order.
+        let db_entries: Vec<(Uri, String, String)> = applied
+            .iter()
+            .map(|(uri, text, dialect, _)| (uri.clone(), text.clone(), dialect.clone()))
+            .collect();
+        self.db_set_sources_batch(&db_entries).await;
+        self.db_remove_sources_batch(&to_remove).await;
+        {
+            let mut index = self.workspace_index.write().await;
+            for (uri, _, _, _) in &applied {
+                index.remove_document(uri.as_str());
+            }
+            for uri in &to_remove {
+                index.remove_document(uri.as_str());
+            }
+            for (uri, _, _, analysis) in &applied {
+                index.add_document(uri.as_str(), analysis);
+            }
+        }
+        drop(docs);
+        // Every applied/removed URI is now indexed standalone (or gone):
+        // invalidate its M9 applied-seed record so the next cross-document
+        // query re-applies the source-site views, matching the single-file
+        // path.
+        let mut seeds = self.rehomed_source_seeds.lock().await;
+        for (uri, _, _, _) in &applied {
+            seeds.remove(uri.as_str());
+        }
+        for uri in &to_remove {
+            seeds.remove(uri.as_str());
+        }
+    }
+
+    async fn reindex_index_from_disk(&self, uri: &Uri) {
+        // Read + analyse off-lock, on the same read-dialect-analyse helper the
+        // watched-files batch reindex uses (#1161).  Keep the source text +
+        // dialect too: the salsa db (cross-file diagnostics) must track the
+        // same on-disk population as the workspace index, so a proc defined in
+        // a closed/never-opened file still suppresses W123 / drives the arity
+        // error in its siblings.
+        let folder_dialects = Arc::new(self.folder_dialects.lock().await.clone());
+        let default_dialect = Arc::new(self.default_dialect.lock().await.clone());
+        let scanned = Self::scan_disk_file(uri.clone(), folder_dialects, default_dialect).await;
         // Hold `documents` across the still-closed re-check and both updates (the
         // `documents` → db → `workspace_index` order established by `did_open`) so a
         // concurrent `did_open` cannot open the buffer between them and have its
@@ -4504,7 +4666,7 @@ impl Backend {
         // Salsa db first (locks db → db_files → db_project, all *before* the
         // workspace_index lock) to preserve the global lock order.
         match &scanned {
-            Some((text, dialect, _)) => {
+            Some((_, text, dialect, _)) => {
                 self.db_set_source(uri, text.clone(), dialect.clone()).await;
             }
             // No readable on-disk copy (untitled / deleted) — drop it from the
@@ -4513,7 +4675,7 @@ impl Backend {
         }
         let mut index = self.workspace_index.write().await;
         index.remove_document(uri.as_str());
-        if let Some((_, _, analysis)) = &scanned {
+        if let Some((_, _, _, analysis)) = &scanned {
             index.add_document(uri.as_str(), analysis);
         }
         drop(index);
@@ -4604,6 +4766,20 @@ impl Backend {
     async fn dialect_for_closed(&self, uri: &Uri, text: &str) -> String {
         let language_id = tcl_registry::dialect_from_extension(uri.as_str()).unwrap_or("tcl");
         self.dialect_for_open(uri, language_id, text).await
+    }
+
+    /// Pure core of [`Self::dialect_for_closed`] — see
+    /// [`Self::dialect_for_open_sync`]. Lets the watched-files batch reindex
+    /// (#1161) resolve every changed file's dialect from one snapshot instead
+    /// of a `&self` lock round trip per file.
+    fn dialect_for_closed_sync(
+        uri: &Uri,
+        text: &str,
+        folder_dialects: &[(Uri, String)],
+        default_dialect: &str,
+    ) -> String {
+        let language_id = tcl_registry::dialect_from_extension(uri.as_str()).unwrap_or("tcl");
+        Self::dialect_for_open_sync(uri, language_id, text, folder_dialects, default_dialect)
     }
 
     /// Bump and return `uri`'s closed-file diagnostics generation (#865). Each
@@ -10541,15 +10717,15 @@ impl LanguageServer for Backend {
         // file, a deletion — must refresh the cross-document index so
         // definition / references / rename / call-hierarchy keep seeing the
         // project's true on-disk state between restarts.
-        let mut domain_changed = false;
         let mut config_changed = false;
-        // Closed files that already carry a badge (a pull-cache entry) and whose
-        // on-disk change must refresh (#865) or clear that badge.  Collected here
-        // and applied after the whole batch has updated the resolution domain, so
-        // each refresh analyses against the final on-disk state — never a
-        // half-applied one when several files change together.
-        let mut closed_badge_refresh: Vec<Uri> = Vec::new();
-        let mut closed_badge_clear: Vec<Uri> = Vec::new();
+        // Reduce to the *last* event per URI before partitioning: a batch can
+        // legitimately name the same path twice (a delete-and-recreate a
+        // branch switch or a rapid rename can coalesce into one
+        // `didChangeWatchedFiles` notification), and the serial per-file path
+        // this replaces applied each event as it arrived, so only the last
+        // one for a given URI survived. A HashMap insert naturally keeps that
+        // "last write wins" semantics without needing to preserve array order.
+        let mut last_kind: HashMap<Uri, FileChangeType> = HashMap::new();
         for change in params.changes {
             // A project `.tcl-lsp.ini` (or user `config.ini`) edit re-applies the
             // layered config — a live-reload for these files.
@@ -10557,37 +10733,71 @@ impl LanguageServer for Backend {
                 config_changed = true;
                 continue;
             }
+            last_kind.insert(change.uri, change.typ);
+        }
+        // Partition the (deduplicated) event set so the disk-backed work below
+        // runs once per kind — a parallel read+analyse and one batched
+        // index/db mutation — instead of once per file (#1161: a 500-file
+        // branch switch used to run 500 sequential full analyses, each with
+        // its own `documents.lock()` / pull-cache probe, here).
+        let mut deleted: Vec<Uri> = Vec::new();
+        let mut changed: Vec<Uri> = Vec::new();
+        for (uri, typ) in last_kind {
             // Files the editor has open are driven by did_open/did_change; their
             // unsaved buffer must not be clobbered by the on-disk copy.
-            // `reindex_index_from_disk` re-checks this under the lock as well.
-            if self.documents.lock().await.contains_key(&change.uri) {
+            // `batch_reindex_from_disk` re-checks this under the lock as well.
+            if self.documents.lock().await.contains_key(&uri) {
                 continue;
             }
-            // Only a file that already has a badge (was opened, so it has a
-            // pull-cache entry) has its diagnostics refreshed/cleared here — a
-            // never-opened file that changes on disk gains no surprise badge.
-            let had_badge = self.pull_diag_cache.lock().await.contains_key(&change.uri);
-            if change.typ == FileChangeType::DELETED {
-                self.workspace_index
-                    .write()
-                    .await
-                    .remove_document(change.uri.as_str());
-                // Drop it from the salsa `Project` too, so a deleted file's procs
-                // stop suppressing W123 / driving the arity error cross-file.
-                self.db_remove_source(&change.uri).await;
-                if had_badge {
-                    closed_badge_clear.push(change.uri.clone());
-                }
+            if typ == FileChangeType::DELETED {
+                deleted.push(uri);
             } else {
                 // CREATED or CHANGED: re-analyse from disk (a Tcl source file)
                 // or drop it if it no longer reads as one.
-                self.reindex_index_from_disk(&change.uri).await;
-                if had_badge {
-                    closed_badge_refresh.push(change.uri.clone());
+                changed.push(uri);
+            }
+        }
+        let domain_changed = !deleted.is_empty() || !changed.is_empty();
+
+        // Closed files that already carry a badge (a pull-cache entry) and whose
+        // on-disk change must refresh (#865) or clear that badge — computed once
+        // under one lock rather than once per file, and applied after the whole
+        // batch has updated the resolution domain, so each refresh analyses
+        // against the final on-disk state — never a half-applied one when
+        // several files change together.
+        let (closed_badge_clear, closed_badge_refresh): (Vec<Uri>, Vec<Uri>) = {
+            let cache = self.pull_diag_cache.lock().await;
+            (
+                deleted
+                    .iter()
+                    .filter(|uri| cache.contains_key(uri))
+                    .cloned()
+                    .collect(),
+                changed
+                    .iter()
+                    .filter(|uri| cache.contains_key(uri))
+                    .cloned()
+                    .collect(),
+            )
+        };
+
+        // DELETED: one batched index mutation, then one batched salsa retire —
+        // dropping each file's procs from the workspace index and the salsa
+        // `Project` so a deleted file stops suppressing W123 / driving the
+        // arity error cross-file.
+        if !deleted.is_empty() {
+            {
+                let mut index = self.workspace_index.write().await;
+                for uri in &deleted {
+                    index.remove_document(uri.as_str());
                 }
             }
-            domain_changed = true;
+            self.db_remove_sources_batch(&deleted).await;
         }
+        // CREATED / CHANGED: read + analyse every file across the bounded
+        // worker pool, then one batched index/db merge.
+        self.batch_reindex_from_disk(&changed).await;
+
         // Refresh/clear the badges of the closed files that changed on disk, now
         // the resolution domain has settled (#865).
         for uri in &closed_badge_clear {
@@ -20021,6 +20231,115 @@ mod tests {
             !backend.pull_diag_cache.lock().await.contains_key(&uri),
             "deleting a closed file must clear its badge",
         );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// #1161: a single `did_change_watched_files` event batch carrying a
+    /// CREATED, a CHANGED and a DELETED file together must land on the same
+    /// end state the old one-file-at-a-time serial path produced — the
+    /// `workspace_index` and salsa db reflecting exactly the final on-disk
+    /// population, in one batched pass rather than three sequential full
+    /// analyses.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn watched_files_batch_applies_created_changed_and_deleted_together() {
+        let root = unique_scratch_dir("watched-batch");
+        let created_path = root.join("created.tcl");
+        let changed_path = root.join("changed.tcl");
+        let deleted_path = root.join("deleted.tcl");
+        std::fs::write(&created_path, "proc created_proc {} {}\n").unwrap();
+        std::fs::write(&changed_path, "proc changed_proc {} {}\n").unwrap();
+        std::fs::write(&deleted_path, "proc deleted_proc {} {}\n").unwrap();
+
+        let backend = test_backend();
+        let created_uri = Uri::from_file_path(&created_path).unwrap();
+        let changed_uri = Uri::from_file_path(&changed_path).unwrap();
+        let deleted_uri = Uri::from_file_path(&deleted_path).unwrap();
+
+        // Seed the pre-event state: `changed.tcl` and `deleted.tcl` are
+        // already indexed (as a prior scan would have left them) under their
+        // *old* content — `changed.tcl`'s on-disk copy above is already the
+        // new content, standing in for the edit the CHANGED event reports;
+        // `deleted.tcl`'s on-disk file is removed below before the event
+        // fires, standing in for the delete. `created.tcl` starts entirely
+        // unindexed.
+        for (uri, old_src) in [
+            (&changed_uri, "proc old_changed_proc {} {}\n"),
+            (&deleted_uri, "proc deleted_proc {} {}\n"),
+        ] {
+            backend
+                .db_set_source(uri, (*old_src).to_owned(), "tcl8.6".to_owned())
+                .await;
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(old_src, "tcl8.6").clone();
+            backend
+                .workspace_index
+                .write()
+                .await
+                .add_document(uri.as_str(), &analysis);
+        }
+        std::fs::remove_file(&deleted_path).unwrap();
+
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![
+                    tower_lsp_server::ls_types::FileEvent {
+                        uri: created_uri.clone(),
+                        typ: FileChangeType::CREATED,
+                    },
+                    tower_lsp_server::ls_types::FileEvent {
+                        uri: changed_uri.clone(),
+                        typ: FileChangeType::CHANGED,
+                    },
+                    tower_lsp_server::ls_types::FileEvent {
+                        uri: deleted_uri.clone(),
+                        typ: FileChangeType::DELETED,
+                    },
+                ],
+            })
+            .await;
+
+        let index = backend.workspace_index.read().await;
+        assert!(
+            !index
+                .proc_definitions("created_proc", "created_proc")
+                .is_empty(),
+            "the CREATED file must be indexed",
+        );
+        assert!(
+            !index
+                .proc_definitions("changed_proc", "changed_proc")
+                .is_empty(),
+            "the CHANGED file's new content must be indexed",
+        );
+        assert!(
+            index
+                .proc_definitions("old_changed_proc", "old_changed_proc")
+                .is_empty(),
+            "the CHANGED file's stale content must not survive the batch",
+        );
+        assert!(
+            index
+                .proc_definitions("deleted_proc", "deleted_proc")
+                .is_empty(),
+            "the DELETED file must be dropped from the index",
+        );
+        drop(index);
+
+        let files = backend.db_files.lock().await;
+        assert!(
+            files.contains_key(&created_uri),
+            "the CREATED file must gain a salsa SourceFile input",
+        );
+        assert!(
+            files.contains_key(&changed_uri),
+            "the CHANGED file keeps its salsa SourceFile input",
+        );
+        assert!(
+            !files.contains_key(&deleted_uri),
+            "the DELETED file's salsa SourceFile input must be retired",
+        );
+        drop(files);
+
         std::fs::remove_dir_all(&root).ok();
     }
 
