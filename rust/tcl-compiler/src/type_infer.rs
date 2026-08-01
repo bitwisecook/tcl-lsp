@@ -2446,7 +2446,7 @@ mod tests {
     ) -> TypeLattice {
         let fu = cu.function(func).unwrap();
         let mut acc = TypeLattice::unknown();
-        for ((sym, ver), t) in &fu.types {
+        for ((sym, ver), t) in fu.types.iter() {
             if *ver > 0 && fu.ssa.var_name(*sym) == var {
                 acc = type_join(&acc, t);
             }

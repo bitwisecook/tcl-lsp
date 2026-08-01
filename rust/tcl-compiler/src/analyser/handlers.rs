@@ -1498,7 +1498,7 @@ impl Analyser {
         // dispatches each command at the new proc scope path.
         // Per-item shell pass: defer the body (its scope is already
         // created with params; a second pass fills it in place).
-        let body_text = args[2].clone();
+        let body_text: std::sync::Arc<str> = std::sync::Arc::from(args[2].as_str());
         if self.defer_proc_bodies {
             let safe_interp_ctx = self.safe_interp_ctx_snapshot();
             self.deferred_bodies.push(super::per_item::DeferredBody {
@@ -1662,7 +1662,7 @@ impl Analyser {
             }
 
             let saved_comment = std::mem::take(&mut self.last_comment);
-            let body_text = args[2].clone();
+            let body_text: std::sync::Arc<str> = std::sync::Arc::from(args[2].as_str());
             if self.defer_proc_bodies {
                 let safe_interp_ctx = self.safe_interp_ctx_snapshot();
                 self.deferred_bodies.push(super::per_item::DeferredBody {
@@ -1962,7 +1962,7 @@ impl Analyser {
         };
 
         let params = parse_param_list(params_text);
-        let body_text = body_text.to_string();
+        let body_text: std::sync::Arc<str> = std::sync::Arc::from(body_text);
         let body_span = body_tok.span;
         // Anonymous, but keyed by source position so two lambdas never collide
         // in `all_variables` (keyed `"<scope_name>::<var>"`).

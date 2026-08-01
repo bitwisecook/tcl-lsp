@@ -940,8 +940,16 @@ pub fn project_diagnostics(
 /// the offset-0 facts by the body's real span).
 #[salsa::interned]
 pub struct ItemBodyKey<'db> {
+    /// The proc / method body source, shared with the
+    /// [`tcl_compiler::analyser::per_item::DeferredBody`] the aggregator built
+    /// it from rather than copied out of it.  Interning is content-addressed, so
+    /// the text must be *in* the key; what it must not be is a fresh `String`
+    /// per proc per edit (issue #1159 — on a 114-proc file that was 114 full
+    /// body copies before a single memo was consulted, and the copies were
+    /// discarded the moment the intern hit).  `Arc<str>` also makes
+    /// [`item_body_analysis`]'s rebuild of the `DeferredBody` a refcount bump.
     #[returns(ref)]
-    pub body_text: String,
+    pub body_text: Arc<str>,
     #[returns(ref)]
     pub namespace: String,
     #[returns(ref)]
@@ -983,7 +991,7 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
     // path (the aggregator supplies the real position when grafting), so a
     // placeholder token is fine.
     let body = DeferredBody {
-        body_text: key.body_text(db).clone(),
+        body_text: Arc::clone(key.body_text(db)),
         body_tok: tcl_lexer::Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, 0)),
         scope_path: Vec::new(),
         is_method: key.is_method(db),
@@ -1265,6 +1273,19 @@ fn build_unit_with_keys<'db>(
             req.has_dynamic_variable_trace,
         );
         lattice_keys.insert(req.qname.to_owned(), key);
+        // The memo stores the unit at **offset 0** and the builder rebases the
+        // returned unit to the procedure's real position
+        // (`lattice_rebase::rebase_function_unit` mutates `cfg` / `ssa` /
+        // `sccp.constant_branches` in place), so the span-carrying half genuinely
+        // has to be owned here — an `Arc` reader would only defer the copy to
+        // the rebase. Issue #1159's win is instead that the *span-free* half
+        // (`def_use` / `types` / `taints` / `rendered_props`) is now `Arc`-held
+        // inside `FunctionUnit`, so this clone is a refcount bump for each of
+        // those four lattices and copies only what the rebase must rewrite.
+        // Making the whole read an `Arc` would mean lazy rebasing via
+        // `FunctionUnit::base_offset` / `abs_span`, which was deliberately
+        // rejected: consumers read `fu.cfg` spans directly and would silently
+        // get relative positions.
         (*function_lattice(db, key)).clone()
     };
     // SRV-INCREMENTAL Task 3: lower each *eligible* top-level proc body through the
@@ -1282,6 +1303,9 @@ fn build_unit_with_keys<'db>(
     let cu = if tcl_compiler::lowering::source_may_alias_commands(source) {
         CompilationUnit::build_for_memoized(source, options, &mut lattice_memo)
     } else {
+        // Same offset-0-plus-rebase contract as `lattice_memo` above: the caller
+        // shifts the returned `Script` to the body's real position, so it needs
+        // an owned copy (issue #1159).
         let body_memo = |body_text: &str, namespace: &str| -> Script {
             let key = ProcBodyKey::new(
                 db,
@@ -1309,7 +1333,11 @@ fn build_unit_with_keys<'db>(
         &mut |qname: &str, ia: &InterproceduralAnalysis| {
             let key = *lattice_keys.get(qname)?;
             let summary_key = taint_summary_key(db, ia, qname, dialect);
-            Some((*taint_cascade(db, key, summary_key)).clone())
+            // A hit returns the memoised map by refcount: `FunctionUnit::taints`
+            // is span-free (the offset rebase never touches it), so the unit can
+            // share the cached lattice rather than deep-copying it per procedure
+            // per build (issue #1159).
+            Some(taint_cascade(db, key, summary_key))
         },
     );
     (unit, lattice_keys)
@@ -2424,7 +2452,7 @@ pub fn file_analysis_incremental(
     let mut body_fn = |body: &DeferredBody| -> BodyFragment {
         let key = ItemBodyKey::new(
             db,
-            body.body_text.clone(),
+            Arc::clone(&body.body_text),
             body.namespace.clone(),
             body.scope_name.clone(),
             body.params.clone(),
@@ -2436,6 +2464,9 @@ pub fn file_analysis_incremental(
             disabled_vec.clone(),
             non_ascii,
         );
+        // Owned for the same reason as the lattice memo: `graft_proc_body`
+        // rebases the offset-0 fragment to the body's real span and then moves
+        // its fields into the shell, so the fragment cannot be shared.
         (*item_body_analysis(db, key)).clone()
     };
     Arc::new(analyser.analyse_per_item_with(&text, &dialect, &mut body_fn))
@@ -2799,6 +2830,107 @@ mod tests {
         let expected = direct.analyse(SRC, "tcl");
         assert_eq!(*got, expected);
         assert!(got.all_procs.contains_key("::greet"));
+    }
+
+    /// Issue #1159: a memo *hit* must hand its per-procedure lattices over by
+    /// refcount, not deep-copy them.
+    ///
+    /// The span-carrying halves of a `FunctionUnit` (`cfg` / `ssa` /
+    /// `sccp.constant_branches`) genuinely have to be copied — the memo stores
+    /// the unit at offset 0 and every consumer is rebased to the procedure's
+    /// real position — but `def_use` / `types` / `taints` / `rendered_props` are
+    /// span-free, so a rebuild that hits the memo must share them.
+    #[test]
+    fn memoised_lattices_are_shared_not_deep_copied_across_builds() {
+        const SRC: &str = "proc alpha {a b} {\n    set s [expr {$a + $b}]\n    return $s\n}\n\
+                           proc beta {x} {\n    return [alpha $x 1]\n}\n";
+        let db = TclDatabase::default();
+        let registry = db.registry("tcl8.6");
+        let options = || UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::default(),
+            dialect: "tcl8.6",
+            external_call_sites: None,
+        };
+        let first = memoised_compilation_unit(&db, SRC, options());
+        let second = memoised_compilation_unit(&db, SRC, options());
+        for qname in ["::alpha", "::beta"] {
+            let a = first
+                .procedures
+                .get(qname)
+                .expect("procedure in first build");
+            let b = second
+                .procedures
+                .get(qname)
+                .expect("procedure in second build");
+            assert!(
+                Arc::ptr_eq(&a.def_use, &b.def_use),
+                "{qname}: def-use chains must be shared across a memo hit",
+            );
+            assert!(
+                Arc::ptr_eq(&a.types, &b.types),
+                "{qname}: the type lattice must be shared across a memo hit",
+            );
+            assert!(
+                Arc::ptr_eq(&a.rendered_props, &b.rendered_props),
+                "{qname}: rendered properties must be shared across a memo hit",
+            );
+            assert!(
+                Arc::ptr_eq(&a.taints, &b.taints),
+                "{qname}: the taint cascade result must be shared across a memo hit",
+            );
+        }
+    }
+
+    /// Issue #1159: an unchanged proc body must re-intern to the *same*
+    /// `ItemBodyKey` (so the memo hits) and must not cost a fresh copy of the
+    /// body text to get there — the key shares the analyser's `Arc<str>`.
+    #[test]
+    fn unchanged_body_reinterns_to_the_same_key_without_copying_its_text() {
+        let db = TclDatabase::default();
+        let body: Arc<str> = Arc::from("set s 1\nreturn $s\n");
+        let make = || {
+            ItemBodyKey::new(
+                &db,
+                Arc::clone(&body),
+                "::".to_owned(),
+                "alpha".to_owned(),
+                Vec::new(),
+                false,
+                false,
+                Vec::new(),
+                None,
+                "tcl8.6".to_owned(),
+                Vec::new(),
+                NonAsciiMode::Default,
+            )
+        };
+        assert!(make() == make(), "unchanged text must re-intern to one key");
+        assert!(
+            Arc::ptr_eq(make().body_text(&db), &body),
+            "the interned key must share the caller's body text, not copy it",
+        );
+        // A different body must not collide with it.
+        let other: Arc<str> = Arc::from("set s 2\nreturn $s\n");
+        let other_key = ItemBodyKey::new(
+            &db,
+            other,
+            "::".to_owned(),
+            "alpha".to_owned(),
+            Vec::new(),
+            false,
+            false,
+            Vec::new(),
+            None,
+            "tcl8.6".to_owned(),
+            Vec::new(),
+            NonAsciiMode::Default,
+        );
+        assert!(
+            make() != other_key,
+            "distinct bodies must intern distinctly"
+        );
     }
 
     #[test]

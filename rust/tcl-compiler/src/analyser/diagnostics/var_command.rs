@@ -281,7 +281,7 @@ impl Analyser {
         let collect_object_types =
             |fu: &crate::compilation_unit::FunctionUnit,
              out: &mut std::collections::HashMap<String, HashSet<String>>| {
-                for ((sym, _ver), tl) in &fu.types {
+                for ((sym, _ver), tl) in fu.types.iter() {
                     if tl.kind() != TypeKind::Known {
                         continue;
                     }

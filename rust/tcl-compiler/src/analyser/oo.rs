@@ -819,7 +819,7 @@ impl Analyser {
             let namespace = self.command_resolution_namespace(scope_path);
             let safe_interp_ctx = self.safe_interp_ctx_snapshot();
             self.deferred_bodies.push(super::per_item::DeferredBody {
-                body_text: mb.body_text.clone(),
+                body_text: std::sync::Arc::from(mb.body_text.as_str()),
                 body_tok: mb.body_tok,
                 scope_path: method_path,
                 is_method: true,

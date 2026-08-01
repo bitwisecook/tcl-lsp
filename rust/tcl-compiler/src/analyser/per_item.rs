@@ -121,7 +121,11 @@ impl PerItemFallback {
 #[derive(Debug, Clone)]
 pub struct DeferredBody {
     /// Body text (braces stripped), as `analyse_body` expects.
-    pub body_text: String,
+    ///
+    /// Shared behind an `Arc` so the LSP query database can intern it into its
+    /// per-body memo key without a second copy of every proc body's full source
+    /// on every edit (issue #1159 — `tcl-lsp-db`'s `ItemBodyKey`).
+    pub body_text: std::sync::Arc<str>,
     /// The body's `Str` token (absolute span) — drives offset arithmetic.
     pub body_tok: Token,
     /// Path to the already-created (empty) proc / method scope to fill.
@@ -768,7 +772,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     a.stub_overlay = stub_overlay;
     // Offset 0: the body content is the whole source; a synthetic `Str` body
     // token spans it with `content_offset = 0` (no `{` to skip).
-    a.source.clone_from(&db.body_text);
+    a.source = db.body_text.to_string();
     // Source spans are `u32`; a proc body longer than 4 GiB is not
     // representable (and never occurs), so clamp to `u32::MAX`.
     let body_len = u32::try_from(db.body_text.len()).unwrap_or(u32::MAX);

@@ -29,6 +29,7 @@
 //! hasn't been run on this unit yet.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::sync::Arc;
 
 use tcl_registry::CommandRegistry;
 
@@ -176,7 +177,7 @@ pub struct UnitBuildOptions<'a> {
 /// [`InterproceduralAnalysis`], returns its (memoised) interprocedural taints,
 /// or `None` to fall back to a fresh [`FunctionUnit::interproc_taints`] re-run.
 pub type TaintCascadeCallback<'a> =
-    dyn FnMut(&str, &InterproceduralAnalysis) -> Option<HashMap<ValueKey, TaintLattice>> + 'a;
+    dyn FnMut(&str, &InterproceduralAnalysis) -> Option<Arc<HashMap<ValueKey, TaintLattice>>> + 'a;
 
 // Per-function analysis bundle
 
@@ -195,7 +196,14 @@ pub struct FunctionUnit {
     /// SSA form.
     pub ssa: SsaFunction,
     /// Def-use chains.
-    pub def_use: DefUseResult,
+    ///
+    /// Shared behind an `Arc` (like `types` / `taints` / `rendered_props`)
+    /// because it is **span-free**: [`crate::lattice_rebase::rebase_function_unit`]
+    /// never touches it, so a memoised unit taken from the salsa
+    /// `function_lattice` cache and rebased to a new offset keeps the very same
+    /// lattice. Deep-copying it per procedure per read was pure waste
+    /// (issue #1159).
+    pub def_use: Arc<DefUseResult>,
     /// SCCP result: lattice values, executable blocks, constant
     /// branches.
     pub sccp: SccpResult,
@@ -203,7 +211,9 @@ pub struct FunctionUnit {
     ///
     /// Computed by the type-propagation pass. Absent entries are
     /// implicitly `TypeLattice::unknown()`.
-    pub types: HashMap<ValueKey, TypeLattice>,
+    ///
+    /// Shared behind an `Arc` — see [`Self::def_use`].
+    pub types: Arc<HashMap<ValueKey, TypeLattice>>,
     /// Inferred return type — the join of the types produced at every
     /// executable `Return` terminator.  `Unknown` when the function
     /// has no executable return value.  Computed by
@@ -211,14 +221,21 @@ pub struct FunctionUnit {
     pub return_type: TypeLattice,
     /// Taint lattice values per SSA definition.
     ///
-    /// Computed by the intra-procedural taint-propagation pass.
-    /// Absent entries are implicitly clean (untainted).
-    pub taints: HashMap<ValueKey, TaintLattice>,
+    /// Computed by the intra-procedural taint-propagation pass, then replaced
+    /// by the interprocedural re-run ([`Self::interproc_taints`], memoised by
+    /// `tcl-lsp-db`'s `taint_cascade`).
+    ///
+    /// Shared behind an `Arc` — see [`Self::def_use`]. That also makes the
+    /// `taint_cascade` memo hit a refcount bump rather than a deep copy of the
+    /// whole per-procedure taint map.
+    pub taints: Arc<HashMap<ValueKey, TaintLattice>>,
     /// Rendered-string-property lattice values per SSA definition.
     ///
     /// Computed by `propagate_rendered_props`. Absent entries are
     /// implicitly `RenderedValueProps::bottom()`.
-    pub rendered_props: HashMap<ValueKey, RenderedValueProps>,
+    ///
+    /// Shared behind an `Arc` — see [`Self::def_use`].
+    pub rendered_props: Arc<HashMap<ValueKey, RenderedValueProps>>,
     /// Optional memory-SSA annotations (populated on demand).
     pub memory_ssa: Option<MemorySsaFunction>,
     /// Whether this function accesses variables whose *name* is computed at
@@ -580,12 +597,12 @@ impl FunctionUnit {
             name: name.into(),
             cfg,
             ssa,
-            def_use,
+            def_use: Arc::new(def_use),
             sccp,
-            types,
+            types: Arc::new(types),
             return_type,
-            taints,
-            rendered_props,
+            taints: Arc::new(taints),
+            rendered_props: Arc::new(rendered_props),
             memory_ssa: None,
             dynamic_names,
             complexity_guarded: false,
@@ -604,12 +621,12 @@ impl FunctionUnit {
             name: name.into(),
             cfg,
             ssa,
-            def_use: DefUseResult::default(),
+            def_use: Arc::default(),
             sccp: SccpResult::default(),
-            types: HashMap::new(),
+            types: Arc::default(),
             return_type: TypeLattice::unknown(),
-            taints: HashMap::new(),
-            rendered_props: HashMap::new(),
+            taints: Arc::default(),
+            rendered_props: Arc::default(),
             memory_ssa: None,
             // A guarded unit's lattices are all trivial and every per-proc
             // pass skips it, so the barrier stays clear (never consulted).
@@ -1463,7 +1480,7 @@ impl CompilationUnit {
         // Re-run taint with the new summary + dialect. We borrow
         // `interproc` immutably while each function unit re-runs
         // `propagate_taints`.
-        self.top_level.taints = propagate_taints(
+        self.top_level.taints = Arc::new(propagate_taints(
             &self.top_level.cfg,
             &self.top_level.ssa,
             &self.top_level.sccp,
@@ -1473,9 +1490,9 @@ impl CompilationUnit {
             dialect,
             None,
             None,
-        );
+        ));
         for fu in self.procedures.values_mut() {
-            fu.taints = propagate_taints(
+            fu.taints = Arc::new(propagate_taints(
                 &fu.cfg,
                 &fu.ssa,
                 &fu.sccp,
@@ -1485,7 +1502,7 @@ impl CompilationUnit {
                 dialect,
                 None,
                 None,
-            );
+            ));
         }
 
         self.interproc = Some(interproc);
@@ -1526,16 +1543,16 @@ impl CompilationUnit {
         let top_taints = self
             .top_level
             .interproc_taints(registry, &interproc, dialect);
-        self.top_level.taints = top_taints;
+        self.top_level.taints = Arc::new(top_taints);
 
         // Compute each procedure's taints (memoised via `taint_cb`, or fresh on a
         // miss) before mutating, so the immutable `&self.procedures` borrow the
         // fallback needs doesn't overlap the write-back.
-        let mut new_taints: Vec<(String, HashMap<ValueKey, TaintLattice>)> =
+        let mut new_taints: Vec<(String, Arc<HashMap<ValueKey, TaintLattice>>)> =
             Vec::with_capacity(self.procedures.len());
         for (qname, fu) in &self.procedures {
             let taints = taint_cb(qname, &interproc)
-                .unwrap_or_else(|| fu.interproc_taints(registry, &interproc, dialect));
+                .unwrap_or_else(|| Arc::new(fu.interproc_taints(registry, &interproc, dialect)));
             new_taints.push((qname.clone(), taints));
         }
         for (qname, taints) in new_taints {

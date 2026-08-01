@@ -116,7 +116,7 @@ pub fn operand_types(fu: &FunctionUnit) -> OperandTypes {
     use std::collections::HashMap;
     // symbol → (all-versions-numeric, all-versions-integer).
     let mut acc: HashMap<crate::ssa::Symbol, (bool, bool)> = HashMap::new();
-    for ((sym, _ver), lattice) in &fu.types {
+    for ((sym, _ver), lattice) in fu.types.iter() {
         let is_num = lattice_is_numeric(lattice);
         let is_int = lattice_is_integer(lattice);
         acc.entry(*sym)

@@ -263,7 +263,7 @@ fn collect_type_hints(
     let mut by_function: FxHashMap<String, FxHashMap<String, String>> = FxHashMap::default();
     for fu in cu.functions() {
         let mut m: FxHashMap<String, String> = FxHashMap::default();
-        for ((name, _ver), tl) in &fu.types {
+        for ((name, _ver), tl) in fu.types.iter() {
             if let Some(display) = type_display(tl) {
                 m.insert(fu.ssa.var_name(*name).to_owned(), display);
             }
