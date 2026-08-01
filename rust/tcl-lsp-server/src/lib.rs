@@ -849,6 +849,10 @@ struct DiagInputs {
     /// path invalidates a document's entry when it re-indexes it standalone,
     /// so the next cross-document query re-applies the seeded views.
     rehomed_source_seeds: Arc<Mutex<HashMap<String, Vec<String>>>>,
+    /// Serialises standalone index publication with source-site reconciliation
+    /// and the workspace-wide query snapshot that consumes it. See
+    /// [`Backend::rehoming_gate`].
+    rehoming_gate: Arc<tokio::sync::Mutex<()>>,
     /// Package database for the W120 workspace-refinement post-filter (#723).
     package_resolver: Arc<RwLock<PackageResolver>>,
     /// Memo for the unclosed-delimiter recovery path's widened known-command
@@ -2107,6 +2111,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         documents,
         workspace_index,
         rehomed_source_seeds,
+        rehoming_gate,
         package_resolver,
         recovery_names,
         entry_points,
@@ -2183,6 +2188,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
             db_project: &db_project,
             workspace_index: &workspace_index,
             rehomed_source_seeds: &rehomed_source_seeds,
+            rehoming_gate: &rehoming_gate,
             package_resolver: &package_resolver,
             recovery_names: &recovery_names,
             entry_points: &entry_points,
@@ -2203,6 +2209,8 @@ struct AnalyserPathInputs<'a> {
     workspace_index: &'a Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
     /// M9 applied-seed record; the publish path invalidates entries.
     rehomed_source_seeds: &'a Arc<Mutex<HashMap<String, Vec<String>>>>,
+    /// M9 publication/query transaction gate; see [`Backend::rehoming_gate`].
+    rehoming_gate: &'a Arc<tokio::sync::Mutex<()>>,
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
     /// Memo for the unclosed-delimiter recovery path's widened known-command
     /// set (see [`RecoveryNameCache`]).
@@ -2442,6 +2450,7 @@ async fn run_deep_diagnostics(
         delivery,
         inputs.workspace_index,
         inputs.rehomed_source_seeds,
+        inputs.rehoming_gate,
         &analysis,
         result,
         timing,
@@ -2630,6 +2639,7 @@ async fn publish_diagnostics_result(
     delivery: &DeliveryCtx<'_>,
     workspace_index: &Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
     rehomed_source_seeds: &Arc<Mutex<HashMap<String, Vec<String>>>>,
+    rehoming_gate: &Arc<tokio::sync::Mutex<()>>,
     analysis: &Arc<AnalysisResult>,
     result: Result<Vec<tower_lsp_server::ls_types::Diagnostic>, tokio::task::JoinError>,
     timing: PublishTiming<'_>,
@@ -2649,6 +2659,13 @@ async fn publish_diagnostics_result(
     };
     let diag_count = diags.len();
     {
+        // A workspace query holds this gate from source-site reconciliation
+        // through its final index snapshot. Take it before `documents` (the
+        // same order as reconciliation's `read_document`) so this standalone
+        // publish cannot replace a re-homed view in the gap between those two
+        // operations. Previously that gap made declaration-side references
+        // intermittently resolve `::helper` instead of `::x::helper` (M9).
+        let rehoming_guard = rehoming_gate.lock().await;
         // Hold the `documents` lock across the currency re-check, the
         // workspace-index update, AND the pull-cache/publish delivery so a
         // concurrent `did_change`/`did_close` (which also take `documents`)
@@ -2679,6 +2696,7 @@ async fn publish_diagnostics_result(
             .lock()
             .await
             .remove(delivery.uri.as_str());
+        drop(rehoming_guard);
         // Keep the pull-diagnostic cache in lock-step with the push: a
         // `textDocument/diagnostic` request now returns this exact set with
         // a fresh `result_id`, and an editor that already holds it gets a
@@ -2870,7 +2888,7 @@ pub struct Backend {
     /// early-return ("nothing left to reconcile") then answers instantly for
     /// every waiter but the one that did the real work. Same "wait out the
     /// in-flight pass" idiom as [`Self::workspace_scan_gate`] (issue #1003).
-    rehoming_gate: tokio::sync::Mutex<()>,
+    rehoming_gate: Arc<tokio::sync::Mutex<()>>,
     /// Tcl installations discovered by scanning common install locations on
     /// disk (never by executing `tclsh`). Cached once per session. The package
     /// database scans these (plus configured `libraryPaths`) so it can see
@@ -3579,7 +3597,7 @@ impl Backend {
             workspace_scan_ready: Arc::new(WorkspaceScanReadiness::default()),
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
-            rehoming_gate: tokio::sync::Mutex::new(()),
+            rehoming_gate: Arc::new(tokio::sync::Mutex::new(())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
@@ -4803,9 +4821,10 @@ impl Backend {
             return;
         }
         let folder_strs: Vec<String> = folders.iter().map(|u| u.as_str().to_owned()).collect();
-        // Hold `documents` across the open-set read + index removals (the
-        // `documents` → `workspace_index` order used since the global gate was
-        // retired) so a file opening mid-reconcile keeps its open-buffer entry.
+        // Keep source-site reconciliation/query snapshots atomic with the
+        // removal, then hold `documents` across the open-set read + index
+        // removals. Global order: rehoming_gate → documents → workspace_index.
+        let rehoming_guard = self.rehoming_gate.lock().await;
         let docs = self.documents.lock().await;
         let open: HashSet<String> = docs.keys().map(|u| u.as_str().to_owned()).collect();
         let mut index = self.workspace_index.write().await;
@@ -4835,6 +4854,13 @@ impl Backend {
             .collect();
         self.db_remove_sources_batch(&removed_urls).await;
         drop(docs);
+        {
+            let mut seeds = self.rehomed_source_seeds.lock().await;
+            for uri in &to_remove {
+                seeds.remove(uri);
+            }
+        }
+        drop(rehoming_guard);
         // Clear the Problems / File-Explorer badge of any removed-folder file
         // that still carried one (#865) — it is no longer part of the workspace,
         // so a retained closed-file badge would be stale.
@@ -4913,9 +4939,11 @@ impl Backend {
             .collect();
         let results = run_bounded(futures, concurrency).await;
 
-        // Hold `documents` across the still-closed re-check and both updates
-        // (the `documents` → db → `workspace_index` order established by
-        // `did_open`), matching the single-file path.
+        // Serialise this standalone replacement with source-site reconciliation
+        // and navigation snapshots, then hold `documents` across the
+        // still-closed re-check and both updates. Global order:
+        // rehoming_gate → documents → db → workspace_index.
+        let _rehoming_guard = self.rehoming_gate.lock().await;
         let docs = self.documents.lock().await;
         let mut applied: Vec<(Uri, String, String, AnalysisResult)> = Vec::new();
         let mut to_remove: Vec<Uri> = Vec::new();
@@ -4974,10 +5002,11 @@ impl Backend {
         let folder_dialects = Arc::new(self.folder_dialects.lock().await.clone());
         let default_dialect = Arc::new(self.default_dialect.lock().await.clone());
         let scanned = Self::scan_disk_file(uri.clone(), folder_dialects, default_dialect).await;
-        // Hold `documents` across the still-closed re-check and both updates (the
-        // `documents` → db → `workspace_index` order established by `did_open`) so a
-        // concurrent `did_open` cannot open the buffer between them and have its
-        // live text clobbered by this disk-backed copy.
+        // Serialise the standalone replacement with source-site reconciliation,
+        // then hold `documents` across the still-closed re-check and both
+        // updates. Global order: rehoming_gate → documents → db →
+        // workspace_index.
+        let _rehoming_guard = self.rehoming_gate.lock().await;
         let docs = self.documents.lock().await;
         if docs.contains_key(uri) {
             return;
@@ -5426,7 +5455,7 @@ impl Backend {
         analysis: &AnalysisResult,
         cell: &str,
     ) -> Vec<Location> {
-        self.refresh_source_rehoming().await;
+        let rehoming_guard = self.rehomed_index_guard().await;
         let mut targets: Vec<(String, tcl_lexer::Span)> =
             core_namespace_symbol::namespace_declaration_spans(analysis, cell)
                 .into_iter()
@@ -5441,6 +5470,7 @@ impl Backend {
                     .map(|n| (n.uri.clone(), n.span)),
             );
         }
+        drop(rehoming_guard);
         dedup_span_targets(&mut targets);
         self.resolve_target_locations(targets).await
     }
@@ -5465,7 +5495,7 @@ impl Backend {
         analysis: &AnalysisResult,
         cell: &str,
     ) -> Option<CoreHover> {
-        self.refresh_source_rehoming().await;
+        let rehoming_guard = self.rehomed_index_guard().await;
         let local = core_namespace_symbol::namespace_facts(analysis, cell);
         let facts = {
             let index = self.workspace_index.read().await;
@@ -5487,6 +5517,7 @@ impl Backend {
             }
             merged
         };
+        drop(rehoming_guard);
         core_hover::namespace_hover(cell, facts)
     }
 
@@ -5506,7 +5537,7 @@ impl Backend {
         cell: &str,
         include_declaration: bool,
     ) -> Vec<Location> {
-        self.refresh_source_rehoming().await;
+        let rehoming_guard = self.rehomed_index_guard().await;
         let mut targets: Vec<(String, tcl_lexer::Span)> =
             core_namespace_symbol::namespace_all_spans(analysis, cell, include_declaration)
                 .into_iter()
@@ -5529,6 +5560,7 @@ impl Backend {
                 );
             }
         }
+        drop(rehoming_guard);
         dedup_span_targets(&mut targets);
         self.resolve_target_locations(targets).await
     }
@@ -5554,7 +5586,7 @@ impl Backend {
         };
         // The index answers under source-site namespaces too (M9), so
         // reconcile before asking, exactly as the proc/class tier does.
-        self.refresh_source_rehoming().await;
+        let rehoming_guard = self.rehomed_index_guard().await;
         let targets: Vec<(String, tcl_lexer::Span)> = {
             let index = self.workspace_index.read().await;
             index
@@ -5563,6 +5595,7 @@ impl Backend {
                 .map(|v| (v.uri.clone(), v.name_span))
                 .collect()
         };
+        drop(rehoming_guard);
         self.resolve_target_locations(targets).await
     }
 
@@ -5770,6 +5803,7 @@ impl Backend {
             }
         }
         let mut resolved = None;
+        let mut analysed = Vec::new();
         for path in files {
             let Some(target_uri) = Uri::from_file_path(&path) else {
                 continue;
@@ -5784,15 +5818,6 @@ impl Backend {
                     target_doc.dialect.clone(),
                 )
                 .await;
-            {
-                let mut index = self.workspace_index.write().await;
-                index.remove_document(target_uri.as_str());
-                index.add_document(target_uri.as_str(), &file_analysis);
-            }
-            self.autoloaded_library_uris
-                .lock()
-                .await
-                .insert(target_uri.as_str().to_owned());
             if resolved.is_none() {
                 resolved = absolute
                     .iter()
@@ -5801,6 +5826,31 @@ impl Backend {
                             || file_analysis.all_classes.contains_key(*cand)
                     })
                     .cloned();
+            }
+            analysed.push((target_uri, file_analysis));
+        }
+        if analysed.is_empty() {
+            return resolved;
+        }
+
+        // Publish every file as one standalone replacement transaction. A
+        // navigation snapshot either sees the previous index or the complete
+        // library merge, never a partially merged package nor a standalone
+        // replacement of a freshly re-homed source-site view.
+        let _rehoming_guard = self.rehoming_gate.lock().await;
+        {
+            let mut index = self.workspace_index.write().await;
+            for (target_uri, file_analysis) in &analysed {
+                index.remove_document(target_uri.as_str());
+                index.add_document(target_uri.as_str(), file_analysis);
+            }
+        }
+        {
+            let mut seeds = self.rehomed_source_seeds.lock().await;
+            let mut autoloaded = self.autoloaded_library_uris.lock().await;
+            for (target_uri, _) in &analysed {
+                seeds.remove(target_uri.as_str());
+                autoloaded.insert(target_uri.as_str().to_owned());
             }
         }
         resolved
@@ -5873,7 +5923,7 @@ impl Backend {
         analysis: &AnalysisResult,
     ) -> Option<CoreHover> {
         let cell = Self::qualified_variable_cell(source, &analysis.dialect, analysis, pos)?;
-        self.refresh_source_rehoming().await;
+        let rehoming_guard = self.rehomed_index_guard().await;
         let target_uris: Vec<String> = {
             let index = self.workspace_index.read().await;
             index
@@ -5882,6 +5932,7 @@ impl Backend {
                 .map(|v| v.uri.clone())
                 .collect()
         };
+        drop(rehoming_guard);
         for target_uri in target_uris {
             let Ok(parsed) = Uri::from_str(&target_uri) else {
                 continue;
@@ -5947,7 +5998,9 @@ impl Backend {
     ) -> jsonrpc::Result<Vec<Location>> {
         // Reconcile the index with the source graph first (M9): sourced
         // documents answer under their source-site namespaces.
-        self.refresh_source_rehoming().await;
+        let (rehoming_guard, symbols) = self
+            .resolved_symbol_index_snapshot(uri, source, analysis, pos)
+            .await;
         // Resolve the call at the cursor to its qualified identity set
         // through the workspace oracle, then jump to *those* symbols'
         // definitions — never every same-simple-name proc/class across the
@@ -5955,9 +6008,6 @@ impl Backend {
         // jump targets.  (A multi-seeded declaration cursor yields several
         // identities sharing one physical definition — the target set
         // dedupes to the physical site.)
-        let symbols = self
-            .resolve_workspace_symbols(uri, source, analysis, pos)
-            .await;
         if symbols.is_empty() {
             return Ok(Vec::new());
         }
@@ -5994,6 +6044,7 @@ impl Backend {
             targets.dedup();
             targets
         };
+        drop(rehoming_guard);
         Ok(self.resolve_target_locations(targets).await)
     }
 
@@ -6080,7 +6131,7 @@ impl Backend {
     /// Anything else (a bareword argument, whitespace, a `$var`) resolves to
     /// nothing (an empty set), so no coincidental word links to a sibling
     /// symbol.
-    async fn resolve_workspace_symbols(
+    async fn resolve_workspace_symbols_indexed(
         &self,
         uri: &Uri,
         source: &str,
@@ -6222,8 +6273,31 @@ impl Backend {
                 return vec![target];
             }
         }
+        Vec::new()
+    }
+
+    /// Resolve against the current index, then populate the autoload/package
+    /// tier on a genuine miss. This function deliberately takes no source-site
+    /// transaction guard: [`Self::ensure_library_indexed`] may wait for
+    /// `workspace_scan_gate`, and a workspace scan takes `rehoming_gate` while
+    /// merging its results. Nesting those gates in the opposite order would
+    /// deadlock a navigation request against an in-flight scan.
+    async fn resolve_workspace_symbols(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+    ) -> Vec<String> {
+        let indexed = self
+            .resolve_workspace_symbols_indexed(uri, source, analysis, pos)
+            .await;
+        if !indexed.is_empty() {
+            return indexed;
+        }
+
         // Autoload tier (M8): the command resolves nowhere in the open
-        // workspace.  Ask the auto-load / package database, merging the
+        // workspace. Ask the auto-load / package database, merging the
         // defining library file into the index so this query — and every
         // later references / rename / definition — sees its definitions.
         let Some((word, namespace)) = core_definition::command_head_and_namespace_at(
@@ -6238,6 +6312,48 @@ impl Backend {
             .await
             .into_iter()
             .collect()
+    }
+
+    /// Prepare any on-demand library indexing without holding
+    /// `rehoming_gate`, then reconcile and return the symbol identities while
+    /// keeping that gate held for the caller's complete workspace-index read.
+    ///
+    /// The second indexed lookup is essential: reconciliation may replace a
+    /// sourced document's standalone identity with one or more source-site
+    /// identities. If that replacement invalidates a preflight hit, retry the
+    /// autoload path once outside the transaction before taking the final
+    /// snapshot.
+    async fn resolved_symbol_index_snapshot<'a>(
+        &'a self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+    ) -> (tokio::sync::MutexGuard<'a, ()>, Vec<String>) {
+        let preflight = self
+            .resolve_workspace_symbols(uri, source, analysis, pos)
+            .await;
+        let guard = self.rehomed_index_guard().await;
+        let symbols = self
+            .resolve_workspace_symbols_indexed(uri, source, analysis, pos)
+            .await;
+        if !symbols.is_empty() || preflight.is_empty() {
+            return (guard, symbols);
+        }
+
+        // The preflight resolved only through a stale standalone view that
+        // reconciliation removed. Any package lookup must happen after
+        // releasing the transaction gate, then the final snapshot reconciles
+        // once more around the resulting index state.
+        drop(guard);
+        let _ = self
+            .resolve_workspace_symbols(uri, source, analysis, pos)
+            .await;
+        let guard = self.rehomed_index_guard().await;
+        let symbols = self
+            .resolve_workspace_symbols_indexed(uri, source, analysis, pos)
+            .await;
+        (guard, symbols)
     }
 
     /// Cross-document references for the proc / class at `pos`:
@@ -6313,9 +6429,8 @@ impl Backend {
         include_declaration: bool,
         exclude_uri: &str,
     ) -> Vec<Location> {
-        self.refresh_source_rehoming().await;
-        let symbols = self
-            .resolve_workspace_symbols(uri, source, analysis, pos)
+        let (rehoming_guard, symbols) = self
+            .resolved_symbol_index_snapshot(uri, source, analysis, pos)
             .await;
         if symbols.is_empty() {
             return Vec::new();
@@ -6355,6 +6470,7 @@ impl Backend {
             t.dedup();
             t
         };
+        drop(rehoming_guard);
         self.resolve_target_locations(targets).await
     }
 
@@ -6510,7 +6626,7 @@ impl Backend {
         else {
             return Vec::new();
         };
-        self.refresh_source_rehoming().await;
+        let rehoming_guard = self.rehomed_index_guard().await;
         let targets: Vec<(String, tcl_lexer::Span)> = {
             let index = self.workspace_index.read().await;
             let declarations: Vec<(String, tcl_lexer::Span)> = index
@@ -6531,6 +6647,7 @@ impl Backend {
             t.dedup();
             t
         };
+        drop(rehoming_guard);
         self.resolve_target_locations(targets).await
     }
 
@@ -7224,10 +7341,10 @@ impl Backend {
         if !core_rename::is_safe_symbol_name(new_name) {
             return Ok(changes);
         }
-        self.refresh_source_rehoming().await;
-        let namespace = cell.rsplit_once("::").map_or("::", |(ns, _)| ns);
-        let new_cell = format!("{namespace}::{new_name}");
         let candidates: Vec<String> = {
+            let _rehoming_guard = self.rehomed_index_guard().await;
+            let namespace = cell.rsplit_once("::").map_or("::", |(ns, _)| ns);
+            let new_cell = format!("{namespace}::{new_name}");
             let index = self.workspace_index.read().await;
             // Collision gate: the target cell already exists, so the rename
             // would silently merge two distinct namespace variables.
@@ -7700,9 +7817,8 @@ impl Backend {
         new_name: &str,
         changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
     ) -> bool {
-        self.refresh_source_rehoming().await;
-        let symbols = self
-            .resolve_workspace_symbols(uri, source, analysis, pos)
+        let (rehoming_guard, symbols) = self
+            .resolved_symbol_index_snapshot(uri, source, analysis, pos)
             .await;
         let intents = {
             let index = self.workspace_index.read().await;
@@ -7720,6 +7836,7 @@ impl Backend {
             }
             intents
         };
+        drop(rehoming_guard);
         self.merge_rename_intents(intents, changes).await;
         false
     }
@@ -7741,9 +7858,8 @@ impl Backend {
         new_name: &str,
         changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
     ) {
-        self.refresh_source_rehoming().await;
-        let symbols = self
-            .resolve_workspace_symbols(uri, source, analysis, pos)
+        let (rehoming_guard, symbols) = self
+            .resolved_symbol_index_snapshot(uri, source, analysis, pos)
             .await;
         if symbols.is_empty() {
             return;
@@ -7779,6 +7895,7 @@ impl Backend {
             }
             intents
         };
+        drop(rehoming_guard);
         self.merge_rename_intents(intents, changes).await;
     }
 
@@ -9410,6 +9527,7 @@ impl Backend {
             documents: Arc::clone(&self.documents),
             workspace_index: Arc::clone(&self.workspace_index),
             rehomed_source_seeds: Arc::clone(&self.rehomed_source_seeds),
+            rehoming_gate: Arc::clone(&self.rehoming_gate),
             package_resolver: Arc::clone(&self.package_resolver),
             recovery_names: Arc::clone(&self.recovery_names),
             entry_points,
@@ -9838,7 +9956,21 @@ impl Backend {
     /// few lines down then answers "already converged" for every waiter but
     /// whichever caller actually did the work.
     async fn refresh_source_rehoming(&self) {
-        let _guard = self.rehoming_gate.lock().await;
+        let _guard = self.rehomed_index_guard().await;
+    }
+
+    /// Reconcile source-site views and keep the transaction gate held for the
+    /// caller's subsequent workspace-index snapshot. Standalone publishers use
+    /// the same gate, so none can invalidate the freshly re-homed view between
+    /// reconciliation and a definition/reference/rename read.
+    async fn rehomed_index_guard(&self) -> tokio::sync::MutexGuard<'_, ()> {
+        let guard = self.rehoming_gate.lock().await;
+        self.refresh_source_rehoming_locked().await;
+        guard
+    }
+
+    /// [`Self::refresh_source_rehoming`] with the transaction gate already held.
+    async fn refresh_source_rehoming_locked(&self) {
         for _round in 0..4 {
             let desired = {
                 let index = self.workspace_index.read().await;
@@ -10095,9 +10227,15 @@ impl Backend {
         let stale_library_uris: Vec<String> =
             self.autoloaded_library_uris.lock().await.drain().collect();
         if !stale_library_uris.is_empty() {
+            let _rehoming_guard = self.rehoming_gate.lock().await;
             let mut index = self.workspace_index.write().await;
             for uri in &stale_library_uris {
                 index.remove_document(uri);
+            }
+            drop(index);
+            let mut seeds = self.rehomed_source_seeds.lock().await;
+            for uri in &stale_library_uris {
+                seeds.remove(uri);
             }
         }
 
@@ -10239,10 +10377,10 @@ impl Backend {
         &self,
         analysed: &[(Uri, String, String, AnalysisResult)],
     ) {
-        // Hold `documents` across the open-set read, the salsa-db batch, and the
-        // index merge (the `documents` → db → `workspace_index` order established
-        // by `did_open`) so a file opening mid-merge can't have its live buffer
-        // overwritten by this disk-backed scan result in either store.
+        // Serialise each standalone merge with source-site reconciliation, then
+        // hold `documents` across the open-set read, salsa-db batch, and index
+        // merge. Global order: rehoming_gate → documents → db → workspace_index.
+        let _rehoming_guard = self.rehoming_gate.lock().await;
         let docs = self.documents.lock().await;
         let open: HashSet<String> = docs.keys().map(|u| u.as_str().to_owned()).collect();
         // Salsa db first (db → db_files → db_project), before the workspace_index
@@ -11243,6 +11381,7 @@ impl LanguageServer for Backend {
         // `Project` so a deleted file stops suppressing W123 / driving the
         // arity error cross-file.
         if !deleted.is_empty() {
+            let _rehoming_guard = self.rehoming_gate.lock().await;
             {
                 let mut index = self.workspace_index.write().await;
                 for uri in &deleted {
@@ -11250,6 +11389,10 @@ impl LanguageServer for Backend {
                 }
             }
             self.db_remove_sources_batch(&deleted).await;
+            let mut seeds = self.rehomed_source_seeds.lock().await;
+            for uri in &deleted {
+                seeds.remove(uri.as_str());
+            }
         }
         // CREATED / CHANGED: read + analyse every file across the bounded
         // worker pool, then one batched index/db merge.
@@ -19953,7 +20096,7 @@ mod tests {
             workspace_scan_ready: Arc::new(WorkspaceScanReadiness::default()),
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
-            rehoming_gate: tokio::sync::Mutex::new(()),
+            rehoming_gate: Arc::new(tokio::sync::Mutex::new(())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
@@ -24210,6 +24353,51 @@ mod tests {
         );
     }
 
+    /// A source-site snapshot may need M8's autoload tier, which waits for an
+    /// in-flight workspace scan. It must perform that wait *before* taking
+    /// `rehoming_gate`: the scan holds `workspace_scan_gate` while its merge
+    /// takes `rehoming_gate`, so the reverse nesting deadlocks both tasks.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn rehomed_symbol_snapshot_does_not_hold_its_gate_while_waiting_for_scan() {
+        let backend = Arc::new(test_backend());
+        seed_autoload_library(&backend, "autoload-rehoming-order").await;
+        let app = Uri::from_str("file:///app.tcl").unwrap();
+        let app_src = "Rbc_ActiveLegend .g\n";
+        register(&backend, &app, app_src).await;
+        let analysis = Arc::new(Analyser::new().analyse(app_src, "tcl8.6").clone());
+
+        let scan_guard = backend.workspace_scan_gate.lock().await;
+        let query_backend = Arc::clone(&backend);
+        let query_app = app.clone();
+        let query = tokio::spawn(async move {
+            let (guard, symbols) = query_backend
+                .resolved_symbol_index_snapshot(&query_app, app_src, &analysis, Position::new(0, 3))
+                .await;
+            drop(guard);
+            symbols
+        });
+        tokio::task::yield_now().await;
+        assert!(
+            !query.is_finished(),
+            "autoload preflight must wait for the in-flight workspace scan"
+        );
+
+        let rehoming_guard = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            backend.rehoming_gate.lock(),
+        )
+        .await
+        .expect("the waiting query must not hold rehoming_gate");
+        drop(rehoming_guard);
+        drop(scan_guard);
+
+        let symbols = tokio::time::timeout(std::time::Duration::from_secs(2), query)
+            .await
+            .expect("query must complete after the scan releases its gate")
+            .expect("query task panicked");
+        assert_eq!(symbols, vec!["::Rbc_ActiveLegend"]);
+    }
+
     /// FP guard: when the workspace itself defines the command, the autoload
     /// tier must not fire — the workspace definition wins and no library file
     /// is merged into the index.
@@ -24459,6 +24647,111 @@ mod tests {
         assert!(
             refs.iter().any(|l| l.uri == a),
             "the sourcing document's qualified call must still resolve: {refs:?}"
+        );
+    }
+
+    /// A diagnostics run publishes a standalone analysis before the next M9
+    /// reconciliation. It must not do that while a navigation request is
+    /// consuming the freshly re-homed index snapshot: otherwise the query can
+    /// map the declaration through `::x` and then gather calls from the
+    /// standalone `::helper` view, yielding an empty reference set.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn diagnostics_publish_waits_for_rehomed_navigation_snapshot() {
+        let backend = Arc::new(test_backend());
+        let a = Uri::from_str("file:///proj/a.tcl").unwrap();
+        let b = Uri::from_str("file:///proj/b.tcl").unwrap();
+        let b_src = "proc helper {} {}\n";
+        register(&backend, &b, b_src).await;
+        register(
+            &backend,
+            &a,
+            "namespace eval ::x { source b.tcl }\n::x::helper\n",
+        )
+        .await;
+
+        let query_guard = backend.rehomed_index_guard().await;
+        let query_started = Arc::new(tokio::sync::Notify::new());
+        let publish_finished = Arc::new(tokio::sync::Notify::new());
+        let publisher_backend = Arc::clone(&backend);
+        let publisher_b = b.clone();
+        let publisher_started = Arc::clone(&query_started);
+        let publisher_finished = Arc::clone(&publish_finished);
+        let standalone = Arc::new(Analyser::new().analyse(b_src, "tcl8.6").clone());
+        let publisher = tokio::spawn(async move {
+            let revision = publisher_backend
+                .documents
+                .lock()
+                .await
+                .get(&publisher_b)
+                .expect("b.tcl stays open")
+                .revision;
+            let uri_string = publisher_b.to_string();
+            let delivery = DeliveryCtx {
+                client: &publisher_backend.client,
+                documents: &publisher_backend.documents,
+                pull_diag_cache: &publisher_backend.pull_diag_cache,
+                closed_diag_gen: &publisher_backend.closed_diag_gen,
+                uri: &publisher_b,
+                currency: DiagCurrency::Open(revision),
+                version: None,
+                client_supports_pull: false,
+            };
+            publisher_started.notify_one();
+            let settled = publish_diagnostics_result(
+                &delivery,
+                &publisher_backend.workspace_index,
+                &publisher_backend.rehomed_source_seeds,
+                &publisher_backend.rehoming_gate,
+                &standalone,
+                Ok(Vec::new()),
+                PublishTiming {
+                    started: std::time::Instant::now(),
+                    uri_str: &uri_string,
+                    line_count: 1,
+                },
+            )
+            .await;
+            publisher_finished.notify_one();
+            settled
+        });
+
+        query_started.notified().await;
+        assert!(
+            tokio::time::timeout(
+                std::time::Duration::from_millis(100),
+                publish_finished.notified(),
+            )
+            .await
+            .is_err(),
+            "standalone diagnostics publication must wait for the active re-homed snapshot",
+        );
+        {
+            let index = backend.workspace_index.read().await;
+            assert!(
+                index
+                    .linked_invocations_of("::x::helper", b.as_str())
+                    .iter()
+                    .any(|site| site.uri == a.as_str()),
+                "the guarded snapshot must retain the source-site call view",
+            );
+        }
+        drop(query_guard);
+
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_secs(5), publisher)
+                .await
+                .expect("publisher must resume after the query releases the gate")
+                .expect("publisher task must not panic"),
+            "the current diagnostics run must publish",
+        );
+
+        let analysis = Analyser::new().analyse(b_src, "tcl8.6").clone();
+        let refs = backend
+            .cross_document_references(&b, b_src, &analysis, Position::new(0, 6), false)
+            .await;
+        assert!(
+            refs.iter().any(|location| location.uri == a),
+            "the next query must reconcile the standalone publish before reading: {refs:?}",
         );
     }
 

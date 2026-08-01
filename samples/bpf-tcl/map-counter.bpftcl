@@ -1,0 +1,8 @@
+# Userspace-emulated map state persists across --repeat invocations in one run.
+when SOCKET_FILTER {
+    map hits hash 8 8 16
+    map_get count hits {0}
+    setint next {$count + 1}
+    map_set hits {0} {$next}
+    accept {$next}
+}

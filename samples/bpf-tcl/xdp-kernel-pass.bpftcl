@@ -1,0 +1,6 @@
+# The first Linux-kernel target slice: a map-free, verdict-only XDP program.
+# It does not read the context, so codegen can emit a verifier-valid program
+# before checked xdp_md packet access and kernel maps are implemented.
+when XDP {
+    pass
+}

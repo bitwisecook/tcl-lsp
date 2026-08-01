@@ -20,12 +20,16 @@
 //! in its own stack slot, and each instruction loads its operands into scratch
 //! registers, computes, and stores back. No register allocation, no calls.
 //!
-//! Calling convention (socket filter, via rbpf's `EbpfVmFixedMbuff`, the real
-//! eBPF `data`/`data_end` model): `r1` is a metadata buffer whose first two
+//! The default calling convention uses rbpf's `EbpfVmFixedMbuff`: `r1` is a
+//! metadata buffer whose first two
 //! 64-bit words are the packet `data` pointer (offset 0) and `data_end` pointer
 //! (offset 8). The prologue loads them into the callee-saved `r6` (`data`) and
 //! `r7` (`data_end`) so they survive the whole program; the packet length is
 //! `data_end - data`.
+//!
+//! The explicit kernel-XDP target is a separate ABI. Its initial vertical slice
+//! supports map-free verdict-only programs and rejects context access until
+//! verifier-safe `xdp_md` lowering exists.
 
 use std::collections::HashMap;
 
@@ -55,10 +59,34 @@ const MAP_GET_ID: i32 = 1;
 /// Helper id for `map_set`.
 const MAP_SET_ID: i32 = 2;
 
+/// The execution ABI an emitted instruction stream targets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetAbi {
+    /// The userspace `rbpf::EbpfVmFixedMbuff` metadata-buffer ABI.
+    RbpfFixedMbuff,
+    /// Linux `BPF_PROG_TYPE_XDP`. The first vertical slice supports map-free,
+    /// verdict-only programs; context access is rejected until its verifier
+    /// proof lowering lands.
+    KernelXdp,
+}
+
+impl TargetAbi {
+    /// Stable CLI/display spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::RbpfFixedMbuff => "rbpf",
+            Self::KernelXdp => "kernel-xdp",
+        }
+    }
+}
+
 /// A compiled eBPF object: the instruction array plus its raw little-endian
 /// byte encoding (exactly what `rbpf` executes).
 #[derive(Debug, Clone)]
 pub struct EbpfObject {
+    /// The context/helper ABI this instruction stream targets.
+    pub target_abi: TargetAbi,
     /// The program type (so the object is self-describing for a loader).
     pub prog_type: ProgType,
     /// The decoded instructions.
@@ -70,12 +98,18 @@ pub struct EbpfObject {
 }
 
 impl EbpfObject {
-    fn assemble(prog_type: ProgType, insns: Vec<Insn>, maps: Vec<MapDef>) -> Self {
+    fn assemble(
+        target_abi: TargetAbi,
+        prog_type: ProgType,
+        insns: Vec<Insn>,
+        maps: Vec<MapDef>,
+    ) -> Self {
         let mut raw = Vec::with_capacity(insns.len() * 8);
         for i in &insns {
             raw.extend_from_slice(&i.to_le_bytes());
         }
         Self {
+            target_abi,
             prog_type,
             insns,
             raw,
@@ -110,13 +144,31 @@ fn slot_off(slot: u32) -> i16 {
 /// Returns a [`BpfError`] for v1 codegen limits (constant out of 32-bit range,
 /// load offset out of 16-bit range, program too large for a 16-bit jump).
 pub fn emit_program(prog: &BpfProgram) -> Result<EbpfObject, BpfError> {
+    emit_program_for_target(prog, TargetAbi::RbpfFixedMbuff)
+}
+
+/// Emit an eBPF object for a typed program and explicit execution ABI.
+///
+/// # Errors
+/// Returns a [`BpfError`] for unsupported target/program combinations and the
+/// same codegen limits as [`emit_program`].
+pub fn emit_program_for_target(
+    prog: &BpfProgram,
+    target_abi: TargetAbi,
+) -> Result<EbpfObject, BpfError> {
+    validate_target(prog, target_abi)?;
     let mut pend: Vec<Pending> = Vec::new();
 
-    // Prologue: load the packet `data` / `data_end` pointers from the metadata
-    // buffer (r1, the socket-filter context), then zero every slot so no value
-    // is ever read before it is written (verifier "init before read").
-    pend.push(Pending::Ins(ldx(SZ_DW, RPTR, R1, DATA_OFF)));
-    pend.push(Pending::Ins(ldx(SZ_DW, REND, R1, DATA_END_OFF)));
+    // The rbpf target exposes `data` / `data_end` as two 64-bit metadata words.
+    // A verdict-only kernel-XDP program does not touch its context, so it needs
+    // no prologue. Kernel context access is rejected by `validate_target` until
+    // correct `xdp_md` loads and verifier proofs are implemented.
+    if target_abi == TargetAbi::RbpfFixedMbuff {
+        pend.push(Pending::Ins(ldx(SZ_DW, RPTR, R1, DATA_OFF)));
+        pend.push(Pending::Ins(ldx(SZ_DW, REND, R1, DATA_END_OFF)));
+    }
+    // Zero every slot so no value is read before it is written (verifier "init
+    // before read").
     for i in 0..prog.num_slots {
         pend.push(Pending::Ins(st_imm(SZ_DW, R10, slot_off(i), 0)));
     }
@@ -154,10 +206,50 @@ pub fn emit_program(prog: &BpfProgram) -> Result<EbpfObject, BpfError> {
         insns.push(insn);
     }
     Ok(EbpfObject::assemble(
+        target_abi,
         prog.prog_type,
         insns,
         prog.maps.clone(),
     ))
+}
+
+fn validate_target(prog: &BpfProgram, target_abi: TargetAbi) -> Result<(), BpfError> {
+    if target_abi == TargetAbi::RbpfFixedMbuff {
+        return Ok(());
+    }
+    if prog.prog_type != ProgType::Xdp {
+        return Err(BpfError::new(
+            BpfDiag::OutOfSubset,
+            Span::empty(0),
+            "the `kernel-xdp` target only accepts `when XDP` programs",
+        ));
+    }
+    if !prog.maps.is_empty() {
+        return Err(BpfError::new(
+            BpfDiag::OutOfSubset,
+            prog.maps[0].span,
+            "the first `kernel-xdp` target slice is map-free (kernel map relocations are not implemented yet)",
+        ));
+    }
+    for inst in prog.blocks.iter().flat_map(|block| &block.insts) {
+        let (unsupported, span) = match inst {
+            Inst::CtxPtr { span, .. } => (Some("`setbuf`"), *span),
+            Inst::CtxLen { span, .. } => (Some("`pktlen`"), *span),
+            Inst::Load { span, .. } => (Some("packet loads"), *span),
+            Inst::MapGet { span, .. } | Inst::MapSet { span, .. } => (Some("map access"), *span),
+            _ => (None, Span::empty(0)),
+        };
+        if let Some(operation) = unsupported {
+            return Err(BpfError::new(
+                BpfDiag::OutOfSubset,
+                span,
+                format!(
+                    "{operation} is not available in the first `kernel-xdp` target slice; only map-free, verdict-only handlers are kernel-loadable"
+                ),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn rel_off(from: usize, to: usize) -> Result<i16, BpfError> {
@@ -353,6 +445,26 @@ mod tests {
         // Prologue loads data/data_end from the metadata buffer (r1).
         assert_eq!(obj.insns[0], ldx(SZ_DW, R6, R1, 0)); // r6 = data
         assert_eq!(obj.insns[1], ldx(SZ_DW, R7, R1, 8)); // r7 = data_end
+    }
+
+    #[test]
+    fn kernel_xdp_verdict_only_has_no_rbpf_context_prologue() {
+        let module = compile_module("when XDP { pass }\n").expect("compiles");
+        let obj = emit_program_for_target(&module.programs[0].program, TargetAbi::KernelXdp)
+            .expect("emits for the kernel");
+        assert_eq!(obj.target_abi, TargetAbi::KernelXdp);
+        assert_eq!(obj.insns.len(), 5);
+        assert_ne!(obj.insns[0], ldx(SZ_DW, R6, R1, 0));
+        assert_eq!(obj.insns.last().unwrap().op, 0x95);
+    }
+
+    #[test]
+    fn kernel_xdp_rejects_context_access_until_proof_lowering_exists() {
+        let module = compile_module("when XDP { setbuf packet ctx\n pass }\n").expect("compiles");
+        let err = emit_program_for_target(&module.programs[0].program, TargetAbi::KernelXdp)
+            .expect_err("context ABI is not implemented");
+        assert_eq!(err.code, BpfDiag::OutOfSubset);
+        assert!(err.msg.contains("verdict-only"));
     }
 
     #[test]
