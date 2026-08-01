@@ -14600,12 +14600,22 @@ const DIALECT_HINT_LINE_MARGIN: u32 = 20;
 ///
 /// A conservative superset, not an exact replay of the detector: `true` when
 /// the edit touches the leading [`DIALECT_HINT_LINE_MARGIN`] lines (covers the
-/// directive/shebang tiers with margin), or when either the removed or
-/// inserted text contains one of the substrings
+/// directive/shebang tiers with margin), or when the **whole lines** the edit
+/// touches — before *and* after the splice — contain one of the substrings
 /// [`tcl_registry::dialects::dialect_hint_markers`] lists (covers the
 /// content-signature / version-guard tiers, wherever in the document they
 /// land). A `None` range (a full-document replacement) always returns `true`
 /// — there is no local edit to reason about.
+///
+/// Widening to line boundaries is what makes the marker test sound.
+/// [`tcl_registry::dialects::detect_dialect`] scans the *whole* source for
+/// those tiers (head first, then the full text on a miss), so a marker at line
+/// 500 counts — and a one-character edit *inside* such a line changes what the
+/// detector returns while the changed slice itself holds no marker at all.
+/// Editing the `6` of `package require Tcl 8.6` is the canonical case: the
+/// removed and inserted slices are both a single digit. Reading the touched
+/// lines instead costs those lines, not the document, and the persisted
+/// [`tcl_lexer::LineIndex`] gives their bounds without a scan.
 fn change_could_affect_dialect_hint(
     text: &str,
     range: Option<Range>,
@@ -14618,23 +14628,39 @@ fn change_could_affect_dialect_hint(
     if range.start.line < DIALECT_HINT_LINE_MARGIN {
         return true;
     }
-    if contains_dialect_hint_marker(new_text) {
+    let len = text.len();
+    let offset = |line: u32, character: u32| {
+        index.offset_at_utf16(line, tcl_lexer::Utf16Col::new(character), text) as usize
+    };
+    let (first_line, last_line) = (
+        range.start.line.min(range.end.line),
+        range.start.line.max(range.end.line),
+    );
+    // The touched lines in full, in the pre-edit text: `[line_start(first) ..
+    // line_start(last + 1))`, clamped for the last line of the document.
+    let line_from = offset(first_line, 0).min(len);
+    let line_to = if (last_line as usize) + 1 < index.line_count() {
+        offset(last_line + 1, 0).min(len)
+    } else {
+        len
+    };
+    let touched = &text[line_from..line_to.max(line_from)];
+    if contains_dialect_hint_marker(touched) {
         return true;
     }
-    let a = index.offset_at_utf16(
-        range.start.line,
-        tcl_lexer::Utf16Col::new(range.start.character),
-        text,
-    ) as usize;
-    let b = index.offset_at_utf16(
-        range.end.line,
-        tcl_lexer::Utf16Col::new(range.end.character),
-        text,
-    ) as usize;
-    let len = text.len();
-    let start = a.min(b).min(len);
-    let end = a.max(b).min(len);
-    contains_dialect_hint_marker(&text[start..end])
+    // The same lines as the splice leaves them: everything before the edit on
+    // the first touched line, the inserted text, everything after the edit on
+    // the last one. Built rather than tested piecewise so a marker straddling
+    // the splice point is still seen.
+    let a = offset(range.start.line, range.start.character).min(len);
+    let b = offset(range.end.line, range.end.character).min(len);
+    let (cut_from, cut_to) = (a.min(b), a.max(b));
+    let mut spliced =
+        String::with_capacity((cut_from - line_from) + new_text.len() + (line_to - cut_to));
+    spliced.push_str(&text[line_from..cut_from]);
+    spliced.push_str(new_text);
+    spliced.push_str(&text[cut_to..line_to.max(cut_to)]);
+    contains_dialect_hint_marker(&spliced)
 }
 
 /// Whether `s` contains any of [`tcl_registry::dialects::dialect_hint_markers`].
@@ -18170,6 +18196,93 @@ mod tests {
             "puts hi\n",
             &index
         ));
+    }
+
+    /// PR #1179 review (Codex P1): the marker test must widen the edit to the
+    /// **lines** it touches, not just the changed slice.
+    ///
+    /// `detect_dialect` scans the whole source for the version-guard and
+    /// content-signature tiers, so a `package require Tcl 8.6` at line 500 is
+    /// live — and retyping its version digit changes what the detector
+    /// returns while the removed and inserted slices are both a bare digit
+    /// holding no marker at all.  The gate must re-trigger on that, and still
+    /// not on an edit to an ordinary line at the same depth.
+    #[test]
+    fn dialect_hint_gate_catches_an_edit_inside_a_deep_marker_line() {
+        use std::fmt::Write as _;
+        let mut body = String::from("# an ordinary Tcl script\n");
+        for i in 0..500 {
+            writeln!(body, "puts {i}").unwrap();
+        }
+        // Line 501 (0-based) carries a live version guard, far past the
+        // leading-lines margin.
+        let guard_line = u32::try_from(body.lines().count()).unwrap();
+        body.push_str("package require Tcl 8.6\n");
+        writeln!(body, "puts done").unwrap();
+        let index = tcl_lexer::LineIndex::new_lsp(&body);
+        // Retype the minor version: `8.6` → `8.4`. The slice on both sides of
+        // the splice is one digit.
+        let digit = u32::try_from("package require Tcl 8.".len()).unwrap();
+        let version_edit = Range {
+            start: pos(guard_line, digit),
+            end: pos(guard_line, digit + 1),
+        };
+        assert!(
+            change_could_affect_dialect_hint(&body, Some(version_edit), "4", &index),
+            "a version-digit edit inside a deep `package require` line must re-trigger detection"
+        );
+        // Deleting the digit (no inserted text at all) is the same case.
+        assert!(
+            change_could_affect_dialect_hint(&body, Some(version_edit), "", &index),
+            "deleting inside the marker line must re-trigger detection too"
+        );
+        // The plain line right after it, at the same depth, still does not.
+        let plain_edit = Range {
+            start: pos(guard_line + 1, 5),
+            end: pos(guard_line + 1, 6),
+        };
+        assert!(
+            !change_could_affect_dialect_hint(&body, Some(plain_edit), "x", &index),
+            "an edit to an ordinary deep line must still skip the rescan"
+        );
+        // A marker typed one character at a time is caught the moment the
+        // spliced line first spells one out, even though no single keystroke
+        // ever carries the whole marker.
+        let partial_line = u32::try_from(body.lines().count()).unwrap();
+        body.push_str("packag\n");
+        let index = tcl_lexer::LineIndex::new_lsp(&body);
+        let finish_marker = Range {
+            start: pos(partial_line, 6),
+            end: pos(partial_line, 6),
+        };
+        assert!(
+            change_could_affect_dialect_hint(&body, Some(finish_marker), "e", &index),
+            "the keystroke that completes a marker on the line must re-trigger detection"
+        );
+    }
+
+    /// The pre-edit half of the widened test: **removing** a marker matters as
+    /// much as adding one.  Deleting the `package require Tcl 8.4` line from
+    /// deep in a document changes the detected dialect back to the default,
+    /// and the deleted slice is the only place that marker still appears.
+    #[test]
+    fn dialect_hint_gate_catches_deleting_a_deep_marker_line() {
+        use std::fmt::Write as _;
+        let mut body = String::from("# an ordinary Tcl script\n");
+        for i in 0..500 {
+            writeln!(body, "puts {i}").unwrap();
+        }
+        let guard_line = u32::try_from(body.lines().count()).unwrap();
+        body.push_str("package require Tcl 8.4\n");
+        let index = tcl_lexer::LineIndex::new_lsp(&body);
+        let delete_line = Range {
+            start: pos(guard_line, 0),
+            end: pos(guard_line + 1, 0),
+        };
+        assert!(
+            change_could_affect_dialect_hint(&body, Some(delete_line), "", &index),
+            "deleting the whole marker line must re-trigger detection"
+        );
     }
 
     /// The source-style pass must reach the
