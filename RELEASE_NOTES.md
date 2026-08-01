@@ -26,14 +26,14 @@ command-registry "spec studio" editor.
 
 ## New Features
 
-- New diagnostic **W143** flags direct calls into private `::tcl::` implementation namespaces (e.g. `::tcl::dict::create`), with a quick fix that rewrites the call to its public form.
+- New diagnostic **W143** flags direct calls into private `::tcl::` implementation namespaces (e.g. `::tcl::dict::create`), with a quick fix that rewrites the call to its public form when one exists and the command head isn't quoted or braced.
 - New diagnostic **W315** flags a TclOO class or `oo::define` body that would abort at runtime — retracting a member absent from that side, or renaming onto a name that side already holds — matching cases where the interpreter creates no class at all.
 - Namespace names are now navigable symbols: go-to-definition, hover and find-references now work on a namespace argument (`namespace children`, `exists`, `delete`, `upvar`, `eval`), locally and across files.
 - iRules `when` event handlers now appear in the outline, breadcrumbs, Cmd+Shift+O and workspace symbols, with the statements inside each handler correctly nested underneath it instead of listed as siblings.
-- Sticky scroll now defaults to the folding-range model for the Tcl code languages (it was silently falling back to a definitions-only outline that left non-proc-heavy files with no sticky scroll at all), and BIG-IP `.conf` files gained real per-stanza folding, including inside embedded `ltm rule` bodies.
+- Sticky scroll now defaults to the folding-range model for the non-version-pinned Tcl code languages (`tcl`, `tcl-irule`, etc. — VS Code's dotted `tcl8.4`/`tcl8.5`/`tcl9.0`/`tcl9.1` ids can't carry this override and keep the definitions-only outline model), fixing the case where non-proc-heavy files had no sticky scroll at all, and BIG-IP `.conf` files gained real per-stanza folding, including inside embedded `ltm rule` bodies.
 - `renamemethod`'s destination is now a first-class navigable member (definition, hover, rename), rather than disappearing from the outline once renamed.
 - Call hierarchy, code lenses and find-references now recognise `classmethod` dispatch (`Factory make`) and agree with each other on both the click target and the reference count, where previously each answered from a different, narrower scan.
-- `expr` math functions (`sin(...)`, `abs(...)`, etc.) now get hover, completion and go-to-definition, resolved with the same two-candidate precedence C Tcl itself uses.
+- `expr` math functions (`sin(...)`, `abs(...)`, etc.) now get hover and completion, and go-to-definition when resolved to a user-defined `::tcl::mathfunc` override — using the same two-candidate precedence C Tcl itself uses; ordinary calls to built-ins still have no source location to jump to.
 
 ## Improvements
 
