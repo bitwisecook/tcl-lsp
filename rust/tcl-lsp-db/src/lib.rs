@@ -2645,27 +2645,70 @@ pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig)
     )
 }
 
+/// The cross-file facts the project-level token aggregates read from **one**
+/// file: its class definitions and its inferred variable-name argument roles.
+///
+/// Deliberately small and `PartialEq`: it is the per-file firewall in front of
+/// [`project_class_index`] / [`project_proc_var_index`], so an edit that leaves
+/// a file's classes and parameter roles alone — which is nearly every keystroke
+/// — backdates here and the project aggregates do not re-execute at all.
+#[derive(Clone, Default, PartialEq)]
+pub struct FileTokenFacts {
+    /// Classes declared in this file, keyed by qualified name.
+    pub classes: HashMap<String, ClassDef>,
+    /// The file's user-proc parameter roles.
+    pub proc_roles: VarNameArgRoles,
+}
+
+/// The light (structure-only) per-file tier feeding [`project_class_index`] and
+/// [`project_proc_var_index`] (issue #1163).
+///
+/// These aggregates read *every* file in the project, so whatever per-file
+/// query they call decides what an interactive `semanticTokens` request costs
+/// on a large workspace.  Reading the deep tier
+/// ([`file_analysis_incremental`]) meant one whole-workspace *deep* analysis —
+/// CFG/SSA units, per-body lattices, diagnostic emitters — behind a token
+/// request for a single file: measured at ~19 s of CPU over an 883-file
+/// tcllib checkout, which no request survives.  Every attempt was cancelled by
+/// the next `set_text`, so it never memoised and every subsequent request paid
+/// it again, while the in-flight read blocked the writer that cancelled it
+/// (`didOpen`'s `set_text` measured at 270–660 ms) — the open-to-tokens spikes
+/// #1163 reports.
+///
+/// The structural facts these aggregates want do not need the deep tier: an
+/// unopened workspace file only ever needs the lightweight state the scan
+/// leaves it at.  `structure_only` builds the identical declaration structure
+/// while skipping diagnostic emission and cross-feature recording — the bulk of
+/// the cost — for the same 883 files in ~2.9 s, and the result is a projection
+/// small enough to backdate.
+///
+/// Config-independent by construction: `structure_only` emits no diagnostics,
+/// so the disabled-diagnostic set / non-ASCII mode / extra commands cannot
+/// reach the class and role facts.  That is what lets both aggregates drop
+/// their `AnalyserConfig` key — one index per project rather than one per
+/// distinct per-folder config.
+#[salsa::tracked]
+pub fn file_token_facts(db: &dyn TclDb, file: SourceFile) -> Arc<FileTokenFacts> {
+    let mut analyser = Analyser::new()
+        .structure_only()
+        .with_file_path(file.path(db).clone());
+    let result = analyser.analyse(file.text(db), file.dialect(db));
+    Arc::new(FileTokenFacts {
+        proc_roles: VarNameArgRoles::from_procs(result.all_procs.values()),
+        classes: result.all_classes,
+    })
+}
+
 /// The project's workspace-merged class hierarchy: every file's `ClassDef`s
 /// unioned into one cross-file MRO index, so a `$obj method` dispatch resolves
 /// against a class defined in *another* file.
 ///
-/// Aggregates `file_analysis_incremental(f, config).all_classes` across
-/// `project`.  A body-only edit rebuilds this (cheap re-aggregation) but yields
-/// an equal [`ClassHierarchy`], so salsa backdates and dependent token queries
-/// do not recompute.  On a class-signature change the merged index changes and
-/// the affected tokens recompute — the correct cross-file invalidation.
-///
-/// Uses the incremental, per-item-memoised [`file_analysis_incremental`] (not
-/// the coarse [`file_analysis`]) for each project file, the same template
-/// [`project_diagnostics`] establishes: a file whose diagnostics the worker has
-/// already analysed for this revision is a cache hit here too, rather than a
-/// second independent whole-file walk (issue #829).
+/// Aggregates [`file_token_facts`]`(f).classes` across `project`.  A body-only
+/// edit backdates at the per-file firewall, so this does not even re-aggregate.
+/// On a class-signature change the merged index changes and the affected tokens
+/// recompute — the correct cross-file invalidation.
 #[salsa::tracked]
-pub fn project_class_index(
-    db: &dyn TclDb,
-    project: Project,
-    config: AnalyserConfig,
-) -> Arc<ClassHierarchy> {
+pub fn project_class_index(db: &dyn TclDb, project: Project) -> Arc<ClassHierarchy> {
     // `project.files(db)` is an unordered `Vec` with no stable identity, so a
     // "first definition wins" merge would make the winner for a duplicate
     // qualified class name depend on file-enumeration order — non-deterministic
@@ -2677,8 +2720,7 @@ pub fn project_class_index(
     let mut merged: HashMap<String, ClassDef> = HashMap::new();
     let mut ambiguous: HashSet<String> = HashSet::new();
     for &file in project.files(db) {
-        let analysis = file_analysis_incremental(db, file, config);
-        for (name, class) in &analysis.all_classes {
+        for (name, class) in &file_token_facts(db, file).classes {
             if ambiguous.contains(name) {
                 continue;
             }
@@ -2704,26 +2746,20 @@ pub fn project_class_index(
 /// target even when `myproc` is defined in another file (issue #813 follow-up).
 ///
 /// A proc name defined with *conflicting* roles across files is dropped as
-/// ambiguous by [`VarNameArgRoles::from_procs`], so the merged index is
+/// ambiguous by [`VarNameArgRoles::merge`], so the merged index is
 /// order-independent — matching the abstention posture of
 /// [`project_class_index`].
 ///
-/// Uses [`file_analysis_incremental`] per file, matching [`project_class_index`]
-/// and [`project_diagnostics`] — a cache hit against the diagnostics worker's
-/// already-computed per-item analysis rather than a second whole-file walk.
+/// Reads the same light [`file_token_facts`] firewall as [`project_class_index`].
 #[salsa::tracked]
-pub fn project_proc_var_index(
-    db: &dyn TclDb,
-    project: Project,
-    config: AnalyserConfig,
-) -> Arc<VarNameArgRoles> {
-    let analyses: Vec<Arc<AnalysisResult>> = project
+pub fn project_proc_var_index(db: &dyn TclDb, project: Project) -> Arc<VarNameArgRoles> {
+    let per_file: Vec<Arc<FileTokenFacts>> = project
         .files(db)
         .iter()
-        .map(|&file| file_analysis_incremental(db, file, config))
+        .map(|&file| file_token_facts(db, file))
         .collect();
-    Arc::new(VarNameArgRoles::from_procs(
-        analyses.iter().flat_map(|a| a.all_procs.values()),
+    Arc::new(VarNameArgRoles::merge(
+        per_file.iter().map(|f| &f.proc_roles),
     ))
 }
 
@@ -2731,17 +2767,21 @@ pub fn project_proc_var_index(
 /// a `$obj method …` dispatch on a class defined in another project file
 /// resolves too.  The server calls this when a [`Project`] is available; the
 /// bare [`semantic_tokens`] (local file only) is the fallback.
+///
+/// Takes no [`AnalyserConfig`]: every input it reads — the document's
+/// compilation unit and the two project indexes — is config-independent, so
+/// keying on one would only fragment the memo across per-folder configs that
+/// cannot change the answer.
 #[salsa::tracked]
 pub fn semantic_tokens_project(
     db: &dyn TclDb,
     file: SourceFile,
-    config: AnalyserConfig,
     project: Project,
 ) -> SemanticTokens {
     let registry = db.registry(file.dialect(db));
     let cu = document_compilation_unit(db, file);
-    let classes = project_class_index(db, project, config);
-    let proc_roles = project_proc_var_index(db, project, config);
+    let classes = project_class_index(db, project);
+    let proc_roles = project_proc_var_index(db, project);
     tcl_lsp_core::semantic_tokens::full_with_cu_and_classes_and_roles(
         file.text(db),
         file.dialect(db),
@@ -3434,14 +3474,8 @@ mod tests {
         }
     }
 
-    /// [`project_class_index`] and [`project_proc_var_index`] must likewise
-    /// use [`file_analysis_incremental`] per project file (not the coarse
-    /// [`file_analysis`]), matching [`project_diagnostics`]'s established
-    /// template — otherwise `semantic_tokens_project` pays for a fresh
-    /// whole-file walk of every project file on top of what diagnostics
-    /// already computed for them.
-    #[test]
-    fn project_indexes_use_incremental_analysis_not_coarse() {
+    /// Build a database whose executed-query keys land in the returned log.
+    fn logging_db() -> (TclDatabase, Arc<Mutex<Vec<String>>>) {
         let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
         let sink = {
             let l = Arc::clone(&log);
@@ -3454,14 +3488,20 @@ mod tests {
         let db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
         };
-        let cfg = AnalyserConfig::new(
-            &db,
-            Vec::new(),
-            NonAsciiMode::Default,
-            Vec::new(),
-            None,
-            None,
-        );
+        (db, log)
+    }
+
+    /// Issue #1163: [`project_class_index`] / [`project_proc_var_index`] read
+    /// *every* file in the project, so the tier they read decides what an
+    /// interactive `semanticTokens` request costs on a large workspace. They
+    /// must stay on the light [`file_token_facts`] tier and never reach the deep
+    /// one — reading `file_analysis_incremental` there meant a whole-workspace
+    /// deep analysis (CFG/SSA units, per-body lattices, diagnostic emitters)
+    /// behind a token request for one file, which on an 883-file checkout never
+    /// completed before the next `set_text` cancelled it.
+    #[test]
+    fn project_indexes_never_touch_the_deep_tier() {
+        let (db, log) = logging_db();
         let lib = SourceFile::new(
             &db,
             "oo::configurable create ::Pin { property node }\n".to_owned(),
@@ -3476,51 +3516,28 @@ mod tests {
         );
         let project = Project::new(&db, vec![lib, main]);
 
-        let _ = project_class_index(&db, project, cfg);
-        let _ = project_proc_var_index(&db, project, cfg);
+        let _ = project_class_index(&db, project);
+        let _ = project_proc_var_index(&db, project);
         let log_snapshot = log.lock().unwrap().clone();
         assert!(
-            log_snapshot
-                .iter()
-                .any(|s| s.contains("file_analysis_incremental")),
-            "project indexes must read the incremental analysis: {log_snapshot:?}"
+            log_snapshot.iter().any(|s| s.contains("file_token_facts")),
+            "project indexes must read the light per-file tier: {log_snapshot:?}"
         );
         assert!(
-            log_snapshot.iter().all(|s| !s.contains("file_analysis(")),
-            "project indexes must never invoke the coarse file_analysis query: \
-             {log_snapshot:?}"
+            log_snapshot.iter().all(|s| !s.contains("file_analysis")),
+            "project indexes must never analyse a project file at the deep tier \
+             (#1163): {log_snapshot:?}"
         );
     }
 
+    /// The per-file [`file_token_facts`] firewall: a body edit that changes no
+    /// class and no parameter role backdates, so neither project index
+    /// re-executes — the property that keeps the cross-file token aggregates off
+    /// the per-keystroke path once they are warm.
     #[test]
-    fn pre_warming_makes_project_index_loop_all_cache_hits() {
-        // #844 Gap 3: the server-layer parallel warm pre-populates
-        // `file_analysis_incremental` for every project file so the enriched
-        // `project_class_index` / `project_proc_var_index` loops are pure cache
-        // hits — no per-file re-analysis. That is exactly what lets the warm
-        // collapse a cold workspace's serial walk into a parallel one: the
-        // tracked query does only the cheap cross-file aggregation, not N whole
-        // -file analyses. This pins the salsa property the warm relies on.
-        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
-        let sink = {
-            let l = Arc::clone(&log);
-            move |ev: salsa::Event| {
-                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
-                    l.lock().unwrap().push(format!("{database_key:?}"));
-                }
-            }
-        };
-        let db = TclDatabase {
-            storage: salsa::Storage::new(Some(Box::new(sink))),
-        };
-        let cfg = AnalyserConfig::new(
-            &db,
-            Vec::new(),
-            NonAsciiMode::Default,
-            Vec::new(),
-            None,
-            None,
-        );
+    fn project_indexes_backdate_on_a_role_neutral_body_edit() {
+        use salsa::Setter as _;
+        let (mut db, log) = logging_db();
         let lib = SourceFile::new(
             &db,
             "oo::configurable create ::Pin { property node }\n".to_owned(),
@@ -3534,26 +3551,59 @@ mod tests {
             None,
         );
         let project = Project::new(&db, vec![lib, main]);
+        let _ = project_class_index(&db, project);
+        let _ = project_proc_var_index(&db, project);
 
-        // The warm: analyse every project file once, exactly what
-        // `spawn_workspace_warm` fans across the blocking pool.  Uses the *same*
-        // `(file, config)` keys the project indexes will read.
-        for &file in project.files(&db) {
-            let _ = file_analysis_incremental(&db, file, cfg);
-        }
-        // From here the project-index loops must not re-execute the per-file
-        // query — every read is served from the warmed cache.
         log.lock().unwrap().clear();
-        let _ = project_class_index(&db, project, cfg);
-        let _ = project_proc_var_index(&db, project, cfg);
+        main.set_text(&mut db)
+            .to("proc ::helper {a b} { return [expr {$a * $b}] }\n".to_owned());
+        let _ = project_class_index(&db, project);
+        let _ = project_proc_var_index(&db, project);
         let after = log.lock().unwrap().clone();
         assert!(
-            after
-                .iter()
-                .all(|s| !s.contains("file_analysis_incremental")),
-            "after the warm, the project indexes must hit cache, not re-run \
-             file_analysis_incremental: {after:?}"
+            after.iter().any(|s| s.contains("file_token_facts")),
+            "the edited file's own facts must be recomputed: {after:?}"
         );
+        assert!(
+            after.iter().all(
+                |s| !s.contains("project_class_index") && !s.contains("project_proc_var_index")
+            ),
+            "a role-neutral body edit must backdate at the per-file firewall, \
+             leaving the project aggregates memoised: {after:?}"
+        );
+    }
+
+    /// The merged project role index must equal one built from every file's
+    /// procs at once — including the abstentions each file made on its own, so
+    /// a name one file already dropped as ambiguous is not re-adopted from
+    /// another file's unambiguous entry.
+    #[test]
+    fn merged_role_index_equals_the_all_at_once_build() {
+        let sources = [
+            // `::a::grow` and `::b::grow` disagree, so this file abstains on the
+            // bare `grow` key all by itself.
+            "namespace eval a { proc grow {v} { upvar 1 $v x; set x 1 } }\n\
+             namespace eval b { proc grow {n v} { upvar 1 $v x; set x 1 } }\n",
+            // A third `grow`, unambiguous within its own file.
+            "namespace eval c { proc grow {v} { upvar 1 $v x; set x 2 } }\n",
+        ];
+        let db = TclDatabase::default();
+        let files: Vec<SourceFile> = sources
+            .iter()
+            .map(|s| SourceFile::new(&db, (*s).to_owned(), "tcl8.6".to_owned(), None))
+            .collect();
+        let project = Project::new(&db, files.clone());
+
+        let all_procs: Vec<Arc<AnalysisResult>> = sources
+            .iter()
+            .map(|s| Arc::new(Analyser::new().structure_only().analyse(s, "tcl8.6")))
+            .collect();
+        let expected =
+            VarNameArgRoles::from_procs(all_procs.iter().flat_map(|a| a.all_procs.values()));
+        assert_eq!(*project_proc_var_index(&db, project), expected);
+        // Order-independent: reversing the project's files changes nothing.
+        let reversed = Project::new(&db, files.into_iter().rev().collect());
+        assert_eq!(*project_proc_var_index(&db, reversed), expected);
     }
 
     #[test]
@@ -3576,7 +3626,7 @@ mod tests {
             None,
         );
         let project = Project::new(&db, vec![lib, user]);
-        let cross = semantic_tokens_project(&db, user, cfg(&db), project);
+        let cross = semantic_tokens_project(&db, user, project);
         let local = semantic_tokens(&db, user, cfg(&db));
         assert_ne!(
             cross.data, local.data,
@@ -3584,7 +3634,7 @@ mod tests {
         );
         // The merged index sees the class from the other file.
         assert!(
-            project_class_index(&db, project, cfg(&db))
+            project_class_index(&db, project)
                 .classes
                 .contains_key("::Pin"),
             "project index should contain ::Pin from the library file"
@@ -3615,7 +3665,7 @@ mod tests {
         for files in [vec![a, b], vec![b, a]] {
             let project = Project::new(&db, files);
             assert!(
-                !project_class_index(&db, project, cfg(&db))
+                !project_class_index(&db, project)
                     .classes
                     .contains_key("::Pin"),
                 "an ambiguous cross-file class name must be dropped, not resolved"

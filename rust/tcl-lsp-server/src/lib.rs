@@ -3859,9 +3859,7 @@ impl Backend {
         let snapshot = self.db.lock().await.clone();
         Some(tokio::task::spawn_blocking(move || {
             salsa::Cancelled::catch(|| match project {
-                Some(project) => {
-                    tcl_lsp_db::semantic_tokens_project(&snapshot, file, config, project)
-                }
+                Some(project) => tcl_lsp_db::semantic_tokens_project(&snapshot, file, project),
                 None => tcl_lsp_db::semantic_tokens(&snapshot, file, config),
             })
             .ok()
@@ -4387,11 +4385,12 @@ impl Backend {
     ///
     /// When a `Project` is indexed, the background computation is
     /// `semantic_tokens_project`, whose cross-file class/proc-role indices
-    /// (`project_class_index` / `project_proc_var_index`) analyse every
-    /// project file, not just this one — on a large workspace this can take
-    /// far longer than a single file's own analysis. That cost has always
-    /// existed; what this fast path changes is that it can no longer block a
-    /// token response — it only delays how soon the *refresh* follows.
+    /// (`project_class_index` / `project_proc_var_index`) read every project
+    /// file, not just this one.  They read it at the light `file_token_facts`
+    /// tier and behind a per-file backdating firewall (#1163), so on a warm
+    /// workspace this is an aggregation, not a walk; a cold one still pays a
+    /// first pass, which this fast path keeps off the token response — it only
+    /// delays how soon the *refresh* follows.
     /// Viewport tokens for a document that is **not Tcl** — an APL presentation
     /// or a BIG-IP config — or `None` when the document *is* Tcl and belongs on
     /// the normal pipeline.
@@ -9977,11 +9976,12 @@ impl Backend {
     /// narrowed by #1151).
     ///
     /// Deep state (`file_analysis_incremental` and everything built on it —
-    /// `compilation_unit`, `project_class_index`, `project_proc_var_index`) is an
+    /// `compilation_unit`) is an
     /// open-document cost, not a workspace one: an on-disk file the editor hasn't
     /// opened only needs to answer cross-file resolution (`workspace_index`,
     /// fed by the scan's own analyser pass, plus the light `file_decls` /
-    /// `item_sigs` signature tier salsa computes on demand from the `SourceFile`
+    /// `item_sigs` / `file_token_facts` tier salsa computes on demand from the
+    /// `SourceFile`
     /// inputs `db_set_sources_batch` sets). Warming the deep tier for every
     /// workspace file — the pre-#1151 behaviour — analysed the whole project a
     /// *second* time through salsa on top of the scan's own analyser walk, and
@@ -10016,7 +10016,7 @@ impl Backend {
     /// product: that product existed only to cover `project_class_index` /
     /// `project_proc_var_index` applying one config to *every* project file,
     /// which no longer matters here because this warm no longer touches
-    /// unopened files at all.
+    /// unopened files at all and those two indexes are now config-free (#1163).
     fn spawn_workspace_warm(&self) {
         let db = Arc::clone(&self.db);
         let db_files = Arc::clone(&self.db_files);
