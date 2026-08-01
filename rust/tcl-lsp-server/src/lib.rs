@@ -267,15 +267,32 @@ const IRULES_DIALECT: &str = "f5-irules";
 /// The iApps dialect key — an APL presentation's embedded `[ … ]` Tcl.
 const IAPPS_DIALECT: &str = "f5-iapps";
 
-/// Ceiling on how many project files the background workspace warm (#844 Gap 3)
-/// analyses concurrently.  The warm pre-populates the memoised per-file analysis
-/// across the blocking pool so a cold workspace's first enriched
-/// `semantic_tokens_project` finds cache hits instead of serially walking every
-/// file; the cap keeps it from monopolising the blocking pool (or holding too
-/// many salsa snapshots at once, which would stall a concurrent edit's
-/// `set_text`) on a huge workspace, and it is clamped to the machine's parallelism
-/// so small hosts stay responsive.
+/// Ceiling on how many **open** documents the background workspace warm (#844
+/// Gap 3, narrowed by #1151) analyses concurrently.  The warm pre-populates the
+/// memoised per-file analysis for already-open documents across the blocking
+/// pool so their first hover / semantic-tokens / diagnostics request finds a
+/// cache hit instead of a cold `file_analysis_incremental` walk; the cap keeps
+/// it from monopolising the blocking pool (or holding too many salsa snapshots
+/// at once, which would stall a concurrent edit's `set_text`), and it is
+/// clamped to the machine's parallelism so small hosts stay responsive.
 const WORKSPACE_WARM_MAX_CONCURRENCY: usize = 16;
+
+/// Ceiling on how many workspace files [`Backend::scan_workspace_folders`] and
+/// the [`Backend::did_change_watched_files`] batch reindex analyse concurrently
+/// (#1151 / #1161).  Both read-and-analyse many independent on-disk files, so
+/// they share this bound and the [`run_bounded`] helper; clamped to the
+/// machine's parallelism (see [`WORKSPACE_WARM_MAX_CONCURRENCY`]'s rationale)
+/// so a huge tree can't oversubscribe the blocking pool.
+const WORKSPACE_ANALYSIS_MAX_CONCURRENCY: usize = 16;
+
+/// How many analysed files [`Backend::scan_workspace_folders`] accumulates
+/// before merging them into `workspace_index` / the salsa `Project` (#1151).
+/// Merging in batches rather than once for the whole scan bounds how many
+/// `AnalysisResult`s (and their source text) are held in memory at once on a
+/// large tree, while still running the *analysis* itself across the full
+/// [`WORKSPACE_ANALYSIS_MAX_CONCURRENCY`]-wide pool without waiting on a batch
+/// boundary.
+const SCAN_MERGE_BATCH_SIZE: usize = 200;
 
 /// Debounce window for coalescing `workspace/semanticTokens/refresh` pushes
 /// (see [`SemanticTokensRefreshCtx::request_refresh_coalesced`]). Comparable
@@ -9430,12 +9447,14 @@ impl Backend {
         }
         let discovered_cell = Arc::clone(&self.discovered_tcl);
 
+        // Stage 1: build the package database and walk the workspace trees for
+        // candidate paths. Cheap directory-metadata work, so it stays a single
+        // blocking call; the expensive per-file parse-and-analyse is stage 2,
+        // parallelised below (#1151 — this loop used to also run every file's
+        // `Analyser::analyse` here, serially, one root cause of the 38.7s/883-file
+        // startup cost).
         let resolver_roots = roots.clone();
-        let analysed = tokio::task::spawn_blocking(move || {
-            // Build the package database: the workspace trees plus the resolved
-            // `auto_path` (editor + config-file `libraryPaths`, discovered Tcl
-            // installations, and `TCLLIBPATH`). Discovery is cached for the
-            // session.
+        let (resolver, files) = tokio::task::spawn_blocking(move || {
             let discovered = discovered_cell.get_or_init(|| {
                 core_tcl_install::discover(&core_tcl_install::default_search_bases())
             });
@@ -9445,46 +9464,21 @@ impl Backend {
                 discovered,
                 WORKSPACE_SCAN_DIR_CAP,
             );
-
             let mut files: Vec<PathBuf> = Vec::new();
             for root in &roots {
                 collect_tcl_files(root, WORKSPACE_SCAN_FILE_CAP, &mut files);
             }
-            // Carry the source text + dialect alongside the analysis so the salsa
-            // db (cross-file diagnostics) can index the same disk-backed files.
-            let mut out: Vec<(Uri, String, String, AnalysisResult)> = Vec::new();
-            for path in files {
-                let Some(uri) = Uri::from_file_path(&path) else {
-                    continue;
-                };
-                if open.contains(&uri) {
-                    continue;
-                }
-                let Ok(text) = std::fs::read_to_string(&path) else {
-                    continue;
-                };
-                let dialect = folder_dialect_for(&uri, &folder_dialects)
-                    .unwrap_or_else(|| default_dialect.clone());
-                let mut analyser = Analyser::new();
-                let analysis = analyser.analyse(&text, &dialect);
-                out.push((uri, text, dialect, analysis));
-            }
-            (resolver, out)
+            (resolver, files)
         })
         .await
         .unwrap_or_else(|_| (PackageResolver::new(), Vec::new()));
-        let (resolver, analysed) = analysed;
 
-        // Fold in the `auto_path` the workspace's own files install
-        // (`lappend auto_path [file dirname [file dirname [info script]]]`),
-        // then publish the package database for the diagnostics worker and
-        // merge the per-file analysis into the index + salsa db.
-        let resolver = extend_resolver_with_document_auto_paths(resolver, &analysed);
-        *self.package_resolver.write().await = resolver;
-        // The package database changed: drop the library files the autoload
-        // tier (M8) merged under the previous database.  A stale entry would
-        // keep answering for a library no longer on the resolved `auto_path`;
-        // dropping is cheap and the next query re-merges on demand.
+        // Drop the library files the autoload tier (M8) merged under the
+        // *previous* package database before this scan's own batches add their
+        // fresh entries below — a stale entry must not survive a rescan, and
+        // (rare, but possible) a workspace file that used to be reached only via
+        // autoload must end up present, not removed, if a later batch re-adds it
+        // under its own URI.
         let stale_library_uris: Vec<String> =
             self.autoloaded_library_uris.lock().await.drain().collect();
         if !stale_library_uris.is_empty() {
@@ -9493,13 +9487,31 @@ impl Backend {
                 index.remove_document(uri);
             }
         }
-        let files_count = analysed.len();
-        self.merge_workspace_scan_results(&analysed).await;
+
+        // Stage 2: read + analyse the candidate files across a bounded worker
+        // pool, merging into `workspace_index` / the salsa `Project` in
+        // batches as they complete.
+        let (resolver, files_count) = self
+            .analyse_and_merge_scanned_files(
+                files,
+                open,
+                folder_dialects,
+                default_dialect,
+                resolver,
+            )
+            .await;
+
+        // Publish the package database for the diagnostics worker now every
+        // batch's auto-path contribution has folded in.
+        *self.package_resolver.write().await = resolver;
         // Re-home sourced documents under their source-site namespaces (M9).
         self.refresh_source_rehoming().await;
-        // Now that the `Project` covers the whole workspace, warm the salsa
-        // per-file analysis in parallel (#844 Gap 3) so the first cross-file /
-        // enriched-token query finds cache hits instead of a serial cold walk.
+        // Warm the deep salsa tier for documents already open (#844 Gap 3,
+        // narrowed by #1151) so their first hover / semantic-tokens /
+        // diagnostics request is a cache hit; unopened files stay at the
+        // lightweight tier (`workspace_index` + the salsa `SourceFile` inputs
+        // just batched in, which answer `file_decls` / `item_sigs` on demand)
+        // until a request actually needs their deep analysis.
         self.spawn_workspace_warm();
         // Readiness signal for `package_resolver` / `workspace_index` having
         // just been (re)built from disk — a client (or a test) that needs to
@@ -9516,6 +9528,86 @@ impl Backend {
                 ),
             )
             .await;
+    }
+
+    /// Stage 2 of [`Self::scan_workspace_folders`] (#1151): read + analyse
+    /// `files` across a bounded worker pool (the `spawn_workspace_warm`
+    /// semaphore pattern — acquire a permit before spawning, so at most
+    /// `WORKSPACE_ANALYSIS_MAX_CONCURRENCY` files are being read+analysed at
+    /// once), merging into `workspace_index` / the salsa `Project` in batches
+    /// as they complete rather than collecting every `AnalysisResult` for the
+    /// whole tree before merging any of it — bounding how much of the scan's
+    /// own output is ever live in memory at once on a large workspace. `files`
+    /// already open in the editor are skipped (their live buffer must not be
+    /// clobbered by the on-disk copy); an unreadable path is dropped.
+    ///
+    /// Returns `resolver` extended with every batch's own `auto_path`
+    /// contribution, plus the number of files actually analysed.
+    async fn analyse_and_merge_scanned_files(
+        &self,
+        files: Vec<PathBuf>,
+        open: HashSet<Uri>,
+        folder_dialects: Vec<(Uri, String)>,
+        default_dialect: String,
+        mut resolver: PackageResolver,
+    ) -> (PackageResolver, usize) {
+        let open = Arc::new(open);
+        let folder_dialects = Arc::new(folder_dialects);
+        let concurrency = std::thread::available_parallelism()
+            .map_or(4, std::num::NonZeroUsize::get)
+            .min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
+        let permits = Arc::new(Semaphore::new(concurrency));
+        let mut tasks = tokio::task::JoinSet::new();
+        for path in files {
+            let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
+                break;
+            };
+            let open = Arc::clone(&open);
+            let folder_dialects = Arc::clone(&folder_dialects);
+            let default_dialect = default_dialect.clone();
+            tasks.spawn(async move {
+                let _permit = permit;
+                tokio::task::spawn_blocking(move || {
+                    let uri = Uri::from_file_path(&path)?;
+                    if open.contains(&uri) {
+                        return None;
+                    }
+                    let text = std::fs::read_to_string(&path).ok()?;
+                    let dialect = folder_dialect_for(&uri, &folder_dialects)
+                        .unwrap_or_else(|| default_dialect.clone());
+                    let mut analyser = Analyser::new();
+                    let analysis = analyser.analyse(&text, &dialect);
+                    Some((uri, text, dialect, analysis))
+                })
+                .await
+                .ok()
+                .flatten()
+            });
+        }
+        let mut files_count = 0usize;
+        let mut batch: Vec<(Uri, String, String, AnalysisResult)> = Vec::new();
+        while let Some(result) = tasks.join_next().await {
+            let Ok(Some(item)) = result else {
+                continue;
+            };
+            batch.push(item);
+            if batch.len() >= SCAN_MERGE_BATCH_SIZE {
+                files_count += batch.len();
+                // Fold in the `auto_path` mutations this batch's own files
+                // install (`lappend auto_path [file dirname …]`) before
+                // merging, so the package database sees them as soon as
+                // their batch lands rather than only at the end of the scan.
+                resolver = extend_resolver_with_document_auto_paths(resolver, &batch);
+                self.merge_workspace_scan_results(&batch).await;
+                batch.clear();
+            }
+        }
+        if !batch.is_empty() {
+            files_count += batch.len();
+            resolver = extend_resolver_with_document_auto_paths(resolver, &batch);
+            self.merge_workspace_scan_results(&batch).await;
+        }
+        (resolver, files_count)
     }
 
     /// Merge disk-backed workspace scan results into the shared index **and** the
@@ -9561,21 +9653,32 @@ impl Backend {
     }
 
     /// Kick off a detached, concurrency-bounded parallel **warm** of the salsa
-    /// per-file analysis for every project file (#844 Gap 3).
+    /// per-file analysis for every currently **open** document (#844 Gap 3,
+    /// narrowed by #1151).
     ///
-    /// On a cold workspace the first enriched `semantic_tokens_project` otherwise
-    /// serially analyses every file inside `project_class_index` /
-    /// `project_proc_var_index`.  Pre-populating the memoised
-    /// `file_analysis_incremental` across the blocking pool collapses that serial
-    /// cold walk to a parallel one, so the tracked query's loop is all cache hits
-    /// by the time the enriched token / cross-file diagnostics query runs — the
-    /// enrichment side's analogue of the diagnostics deep pass's `join!`.
+    /// Deep state (`file_analysis_incremental` and everything built on it —
+    /// `compilation_unit`, `project_class_index`, `project_proc_var_index`) is an
+    /// open-document cost, not a workspace one: an on-disk file the editor hasn't
+    /// opened only needs to answer cross-file resolution (`workspace_index`,
+    /// fed by the scan's own analyser pass, plus the light `file_decls` /
+    /// `item_sigs` signature tier salsa computes on demand from the `SourceFile`
+    /// inputs `db_set_sources_batch` sets). Warming the deep tier for every
+    /// workspace file — the pre-#1151 behaviour — analysed the whole project a
+    /// *second* time through salsa on top of the scan's own analyser walk, and
+    /// materialised `file_analysis` for files nobody has open (measured: 786 MB
+    /// RSS after a tcllib scan). This warm now only primes the files already
+    /// open when it runs, so the first hover / semantic-tokens / diagnostics
+    /// request on an already-open tab (e.g. several restored editor tabs right
+    /// after `initialized`, or a big multi-root reload) is a cache hit instead
+    /// of a cold `file_analysis_incremental` walk; an unopened file pays its
+    /// deep-tier cost only if a request actually needs it, exactly like a
+    /// document opened after the scan already does.
     ///
     /// Purely an optimisation, and safe by construction:
     /// - **Correctness**: it only primes the salsa cache; a concurrent real read
     ///   of the same `(file, config)` dedups against it (salsa blocks the second
     ///   requester and shares the memoised result — never a double analysis or a
-    ///   divergent one), so results are identical to the serial walk.
+    ///   divergent one), so results are identical to an unwarmed cold read.
     /// - **Never blocks a request**: fire-and-forget on a detached task.
     /// - **Never stalls an edit**: at most `WORKSPACE_WARM_MAX_CONCURRENCY`
     ///   snapshots are live at once (each warm clones its snapshot only after
@@ -9587,78 +9690,29 @@ impl Backend {
     ///   / config-change) keep that bound *global*, not merely per-warm, and drop
     ///   the redundant re-walk.
     ///
-    /// Warms under every distinct config a request could resolve to — the global
-    /// `db_config` plus each folder-scoped override in `folder_db_configs` —
-    /// because `project_class_index` / `project_proc_var_index` apply a single
-    /// `resolved_db_config(uri)` uniformly to *every* project file. A
-    /// global-config-only warm would therefore miss the whole-project enrichment
-    /// loop for every file the moment any folder sets an override (not just the
-    /// overridden folder's files), since the loop keys `file_analysis_incremental`
-    /// on that one resolved config. Deduped, so a single-config workspace (the
-    /// common case) still warms each file exactly once; for the handful of override
-    /// folders a real workspace has, the extra `files × configs` primes are cheap
-    /// salsa cache fills.
+    /// Each open document warms under its own [`Self::resolved_db_config`] —
+    /// the config the diagnostics / hover / completion path would actually
+    /// resolve for it — rather than the former full `files × configs` cross
+    /// product: that product existed only to cover `project_class_index` /
+    /// `project_proc_var_index` applying one config to *every* project file,
+    /// which no longer matters here because this warm no longer touches
+    /// unopened files at all.
     fn spawn_workspace_warm(&self) {
         let db = Arc::clone(&self.db);
-        let db_project = Arc::clone(&self.db_project);
+        let db_files = Arc::clone(&self.db_files);
+        let documents = Arc::clone(&self.documents);
         let db_config = Arc::clone(&self.db_config);
         let folder_db_configs = Arc::clone(&self.folder_db_configs);
-        let task = tokio::spawn(async move {
-            let Some(project) = *db_project.lock().await else {
-                return;
-            };
-            // Every config a request could resolve to: the global one plus each
-            // folder override, deduped (a single-config workspace warms once).
-            let mut configs = vec![*db_config.lock().await];
-            for (_, folder_config) in folder_db_configs.lock().await.iter() {
-                if !configs.contains(folder_config) {
-                    configs.push(*folder_config);
-                }
-            }
-            let files: Vec<tcl_lsp_db::SourceFile> = {
-                let snapshot = db.lock().await.clone();
-                project.files(&snapshot).clone()
-            };
-            if files.is_empty() {
-                return;
-            }
-            let concurrency = std::thread::available_parallelism()
-                .map_or(4, std::num::NonZeroUsize::get)
-                .min(WORKSPACE_WARM_MAX_CONCURRENCY);
-            let permits = Arc::new(Semaphore::new(concurrency));
-            let mut warms = tokio::task::JoinSet::new();
-            for config in configs {
-                for file in files.iter().copied() {
-                    // Acquire the permit *before* spawning so at most `concurrency`
-                    // warm tasks (and thus snapshots) exist at once: the loop
-                    // backpressures on a very large workspace rather than parking one
-                    // pending task per item on the semaphore. `acquire_owned` moves
-                    // the permit into the task, which holds it until its analysis
-                    // returns.
-                    let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
-                        break;
-                    };
-                    let db = Arc::clone(&db);
-                    warms.spawn(async move {
-                        let _permit = permit;
-                        // Clone the snapshot only after the permit is held, so
-                        // `set_text` never waits on more than `concurrency` in-flight
-                        // reads.
-                        let snapshot = db.lock().await.clone();
-                        let _ = tokio::task::spawn_blocking(move || {
-                            let _ = salsa::Cancelled::catch(|| {
-                                tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
-                            });
-                        })
-                        .await;
-                    });
-                }
-            }
-            while warms.join_next().await.is_some() {}
-        });
+        let task = tokio::spawn(Self::warm_open_documents(
+            db,
+            db_files,
+            documents,
+            db_config,
+            folder_db_configs,
+        ));
         // Supersede any still-running warm so overlapping scans (initialize /
         // folder-add / config-change) can't stack their snapshots or redundantly
-        // re-walk the workspace. Aborting at the per-item await boundaries (with
+        // re-walk the open set. Aborting at the per-item await boundaries (with
         // the existing `Cancelled::catch`) keeps the global snapshot bound at
         // `WORKSPACE_WARM_MAX_CONCURRENCY`.
         if let Ok(mut guard) = self.warm_task.lock()
@@ -9666,6 +9720,72 @@ impl Backend {
         {
             prev.abort();
         }
+    }
+
+    /// The body [`Self::spawn_workspace_warm`] detaches — pulled out as its own
+    /// `async fn` over cloned `Arc` fields (rather than `&self`) so a test can
+    /// `.await` it directly and observe, deterministically, exactly which salsa
+    /// queries it executes (`TclDatabase::with_event_logger`) instead of racing
+    /// a fire-and-forget `tokio::spawn`.
+    async fn warm_open_documents(
+        db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
+        db_files: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
+        documents: Arc<Mutex<HashMap<Uri, DocumentState>>>,
+        db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
+        folder_db_configs: Arc<Mutex<Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>>,
+    ) {
+        let open_uris: Vec<Uri> = documents.lock().await.keys().cloned().collect();
+        if open_uris.is_empty() {
+            return;
+        }
+        let global_config = *db_config.lock().await;
+        let folder_configs = folder_db_configs.lock().await.clone();
+        let work: Vec<(tcl_lsp_db::SourceFile, tcl_lsp_db::AnalyserConfig)> = {
+            let files = db_files.lock().await;
+            open_uris
+                .iter()
+                .filter_map(|uri| {
+                    let file = *files.get(uri)?;
+                    let config = longest_folder_match(&folder_configs, uri)
+                        .copied()
+                        .unwrap_or(global_config);
+                    Some((file, config))
+                })
+                .collect()
+        };
+        if work.is_empty() {
+            return;
+        }
+        let concurrency = std::thread::available_parallelism()
+            .map_or(4, std::num::NonZeroUsize::get)
+            .min(WORKSPACE_WARM_MAX_CONCURRENCY);
+        let permits = Arc::new(Semaphore::new(concurrency));
+        let mut warms = tokio::task::JoinSet::new();
+        for (file, config) in work {
+            // Acquire the permit *before* spawning so at most `concurrency`
+            // warm tasks (and thus snapshots) exist at once: the loop
+            // backpressures rather than parking one pending task per item on
+            // the semaphore. `acquire_owned` moves the permit into the task,
+            // which holds it until its analysis returns.
+            let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
+                break;
+            };
+            let db = Arc::clone(&db);
+            warms.spawn(async move {
+                let _permit = permit;
+                // Clone the snapshot only after the permit is held, so
+                // `set_text` never waits on more than `concurrency` in-flight
+                // reads.
+                let snapshot = db.lock().await.clone();
+                let _ = tokio::task::spawn_blocking(move || {
+                    let _ = salsa::Cancelled::catch(|| {
+                        tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+                    });
+                })
+                .await;
+            });
+        }
+        while warms.join_next().await.is_some() {}
     }
 
     /// Race the memoised CU + analysis reads for `uri` against
@@ -21305,6 +21425,129 @@ mod tests {
         drop(index);
 
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// #1151: a workspace scan of unopened files must build only the
+    /// lightweight tier — `workspace_index` (from the scan's own analyser
+    /// pass) and the salsa `SourceFile` inputs — never the deep salsa tier
+    /// (`file_analysis_incremental` / `compilation_unit` /
+    /// `compiler_check_diagnostics`).  Uses the same
+    /// `TclDatabase::with_event_logger` technique as
+    /// `closed_file_republish_does_not_memoise_the_deep_compiler_tier` to
+    /// observe exactly which salsa queries a scan with no open documents
+    /// executes.
+    #[tokio::test]
+    async fn scan_workspace_folders_does_not_build_deep_tier_for_unopened_files() {
+        let root = unique_scratch_dir("scan-no-deep-tier");
+        std::fs::write(
+            root.join("lib.tcl"),
+            "proc greet {name} { puts \"hi $name\" }\n",
+        )
+        .unwrap();
+        std::fs::write(root.join("main.tcl"), "greet world\n").unwrap();
+
+        let executed: Arc<std::sync::Mutex<Vec<String>>> = Arc::default();
+        let sink = Arc::clone(&executed);
+        let backend = test_backend_over(tcl_lsp_db::TclDatabase::with_event_logger(move |key| {
+            sink.lock().unwrap().push(key);
+        }));
+        let root_url = Uri::from_file_path(&root).unwrap();
+        *backend.workspace_folders.lock().await = vec![root_url];
+
+        backend.scan_workspace_folders().await;
+
+        let deep: Vec<String> = executed
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|key| {
+                [
+                    "compilation_unit",
+                    "compiler_check_diagnostics",
+                    "file_analysis_incremental",
+                ]
+                .iter()
+                .any(|query| key.contains(query))
+            })
+            .cloned()
+            .collect();
+        assert!(
+            deep.is_empty(),
+            "a workspace scan with no open documents must not build any \
+             deep-tier salsa query for the files it discovers: {deep:?}",
+        );
+
+        // The lightweight index the scan's own analyser pass builds must still
+        // cover both files — cross-file resolution for open documents is not
+        // lost, only the eager deep-tier warm.
+        let index = backend.workspace_index.read().await;
+        assert!(
+            !index.proc_definitions("greet", "greet").is_empty(),
+            "the scan must still index the unopened file's declarations",
+        );
+        assert!(
+            !index.invocations_of("greet", "").is_empty(),
+            "the scan must still index the unopened file's call sites",
+        );
+        drop(index);
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// #1151: [`Backend::warm_open_documents`] (the body
+    /// [`Backend::spawn_workspace_warm`] detaches) primes the deep salsa tier
+    /// for an **open** document but must not touch an unopened one the scan
+    /// only fed into `db_files` as a lightweight `SourceFile` input.
+    #[tokio::test]
+    async fn warm_open_documents_only_touches_open_files() {
+        let executed: Arc<std::sync::Mutex<Vec<String>>> = Arc::default();
+        let sink = Arc::clone(&executed);
+        let backend = test_backend_over(tcl_lsp_db::TclDatabase::with_event_logger(move |key| {
+            sink.lock().unwrap().push(key);
+        }));
+        let open_uri = Uri::from_str("file:///workspace/open.tcl").unwrap();
+        let closed_uri = Uri::from_str("file:///workspace/closed.tcl").unwrap();
+        backend.documents.lock().await.insert(
+            open_uri.clone(),
+            DocumentState::new("proc open_proc {} {}\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        backend
+            .db_set_source(
+                &open_uri,
+                "proc open_proc {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        // Never opened, but present in `db_files` — exactly the state a
+        // workspace scan leaves an unopened file in after #1151.
+        backend
+            .db_set_source(
+                &closed_uri,
+                "proc closed_proc {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+
+        Backend::warm_open_documents(
+            Arc::clone(&backend.db),
+            Arc::clone(&backend.db_files),
+            Arc::clone(&backend.documents),
+            Arc::clone(&backend.db_config),
+            Arc::clone(&backend.folder_db_configs),
+        )
+        .await;
+
+        let deep_runs = executed
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|key| key.contains("file_analysis_incremental"))
+            .count();
+        assert_eq!(
+            deep_runs, 1,
+            "the warm must run the deep tier exactly once, for the one open \
+             document, never for the unopened one",
+        );
     }
 
     #[tokio::test]
