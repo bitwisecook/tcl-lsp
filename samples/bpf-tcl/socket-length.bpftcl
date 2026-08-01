@@ -1,0 +1,9 @@
+# A socket-filter event returns an accepted byte count. Guard every packet
+# access explicitly; the userspace VM catches bad loads, but the future kernel
+# target must turn this into a verifier-visible data_end proof.
+when SOCKET_FILTER priority 100 {
+    setbuf packet ctx
+    pktlen length packet
+    if {$length < 4} { drop }
+    accept
+}

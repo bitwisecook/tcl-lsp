@@ -129,6 +129,9 @@ User-facing compiler troubleshooting and how-tos live in
   labels, and peephole optimisation.
 - [wasm-codegen.md](wasm-codegen.md) — WASM codegen pipeline: scan,
   imports, per-command dispatch, and runtime interop contract.
+- [ebpf-backend.md](ebpf-backend.md) — BPF-Tcl layering, typed core and BPF-IR,
+  current `rbpf` codegen ABI, event/framework capabilities, verified design
+  issues, real-world use cases, and the production-kernel roadmap.
 - [recursive-descent-depth-limits.md](recursive-descent-depth-limits.md) —
   why deeply-nested Tcl source could crash the analyser (issue #996): the
   depth-cap + generous-stack-budget model every recursive-descent walker

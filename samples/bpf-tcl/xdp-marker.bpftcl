@@ -1,0 +1,17 @@
+# A profile names packet fields, a template supplies compile-time policy, and
+# the capability declaration limits the expanded handler to an 8-bit load.
+profile marker_packet {
+    field marker 0 8
+}
+
+template reject_marker {blocked} {
+    if {$value == $blocked} { drop }
+}
+
+allow load8
+
+when XDP priority 50 {
+    marker value
+    use reject_marker blocked=127
+    pass
+}

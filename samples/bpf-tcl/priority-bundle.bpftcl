@@ -1,0 +1,11 @@
+# Programs are sorted by priority. The attach declaration is validated and
+# displayed, but it is descriptive metadata until a kernel loader exists.
+attach xdp demo0
+
+when SOCKET_FILTER priority 200 {
+    accept
+}
+
+when XDP priority 25 {
+    pass
+}

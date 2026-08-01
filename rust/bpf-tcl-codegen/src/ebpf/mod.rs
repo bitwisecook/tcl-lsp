@@ -26,5 +26,5 @@ pub mod insn;
 
 pub use disasm::disasm;
 pub use elf::{ElfError, write_object};
-pub use emit::{EbpfObject, emit_program};
+pub use emit::{EbpfObject, TargetAbi, emit_program, emit_program_for_target};
 pub use insn::Insn;

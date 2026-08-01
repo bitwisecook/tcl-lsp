@@ -28,8 +28,10 @@ pub mod run;
 use std::fmt::Write as _;
 use std::process::ExitCode;
 
-use bpf_tcl_codegen::ebpf::{EbpfObject, disasm, emit_program, write_object};
-use bpf_tcl_ir::{BpfError, BpfProgramDecl, compile_module};
+use bpf_tcl_codegen::ebpf::{
+    EbpfObject, TargetAbi, disasm, emit_program, emit_program_for_target, write_object,
+};
+use bpf_tcl_ir::{BpfError, BpfProgramDecl, ProgType, compile_module};
 use tcl_lexer::SourceMap;
 
 /// CLI entry point.
@@ -63,8 +65,8 @@ fn usage() {
     eprintln!(
         "usage:\n  \
          bpf-tcl check   <file.bpftcl>\n  \
-         bpf-tcl compile <file.bpftcl> [--emit asm|hex|raw|elf] [--program N] [-o OUT]\n  \
-         bpf-tcl run     <file.bpftcl> --packet <HEX> [--program N]"
+         bpf-tcl compile <file.bpftcl> [--target rbpf|kernel-xdp] [--emit asm|hex|raw|elf] [--program N] [-o OUT]\n  \
+         bpf-tcl run     <file.bpftcl> --packet <HEX> [--program N] [--repeat N]"
     );
 }
 
@@ -126,11 +128,26 @@ fn cmd_compile(args: &[String]) -> ExitCode {
     let mut emit = "asm".to_string();
     let mut program: Option<usize> = None;
     let mut out: Option<String> = None;
+    let mut target_abi = TargetAbi::RbpfFixedMbuff;
 
     let mut it = args.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
             "--emit" => emit = it.next().cloned().unwrap_or_default(),
+            "--target" => {
+                let Some(value) = it.next() else {
+                    eprintln!("compile: --target expects rbpf or kernel-xdp");
+                    return ExitCode::FAILURE;
+                };
+                target_abi = match value.as_str() {
+                    "rbpf" => TargetAbi::RbpfFixedMbuff,
+                    "kernel-xdp" => TargetAbi::KernelXdp,
+                    other => {
+                        eprintln!("compile: unknown --target `{other}` (want rbpf|kernel-xdp)");
+                        return ExitCode::FAILURE;
+                    }
+                };
+            }
             "--program" => program = it.next().and_then(|s| s.parse().ok()),
             "-o" => out = it.next().cloned(),
             other => {
@@ -179,7 +196,7 @@ fn cmd_compile(args: &[String]) -> ExitCode {
     }
 
     for (i, d) in selected {
-        let obj = match emit_program(&d.program) {
+        let obj = match emit_program_for_target(&d.program, target_abi) {
             Ok(o) => o,
             Err(e) => {
                 print_error(&path, &src, &e);
@@ -198,12 +215,24 @@ fn cmd_run(args: &[String]) -> ExitCode {
     let mut path: Option<String> = None;
     let mut packet_hex: Option<String> = None;
     let mut program = 0usize;
+    let mut repeat = 1usize;
 
     let mut it = args.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
             "--packet" => packet_hex = it.next().cloned(),
             "--program" => program = it.next().and_then(|s| s.parse().ok()).unwrap_or(0),
+            "--repeat" => {
+                let Some(value) = it.next().and_then(|s| s.parse::<usize>().ok()) else {
+                    eprintln!("run: --repeat expects a positive integer");
+                    return ExitCode::FAILURE;
+                };
+                if value == 0 {
+                    eprintln!("run: --repeat expects a positive integer");
+                    return ExitCode::FAILURE;
+                }
+                repeat = value;
+            }
             other => {
                 if path.is_none() {
                     path = Some(other.to_string());
@@ -252,14 +281,22 @@ fn cmd_run(args: &[String]) -> ExitCode {
         None => Vec::new(),
     };
 
-    match run::run_socket_filter(&obj, &mut packet) {
-        Ok(v) => {
-            // A socket-filter verdict is the low 32 bits of r0 (bytes to accept).
-            let verdict = u32::try_from(v & 0xffff_ffff).unwrap_or(u32::MAX);
-            if verdict == 0 {
-                println!("drop (r0=0)");
-            } else {
-                println!("accept {verdict} bytes (r0={v})");
+    match run::run_socket_filter_repeated(&obj, &mut packet, repeat) {
+        Ok((verdict, maps)) => {
+            println!("{}", format_verdict(obj.prog_type, verdict));
+            for (def, values) in obj.maps.iter().zip(maps) {
+                let mut entries: Vec<(u64, u64)> = values.into_iter().collect();
+                entries.sort_unstable_by_key(|(key, _)| *key);
+                if entries.is_empty() {
+                    println!("map {}: <empty>", def.name);
+                } else {
+                    let rendered = entries
+                        .iter()
+                        .map(|(key, value)| format!("{key}={value}"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    println!("map {}: {rendered}", def.name);
+                }
             }
             ExitCode::SUCCESS
         }
@@ -267,6 +304,22 @@ fn cmd_run(args: &[String]) -> ExitCode {
             eprintln!("run: {e}");
             ExitCode::FAILURE
         }
+    }
+}
+
+fn format_verdict(prog_type: ProgType, value: u64) -> String {
+    let verdict = u32::try_from(value & 0xffff_ffff).unwrap_or(u32::MAX);
+    match prog_type {
+        ProgType::SocketFilter if verdict == 0 => "drop (r0=0)".to_owned(),
+        ProgType::SocketFilter => format!("accept {verdict} bytes (r0={value})"),
+        ProgType::Xdp => match verdict {
+            0 => "XDP_ABORTED (r0=0)".to_owned(),
+            1 => "XDP_DROP (r0=1)".to_owned(),
+            2 => "XDP_PASS (r0=2)".to_owned(),
+            3 => "XDP_TX (r0=3)".to_owned(),
+            4 => "XDP_REDIRECT (r0=4)".to_owned(),
+            _ => format!("unknown XDP verdict {verdict} (r0={value})"),
+        },
     }
 }
 
@@ -281,9 +334,10 @@ fn emit_object(
     match emit {
         "asm" => {
             println!(
-                "// program #{idx}: when {} priority {} ({} insns)",
+                "// program #{idx}: when {} priority {} (target {}, {} insns)",
                 decl.event,
                 decl.priority,
+                obj.target_abi.as_str(),
                 obj.insns.len()
             );
             print!("{}", disasm(&obj.insns));
@@ -332,4 +386,20 @@ fn parse_hex(s: &str) -> Option<Vec<u8>> {
         .step_by(2)
         .map(|i| u8::from_str_radix(&cleaned[i..i + 2], 16).ok())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verdict_format_respects_program_type() {
+        assert_eq!(
+            format_verdict(ProgType::SocketFilter, 2),
+            "accept 2 bytes (r0=2)"
+        );
+        assert_eq!(format_verdict(ProgType::Xdp, 1), "XDP_DROP (r0=1)");
+        assert_eq!(format_verdict(ProgType::Xdp, 2), "XDP_PASS (r0=2)");
+        assert_eq!(format_verdict(ProgType::Xdp, 3), "XDP_TX (r0=3)");
+    }
 }
