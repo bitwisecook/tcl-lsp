@@ -110,7 +110,7 @@
 //! this file.
 
 use rustc_hash::FxHashSet;
-use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::analyser::{AnalysisResult, MemberSide};
 use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_lexer::{LineIndex, Span, TokenType};
 
@@ -155,6 +155,14 @@ pub struct MethodRenameTarget<'a> {
     /// Which dispatch table the member lives in — a `classmethod` is never
     /// reached through an instance receiver.
     pub is_classmethod: bool,
+    /// The name the user asked for.
+    ///
+    /// Needed because some *destinations* are unsafe even when the member and
+    /// its dispatches are: renaming a member whose declaration site is a
+    /// `renamemethod`'s destination word rewrites that word, and for some names
+    /// the result is a class definition real Tcl refuses to run
+    /// ([`renamed_member_would_abort`], issue #1121 review).
+    pub new_name: &'a str,
 }
 
 /// Whether renaming `target`'s member is unsafe **in this document**.
@@ -171,8 +179,137 @@ pub fn method_rename_hazard(
     line_index: &LineIndex,
 ) -> Option<RenameRefusal> {
     unlocatable_member_reference(source, dialect, analysis, target, line_index)
+        .or_else(|| renamed_member_would_abort(source, analysis, target, line_index))
         .or_else(|| dispatch_hazard(source, dialect, analysis, target, line_index))
         .or_else(|| ambiguous_object_command(source, analysis, target, line_index))
+}
+
+/// The requested new name would turn a `renamemethod` in this document into one
+/// that **aborts the whole class definition** (issue #1121 review).
+///
+/// A moved member's declaration site *is* the `renamemethod`'s destination word
+/// (that is what makes the arrived member navigable at all), so renaming it
+/// rewrites that word and nothing else — `renamemethod old new` becomes
+/// `renamemethod old X`. Two values of `X` are fatal, and both are the shapes
+/// `W315` already diagnoses, so the gate must refuse rather than answer with
+/// edits that make the class invalid:
+///
+/// ```tcl
+/// oo::class create ::C { method old {} {…} ; renamemethod old old }
+/// ;# -> cannot rename method to itself           (no class is created)
+/// oo::class create ::C { method old {} {…} ; method sib {} {…}
+///                        renamemethod old sib }
+/// ;# -> method called sib already exists         (no class is created)
+/// ```
+///
+/// The mirror direction counts too: renaming an ordinary sibling *into* the
+/// name a later `renamemethod` needs free produces the identical collision at
+/// that `renamemethod`'s site.
+///
+/// Both readings come from [`RenamedMember`], the record the member walker
+/// captured at the move — the *same* fold that decided whether to emit `W315`
+/// there. Gate and diagnostic therefore cannot disagree about which bodies run.
+/// Because the snapshot is taken at the move's own point in the body, order is
+/// honoured exactly as the interpreter honours it: a destination deleted
+/// earlier is free, and a name declared *after* the `renamemethod` never
+/// collides with it (both pinned on tclsh 9.0.4 and 8.6.14).
+fn renamed_member_would_abort(
+    source: &str,
+    analysis: &AnalysisResult,
+    target: MethodRenameTarget<'_>,
+    line_index: &LineIndex,
+) -> Option<RenameRefusal> {
+    for class_q in target.family {
+        let Some(class_def) = analysis.all_classes.get(class_q) else {
+            continue;
+        };
+        // A `renamemethod` acts on exactly one of the class's two method
+        // tables, and so does the member being renamed — so a move on the
+        // *other* side is not evidence about this rename at all. Without this
+        // filter an instance-side `renamemethod old same` refused an unrelated
+        // class-side `self method same` -> `old`, which real Tcl runs happily
+        // (issue #1178 review). Oracle, byte-identical on 9.0.4 and 8.6.14:
+        //
+        //   oo::class create ::P2 { method old {} { return inst-old }
+        //                           renamemethod old same
+        //                           self { method old {} { return cls-old } } }
+        //   info class methods ::P2   ;# -> same    [::P2 new] same -> inst-old
+        //   info object methods ::P2  ;# -> old     ::P2 old        -> cls-old
+        //
+        // The `W315` consumer of these same records needs no equivalent filter:
+        // the walker builds each record at its own move site, against that
+        // side's table only, so it never sees the other side's names.
+        let target_side = if target.is_classmethod {
+            MemberSide::ClassObject
+        } else {
+            MemberSide::Instance
+        };
+        for moved in class_def
+            .renamed_members
+            .iter()
+            .filter(|moved| moved.side == target_side)
+        {
+            // The cursor is on the moved member itself: renaming it rewrites
+            // this `renamemethod`'s destination word.
+            if moved.destination == target.method
+                && let Some(kind) = moved.abort_if_renamed_to(target.new_name)
+            {
+                return Some(RenameRefusal::new(
+                    abort_refusal_reason(kind, target, &moved.source, class_q),
+                    source,
+                    line_index,
+                    Some(moved.destination_span),
+                ));
+            }
+            // The mirror: an ordinary member renamed into the destination this
+            // move needs free.
+            if moved.collides_with_renaming(target.method, target.new_name) {
+                return Some(RenameRefusal::new(
+                    format!(
+                        "cannot rename `{method}` to `{new}`: class `{class_q}` renames \
+                         `{src}` to `{new}` later in the same definition body, so a member \
+                         already called `{new}` at that point makes the whole definition \
+                         fail with `method called {new} already exists` — no class is \
+                         created at all.",
+                        method = target.method,
+                        new = target.new_name,
+                        src = moved.source,
+                    ),
+                    source,
+                    line_index,
+                    Some(moved.destination_span),
+                ));
+            }
+        }
+    }
+    None
+}
+
+/// The user-facing reason for a refused rename of a moved member, naming the
+/// interpreter error the edit would cause.
+fn abort_refusal_reason(
+    kind: tcl_compiler::analyser::DefinitionAbortKind,
+    target: MethodRenameTarget<'_>,
+    source_name: &str,
+    class_q: &str,
+) -> String {
+    let new = target.new_name;
+    match kind {
+        tcl_compiler::analyser::DefinitionAbortKind::RenameToItself => format!(
+            "cannot rename `{method}` to `{new}`: `{method}` is declared by a \
+             `renamemethod {source_name} {method}` in class `{class_q}`, so the edit would \
+             make it `renamemethod {new} {new}` — which fails with `cannot rename method to \
+             itself` and creates no class at all.",
+            method = target.method,
+        ),
+        _ => format!(
+            "cannot rename `{method}` to `{new}`: `{method}` is declared by a \
+             `renamemethod {source_name} {method}` in class `{class_q}`, and `{new}` is \
+             already a member on that side at that point — the edit would fail with `method \
+             called {new} already exists` and creates no class at all.",
+            method = target.method,
+        ),
+    }
 }
 
 /// A `MemberRefKind::Method` word the analyser recorded for the renamed
@@ -626,21 +763,40 @@ mod tests {
     use tcl_compiler::analyser::Analyser;
 
     fn analyse(source: &str) -> AnalysisResult {
+        analyse_as(source, "tcl8.6")
+    }
+
+    fn analyse_as(source: &str, dialect: &str) -> AnalysisResult {
         let mut a = Analyser::new();
-        a.analyse(source, "tcl8.6").clone()
+        a.analyse(source, dialect).clone()
     }
 
     fn hazard(source: &str, family: &[&str], method: &str, is_classmethod: bool) -> Option<String> {
-        let analysis = analyse(source);
+        hazard_to(source, family, method, is_classmethod, "Renamed", "tcl8.6")
+    }
+
+    /// [`hazard`] with the requested new name (and dialect) spelled out — the
+    /// destination-sensitive arms need it.  `hazard` passes a name no fixture
+    /// declares, so the destination arms stay silent for the older cases.
+    fn hazard_to(
+        source: &str,
+        family: &[&str],
+        method: &str,
+        is_classmethod: bool,
+        new_name: &str,
+        dialect: &str,
+    ) -> Option<String> {
+        let analysis = analyse_as(source, dialect);
         let owned: Vec<String> = family.iter().map(|s| (*s).to_string()).collect();
         method_rename_hazard(
             source,
-            "tcl8.6",
+            dialect,
             &analysis,
             MethodRenameTarget {
                 family: &owned,
                 method,
                 is_classmethod,
+                new_name,
             },
             &LineIndex::new(source),
         )
@@ -841,5 +997,196 @@ mod tests {
                    }\n\
                    puts $::ns::v\n";
         assert_eq!(var_hazard(src, "::ns::v"), None);
+    }
+
+    // Issue #1121 review — a moved member's declaration site is the
+    // `renamemethod`'s destination word, so renaming it rewrites that word and
+    // some new names produce a body real Tcl refuses to run.  The gate reads
+    // the same `RenamedMember` fold the W315 diagnostic does.
+
+    /// TP: `renamemethod old new` + renaming `new` back to `old` would emit
+    /// `renamemethod old old`, which fails `cannot rename method to itself`
+    /// and creates no class (tclsh 9.0.4 / 8.6.14).
+    #[test]
+    fn tp_refuses_renaming_a_moved_member_to_its_own_source() {
+        let src = "oo::class create C {\n\
+                   \x20   method old {} { return 1 }\n\
+                   \x20   renamemethod old new\n\
+                   }\n";
+        let reason = hazard_to(src, &["::C"], "new", false, "old", "tcl9.0")
+            .expect("renaming the moved member to its source must refuse");
+        assert!(
+            reason.contains("cannot rename method to itself"),
+            "{reason}"
+        );
+    }
+
+    /// TP: renaming it onto a **live same-side sibling** would emit
+    /// `renamemethod old sib` -> `method called sib already exists`.
+    #[test]
+    fn tp_refuses_renaming_a_moved_member_onto_a_live_sibling() {
+        let src = "oo::class create C {\n\
+                   \x20   method old {} { return 1 }\n\
+                   \x20   method sib {} { return 2 }\n\
+                   \x20   renamemethod old new\n\
+                   }\n";
+        let reason = hazard_to(src, &["::C"], "new", false, "sib", "tcl9.0")
+            .expect("renaming the moved member onto a live sibling must refuse");
+        assert!(
+            reason.contains("method called sib already exists"),
+            "{reason}"
+        );
+    }
+
+    /// TP, the mirror: renaming the ordinary sibling *into* the destination a
+    /// later `renamemethod` needs free collides at that same site.
+    #[test]
+    fn tp_refuses_renaming_a_sibling_onto_a_later_rename_destination() {
+        let src = "oo::class create C {\n\
+                   \x20   method old {} { return 1 }\n\
+                   \x20   method sib {} { return 2 }\n\
+                   \x20   renamemethod old new\n\
+                   }\n";
+        let reason = hazard_to(src, &["::C"], "sib", false, "new", "tcl9.0")
+            .expect("renaming a sibling onto a later rename destination must refuse");
+        assert!(
+            reason.contains("method called new already exists"),
+            "{reason}"
+        );
+    }
+
+    /// TN: a fresh destination is a legal rename and must not be refused.
+    #[test]
+    fn tn_allows_renaming_a_moved_member_to_a_fresh_name() {
+        let src = "oo::class create C {\n\
+                   \x20   method old {} { return 1 }\n\
+                   \x20   method sib {} { return 2 }\n\
+                   \x20   renamemethod old new\n\
+                   }\n";
+        assert_eq!(
+            hazard_to(src, &["::C"], "new", false, "fresh", "tcl9.0"),
+            None
+        );
+    }
+
+    /// TN (CRITICAL): a name live only on the **other** side is not a
+    /// collision — `method old {} {…}` + `self { method sib {} {…} }` +
+    /// `renamemethod old sib` runs fine on 9.0.4 and 8.6.14.
+    #[test]
+    fn tn_allows_renaming_a_moved_member_onto_a_cross_side_name() {
+        let src = "oo::class create C {\n\
+                   \x20   method old {} { return 1 }\n\
+                   \x20   self { method sib {} { return 2 } }\n\
+                   \x20   renamemethod old new\n\
+                   }\n";
+        assert_eq!(
+            hazard_to(src, &["::C"], "new", false, "sib", "tcl9.0"),
+            None
+        );
+    }
+
+    /// TN: a destination deleted *before* the move is free — the snapshot is
+    /// taken at the move's own point in the body, exactly as Tcl reads it.
+    #[test]
+    fn tn_allows_renaming_a_moved_member_onto_an_earlier_deleted_name() {
+        let src = "oo::class create C {\n\
+                   \x20   method old {} { return 1 }\n\
+                   \x20   method sib {} { return 2 }\n\
+                   \x20   deletemethod sib\n\
+                   \x20   renamemethod old new\n\
+                   }\n";
+        assert_eq!(
+            hazard_to(src, &["::C"], "new", false, "sib", "tcl9.0"),
+            None
+        );
+    }
+
+    /// TN (CRITICAL, issue #1178 review): the hazard is **side-local**. An
+    /// instance-side `renamemethod old same` says nothing about a
+    /// class-object-side `same`, so renaming that class-side member to `old` is
+    /// legal and must not be refused. Oracle, byte-identical on tclsh 9.0.4 and
+    /// 8.6.14 — the post-edit body creates the class and both members dispatch:
+    ///
+    /// ```tcl
+    /// oo::class create ::P2 { method old {} { return inst-old }
+    ///                         renamemethod old same
+    ///                         self { method old {} { return cls-old } } }
+    /// info class methods ::P2   ;# -> same        [::P2 new] same -> inst-old
+    /// info object methods ::P2  ;# -> old         ::P2 old        -> cls-old
+    /// ```
+    #[test]
+    fn tn_an_instance_side_move_does_not_gate_a_class_side_rename() {
+        let src = "oo::class create C {\n\
+                   \x20   method old {} { return 1 }\n\
+                   \x20   renamemethod old same\n\
+                   \x20   self { method same {} { return 2 } }\n\
+                   }\n";
+        assert_eq!(
+            hazard_to(src, &["::C"], "same", true, "old", "tcl9.0"),
+            None,
+            "an instance-side move must not refuse a class-side rename",
+        );
+    }
+
+    /// TN, the mirror: a class-object-side move says nothing about an
+    /// instance-side member of the same name.
+    #[test]
+    fn tn_a_class_side_move_does_not_gate_an_instance_side_rename() {
+        let src = "oo::class create C {\n\
+                   \x20   self { method old {} { return 1 }\n\
+                   \x20          renamemethod old same }\n\
+                   \x20   method same {} { return 2 }\n\
+                   }\n";
+        assert_eq!(
+            hazard_to(src, &["::C"], "same", false, "old", "tcl9.0"),
+            None,
+            "a class-side move must not refuse an instance-side rename",
+        );
+    }
+
+    /// TP control for the pair above: on the **same** side the refusal still
+    /// fires, so the side filter narrowed the arm rather than disabling it.
+    #[test]
+    fn tp_the_side_filter_keeps_the_same_side_refusal() {
+        let src = "oo::class create C {\n\
+                   \x20   self { method old {} { return 1 }\n\
+                   \x20          renamemethod old same }\n\
+                   }\n";
+        let reason = hazard_to(src, &["::C"], "same", true, "old", "tcl9.0")
+            .expect("a class-side move must still gate a class-side rename");
+        assert!(
+            reason.contains("cannot rename method to itself"),
+            "{reason}"
+        );
+    }
+
+    /// TN: the mirror arm is side-local too — an instance-side sibling renamed
+    /// into a *class-side* move's destination collides with nothing.
+    #[test]
+    fn tn_the_mirror_arm_is_side_local() {
+        let src = "oo::class create C {\n\
+                   \x20   self { method old {} { return 1 }\n\
+                   \x20          method sib {} { return 2 }\n\
+                   \x20          renamemethod old new }\n\
+                   \x20   method sib {} { return 3 }\n\
+                   }\n";
+        assert_eq!(
+            hazard_to(src, &["::C"], "sib", false, "new", "tcl9.0"),
+            None,
+            "an instance-side `sib` is not the class-side move's blocker",
+        );
+    }
+
+    /// TN: a class with no `renamemethod` at all is untouched by the new arm.
+    #[test]
+    fn tn_allows_an_ordinary_member_rename_with_no_renamemethod_in_the_body() {
+        let src = "oo::class create C {\n\
+                   \x20   method old {} { return 1 }\n\
+                   \x20   method sib {} { return 2 }\n\
+                   }\n";
+        assert_eq!(
+            hazard_to(src, &["::C"], "old", false, "sib", "tcl9.0"),
+            None
+        );
     }
 }

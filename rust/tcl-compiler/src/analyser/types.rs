@@ -703,7 +703,7 @@ impl MemberSide {
 /// oracle-pinned byte-identical on tclsh 9.0.4 and 8.6.14, and each carries the
 /// interpreter's own error text so the diagnostic reads as the failure the user
 /// will actually hit.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DefinitionAbortKind {
     /// A retracting word (`deletemethod m`, `renamemethod m x`) named a member
     /// that does not exist **on the side the word is scoped to** — either never
@@ -733,6 +733,85 @@ pub enum DefinitionAbortKind {
     /// ;# -> cannot rename method to itself
     /// ```
     RenameToItself,
+}
+
+/// One `renamemethod` that successfully **moved** a member, with the member
+/// state the move ran against (issue #1121 review).
+///
+/// Recording the move is what lets a *rename* of the arrived member be checked:
+/// its declaration site is the `renamemethod`'s destination word, so renaming
+/// it rewrites that word and nothing else — turning `renamemethod old new` into
+/// `renamemethod old X`. For some `X` that is a body real Tcl refuses to run,
+/// and the request has to be refused rather than answered with edits that make
+/// the class invalid.
+///
+/// [`Self::abort_if_renamed_to`] is the single fold both consumers use: the
+/// member walker asks it about the destination actually written (that is how
+/// `W315` is decided), and the rename gate asks it about the name the user
+/// typed. Neither re-derives the rule, so the diagnostic and the gate cannot
+/// drift apart.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RenamedMember {
+    /// The name the member was declared under, retracted by this move.
+    pub source: String,
+    /// The name it arrived under — the key it now occupies in `side`'s table.
+    pub destination: String,
+    /// The side the move happened on. A collision is side-local: `method a` +
+    /// `self method b` + `renamemethod a b` is legal and leaves the instance
+    /// side with `b` (tclsh 9.0.4 / 8.6.14).
+    pub side: MemberSide,
+    /// Span of the destination word — the moved member's synthetic name span,
+    /// and therefore the one token a rename of it rewrites.
+    pub destination_span: Span,
+    /// Names live on `side` **at the moment the move ran**: the source already
+    /// removed, the destination not yet inserted.
+    ///
+    /// A snapshot rather than the final table because the interpreter reads the
+    /// table at that point too, and both directions of that matter:
+    /// `deletemethod sib ; renamemethod old sib` is legal (`sib` is gone by
+    /// then) and `renamemethod old sib ; method sib {} {}` is legal as well
+    /// (`sib` does not exist yet) — both pinned identical on 9.0.4 and 8.6.14.
+    pub blocked: Vec<String>,
+}
+
+impl RenamedMember {
+    /// Why naming this moved member `candidate` would abort the whole class
+    /// definition, or `None` when that name is legal here.
+    ///
+    /// The two shapes, oracle-pinned byte-identical on tclsh 9.0.4 and 8.6.14
+    /// (no class is created in either case):
+    ///
+    /// ```tcl
+    /// oo::class create ::A1 { method old {} {…} ; renamemethod old old }
+    /// ;# -> cannot rename method to itself
+    /// oo::class create ::B1 { method old {} {…} ; method sib {} {…}
+    ///                         renamemethod old sib }
+    /// ;# -> method called sib already exists
+    /// ```
+    #[must_use]
+    pub fn abort_if_renamed_to(&self, candidate: &str) -> Option<DefinitionAbortKind> {
+        if candidate == self.source {
+            Some(DefinitionAbortKind::RenameToItself)
+        } else if self.blocked.iter().any(|n| n == candidate) {
+            Some(DefinitionAbortKind::DestinationExists)
+        } else {
+            None
+        }
+    }
+
+    /// Whether renaming the **ordinary member** `member` to `candidate` would
+    /// collide at *this* move's site — the mirror direction.
+    ///
+    /// `method old {} {…} ; method sib {} {…} ; renamemethod old new` is legal,
+    /// but renaming `sib` to `new` rewrites the sibling's declaration and
+    /// produces `method new {} {…} ; renamemethod old new`, which aborts with
+    /// `method called new already exists`. The same recorded snapshot answers
+    /// it: `member` was live here, and `candidate` is the name this move needs
+    /// free.
+    #[must_use]
+    pub fn collides_with_renaming(&self, member: &str, candidate: &str) -> bool {
+        candidate == self.destination && self.blocked.iter().any(|n| n == member)
+    }
 }
 
 /// One recorded [`DefinitionAbortKind`] with the member name it names and the
@@ -904,6 +983,16 @@ pub struct ClassDef {
     /// nothing is worse than describing what the author clearly meant —
     /// the same judgement parse errors already get.
     pub definition_aborts: Vec<DefinitionAbort>,
+    /// Every `renamemethod` in this record's body that **moved** a member, with
+    /// the member state the move ran against (issue #1121 review).
+    ///
+    /// The moved member's declaration site is the `renamemethod`'s destination
+    /// word, so a rename of it rewrites that word — and some new names turn the
+    /// body into one real Tcl refuses to run. Unlike
+    /// [`Self::definition_aborts`] this is **not** transient: the rename gate
+    /// re-analyses the document and reads it from the recorded class, so it has
+    /// to survive into `all_classes`.
+    pub renamed_members: Vec<RenamedMember>,
     /// Names genuinely bareword-callable from any method body of this
     /// class, because ``link`` (``oo::Helpers::link``) installed a
     /// per-object-namespace alias — keyed by the alias name, valued by
@@ -967,6 +1056,7 @@ impl Default for ClassDef {
             class_unexports: HashSet::new(),
             retracted_members: Vec::new(),
             definition_aborts: Vec::new(),
+            renamed_members: Vec::new(),
             linked_members: HashMap::new(),
             doc: String::new(),
             via_define: false,

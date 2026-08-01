@@ -5562,6 +5562,24 @@ impl Backend {
     /// another file and so is invisible to the file-local instance
     /// inference — retries against an analysis carrying the workspace
     /// class oracle.
+    /// [`Self::resolve_method_target`] without the access context — the shape
+    /// the rename entry points want.
+    ///
+    /// Rename and Find-All-References must resolve the cursor through the
+    /// *same* tiers go-to-definition does, or a class-side call in a pure
+    /// consumer file navigates but cannot be renamed (issue #1119 review).
+    async fn resolve_method_rename_target(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        pos: Position,
+    ) -> Option<(String, String, bool)> {
+        self.resolve_method_target(uri, &doc.text, &doc.dialect, analysis, pos)
+            .await
+            .map(|(class_q, method, is_classmethod, _access)| (class_q, method, is_classmethod))
+    }
+
     async fn resolve_method_target(
         &self,
         uri: &Uri,
@@ -5578,7 +5596,21 @@ impl Backend {
         let oracle = self
             .analyse_with_workspace_classes(uri, source, dialect)
             .await;
-        core_rename::method_target_with_access(source, pos.line, pos.character, &oracle)
+        // Last tier: the workspace index itself.  The oracle reanalysis above
+        // widens *instance* inference (it supplies class names, so `[Cls new]`
+        // types `$obj`), but a bare `ClassName member` needs the class's
+        // class-side member table, which no reanalysis of *this* document can
+        // produce — a pure consumer never mentions the class's body.  Handing
+        // the index in lets the classmethod arm ask the one tier that knows
+        // (issue #1119 review).
+        let index = self.workspace_index.read().await;
+        core_rename::method_target_with_access_in_workspace(
+            source,
+            pos.line,
+            pos.character,
+            &oracle,
+            Some((&index, uri.as_str())),
+        )
     }
 
     /// Whether `method` is a `classmethod` on any of `definers`, and — if
@@ -5958,8 +5990,9 @@ impl Backend {
         if !core_rename::is_safe_symbol_name(new_name) {
             return None;
         }
-        let (seed_class, method, is_classmethod) =
-            core_rename::method_rename_target(&doc.text, pos.line, pos.character, analysis)?;
+        let (seed_class, method, is_classmethod) = self
+            .resolve_method_rename_target(uri, doc, analysis, pos)
+            .await?;
         let changes = self
             .cross_file_method_rename(uri, doc, &seed_class, &method, new_name, is_classmethod)
             .await;
@@ -6006,7 +6039,9 @@ impl Backend {
         // with a precise reason instead of emitting a partial edit set that
         // breaks the program once applied.
         if core_rename::is_safe_symbol_name(new_name)
-            && let Some(refusal) = self.method_rename_refusal(uri, doc, analysis, pos).await
+            && let Some(refusal) = self
+                .method_rename_refusal(uri, doc, analysis, pos, new_name)
+                .await
         {
             return Some(Err(rename_refusal_error(&refusal)));
         }
@@ -6066,9 +6101,11 @@ impl Backend {
         doc: &DocumentState,
         analysis: &AnalysisResult,
         pos: Position,
+        new_name: &str,
     ) -> Option<core_rename_safety::RenameRefusal> {
-        let (seed_class, method, is_classmethod) =
-            core_rename::method_rename_target(&doc.text, pos.line, pos.character, analysis)?;
+        let (seed_class, method, is_classmethod) = self
+            .resolve_method_rename_target(uri, doc, analysis, pos)
+            .await?;
         let plan = self
             .consumer_scan_plan(&doc.dialect, &seed_class, &method, is_classmethod)
             .await;
@@ -6101,6 +6138,7 @@ impl Backend {
                     family: &family,
                     method: &method,
                     is_classmethod,
+                    new_name,
                 },
                 &target_doc.line_index,
             ) {

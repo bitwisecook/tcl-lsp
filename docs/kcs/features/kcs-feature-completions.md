@@ -46,6 +46,12 @@ one file *does* stop `ClassName m` being offered in another (#1119). Before
 that channel existed the class-side flip was simply lost, so completion went on
 offering a member the interpreter answers with `unknown method "m"`.
 
+The receiver word itself resolves the way Tcl resolves any command word — the
+namespace in effect where it is written first, then the global one, then through
+`namespace import` — so `namespace eval ::a { C cm }` reaches `::a::C` even when
+the class is declared in another file, an inner `::a::C` shadows a global `::C`,
+and an import that has not run at that point binds nothing (#1178 review).
+
 A member a later word in the same body deletes is not offered; one a
 `renamemethod` moves is offered under its **new** name, carrying the source's
 body and visibility (#1121). A body real Tcl would reject outright still
