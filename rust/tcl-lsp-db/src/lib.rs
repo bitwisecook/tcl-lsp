@@ -32,6 +32,52 @@
 //! carried as a durable field on the database and read via [`TclDb::registry`]
 //! rather than modelled as a salsa input — reading an immutable value inside a
 //! tracked query is sound and avoids requiring `CommandRegistry: PartialEq`.
+//!
+//! # Deep-memo eviction (`lru = N`)
+//!
+//! Salsa has no input-deletion API and re-setting an input frees nothing:
+//! an invalidated memo keeps its old value until the query re-executes and
+//! *replaces* it, and setting identical text backdates and changes nothing at
+//! all.  So a session that opens 150 files and closes them again retains
+//! every deep memo those files accrued while open — measured at ~930 MB of
+//! unreclaimed RSS across exactly that cycle (issue #1144 follow-up, PR #1179
+//! review).  Dropping the closed files' `SourceFile` handles does not help;
+//! the memos are keyed on the salsa ids, which stay in the tables.
+//!
+//! `#[salsa::tracked(lru = N)]` is the one mechanism that releases a memo's
+//! payload: at each revision boundary the least-recently-used ids have
+//! `memo.value` cleared while their dependency information is kept, so an
+//! evicted query is simply recomputed on demand.  It is sound by construction
+//! — salsa refuses to evict anything that is not `Derived` — and this crate
+//! has no untracked reads (`registry()` is a process-wide immutable cache), so
+//! every deep query qualifies.
+//!
+//! Two caps, sized by what the key counts:
+//!
+//! * **512** on the per-*item* queries (`item_body_analysis`,
+//!   `function_lattice`, `lower_proc_body`, `taint_cascade`,
+//!   `proc_summary_cascade`, `function_checks`, `proc_taint_solve`,
+//!   `function_optimisations`, `compilation_unit`).  Their keys are interned
+//!   per procedure body, so the live set is roughly *procedures per file ×
+//!   open files*; 512 covers a realistic working set (say twenty open
+//!   documents of twenty-five procedures) without holding a browsed-and-closed
+//!   file's bodies for the session.
+//! * **64** on the per-*file* queries (`file_analysis_incremental`,
+//!   `compiler_check_diagnostics`, `document_compilation_unit`) — one entry
+//!   per open document, and no reader walks them project-wide (the whole-file
+//!   aggregates read the light `file_token_facts` / `item_sigs` tiers
+//!   instead), so the cap cannot thrash on a large workspace.
+//!
+//! The light signature/structure tiers (`file_decls`, `item_sigs`,
+//! `file_token_facts`, the `project_*` aggregates) are deliberately **not**
+//! capped: they are small, they are what an unopened workspace file is meant
+//! to be resolvable from, and evicting them would make the cross-file
+//! resolution every open document depends on recompute from scratch.
+//!
+//! This composes correctly only because closed files no longer create deep
+//! memos at all (#1144: the closed-file republish takes the uncached
+//! pipeline).  While they did, every closed-file sweep would `record_use` on
+//! hundreds of closed files and evict the *open* documents' units instead.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
@@ -985,7 +1031,8 @@ pub struct ItemBodyKey<'db> {
 /// Memoised offset-0 isolated analysis of one `proc` body.  A body-only edit
 /// changes only that body's [`ItemBodyKey`], so salsa reuses every other body's
 /// result; an edit that merely *shifts* a body leaves its key unchanged.
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc<BodyFragment> {
     // The isolated analysis works at offset 0 and ignores `body_tok` / scope
     // path (the aggregator supplies the real position when grafting), so a
@@ -1095,7 +1142,8 @@ pub struct FnLatticeKey<'db> {
 /// new key).  The interprocedural taint re-run still happens at aggregation time
 /// (`with_interprocedural`).  Uses `db.registry` — byte-identical to the
 /// registry both diagnostics consumers build (`build_default` + `load_dialect`).
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<FunctionUnit> {
     let context = key.context(db);
     let upvar: HashMap<String, UpvarInfo> = context.upvar_ctx(db).iter().cloned().collect();
@@ -1164,7 +1212,8 @@ pub struct ProcBodyKey<'db> {
 /// with an empty const-map frame, lowering at offset 0).  Byte-identical to the
 /// body the whole-file lowering produces for that procedure, normalised to
 /// offset 0 — for the context-free files the caller gates on.
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Script> {
     let registry = db.registry(key.dialect(db));
     let config = tcl_lexer::LexerConfig {
@@ -1436,7 +1485,8 @@ fn taint_summary_key<'db>(
 /// installed directly into the rebased unit (no rebase needed).  Byte-identical
 /// to [`CompilationUnit::with_interprocedural`]'s per-procedure re-run, guarded
 /// by the `compiler_check` corpus differential + the taint-cascade edit tests.
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn taint_cascade<'db>(
     db: &'db dyn TclDb,
     lattice_key: FnLatticeKey<'db>,
@@ -1603,7 +1653,8 @@ fn summary_deps_key<'db>(
 /// parameter/return taint, not positions), so the offset-0 result is the same
 /// the whole-module build computes.  A body edit re-keys only the edited
 /// procedure and the callers that reach it; everything else is a cache hit.
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn proc_summary_cascade<'db>(
     db: &'db dyn TclDb,
     lattice_key: FnLatticeKey<'db>,
@@ -1668,7 +1719,8 @@ pub fn proc_summary_cascade<'db>(
 /// offset-0 [`function_lattice`] unit, *before* `rebase_function_unit`); the
 /// caller adds the procedure's `body_offset`.  A body edit re-runs only the
 /// edited procedure's checks; every other proc is a cache hit.
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<Vec<CompilerCheck>> {
     let fu = function_lattice(db, key);
     let dialect = key.dialect(db);
@@ -1747,7 +1799,8 @@ fn rebase_check(mut d: CompilerCheck, body_offset: u32) -> CompilerCheck {
 
 /// Byte-identical to a bare `run_all_checks`, guarded by the `compiler_check`
 /// corpus differential + the debug fixpoint guard.
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn proc_taint_solve<'db>(
     db: &'db dyn TclDb,
     file: SourceFile,
@@ -2072,7 +2125,8 @@ fn opt_deps_key<'db>(
 /// `body_offset` and runs the whole-module [`finalise_optimisations`] over the
 /// assembled set.  A body edit re-runs only the edited proc; an unrelated proc's
 /// edit is a cache hit unless this proc reads its summary (a resolved direct call).
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn function_optimisations<'db>(
     db: &'db dyn TclDb,
     key: FnLatticeKey<'db>,
@@ -2390,7 +2444,8 @@ fn lexer_cfg_key(db: &dyn TclDb, config: tcl_lexer::LexerConfig) -> LexerCfgKey<
 /// / `f5-irules`); for those two dialects the configs differ, so each consumer
 /// builds its own (status quo).  Byte-identical to a direct
 /// `memoised_compilation_unit` call.
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn compilation_unit<'db>(
     db: &'db dyn TclDb,
     file: SourceFile,
@@ -2421,7 +2476,8 @@ pub fn compilation_unit<'db>(
 /// (and rebased) instead of rebuilt.  Byte-identical to [`file_analysis`] (and
 /// `analyse`) — proven by the `per_item_corpus` gate over the shared
 /// `analyse_per_item_with` orchestration.
-#[salsa::tracked]
+// LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 64)]
 pub fn file_analysis_incremental(
     db: &dyn TclDb,
     file: SourceFile,
@@ -2514,7 +2570,8 @@ fn compiler_diagnostics_from_unit(
 /// the analyser tail's default config, so the two intern different bodies and
 /// never cross-pollute.  Byte-identical to the former direct
 /// `lift_compiler_diagnostics` build.
-#[salsa::tracked]
+// LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 64)]
 pub fn compiler_check_diagnostics(
     db: &dyn TclDb,
     file: SourceFile,
@@ -2600,7 +2657,8 @@ pub fn document_symbols(
 /// file's dialect, so callers that only have `(db, file)` (semantic tokens,
 /// server-side accessors) share the same memoised build as the diagnostics
 /// path.
-#[salsa::tracked]
+// LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 64)]
 pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<CompilationUnit> {
     let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::for_dialect(file.dialect(db)));
     compilation_unit(db, file, cfg_key)
