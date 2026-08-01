@@ -395,15 +395,20 @@ struct SemanticTokensRefreshCtx {
     client: Client,
     last_semantic_tokens: SemanticTokensCache,
     refresh_pending: Arc<std::sync::atomic::AtomicBool>,
+    refresh_asked: EnrichedRefreshAsked,
 }
 
 /// URIs whose detached semantic-token convergence continuation is still in
-/// flight (#1147) — the dedup set behind [`ConvergenceGuard`].
+/// flight (#1147) — the dedup map behind [`ConvergenceGuard`].
 ///
-/// A `std::sync::Mutex`: every critical section is a single `HashSet` insert or
-/// remove, never held across an await, and the remove has to happen from
+/// The value records whether any later request was **coalesced** onto that
+/// claim, so the claim holder knows it is answering for more than itself (see
+/// [`ConvergenceGuard::release`]).
+///
+/// A `std::sync::Mutex`: every critical section is a single map insert, lookup,
+/// or remove, never held across an await, and the remove has to happen from
 /// [`ConvergenceGuard`]'s `Drop`, which cannot await.
-type ConvergenceInFlight = Arc<std::sync::Mutex<HashSet<Uri>>>;
+type ConvergenceInFlight = Arc<std::sync::Mutex<HashMap<Uri, bool>>>;
 
 /// A claim on one URI's convergence continuation: at most one may be detached
 /// per document at a time (#1147).
@@ -429,27 +434,65 @@ type ConvergenceInFlight = Arc<std::sync::Mutex<HashSet<Uri>>>;
 struct ConvergenceGuard {
     uri: Uri,
     in_flight: ConvergenceInFlight,
+    /// Set by [`Self::release`], so `Drop` does not remove an entry a *later*
+    /// claim has since installed for the same URI.
+    released: bool,
 }
 
 impl ConvergenceGuard {
     /// Claim `uri`, or `None` when a continuation for it is already pending — in
-    /// which case the caller skips detaching and settles as `coalesced`.
+    /// which case the caller skips detaching and settles as `coalesced`, and
+    /// the pending claim is marked as now answering for that request too.
     fn claim(in_flight: &ConvergenceInFlight, uri: &Uri) -> Option<Self> {
-        let claimed = in_flight
+        let mut in_flight_map = in_flight
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(uri.clone());
-        claimed.then(|| Self {
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(coalesced) = in_flight_map.get_mut(uri) {
+            *coalesced = true;
+            return None;
+        }
+        in_flight_map.insert(uri.clone(), false);
+        drop(in_flight_map);
+        Some(Self {
             uri: uri.clone(),
             in_flight: Arc::clone(in_flight),
+            released: false,
         })
+    }
+
+    /// Release the claim, reporting whether any request was coalesced onto it
+    /// while it was held (PR #1179 review, Codex P2).
+    ///
+    /// A coalesced request skips its own continuation on the strength of this
+    /// one's refresh — but this one only refreshes when *its own* comparison
+    /// found a difference.  When the claim holder's viewport happened to match
+    /// the coarse tier (or its reads were cancelled outright) while a skipped
+    /// viewport would have differed, the skipped one stays coarse until
+    /// something unrelated re-requests it.  Reading the flag as part of the
+    /// same critical section that removes the entry is what makes acting on it
+    /// sound: a request arriving after this returns finds no claim and takes
+    /// out a fresh one rather than being silently dropped into a claim that is
+    /// already gone.
+    fn release(&mut self) -> bool {
+        if self.released {
+            return false;
+        }
+        self.released = true;
+        self.in_flight
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&self.uri)
+            .unwrap_or(false)
     }
 }
 
 impl Drop for ConvergenceGuard {
     fn drop(&mut self) {
+        if self.released {
+            return;
+        }
         // Recovering from a poisoned lock rather than skipping the removal: the
-        // set holds no invariant a panic could have broken, and leaving a marker
+        // map holds no invariant a panic could have broken, and leaving a marker
         // behind would permanently silence this URI's convergence.
         self.in_flight
             .lock()
@@ -457,6 +500,62 @@ impl Drop for ConvergenceGuard {
             .remove(&self.uri);
     }
 }
+
+/// Digest of an enriched token stream, for the repeat-ask bound (see
+/// [`EnrichedRefreshAsked`]).  A hash rather than the stream itself: the value
+/// is only ever compared for equality, and a token stream is one `u32` per
+/// five per token — far too much to retain per open document just to notice a
+/// repeat.
+fn enriched_token_digest(data: &[u32]) -> u64 {
+    use std::hash::{Hash as _, Hasher as _};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    data.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Release `guard` and, when the continuation is finishing **without** having
+/// asked for a refresh but requests were coalesced onto its claim, ask for one
+/// anyway.  Returns what the settled marker should record as `refresh=`.
+///
+/// Shared by the `range` and `full` continuations because the stranding is the
+/// same on both: they claim from one set precisely because either one's
+/// workspace-scoped `workspace/semanticTokens/refresh` covers the other's
+/// skipped requests, which only holds if the claim holder actually fires one.
+fn refresh_if_coalesced(
+    refresh_ctx: &SemanticTokensRefreshCtx,
+    guard: &mut ConvergenceGuard,
+    refreshed: bool,
+) -> bool {
+    let coalesced = guard.release();
+    if refreshed || !coalesced {
+        return refreshed;
+    }
+    refresh_ctx.request_refresh_coalesced();
+    true
+}
+
+/// Per-URI hash of the enriched token stream a convergence continuation has
+/// already asked the client to re-pull (PR #1179 review).
+///
+/// The termination bound on the converge → refresh → re-request cycle.  A
+/// request that overruns [`SEMANTIC_TOKENS_FAST_PATH_BUDGET`] serves the coarse
+/// tier and caches *that* as the URI's last stream, so the continuation's
+/// enriched result differs from the cache and asks for a refresh.  The client
+/// re-requests — and if that request also overruns the budget (a loaded
+/// machine misses it even on a warm memo, since the budget races
+/// `spawn_blocking` dispatch and the `db` lock), the coarse tier is served and
+/// cached again, and the identical enriched stream asks for the identical
+/// refresh.  Nothing broke the cycle: the server kept firing a workspace-wide
+/// `workspace/semanticTokens/refresh` every debounce window, which cancels and
+/// re-issues the editor's in-flight token request forever.  Recording the
+/// stream we already asked about means a *repeat* ask for the same bytes is
+/// dropped: the client has been told, and telling it again cannot change the
+/// answer.  Any real change — an edit, a cross-file class landing — produces
+/// different enriched bytes and re-arms the ask.
+///
+/// Entries are dropped with the token cache on close / rename, so this is
+/// bounded by the open-document set.
+type EnrichedRefreshAsked = Arc<Mutex<HashMap<Uri, u64>>>;
 
 /// Per-URI cache of the last semantic-token stream served: `(resultId, packed
 /// integer data)`. Shared type alias for [`Backend::last_semantic_tokens`] and
@@ -518,10 +617,25 @@ impl SemanticTokensRefreshCtx {
             let cache = self.last_semantic_tokens.lock().await;
             cache.get(uri).is_none_or(|(_, cached)| cached != data)
         };
-        if changed {
-            self.request_refresh_coalesced();
+        changed && self.request_refresh_for_enriched(uri, data).await
+    }
+
+    /// Ask the client to re-pull tokens because `uri`'s enriched stream
+    /// differs from what was served — **once** per distinct enriched stream
+    /// (see [`EnrichedRefreshAsked`]).  Returns whether an ask was actually
+    /// made, so the settled marker records what happened rather than what was
+    /// wanted.
+    async fn request_refresh_for_enriched(&self, uri: &Uri, data: &[u32]) -> bool {
+        let digest = enriched_token_digest(data);
+        {
+            let mut asked = self.refresh_asked.lock().await;
+            if asked.get(uri) == Some(&digest) {
+                return false;
+            }
+            asked.insert(uri.clone(), digest);
         }
-        changed
+        self.request_refresh_coalesced();
+        true
     }
 
     /// Emit the `full` convergence continuation's settled marker.
@@ -2888,6 +3002,10 @@ pub struct Backend {
     /// [`Backend::semantic_tokens_core_data`]) can compare the enriched result
     /// it lands against what was last served, without borrowing `Backend`.
     last_semantic_tokens: SemanticTokensCache,
+    /// Per-URI hash of the enriched token stream a convergence continuation has
+    /// already asked the client to re-pull — the termination bound on the
+    /// converge → refresh → re-request cycle.  See [`EnrichedRefreshAsked`].
+    semantic_tokens_refresh_asked: EnrichedRefreshAsked,
     /// Per-URI memo of [`Backend::analyse_with_workspace_classes`] — the
     /// analysis that resolves a cross-file constructor (`set d [::other::Cls
     /// new]`) by feeding the workspace class set to instance inference.
@@ -3485,9 +3603,10 @@ impl Backend {
             closed_diag_order: Arc::new(Mutex::new(VecDeque::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
+            semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-            semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
         }
@@ -4634,8 +4753,10 @@ impl Backend {
             client: self.client.clone(),
             last_semantic_tokens: Arc::clone(&self.last_semantic_tokens),
             refresh_pending: Arc::clone(&self.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&self.semantic_tokens_refresh_asked),
         };
         let uri = uri.clone();
+        let mut guard = guard;
         tokio::spawn(async move {
             // Settle either way — including on a cancelled read — so a waiter can
             // key on the marker instead of racing the debounced refresh that only
@@ -4647,12 +4768,16 @@ impl Backend {
                 ),
                 _ => (false, FullSettleOutcome::Cancelled),
             };
+            // Release the per-URI claim only now the decision is made, so every
+            // request that arrived while this ran rode along with it — and honour
+            // what rode along: a request skipped as `coalesced` has no refresh of
+            // its own, so if this one decided against refreshing (its own read
+            // matched the cache, or was cancelled) the coalesced ones would be
+            // stranded.  The refresh is workspace-scoped, so one covers them all.
+            let refreshed = refresh_if_coalesced(&refresh_ctx, &mut guard, refreshed);
             refresh_ctx
                 .log_full_convergence_settled(&uri, refreshed, outcome)
                 .await;
-            // Release the per-URI claim only now the decision is made, so every
-            // request that arrived while this ran rode along with it.
-            drop(guard);
         });
     }
 
@@ -5033,6 +5158,7 @@ impl Backend {
             .remove_document(uri.as_str());
         self.db_remove_source(uri).await;
         self.last_semantic_tokens.lock().await.remove(uri);
+        self.semantic_tokens_refresh_asked.lock().await.remove(uri);
         self.workspace_class_analyses.lock().await.remove(uri);
         self.evict_diag_slot(uri).await;
         // Publishes the empty set and drops the pull-cache + closed-generation
@@ -10353,10 +10479,15 @@ impl Backend {
             range,
         } = inputs;
         let (cu_slot, analysis_slot, cu_handle, analysis_handle) = pending;
+        let mut guard = guard;
+        // `uri` here is the log-line string; the claim carries the typed URI the
+        // repeat-ask bound is keyed by.
+        let claim_uri = guard.uri.clone();
         let refresh_ctx = SemanticTokensRefreshCtx {
             client: self.client.clone(),
             last_semantic_tokens: Arc::clone(&self.last_semantic_tokens),
             refresh_pending: Arc::clone(&self.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&self.semantic_tokens_refresh_asked),
         };
         tokio::spawn(async move {
             // Reuse a result that already landed within the budget; otherwise await
@@ -10391,9 +10522,14 @@ impl Backend {
                 })
                 .await;
                 match enriched {
+                    // Same repeat-ask bound as the `full` path
+                    // ([`EnrichedRefreshAsked`]): a viewport whose enriched
+                    // recompute keeps landing identical must not keep asking
+                    // the client to re-pull the tokens it already asked for.
                     Ok(enriched) if enriched != served => {
-                        refresh_ctx.request_refresh_coalesced();
-                        true
+                        refresh_ctx
+                            .request_refresh_for_enriched(&claim_uri, &enriched)
+                            .await
                     }
                     _ => false,
                 }
@@ -10410,10 +10546,15 @@ impl Backend {
             } else {
                 RangeSettleOutcome::Compared
             };
-            log_range_convergence_settled(&refresh_ctx.client, &uri, refreshed, outcome).await;
             // Release the per-URI claim only now the decision is made, so every
-            // viewport request that arrived while this ran rode along with it.
-            drop(guard);
+            // viewport request that arrived while this ran rode along with it —
+            // and honour what rode along: a viewport skipped as `coalesced` has
+            // no continuation of its own, so if this one's comparison found no
+            // difference (or its reads were cancelled) the skipped viewports
+            // would stay coarse until an unrelated re-request.  The refresh is
+            // workspace-scoped, so one covers every one of them.
+            let refreshed = refresh_if_coalesced(&refresh_ctx, &mut guard, refreshed);
+            log_range_convergence_settled(&refresh_ctx.client, &uri, refreshed, outcome).await;
         });
     }
 }
@@ -10872,6 +11013,7 @@ impl LanguageServer for Backend {
         // Drop the cached semantic-token baseline so a reopened document starts
         // from a fresh `full` rather than diffing against a stale stream.
         self.last_semantic_tokens.lock().await.remove(uri);
+        self.semantic_tokens_refresh_asked.lock().await.remove(uri);
         // The workspace-class analysis memo is keyed by URI; a closed
         // document's entry would otherwise linger for the process's life.
         self.workspace_class_analyses.lock().await.remove(uri);
@@ -19750,9 +19892,10 @@ mod tests {
             closed_diag_order: Arc::new(Mutex::new(VecDeque::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
+            semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-            semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
         }
@@ -25909,6 +26052,7 @@ mod tests {
             client: backend.client.clone(),
             last_semantic_tokens: Arc::clone(&backend.last_semantic_tokens),
             refresh_pending: Arc::clone(&backend.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&backend.semantic_tokens_refresh_asked),
         };
 
         // No cache entry yet: "changed" (there is nothing to match), but still
@@ -25950,6 +26094,74 @@ mod tests {
         );
     }
 
+    /// PR #1179 review: the converge → refresh → re-request cycle must
+    /// terminate.
+    ///
+    /// A request that overruns the fast-path budget serves the coarse tier and
+    /// caches *that*, so the continuation's enriched stream differs and asks
+    /// for a refresh.  If the client's re-request also overruns the budget —
+    /// which a loaded machine does even on a warm memo — the coarse tier is
+    /// served and cached again, and the identical enriched stream asks for the
+    /// identical refresh.  Left unbounded the server fires a workspace-wide
+    /// `workspace/semanticTokens/refresh` every debounce window forever,
+    /// cancelling and re-issuing the editor's in-flight token request each
+    /// time, so a `provideDocumentSemanticTokens` call never settles.  The
+    /// second ask for the same enriched bytes must be dropped; a genuinely
+    /// different enriched stream must still get through.
+    #[tokio::test]
+    async fn a_repeated_identical_enriched_stream_asks_for_one_refresh_only() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///storm.tcl").unwrap();
+        let other = Uri::from_str("file:///storm-other.tcl").unwrap();
+        let ctx = SemanticTokensRefreshCtx {
+            client: backend.client.clone(),
+            last_semantic_tokens: Arc::clone(&backend.last_semantic_tokens),
+            refresh_pending: Arc::clone(&backend.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&backend.semantic_tokens_refresh_asked),
+        };
+        // Round 1: the coarse tier was served and cached; the enriched stream
+        // differs, so the client is asked to re-pull.
+        let coarse = ("coarse".to_owned(), vec![0, 0, 3, 1, 0]);
+        let enriched = vec![0, 0, 3, 7, 0];
+        backend
+            .last_semantic_tokens
+            .lock()
+            .await
+            .insert(uri.clone(), coarse.clone());
+        assert!(
+            ctx.deliver_if_changed(&uri, &enriched).await,
+            "the first enriched stream that differs must ask for a refresh",
+        );
+        // Round 2: the re-request overran the budget again, so the same coarse
+        // stream is cached and the same enriched stream lands. Asking again
+        // could only repeat what the client has already been told.
+        backend
+            .last_semantic_tokens
+            .lock()
+            .await
+            .insert(uri.clone(), coarse.clone());
+        assert!(
+            !ctx.deliver_if_changed(&uri, &enriched).await,
+            "a repeat ask for the identical enriched stream must be dropped",
+        );
+        // A genuinely different enriched stream (an edit landed, a cross-file
+        // class resolved) re-arms the ask.
+        assert!(
+            ctx.deliver_if_changed(&uri, &[0, 0, 3, 9, 0]).await,
+            "a changed enriched stream must ask again",
+        );
+        // The bound is per URI, not global.
+        backend
+            .last_semantic_tokens
+            .lock()
+            .await
+            .insert(other.clone(), coarse);
+        assert!(
+            ctx.deliver_if_changed(&other, &enriched).await,
+            "another document's identical stream must ask on its own account",
+        );
+    }
+
     /// A fire already scheduled must absorb a second request rather than
     /// scheduling a duplicate: the `workspace/semanticTokens/refresh`
     /// notification carries no data, so a client that receives it re-pulls
@@ -25965,6 +26177,7 @@ mod tests {
             client: backend.client.clone(),
             last_semantic_tokens: Arc::clone(&backend.last_semantic_tokens),
             refresh_pending: Arc::clone(&backend.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&backend.semantic_tokens_refresh_asked),
         };
 
         // Simulate a fire already scheduled (e.g. by a different document's
@@ -26051,6 +26264,7 @@ mod tests {
             client: backend.client.clone(),
             last_semantic_tokens: Arc::clone(&backend.last_semantic_tokens),
             refresh_pending: Arc::clone(&backend.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&backend.semantic_tokens_refresh_asked),
         };
         ctx.deliver_if_changed(&uri, &[9, 9, 9]).await;
         assert!(
@@ -26078,7 +26292,7 @@ mod tests {
     /// independent.
     #[test]
     fn convergence_guard_admits_one_continuation_per_uri() {
-        let in_flight: ConvergenceInFlight = Arc::new(std::sync::Mutex::new(HashSet::new()));
+        let in_flight: ConvergenceInFlight = Arc::new(std::sync::Mutex::new(HashMap::new()));
         let uri = Uri::from_str("file:///cold.tcl").unwrap();
         let other = Uri::from_str("file:///warm.tcl").unwrap();
 
@@ -26106,12 +26320,98 @@ mod tests {
         );
     }
 
+    /// PR #1179 review (Codex P2): a claim reports whether anything was
+    /// coalesced onto it, and `refresh_if_coalesced` turns that into a refresh
+    /// exactly when the claim holder itself decided against one.
+    ///
+    /// Without this a skipped viewport is stranded: it detached no
+    /// continuation of its own on the strength of this claim's refresh, but
+    /// the claim only refreshes when *its* comparison found a difference.
+    #[tokio::test]
+    async fn coalesced_claim_refreshes_even_when_the_holder_found_no_difference() {
+        let backend = test_backend();
+        let refresh_ctx = SemanticTokensRefreshCtx {
+            client: backend.client.clone(),
+            last_semantic_tokens: Arc::clone(&backend.last_semantic_tokens),
+            refresh_pending: Arc::clone(&backend.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&backend.semantic_tokens_refresh_asked),
+        };
+        let in_flight: ConvergenceInFlight = Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let uri = Uri::from_str("file:///coalesced.tcl").unwrap();
+
+        // Nothing coalesced, no difference found: today's behaviour — no refresh.
+        let mut lone = ConvergenceGuard::claim(&in_flight, &uri).expect("claimed");
+        assert!(
+            !refresh_if_coalesced(&refresh_ctx, &mut lone, false),
+            "a solitary claim that found no difference must not refresh",
+        );
+        assert!(
+            !backend
+                .semantic_tokens_refresh_pending
+                .load(std::sync::atomic::Ordering::Acquire),
+            "no refresh may have been scheduled",
+        );
+
+        // A viewport coalesced onto the claim, and the holder still found no
+        // difference: the coalesced one would otherwise stay coarse forever.
+        let mut held = ConvergenceGuard::claim(&in_flight, &uri).expect("re-claimed after release");
+        assert!(
+            ConvergenceGuard::claim(&in_flight, &uri).is_none(),
+            "the second request coalesces onto the held claim",
+        );
+        assert!(
+            refresh_if_coalesced(&refresh_ctx, &mut held, false),
+            "a coalesced claim must refresh on behalf of the requests it absorbed",
+        );
+        assert!(
+            backend
+                .semantic_tokens_refresh_pending
+                .load(std::sync::atomic::Ordering::Acquire),
+            "the coalesced refresh must actually have been scheduled",
+        );
+        assert!(
+            in_flight
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_empty(),
+            "releasing must drop the claim so the next request converges normally",
+        );
+    }
+
+    /// The cancelled/error arm of the same rule: the claim holder's reads dying
+    /// must not swallow the coalesced requests' only chance at a refresh.
+    #[test]
+    fn a_released_claims_coalesced_flag_survives_a_cancelled_holder() {
+        let in_flight: ConvergenceInFlight = Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let uri = Uri::from_str("file:///cancelled.tcl").unwrap();
+        let mut held = ConvergenceGuard::claim(&in_flight, &uri).expect("claimed");
+        assert!(ConvergenceGuard::claim(&in_flight, &uri).is_none());
+        assert!(ConvergenceGuard::claim(&in_flight, &uri).is_none());
+        assert!(
+            held.release(),
+            "two coalesced requests must be reported to the holder",
+        );
+        // Idempotent: a second release (or the guard's own `Drop`) must not
+        // report again, nor remove a claim a later request has since taken.
+        let later = ConvergenceGuard::claim(&in_flight, &uri).expect("re-claimed");
+        assert!(!held.release());
+        drop(held);
+        assert!(
+            in_flight
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .contains_key(&uri),
+            "the released guard must not evict the later claim",
+        );
+        drop(later);
+    }
+
     /// #1147: the claim is a guard, not a flag, so a continuation that is
     /// aborted mid-flight (or panics) still releases its URI — a stuck marker
     /// would silence convergence for that document for the session.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn convergence_guard_releases_on_cancellation() {
-        let in_flight: ConvergenceInFlight = Arc::new(std::sync::Mutex::new(HashSet::new()));
+        let in_flight: ConvergenceInFlight = Arc::new(std::sync::Mutex::new(HashMap::new()));
         let uri = Uri::from_str("file:///aborted.tcl").unwrap();
         let guard = ConvergenceGuard::claim(&in_flight, &uri).expect("claimed");
 
