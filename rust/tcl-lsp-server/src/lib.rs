@@ -14806,8 +14806,16 @@ fn change_could_affect_dialect_hint(
 }
 
 /// Whether `s` contains any of [`tcl_registry::dialects::dialect_hint_markers`].
+///
+/// Case-insensitive to match the detector: the `tcl-dialect:` directive key is
+/// compared with `eq_ignore_ascii_case` and the content-signature tiers
+/// lowercase their words, so `# TCL-DIALECT: irules` is live to
+/// [`tcl_registry::dialects::detect_dialect`] and must not slip past this
+/// filter. The haystack is only an edit's touched lines, so the lowercase
+/// copy is a few bytes, not the document.
 fn contains_dialect_hint_marker(s: &str) -> bool {
-    tcl_registry::dialects::dialect_hint_markers().any(|m| s.contains(m))
+    let lower = s.to_ascii_lowercase();
+    tcl_registry::dialects::dialect_hint_markers().any(|m| lower.contains(m))
 }
 
 fn lift_span(source: &str, line_index: &tcl_lexer::LineIndex, span: tcl_lexer::Span) -> Range {
@@ -18404,6 +18412,45 @@ mod tests {
     }
 
     /// The pre-edit half of the widened test: **removing** a marker matters as
+    /// PR #1179 review (Copilot): the marker filter must be case-insensitive,
+    /// because the detector is.  The `tcl-dialect:` directive key is matched
+    /// with `eq_ignore_ascii_case` and the content-signature tiers lowercase
+    /// their words, so `# TCL-DIALECT: irules` typed deep in a document is
+    /// live to `detect_dialect` — a case-sensitive `contains` over the
+    /// lowercase marker list would skip the re-detect and strand the buffer
+    /// on its stale dialect.
+    #[test]
+    fn dialect_hint_gate_is_case_insensitive_like_the_detector() {
+        use std::fmt::Write as _;
+        let mut body = String::from("# an ordinary Tcl script\n");
+        for i in 0..500 {
+            writeln!(body, "puts {i}").unwrap();
+        }
+        let index = tcl_lexer::LineIndex::new_lsp(&body);
+        let deep_insert = Range {
+            start: pos(500, 0),
+            end: pos(500, 0),
+        };
+        assert!(
+            change_could_affect_dialect_hint(
+                &body,
+                Some(deep_insert),
+                "# TCL-DIALECT: irules\n",
+                &index
+            ),
+            "an upper-case directive is live to the detector and must re-trigger"
+        );
+        assert!(
+            change_could_affect_dialect_hint(
+                &body,
+                Some(deep_insert),
+                "PACKAGE REQUIRE Tcl 8.6\n",
+                &index
+            ),
+            "upper-case marker words must re-trigger like their lower-case forms"
+        );
+    }
+
     /// much as adding one.  Deleting the `package require Tcl 8.4` line from
     /// deep in a document changes the detected dialect back to the default,
     /// and the deleted slice is the only place that marker still appears.

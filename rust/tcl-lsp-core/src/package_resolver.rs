@@ -708,11 +708,16 @@ impl PackageResolver {
 
     /// An opaque token identifying this resolver's current contents.
     ///
-    /// Bumped by every mutation ([`Self::add_pkg_index`], [`Self::add_tcl_index`],
-    /// [`Self::scan_path`], [`Self::scan_tree`]) and unique across resolver
-    /// instances, so a consumer caching something derived from the package
-    /// database (the recovery known-command widening in `tcl-lsp-server`) can
-    /// tell whether its cache is still valid without diffing the database.
+    /// Bumped by every mutation of the package database
+    /// ([`Self::add_pkg_index`] and [`Self::add_tcl_index`], including the
+    /// calls [`Self::scan_path`] / [`Self::scan_tree`] make when they discover
+    /// index files) and unique across resolver instances, so a consumer
+    /// caching something derived from the package database (the recovery
+    /// known-command widening in `tcl-lsp-server`) can tell whether its cache
+    /// is still valid without diffing the database. A scan that discovers no
+    /// index files records the directory as visited but leaves the revision
+    /// unchanged — nothing a consumer can derive differs, so its caches stay
+    /// valid.
     #[must_use]
     pub fn revision(&self) -> u64 {
         self.revision
