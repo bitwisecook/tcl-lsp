@@ -294,6 +294,16 @@ const WORKSPACE_ANALYSIS_MAX_CONCURRENCY: usize = 16;
 /// boundary.
 const SCAN_MERGE_BATCH_SIZE: usize = 200;
 
+/// How long a workspace-wide query waits for the initial folder scan before
+/// answering from whatever the index already holds (see
+/// [`Backend::wait_for_workspace_scan`]).  Generous enough to cover a real
+/// project's startup scan — the alternative is a confidently empty answer to
+/// the very first `workspace/symbol` of a session — but bounded, so a
+/// pathological workspace degrades to a stale answer instead of hanging the
+/// picker.  Paid at most once per session: after the first scan completes the
+/// wait is a relaxed atomic load.
+const INITIAL_WORKSPACE_SCAN_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// Debounce window for coalescing `workspace/semanticTokens/refresh` pushes
 /// (see [`SemanticTokensRefreshCtx::request_refresh_coalesced`]). Comparable
 /// to [`DIAGNOSTICS_DEBOUNCE`]: many cold large documents finishing their
@@ -2710,6 +2720,11 @@ pub struct Backend {
     /// could race the scan and silently find nothing, even though the same
     /// request moments later would have resolved correctly (issue #1003).
     workspace_scan_gate: tokio::sync::Mutex<()>,
+    /// Released once the first `scan_workspace_folders` pass has completed —
+    /// the "the scan has not started yet" half of the startup race
+    /// `workspace_scan_gate` alone cannot cover.  See
+    /// [`WorkspaceScanReadiness`].
+    workspace_scan_ready: Arc<WorkspaceScanReadiness>,
     /// Library files the autoload tier (M8) has merged into the workspace
     /// index on demand, so references / rename keep reaching them.  Cleared
     /// (and their index entries dropped) whenever the package database is
@@ -3005,6 +3020,56 @@ impl Drop for EditTurn<'_> {
             .now_serving
             .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         self.order.advanced.notify_waiters();
+    }
+}
+
+/// One-shot readiness signal for the first [`Backend::scan_workspace_folders`]
+/// pass.
+///
+/// [`Backend::workspace_scan_gate`] lets a request wait out a scan that is
+/// *already running*, which is enough for a handler reached long after
+/// startup.  It is not enough at startup: `initialized` pulls the client
+/// config and registers file watchers — two client round-trips — **before** it
+/// starts the scan, and a request that lands in that window acquires a free
+/// gate and answers against an empty index (issue #1179: the first
+/// `workspace/symbol` query of a session returned nothing while the second,
+/// moments later, returned the same file's symbols).  This signal is what a
+/// cross-file handler waits on instead: it is only released once a scan has
+/// actually completed, so "the scan has not begun yet" and "the scan is in
+/// flight" both wait.
+#[derive(Debug, Default)]
+struct WorkspaceScanReadiness {
+    complete: std::sync::atomic::AtomicBool,
+    completed: tokio::sync::Notify,
+}
+
+impl WorkspaceScanReadiness {
+    /// Record that a scan pass has finished and wake every waiter.
+    fn mark_complete(&self) {
+        self.complete
+            .store(true, std::sync::atomic::Ordering::Release);
+        self.completed.notify_waiters();
+    }
+
+    fn is_complete(&self) -> bool {
+        self.complete.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// Wait until the first scan pass has completed.  Callers bound this with
+    /// their own timeout — a workspace scan is disk-bound and a request must
+    /// degrade to a stale answer rather than hang.
+    async fn wait(&self) {
+        loop {
+            let completed = self.completed.notified();
+            tokio::pin!(completed);
+            // Register before re-reading, so a completion landing between the
+            // check and the await cannot be missed.
+            completed.as_mut().enable();
+            if self.is_complete() {
+                return;
+            }
+            completed.await;
+        }
     }
 }
 
@@ -3393,6 +3458,7 @@ impl Backend {
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             recovery_names: Arc::new(Mutex::new(RecoveryNameCache::default())),
             workspace_scan_gate: tokio::sync::Mutex::new(()),
+            workspace_scan_ready: Arc::new(WorkspaceScanReadiness::default()),
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
             rehoming_gate: tokio::sync::Mutex::new(()),
@@ -9720,6 +9786,70 @@ impl Backend {
         out
     }
 
+    /// Wait (bounded) for the workspace index to reflect a completed folder
+    /// scan before answering a workspace-wide query.
+    ///
+    /// Covers both halves of the startup race: the readiness signal covers
+    /// "the scan has not begun yet" (`initialized` pulls config and registers
+    /// watchers, two client round-trips, before it scans), and the gate covers
+    /// "a scan is in flight" — including a later folder-/config-change
+    /// rebuild.  The gate is acquired and released, never held while the
+    /// caller answers, so a query cannot stall a scan.
+    ///
+    /// A session with no workspace folders has no scan worth waiting for, so
+    /// it returns immediately rather than burning the budget.
+    async fn wait_for_workspace_scan(&self) {
+        if !self.workspace_scan_ready.is_complete() && self.workspace_folder_urls().await.is_empty()
+        {
+            return;
+        }
+        let _ = tokio::time::timeout(INITIAL_WORKSPACE_SCAN_WAIT, async {
+            self.workspace_scan_ready.wait().await;
+            drop(self.workspace_scan_gate.lock().await);
+        })
+        .await;
+    }
+
+    /// The `workspace/symbol` matches contributed by **open** documents the
+    /// workspace index does not currently hold.
+    ///
+    /// `did_open` drops the opened document's index entry — its on-disk
+    /// records stop being authoritative the moment a live buffer exists — and
+    /// the debounced diagnostics publish is what re-adds it.  Between the two
+    /// the file is invisible to the picker, which is exactly the moment a user
+    /// (or a test) searches for something they just opened (#1179).  A new
+    /// untitled buffer has the same gap until its first publish.
+    ///
+    /// Bounded by the open-document set and empty in steady state; the
+    /// analysis is read from the salsa memo the pending publish computes
+    /// anyway, so nothing is analysed twice.
+    async fn open_but_unindexed_symbols(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Vec<core_workspace_symbols::IndexedWorkspaceSymbol> {
+        let unindexed: Vec<Uri> = {
+            // `documents` → `workspace_index`, the lock order `did_open`
+            // establishes.
+            let docs = self.documents.lock().await;
+            let index = self.workspace_index.read().await;
+            docs.keys()
+                .filter(|uri| !index.contains_document(uri.as_str()))
+                .cloned()
+                .collect()
+        };
+        if unindexed.is_empty() {
+            return Vec::new();
+        }
+        let mut pending = core_workspace_index::WorkspaceIndex::new();
+        for uri in &unindexed {
+            if let Some(analysis) = self.cached_analysis(uri).await {
+                pending.add_document(uri.as_str(), &analysis);
+            }
+        }
+        pending.symbols_matching(query, limit)
+    }
+
     async fn scan_workspace_folders(&self) {
         // Held for the whole scan so `ensure_autoload_indexed` can wait out
         // an in-flight scan instead of racing it — see the field doc on
@@ -9832,6 +9962,9 @@ impl Backend {
         // just batched in, which answer `file_decls` / `item_sigs` on demand)
         // until a request actually needs their deep analysis.
         self.spawn_workspace_warm();
+        // In-process readiness signal, released before the log line so a
+        // handler waiting on it is not held up by a client round-trip.
+        self.workspace_scan_ready.mark_complete();
         // Readiness signal for `package_resolver` / `workspace_index` having
         // just been (re)built from disk — a client (or a test) that needs to
         // know the autoload / cross-file workspace state is current rather
@@ -12251,17 +12384,29 @@ impl LanguageServer for Backend {
         // Freshness: the index is refreshed on each document's diagnostics
         // publish, which the debounce puts ~50 ms behind an edit.  A symbol
         // picker tolerates that — it is the same staleness every other
-        // cross-document feature answers with — and an open-but-not-yet-
-        // published buffer still contributes the symbols of its last publish
-        // (or of the folder scan), so nothing that used to be listed stops
-        // being listed.
-        let hits = {
+        // cross-document feature answers with.  What it does *not* tolerate is
+        // an index that has not been populated at all yet, so wait out the
+        // initial folder scan first (#1179).  The `didOpen`/`didChange`
+        // barrier comes first for the same reason every other reader takes it:
+        // a query issued after an open must observe that open.
+        self.edits_settled().await;
+        self.wait_for_workspace_scan().await;
+        let limit = core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS;
+        // Open buffers the index does not currently hold, filled in from their
+        // own analysis.  `did_open` drops a document's index entry (its
+        // on-disk records stop being authoritative the moment a buffer exists)
+        // and the debounced publish is what puts it back, so for that window
+        // every symbol in the file the user *just opened* — the file most
+        // likely to be searched for — was missing from the picker (#1179).
+        // Bounded by the open-document set, empty in steady state, and the
+        // analysis read here is the memoised one the pending publish is
+        // already computing.
+        let mut hits = self.open_but_unindexed_symbols(&params.query, limit).await;
+        if hits.len() < limit {
+            let remaining = limit - hits.len();
             let index = self.workspace_index.read().await;
-            index.symbols_matching(
-                &params.query,
-                core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS,
-            )
-        };
+            hits.extend(index.symbols_matching(&params.query, remaining));
+        }
         if hits.is_empty() {
             return Ok(None);
         }
@@ -19465,6 +19610,7 @@ mod tests {
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             recovery_names: Arc::new(Mutex::new(RecoveryNameCache::default())),
             workspace_scan_gate: tokio::sync::Mutex::new(()),
+            workspace_scan_ready: Arc::new(WorkspaceScanReadiness::default()),
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
             rehoming_gate: tokio::sync::Mutex::new(()),

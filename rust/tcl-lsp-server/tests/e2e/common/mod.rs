@@ -626,6 +626,11 @@ impl Lsp {
     /// Run the `initialize` handshake and send `initialized`.
     pub fn initialize(&mut self) -> Value {
         let root = format!("file:///e2e/root-{}", std::process::id());
+        self.initialize_at(&root)
+    }
+
+    /// [`Lsp::initialize`] against an explicit workspace-root URI.
+    pub fn initialize_at(&mut self, root: &str) -> Value {
         let result = self.request_timeout(
             "initialize",
             json!({
@@ -640,6 +645,20 @@ impl Lsp {
         self.initialize_result = result.clone();
         self.notify("initialized", json!({}));
         result
+    }
+
+    /// Spawn a server rooted at a **real on-disk directory** and return the
+    /// moment the `initialize` handshake is done — no config settle, no wait
+    /// for the startup workspace scan.
+    ///
+    /// [`Lsp::tcl`] deliberately settles the config first, which incidentally
+    /// gives the startup scan time to finish; a test that means to *race* that
+    /// scan (the way a real editor's first `workspace/symbol` does) must not
+    /// pay that barrier.
+    pub fn at_workspace_root(root: &std::path::Path) -> Self {
+        let mut lsp = Self::spawn(json!({ "features": { "linkedEditingRange": true } }));
+        lsp.initialize_at(&format!("file://{}", root.to_string_lossy()));
+        lsp
     }
 
     /// The full `initialize` result.

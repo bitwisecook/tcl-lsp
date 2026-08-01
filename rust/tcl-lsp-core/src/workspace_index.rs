@@ -1673,6 +1673,17 @@ impl WorkspaceIndex {
         slot
     }
 
+    /// Whether `uri` currently has a slot in the index.
+    ///
+    /// Lets the server spot an **open** document whose entry is momentarily
+    /// absent — `did_open` drops it and the debounced diagnostics publish is
+    /// what puts it back — so a workspace-wide query can fill the gap from
+    /// that document's own analysis instead of silently omitting it.
+    #[must_use]
+    pub fn contains_document(&self, uri: &str) -> bool {
+        self.slots.contains_key(uri)
+    }
+
     /// Drop every entry that came from `uri` (used before
     /// re-indexing a changed document, or on `did_close`).
     ///
