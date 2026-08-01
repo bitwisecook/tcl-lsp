@@ -76,6 +76,9 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use crate::workspace_symbols::{
+    IndexedWorkspaceSymbol, WorkspaceSymbolKind, matches_query, namespace_of,
+};
 use tcl_compiler::analyser::class_hierarchy::{build_tail_index, resolve_class_name};
 use tcl_compiler::analyser::{AnalysisResult, MemberSide};
 use tcl_lexer::Span;
@@ -182,6 +185,12 @@ pub struct WorkspaceClass {
     /// `classmethod` / snit `typemethod` (dispatched as two bare words)
     /// without a local `ClassDef` to ask.
     pub metaclass: String,
+    /// Byte spans of this record's `constructor` name tokens, in declaration
+    /// order (`oo::configurable` admits more than one).  Constructors are not
+    /// dispatchable members, so they stay out of [`Self::methods`]; they are
+    /// carried only so `workspace/symbol` can offer them from an unopened file
+    /// the way the per-document outline does (issue #1156).
+    pub constructor_spans: Vec<Span>,
 }
 
 impl WorkspaceClass {
@@ -252,6 +261,11 @@ pub struct WorkspaceMethod {
     /// carrying it here is what lets a *cross-file* consumer scan tell the
     /// two apart (Codex review on #1047).
     pub is_self_method: bool,
+    /// Byte span of the method's name token in the declaring record's
+    /// document.  Carried so `workspace/symbol` can locate a method in a file
+    /// the editor has never opened (issue #1156); cross-file *dispatch* uses
+    /// the name and the visibility flags and does not need it.
+    pub name_span: Span,
 }
 
 /// The access context of a method call site — `TclOO` dispatches an
@@ -311,6 +325,30 @@ pub struct WorkspaceInvocation {
     /// [`WorkspaceIndex::enclosing_body_spans`] computes the whole column in
     /// one stack sweep instead, `O((P + I) log (P + I))` per document.
     pub enclosing_body: Option<Span>,
+}
+
+/// One **registry symbol-definer** definition recorded in the index — a
+/// `tcltest::test` case, a `testConstraint`, a `customMatch` mode, or an
+/// iRules `when EVENT` handler (issue #790's outline tier, lifted to the
+/// workspace for issue #1156).
+///
+/// Cross-document identity, as the index requires of every table: each of
+/// these is a *named* definition carrying its enclosing namespace, spellable
+/// from another file exactly as a proc's qualified name is.  They are not
+/// callable commands, so they stay out of `procs` and out of the command
+/// existence oracle; the workspace-symbol picker is their consumer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceDefinedSymbol {
+    /// Document the definition is in.
+    pub uri: String,
+    /// Definition name as resolved (a test's case label, an event's name).
+    pub name: String,
+    /// Fully-qualified name, with the enclosing namespace applied.
+    pub qualified_name: String,
+    /// The registry's outline category for it.
+    pub kind: tcl_registry::DefinedSymbolKind,
+    /// Byte span of the name token in `uri`'s source.
+    pub name_span: Span,
 }
 
 /// One **namespace-qualified** variable declaration recorded in the index —
@@ -727,11 +765,22 @@ fn sorted_names(names: &std::collections::HashSet<String>) -> Vec<String> {
     out
 }
 
-/// Cross-document aggregate of proc / class definitions,
-/// command-invocation sites, `source` references, command
-/// name-links, and `package require` declarations.
+/// The fourteen record tables **one document** contributes to the index.
+///
+/// Grouping the tables per document is what makes
+/// [`WorkspaceIndex::remove_document`] cost the document's own records rather
+/// than the workspace's (issue #1149).  Flat workspace-wide vectors made a
+/// removal fourteen `Vec::retain` passes with a `String` compare per element
+/// over tables that hold one row per call site and per qualified variable
+/// occurrence — 10⁵–10⁶ rows on a tcllib-sized workspace — and the server runs
+/// a removal on every diagnostics publish.
+///
+/// Consumers never see this type: [`WorkspaceIndex`] exposes each table as a
+/// workspace-wide iterator that chains the per-document vectors in slot order,
+/// which is the order the records were added in and therefore exactly the
+/// order the previous flat vectors held them in.
 #[derive(Debug, Clone, Default)]
-pub struct WorkspaceIndex {
+struct DocumentRecords {
     procs: Vec<WorkspaceProc>,
     classes: Vec<WorkspaceClass>,
     variables: Vec<WorkspaceVariable>,
@@ -746,254 +795,155 @@ pub struct WorkspaceIndex {
     namespace_exports: Vec<WorkspaceNamespaceExport>,
     namespace_forgets: Vec<WorkspaceNamespaceForget>,
     command_deletions: Vec<WorkspaceCommandDeletion>,
-    generation: u64,
-    /// Every command name the workspace defines, in each spelling a call site
-    /// may write — see [`WorkspaceIndex::command_names`].
-    command_names: Derived<HashSet<String>>,
-    /// Parallel liveness mask over `command_links` — see
-    /// [`WorkspaceIndex::live_command_links`].
-    live_links: Derived<Vec<bool>>,
-    /// `::`-stripped qualified names of every indexed proc and class, and the
-    /// same set with the names links introduce — see
-    /// [`WorkspaceIndex::defined_command_names`].
-    defined_names: [Derived<HashSet<String>>; 2],
+    defined_symbols: Vec<WorkspaceDefinedSymbol>,
 }
 
-/// A whole-index **derived view**: a value that is a pure function of the
-/// index's contents, built at most once per [`WorkspaceIndex::generation`] and
-/// dropped by the mutation hook that bumps it.
-///
-/// The workspace-indexing contract's rule 5 in one type, so the reset/build
-/// boilerplate is written once rather than per view (issue #1105). Excluded
-/// from equality and dropped on clone — the same discipline
-/// `tcl_compiler::analyser::HierarchyCache` uses for the class hierarchy it
-/// derives from `all_classes`. `Arc` because a caller may hold the view while
-/// the index it came from is dropped or re-derived.
-#[derive(Debug)]
-struct Derived<T>(std::sync::OnceLock<Arc<T>>);
-
-impl<T> Default for Derived<T> {
-    fn default() -> Self {
-        Self(std::sync::OnceLock::new())
-    }
-}
-
-impl<T> Clone for Derived<T> {
-    fn clone(&self) -> Self {
-        Self::default()
-    }
-}
-
-impl<T> Derived<T> {
-    /// The cached value, building it with `build` on first use.
-    fn get_or_build(&self, build: impl FnOnce() -> T) -> Arc<T> {
-        Arc::clone(self.0.get_or_init(|| Arc::new(build())))
-    }
-}
-
-impl WorkspaceIndex {
-    /// Empty index.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Build an index from an iterator of `(uri, analysis)`
-    /// pairs — typically the server's cached-analysis map.
-    #[must_use]
-    pub fn from_documents<'a, I>(documents: I) -> Self
-    where
-        I: IntoIterator<Item = (&'a str, &'a AnalysisResult)>,
-    {
-        let mut index = Self::new();
-        for (uri, analysis) in documents {
-            index.add_document(uri, analysis);
-        }
-        index
-    }
-
-    /// A counter bumped by every mutation ([`Self::add_document`] /
-    /// [`Self::remove_document`]).  Lets a consumer tell whether the index has
-    /// changed since it last looked without diffing its contents.
-    #[must_use]
-    pub fn generation(&self) -> u64 {
-        self.generation
-    }
-
-    /// Every command name the workspace defines — each indexed proc and class
-    /// in the three forms a call site may spell (`::ns::name`, `ns::name`,
-    /// `name`).
+impl DocumentRecords {
+    /// Drop every record, keeping each table's allocation.
     ///
-    /// This is the cross-file "does this command exist anywhere in the
-    /// project?" set the unknown-command (W123) refinement consults.  It is
-    /// **derived**, so it is built once and cached until the next index
-    /// mutation rather than walked per request: on a 400-file / 10 000-proc
-    /// workspace it is ~20 000 names and ~7 ms to build, against ~120 ns to
-    /// serve from the cache.
-    #[must_use]
-    pub fn command_names(&self) -> Arc<HashSet<String>> {
-        self.command_names.get_or_build(|| {
-            let mut names: HashSet<String> = HashSet::new();
-            for p in &self.procs {
-                tcl_compiler::analyser::utils::insert_qualified_and_tail(
-                    &mut names,
-                    &p.qualified_name,
-                );
+    /// The capacity is deliberately retained: a re-index of the same document
+    /// (the remove-then-add every publish performs) refills tables of very
+    /// nearly the same size, so the slot's buffers are reused instead of being
+    /// freed and regrown fourteen times per publish.  A slot whose document is
+    /// gone for good keeps its capacity until another document reuses the slot
+    /// — bounded by the workspace's peak document count, not by the number of
+    /// removals.
+    fn clear(&mut self) {
+        let Self {
+            procs,
+            classes,
+            variables,
+            variable_refs,
+            variable_aliases,
+            namespace_refs,
+            invocations,
+            sources,
+            package_requires,
+            command_links,
+            glob_imports,
+            namespace_exports,
+            namespace_forgets,
+            command_deletions,
+            defined_symbols,
+        } = self;
+        procs.clear();
+        classes.clear();
+        variables.clear();
+        variable_refs.clear();
+        variable_aliases.clear();
+        namespace_refs.clear();
+        invocations.clear();
+        sources.clear();
+        package_requires.clear();
+        command_links.clear();
+        glob_imports.clear();
+        namespace_exports.clear();
+        namespace_forgets.clear();
+        command_deletions.clear();
+        defined_symbols.clear();
+    }
+
+    /// Append this document's [`IndexedWorkspaceSymbol`]s matching
+    /// `lower_query` to `out`, stopping once `out` reaches `limit`.
+    ///
+    /// The order — procs, then classes with their members, then registry
+    /// symbol-definer definitions — mirrors the per-document outline the
+    /// document-symbol provider produces, and each table is already in source
+    /// order (see [`sorted_by_span`]).
+    fn collect_symbols_matching(
+        &self,
+        lower_query: &str,
+        limit: usize,
+        out: &mut Vec<IndexedWorkspaceSymbol>,
+    ) {
+        for proc_def in &self.procs {
+            if out.len() >= limit {
+                return;
             }
-            for c in &self.classes {
-                tcl_compiler::analyser::utils::insert_qualified_and_tail(
-                    &mut names,
-                    &c.qualified_name,
-                );
+            if matches_query(&proc_def.name, lower_query)
+                || matches_query(&proc_def.qualified_name, lower_query)
+            {
+                out.push(IndexedWorkspaceSymbol {
+                    uri: proc_def.uri.clone(),
+                    name: proc_def.name.clone(),
+                    container_name: namespace_of(&proc_def.qualified_name),
+                    kind: WorkspaceSymbolKind::Function,
+                    name_span: proc_def.name_span,
+                });
             }
-            names
-        })
-    }
-
-    /// Note a mutation: bump the generation and drop every derived cache.
-    fn invalidate(&mut self) {
-        self.generation = self.generation.wrapping_add(1);
-        self.command_names = Derived::default();
-        self.live_links = Derived::default();
-        self.defined_names = <[Derived<HashSet<String>>; 2]>::default();
-    }
-
-    /// The command name-links that are actually installed — every `interp
-    /// alias` / `rename` link, plus each exact `namespace import` link whose
-    /// [`WorkspaceCommandLink::import_gate`] its source namespace's export
-    /// timeline admits (issue #1027).
-    ///
-    /// Every consumer of `command_links` that answers "does this name exist /
-    /// what does it reach" goes through here, so an import Tcl never
-    /// installed cannot leak into definition, references, or the existence
-    /// oracle through one of them. The mask is built once per
-    /// [`Self::generation`] ([`LiveLinkCache`]); this call is then a `Vec` of
-    /// borrows, the same order of cost as the `HashMap`/`HashSet` each caller
-    /// already builds.
-    ///
-    /// The gate only fires for a source namespace the workspace can actually
-    /// *observe* ([`Self::observable_namespaces`]).  `namespace import
-    /// ::msgcat::mc` names a namespace that lives in an installed package, not
-    /// in any indexed document: the index holds no export declaration for it
-    /// and never will, so treating that silence as "not exported" would revoke
-    /// a real command and hand W123 a fresh false positive on every bare `mc`
-    /// call.  Absence of an export is evidence only where the definitions are
-    /// visible too — otherwise this abstains and keeps the link, the same
-    /// abstain-toward-silence rule the unknown-command pass follows.
-    fn live_command_links(&self) -> Vec<&WorkspaceCommandLink> {
-        let mask = self.live_links.get_or_build(|| {
-            let wci = WildcardImportIndex::build(self);
-            let observable = self.observable_namespaces();
-            self.command_links
-                .iter()
-                .map(|l| {
-                    l.import_gate.as_ref().is_none_or(|g| {
-                        if !observable.contains(g.source_ns.trim_start_matches("::")) {
-                            return true;
-                        }
-                        if !wci.exports_name_at(&g.source_ns, &g.name, g.site(&l.uri)) {
-                            return false;
-                        }
-                        // A non-`-force` import onto a name the target
-                        // namespace already holds installs nothing at all
-                        // (oracle on `WorkspaceGlobImport::forced`), so
-                        // the link it would introduce is not live either.
-                        // "Already holds" is a real *definition* or an
-                        // earlier live alias from a **different** source
-                        // in the same document (issue #1116 finding 4);
-                        // a same-source re-import is a silent no-op, and
-                        // two links cancelling each other out is what the
-                        // different-source test rules out.
-                        let importing_ns = importing_namespace_of(&l.linked_qname);
-                        if !g.forced
-                            && (self.defines_command(&l.linked_qname)
-                                || wci.conflicting_alias_at(
-                                    importing_ns,
-                                    &g.source_ns,
-                                    &g.name,
-                                    g.site(&l.uri),
-                                ))
-                        {
-                            return false;
-                        }
-                        // …and the alias it installed can be taken away
-                        // again: `namespace forget`, a redefinition of the
-                        // imported name, or destruction of the source
-                        // command (issue #1116 finding 2).
-                        wci.link_alias_live(importing_ns, g, &l.uri)
-                    })
-                })
-                .collect()
-        });
-        self.command_links
-            .iter()
-            .zip(mask.iter())
-            .filter_map(|(link, &live)| live.then_some(link))
-            .collect()
-    }
-
-    /// Whether the workspace holds a real proc or class definition at
-    /// `qualified_name` — the "already exists" side of a non-`-force`
-    /// `namespace import` conflict.
-    ///
-    /// Deliberately *not* [`Self::workspace_command_exists`], which also
-    /// admits linked names: a link is what this question is being asked
-    /// about, so counting one would make an import conflict with itself.
-    fn defines_command(&self, qualified_name: &str) -> bool {
-        let target = qualified_name.trim_start_matches("::");
-        self.procs
-            .iter()
-            .any(|p| p.qualified_name.trim_start_matches("::") == target)
-            || self
-                .classes
-                .iter()
-                .any(|c| c.qualified_name.trim_start_matches("::") == target)
-    }
-
-    /// The `::`-stripped namespaces the workspace can say anything about: one
-    /// that owns an indexed proc or class, that declares a `namespace export`
-    /// somewhere, or that an indexed `namespace eval` block declares.
-    ///
-    /// The discriminator between "this namespace does not export the name"
-    /// (a fact) and "this namespace is not in the workspace at all" (no
-    /// information) — see [`Self::live_command_links`].
-    ///
-    /// The declaring-block source (issue #1088) closes a hole the first two
-    /// leave: a `namespace eval ::ns { namespace import ::other::* }` block
-    /// that declares no proc, class, or export of its own *is* a namespace
-    /// the workspace can see, and treating it as unknown made the import gate
-    /// abstain where it had the evidence to decide.
-    fn observable_namespaces(&self) -> HashSet<&str> {
-        fn owning_ns(qualified: &str) -> &str {
-            qualified
-                .trim_start_matches("::")
-                .rsplit_once("::")
-                .map_or("", |(ns, _)| ns)
         }
-        self.procs
-            .iter()
-            .map(|p| owning_ns(&p.qualified_name))
-            .chain(self.classes.iter().map(|c| owning_ns(&c.qualified_name)))
-            .chain(
-                self.namespace_exports
-                    .iter()
-                    .map(|e| e.ns.trim_start_matches("::")),
-            )
-            .chain(
-                self.namespace_refs
-                    .iter()
-                    .filter(|n| n.declares)
-                    .map(|n| n.qualified_name.trim_start_matches("::")),
-            )
-            .collect()
+        // A constructor's only name is the keyword, so whether the query
+        // admits one is decided once rather than per class.
+        let wants_constructors = matches_query("constructor", lower_query);
+        for class_def in &self.classes {
+            if out.len() >= limit {
+                return;
+            }
+            if matches_query(&class_def.name, lower_query)
+                || matches_query(&class_def.qualified_name, lower_query)
+            {
+                out.push(IndexedWorkspaceSymbol {
+                    uri: class_def.uri.clone(),
+                    name: class_def.name.clone(),
+                    container_name: namespace_of(&class_def.qualified_name),
+                    kind: WorkspaceSymbolKind::Class,
+                    name_span: class_def.name_span,
+                });
+            }
+            // Members carry the class's qualified name as their container, so
+            // an editor renders them as `ClassName::methodName`.
+            for method in &class_def.methods {
+                if out.len() >= limit {
+                    return;
+                }
+                if matches_query(&method.name, lower_query) {
+                    out.push(IndexedWorkspaceSymbol {
+                        uri: class_def.uri.clone(),
+                        name: method.name.clone(),
+                        container_name: Some(class_def.qualified_name.clone()),
+                        kind: WorkspaceSymbolKind::Method,
+                        name_span: method.name_span,
+                    });
+                }
+            }
+            if wants_constructors {
+                for &name_span in &class_def.constructor_spans {
+                    if out.len() >= limit {
+                        return;
+                    }
+                    out.push(IndexedWorkspaceSymbol {
+                        uri: class_def.uri.clone(),
+                        name: "constructor".to_owned(),
+                        container_name: Some(class_def.qualified_name.clone()),
+                        kind: WorkspaceSymbolKind::Constructor,
+                        name_span,
+                    });
+                }
+            }
+        }
+        for sym in &self.defined_symbols {
+            if out.len() >= limit {
+                return;
+            }
+            if matches_query(&sym.name, lower_query)
+                || matches_query(&sym.qualified_name, lower_query)
+            {
+                out.push(IndexedWorkspaceSymbol {
+                    uri: sym.uri.clone(),
+                    name: sym.name.clone(),
+                    container_name: namespace_of(&sym.qualified_name),
+                    kind: WorkspaceSymbolKind::from(sym.kind),
+                    name_span: sym.name_span,
+                });
+            }
+        }
     }
 
-    /// Add (or refresh) one document's proc / class definitions.
+    /// Lift one document's analysis into this record set.
     ///
-    /// Call [`Self::remove_document`] first when re-indexing a
-    /// changed document to avoid stale duplicates.
-    pub fn add_document(&mut self, uri: &str, analysis: &AnalysisResult) {
-        self.invalidate();
+    /// The caller ([`WorkspaceIndex::add_document`]) has already cleared the
+    /// slot, so this only ever appends.
+    fn index_document(&mut self, uri: &str, analysis: &AnalysisResult) {
         // `all_procs` / `all_classes` / a class's `methods` are `HashMap`s, so
         // iterating them directly would order this document's index entries by
         // the process's random hash seed — and consumers that answer with the
@@ -1011,49 +961,19 @@ impl WorkspaceIndex {
                 nested: analysis.offset_is_inside_any_definition_body(proc_def.name_span.start()),
             });
         }
-        for class_def in sorted_by_span(analysis.all_classes.values(), |c| c.name_span) {
-            let methods: Vec<WorkspaceMethod> =
-                sorted_by_span(class_def.methods.values(), |m| m.name_span)
-                    .into_iter()
-                    .map(|m| WorkspaceMethod {
-                        name: m.name.clone(),
-                        kind: m.kind.clone(),
-                        exported: m.visibility == "public",
-                        private: m.visibility == "private",
-                        is_self_method: m.is_self_method,
-                    })
-                    .chain(
-                        sorted_by_span(class_def.class_methods.values(), |m| m.name_span)
-                            .into_iter()
-                            .map(|m| WorkspaceMethod {
-                                name: m.name.clone(),
-                                kind: "classmethod".to_string(),
-                                exported: m.visibility == "public",
-                                private: m.visibility == "private",
-                                is_self_method: m.is_self_method,
-                            }),
-                    )
-                    .collect();
-            self.classes.push(WorkspaceClass {
+        self.index_classes(uri, analysis);
+        for sym in sorted_by_span(&analysis.all_defined_symbols, |s| s.name_span) {
+            self.defined_symbols.push(WorkspaceDefinedSymbol {
                 uri: uri.to_owned(),
-                name: class_def.name.clone(),
-                qualified_name: class_def.qualified_name.clone(),
-                name_span: class_def.name_span,
-                superclasses: class_def.superclasses.clone(),
-                mixins: class_def.mixins.clone(),
-                methods,
-                exports: sorted_names(&class_def.exports),
-                unexports: sorted_names(&class_def.unexports),
-                class_exports: sorted_names(&class_def.class_exports),
-                class_unexports: sorted_names(&class_def.class_unexports),
-                retracted_members: class_def.retracted_members.clone(),
-                via_define: class_def.via_define,
-                metaclass: class_def.metaclass.clone(),
+                name: sym.name.clone(),
+                qualified_name: sym.qualified_name.clone(),
+                kind: sym.kind,
+                name_span: sym.name_span,
             });
         }
         self.index_variables(uri, analysis);
         self.index_namespace_refs(uri, analysis);
-        let bodies = Self::enclosing_body_spans(
+        let bodies = WorkspaceIndex::enclosing_body_spans(
             analysis,
             &analysis
                 .command_invocations
@@ -1100,51 +1020,56 @@ impl WorkspaceIndex {
         self.index_command_links(uri, analysis);
     }
 
-    /// [`tcl_compiler::analyser::AnalysisResult::innermost_definition_body_span`]
-    /// for a whole column of offsets at once, in the order they were given.
+    /// Lift one document's class definitions, each with its members flattened
+    /// into one source-ordered [`WorkspaceMethod`] list (instance methods
+    /// first, then the class-side ones).
     ///
-    /// That single-offset lookup scans every recorded proc and class body, so
-    /// calling it once per invocation is `O(procs × invocations)` — the cost
-    /// that kept a per-call body span out of the index (issue #1116 item 3).
-    /// It is not the cost the answer actually needs: definition bodies are
-    /// syntactic, so they **nest properly** — no two of them partially overlap
-    /// — which means one pass over the bodies in start order, keeping the
-    /// currently-open chain on a stack, yields the innermost body of every
-    /// offset in increasing order. Sorting both sides makes the whole column
-    /// `O((P + I) log (P + I))` instead, small beside the analysis that
-    /// produced them.
-    ///
-    /// Ties in `start` are ordered by *longer first*, so a body sharing its
-    /// start with a nested one is pushed before its child and the stack top
-    /// stays the innermost.
-    fn enclosing_body_spans(analysis: &AnalysisResult, offsets: &[u32]) -> Vec<Option<Span>> {
-        let mut bodies: Vec<Span> = analysis
-            .all_procs
-            .values()
-            .map(|p| p.body_span)
-            .chain(analysis.all_classes.values().map(|c| c.body_span))
-            .collect();
-        if bodies.is_empty() {
-            return vec![None; offsets.len()];
+    /// Split out of [`Self::index_document`] only for size; the source-order
+    /// rule that walk documents applies here unchanged.
+    fn index_classes(&mut self, uri: &str, analysis: &AnalysisResult) {
+        for class_def in sorted_by_span(analysis.all_classes.values(), |c| c.name_span) {
+            let methods: Vec<WorkspaceMethod> =
+                sorted_by_span(class_def.methods.values(), |m| m.name_span)
+                    .into_iter()
+                    .map(|m| WorkspaceMethod {
+                        name: m.name.clone(),
+                        kind: m.kind.clone(),
+                        exported: m.visibility == "public",
+                        private: m.visibility == "private",
+                        is_self_method: m.is_self_method,
+                        name_span: m.name_span,
+                    })
+                    .chain(
+                        sorted_by_span(class_def.class_methods.values(), |m| m.name_span)
+                            .into_iter()
+                            .map(|m| WorkspaceMethod {
+                                name: m.name.clone(),
+                                kind: "classmethod".to_string(),
+                                exported: m.visibility == "public",
+                                private: m.visibility == "private",
+                                is_self_method: m.is_self_method,
+                                name_span: m.name_span,
+                            }),
+                    )
+                    .collect();
+            self.classes.push(WorkspaceClass {
+                uri: uri.to_owned(),
+                name: class_def.name.clone(),
+                qualified_name: class_def.qualified_name.clone(),
+                name_span: class_def.name_span,
+                superclasses: class_def.superclasses.clone(),
+                mixins: class_def.mixins.clone(),
+                methods,
+                exports: sorted_names(&class_def.exports),
+                unexports: sorted_names(&class_def.unexports),
+                class_exports: sorted_names(&class_def.class_exports),
+                class_unexports: sorted_names(&class_def.class_unexports),
+                retracted_members: class_def.retracted_members.clone(),
+                via_define: class_def.via_define,
+                metaclass: class_def.metaclass.clone(),
+                constructor_spans: class_def.constructors.iter().map(|c| c.name_span).collect(),
+            });
         }
-        bodies.sort_unstable_by_key(|s| (s.start(), std::cmp::Reverse(s.end())));
-        let mut order: Vec<usize> = (0..offsets.len()).collect();
-        order.sort_unstable_by_key(|&i| offsets[i]);
-        let mut out = vec![None; offsets.len()];
-        let mut open: Vec<Span> = Vec::new();
-        let mut next = 0usize;
-        for i in order {
-            let off = offsets[i];
-            while next < bodies.len() && bodies[next].start() <= off {
-                open.push(bodies[next]);
-                next += 1;
-            }
-            while open.last().is_some_and(|b| b.end() <= off) {
-                open.pop();
-            }
-            out[i] = open.last().copied();
-        }
-        out
     }
 
     /// Lift a document's `namespace forget` events and command **destructions**
@@ -1349,37 +1274,437 @@ impl WorkspaceIndex {
             });
         }
     }
+}
+
+/// Cross-document aggregate of proc / class definitions,
+/// command-invocation sites, `source` references, command
+/// name-links, and `package require` declarations.
+///
+/// Records are stored per document ([`DocumentRecords`]) in a slot vector, with
+/// `slots` mapping a document URI to its slot.  Removing a document clears its
+/// slot and returns the index to `free_slots`; the next document to be added —
+/// in practice the same one, since the server's re-index is a remove
+/// immediately followed by an add — takes the most recently freed slot back, so
+/// a document keeps its position across a re-index and the slot vector stays
+/// bounded by the workspace's peak document count.
+#[derive(Debug, Clone, Default)]
+pub struct WorkspaceIndex {
+    docs: Vec<DocumentRecords>,
+    slots: std::collections::HashMap<String, usize>,
+    free_slots: Vec<usize>,
+    generation: u64,
+    /// Every command name the workspace defines, in each spelling a call site
+    /// may write — see [`WorkspaceIndex::command_names`].
+    command_names: Derived<HashSet<String>>,
+    /// Parallel liveness mask over `command_links` — see
+    /// [`WorkspaceIndex::live_command_links`].
+    live_links: Derived<Vec<bool>>,
+    /// `::`-stripped qualified names of every indexed proc and class, and the
+    /// same set with the names links introduce — see
+    /// [`WorkspaceIndex::defined_command_names`].
+    defined_names: [Derived<HashSet<String>>; 2],
+    /// `linked name -> target name` over the live links — see
+    /// [`WorkspaceIndex::command_link_map`].
+    command_link_map: Derived<std::collections::HashMap<String, String>>,
+    /// Every invocation's settled target, grouped by that target, with and
+    /// without link-following — see
+    /// [`WorkspaceIndex::invocations_by_settled_target`].
+    settled_invocations: [Derived<SettledTargets>; 2],
+}
+
+/// A whole-index **derived view**: a value that is a pure function of the
+/// index's contents, built at most once per [`WorkspaceIndex::generation`] and
+/// dropped by the mutation hook that bumps it.
+///
+/// The workspace-indexing contract's rule 5 in one type, so the reset/build
+/// boilerplate is written once rather than per view (issue #1105). Excluded
+/// from equality and dropped on clone — the same discipline
+/// `tcl_compiler::analyser::HierarchyCache` uses for the class hierarchy it
+/// derives from `all_classes`. `Arc` because a caller may hold the view while
+/// the index it came from is dropped or re-derived.
+#[derive(Debug)]
+struct Derived<T>(std::sync::OnceLock<Arc<T>>);
+
+impl<T> Default for Derived<T> {
+    fn default() -> Self {
+        Self(std::sync::OnceLock::new())
+    }
+}
+
+impl<T> Clone for Derived<T> {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl<T> Derived<T> {
+    /// The cached value, building it with `build` on first use.
+    fn get_or_build(&self, build: impl FnOnce() -> T) -> Arc<T> {
+        Arc::clone(self.0.get_or_init(|| Arc::new(build())))
+    }
+}
+
+/// Every invocation's **settled target**, grouped by that target's
+/// `::`-stripped qualified name: `target -> [(doc slot, index within that
+/// slot's invocations)]`.
+///
+/// [`WorkspaceIndex::invocations_of`] (code-lens's per-proc / per-class
+/// reference count, issue #1152) used to re-settle *every* invocation in the
+/// workspace against the candidate target on every call — `code_lenses`
+/// calls it once per proc and once per class, so an N-proc document paid an
+/// O(N × invocations) walk, each rebuilding [`WildcardImportIndex`] (five
+/// `HashMap`s over the whole index) from scratch. Settling every invocation
+/// once per generation and grouping the results turns each subsequent
+/// `invocations_of` call into a hash lookup plus a direct index into the
+/// owning document's slot — the indices are stable because a document's
+/// `Vec<WorkspaceInvocation>` is only ever cleared and refilled wholesale
+/// (`DocumentRecords::clear` / `index_document`), never reordered in place,
+/// and any mutation that could invalidate a stored `(slot, index)` pair also
+/// bumps the generation and drops the [`Derived`] view holding it.
+type SettledTargets = std::collections::HashMap<String, Vec<(usize, usize)>>;
+
+impl WorkspaceIndex {
+    /// Empty index.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Build an index from an iterator of `(uri, analysis)`
+    /// pairs — typically the server's cached-analysis map.
+    #[must_use]
+    pub fn from_documents<'a, I>(documents: I) -> Self
+    where
+        I: IntoIterator<Item = (&'a str, &'a AnalysisResult)>,
+    {
+        let mut index = Self::new();
+        for (uri, analysis) in documents {
+            index.add_document(uri, analysis);
+        }
+        index
+    }
+
+    /// A counter bumped by every mutation ([`Self::add_document`] /
+    /// [`Self::remove_document`]).  Lets a consumer tell whether the index has
+    /// changed since it last looked without diffing its contents.
+    #[must_use]
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// Every indexed qualified variable **occurrence**.
+    fn variable_refs(&self) -> impl Iterator<Item = &WorkspaceVariableRef> {
+        self.docs.iter().flat_map(|doc| doc.variable_refs.iter())
+    }
+
+    /// Every indexed **alias** of a qualified variable cell.
+    fn variable_aliases(&self) -> impl Iterator<Item = &WorkspaceVariableAlias> {
+        self.docs.iter().flat_map(|doc| doc.variable_aliases.iter())
+    }
+
+    /// Every indexed wildcard `namespace import NS::*`.
+    fn glob_imports(&self) -> impl Iterator<Item = &WorkspaceGlobImport> {
+        self.docs.iter().flat_map(|doc| doc.glob_imports.iter())
+    }
+
+    /// Every indexed `namespace export` declaration.
+    fn namespace_exports(&self) -> impl Iterator<Item = &WorkspaceNamespaceExport> {
+        self.docs
+            .iter()
+            .flat_map(|doc| doc.namespace_exports.iter())
+    }
+
+    /// Every indexed `namespace forget`.
+    fn namespace_forgets(&self) -> impl Iterator<Item = &WorkspaceNamespaceForget> {
+        self.docs
+            .iter()
+            .flat_map(|doc| doc.namespace_forgets.iter())
+    }
+
+    /// Every indexed command **destruction** (`rename OLD {}` / a destroying
+    /// `interp alias`).
+    fn command_deletions(&self) -> impl Iterator<Item = &WorkspaceCommandDeletion> {
+        self.docs
+            .iter()
+            .flat_map(|doc| doc.command_deletions.iter())
+    }
+
+    /// [`tcl_compiler::analyser::AnalysisResult::innermost_definition_body_span`]
+    /// for a whole column of offsets at once, in the order they were given.
+    ///
+    /// That single-offset lookup scans every recorded proc and class body, so
+    /// calling it once per invocation is `O(procs × invocations)` — the cost
+    /// that kept a per-call body span out of the index (issue #1116 item 3).
+    /// It is not the cost the answer actually needs: definition bodies are
+    /// syntactic, so they **nest properly** — no two of them partially overlap
+    /// — which means one pass over the bodies in start order, keeping the
+    /// currently-open chain on a stack, yields the innermost body of every
+    /// offset in increasing order. Sorting both sides makes the whole column
+    /// `O((P + I) log (P + I))` instead, small beside the analysis that
+    /// produced them.
+    ///
+    /// Ties in `start` are ordered by *longer first*, so a body sharing its
+    /// start with a nested one is pushed before its child and the stack top
+    /// stays the innermost.
+    fn enclosing_body_spans(analysis: &AnalysisResult, offsets: &[u32]) -> Vec<Option<Span>> {
+        let mut bodies: Vec<Span> = analysis
+            .all_procs
+            .values()
+            .map(|p| p.body_span)
+            .chain(analysis.all_classes.values().map(|c| c.body_span))
+            .collect();
+        if bodies.is_empty() {
+            return vec![None; offsets.len()];
+        }
+        bodies.sort_unstable_by_key(|s| (s.start(), std::cmp::Reverse(s.end())));
+        let mut order: Vec<usize> = (0..offsets.len()).collect();
+        order.sort_unstable_by_key(|&i| offsets[i]);
+        let mut out = vec![None; offsets.len()];
+        let mut open: Vec<Span> = Vec::new();
+        let mut next = 0usize;
+        for i in order {
+            let off = offsets[i];
+            while next < bodies.len() && bodies[next].start() <= off {
+                open.push(bodies[next]);
+                next += 1;
+            }
+            while open.last().is_some_and(|b| b.end() <= off) {
+                open.pop();
+            }
+            out[i] = open.last().copied();
+        }
+        out
+    }
+
+    /// Every command name the workspace defines — each indexed proc and class
+    /// in the three forms a call site may spell (`::ns::name`, `ns::name`,
+    /// `name`).
+    ///
+    /// This is the cross-file "does this command exist anywhere in the
+    /// project?" set the unknown-command (W123) refinement consults.  It is
+    /// **derived**, so it is built once and cached until the next index
+    /// mutation rather than walked per request: on a 400-file / 10 000-proc
+    /// workspace it is ~20 000 names and ~7 ms to build, against ~120 ns to
+    /// serve from the cache.
+    #[must_use]
+    pub fn command_names(&self) -> Arc<HashSet<String>> {
+        self.command_names.get_or_build(|| {
+            let mut names: HashSet<String> = HashSet::new();
+            for p in self.procs() {
+                tcl_compiler::analyser::utils::insert_qualified_and_tail(
+                    &mut names,
+                    &p.qualified_name,
+                );
+            }
+            for c in self.classes() {
+                tcl_compiler::analyser::utils::insert_qualified_and_tail(
+                    &mut names,
+                    &c.qualified_name,
+                );
+            }
+            names
+        })
+    }
+
+    /// Note a mutation: bump the generation and drop every derived cache.
+    fn invalidate(&mut self) {
+        self.generation = self.generation.wrapping_add(1);
+        self.command_names = Derived::default();
+        self.live_links = Derived::default();
+        self.defined_names = <[Derived<HashSet<String>>; 2]>::default();
+        self.command_link_map = Derived::default();
+        self.settled_invocations = <[Derived<SettledTargets>; 2]>::default();
+    }
+
+    /// The command name-links that are actually installed — every `interp
+    /// alias` / `rename` link, plus each exact `namespace import` link whose
+    /// [`WorkspaceCommandLink::import_gate`] its source namespace's export
+    /// timeline admits (issue #1027).
+    ///
+    /// Every consumer of `command_links` that answers "does this name exist /
+    /// what does it reach" goes through here, so an import Tcl never
+    /// installed cannot leak into definition, references, or the existence
+    /// oracle through one of them. The mask is built once per
+    /// [`Self::generation`] (a [`Derived`] view); this call is then a `Vec` of
+    /// borrows, the same order of cost as the `HashMap`/`HashSet` each caller
+    /// already builds.
+    ///
+    /// The gate only fires for a source namespace the workspace can actually
+    /// *observe* ([`Self::observable_namespaces`]).  `namespace import
+    /// ::msgcat::mc` names a namespace that lives in an installed package, not
+    /// in any indexed document: the index holds no export declaration for it
+    /// and never will, so treating that silence as "not exported" would revoke
+    /// a real command and hand W123 a fresh false positive on every bare `mc`
+    /// call.  Absence of an export is evidence only where the definitions are
+    /// visible too — otherwise this abstains and keeps the link, the same
+    /// abstain-toward-silence rule the unknown-command pass follows.
+    fn live_command_links(&self) -> Vec<&WorkspaceCommandLink> {
+        let mask = self.live_links.get_or_build(|| {
+            let wci = WildcardImportIndex::build(self);
+            let observable = self.observable_namespaces();
+            self.command_links()
+                .map(|l| {
+                    l.import_gate.as_ref().is_none_or(|g| {
+                        if !observable.contains(g.source_ns.trim_start_matches("::")) {
+                            return true;
+                        }
+                        if !wci.exports_name_at(&g.source_ns, &g.name, g.site(&l.uri)) {
+                            return false;
+                        }
+                        // A non-`-force` import onto a name the target
+                        // namespace already holds installs nothing at all
+                        // (oracle on `WorkspaceGlobImport::forced`), so
+                        // the link it would introduce is not live either.
+                        // "Already holds" is a real *definition* or an
+                        // earlier live alias from a **different** source
+                        // in the same document (issue #1116 finding 4);
+                        // a same-source re-import is a silent no-op, and
+                        // two links cancelling each other out is what the
+                        // different-source test rules out.
+                        let importing_ns = importing_namespace_of(&l.linked_qname);
+                        if !g.forced
+                            && (self.defines_command(&l.linked_qname)
+                                || wci.conflicting_alias_at(
+                                    importing_ns,
+                                    &g.source_ns,
+                                    &g.name,
+                                    g.site(&l.uri),
+                                ))
+                        {
+                            return false;
+                        }
+                        // …and the alias it installed can be taken away
+                        // again: `namespace forget`, a redefinition of the
+                        // imported name, or destruction of the source
+                        // command (issue #1116 finding 2).
+                        wci.link_alias_live(importing_ns, g, &l.uri)
+                    })
+                })
+                .collect()
+        });
+        self.command_links()
+            .zip(mask.iter())
+            .filter_map(|(link, &live)| live.then_some(link))
+            .collect()
+    }
+
+    /// Whether the workspace holds a real proc or class definition at
+    /// `qualified_name` — the "already exists" side of a non-`-force`
+    /// `namespace import` conflict.
+    ///
+    /// Deliberately *not* [`Self::workspace_command_exists`], which also
+    /// admits linked names: a link is what this question is being asked
+    /// about, so counting one would make an import conflict with itself.
+    fn defines_command(&self, qualified_name: &str) -> bool {
+        let target = qualified_name.trim_start_matches("::");
+        self.procs()
+            .any(|p| p.qualified_name.trim_start_matches("::") == target)
+            || self
+                .classes()
+                .any(|c| c.qualified_name.trim_start_matches("::") == target)
+    }
+
+    /// The `::`-stripped namespaces the workspace can say anything about: one
+    /// that owns an indexed proc or class, that declares a `namespace export`
+    /// somewhere, or that an indexed `namespace eval` block declares.
+    ///
+    /// The discriminator between "this namespace does not export the name"
+    /// (a fact) and "this namespace is not in the workspace at all" (no
+    /// information) — see [`Self::live_command_links`].
+    ///
+    /// The declaring-block source (issue #1088) closes a hole the first two
+    /// leave: a `namespace eval ::ns { namespace import ::other::* }` block
+    /// that declares no proc, class, or export of its own *is* a namespace
+    /// the workspace can see, and treating it as unknown made the import gate
+    /// abstain where it had the evidence to decide.
+    fn observable_namespaces(&self) -> HashSet<&str> {
+        fn owning_ns(qualified: &str) -> &str {
+            qualified
+                .trim_start_matches("::")
+                .rsplit_once("::")
+                .map_or("", |(ns, _)| ns)
+        }
+        self.procs()
+            .map(|p| owning_ns(&p.qualified_name))
+            .chain(self.classes().map(|c| owning_ns(&c.qualified_name)))
+            .chain(
+                self.namespace_exports()
+                    .map(|e| e.ns.trim_start_matches("::")),
+            )
+            .chain(
+                self.namespace_refs()
+                    .filter(|n| n.declares)
+                    .map(|n| n.qualified_name.trim_start_matches("::")),
+            )
+            .collect()
+    }
+
+    /// Add (or refresh) one document's records.
+    ///
+    /// Call [`Self::remove_document`] first when re-indexing a changed document
+    /// to avoid stale duplicates.  Adding the **same** URI twice without an
+    /// intervening removal deliberately accumulates: the M9 source-rehoming
+    /// pass indexes one analysis per source-site namespace, and those views are
+    /// several runtime identities of one physical file, not a replacement of
+    /// each other.
+    pub fn add_document(&mut self, uri: &str, analysis: &AnalysisResult) {
+        self.invalidate();
+        let slot = self.slot_for(uri);
+        self.docs[slot].index_document(uri, analysis);
+    }
+
+    /// `uri`'s slot, allocating one — the most recently freed, else a fresh
+    /// one — if it has none.
+    ///
+    /// The free list is LIFO so that the server's remove-then-add re-index
+    /// hands the document straight back the slot it just gave up, keeping its
+    /// position (and its tables' allocations) across a publish.
+    fn slot_for(&mut self, uri: &str) -> usize {
+        if let Some(&slot) = self.slots.get(uri) {
+            return slot;
+        }
+        let slot = if let Some(free) = self.free_slots.pop() {
+            free
+        } else {
+            self.docs.push(DocumentRecords::default());
+            self.docs.len() - 1
+        };
+        self.slots.insert(uri.to_owned(), slot);
+        slot
+    }
+
+    /// Whether `uri` currently has a slot in the index.
+    ///
+    /// Lets the server spot an **open** document whose entry is momentarily
+    /// absent — `did_open` drops it and the debounced diagnostics publish is
+    /// what puts it back — so a workspace-wide query can fill the gap from
+    /// that document's own analysis instead of silently omitting it.
+    #[must_use]
+    pub fn contains_document(&self, uri: &str) -> bool {
+        self.slots.contains_key(uri)
+    }
 
     /// Drop every entry that came from `uri` (used before
     /// re-indexing a changed document, or on `did_close`).
+    ///
+    /// Costs that document's own records, not the workspace's: its slot is
+    /// cleared and handed back to the free list (issue #1149).
     pub fn remove_document(&mut self, uri: &str) {
         self.invalidate();
-        self.procs.retain(|p| p.uri != uri);
-        self.classes.retain(|c| c.uri != uri);
-        self.variables.retain(|v| v.uri != uri);
-        self.variable_refs.retain(|v| v.uri != uri);
-        self.variable_aliases.retain(|v| v.uri != uri);
-        self.namespace_refs.retain(|n| n.uri != uri);
-        self.invocations.retain(|i| i.uri != uri);
-        self.sources.retain(|s| s.uri != uri);
-        self.package_requires.retain(|pr| pr.uri != uri);
-        self.command_links.retain(|l| l.uri != uri);
-        self.glob_imports.retain(|g| g.uri != uri);
-        self.namespace_exports.retain(|e| e.uri != uri);
-        self.namespace_forgets.retain(|f| f.uri != uri);
-        self.command_deletions.retain(|d| d.uri != uri);
+        if let Some(slot) = self.slots.remove(uri) {
+            self.docs[slot].clear();
+            self.free_slots.push(slot);
+        }
     }
 
     /// Every indexed `source FILE` reference.
-    #[must_use]
-    pub fn sources(&self) -> &[WorkspaceSource] {
-        &self.sources
+    pub fn sources(&self) -> impl Iterator<Item = &WorkspaceSource> {
+        self.docs.iter().flat_map(|doc| doc.sources.iter())
     }
 
     /// Every indexed `package require NAME` declaration.
-    #[must_use]
-    pub fn package_requires(&self) -> &[WorkspacePackageRequire] {
-        &self.package_requires
+    pub fn package_requires(&self) -> impl Iterator<Item = &WorkspacePackageRequire> {
+        self.docs.iter().flat_map(|doc| doc.package_requires.iter())
     }
 
     /// The package names `uri` `package require`s, de-duplicated. Used to seed
@@ -1388,8 +1713,7 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn package_requires_for(&self, uri: &str) -> Vec<String> {
         let mut out: Vec<String> = self
-            .package_requires
-            .iter()
+            .package_requires()
             .filter(|pr| pr.uri == uri)
             .map(|pr| pr.name.clone())
             .collect();
@@ -1415,14 +1739,13 @@ impl WorkspaceIndex {
         resolve: impl Fn(&str, &str) -> Option<String>,
     ) -> Vec<String> {
         let edges: Vec<(String, String)> = self
-            .sources
-            .iter()
+            .sources()
             .filter(|s| s.is_literal)
             .filter_map(|s| resolve(&s.uri, &s.raw_path).map(|child| (s.uri.clone(), child)))
             .collect();
         let mut requires: std::collections::HashMap<String, Vec<String>> =
             std::collections::HashMap::new();
-        for pr in &self.package_requires {
+        for pr in self.package_requires() {
             requires
                 .entry(pr.uri.clone())
                 .or_default()
@@ -1450,7 +1773,7 @@ impl WorkspaceIndex {
     ) -> std::collections::HashMap<String, std::collections::BTreeSet<String>> {
         let mut out: std::collections::HashMap<String, std::collections::BTreeSet<String>> =
             std::collections::HashMap::new();
-        for src in &self.sources {
+        for src in self.sources() {
             let Some(child) = resolve(&src.uri, &src.raw_path, src.is_literal) else {
                 continue;
             };
@@ -1473,25 +1796,54 @@ impl WorkspaceIndex {
     /// workspaces that never `source`.
     #[must_use]
     pub fn has_source_edges(&self) -> bool {
-        !self.sources.is_empty()
+        self.sources().next().is_some()
+    }
+
+    /// The workspace's symbols matching `query`, at most `limit` of them —
+    /// the whole `workspace/symbol` answer (issue #1156).
+    ///
+    /// Every indexed document is searched, not only the ones the editor has
+    /// open, so a symbol in a file the user has never opened is reachable from
+    /// the picker.  The index is refreshed on each document's diagnostics
+    /// publish (~50 ms after an edit), which is the freshness a symbol picker
+    /// gets: a name typed a moment ago appears once that publish lands.  It is
+    /// the same staleness every other cross-document feature answers with, and
+    /// the alternative — re-analysing every open buffer per keystroke in the
+    /// Ctrl+T box — is what this replaces.
+    ///
+    /// The scan is **document-major**: each document contributes its procs,
+    /// then its classes (with their methods and constructors), then its
+    /// registry symbol-definer definitions, before the next document is
+    /// looked at.  So a `limit`-truncated answer is a prefix of the workspace
+    /// rather than a prefix of one symbol table — a capped result still holds
+    /// classes and test cases, not only procs — and results arrive grouped by
+    /// URI, which lets the caller resolve each document's source once.
+    #[must_use]
+    pub fn symbols_matching(&self, query: &str, limit: usize) -> Vec<IndexedWorkspaceSymbol> {
+        let lower_query = query.to_lowercase();
+        let mut out: Vec<IndexedWorkspaceSymbol> = Vec::new();
+        for doc in &self.docs {
+            if out.len() >= limit {
+                break;
+            }
+            doc.collect_symbols_matching(&lower_query, limit, &mut out);
+        }
+        out
     }
 
     /// Every indexed proc.
-    #[must_use]
-    pub fn procs(&self) -> &[WorkspaceProc] {
-        &self.procs
+    pub fn procs(&self) -> impl Iterator<Item = &WorkspaceProc> {
+        self.docs.iter().flat_map(|doc| doc.procs.iter())
     }
 
     /// Every indexed class.
-    #[must_use]
-    pub fn classes(&self) -> &[WorkspaceClass] {
-        &self.classes
+    pub fn classes(&self) -> impl Iterator<Item = &WorkspaceClass> {
+        self.docs.iter().flat_map(|doc| doc.classes.iter())
     }
 
     /// Every indexed `namespace import` / `interp alias` / `rename` link.
-    #[must_use]
-    pub fn command_links(&self) -> &[WorkspaceCommandLink] {
-        &self.command_links
+    pub fn command_links(&self) -> impl Iterator<Item = &WorkspaceCommandLink> {
+        self.docs.iter().flat_map(|doc| doc.command_links.iter())
     }
 
     /// Workspace classes whose qualified name matches `name` exactly or via
@@ -1509,8 +1861,7 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn classes_named<'a>(&'a self, name: &str) -> Vec<&'a WorkspaceClass> {
         let q = format!("::{}", name.trim_start_matches("::"));
-        self.classes
-            .iter()
+        self.classes()
             .filter(|c| c.qualified_name == name || c.qualified_name == q)
             .collect()
     }
@@ -1525,12 +1876,9 @@ impl WorkspaceIndex {
         std::collections::HashSet<&str>,
         std::collections::HashMap<String, Vec<String>>,
     ) {
-        let known: std::collections::HashSet<&str> = self
-            .classes
-            .iter()
-            .map(|c| c.qualified_name.as_str())
-            .collect();
-        let tail_index = build_tail_index(self.classes.iter().map(|c| &c.qualified_name));
+        let known: std::collections::HashSet<&str> =
+            self.classes().map(|c| c.qualified_name.as_str()).collect();
+        let tail_index = build_tail_index(self.classes().map(|c| &c.qualified_name));
         (known, tail_index)
     }
 
@@ -1549,7 +1897,7 @@ impl WorkspaceIndex {
     ) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-        for c in self.classes.iter().filter(|c| c.qualified_name == qname) {
+        for c in self.classes().filter(|c| c.qualified_name == qname) {
             for s in c.superclasses.iter().chain(c.mixins.iter()) {
                 if let Some(p) =
                     resolve_class_name(s, qname, |cand| known.contains(cand), tail_index)
@@ -1584,7 +1932,7 @@ impl WorkspaceIndex {
             if !seen.insert(q.clone()) {
                 continue;
             }
-            out.extend(self.classes.iter().filter(|c| c.qualified_name == q));
+            out.extend(self.classes().filter(|c| c.qualified_name == q));
         }
         out
     }
@@ -1597,8 +1945,7 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn subclasses_of<'a>(&'a self, class_qname: &str) -> Vec<&'a WorkspaceClass> {
         let (known, tail_index) = self.class_name_universe();
-        self.classes
-            .iter()
+        self.classes()
             .filter(|c| {
                 c.superclasses.iter().chain(c.mixins.iter()).any(|s| {
                     resolve_class_name(
@@ -1635,7 +1982,7 @@ impl WorkspaceIndex {
             std::collections::HashMap::new();
         let mut mixins_map: std::collections::HashMap<String, Vec<String>> =
             std::collections::HashMap::new();
-        for c in &self.classes {
+        for c in self.classes() {
             let owner = c.qualified_name.as_str();
             let resolve = |name: &str| {
                 resolve_class_name(name, owner, |cand| known.contains(cand), &tail_index)
@@ -1742,8 +2089,7 @@ impl WorkspaceIndex {
             // happened to be indexed.  Document URI then source position is
             // that stable order (issue #1028).
             let mut records: Vec<&WorkspaceClass> = self
-                .classes
-                .iter()
+                .classes()
                 .filter(|c| c.qualified_name == class_q)
                 .collect();
             records.sort_by_key(|c| (c.uri.as_str(), c.name_span.start(), c.name_span.end()));
@@ -1839,8 +2185,7 @@ impl WorkspaceIndex {
         let family = self.method_family_qnames(seed_class, method);
         let family_set: std::collections::HashSet<&str> =
             family.iter().map(String::as_str).collect();
-        self.classes
-            .iter()
+        self.classes()
             .filter(|c| family_set.contains(c.qualified_name.as_str()))
             .collect()
     }
@@ -1872,12 +2217,10 @@ impl WorkspaceIndex {
         let (known, tail_index) = self.class_name_universe();
         let parents = |qname: &str| self.resolved_parents_of(qname, &known, &tail_index);
         let defines = |qname: &str| {
-            self.classes
-                .iter()
+            self.classes()
                 .any(|c| c.qualified_name == qname && c.defines_method(method))
         };
-        self.classes
-            .iter()
+        self.classes()
             .filter(|c| {
                 // A definer is handled by the family itself, not here.
                 if c.defines_method(method) || family_set.contains(c.qualified_name.as_str()) {
@@ -1934,8 +2277,7 @@ impl WorkspaceIndex {
         };
         let connected = |a: &str, b: &str| a == b || is_ancestor(a, b) || is_ancestor(b, a);
         let class_defines = |qname: &str| {
-            self.classes
-                .iter()
+            self.classes()
                 .any(|c| c.qualified_name == qname && c.defines_method(method))
         };
         // Seed: the class under the cursor if it defines `method`, else the
@@ -1964,8 +2306,7 @@ impl WorkspaceIndex {
         // Every indexed definer of `method` (qualified names, de-duplicated).
         let definers: Vec<String> = {
             let mut ds: Vec<String> = self
-                .classes
-                .iter()
+                .classes()
                 .filter(|c| c.defines_method(method))
                 .map(|c| c.qualified_name.clone())
                 .collect();
@@ -1997,8 +2338,7 @@ impl WorkspaceIndex {
     /// provider already surfaces).  Empty `prefix` matches all.
     #[must_use]
     pub fn procs_matching<'a>(&'a self, prefix: &str, exclude_uri: &str) -> Vec<&'a WorkspaceProc> {
-        self.procs
-            .iter()
+        self.procs()
             .filter(|p| p.uri != exclude_uri)
             .filter(|p| {
                 prefix.is_empty()
@@ -2016,8 +2356,7 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn proc_definitions<'a>(&'a self, name: &str, exclude_uri: &str) -> Vec<&'a WorkspaceProc> {
         let qualified = format!("::{name}");
-        self.procs
-            .iter()
+        self.procs()
             .filter(|p| p.uri != exclude_uri)
             .filter(|p| p.name == name || p.qualified_name == name || p.qualified_name == qualified)
             .collect()
@@ -2032,8 +2371,7 @@ impl WorkspaceIndex {
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceClass> {
         let qualified = format!("::{name}");
-        self.classes
-            .iter()
+        self.classes()
             .filter(|c| c.uri != exclude_uri)
             .filter(|c| c.name == name || c.qualified_name == name || c.qualified_name == qualified)
             .collect()
@@ -2055,8 +2393,7 @@ impl WorkspaceIndex {
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceProc> {
         let target = qualified_name.trim_start_matches("::");
-        self.procs
-            .iter()
+        self.procs()
             .filter(|p| p.uri != exclude_uri)
             .filter(|p| p.qualified_name.trim_start_matches("::") == target)
             .collect()
@@ -2072,23 +2409,20 @@ impl WorkspaceIndex {
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceClass> {
         let target = qualified_name.trim_start_matches("::");
-        self.classes
-            .iter()
+        self.classes()
             .filter(|c| c.uri != exclude_uri)
             .filter(|c| c.qualified_name.trim_start_matches("::") == target)
             .collect()
     }
 
     /// Every indexed invocation site.
-    #[must_use]
-    pub fn invocations(&self) -> &[WorkspaceInvocation] {
-        &self.invocations
+    pub fn invocations(&self) -> impl Iterator<Item = &WorkspaceInvocation> {
+        self.docs.iter().flat_map(|doc| doc.invocations.iter())
     }
 
     /// Every indexed namespace-qualified variable declaration.
-    #[must_use]
-    pub fn variables(&self) -> &[WorkspaceVariable] {
-        &self.variables
+    pub fn variables(&self) -> impl Iterator<Item = &WorkspaceVariable> {
+        self.docs.iter().flat_map(|doc| doc.variables.iter())
     }
 
     /// Declaration sites of the namespace variable whose `::`-rooted
@@ -2108,8 +2442,7 @@ impl WorkspaceIndex {
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceVariable> {
         let target = qualified_name.trim_start_matches("::");
-        self.variables
-            .iter()
+        self.variables()
             .filter(|v| v.uri != exclude_uri)
             .filter(|v| v.qualified_name.trim_start_matches("::") == target)
             .collect()
@@ -2142,19 +2475,16 @@ impl WorkspaceIndex {
             }
         };
         let mut uris: Vec<String> = self
-            .procs
-            .iter()
+            .procs()
             .filter(|p| parent_matches(&p.qualified_name))
             .map(|p| p.uri.clone())
             .chain(
-                self.classes
-                    .iter()
+                self.classes()
                     .filter(|c| parent_matches(&c.qualified_name))
                     .map(|c| c.uri.clone()),
             )
             .chain(
-                self.variables
-                    .iter()
+                self.variables()
                     .filter(|v| parent_matches(&v.qualified_name))
                     .map(|v| v.uri.clone()),
             )
@@ -2184,8 +2514,7 @@ impl WorkspaceIndex {
     pub fn documents_aliasing_variable(&self, qualified_name: &str) -> Vec<String> {
         let target = qualified_name.trim_start_matches("::");
         let mut uris: Vec<String> = self
-            .variable_aliases
-            .iter()
+            .variable_aliases()
             .filter(|a| !alias_cell_is_computed(&a.qualified_name))
             .filter(|a| a.qualified_name.trim_start_matches("::") == target)
             .map(|a| a.uri.clone())
@@ -2218,8 +2547,7 @@ impl WorkspaceIndex {
         let bare = qualified_name.trim_start_matches("::");
         let (cell_ns, cell_tail) = bare.rsplit_once("::").unwrap_or(("", bare));
         let mut uris: Vec<String> = self
-            .variable_aliases
-            .iter()
+            .variable_aliases()
             .filter(|a| alias_cell_is_computed(&a.qualified_name))
             .filter(|a| {
                 let written = a.qualified_name.trim_start_matches("::");
@@ -2236,9 +2564,8 @@ impl WorkspaceIndex {
     }
 
     /// Every indexed namespace-name occurrence.
-    #[must_use]
-    pub fn namespace_refs(&self) -> &[WorkspaceNamespaceRef] {
-        &self.namespace_refs
+    pub fn namespace_refs(&self) -> impl Iterator<Item = &WorkspaceNamespaceRef> {
+        self.docs.iter().flat_map(|doc| doc.namespace_refs.iter())
     }
 
     /// **Declaring** sites of the namespace `qualified_name` — the name word
@@ -2260,8 +2587,7 @@ impl WorkspaceIndex {
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceNamespaceRef> {
         let target = qualified_name.trim_start_matches("::");
-        self.namespace_refs
-            .iter()
+        self.namespace_refs()
             .filter(|n| n.declares && n.uri != exclude_uri)
             .filter(|n| n.qualified_name.trim_start_matches("::") == target)
             .collect()
@@ -2277,8 +2603,7 @@ impl WorkspaceIndex {
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceNamespaceRef> {
         let target = qualified_name.trim_start_matches("::");
-        self.namespace_refs
-            .iter()
+        self.namespace_refs()
             .filter(|n| !n.declares && n.uri != exclude_uri)
             .filter(|n| n.qualified_name.trim_start_matches("::") == target)
             .collect()
@@ -2295,8 +2620,7 @@ impl WorkspaceIndex {
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceVariableRef> {
         let target = qualified_name.trim_start_matches("::");
-        self.variable_refs
-            .iter()
+        self.variable_refs()
             .filter(|v| v.uri != exclude_uri)
             .filter(|v| v.qualified_name.trim_start_matches("::") == target)
             .collect()
@@ -2310,11 +2634,10 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn document_uris(&self) -> Vec<String> {
         let mut uris: Vec<String> = self
-            .procs
-            .iter()
+            .procs()
             .map(|p| p.uri.clone())
-            .chain(self.classes.iter().map(|c| c.uri.clone()))
-            .chain(self.invocations.iter().map(|i| i.uri.clone()))
+            .chain(self.classes().map(|c| c.uri.clone()))
+            .chain(self.invocations().map(|i| i.uri.clone()))
             .collect();
         uris.sort();
         uris.dedup();
@@ -2389,6 +2712,13 @@ impl WorkspaceIndex {
     /// names and the winning candidate is chased along the link map to its
     /// ultimate target; without it, only real proc/class definitions settle a
     /// call (the direct-reference behaviour rename relies on).
+    ///
+    /// A hash lookup into [`Self::invocations_by_settled_target`] plus a
+    /// direct index into each hit's owning document slot — the settlement
+    /// walk itself (which needs [`Self::defined_command_names`],
+    /// [`Self::command_link_map`] and a [`WildcardImportIndex`]) runs at most
+    /// once per generation, not once per call (issue #1152: `code_lenses`
+    /// calls this once per proc *and* once per class in the document).
     fn invocations_settling_to<'a>(
         &'a self,
         qualified_name: &str,
@@ -2396,40 +2726,71 @@ impl WorkspaceIndex {
         follow_links: bool,
     ) -> Vec<&'a WorkspaceInvocation> {
         let target = qualified_name.trim_start_matches("::");
-        // Build the workspace command set once (normalised qualified names of
-        // every proc and class, plus linked names when following), so each
-        // candidate existence check is O(1). Same reasoning for the
-        // wildcard-import index — see `WildcardImportIndex`'s own doc.
-        let defined = self.defined_command_names(follow_links);
-        let links = follow_links.then(|| self.command_link_map());
-        let wci = WildcardImportIndex::build(self);
-        self.invocations
+        let by_target = self.invocations_by_settled_target(follow_links);
+        let Some(sites) = by_target.get(target) else {
+            return Vec::new();
+        };
+        sites
             .iter()
+            .map(|&(slot, idx)| &self.docs[slot].invocations[idx])
             .filter(|i| i.uri != exclude_uri)
-            .filter(|i| self.invocation_resolves_to(i, &defined, links.as_ref(), &wci, target))
             .collect()
     }
 
-    /// Whether call site `inv` resolves to the command whose `::`-stripped
-    /// qualified name is `target`: the first of its candidates defined anywhere
-    /// in the workspace is the call's true target, chased along `links` (when
-    /// supplied) to the command it ultimately names.
-    fn invocation_resolves_to(
+    /// Every indexed invocation's settled target, `::`-stripped and grouped
+    /// into `target -> [(doc slot, index within that slot's invocations)]`
+    /// — one entry per invocation that settles to *some* command, in the
+    /// same relative order [`Self::invocations`] would visit them in.
+    /// A [`Derived`] view, one reading per `follow_links` value; see
+    /// [`SettledTargets`] for why the stored `(slot, index)` pairs stay valid
+    /// for the view's whole lifetime.
+    fn invocations_by_settled_target(&self, follow_links: bool) -> Arc<SettledTargets> {
+        self.settled_invocations[usize::from(follow_links)].get_or_build(|| {
+            // Built once per generation (both the command set and the
+            // wildcard-import index — see `WildcardImportIndex`'s own doc),
+            // then reused for every invocation in the workspace.
+            let defined = self.defined_command_names(follow_links);
+            let links = follow_links.then(|| self.command_link_map());
+            let wci = WildcardImportIndex::build(self);
+            let mut by_target: SettledTargets = std::collections::HashMap::new();
+            for (slot, doc) in self.docs.iter().enumerate() {
+                for (idx, inv) in doc.invocations.iter().enumerate() {
+                    if let Some(target) =
+                        self.settle_invocation(inv, &defined, links.as_deref(), &wci)
+                    {
+                        by_target.entry(target).or_default().push((slot, idx));
+                    }
+                }
+            }
+            by_target
+        })
+    }
+
+    /// The command `inv` settles to, `::`-stripped, or `None` when nothing in
+    /// the workspace resolves it: the first of its candidates defined
+    /// anywhere in the workspace, chased along `links` (when supplied) to its
+    /// ultimate target — falling back, when following links, to a wildcard
+    /// `namespace import NS::*` in scope (issue #923 idx 18). The settlement
+    /// logic itself is unchanged from the pre-#1152 `invocation_resolves_to`,
+    /// restated as "what does this settle to" (grouped by the answer) rather
+    /// than "does this settle to the one target the caller named" (checked
+    /// once per candidate target).
+    fn settle_invocation(
         &self,
         inv: &WorkspaceInvocation,
         defined: &HashSet<String>,
-        links: Option<&std::collections::HashMap<&str, &str>>,
+        links: Option<&std::collections::HashMap<String, String>>,
         wci: &WildcardImportIndex<'_>,
-        target: &str,
-    ) -> bool {
+    ) -> Option<String> {
         if let Some(winner) = inv
             .resolution_candidates
             .iter()
             .find(|c| defined.contains(c.trim_start_matches("::")))
         {
             let winner = winner.trim_start_matches("::");
-            let settled = links.map_or(winner, |m| Self::follow_links(m, winner));
-            return settled == target;
+            return Some(
+                links.map_or_else(|| winner.to_owned(), |m| Self::follow_links(m, winner)),
+            );
         }
         // No real command or name-link settled this call — try a wildcard
         // `namespace import NS::*` in scope for the call's own namespace
@@ -2439,49 +2800,50 @@ impl WorkspaceIndex {
         // by find-references) and never the direct-only view rename relies
         // on — a call spelling the local imported name is not text-rewritten
         // just because its ultimate source is renamed.
-        links.is_some()
-            && self
-                .resolve_wildcard_import_indexed(
-                    &inv.name,
-                    &inv.resolution_candidates,
-                    CallSite {
-                        uri: &inv.uri,
-                        at: inv.range.start(),
-                        enclosing_body: inv.enclosing_body,
-                    },
-                    wci,
-                )
-                .is_some_and(|resolved| resolved.trim_start_matches("::") == target)
+        links?;
+        self.resolve_wildcard_import_indexed(
+            &inv.name,
+            &inv.resolution_candidates,
+            CallSite {
+                uri: &inv.uri,
+                at: inv.range.start(),
+                enclosing_body: inv.enclosing_body,
+            },
+            wci,
+        )
+        .map(|resolved| resolved.trim_start_matches("::").to_owned())
     }
 
     /// The command name-link map (`::`-stripped `linked → immediate target`)
     /// used to chase an import / alias / rename to the command it names.
-    fn command_link_map(&self) -> std::collections::HashMap<&str, &str> {
-        self.live_command_links()
-            .into_iter()
-            .map(|l| {
-                (
-                    l.linked_qname.trim_start_matches("::"),
-                    l.target_qname.trim_start_matches("::"),
-                )
-            })
-            .collect()
+    /// A [`Derived`] view rather than a fresh walk of
+    /// [`Self::live_command_links`] per call (issue #1152); owned (`String`,
+    /// not `&str`) so the view is independent of any one call's borrow.
+    fn command_link_map(&self) -> Arc<std::collections::HashMap<String, String>> {
+        self.command_link_map.get_or_build(|| {
+            self.live_command_links()
+                .into_iter()
+                .map(|l| {
+                    (
+                        l.linked_qname.trim_start_matches("::").to_owned(),
+                        l.target_qname.trim_start_matches("::").to_owned(),
+                    )
+                })
+                .collect()
+        })
     }
 
     /// Chase `start` along the link map to its ultimate target, stopping at a
     /// name that is not itself a linked name.  Bounded by cycle detection (an
     /// alias-of-an-alias loop) so a malformed chain cannot spin.
-    fn follow_links<'a>(
-        links: &std::collections::HashMap<&'a str, &'a str>,
-        start: &'a str,
-    ) -> &'a str {
-        let mut cur = start;
+    fn follow_links(links: &std::collections::HashMap<String, String>, start: &str) -> String {
+        let mut cur = start.to_owned();
         let mut seen = std::collections::HashSet::new();
-        while let Some(&next) = links.get(cur) {
-            if !seen.insert(cur) {
+        while let Some(next) = links.get(&cur) {
+            if !seen.insert(cur.clone()) {
                 break;
             }
-            cur = next;
+            cur.clone_from(next);
         }
         cur
     }
@@ -2526,10 +2888,7 @@ impl WorkspaceIndex {
     /// consumer document's `set d [::other::Cls new]` resolves cross-file.
     #[must_use]
     pub fn all_class_qnames(&self) -> std::collections::HashSet<String> {
-        self.classes
-            .iter()
-            .map(|c| c.qualified_name.clone())
-            .collect()
+        self.classes().map(|c| c.qualified_name.clone()).collect()
     }
 
     /// The URIs of documents that invoke (a constructor of) any class in
@@ -2544,8 +2903,7 @@ impl WorkspaceIndex {
         &self,
         class_qnames: &std::collections::HashSet<&str>,
     ) -> std::collections::HashSet<String> {
-        self.invocations
-            .iter()
+        self.invocations()
             .filter(|i| {
                 i.resolution_candidates
                     .iter()
@@ -2602,12 +2960,10 @@ impl WorkspaceIndex {
             return self.workspace_command_exists(qualified_name);
         }
         let target = qualified_name.trim_start_matches("::");
-        self.procs
-            .iter()
+        self.procs()
             .any(|p| !p.nested && p.qualified_name.trim_start_matches("::") == target)
             || self
-                .classes
-                .iter()
+                .classes()
                 .any(|c| c.qualified_name.trim_start_matches("::") == target)
             || self
                 .live_command_links()
@@ -2621,23 +2977,24 @@ impl WorkspaceIndex {
     /// alias / rename introduces join the set, so a call reaching one of them
     /// settles (and is then chased to its ultimate target).
     ///
-    /// A [`Derived`] view rather than a fresh walk (issue #1105): it is
-    /// `O(procs + classes + links)` to build, and
+    /// A [`Derived`] view rather than a fresh walk (issues #1105 / #1152): it
+    /// is `O(procs + classes + links)` to build, and
     /// [`Self::workspace_command_exists`] asks for it *per candidate* inside
-    /// [`Self::follow_import_chain`]'s loop, which turned an existence test
-    /// into a workspace-wide scan. The two `include_links` readings are two
-    /// separate views because a consumer wants exactly one of them: the
-    /// direct-only set is what rename relies on, and folding the link names
-    /// into it would let a call spelling an imported name be text-rewritten.
+    /// [`Self::follow_import_chain`]'s loop — and
+    /// [`Self::invocations_by_settled_target`] once per settling pass — which
+    /// turned an existence test into a workspace-wide scan. Owned (`String`,
+    /// not `&str`) so the view is independent of any one call's borrow. The
+    /// two `include_links` readings are two separate views because a consumer
+    /// wants exactly one of them: the direct-only set is what rename relies
+    /// on, and folding the link names into it would let a call spelling an
+    /// imported name be text-rewritten.
     fn defined_command_names(&self, include_links: bool) -> Arc<HashSet<String>> {
         self.defined_names[usize::from(include_links)].get_or_build(|| {
             let mut names: HashSet<String> = self
-                .procs
-                .iter()
+                .procs()
                 .map(|p| p.qualified_name.trim_start_matches("::").to_owned())
                 .chain(
-                    self.classes
-                        .iter()
+                    self.classes()
                         .map(|c| c.qualified_name.trim_start_matches("::").to_owned()),
                 )
                 .collect();
@@ -2697,7 +3054,7 @@ impl WorkspaceIndex {
     /// The indexed core of [`Self::resolve_wildcard_import`], taking a
     /// precomputed [`WildcardImportIndex`] instead of scanning
     /// `glob_imports`/`namespace_exports` in full — the fast path
-    /// [`Self::invocation_resolves_to`] uses so a workspace-wide
+    /// [`Self::settle_invocation`] uses so a workspace-wide
     /// invocation-settling pass builds the index once (O(every glob import
     /// / export in the workspace)) rather than once per invocation (which
     /// would be O(invocation count × workspace-wide glob-import count) —
@@ -2838,12 +3195,12 @@ impl<'a> WildcardImportIndex<'a> {
     fn build(index: &'a WorkspaceIndex) -> Self {
         let mut imports_by_ns: std::collections::HashMap<&str, Vec<&WorkspaceGlobImport>> =
             std::collections::HashMap::new();
-        for imp in &index.glob_imports {
+        for imp in index.glob_imports() {
             imports_by_ns.entry(imp.ns.as_str()).or_default().push(imp);
         }
         let mut exact_by_ns: std::collections::HashMap<&str, Vec<(&str, &WorkspaceImportGate)>> =
             std::collections::HashMap::new();
-        for link in &index.command_links {
+        for link in index.command_links() {
             if let Some(gate) = link.import_gate.as_ref() {
                 exact_by_ns
                     .entry(importing_namespace_of(&link.linked_qname))
@@ -2853,17 +3210,17 @@ impl<'a> WildcardImportIndex<'a> {
         }
         let mut exports_by_ns: std::collections::HashMap<&str, Vec<&WorkspaceNamespaceExport>> =
             std::collections::HashMap::new();
-        for exp in &index.namespace_exports {
+        for exp in index.namespace_exports() {
             exports_by_ns.entry(exp.ns.as_str()).or_default().push(exp);
         }
         let mut forgets_by_ns: std::collections::HashMap<&str, Vec<&WorkspaceNamespaceForget>> =
             std::collections::HashMap::new();
-        for fgt in &index.namespace_forgets {
+        for fgt in index.namespace_forgets() {
             forgets_by_ns.entry(fgt.ns.as_str()).or_default().push(fgt);
         }
         let mut deletions_by_name: std::collections::HashMap<&str, Vec<&WorkspaceCommandDeletion>> =
             std::collections::HashMap::new();
-        for del in &index.command_deletions {
+        for del in index.command_deletions() {
             deletions_by_name
                 .entry(del.qualified_name.as_str())
                 .or_default()
@@ -2872,8 +3229,7 @@ impl<'a> WildcardImportIndex<'a> {
         let mut declarations_by_qname: std::collections::HashMap<&str, Vec<(&str, u32)>> =
             std::collections::HashMap::new();
         for (qname, uri, at) in index
-            .procs
-            .iter()
+            .procs()
             .map(|p| {
                 (
                     p.qualified_name.as_str(),
@@ -2881,7 +3237,7 @@ impl<'a> WildcardImportIndex<'a> {
                     p.name_span.start(),
                 )
             })
-            .chain(index.classes.iter().map(|c| {
+            .chain(index.classes().map(|c| {
                 (
                     c.qualified_name.as_str(),
                     c.uri.as_str(),
@@ -3633,8 +3989,7 @@ mod tests {
         );
         // ::C::Widget's supertypes abstain (Base is ambiguous, ::C has none).
         let widget = index
-            .classes
-            .iter()
+            .classes()
             .find(|c| c.qualified_name == "::C::Widget")
             .expect("Widget indexed");
         assert!(
@@ -3758,9 +4113,9 @@ mod tests {
         let a = analyse("proc greet {name} {}\n");
         let b = analyse("proc farewell {} {}\nproc greet2 {x y} {}\n");
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
-        assert_eq!(index.procs().len(), 3);
+        assert_eq!(index.procs().count(), 3);
         // Param counts captured.
-        let greet = index.procs().iter().find(|p| p.name == "greet").unwrap();
+        let greet = index.procs().find(|p| p.name == "greet").unwrap();
         assert_eq!(greet.param_count, 1);
         assert_eq!(greet.uri, "file:///a.tcl");
     }
@@ -3797,10 +4152,80 @@ mod tests {
         let mut index = WorkspaceIndex::new();
         index.add_document("file:///a.tcl", &a);
         index.add_document("file:///b.tcl", &b);
-        assert_eq!(index.procs().len(), 2);
+        assert_eq!(index.procs().count(), 2);
         index.remove_document("file:///a.tcl");
-        assert_eq!(index.procs().len(), 1);
-        assert_eq!(index.procs()[0].name, "b");
+        assert_eq!(index.procs().count(), 1);
+        assert_eq!(index.procs().next().map(|p| p.name.as_str()), Some("b"));
+    }
+
+    /// Issue #1149: a removal is scoped to the removed document.  Every other
+    /// document's records survive it untouched, in their original order —
+    /// which is what lets the removal cost that one document's rows instead of
+    /// a pass over every table in the workspace.
+    #[test]
+    fn remove_document_leaves_the_other_documents_alone() {
+        let a = analyse("proc a {} {}\na\n");
+        let b = analyse("proc b {} {}\nb\n");
+        let c = analyse("proc c {} {}\nc\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        index.add_document("file:///b.tcl", &b);
+        index.add_document("file:///c.tcl", &c);
+        index.remove_document("file:///b.tcl");
+        let names: Vec<&str> = index.procs().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["a", "c"]);
+        let call_uris: std::collections::BTreeSet<&str> =
+            index.invocations().map(|i| i.uri.as_str()).collect();
+        assert_eq!(
+            call_uris,
+            ["file:///a.tcl", "file:///c.tcl"].into_iter().collect()
+        );
+        assert_eq!(
+            index.document_uris(),
+            vec!["file:///a.tcl", "file:///c.tcl"]
+        );
+    }
+
+    /// Issue #1149: the remove-then-add every diagnostics publish performs must
+    /// neither grow the index nor shuffle the workspace — the document goes
+    /// back into the slot it just vacated.
+    #[test]
+    fn re_indexing_a_document_keeps_its_size_and_its_place() {
+        let a = analyse("proc a {} {}\n");
+        let b = analyse("proc b {} {}\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        index.add_document("file:///b.tcl", &b);
+        for _ in 0..5 {
+            index.remove_document("file:///a.tcl");
+            index.add_document("file:///a.tcl", &a);
+        }
+        let names: Vec<&str> = index.procs().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["a", "b"]);
+    }
+
+    /// Issue #1149: removing a URI the index never held changes nothing.
+    #[test]
+    fn removing_an_unindexed_document_changes_nothing() {
+        let a = analyse("proc a {} {}\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        index.remove_document("file:///never-indexed.tcl");
+        assert_eq!(index.procs().count(), 1);
+    }
+
+    /// Several analyses of one URI — M9's one re-homed view per source-site
+    /// namespace — still accumulate under that URI, and one removal drops the
+    /// whole set.
+    #[test]
+    fn several_views_of_one_document_accumulate_and_drop_together() {
+        let a = analyse("proc helper {} {}\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        index.add_document("file:///a.tcl", &a);
+        assert_eq!(index.procs().count(), 2);
+        index.remove_document("file:///a.tcl");
+        assert_eq!(index.procs().count(), 0);
     }
 
     #[test]
@@ -4739,7 +5164,7 @@ mod tests {
         // …and the column really is populated on the rows the resolver reads.
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
         assert!(
-            index.invocations.iter().any(|i| i.enclosing_body.is_some()),
+            index.invocations().any(|i| i.enclosing_body.is_some()),
             "body-local invocations must carry their span",
         );
     }
@@ -5475,7 +5900,6 @@ mod tests {
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
         let set_proc = index
             .procs()
-            .iter()
             .find(|p| p.qualified_name == "::set")
             .expect("nested ::set proc indexed");
         assert!(
@@ -5555,7 +5979,7 @@ mod tests {
                 .namespace_declarations_qualified("::gone", "")
                 .is_empty()
         );
-        assert!(index.namespace_refs().is_empty());
+        assert!(index.namespace_refs().next().is_none());
     }
 
     #[test]
@@ -5590,7 +6014,6 @@ mod tests {
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
         let puts_proc = index
             .procs()
-            .iter()
             .find(|p| p.qualified_name == "::puts")
             .expect("top-level ::puts proc indexed");
         assert!(!puts_proc.nested, "a top-level proc is never nested");
@@ -5610,7 +6033,6 @@ mod tests {
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
         let link = index
             .command_links()
-            .iter()
             .find(|l| l.linked_qname.trim_start_matches("::") == "set")
             .expect("top-level alias link indexed");
         assert!(!link.nested, "a top-level alias is never nested");
@@ -5633,7 +6055,6 @@ mod tests {
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
         let link = index
             .command_links()
-            .iter()
             .find(|l| l.linked_qname.trim_start_matches("::") == "set")
             .expect("nested alias link indexed");
         assert!(
@@ -5755,9 +6176,9 @@ mod tests {
         let mut index = WorkspaceIndex::new();
         index.add_document("file:///a.tcl", &a);
         assert!(
-            !index.variables().iter().any(|v| v.name == "localOnly"),
+            !index.variables().any(|v| v.name == "localOnly"),
             "indexed variables: {:?}",
-            index.variables(),
+            index.variables().collect::<Vec<_>>(),
         );
     }
 
@@ -5808,6 +6229,104 @@ mod tests {
         assert_eq!(*cloned.command_names(), *third);
     }
 
+    /// Issue #1152: `defined_command_names` used to rebuild its `HashSet`
+    /// from scratch on every call. It is now cached — one slot per
+    /// `include_links` value — and dropped only by a mutation, same
+    /// `Arc::ptr_eq` proof as [`command_names_are_cached_until_the_index_changes`].
+    #[test]
+    fn defined_command_names_are_cached_per_generation() {
+        let a = analyse("proc ::alpha {} {}\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        let first = index.defined_command_names(false);
+        assert!(first.contains("alpha"), "{first:?}");
+        assert!(
+            Arc::ptr_eq(&first, &index.defined_command_names(false)),
+            "an unchanged index must serve the cache, not rebuild it",
+        );
+        // The `include_links` variants are cached independently: reading one
+        // must not populate (or invalidate) the other's slot.
+        let with_links_first = index.defined_command_names(true);
+        assert!(
+            !Arc::ptr_eq(&first, &with_links_first),
+            "the two `include_links` slots are distinct caches",
+        );
+        assert!(
+            Arc::ptr_eq(&with_links_first, &index.defined_command_names(true)),
+            "the with-links slot must also serve from cache once built",
+        );
+
+        let b = analyse("proc ::beta {} {}\n");
+        index.add_document("file:///b.tcl", &b);
+        let after_mutation = index.defined_command_names(false);
+        assert!(
+            !Arc::ptr_eq(&first, &after_mutation),
+            "indexing a document must drop both cached slots",
+        );
+        assert!(after_mutation.contains("beta"), "{after_mutation:?}");
+    }
+
+    /// Issue #1152: `command_link_map` used to rebuild its `HashMap` (from
+    /// `live_command_links`, itself already cached) on every call. It is now
+    /// cached directly, same discipline as `command_names`.
+    #[test]
+    fn command_link_map_is_cached_per_generation() {
+        let a = analyse("proc ::real {} {}\ninterp alias {} ::aliased {} ::real\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        let first = index.command_link_map();
+        assert_eq!(first.get("aliased").map(String::as_str), Some("real"));
+        assert!(
+            Arc::ptr_eq(&first, &index.command_link_map()),
+            "an unchanged index must serve the cache, not rebuild it",
+        );
+        index.remove_document("file:///a.tcl");
+        assert!(
+            !Arc::ptr_eq(&first, &index.command_link_map()),
+            "a mutation must drop the cache",
+        );
+    }
+
+    /// Issue #1152: `invocations_of` (via `invocations_by_settled_target`)
+    /// used to re-settle every invocation in the workspace, and rebuild
+    /// `WildcardImportIndex` from scratch, on every call — the cost
+    /// `code_lenses` multiplied by one call per proc *and* per class in the
+    /// document. The settled-target grouping is now cached per generation;
+    /// repeated `invocations_of` calls against an unchanged index must
+    /// share it rather than re-settle.
+    #[test]
+    fn invocations_by_settled_target_is_cached_per_generation() {
+        let a = analyse("proc helper {} {}\nproc other {} {}\n");
+        let b = analyse("helper\nhelper\nother\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        index.add_document("file:///b.tcl", &b);
+
+        let first = index.invocations_by_settled_target(false);
+        assert_eq!(first.get("helper").map(Vec::len), Some(2), "{first:?}");
+        assert!(
+            Arc::ptr_eq(&first, &index.invocations_by_settled_target(false)),
+            "an unchanged index must serve the cache, not re-settle",
+        );
+        // Querying different targets against the same generation must hit
+        // the same cached map, not re-settle per target.
+        let helper_calls = index.invocations_of("::helper", "");
+        let other_calls = index.invocations_of("::other", "");
+        assert_eq!(helper_calls.len(), 2, "{helper_calls:?}");
+        assert_eq!(other_calls.len(), 1, "{other_calls:?}");
+
+        // A mutation invalidates the cache and the next call re-settles
+        // against the new state.
+        let c = analyse("helper\n");
+        index.add_document("file:///c.tcl", &c);
+        let after_mutation = index.invocations_by_settled_target(false);
+        assert!(
+            !Arc::ptr_eq(&first, &after_mutation),
+            "indexing a document must drop the settled-invocations cache",
+        );
+        assert_eq!(index.invocations_of("::helper", "").len(), 3);
+    }
+
     #[test]
     fn defined_command_names_are_cached_per_reading_and_dropped_on_mutation() {
         // Issue #1105 — `workspace_command_exists` asks for this set once per
@@ -5856,9 +6375,9 @@ mod tests {
         let a = analyse("helper\n");
         let mut index = WorkspaceIndex::new();
         index.add_document("file:///a.tcl", &a);
-        assert!(!index.invocations().is_empty());
+        assert!(index.invocations().next().is_some());
         index.remove_document("file:///a.tcl");
-        assert!(index.invocations().is_empty());
+        assert!(index.invocations().next().is_none());
     }
 
     #[test]
@@ -5871,7 +6390,7 @@ mod tests {
             vec!["Tk".to_owned(), "http".to_owned()]
         );
         index.remove_document("file:///a.tcl");
-        assert!(index.package_requires().is_empty());
+        assert!(index.package_requires().next().is_none());
     }
 
     #[test]

@@ -81,7 +81,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 fn int_var_names(fu: &FunctionUnit) -> HashSet<String> {
     use std::collections::HashMap;
     let mut acc: HashMap<crate::ssa::Symbol, bool> = HashMap::new();
-    for ((sym, _ver), lattice) in &fu.types {
+    for ((sym, _ver), lattice) in fu.types.iter() {
         let is_int = lattice_is_int(lattice);
         acc.entry(*sym)
             .and_modify(|v| *v = *v && is_int)

@@ -218,27 +218,89 @@ pub fn scan_stub_command_names(source: &str) -> HashSet<String> {
 /// skips that extra scan entirely — zero added cost on the overwhelmingly
 /// common well-formed edit.
 #[must_use]
-pub fn recovery_known_commands<S: std::hash::BuildHasher>(
+pub fn recovery_known_commands(
     source: &str,
     registry: &CommandRegistry,
-    extra: &HashSet<String, S>,
-) -> HashSet<String> {
+    extra: &SharedNameSet,
+) -> RecoveryKnownCommands {
     let mut names: HashSet<String> = registry.command_names().map(str::to_owned).collect();
-    names.extend(extra.iter().cloned());
-    if tcl_lexer::script_is_complete(source) {
-        return names;
+    if !tcl_lexer::script_is_complete(source) {
+        let sig = crate::signature_scan::extract_signatures(source, registry);
+        for qname in sig
+            .procs
+            .keys()
+            .chain(sig.classes.keys())
+            .chain(sig.command_aliases.keys())
+            .chain(sig.renames.keys())
+        {
+            insert_qualified_and_tail(&mut names, qname);
+        }
     }
-    let sig = crate::signature_scan::extract_signatures(source, registry);
-    for qname in sig
-        .procs
-        .keys()
-        .chain(sig.classes.keys())
-        .chain(sig.command_aliases.keys())
-        .chain(sig.renames.keys())
-    {
-        insert_qualified_and_tail(&mut names, qname);
+    RecoveryKnownCommands {
+        local: names,
+        extra: std::sync::Arc::clone(extra),
     }
-    names
+}
+
+/// The recovery known-command universe [`recovery_known_commands`] builds,
+/// held as **two layers** rather than one merged set.
+///
+/// `local` is derived from the document being analysed (the active registry's
+/// names plus the document's own proc / class / alias / rename names), so it is
+/// rebuilt on every edit. `extra` is the caller-supplied name set
+/// ([`super::state::Analyser::extra_commands`]), which on the LSP's
+/// unclosed-delimiter recovery path is the *widened* set — every
+/// workspace-indexed proc and class, plus every auto-loadable command name:
+/// tens of thousands of entries on a large workspace, and unchanged between
+/// keystrokes. Merging the two would deep-copy that set on every analysis of a
+/// document with an open delimiter — which is the *normal* mid-typing state, so
+/// it happened on every debounced run (issue #1154). Sharing it behind an `Arc`
+/// makes the layering free.
+///
+/// Every consumer only ever asks "is this name known?" or enumerates the
+/// universe once, both of which the two layers answer directly.
+#[derive(Debug, Default, Clone)]
+pub struct RecoveryKnownCommands {
+    local: HashSet<String>,
+    extra: SharedNameSet,
+}
+
+/// A command-name set shared between the analyser and its caller — see
+/// [`RecoveryKnownCommands`] and [`super::state::Analyser::extra_commands`].
+pub type SharedNameSet = std::sync::Arc<HashSet<String>>;
+
+impl RecoveryKnownCommands {
+    /// Whether `name` is a known command in either layer.
+    #[must_use]
+    pub fn contains(&self, name: &str) -> bool {
+        self.local.contains(name) || self.extra.contains(name)
+    }
+
+    /// Every known name, `local` first. A name present in both layers is
+    /// yielded twice; every consumer collects into a set, so that is harmless
+    /// and avoids a de-duplication pass over the (large) shared layer.
+    pub fn iter(&self) -> impl Iterator<Item = &str> {
+        self.local
+            .iter()
+            .chain(self.extra.iter())
+            .map(String::as_str)
+    }
+
+    /// Drop the per-document layer and release the shared one — the
+    /// between-runs reset ([`super::state::Analyser::clear_run_state`]).
+    pub fn clear(&mut self) {
+        self.local.clear();
+        self.extra = std::sync::Arc::default();
+    }
+}
+
+impl FromIterator<String> for RecoveryKnownCommands {
+    fn from_iter<I: IntoIterator<Item = String>>(iter: I) -> Self {
+        Self {
+            local: iter.into_iter().collect(),
+            extra: std::sync::Arc::default(),
+        }
+    }
 }
 
 /// True when an earlier *unconditional* user `proc` named `qualified_name`
@@ -1647,7 +1709,8 @@ proc foo {} {}
 
     #[test]
     fn recovery_known_commands_includes_registry_names() {
-        let known = recovery_known_commands("set x [foo\n", &registry(), &HashSet::new());
+        let known =
+            recovery_known_commands("set x [foo\n", &registry(), &std::sync::Arc::default());
         assert!(known.contains("set"));
         assert!(known.contains("puts"));
     }
@@ -1658,9 +1721,35 @@ proc foo {} {}
         // unconditionally, same as the registry — unlike the in-file
         // signature scan it is not gated on `script_is_complete`, since it
         // costs nothing extra to fold in a set the caller already built.
-        let extra: HashSet<String> = ["workspace_helper".to_string()].into_iter().collect();
+        let extra: std::sync::Arc<HashSet<String>> =
+            std::sync::Arc::new(["workspace_helper".to_string()].into_iter().collect());
         let known = recovery_known_commands("set x 1\n", &registry(), &extra);
         assert!(known.contains("workspace_helper"));
+    }
+
+    /// Issue #1154: the caller-supplied set must be *shared*, not copied — on
+    /// the LSP recovery path it holds every workspace-indexed proc and class,
+    /// and the recovery branch runs on every keystroke inside an unterminated
+    /// block.
+    #[test]
+    fn recovery_known_commands_shares_the_extra_set_rather_than_copying_it() {
+        let extra: SharedNameSet =
+            std::sync::Arc::new(["workspace_helper".to_string()].into_iter().collect());
+        let before = std::sync::Arc::strong_count(&extra);
+        let known = recovery_known_commands("set q {\nunclosed\n", &registry(), &extra);
+        assert_eq!(
+            std::sync::Arc::strong_count(&extra),
+            before + 1,
+            "the extra layer must be shared with the caller, not deep-copied",
+        );
+        assert!(known.contains("workspace_helper"));
+        assert!(known.contains("set"), "the registry layer is still present");
+        drop(known);
+        assert_eq!(
+            std::sync::Arc::strong_count(&extra),
+            before,
+            "dropping the universe must release the shared layer",
+        );
     }
 
     #[test]
@@ -1672,7 +1761,7 @@ proc foo {} {}
         let known = recovery_known_commands(
             "proc my_helper {} {}\nmy_helper\n",
             &registry(),
-            &HashSet::new(),
+            &std::sync::Arc::default(),
         );
         assert!(!known.contains("my_helper"));
         assert!(known.contains("proc")); // registry names are always present
@@ -1681,7 +1770,7 @@ proc foo {} {}
     #[test]
     fn recovery_known_commands_adds_user_proc_qualified_and_tail() {
         let src = "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
         assert!(
             known.contains("myns::helper"),
             "expected the qualified name: {known:?}"
@@ -1699,7 +1788,7 @@ proc foo {} {}
         // Tcl syntax), so the leading-`::` form must be recognised
         // alongside the stripped/tail forms asserted above.
         let src = "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
         assert!(
             known.contains("::myns::helper"),
             "expected the fully-qualified leading-:: form: {known:?}"
@@ -1710,7 +1799,7 @@ proc foo {} {}
     fn recovery_known_commands_adds_user_class_and_alias() {
         let src =
             "oo::class create Widget {}\ninterp alias {} greet {} puts hi\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
         assert!(known.contains("Widget"), "{known:?}");
         assert!(known.contains("greet"), "{known:?}");
     }
@@ -1718,7 +1807,7 @@ proc foo {} {}
     #[test]
     fn recovery_known_commands_adds_rename_target() {
         let src = "rename puts my_puts\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
         assert!(
             known.contains("my_puts"),
             "expected the rename target: {known:?}"
@@ -1728,7 +1817,7 @@ proc foo {} {}
     #[test]
     fn recovery_known_commands_adds_namespaced_rename_target() {
         let src = "namespace eval myns {\n  rename puts loud_puts\n}\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
         assert!(
             known.contains("myns::loud_puts"),
             "expected the qualified rename target: {known:?}"
@@ -1744,14 +1833,14 @@ proc foo {} {}
         // `rename OLD {}` deletes OLD; it must not introduce an empty-string
         // "command name".
         let src = "rename puts {}\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
         assert!(!known.contains(""));
     }
 
     #[test]
     fn recovery_known_commands_does_not_invent_undefined_names() {
         let src = "set q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
         assert!(!known.contains("not_a_real_proc"));
         assert!(!known.contains("unclosed")); // plain data, not a definition
     }

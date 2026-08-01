@@ -1048,7 +1048,7 @@ pub fn object_collection_classes(cu: &CompilationUnit) -> HashMap<String, HashSe
         .chain(cu.procedures.values())
         .chain(cu.methods.values());
     for fu in units {
-        for ((sym, _ver), t) in &fu.types {
+        for ((sym, _ver), t) in fu.types.iter() {
             if let Some(class) = t.element_class() {
                 out.entry(fu.ssa.var_name(*sym).to_owned())
                     .or_default()
@@ -1102,7 +1102,7 @@ fn harvest_unit(fu: &FunctionUnit, registry: &CommandRegistry, sink: &mut FactSi
     }
     // SSA values typed `OBJECT(class)` — includes collection retrievals
     // (`set p [dict get $pins $k]`) the syntactic scan above cannot see.
-    for ((sym, _ver), t) in &fu.types {
+    for ((sym, _ver), t) in fu.types.iter() {
         if t.tcl_type() == Some(tcl_registry::TclType::Object)
             && let Some(class) = t.class_name()
         {

@@ -36,7 +36,7 @@
 //! irrelevant to the reduction — both engines reduce to a snippet that still
 //! fires CODE.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::Write as _;
 
 use serde::Serialize;
@@ -192,7 +192,11 @@ fn collect_rename_edits(
     // known-command universe is empty — matches the old `registry: None`
     // behaviour (the recovery diagnostics are discarded below anyway; only
     // the segmented command shapes matter here).
-    let (cmds, _) = segment_with_recovery(source, LexerConfig::default(), &HashSet::new());
+    let (cmds, _) = segment_with_recovery(
+        source,
+        LexerConfig::default(),
+        &tcl_compiler::analyser::utils::RecoveryKnownCommands::default(),
+    );
     for cmd in &cmds {
         if cmd.texts.is_empty() {
             continue;

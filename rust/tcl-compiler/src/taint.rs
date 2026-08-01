@@ -6431,7 +6431,7 @@ mod tests {
             };
 
             let fu = cu.function("::p").unwrap();
-            let patched = apply_module_variable_traces(fu.taints.clone(), &fu.ssa, traces);
+            let patched = apply_module_variable_traces((*fu.taints).clone(), &fu.ssa, traces);
             let sym = fu.ssa.var_symbol("t").expect("t interned");
             assert!(
                 patched.get(&(sym, 1)).is_some_and(|t| t.is_tainted()),
@@ -6454,9 +6454,9 @@ mod tests {
                 has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
             };
             let fu = cu.function("::p").unwrap();
-            let patched = apply_module_variable_traces(fu.taints.clone(), &fu.ssa, traces);
+            let patched = apply_module_variable_traces((*fu.taints).clone(), &fu.ssa, traces);
             assert_eq!(
-                patched, fu.taints,
+                patched, *fu.taints,
                 "no trace in scope — map must be unchanged"
             );
         }

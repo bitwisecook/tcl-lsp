@@ -660,3 +660,71 @@ fn event_handler_is_a_workspace_symbol() {
         "workspace symbol not found: {syms:?}"
     );
 }
+
+/// Regression (#1179): the **first** `workspace/symbol` of a session must not
+/// answer out of a still-empty index.
+///
+/// `initialized` pulls the client config and registers file watchers — two
+/// client round-trips — before it starts the folder scan, so a query issued
+/// straight after the handshake used to find nothing, while the identical
+/// query a moment later found everything.  The VS Code suite reproduced this
+/// as a flaky first test; this is the same race without an editor.
+#[test]
+fn workspace_symbol_waits_out_the_startup_scan() {
+    let root = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-ws-symbol-scan-{}-{}",
+        std::process::id(),
+        line!()
+    ));
+    std::fs::create_dir_all(&root).expect("mk workspace root");
+    std::fs::write(root.join("scanned.tcl"), "proc scan_race_helper {} {}\n")
+        .expect("write fixture");
+
+    // No config settle, no scan wait, no `didOpen` — the query races the scan.
+    let mut lsp = Lsp::at_workspace_root(&root);
+    let result = lsp.workspace_symbols("scan_race_helper");
+    let syms = result.as_array().cloned().unwrap_or_default();
+    assert!(
+        syms.iter().any(|s| name(s) == "scan_race_helper"),
+        "the on-disk fixture's proc must be found on the first query: {syms:?}"
+    );
+
+    std::fs::remove_dir_all(&root).ok();
+}
+
+/// Regression (#1179): a document the editor has **just opened** must stay
+/// searchable.
+///
+/// `didOpen` drops the document's index entry (its on-disk records stop being
+/// authoritative once a live buffer exists) and the debounced diagnostics
+/// publish is what puts it back, so for that window every proc in the
+/// just-opened file vanished from the picker.  That is precisely what the VS
+/// Code suite hit: `fib` lives only in the file it had opened, so it found
+/// nothing, while `factorial` — which a second, unopened fixture also defines
+/// — kept working.
+#[test]
+fn workspace_symbol_finds_a_just_opened_documents_proc() {
+    let root = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-ws-symbol-open-{}-{}",
+        std::process::id(),
+        line!()
+    ));
+    std::fs::create_dir_all(&root).expect("mk workspace root");
+    let path = root.join("procs.tcl");
+    let src = "proc open_race_fib {n} { return $n }\n";
+    std::fs::write(&path, src).expect("write fixture");
+
+    let mut lsp = Lsp::at_workspace_root(&root);
+    let uri = format!("file://{}", path.to_string_lossy());
+    // `open_document`, not `open_ready`: do not wait for the publish that
+    // re-adds the index entry.
+    lsp.open_document(&uri, src);
+    let result = lsp.workspace_symbols("open_race_fib");
+    let syms = result.as_array().cloned().unwrap_or_default();
+    assert!(
+        syms.iter().any(|s| name(s) == "open_race_fib"),
+        "the open document's proc must be found while its index entry is pending: {syms:?}"
+    );
+
+    std::fs::remove_dir_all(&root).ok();
+}

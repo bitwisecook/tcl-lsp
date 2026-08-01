@@ -32,7 +32,7 @@
 
 pub mod config_ini;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -143,6 +143,11 @@ struct DocumentState {
     /// line). Kept in lock-step with `text`: every mutation of `text` rebuilds
     /// this alongside it (see [`apply_content_change_indexed`]).
     line_index: tcl_lexer::LineIndex,
+    /// Whether `text` contains a bare `\r` — [`tcl_lexer::LineIndex::contains_bare_cr`]
+    /// at the last point `line_index` was rebuilt from scratch. `did_change`
+    /// uses this to decide whether [`tcl_lexer::LineIndex::apply_edit`] remains
+    /// sound for the next incremental edit (see [`apply_content_change_indexed`]).
+    has_bare_cr: bool,
     dialect: String,
     /// The LSP `languageId` the client opened this document with (empty
     /// for documents materialised from disk by the folder scan).  Retained
@@ -164,9 +169,11 @@ struct DocumentState {
 impl DocumentState {
     fn new(text: String, dialect: String) -> Self {
         let line_index = tcl_lexer::LineIndex::new_lsp(&text);
+        let has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&text);
         Self {
             text,
             line_index,
+            has_bare_cr,
             dialect,
             language_id: String::new(),
             revision: 0,
@@ -176,9 +183,11 @@ impl DocumentState {
 
     fn with_version(text: String, dialect: String, version: i32) -> Self {
         let line_index = tcl_lexer::LineIndex::new_lsp(&text);
+        let has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&text);
         Self {
             text,
             line_index,
+            has_bare_cr,
             dialect,
             language_id: String::new(),
             revision: 0,
@@ -258,15 +267,42 @@ const IRULES_DIALECT: &str = "f5-irules";
 /// The iApps dialect key — an APL presentation's embedded `[ … ]` Tcl.
 const IAPPS_DIALECT: &str = "f5-iapps";
 
-/// Ceiling on how many project files the background workspace warm (#844 Gap 3)
-/// analyses concurrently.  The warm pre-populates the memoised per-file analysis
-/// across the blocking pool so a cold workspace's first enriched
-/// `semantic_tokens_project` finds cache hits instead of serially walking every
-/// file; the cap keeps it from monopolising the blocking pool (or holding too
-/// many salsa snapshots at once, which would stall a concurrent edit's
-/// `set_text`) on a huge workspace, and it is clamped to the machine's parallelism
-/// so small hosts stay responsive.
+/// Ceiling on how many **open** documents the background workspace warm (#844
+/// Gap 3, narrowed by #1151) analyses concurrently.  The warm pre-populates the
+/// memoised per-file analysis for already-open documents across the blocking
+/// pool so their first hover / semantic-tokens / diagnostics request finds a
+/// cache hit instead of a cold `file_analysis_incremental` walk; the cap keeps
+/// it from monopolising the blocking pool (or holding too many salsa snapshots
+/// at once, which would stall a concurrent edit's `set_text`), and it is
+/// clamped to the machine's parallelism so small hosts stay responsive.
 const WORKSPACE_WARM_MAX_CONCURRENCY: usize = 16;
+
+/// Ceiling on how many workspace files [`Backend::scan_workspace_folders`] and
+/// the [`Backend::did_change_watched_files`] batch reindex analyse concurrently
+/// (#1151 / #1161).  Both read-and-analyse many independent on-disk files, so
+/// they share this bound and the [`run_bounded`] helper; clamped to the
+/// machine's parallelism (see [`WORKSPACE_WARM_MAX_CONCURRENCY`]'s rationale)
+/// so a huge tree can't oversubscribe the blocking pool.
+const WORKSPACE_ANALYSIS_MAX_CONCURRENCY: usize = 16;
+
+/// How many analysed files [`Backend::scan_workspace_folders`] accumulates
+/// before merging them into `workspace_index` / the salsa `Project` (#1151).
+/// Merging in batches rather than once for the whole scan bounds how many
+/// `AnalysisResult`s (and their source text) are held in memory at once on a
+/// large tree, while still running the *analysis* itself across the full
+/// [`WORKSPACE_ANALYSIS_MAX_CONCURRENCY`]-wide pool without waiting on a batch
+/// boundary.
+const SCAN_MERGE_BATCH_SIZE: usize = 200;
+
+/// How long a workspace-wide query waits for the initial folder scan before
+/// answering from whatever the index already holds (see
+/// [`Backend::wait_for_workspace_scan`]).  Generous enough to cover a real
+/// project's startup scan — the alternative is a confidently empty answer to
+/// the very first `workspace/symbol` of a session — but bounded, so a
+/// pathological workspace degrades to a stale answer instead of hanging the
+/// picker.  Paid at most once per session: after the first scan completes the
+/// wait is a relaxed atomic load.
+const INITIAL_WORKSPACE_SCAN_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// Debounce window for coalescing `workspace/semanticTokens/refresh` pushes
 /// (see [`SemanticTokensRefreshCtx::request_refresh_coalesced`]). Comparable
@@ -275,6 +311,19 @@ const WORKSPACE_WARM_MAX_CONCURRENCY: usize = 16;
 /// restores several tabs) would otherwise each fire their own workspace-wide
 /// refresh; this collapses a burst into one fire per window.
 const SEMANTIC_TOKENS_REFRESH_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// How many **closed** files keep a server-side diagnostics badge record
+/// (`pull_diag_cache` + `closed_diag_gen`) before the least-recently-published
+/// one is evicted (#1144).
+///
+/// #865 keeps a closed workspace file's Problems badge, but the cache had no
+/// bound: browsing a large tree retained a full `Vec<Diagnostic>` for every file
+/// the editor ever opened, for the process's life.  Every entry is re-derivable
+/// from disk, so evicting the oldest costs nothing but a recompute on reopen.
+/// Sized well above a realistic "recently visited" working set (VS Code's own
+/// Problems view is the consumer) yet far below the thousands of files a
+/// workspace walk touches.
+const CLOSED_DIAG_BADGE_CAP: usize = 512;
 
 /// What "still the current state" means for a diagnostics run at publish time,
 /// and therefore what the currency guard re-checks under the `documents` lock
@@ -346,7 +395,167 @@ struct SemanticTokensRefreshCtx {
     client: Client,
     last_semantic_tokens: SemanticTokensCache,
     refresh_pending: Arc<std::sync::atomic::AtomicBool>,
+    refresh_asked: EnrichedRefreshAsked,
 }
+
+/// URIs whose detached semantic-token convergence continuation is still in
+/// flight (#1147) — the dedup map behind [`ConvergenceGuard`].
+///
+/// The value records whether any later request was **coalesced** onto that
+/// claim, so the claim holder knows it is answering for more than itself (see
+/// [`ConvergenceGuard::release`]).
+///
+/// A `std::sync::Mutex`: every critical section is a single map insert, lookup,
+/// or remove, never held across an await, and the remove has to happen from
+/// [`ConvergenceGuard`]'s `Drop`, which cannot await.
+type ConvergenceInFlight = Arc<std::sync::Mutex<HashMap<Uri, bool>>>;
+
+/// A claim on one URI's convergence continuation: at most one may be detached
+/// per document at a time (#1147).
+///
+/// A `semanticTokens/range` or `semanticTokens/full` request that overruns
+/// [`SEMANTIC_TOKENS_FAST_PATH_BUDGET`] detaches a continuation that holds the
+/// document's text and its coarse token stream and queues a blocking recompute.
+/// Nothing bounded that: an editor scrolling a cold file issues a viewport
+/// request per frame, so N in-flight range requests on one document meant N live
+/// document copies and N queued jobs, and the pre-existing coalescing
+/// ([`SemanticTokensRefreshCtx::request_refresh_coalesced`]) collapsed only the
+/// resulting notification, never the work behind it.
+///
+/// The continuations are redundant with each other by construction: the only
+/// output is a *workspace-scoped* `workspace/semanticTokens/refresh`, which asks
+/// the client to re-pull tokens for every open document. So a pending
+/// continuation already covers every later request for the same URI, and the
+/// `range` and `full` paths share one set for that reason.
+///
+/// A guard rather than a bare flag so an aborted or panicking continuation
+/// releases the claim as its frame unwinds — a stuck marker would silence the
+/// URI's convergence for the rest of the session.
+struct ConvergenceGuard {
+    uri: Uri,
+    in_flight: ConvergenceInFlight,
+    /// Set by [`Self::release`], so `Drop` does not remove an entry a *later*
+    /// claim has since installed for the same URI.
+    released: bool,
+}
+
+impl ConvergenceGuard {
+    /// Claim `uri`, or `None` when a continuation for it is already pending — in
+    /// which case the caller skips detaching and settles as `coalesced`, and
+    /// the pending claim is marked as now answering for that request too.
+    fn claim(in_flight: &ConvergenceInFlight, uri: &Uri) -> Option<Self> {
+        let mut in_flight_map = in_flight
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(coalesced) = in_flight_map.get_mut(uri) {
+            *coalesced = true;
+            return None;
+        }
+        in_flight_map.insert(uri.clone(), false);
+        drop(in_flight_map);
+        Some(Self {
+            uri: uri.clone(),
+            in_flight: Arc::clone(in_flight),
+            released: false,
+        })
+    }
+
+    /// Release the claim, reporting whether any request was coalesced onto it
+    /// while it was held (PR #1179 review, Codex P2).
+    ///
+    /// A coalesced request skips its own continuation on the strength of this
+    /// one's refresh — but this one only refreshes when *its own* comparison
+    /// found a difference.  When the claim holder's viewport happened to match
+    /// the coarse tier (or its reads were cancelled outright) while a skipped
+    /// viewport would have differed, the skipped one stays coarse until
+    /// something unrelated re-requests it.  Reading the flag as part of the
+    /// same critical section that removes the entry is what makes acting on it
+    /// sound: a request arriving after this returns finds no claim and takes
+    /// out a fresh one rather than being silently dropped into a claim that is
+    /// already gone.
+    fn release(&mut self) -> bool {
+        if self.released {
+            return false;
+        }
+        self.released = true;
+        self.in_flight
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&self.uri)
+            .unwrap_or(false)
+    }
+}
+
+impl Drop for ConvergenceGuard {
+    fn drop(&mut self) {
+        if self.released {
+            return;
+        }
+        // Recovering from a poisoned lock rather than skipping the removal: the
+        // map holds no invariant a panic could have broken, and leaving a marker
+        // behind would permanently silence this URI's convergence.
+        self.in_flight
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&self.uri);
+    }
+}
+
+/// Digest of an enriched token stream, for the repeat-ask bound (see
+/// [`EnrichedRefreshAsked`]).  A hash rather than the stream itself: the value
+/// is only ever compared for equality, and a token stream is one `u32` per
+/// five per token — far too much to retain per open document just to notice a
+/// repeat.
+fn enriched_token_digest(data: &[u32]) -> u64 {
+    use std::hash::{Hash as _, Hasher as _};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    data.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Release `guard` and, when the continuation is finishing **without** having
+/// asked for a refresh but requests were coalesced onto its claim, ask for one
+/// anyway.  Returns what the settled marker should record as `refresh=`.
+///
+/// Shared by the `range` and `full` continuations because the stranding is the
+/// same on both: they claim from one set precisely because either one's
+/// workspace-scoped `workspace/semanticTokens/refresh` covers the other's
+/// skipped requests, which only holds if the claim holder actually fires one.
+fn refresh_if_coalesced(
+    refresh_ctx: &SemanticTokensRefreshCtx,
+    guard: &mut ConvergenceGuard,
+    refreshed: bool,
+) -> bool {
+    let coalesced = guard.release();
+    if refreshed || !coalesced {
+        return refreshed;
+    }
+    refresh_ctx.request_refresh_coalesced();
+    true
+}
+
+/// Per-URI hash of the enriched token stream a convergence continuation has
+/// already asked the client to re-pull (PR #1179 review).
+///
+/// The termination bound on the converge → refresh → re-request cycle.  A
+/// request that overruns [`SEMANTIC_TOKENS_FAST_PATH_BUDGET`] serves the coarse
+/// tier and caches *that* as the URI's last stream, so the continuation's
+/// enriched result differs from the cache and asks for a refresh.  The client
+/// re-requests — and if that request also overruns the budget (a loaded
+/// machine misses it even on a warm memo, since the budget races
+/// `spawn_blocking` dispatch and the `db` lock), the coarse tier is served and
+/// cached again, and the identical enriched stream asks for the identical
+/// refresh.  Nothing broke the cycle: the server kept firing a workspace-wide
+/// `workspace/semanticTokens/refresh` every debounce window, which cancels and
+/// re-issues the editor's in-flight token request forever.  Recording the
+/// stream we already asked about means a *repeat* ask for the same bytes is
+/// dropped: the client has been told, and telling it again cannot change the
+/// answer.  Any real change — an edit, a cross-file class landing — produces
+/// different enriched bytes and re-arms the ask.
+///
+/// Entries are dropped with the token cache on close / rename, so this is
+/// bounded by the open-document set.
+type EnrichedRefreshAsked = Arc<Mutex<HashMap<Uri, u64>>>;
 
 /// Per-URI cache of the last semantic-token stream served: `(resultId, packed
 /// integer data)`. Shared type alias for [`Backend::last_semantic_tokens`] and
@@ -380,7 +589,10 @@ struct RangeConvergenceInputs {
     /// The coarse token stream already served, to diff the enriched recompute against.
     served: Vec<u32>,
     registry: &'static CommandRegistry,
-    text: String,
+    /// The document text, shared with the request's own coarse tokenisation
+    /// rather than cloned for the continuation (#1147): one buffer per request,
+    /// not one per tier.
+    text: Arc<str>,
     dialect: String,
     range: CoreLspRange,
 }
@@ -405,10 +617,25 @@ impl SemanticTokensRefreshCtx {
             let cache = self.last_semantic_tokens.lock().await;
             cache.get(uri).is_none_or(|(_, cached)| cached != data)
         };
-        if changed {
-            self.request_refresh_coalesced();
+        changed && self.request_refresh_for_enriched(uri, data).await
+    }
+
+    /// Ask the client to re-pull tokens because `uri`'s enriched stream
+    /// differs from what was served — **once** per distinct enriched stream
+    /// (see [`EnrichedRefreshAsked`]).  Returns whether an ask was actually
+    /// made, so the settled marker records what happened rather than what was
+    /// wanted.
+    async fn request_refresh_for_enriched(&self, uri: &Uri, data: &[u32]) -> bool {
+        let digest = enriched_token_digest(data);
+        {
+            let mut asked = self.refresh_asked.lock().await;
+            if asked.get(uri) == Some(&digest) {
+                return false;
+            }
+            asked.insert(uri.clone(), digest);
         }
-        changed
+        self.request_refresh_coalesced();
+        true
     }
 
     /// Emit the `full` convergence continuation's settled marker.
@@ -512,6 +739,10 @@ enum FullSettleOutcome {
     /// The document has no salsa input, so the response was computed enriched
     /// from a freshly-built unit + analysis.
     NoAnalysis,
+    /// A convergence continuation for this document was already in flight, so
+    /// no second one was detached (#1147): the pending one's workspace-scoped
+    /// refresh covers this request too.
+    Coalesced,
 }
 
 impl FullSettleOutcome {
@@ -520,6 +751,7 @@ impl FullSettleOutcome {
             Self::Landed => "landed",
             Self::Cancelled => "cancelled",
             Self::NoAnalysis => "no-analysis",
+            Self::Coalesced => "coalesced",
         }
     }
 }
@@ -619,6 +851,9 @@ struct DiagInputs {
     rehomed_source_seeds: Arc<Mutex<HashMap<String, Vec<String>>>>,
     /// Package database for the W120 workspace-refinement post-filter (#723).
     package_resolver: Arc<RwLock<PackageResolver>>,
+    /// Memo for the unclosed-delimiter recovery path's widened known-command
+    /// set (see [`RecoveryNameCache`]).
+    recovery_names: Arc<Mutex<RecoveryNameCache>>,
     /// `.tcl-lsp.ini [project] entryPoints` for this document's folder (#804):
     /// when non-empty, the W120 refinement inherits these entries' requires and
     /// disables the automatic `source`-graph inheritance.
@@ -1022,9 +1257,7 @@ async fn compute_base_analysis(
     disabled: &HashSet<String>,
     extra_commands: &HashSet<String>,
     non_ascii_mode: NonAsciiMode,
-    registry: &CommandRegistry,
-    workspace_index: &Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
-    package_resolver: &Arc<RwLock<PackageResolver>>,
+    recovery: &RecoveryWidenCtx<'_>,
 ) -> ControlFlow<bool, Arc<AnalysisResult>> {
     let &SalsaAnalysisCtx {
         db,
@@ -1049,19 +1282,11 @@ async fn compute_base_analysis(
     // `recovery_known_commands`'s own `script_is_complete` gate: a
     // well-formed document pays nothing extra.
     if !tcl_lexer::script_is_complete(text) {
-        let widened = widen_recovery_extra_commands(
-            extra_commands,
-            text,
-            dialect,
-            registry,
-            workspace_index,
-            package_resolver,
-        )
-        .await;
+        let widened = widen_recovery_extra_commands(recovery, extra_commands, text, dialect).await;
         let (a_text, a_dialect, a_disabled) =
             (text.to_owned(), dialect.to_owned(), disabled.clone());
         return match tokio::task::spawn_blocking(move || {
-            Backend::configured_analyser(a_disabled, non_ascii_mode, widened)
+            Backend::recovery_analyser(a_disabled, non_ascii_mode, widened)
                 .analyse(&a_text, &a_dialect)
                 .clone()
         })
@@ -1118,9 +1343,18 @@ async fn compute_base_analysis(
         let (a_text, a_dialect, a_disabled) =
             (text.to_owned(), dialect.to_owned(), disabled.clone());
         let a_extra = extra_commands.clone();
+        // The path- and release-keyed inputs `file_analysis_incremental` reads
+        // off the salsa `SourceFile` / `AnalyserConfig` (pkgIndex.tcl and
+        // tclpkg.tcl scoping; the BIG-IP library-version axis).  This branch is
+        // the **closed-file** tier since #1144, not just a rare fallback, so a
+        // closed file's badge must not lose them.
+        let a_path = uri.to_file_path().map(|p| p.display().to_string());
+        let a_bigip = config.bigip_version(&*db.lock().await).clone();
         let analysis = tokio::task::spawn_blocking(move || {
             Arc::new(
                 Backend::configured_analyser(a_disabled, non_ascii_mode, a_extra)
+                    .with_file_path(a_path)
+                    .with_bigip_version(a_bigip)
                     .analyse(&a_text, &a_dialect)
                     .clone(),
             )
@@ -1129,6 +1363,67 @@ async fn compute_base_analysis(
         .unwrap_or_default();
         ControlFlow::Continue(analysis)
     }
+}
+
+/// The workspace handles [`widen_recovery_extra_commands`] reads, plus the memo
+/// it fills — grouped so [`compute_base_analysis`] threads one borrow rather
+/// than four.
+struct RecoveryWidenCtx<'a> {
+    cache: &'a Arc<Mutex<RecoveryNameCache>>,
+    registry: &'a CommandRegistry,
+    workspace_index: &'a Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    package_resolver: &'a Arc<RwLock<PackageResolver>>,
+}
+
+/// The inputs [`RecoveryNameCache`] keys its entries on — everything the
+/// widened set is a function of, and nothing else.
+///
+/// `index_generation` / `resolver_revision` are the two whole-workspace change
+/// signals ([`core_workspace_index::WorkspaceIndex::generation`] /
+/// [`PackageResolver::revision`]); the rest is per-document or per-config and
+/// cheap to compare.
+#[derive(Clone, PartialEq, Eq)]
+struct RecoveryNameKey {
+    index_generation: u64,
+    resolver_revision: u64,
+    base: Vec<String>,
+    requires: Vec<String>,
+    dialect: String,
+}
+
+/// Two-tier memo for [`widen_recovery_extra_commands`] (issue #1154).
+///
+/// The **shared** tier — `tclLsp.extraCommands` widened with every
+/// workspace-indexed proc / class and every auto-loadable command name — is the
+/// expensive one (three `String` allocations per indexed name) and depends only
+/// on `(index_generation, resolver_revision, base)`. The **widened** tier adds
+/// the document's own `package require` closure on top, which additionally
+/// depends on `(requires, dialect)` and reads implementation files from disk.
+///
+/// Keeping the shared tier separate means a document whose `package require`
+/// lines change (or a different document taking the recovery branch) still
+/// reuses the workspace/auto-command union; only the small package layer is
+/// rebuilt. Both tiers are handed out as `Arc`, so the analyser receives the
+/// set as a refcount bump — see `Analyser::with_shared_extra_commands`.
+///
+/// One entry each: mid-typing there is one document with an open delimiter, so
+/// a larger cache would buy nothing but memory.
+#[derive(Default)]
+struct RecoveryNameCache {
+    /// The workspace + auto-command union, without any document's package
+    /// closure.
+    shared: Option<SharedRecoveryNames>,
+    /// The full widened set for the last document that needed one.
+    widened: Option<(RecoveryNameKey, Arc<HashSet<String>>)>,
+}
+
+/// [`RecoveryNameCache`]'s document-independent tier and the inputs it was
+/// built from.
+struct SharedRecoveryNames {
+    index_generation: u64,
+    resolver_revision: u64,
+    base: Vec<String>,
+    names: Arc<HashSet<String>>,
 }
 
 /// Widen `base` (the resolved `tclLsp.extraCommands`) with the workspace's
@@ -1150,26 +1445,100 @@ async fn compute_base_analysis(
 /// document's requires from an *already-published* analysis, which this
 /// document, being analysed for the first time right now, cannot yet have.
 ///
+/// Memoised through `cache` — see [`RecoveryNameCache`]. The recovery branch is
+/// the *normal* state while a delimiter is open, so this runs on every debounced
+/// run of a document being typed into; without the memo each of those rebuilt
+/// the whole set from scratch.
+///
+/// Only called from [`compute_base_analysis`]'s `!script_is_complete`
+/// recovery branch — never on the well-formed-document hot path.
+async fn widen_recovery_extra_commands(
+    ctx: &RecoveryWidenCtx<'_>,
+    base: &HashSet<String>,
+    text: &str,
+    dialect: &str,
+) -> Arc<HashSet<String>> {
+    // `base` is the user's configured list — small, and its identity is part of
+    // the key, so normalise it once into a comparable form.
+    let mut base_key: Vec<String> = base.iter().cloned().collect();
+    base_key.sort_unstable();
+    let requires: Vec<String> =
+        tcl_compiler::signature_scan::extract_signatures(text, ctx.registry)
+            .package_requires
+            .into_iter()
+            .map(|pr| pr.name)
+            .collect();
+    let index_generation = ctx.workspace_index.read().await.generation();
+    let resolver_revision = ctx.package_resolver.read().await.revision();
+    let key = RecoveryNameKey {
+        index_generation,
+        resolver_revision,
+        base: base_key,
+        requires,
+        dialect: dialect.to_owned(),
+    };
+    {
+        let cached = ctx.cache.lock().await;
+        if let Some((cached_key, names)) = cached.widened.as_ref()
+            && *cached_key == key
+        {
+            return Arc::clone(names);
+        }
+    }
+
+    let shared = shared_recovery_names(ctx, &key).await;
+    let widened = if key.requires.is_empty() {
+        shared
+    } else {
+        let mut names = (*shared).clone();
+        // Same release-aware package view the W123 refinement uses, so the
+        // known-name set and the diagnostic filter cannot disagree about which
+        // guarded packages this document can actually load.
+        let target = tcl_dialect::TclVersion::from_dialect(Some(dialect));
+        let commands = ctx.package_resolver.read().await.package_defined_commands(
+            &key.requires,
+            target,
+            &|path| {
+                std::fs::read_to_string(path)
+                    .map(|text| defined_command_tails(&text, dialect))
+                    .unwrap_or_default()
+            },
+        );
+        names.extend(commands);
+        Arc::new(names)
+    };
+    ctx.cache.lock().await.widened = Some((key, Arc::clone(&widened)));
+    widened
+}
+
+/// The document-independent tier of [`widen_recovery_extra_commands`]:
+/// `base` ∪ every workspace-indexed proc/class name ∪ every auto-loadable
+/// command name, cached on `(index generation, resolver revision, base)`.
+///
 /// Workspace names go through `tcl_compiler::analyser::utils::insert_qualified_and_tail`
 /// — the same three-form (as-is / `::`-stripped / tail) insertion
 /// `recovery_known_commands` uses for a document's own procs/classes/
 /// aliases/renames — rather than a second, hand-rolled copy: a workspace
 /// proc referenced by its absolute `::ns::name` form needs recognising just
-/// as much as one referenced relatively.
-///
-/// Only called from [`compute_base_analysis`]'s `!script_is_complete`
-/// recovery branch — never on the well-formed-document hot path.
-async fn widen_recovery_extra_commands(
-    base: &HashSet<String>,
-    text: &str,
-    dialect: &str,
-    registry: &CommandRegistry,
-    workspace_index: &Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
-    package_resolver: &Arc<RwLock<PackageResolver>>,
-) -> HashSet<String> {
-    let mut names = base.clone();
+/// as much as one referenced relatively. The auto-loadable names mirror the
+/// #832 W123 refinement (`tclIndex`-style, no `package require` needed).
+async fn shared_recovery_names(
+    ctx: &RecoveryWidenCtx<'_>,
+    key: &RecoveryNameKey,
+) -> Arc<HashSet<String>> {
     {
-        let index = workspace_index.read().await;
+        let cached = ctx.cache.lock().await;
+        if let Some(shared) = cached.shared.as_ref()
+            && shared.index_generation == key.index_generation
+            && shared.resolver_revision == key.resolver_revision
+            && shared.base == key.base
+        {
+            return Arc::clone(&shared.names);
+        }
+    }
+    let mut names: HashSet<String> = key.base.iter().cloned().collect();
+    {
+        let index = ctx.workspace_index.read().await;
         for p in index.procs() {
             tcl_compiler::analyser::utils::insert_qualified_and_tail(&mut names, &p.qualified_name);
         }
@@ -1177,27 +1546,16 @@ async fn widen_recovery_extra_commands(
             tcl_compiler::analyser::utils::insert_qualified_and_tail(&mut names, &c.qualified_name);
         }
     }
-    let requires: Vec<String> = tcl_compiler::signature_scan::extract_signatures(text, registry)
-        .package_requires
-        .into_iter()
-        .map(|pr| pr.name)
-        .collect();
-    let resolver = package_resolver.read().await;
-    for name in resolver.auto_command_names() {
+    for name in ctx.package_resolver.read().await.auto_command_names() {
         names.insert(name.trim_start_matches("::").to_owned());
     }
-    if !requires.is_empty() {
-        // Same release-aware package view the W123 refinement uses, so the
-        // known-name set and the diagnostic filter cannot disagree about which
-        // guarded packages this document can actually load.
-        let target = tcl_dialect::TclVersion::from_dialect(Some(dialect));
-        let commands = resolver.package_defined_commands(&requires, target, &|path| {
-            std::fs::read_to_string(path)
-                .map(|text| defined_command_tails(&text, dialect))
-                .unwrap_or_default()
-        });
-        names.extend(commands);
-    }
+    let names = Arc::new(names);
+    ctx.cache.lock().await.shared = Some(SharedRecoveryNames {
+        index_generation: key.index_generation,
+        resolver_revision: key.resolver_revision,
+        base: key.base.clone(),
+        names: Arc::clone(&names),
+    });
     names
 }
 
@@ -1326,6 +1684,30 @@ async fn compute_compiler_diags(
     }
 }
 
+/// Release the worker's claim on `uri`'s slot.
+///
+/// A slot whose `latest_inputs` were cleared belongs to a document that is no
+/// longer open ([`Backend::evict_diag_slot`] clears them on close), so the slot
+/// itself is dropped; an open document keeps its slot, with `running` cleared so
+/// the next edit starts a fresh worker.
+///
+/// Dropping the slot is what bounds closed-file state (#1144): every URI ever
+/// scheduled used to keep a [`DiagInputs`] — per-URI clones of the disabled /
+/// extra-command / severity-override / entry-point sets — for the process's
+/// life, so browsing a workspace grew `diag_slots` without limit.  Retaining it
+/// bought nothing: `did_open` re-resolves the inputs unconditionally
+/// (`reschedule_diagnostics`, #104), so a reopened document never reads them.
+fn retire_slot(slots: &mut HashMap<Uri, DiagSlot>, uri: &Uri) {
+    let Some(slot) = slots.get_mut(uri) else {
+        return;
+    };
+    if slot.latest_inputs.is_none() {
+        slots.remove(uri);
+    } else {
+        slot.running = false;
+    }
+}
+
 /// The debounced, detached diagnostics worker for one document.
 ///
 /// A free function rather than an inline `tokio::spawn` body so it can
@@ -1350,16 +1732,15 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
                     slot.dirty = false;
                     slot.latest_inputs.clone()
                 } else {
-                    slot.running = false;
+                    retire_slot(&mut guard, &uri);
                     return;
                 }
             };
-            // `latest_inputs` is set alongside `dirty`, so this is `Some`;
-            // guard defensively and retire if it is somehow absent.
+            // `latest_inputs` is set alongside `dirty`, so this is `Some` unless
+            // `Backend::evict_diag_slot` cleared it while we were draining;
+            // either way there is nothing to analyse, so retire.
             let Some(inputs) = inputs else {
-                if let Some(slot) = slots.lock().await.get_mut(&uri) {
-                    slot.running = false;
-                }
+                retire_slot(&mut *slots.lock().await, &uri);
                 return;
             };
             // A document that has never had cross-file evidence set gets it
@@ -1372,18 +1753,17 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
             // semantic-token enrichment tier on a large document).
             // Handles for the post-publish evidence refresh below
             // (`run_diagnostics_core` consumes `inputs`).
-            let evidence_handles = (
-                Arc::clone(&inputs.db),
-                Arc::clone(&inputs.db_files),
-                Arc::clone(&inputs.db_project),
-                Arc::clone(&inputs.workspace_index),
-            );
+            let evidence_handles = EvidenceHandles::from_inputs(&inputs);
             // Capture + analyse the document's current state.  If it is gone
-            // (closed) there is nothing to publish — retire.
+            // (closed) there is nothing to publish — retire, unless a `did_open`
+            // re-armed the slot in the meantime, in which case keep draining
+            // rather than orphaning its dirty bit with no worker behind it.
             let Some(job) = inputs.capture_job(&uri).await else {
                 let mut guard = slots.lock().await;
-                if let Some(slot) = guard.get_mut(&uri) {
-                    slot.running = false;
+                match guard.get(&uri) {
+                    Some(slot) if slot.dirty => continue,
+                    Some(_) => retire_slot(&mut guard, &uri),
+                    None => {}
                 }
                 return;
             };
@@ -1409,34 +1789,42 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
             // publish-then-enrich shape the semantic-token tiers use. Salsa
             // memoisation makes the second pass cheap apart from what the
             // evidence genuinely invalidated.
-            let (db, db_files, db_project, workspace_index) = evidence_handles;
-            let changed =
-                sync_cross_file_evidence(&db, &db_files, &db_project, &workspace_index).await;
-            // Re-analyse *this* document only when the refresh gave it evidence
-            // that can actually change its result: a non-empty table means some
-            // other file calls into it, which is what retracts a fold. Going
-            // from "no view" to an *empty* view leaves the merged evidence
-            // identical, so re-running would publish a byte-identical second
-            // result — and one publish per version is a contract
-            // (`diagnostics_delivery_smoke`, and the duplicate-diagnostics KCS
-            // note). Residual: an empty view also lifts a `LOADS_EXTERNAL_UNIT`
-            // decline, which can *add* a fold; not republishing leaves that as
-            // a missing hint until the next edit, the safe direction.
-            if changed.contains(&uri)
-                && has_external_callers(&db, &db_files, &uri).await
-                && let Some(slot) = slots.lock().await.get_mut(&uri)
-            {
-                slot.dirty = true;
-            }
-            // Republish every peer the refresh invalidated. Only documents
-            // that already have resolved inputs are eligible: a file nobody
-            // has analysed has no published diagnostics to go stale, and its
-            // inputs cannot be resolved from here anyway. This converges — the
-            // peer's own run re-syncs, finds nothing changed
-            // (compare-then-set), and reschedules nobody.
-            reschedule_peers(&slots, &uri, changed).await;
+            refresh_cross_file_evidence(&evidence_handles, &slots, &uri).await;
         }
     });
+}
+
+/// Refresh the project's cross-file call-site evidence after a worker pass
+/// published, then reschedule whatever the refresh invalidated.
+async fn refresh_cross_file_evidence(
+    handles: &EvidenceHandles,
+    slots: &Arc<Mutex<HashMap<Uri, DiagSlot>>>,
+    uri: &Uri,
+) {
+    let changed = sync_cross_file_evidence(handles).await;
+    // Re-analyse *this* document only when the refresh gave it evidence
+    // that can actually change its result: a non-empty table means some
+    // other file calls into it, which is what retracts a fold. Going
+    // from "no view" to an *empty* view leaves the merged evidence
+    // identical, so re-running would publish a byte-identical second
+    // result — and one publish per version is a contract
+    // (`diagnostics_delivery_smoke`, and the duplicate-diagnostics KCS
+    // note). Residual: an empty view also lifts a `LOADS_EXTERNAL_UNIT`
+    // decline, which can *add* a fold; not republishing leaves that as
+    // a missing hint until the next edit, the safe direction.
+    if changed.contains(uri)
+        && has_external_callers(&handles.db, &handles.db_files, uri).await
+        && let Some(slot) = slots.lock().await.get_mut(uri)
+    {
+        slot.dirty = true;
+    }
+    // Republish every peer the refresh invalidated. Only documents
+    // that already have resolved inputs are eligible: a file nobody
+    // has analysed has no published diagnostics to go stale, and its
+    // inputs cannot be resolved from here anyway. This converges — the
+    // peer's own run re-syncs, finds nothing changed
+    // (compare-then-set), and reschedules nobody.
+    reschedule_peers(slots, uri, changed).await;
 }
 
 /// Mark each peer dirty and start its worker if one is not already draining
@@ -1491,6 +1879,26 @@ async fn has_external_callers(
     })
 }
 
+/// The handles [`sync_cross_file_evidence`] needs, cloned off a [`DiagInputs`]
+/// before [`run_diagnostics_core`] consumes it.
+struct EvidenceHandles {
+    db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
+    db_files: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
+    db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
+    workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+}
+
+impl EvidenceHandles {
+    fn from_inputs(inputs: &DiagInputs) -> Self {
+        Self {
+            db: Arc::clone(&inputs.db),
+            db_files: Arc::clone(&inputs.db_files),
+            db_project: Arc::clone(&inputs.db_project),
+            workspace_index: Arc::clone(&inputs.workspace_index),
+        }
+    }
+}
+
 /// Refresh every project file's [`tcl_lsp_db::SourceFile::external_call_sites`]
 /// — the call sites in *other* files that reach the procedures it declares
 /// (issue #977) — and report the URIs whose evidence actually moved.
@@ -1512,57 +1920,116 @@ async fn has_external_callers(
 ///
 /// Salsa cancellation is caught and reported as "nothing changed": the edit
 /// that cancelled this pass drives its own refresh.
-async fn sync_cross_file_evidence(
-    db: &Mutex<tcl_lsp_db::TclDatabase>,
-    db_files: &Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>,
-    db_project: &Mutex<Option<tcl_lsp_db::Project>>,
-    workspace_index: &RwLock<core_workspace_index::WorkspaceIndex>,
-) -> Vec<Uri> {
+///
+/// **The project-wide read runs on a cloned salsa snapshot inside
+/// `spawn_blocking`** (issue #1148), so the `db` mutex — which every feature
+/// read path and every `db_set_source` contends on — is held only long enough
+/// to clone the handle, and again for the short write section at the end. Held
+/// across the read, as it used to be, one worker pass over a large workspace
+/// stalled hover, completion and the next keystroke's `set_text` for the whole
+/// scan. The snapshot shares salsa's memo storage with the live database, so
+/// the writes below still see everything the read computed.
+///
+/// **Not gated on `crossFileResolution`**, despite feeding a cross-file fact.
+/// That toggle gates `project_diagnostics` — cross-file W120/W123 suppression
+/// and cross-file arity. What this writes is consumed by
+/// `document_compilation_unit`'s interprocedural seed, which is *soundness*,
+/// not an opt-in refinement: without the project's call sites a library file
+/// folds on its own callers' literals and reports an I230 the workspace
+/// contradicts (issue #977). Skipping the pass when the toggle is off
+/// reinstates exactly that unsound fold —
+/// `caller_in_a_sourcing_file_with_a_differing_literal_clears_i230` in the e2e
+/// suite runs with `crossFileResolution` at its default (off) and fails
+/// immediately if this is gated on it.
+async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
     use salsa::Setter as _;
     // Which files the host can honestly claim a closed world for, resolved
     // before taking the db locks (the index has its own).
-    let covered = files_with_covered_load_targets(db_files, workspace_index).await;
-    let mut db = db.lock().await;
-    let files = db_files.lock().await;
-    let project = db_project.lock().await;
-    let Some(&project) = project.as_ref() else {
-        return Vec::new();
+    let covered =
+        files_with_covered_load_targets(&handles.db_files, &handles.workspace_index).await;
+    let (snapshot, files, project) = {
+        let db = handles.db.lock().await;
+        let db_files = handles.db_files.lock().await;
+        let db_project = handles.db_project.lock().await;
+        let Some(&project) = db_project.as_ref() else {
+            return Vec::new();
+        };
+        let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
+            db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
+        (db.clone(), files, project)
     };
-    let snapshot: Vec<(Uri, tcl_lsp_db::SourceFile)> =
-        files.iter().map(|(u, &f)| (u.clone(), f)).collect();
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
     // cancellation unwind discards the whole `pending` list without applying
     // anything, so no torn state can be observed afterwards.
-    let pending = salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
-        snapshot
-            .iter()
-            .filter_map(|(uri, file)| {
-                // A file whose `source` target the host never indexed has a
-                // caller the project cannot enumerate, so it gets **no**
-                // evidence: `None` keeps its `LOADS_EXTERNAL_UNIT` boundary
-                // closed rather than letting `Some(empty)` assert a closed
-                // world the scan cannot back (issue #977).
-                let want = covered
-                    .contains(uri)
-                    .then(|| tcl_lsp_db::file_external_call_sites(&*db, *file, project));
-                let unchanged = match (&want, file.external_call_sites(&*db)) {
-                    (Some(want), Some(have)) => **have == **want,
-                    (None, None) => true,
-                    _ => false,
-                };
-                (!unchanged).then(|| (uri.clone(), *file, want))
-            })
-            .collect::<Vec<_>>()
-    }));
-    let Ok(pending) = pending else {
+    let pending = tokio::task::spawn_blocking(move || {
+        salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
+            files
+                .into_iter()
+                .filter_map(|(uri, file)| {
+                    let want = wanted_call_site_evidence(&snapshot, &uri, file, project, &covered);
+                    let have = file.external_call_sites(&snapshot).as_ref();
+                    (!call_site_evidence_matches(have, want.as_ref())).then_some((uri, file, want))
+                })
+                .collect::<Vec<_>>()
+        }))
+        .ok()
+    })
+    .await;
+    let Ok(Some(pending)) = pending else {
         return Vec::new();
     };
+    // Short write section. The read ran off-lock, so re-run the comparison
+    // against the live database before writing: a concurrent worker's sync may
+    // already have applied the same value, and re-checking keeps the
+    // compare-then-set contract (an input that does not move invalidates
+    // nothing) rather than trusting a snapshot's view of it.
+    let mut db = handles.db.lock().await;
     let mut changed = Vec::with_capacity(pending.len());
     for (uri, file, want) in pending {
+        if call_site_evidence_matches(file.external_call_sites(&*db).as_ref(), want.as_ref()) {
+            continue;
+        }
         file.set_external_call_sites(&mut *db).to(want);
         changed.push(uri);
     }
     changed
+}
+
+/// The evidence `uri` should be carrying, or `None` when the host cannot claim
+/// a closed world over its callers.
+///
+/// A file whose `source` target the host never indexed has a caller the project
+/// cannot enumerate, so it gets **no** evidence: `None` keeps its
+/// `LOADS_EXTERNAL_UNIT` boundary closed rather than letting `Some(empty)`
+/// assert a closed world the scan cannot back (issue #977).
+fn wanted_call_site_evidence(
+    db: &tcl_lsp_db::TclDatabase,
+    uri: &Uri,
+    file: tcl_lsp_db::SourceFile,
+    project: tcl_lsp_db::Project,
+    covered: &HashSet<Uri>,
+) -> Option<Arc<tcl_compiler::unit_scope::CallSiteEvidence>> {
+    covered
+        .contains(uri)
+        .then(|| tcl_lsp_db::file_external_call_sites(db, file, project))
+}
+
+/// Whether a file's stored cross-file evidence already equals what the project
+/// says it should be — the compare half of the compare-then-set.
+///
+/// The pointer check is the steady-state fast path: `file_external_call_sites`
+/// hands back the *same* memoised `Arc` the previous sync stored whenever the
+/// query did not re-execute, so an unchanged project settles in one comparison
+/// per file instead of a deep set comparison per file (issue #1148).
+fn call_site_evidence_matches(
+    have: Option<&Arc<tcl_compiler::unit_scope::CallSiteEvidence>>,
+    want: Option<&Arc<tcl_compiler::unit_scope::CallSiteEvidence>>,
+) -> bool {
+    match (have, want) {
+        (Some(have), Some(want)) => Arc::ptr_eq(have, want) || **have == **want,
+        (None, None) => true,
+        _ => false,
+    }
 }
 
 /// The project files whose unit-loading boundaries the host can actually
@@ -1641,6 +2108,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         workspace_index,
         rehomed_source_seeds,
         package_resolver,
+        recovery_names,
         entry_points,
         folder_root,
         db,
@@ -1654,14 +2122,6 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         db_config: _,
         folder_db_configs: _,
     } = inputs;
-    let DiagToggles {
-        diagnostics_enabled,
-        optimiser_enabled,
-        xc: XcToggles {
-            xc_diagnostics,
-            cross_file_resolution,
-        },
-    } = toggles;
     let DiagJob {
         text,
         dialect,
@@ -1683,7 +2143,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         client_supports_pull,
     };
 
-    if !diagnostics_enabled {
+    if !toggles.diagnostics_enabled {
         return run_diagnostics_master_off(&delivery).await;
     }
 
@@ -1707,9 +2167,9 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         disabled: &disabled,
         severity_overrides: &severity_overrides,
         opt_disabled: &opt_disabled,
-        optimiser_enabled,
+        optimiser_enabled: toggles.optimiser_enabled,
         style_line_length,
-        xc_diagnostics,
+        xc_diagnostics: toggles.xc.xc_diagnostics,
     };
     run_diagnostics_analyser_path(
         &delivery,
@@ -1724,9 +2184,10 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
             workspace_index: &workspace_index,
             rehomed_source_seeds: &rehomed_source_seeds,
             package_resolver: &package_resolver,
+            recovery_names: &recovery_names,
             entry_points: &entry_points,
             folder_root: folder_root.as_deref(),
-            cross_file_resolution,
+            cross_file_resolution: toggles.xc.cross_file_resolution,
         },
     )
     .await
@@ -1743,6 +2204,9 @@ struct AnalyserPathInputs<'a> {
     /// M9 applied-seed record; the publish path invalidates entries.
     rehomed_source_seeds: &'a Arc<Mutex<HashMap<String, Vec<String>>>>,
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
+    /// Memo for the unclosed-delimiter recovery path's widened known-command
+    /// set (see [`RecoveryNameCache`]).
+    recovery_names: &'a Arc<Mutex<RecoveryNameCache>>,
     /// #804 W120 inheritance for this document's folder (see [`DiagInputs`]).
     entry_points: &'a [String],
     folder_root: Option<&'a Path>,
@@ -1799,14 +2263,18 @@ async fn run_diagnostics_analyser_path(
     // the deep future is parked. This is the explicit form of what salsa's
     // block-and-share gave implicitly, but without the second `compute_base_analysis`
     // call parking a blocking-pool thread on the already-in-flight base read.
+    let recovery = RecoveryWidenCtx {
+        cache: inputs.recovery_names,
+        registry: inputs.registry,
+        workspace_index: inputs.workspace_index,
+        package_resolver: inputs.package_resolver,
+    };
     let base = compute_base_analysis(
         salsa_ctx,
         lift_inputs.disabled,
         inputs.extra_commands,
         inputs.non_ascii_mode,
-        inputs.registry,
-        inputs.workspace_index,
-        inputs.package_resolver,
+        &recovery,
     )
     .shared();
 
@@ -2310,6 +2778,15 @@ pub struct Backend {
     /// server-side lift.  Folders without such overrides fall back to
     /// [`Backend::db_config`].
     folder_db_configs: Arc<Mutex<Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>>,
+    /// Retired per-folder `AnalyserConfig` handles, keyed by folder URI (#1145).
+    ///
+    /// The `AnalyserConfig` half of [`Backend::db_tombstones`], and there for
+    /// the same reason: a folder whose override set empties (or which leaves the
+    /// workspace) drops its handle, and re-enabling an override would allocate a
+    /// second one salsa can never reclaim.  A `.tcl-lsp.ini` watcher re-pulls the
+    /// whole layered config on every save, so the churn is per keystroke-save,
+    /// not per session.
+    folder_db_config_tombstones: Arc<Mutex<HashMap<Uri, tcl_lsp_db::AnalyserConfig>>>,
     /// W108 non-ASCII detection mode (`tclLsp.style.nonAscii`).
     /// [`NonAsciiMode::Default`] until an editor configures it via
     /// `initializationOptions` or `workspace/didChangeConfiguration`.
@@ -2337,6 +2814,16 @@ pub struct Backend {
     /// `package require myTkPackage` (transitively) pulls in Tk (#723).
     /// Rebuilt by `scan_workspace_folders`.
     package_resolver: Arc<RwLock<PackageResolver>>,
+    /// Memo for [`widen_recovery_extra_commands`] — the unclosed-delimiter
+    /// recovery path's widened known-command set (issue #1154).
+    ///
+    /// That set is a pure function of the workspace index, the package
+    /// database, the configured `tclLsp.extraCommands`, and the document's own
+    /// `package require`s; none of those change per keystroke, but the recovery
+    /// branch is the *normal* mid-typing state, so rebuilding it on every
+    /// debounced run cost three `String` allocations per workspace-indexed proc
+    /// and class (tens of thousands on a tcllib-sized workspace) per edit.
+    recovery_names: Arc<Mutex<RecoveryNameCache>>,
     /// Held for the duration of every `scan_workspace_folders` call (the
     /// blocking tree walk + analysis that rebuilds `package_resolver`).
     /// `ensure_autoload_indexed` acquires (and immediately releases) this
@@ -2347,6 +2834,11 @@ pub struct Backend {
     /// could race the scan and silently find nothing, even though the same
     /// request moments later would have resolved correctly (issue #1003).
     workspace_scan_gate: tokio::sync::Mutex<()>,
+    /// Released once the first `scan_workspace_folders` pass has completed —
+    /// the "the scan has not started yet" half of the startup race
+    /// `workspace_scan_gate` alone cannot cover.  See
+    /// [`WorkspaceScanReadiness`].
+    workspace_scan_ready: Arc<WorkspaceScanReadiness>,
     /// Library files the autoload tier (M8) has merged into the workspace
     /// index on demand, so references / rename keep reaching them.  Cleared
     /// (and their index entries dropped) whenever the package database is
@@ -2361,6 +2853,24 @@ pub struct Backend {
     /// only re-analyses on change, and so declaration-side queries can map a
     /// standalone name to its re-homed twin.
     rehomed_source_seeds: Arc<Mutex<HashMap<String, Vec<String>>>>,
+    /// Serialises [`Backend::refresh_source_rehoming`] passes.
+    ///
+    /// A dozen request handlers (references, definition, hover, rename, …)
+    /// each call `refresh_source_rehoming` at their own entry, and
+    /// `scan_workspace_folders` calls it again after every merge. Without
+    /// this gate, concurrent callers each ran the full (up to 4-round)
+    /// convergence loop independently — on a `source`-heavy workspace, every
+    /// one of them re-read and re-analysed the same re-homed documents and
+    /// took its own turn on `workspace_index`'s write lock, so N concurrent
+    /// requests paid N times the real reconciliation cost and serialised
+    /// against each other on that lock (issue #1158: the measured 130 s
+    /// `references` call that head-of-line-blocked an unrelated `definition`
+    /// request). With the gate, a caller that lands while a pass is already
+    /// running simply waits for it — `refresh_source_rehoming`'s own
+    /// early-return ("nothing left to reconcile") then answers instantly for
+    /// every waiter but the one that did the real work. Same "wait out the
+    /// in-flight pass" idiom as [`Self::workspace_scan_gate`] (issue #1003).
+    rehoming_gate: tokio::sync::Mutex<()>,
     /// Tcl installations discovered by scanning common install locations on
     /// disk (never by executing `tclsh`). Cached once per session. The package
     /// database scans these (plus configured `libraryPaths`) so it can see
@@ -2427,6 +2937,22 @@ pub struct Backend {
     /// Per-URI salsa `SourceFile` input handles — the input-of-record the
     /// query graph reads.  Kept current by `did_open` / `did_change`.
     db_files: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
+    /// Retired `SourceFile` handles, keyed by the URI they belonged to (#1145).
+    ///
+    /// Salsa never reclaims an input: `SourceFile::new` only ever allocates, so
+    /// a URI that is removed and later re-created would strand its old input —
+    /// full text and every memo keyed on it — for the process's life.  A watched
+    /// `DELETED`→`CREATED` pair (a `git checkout` retriggers one per file), an
+    /// untitled buffer closing, a workspace folder being removed and re-added,
+    /// and a rename's [`Backend::retire_renamed_uri`] all take that path.
+    ///
+    /// So a removal *retires* the handle here with its payload cleared instead
+    /// of dropping it, and [`Backend::db_set_source`] revives it rather than
+    /// allocating a second one.  The cost is one input per distinct URI the
+    /// session ever saw, each holding near-nothing while retired.  Retired
+    /// handles are never in `db_files`, so they never reach the salsa
+    /// [`tcl_lsp_db::Project`] file set either.
+    db_tombstones: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
     /// The salsa `Project` input — the workspace file set, kept in lock-step with
     /// `db_files` (re-set only when membership changes, on open/close), driving
     /// the cross-file `project_diagnostics` query.
@@ -2445,6 +2971,11 @@ pub struct Backend {
     /// so overlapping close / watched-change refreshes cannot let an older run
     /// publish stale diagnostics over a newer one — see [`DiagInputs::closed_diag_gen`].
     closed_diag_gen: Arc<Mutex<HashMap<Uri, u64>>>,
+    /// Publish order of the **closed** files that currently hold a badge record,
+    /// oldest first — the recency list backing [`CLOSED_DIAG_BADGE_CAP`] (#1144).
+    /// Only [`Backend::record_closed_diag_badge`] touches it, so an open
+    /// document's cache entry is never queued and never evicted.
+    closed_diag_order: Arc<Mutex<VecDeque<Uri>>>,
     /// Whether the client advertised pull-diagnostic support
     /// (`textDocument.diagnostic` client capability) at `initialize`.
     ///
@@ -2471,6 +3002,10 @@ pub struct Backend {
     /// [`Backend::semantic_tokens_core_data`]) can compare the enriched result
     /// it lands against what was last served, without borrowing `Backend`.
     last_semantic_tokens: SemanticTokensCache,
+    /// Per-URI hash of the enriched token stream a convergence continuation has
+    /// already asked the client to re-pull — the termination bound on the
+    /// converge → refresh → re-request cycle.  See [`EnrichedRefreshAsked`].
+    semantic_tokens_refresh_asked: EnrichedRefreshAsked,
     /// Per-URI memo of [`Backend::analyse_with_workspace_classes`] — the
     /// analysis that resolves a cross-file constructor (`set d [::other::Cls
     /// new]`) by feeding the workspace class set to instance inference.
@@ -2498,6 +3033,13 @@ pub struct Backend {
     /// not coalesce them itself (VS Code does; eglot may not) would re-pull
     /// every open document once per refresh.
     semantic_tokens_refresh_pending: Arc<std::sync::atomic::AtomicBool>,
+    /// URIs with a detached semantic-token convergence continuation in flight
+    /// (#1147).  `semantic_tokens_refresh_pending` above coalesces the resulting
+    /// *notification*; this bounds the **work**, which is what holds a document
+    /// copy and a queued blocking job.  Shared by the `range` and `full` timeout
+    /// paths, since both settle into the same workspace-scoped refresh — see
+    /// [`ConvergenceGuard`].
+    semantic_tokens_convergence: ConvergenceInFlight,
     /// Abort handle for the most recent [`Backend::spawn_workspace_warm`] task, so
     /// a fresh warm (from `initialize` / folder-add / config-change) supersedes any
     /// still-running one. Without it, overlapping warms each hold their own
@@ -2529,6 +3071,14 @@ pub struct Backend {
 /// waits for its turn. Request handlers draw no ticket; they only wait for the
 /// edits already received ([`EditOrder::settled`]), so read concurrency is
 /// unaffected.
+///
+/// A turn covers the handler's **ordered mutations only** — the buffer splice,
+/// the salsa source, the index entry — and is handed on the moment they are
+/// committed, not when the handler returns (#1150). This is a *global* barrier:
+/// every request handler waits on it, so work a handler does after its
+/// mutations (a disk reindex, a closed-file republish, a dialect re-scan) must
+/// not sit inside the turn, or one document's close stalls every other
+/// document's hover.
 #[derive(Debug, Default)]
 struct EditOrder {
     next_ticket: std::sync::atomic::AtomicU64,
@@ -2588,6 +3138,56 @@ impl Drop for EditTurn<'_> {
             .now_serving
             .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         self.order.advanced.notify_waiters();
+    }
+}
+
+/// One-shot readiness signal for the first [`Backend::scan_workspace_folders`]
+/// pass.
+///
+/// [`Backend::workspace_scan_gate`] lets a request wait out a scan that is
+/// *already running*, which is enough for a handler reached long after
+/// startup.  It is not enough at startup: `initialized` pulls the client
+/// config and registers file watchers — two client round-trips — **before** it
+/// starts the scan, and a request that lands in that window acquires a free
+/// gate and answers against an empty index (issue #1179: the first
+/// `workspace/symbol` query of a session returned nothing while the second,
+/// moments later, returned the same file's symbols).  This signal is what a
+/// cross-file handler waits on instead: it is only released once a scan has
+/// actually completed, so "the scan has not begun yet" and "the scan is in
+/// flight" both wait.
+#[derive(Debug, Default)]
+struct WorkspaceScanReadiness {
+    complete: std::sync::atomic::AtomicBool,
+    completed: tokio::sync::Notify,
+}
+
+impl WorkspaceScanReadiness {
+    /// Record that a scan pass has finished and wake every waiter.
+    fn mark_complete(&self) {
+        self.complete
+            .store(true, std::sync::atomic::Ordering::Release);
+        self.completed.notify_waiters();
+    }
+
+    fn is_complete(&self) -> bool {
+        self.complete.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// Wait until the first scan pass has completed.  Callers bound this with
+    /// their own timeout — a workspace scan is disk-bound and a request must
+    /// degrade to a stale answer rather than hang.
+    async fn wait(&self) {
+        loop {
+            let completed = self.completed.notified();
+            tokio::pin!(completed);
+            // Register before re-reading, so a completion landing between the
+            // check and the await cannot be missed.
+            completed.as_mut().enable();
+            if self.is_complete() {
+                return;
+            }
+            completed.await;
+        }
     }
 }
 
@@ -2806,6 +3406,42 @@ fn longest_folder_match<'a, T>(entries: &'a [(Uri, T)], uri: &Uri) -> Option<&'a
     best.map(|(_, value)| value)
 }
 
+/// Drive `futures` to completion with at most `concurrency` live at once,
+/// collecting the `Some` results (`None` — an unreadable / no-longer-a-file
+/// entry — is dropped).  Used by the `did_change_watched_files` batch reindex
+/// (#1161), which analyses its whole (bounded, per-event) file set in one
+/// pass; [`Backend::scan_workspace_folders`] (#1151) needs to merge completed
+/// analyses into the index in batches rather than all at once (a large tree's
+/// `AnalysisResult`s must not all be live in memory together), so it runs the
+/// same acquire-before-spawn dispatch inline instead of reusing this return-a-
+/// `Vec` shape. Mirrors [`Backend::spawn_workspace_warm`]'s permit pattern: a
+/// permit is held for the caller's whole future, so `concurrency` bounds files
+/// genuinely in flight, not merely tasks parked waiting for one.
+async fn run_bounded<R, F>(futures: Vec<F>, concurrency: usize) -> Vec<R>
+where
+    R: Send + 'static,
+    F: std::future::Future<Output = Option<R>> + Send + 'static,
+{
+    let permits = Arc::new(Semaphore::new(concurrency.max(1)));
+    let mut tasks = tokio::task::JoinSet::new();
+    for fut in futures {
+        let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
+            break;
+        };
+        tasks.spawn(async move {
+            let _permit = permit;
+            fut.await
+        });
+    }
+    let mut out = Vec::with_capacity(tasks.len());
+    while let Some(res) = tasks.join_next().await {
+        if let Ok(Some(item)) = res {
+            out.push(item);
+        }
+    }
+    out
+}
+
 impl std::fmt::Debug for Backend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend").finish_non_exhaustive()
@@ -2932,14 +3568,18 @@ impl Backend {
             folder_dialects: Mutex::new(Vec::new()),
             folder_configs: Mutex::new(Vec::new()),
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
+            folder_db_config_tombstones: Arc::new(Mutex::new(HashMap::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(default_disabled_set()),
             severity_overrides: Mutex::new(HashMap::new()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
+            recovery_names: Arc::new(Mutex::new(RecoveryNameCache::default())),
             workspace_scan_gate: tokio::sync::Mutex::new(()),
+            workspace_scan_ready: Arc::new(WorkspaceScanReadiness::default()),
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
+            rehoming_gate: tokio::sync::Mutex::new(()),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
@@ -2955,14 +3595,18 @@ impl Backend {
             style_line_length: Mutex::new(120),
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
+            db_tombstones: Arc::new(Mutex::new(HashMap::new())),
             db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
             closed_diag_gen: Arc::new(Mutex::new(HashMap::new())),
+            closed_diag_order: Arc::new(Mutex::new(VecDeque::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
+            semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
         }
@@ -2970,7 +3614,7 @@ impl Backend {
 
     /// Create or update the salsa `SourceFile` input for `uri`.  Called by
     /// `did_open` / `did_change` so the query graph always reads current text.
-    /// Lock order is always `db` then `db_files`.
+    /// Lock order is always `db` → `db_files` → `db_tombstones` → `db_project`.
     async fn db_set_source(&self, uri: &Uri, text: String, dialect: String) {
         use salsa::Setter as _;
         let mut db = self.db.lock().await;
@@ -2981,8 +3625,10 @@ impl Backend {
             file.set_text(&mut *db).to(text);
             file.set_dialect(&mut *db).to(dialect);
         } else {
-            let path = uri.to_file_path().map(|p| p.display().to_string());
-            let file = tcl_lsp_db::SourceFile::new(&*db, text, dialect, path);
+            let file = {
+                let mut tombstones = self.db_tombstones.lock().await;
+                Self::revive_or_create_db_source(&mut db, &mut tombstones, uri, text, dialect)
+            };
             files.insert(uri.clone(), file);
             // Membership changed — re-set the `Project` file set.
             let mut project = self.db_project.lock().await;
@@ -2990,14 +3636,67 @@ impl Backend {
         }
     }
 
-    /// Drop the salsa `SourceFile` input for `uri` (on `did_close`).  Lock order
-    /// is `db` → `db_files` → `db_project`, matching [`Self::db_set_source`].
+    /// Retire the salsa `SourceFile` input for `uri` (on `did_close`).  Lock
+    /// order is `db` → `db_files` → `db_tombstones` → `db_project`, matching
+    /// [`Self::db_set_source`].
     async fn db_remove_source(&self, uri: &Uri) {
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
-        if files.remove(uri).is_some() {
+        let retired = {
+            let mut tombstones = self.db_tombstones.lock().await;
+            Self::retire_db_source(&mut db, &mut files, &mut tombstones, uri)
+        };
+        if retired {
             let mut project = self.db_project.lock().await;
             Self::sync_db_project(&mut db, &files, &mut project);
+        }
+    }
+
+    /// Move `uri`'s live `SourceFile` handle into the tombstone map with its
+    /// payload released, returning whether there was one (#1145).
+    ///
+    /// Salsa 0.27 allocates inputs and never frees them, so dropping the handle
+    /// would strand the text and every memo keyed on it.  Emptying the text and
+    /// clearing the cross-file evidence releases the payload *and* backdates the
+    /// memos that read them, which is the closest a caller can get to reclaiming
+    /// the input.  `path` and `dialect` are left alone: both are small, and the
+    /// path is a pure function of the URI this handle is filed under, so a
+    /// revival re-derives the same value.
+    fn retire_db_source(
+        db: &mut tcl_lsp_db::TclDatabase,
+        files: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
+        tombstones: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
+        uri: &Uri,
+    ) -> bool {
+        use salsa::Setter as _;
+        let Some(file) = files.remove(uri) else {
+            return false;
+        };
+        file.set_text(db).to(String::new());
+        file.set_external_call_sites(db).to(None);
+        tombstones.insert(uri.clone(), file);
+        true
+    }
+
+    /// The `SourceFile` handle to file under `uri`: its retired one revived with
+    /// the new text, or a fresh input when the session has never seen this URI
+    /// (#1145).  Reviving keeps one input per distinct URI however many
+    /// delete/re-create cycles the URI goes through.
+    fn revive_or_create_db_source(
+        db: &mut tcl_lsp_db::TclDatabase,
+        tombstones: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
+        uri: &Uri,
+        text: String,
+        dialect: String,
+    ) -> tcl_lsp_db::SourceFile {
+        use salsa::Setter as _;
+        if let Some(file) = tombstones.remove(uri) {
+            file.set_text(db).to(text);
+            file.set_dialect(db).to(dialect);
+            file
+        } else {
+            let path = uri.to_file_path().map(|p| p.display().to_string());
+            tcl_lsp_db::SourceFile::new(&*db, text, dialect, path)
         }
     }
 
@@ -3006,7 +3705,7 @@ impl Backend {
     /// if membership changed — not once per file (which would be O(files²) over a
     /// large tree).  Used so cross-file diagnostics resolve against the *whole*
     /// workspace (matching `workspace_index`), not only open documents.  Lock order
-    /// is `db` → `db_files` → `db_project`, as everywhere.
+    /// is `db` → `db_files` → `db_tombstones` → `db_project`, as everywhere.
     async fn db_set_sources_batch(&self, entries: &[(Uri, String, String)]) {
         use salsa::Setter as _;
         if entries.is_empty() {
@@ -3014,39 +3713,48 @@ impl Backend {
         }
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
+        let mut tombstones = self.db_tombstones.lock().await;
         let mut membership_changed = false;
         for (uri, text, dialect) in entries {
             if let Some(&file) = files.get(uri) {
                 file.set_text(&mut *db).to(text.clone());
                 file.set_dialect(&mut *db).to(dialect.clone());
             } else {
-                let path = uri.to_file_path().map(|p| p.display().to_string());
-                let file = tcl_lsp_db::SourceFile::new(&*db, text.clone(), dialect.clone(), path);
+                let file = Self::revive_or_create_db_source(
+                    &mut db,
+                    &mut tombstones,
+                    uri,
+                    text.clone(),
+                    dialect.clone(),
+                );
                 files.insert(uri.clone(), file);
                 membership_changed = true;
             }
         }
+        drop(tombstones);
         if membership_changed {
             let mut project = self.db_project.lock().await;
             Self::sync_db_project(&mut db, &files, &mut project);
         }
     }
 
-    /// Drop many salsa `SourceFile` inputs at once (files under a removed workspace
-    /// folder), re-setting the `Project` once if membership changed.  Lock order is
-    /// `db` → `db_files` → `db_project`.
+    /// Retire many salsa `SourceFile` inputs at once (files under a removed
+    /// workspace folder), re-setting the `Project` once if membership changed.
+    /// Lock order is `db` → `db_files` → `db_tombstones` → `db_project`.
     async fn db_remove_sources_batch(&self, uris: &[Uri]) {
         if uris.is_empty() {
             return;
         }
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
+        let mut tombstones = self.db_tombstones.lock().await;
         let mut membership_changed = false;
         for uri in uris {
-            if files.remove(uri).is_some() {
+            if Self::retire_db_source(&mut db, &mut files, &mut tombstones, uri) {
                 membership_changed = true;
             }
         }
+        drop(tombstones);
         if membership_changed {
             let mut project = self.db_project.lock().await;
             Self::sync_db_project(&mut db, &files, &mut project);
@@ -3192,6 +3900,27 @@ impl Backend {
         .flatten()
     }
 
+    /// Run the salsa `folding_ranges` query for `uri` on a worker thread,
+    /// reading the current `SourceFile` input. Returns `None` when the input
+    /// is absent or a concurrent edit cancels the read, so the caller can
+    /// fall back to a direct computation (behaviour preserved). Mirrors
+    /// [`Self::db_document_symbols`]; the BIG-IP dialect has no salsa query
+    /// (it folds on the stanza tree, not the Tcl analyser) and so never
+    /// calls this.
+    async fn db_folding_ranges(
+        &self,
+        uri: &Uri,
+    ) -> Option<Vec<tcl_lsp_core::folding::FoldingRange>> {
+        let file = (*self.db_files.lock().await).get(uri).copied()?;
+        let snapshot = self.db.lock().await.clone();
+        tokio::task::spawn_blocking(move || {
+            salsa::Cancelled::catch(|| tcl_lsp_db::folding_ranges(&snapshot, file)).ok()
+        })
+        .await
+        .ok()
+        .flatten()
+    }
+
     /// Resolve the salsa `AnalyserConfig` handle for `uri`, mirroring
     /// [`DiagInputs::capture_job`]: a folder that overrides the disabled-codes
     /// set / non-ASCII mode (and so has its own handle in `folder_db_configs`)
@@ -3315,9 +4044,7 @@ impl Backend {
         let snapshot = self.db.lock().await.clone();
         Some(tokio::task::spawn_blocking(move || {
             salsa::Cancelled::catch(|| match project {
-                Some(project) => {
-                    tcl_lsp_db::semantic_tokens_project(&snapshot, file, config, project)
-                }
+                Some(project) => tcl_lsp_db::semantic_tokens_project(&snapshot, file, project),
                 None => tcl_lsp_db::semantic_tokens(&snapshot, file, config),
             })
             .ok()
@@ -3364,7 +4091,7 @@ impl Backend {
         };
         tokio::task::spawn_blocking(move || {
             let mut analyser = Self::configured_analyser(disabled, na_mode, extra);
-            Arc::new(analyser.analyse(&text, &dialect).clone())
+            Arc::new(analyser.analyse(&text, &dialect))
         })
         .await
         .unwrap_or_default()
@@ -3466,6 +4193,39 @@ impl Backend {
     ///    URLs, use the deepest-matching folder's dialect.
     /// 4. The session-wide ``default_dialect`` fallback.
     async fn dialect_for_open(&self, uri: &Uri, language_id: &str, text: &str) -> String {
+        let folder_dialects = self.folder_dialects.lock().await.clone();
+        let default_dialect = self.default_dialect.lock().await.clone();
+        Self::dialect_for_open_sync(uri, language_id, text, &folder_dialects, &default_dialect)
+    }
+
+    /// Pure core of [`Self::dialect_for_open`] (and so of
+    /// [`Self::dialect_for_closed`]): every input the resolution needs reduced
+    /// to plain arguments, so a caller that already holds a `folder_dialects` /
+    /// `default_dialect` snapshot — a batched watched-file reindex resolving
+    /// many URIs at once (#1161) — can resolve a dialect without a per-file
+    /// `&self` lock round trip. `dialect_for_open` is the only other caller;
+    /// keeping the logic in one place is what makes the two paths agree.
+    ///
+    /// Resolution order:
+    ///
+    /// 1. The LSP ``languageId`` field — when it names a known
+    ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl9.0"``
+    ///    / etc.), use it directly.
+    /// 2. Detection over the document itself — for the bare ``"tcl"``
+    ///    id every editor sends for a `.tcl` buffer, the shared
+    ///    [`tcl_registry::dialects::detect_dialect`] (directive,
+    ///    shebang, version guard, content signatures, then extension).
+    /// 3. The per-folder override map (`folder_dialects`) — when
+    ///    the document URI sits under one of the configured folder
+    ///    URLs, use the deepest-matching folder's dialect.
+    /// 4. The session-wide ``default_dialect`` fallback.
+    fn dialect_for_open_sync(
+        uri: &Uri,
+        language_id: &str,
+        text: &str,
+        folder_dialects: &[(Uri, String)],
+        default_dialect: &str,
+    ) -> String {
         // An explicit BIG-IP language id (`tcl-bigip`, advertised by the VS
         // Code extension, or the canonical `f5-bigip`) selects the BIG-IP
         // config dialect even when the basename is not a canonical
@@ -3533,10 +4293,10 @@ impl Backend {
         {
             return d.to_owned();
         }
-        if let Some(d) = self.resolve_folder_dialect(uri).await {
+        if let Some(d) = folder_dialect_for(uri, folder_dialects) {
             return d;
         }
-        self.default_dialect.lock().await.clone()
+        default_dialect.to_owned()
     }
 
     /// Whether `dialect` denotes an F5 BIG-IP config document — the
@@ -3810,11 +4570,12 @@ impl Backend {
     ///
     /// When a `Project` is indexed, the background computation is
     /// `semantic_tokens_project`, whose cross-file class/proc-role indices
-    /// (`project_class_index` / `project_proc_var_index`) analyse every
-    /// project file, not just this one — on a large workspace this can take
-    /// far longer than a single file's own analysis. That cost has always
-    /// existed; what this fast path changes is that it can no longer block a
-    /// token response — it only delays how soon the *refresh* follows.
+    /// (`project_class_index` / `project_proc_var_index`) read every project
+    /// file, not just this one.  They read it at the light `file_token_facts`
+    /// tier and behind a per-file backdating firewall (#1163), so on a warm
+    /// workspace this is an aggregation, not a walk; a cold one still pays a
+    /// first pass, which this fast path keeps off the token response — it only
+    /// delays how soon the *refresh* follows.
     /// Viewport tokens for a document that is **not Tcl** — an APL presentation
     /// or a BIG-IP config — or `None` when the document *is* Tcl and belongs on
     /// the normal pipeline.
@@ -3947,31 +4708,10 @@ impl Backend {
                 .await;
             }
             () = tokio::time::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => {
-                // Too slow for a synchronous first paint. Detach a
-                // continuation that keeps waiting on the still-running
-                // enriched computation and asks the client to re-request once
-                // it lands, instead of blocking this response on it.
-                let refresh_ctx = SemanticTokensRefreshCtx {
-                    client: self.client.clone(),
-                    last_semantic_tokens: Arc::clone(&self.last_semantic_tokens),
-                    refresh_pending: Arc::clone(&self.semantic_tokens_refresh_pending),
-                };
-                let uri = uri.clone();
-                tokio::spawn(async move {
-                    // Settle either way — including on a cancelled read — so a
-                    // waiter can key on the marker instead of racing the
-                    // debounced refresh that only *sometimes* follows.
-                    let (refreshed, outcome) = match enriched.await {
-                        Ok(Some(tokens)) => (
-                            refresh_ctx.deliver_if_changed(&uri, &tokens.data).await,
-                            FullSettleOutcome::Landed,
-                        ),
-                        _ => (false, FullSettleOutcome::Cancelled),
-                    };
-                    refresh_ctx
-                        .log_full_convergence_settled(&uri, refreshed, outcome)
-                        .await;
-                });
+                // Too slow for a synchronous first paint: hand the still-running
+                // enriched read to a detached continuation rather than blocking
+                // this response on it, and serve the coarse tier below.
+                self.spawn_full_convergence(uri, enriched).await;
             }
         }
 
@@ -3986,6 +4726,59 @@ impl Backend {
             message: format!("semantic_tokens worker panicked: {err}").into(),
             data: None,
         })
+    }
+
+    /// Detach the `semanticTokens/full` convergence continuation for a request
+    /// whose enriched read overran [`SEMANTIC_TOKENS_FAST_PATH_BUDGET`]: keep
+    /// awaiting the read and ask the client to re-request once it lands, so the
+    /// enrichment reaches the editor without waiting for the next edit.
+    ///
+    /// At most one continuation per document (#1147), on the same claim set the
+    /// `range` path uses: both end in the same workspace-scoped
+    /// `workspace/semanticTokens/refresh`, so a continuation already pending for
+    /// this URI covers this request too and a second one would only hold a
+    /// second live read for the same answer. The skipped request still settles,
+    /// as `coalesced` — the marker is emitted on *every* path by contract.
+    async fn spawn_full_convergence(
+        &self,
+        uri: &Uri,
+        enriched: tokio::task::JoinHandle<Option<tcl_lsp_core::semantic_tokens::SemanticTokens>>,
+    ) {
+        let Some(guard) = ConvergenceGuard::claim(&self.semantic_tokens_convergence, uri) else {
+            log_full_convergence_settled(&self.client, uri, false, FullSettleOutcome::Coalesced)
+                .await;
+            return;
+        };
+        let refresh_ctx = SemanticTokensRefreshCtx {
+            client: self.client.clone(),
+            last_semantic_tokens: Arc::clone(&self.last_semantic_tokens),
+            refresh_pending: Arc::clone(&self.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&self.semantic_tokens_refresh_asked),
+        };
+        let uri = uri.clone();
+        let mut guard = guard;
+        tokio::spawn(async move {
+            // Settle either way — including on a cancelled read — so a waiter can
+            // key on the marker instead of racing the debounced refresh that only
+            // *sometimes* follows.
+            let (refreshed, outcome) = match enriched.await {
+                Ok(Some(tokens)) => (
+                    refresh_ctx.deliver_if_changed(&uri, &tokens.data).await,
+                    FullSettleOutcome::Landed,
+                ),
+                _ => (false, FullSettleOutcome::Cancelled),
+            };
+            // Release the per-URI claim only now the decision is made, so every
+            // request that arrived while this ran rode along with it — and honour
+            // what rode along: a request skipped as `coalesced` has no refresh of
+            // its own, so if this one decided against refreshing (its own read
+            // matched the cache, or was cancelled) the coalesced ones would be
+            // stranded.  The refresh is workspace-scoped, so one covers them all.
+            let refreshed = refresh_if_coalesced(&refresh_ctx, &mut guard, refreshed);
+            refresh_ctx
+                .log_full_convergence_settled(&uri, refreshed, outcome)
+                .await;
+        });
     }
 
     /// Re-index a (now-closed) document from its on-disk contents so
@@ -4052,42 +4845,135 @@ impl Backend {
         }
     }
 
-    async fn reindex_index_from_disk(&self, uri: &Uri) {
-        // Read + analyse off-lock.  Keep the source text + dialect too: the salsa
-        // db (cross-file diagnostics) must track the same on-disk population as the
-        // workspace index, so a proc defined in a closed/never-opened file still
-        // suppresses W123 / drives the arity error in its siblings.
-        let scanned: Option<(String, String, AnalysisResult)> =
-            if let Some(path) = uri.to_file_path().map(std::borrow::Cow::into_owned) {
-                // Read the on-disk text off-lock first, then resolve the dialect
-                // from its content the way `did_open` would (#865): a BIG-IP
-                // config, an iRule, or a `# tcl-dialect:`-pinned file keeps its
-                // real dialect rather than defaulting to generic Tcl.  The salsa
-                // `file_analysis_incremental` base pass reads the dialect from the
-                // stored `SourceFile`, so it must be right here — not just on the
-                // `publish_closed_file_diagnostics` lift path.
-                match tokio::task::spawn_blocking(move || std::fs::read_to_string(path).ok())
-                    .await
-                    .ok()
-                    .flatten()
-                {
-                    Some(text) => {
-                        let dialect = self.dialect_for_closed(uri, &text).await;
-                        let (a_text, a_dialect) = (text.clone(), dialect.clone());
-                        match tokio::task::spawn_blocking(move || {
-                            Analyser::new().analyse(&a_text, &a_dialect).clone()
-                        })
-                        .await
-                        {
-                            Ok(analysis) => Some((text, dialect, analysis)),
-                            Err(_) => None,
-                        }
-                    }
-                    None => None,
+    /// Read `uri` from disk, resolve its dialect and run a full uncached
+    /// `Analyser::analyse`, all on one blocking-pool call.  Returns `None`
+    /// when the file no longer reads as one (deleted, or unreadable, since
+    /// the caller queued it) — the caller then routes it through the
+    /// tombstone retire path, exactly like a `DELETED` watched-file event.
+    /// Shared by [`Self::reindex_index_from_disk`] (the single-file path used
+    /// by `did_close` / `didRenameFiles`) and the watched-files batch
+    /// reindex (#1161), so both agree on exactly how a disk-backed file is
+    /// turned into an index/salsa entry.
+    async fn scan_disk_file(
+        uri: Uri,
+        folder_dialects: Arc<Vec<(Uri, String)>>,
+        default_dialect: Arc<String>,
+    ) -> Option<(Uri, String, String, AnalysisResult)> {
+        tokio::task::spawn_blocking(move || {
+            let path = uri.to_file_path()?;
+            let text = std::fs::read_to_string(&path).ok()?;
+            let dialect =
+                Self::dialect_for_closed_sync(&uri, &text, &folder_dialects, &default_dialect);
+            let analysis = Analyser::new().analyse(&text, &dialect);
+            Some((uri, text, dialect, analysis))
+        })
+        .await
+        .ok()
+        .flatten()
+    }
+
+    /// Batched counterpart of [`Self::reindex_index_from_disk`] for the
+    /// `did_change_watched_files` CREATED/CHANGED set (#1161): reads and
+    /// analyses every URI in `uris` across the bounded worker pool
+    /// [`run_bounded`] drives (shared with `scan_workspace_folders`, #1151),
+    /// then applies one batched `db_set_sources_batch` / `db_remove_sources_batch`
+    /// pair and one batched `workspace_index` mutation instead of
+    /// `uris.len()` sequential full analyses.
+    ///
+    /// Currency: `documents` is re-checked once, right before the batched
+    /// apply — the same guard [`Self::reindex_index_from_disk`] uses (closed
+    /// re-check under the lock, `RUST_ISSUE_098`) — so a `did_open` racing in
+    /// for one of the URIs mid-batch still wins for that URI: its scanned
+    /// copy is dropped rather than clobbering the live buffer, exactly as the
+    /// single-file path behaves for that same race. An entry that reads as
+    /// unreadable / no-longer-a-file (named by the event but gone by the time
+    /// its read landed) is folded into the same batched retire call a
+    /// `DELETED` entry uses, rather than a separate per-file `db_remove_source`.
+    async fn batch_reindex_from_disk(&self, uris: &[Uri]) {
+        if uris.is_empty() {
+            return;
+        }
+        let folder_dialects = Arc::new(self.folder_dialects.lock().await.clone());
+        let default_dialect = Arc::new(self.default_dialect.lock().await.clone());
+        let concurrency = std::thread::available_parallelism()
+            .map_or(4, std::num::NonZeroUsize::get)
+            .min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
+        let futures: Vec<_> = uris
+            .iter()
+            .cloned()
+            .map(|uri| {
+                let folder_dialects = Arc::clone(&folder_dialects);
+                let default_dialect = Arc::clone(&default_dialect);
+                async move {
+                    let scanned =
+                        Self::scan_disk_file(uri.clone(), folder_dialects, default_dialect).await;
+                    Some((uri, scanned))
                 }
-            } else {
-                None
-            };
+            })
+            .collect();
+        let results = run_bounded(futures, concurrency).await;
+
+        // Hold `documents` across the still-closed re-check and both updates
+        // (the `documents` → db → `workspace_index` order established by
+        // `did_open`), matching the single-file path.
+        let docs = self.documents.lock().await;
+        let mut applied: Vec<(Uri, String, String, AnalysisResult)> = Vec::new();
+        let mut to_remove: Vec<Uri> = Vec::new();
+        for (uri, scanned) in results {
+            if docs.contains_key(&uri) {
+                continue;
+            }
+            match scanned {
+                Some((uri, text, dialect, analysis)) => {
+                    applied.push((uri, text, dialect, analysis));
+                }
+                None => to_remove.push(uri),
+            }
+        }
+        // Salsa db first (locks db → db_files → db_project, all *before* the
+        // workspace_index lock) to preserve the global lock order.
+        let db_entries: Vec<(Uri, String, String)> = applied
+            .iter()
+            .map(|(uri, text, dialect, _)| (uri.clone(), text.clone(), dialect.clone()))
+            .collect();
+        self.db_set_sources_batch(&db_entries).await;
+        self.db_remove_sources_batch(&to_remove).await;
+        {
+            let mut index = self.workspace_index.write().await;
+            for (uri, _, _, _) in &applied {
+                index.remove_document(uri.as_str());
+            }
+            for uri in &to_remove {
+                index.remove_document(uri.as_str());
+            }
+            for (uri, _, _, analysis) in &applied {
+                index.add_document(uri.as_str(), analysis);
+            }
+        }
+        drop(docs);
+        // Every applied/removed URI is now indexed standalone (or gone):
+        // invalidate its M9 applied-seed record so the next cross-document
+        // query re-applies the source-site views, matching the single-file
+        // path.
+        let mut seeds = self.rehomed_source_seeds.lock().await;
+        for (uri, _, _, _) in &applied {
+            seeds.remove(uri.as_str());
+        }
+        for uri in &to_remove {
+            seeds.remove(uri.as_str());
+        }
+    }
+
+    async fn reindex_index_from_disk(&self, uri: &Uri) {
+        // Read + analyse off-lock, on the same read-dialect-analyse helper the
+        // watched-files batch reindex uses (#1161).  Keep the source text +
+        // dialect too: the salsa db (cross-file diagnostics) must track the
+        // same on-disk population as the workspace index, so a proc defined in
+        // a closed/never-opened file still suppresses W123 / drives the arity
+        // error in its siblings.
+        let folder_dialects = Arc::new(self.folder_dialects.lock().await.clone());
+        let default_dialect = Arc::new(self.default_dialect.lock().await.clone());
+        let scanned = Self::scan_disk_file(uri.clone(), folder_dialects, default_dialect).await;
         // Hold `documents` across the still-closed re-check and both updates (the
         // `documents` → db → `workspace_index` order established by `did_open`) so a
         // concurrent `did_open` cannot open the buffer between them and have its
@@ -4099,7 +4985,7 @@ impl Backend {
         // Salsa db first (locks db → db_files → db_project, all *before* the
         // workspace_index lock) to preserve the global lock order.
         match &scanned {
-            Some((text, dialect, _)) => {
+            Some((_, text, dialect, _)) => {
                 self.db_set_source(uri, text.clone(), dialect.clone()).await;
             }
             // No readable on-disk copy (untitled / deleted) — drop it from the
@@ -4108,7 +4994,7 @@ impl Backend {
         }
         let mut index = self.workspace_index.write().await;
         index.remove_document(uri.as_str());
-        if let Some((_, _, analysis)) = &scanned {
+        if let Some((_, _, _, analysis)) = &scanned {
             index.add_document(uri.as_str(), analysis);
         }
         drop(index);
@@ -4169,10 +5055,24 @@ impl Backend {
             language_id: String::new(),
             currency: DiagCurrency::ClosedFromDisk(generation),
             version: None,
-            file: Some(file),
+            // #1144: deliberately **not** `Some(file)`.  Routing a closed file
+            // through the salsa queries would memoise its whole deep compiler
+            // tier — the `compilation_unit` IR/CFG/SSA build behind
+            // `file_analysis_incremental` / `compiler_check_diagnostics` — and
+            // salsa cannot evict it, so every file the editor ever opened kept
+            // ~12 MB of compiler memos for the process's life (a workspace
+            // browse OOM-killed the server).  This run happens *inline* on every
+            // close, so it, not the debounced open path, is what pinned a memo
+            // chain for files the user merely glanced at.  The uncached pipeline
+            // computes the same per-file diagnostics and drops everything it
+            // built, keeping the closed tier bounded; the file's `SourceFile`
+            // input stays in the `Project` so its *lightweight* decls/signature
+            // queries keep serving open documents' cross-file resolution.
+            file: None,
             config,
         };
         run_diagnostics_core(inputs, uri, job).await;
+        self.record_closed_diag_badge(uri).await;
     }
 
     /// Resolve the dialect for a **closed** on-disk file the way
@@ -4185,6 +5085,20 @@ impl Backend {
     async fn dialect_for_closed(&self, uri: &Uri, text: &str) -> String {
         let language_id = tcl_registry::dialect_from_extension(uri.as_str()).unwrap_or("tcl");
         self.dialect_for_open(uri, language_id, text).await
+    }
+
+    /// Pure core of [`Self::dialect_for_closed`] — see
+    /// [`Self::dialect_for_open_sync`]. Lets the watched-files batch reindex
+    /// (#1161) resolve every changed file's dialect from one snapshot instead
+    /// of a `&self` lock round trip per file.
+    fn dialect_for_closed_sync(
+        uri: &Uri,
+        text: &str,
+        folder_dialects: &[(Uri, String)],
+        default_dialect: &str,
+    ) -> String {
+        let language_id = tcl_registry::dialect_from_extension(uri.as_str()).unwrap_or("tcl");
+        Self::dialect_for_open_sync(uri, language_id, text, folder_dialects, default_dialect)
     }
 
     /// Bump and return `uri`'s closed-file diagnostics generation (#865). Each
@@ -4218,6 +5132,98 @@ impl Backend {
         // Drop the closed-run generation too, so the map does not accumulate an
         // entry for a URI that no longer carries a badge.
         self.closed_diag_gen.lock().await.remove(uri);
+        // …and its place in the closed-badge recency list, so a cleared URI does
+        // not count against [`CLOSED_DIAG_BADGE_CAP`] (#1144).
+        self.closed_diag_order
+            .lock()
+            .await
+            .retain(|queued| queued != uri);
+    }
+
+    /// Retire every trace of a path a `workspace/didRenameFiles` moved away
+    /// from (#1146).
+    ///
+    /// The old path no longer exists on disk, so it is treated exactly as
+    /// [`LanguageServer::did_change_watched_files`] treats a `DELETED` file:
+    /// dropping only the `workspace_index` entry left its salsa `SourceFile` in
+    /// the `Project` — so the renamed file's procedures were counted twice in
+    /// cross-file resolution, and the old URI's whole memo chain, pull-cache
+    /// entry, semantic-token baseline and class analysis survived every rename
+    /// for the process's life.  The empty publish is what removes the client's
+    /// Problems entry for the dead path.
+    async fn retire_renamed_uri(&self, uri: &Uri) {
+        self.workspace_index
+            .write()
+            .await
+            .remove_document(uri.as_str());
+        self.db_remove_source(uri).await;
+        self.last_semantic_tokens.lock().await.remove(uri);
+        self.semantic_tokens_refresh_asked.lock().await.remove(uri);
+        self.workspace_class_analyses.lock().await.remove(uri);
+        self.evict_diag_slot(uri).await;
+        // Publishes the empty set and drops the pull-cache + closed-generation
+        // entries, matching the watched-file DELETED branch's badge clear.
+        self.clear_closed_diagnostics(uri).await;
+    }
+
+    /// Release `uri`'s diagnostics slot when its document closes (#1144).
+    ///
+    /// With no worker draining it the slot is dropped outright.  With one
+    /// in flight the slot must stay — it is the worker's own liveness record —
+    /// so only the heavy [`DiagInputs`] are released and the dirty bit cleared;
+    /// [`retire_slot`] then drops the slot as the worker retires (and a
+    /// `did_open` racing in front of that re-arms it before the worker looks,
+    /// so nothing is orphaned).
+    async fn evict_diag_slot(&self, uri: &Uri) {
+        let mut slots = self.diag_slots.lock().await;
+        let Some(slot) = slots.get_mut(uri) else {
+            return;
+        };
+        if slot.running {
+            slot.latest_inputs = None;
+            slot.dirty = false;
+        } else {
+            slots.remove(uri);
+        }
+    }
+
+    /// Record that `uri` now carries a **closed**-file badge and evict the
+    /// oldest closed badges beyond [`CLOSED_DIAG_BADGE_CAP`] (#1144).
+    ///
+    /// Open documents are never queued here, so they are never evicted.  An
+    /// evicted URI only loses the server's *record* of its badge — the client
+    /// keeps the diagnostics it was last sent, and reopening the file (or a
+    /// watched-file change) recomputes them from disk — so #865's retained
+    /// badge survives; what stops growing is the per-URI `Vec<Diagnostic>` the
+    /// server would otherwise hold for every file the user ever opened.
+    async fn record_closed_diag_badge(&self, uri: &Uri) {
+        let evicted: Vec<Uri> = {
+            let mut order = self.closed_diag_order.lock().await;
+            order.retain(|queued| queued != uri);
+            order.push_back(uri.clone());
+            let mut evicted = Vec::new();
+            while order.len() > CLOSED_DIAG_BADGE_CAP {
+                if let Some(oldest) = order.pop_front() {
+                    evicted.push(oldest);
+                }
+            }
+            evicted
+        };
+        if evicted.is_empty() {
+            return;
+        }
+        let docs = self.documents.lock().await;
+        let mut cache = self.pull_diag_cache.lock().await;
+        let mut gens = self.closed_diag_gen.lock().await;
+        for uri in &evicted {
+            if docs.contains_key(uri) {
+                continue;
+            }
+            cache.remove(uri);
+            // Same lifetime as the cache entry — the generation only orders
+            // runs for a URI the server is still tracking.
+            gens.remove(uri);
+        }
     }
 
     /// Refresh the diagnostics of every **closed** file that currently carries a
@@ -4282,7 +5288,7 @@ impl Backend {
         // below).  Without this gate, an argument word that happens to
         // collide with a sibling proc/class name produces a
         // false-positive go-to-definition jump.
-        let on_command_head = position_is_command_head(&doc.text, pos, &analysis);
+        let on_command_head = position_is_command_head(&doc.text, pos, &analysis, &doc.line_index);
         // A namespace-name argument is answered here, in full, and never
         // reaches the tiers below.  Two reasons, both from the review of
         // #1088: the position is *definitive* (a proc or class of the same
@@ -4995,36 +6001,61 @@ impl Backend {
     /// `Location`s, converting each span against the *target*
     /// document's source.  Targets whose document isn't in the
     /// store, or whose URI doesn't parse, are dropped.
+    ///
+    /// `targets` holds one entry per reference **site**, but many sites
+    /// share a URI (a heavily-`source`d proc can have hundreds of call sites
+    /// in a handful of files). Resolving per site used to call
+    /// [`Self::read_document`] — a full `DocumentState` clone, or a
+    /// `std::fs::read_to_string` for a closed file, plus an `edits_settled()`
+    /// wait — once per site; on 800 sites across 60 files that was 800 reads
+    /// for 60 documents' worth of real work (issue #1153). Read each unique
+    /// URI once instead, then look every site's span up against its
+    /// document's already-resolved `line_index`. `targets`' own order is
+    /// untouched (a document is read once, on its first site, but sites are
+    /// still emitted in their original relative order — some callers dedup
+    /// results and others (the code-lens click target, #991) rely on the
+    /// order matching `textDocument/references`'), so no caller needs to
+    /// change.
     async fn resolve_target_locations(
         &self,
         targets: Vec<(String, tcl_lexer::Span)>,
     ) -> Vec<Location> {
-        let mut locations = Vec::new();
-        for (target_uri, span) in targets {
-            let Ok(parsed) = Uri::from_str(&target_uri) else {
+        let mut docs: HashMap<&str, Option<(Uri, DocumentState)>> = HashMap::new();
+        for (target_uri, _) in &targets {
+            if docs.contains_key(target_uri.as_str()) {
                 continue;
+            }
+            let resolved = match Uri::from_str(target_uri) {
+                Ok(parsed) => self.read_document(&parsed).await.map(|doc| (parsed, doc)),
+                Err(_) => None,
             };
-            let Some(target_doc) = self.read_document(&parsed).await else {
-                continue;
-            };
-            let line_index = target_doc.line_index.clone();
-            let start = line_index.position_at_utf16(span.start(), &target_doc.text);
-            let end = line_index.position_at_utf16(span.end(), &target_doc.text);
-            locations.push(Location {
-                uri: parsed,
-                range: Range {
-                    start: Position {
-                        line: start.line,
-                        character: start.character.get(),
-                    },
-                    end: Position {
-                        line: end.line,
-                        character: end.character.get(),
-                    },
-                },
-            });
+            docs.insert(target_uri.as_str(), resolved);
         }
-        locations
+        targets
+            .iter()
+            .filter_map(|(target_uri, span)| {
+                let (uri, target_doc) = docs.get(target_uri.as_str())?.as_ref()?;
+                let start = target_doc
+                    .line_index
+                    .position_at_utf16(span.start(), &target_doc.text);
+                let end = target_doc
+                    .line_index
+                    .position_at_utf16(span.end(), &target_doc.text);
+                Some(Location {
+                    uri: uri.clone(),
+                    range: Range {
+                        start: Position {
+                            line: start.line,
+                            character: start.character.get(),
+                        },
+                        end: Position {
+                            line: end.line,
+                            character: end.character.get(),
+                        },
+                    },
+                })
+            })
+            .collect()
     }
 
     /// Resolve the proc / class symbol at `pos` (a bare command word, not a
@@ -6887,7 +7918,7 @@ impl Backend {
             let analysis = self
                 .cached_analysis(&doc_uri)
                 .await
-                .unwrap_or_else(|| Arc::new(Analyser::new().analyse(&source, &dialect).clone()));
+                .unwrap_or_else(|| Arc::new(Analyser::new().analyse(&source, &dialect)));
             let calls = core_call_hierarchy::incoming_calls_for_target(
                 &source, &analysis, simple, qualified, None,
             );
@@ -7306,7 +8337,7 @@ impl Backend {
             for _ in 0..4 {
                 let mut analyser =
                     Self::configured_analyser(disabled.clone(), na_mode, extra.clone());
-                let analysis = analyser.analyse(&source, &dialect).clone();
+                let analysis = analyser.analyse(&source, &dialect);
                 // First fix per safe diagnostic, sorted by start offset.
                 let mut fixes: Vec<(u32, u32, String, String, String)> = Vec::new();
                 for d in &analysis.diagnostics {
@@ -7801,6 +8832,14 @@ impl Backend {
     /// overrides the disabled-diagnostics set or non-ASCII mode (others inherit
     /// [`Backend::db_config`]); existing handles are reused across re-pulls so
     /// the salsa store does not accumulate dead config inputs.
+    ///
+    /// A folder that stops overriding anything — or leaves the workspace — has
+    /// its handle *retired* into [`Backend::folder_db_config_tombstones`] with
+    /// its payload cleared, not dropped, and a folder that starts overriding
+    /// again revives the retired handle (#1145).  Salsa never frees an input, so
+    /// dropping one leaks it: `.tcl-lsp.ini` re-pulls the whole layered config
+    /// on every save, which would otherwise allocate a fresh config input per
+    /// save for a folder toggling an override.
     async fn apply_folder_configs(&self, parsed: Vec<(Uri, FolderConfig)>) {
         use salsa::Setter as _;
         {
@@ -7819,6 +8858,12 @@ impl Backend {
             let global_generic = self.generic_variable_patterns.lock().await.clone();
             let mut db = self.db.lock().await;
             let mut handles = self.folder_db_configs.lock().await;
+            let mut tombstones = self.folder_db_config_tombstones.lock().await;
+            // Every live handle starts out claimed-back; whatever is still here
+            // when the loop ends belongs to a folder that no longer needs one and
+            // is retired below.
+            let mut reclaimable: HashMap<Uri, tcl_lsp_db::AnalyserConfig> =
+                handles.drain(..).collect();
             let mut next: Vec<(Uri, tcl_lsp_db::AnalyserConfig)> = Vec::new();
             for (folder, fc) in &parsed {
                 // A handle is only needed when the folder overrides one of the
@@ -7845,17 +8890,32 @@ impl Backend {
                     FolderGenericPatterns::BuiltinDefaults => None,
                     FolderGenericPatterns::Replace(list) => Some(list.clone()),
                 };
-                if let Some((_, handle)) = handles.iter().find(|(u, _)| u == folder) {
+                // The folder's own live handle first, then its retired one, and
+                // only then a fresh input.
+                if let Some(handle) = reclaimable
+                    .remove(folder)
+                    .or_else(|| tombstones.remove(folder))
+                {
                     handle.set_disabled_diagnostics(&mut *db).to(disabled);
                     handle.set_non_ascii_mode(&mut *db).to(mode);
                     handle.set_extra_commands(&mut *db).to(extra);
                     handle.set_generic_variable_patterns(&mut *db).to(generic);
-                    next.push((folder.clone(), *handle));
+                    next.push((folder.clone(), handle));
                 } else {
                     let handle =
                         tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode, extra, generic, None);
                     next.push((folder.clone(), handle));
                 }
+            }
+            for (folder, handle) in reclaimable {
+                // Release the payload before retiring, so a folder that toggles
+                // an override off does not keep its old code lists (and the
+                // memos keyed on them) alive until it is toggled back on.
+                handle.set_disabled_diagnostics(&mut *db).to(Vec::new());
+                handle.set_extra_commands(&mut *db).to(Vec::new());
+                handle.set_generic_variable_patterns(&mut *db).to(None);
+                handle.set_bigip_version(&mut *db).to(None);
+                tombstones.insert(folder, handle);
             }
             *handles = next;
         }
@@ -8286,6 +9346,20 @@ impl Backend {
             .with_extra_commands(extra_commands)
     }
 
+    /// [`Self::configured_analyser`] taking the recovery path's **shared**
+    /// widened known-command set (see [`RecoveryNameCache`]), so the cached set
+    /// is handed over as a refcount bump instead of being deep-copied into the
+    /// analyser on every keystroke.
+    fn recovery_analyser(
+        disabled: HashSet<String>,
+        mode: NonAsciiMode,
+        extra_commands: Arc<HashSet<String>>,
+    ) -> Analyser {
+        Analyser::with_disabled_diagnostics(disabled)
+            .with_non_ascii_mode(mode)
+            .with_shared_extra_commands(extra_commands)
+    }
+
     /// Return the command registry with `dialect` loaded on top of the
     /// default Tcl + stdlib + tcllib specs.
     ///
@@ -8337,6 +9411,7 @@ impl Backend {
             workspace_index: Arc::clone(&self.workspace_index),
             rehomed_source_seeds: Arc::clone(&self.rehomed_source_seeds),
             package_resolver: Arc::clone(&self.package_resolver),
+            recovery_names: Arc::clone(&self.recovery_names),
             entry_points,
             folder_root,
             db: Arc::clone(&self.db),
@@ -8755,7 +9830,15 @@ impl Backend {
     /// several views when sourced from several namespaces — all true at
     /// run time).  Iterates to a fixpoint (bounded) because a seeded parent
     /// records *composed* namespaces for its own nested `source` calls.
+    ///
+    /// Serialised by [`Self::rehoming_gate`] (issue #1158): a caller that
+    /// lands while another pass (a peer request, or `scan_workspace_folders`'
+    /// own call after a merge) is already reconciling waits for it instead of
+    /// running its own redundant copy of the loop below — the early return a
+    /// few lines down then answers "already converged" for every waiter but
+    /// whichever caller actually did the work.
     async fn refresh_source_rehoming(&self) {
+        let _guard = self.rehoming_gate.lock().await;
         for _round in 0..4 {
             let desired = {
                 let index = self.workspace_index.read().await;
@@ -8797,11 +9880,9 @@ impl Backend {
                         .map(|seed| {
                             let mut analyser = Analyser::new();
                             if seed == "::" {
-                                analyser.analyse(&text, &dialect).clone()
+                                analyser.analyse(&text, &dialect)
                             } else {
-                                analyser
-                                    .analyse_with_source_namespace(&text, &dialect, seed)
-                                    .clone()
+                                analyser.analyse_with_source_namespace(&text, &dialect, seed)
                             }
                         })
                         .collect::<Vec<AnalysisResult>>()
@@ -8869,6 +9950,70 @@ impl Backend {
         out
     }
 
+    /// Wait (bounded) for the workspace index to reflect a completed folder
+    /// scan before answering a workspace-wide query.
+    ///
+    /// Covers both halves of the startup race: the readiness signal covers
+    /// "the scan has not begun yet" (`initialized` pulls config and registers
+    /// watchers, two client round-trips, before it scans), and the gate covers
+    /// "a scan is in flight" — including a later folder-/config-change
+    /// rebuild.  The gate is acquired and released, never held while the
+    /// caller answers, so a query cannot stall a scan.
+    ///
+    /// A session with no workspace folders has no scan worth waiting for, so
+    /// it returns immediately rather than burning the budget.
+    async fn wait_for_workspace_scan(&self) {
+        if !self.workspace_scan_ready.is_complete() && self.workspace_folder_urls().await.is_empty()
+        {
+            return;
+        }
+        let _ = tokio::time::timeout(INITIAL_WORKSPACE_SCAN_WAIT, async {
+            self.workspace_scan_ready.wait().await;
+            drop(self.workspace_scan_gate.lock().await);
+        })
+        .await;
+    }
+
+    /// The `workspace/symbol` matches contributed by **open** documents the
+    /// workspace index does not currently hold.
+    ///
+    /// `did_open` drops the opened document's index entry — its on-disk
+    /// records stop being authoritative the moment a live buffer exists — and
+    /// the debounced diagnostics publish is what re-adds it.  Between the two
+    /// the file is invisible to the picker, which is exactly the moment a user
+    /// (or a test) searches for something they just opened (#1179).  A new
+    /// untitled buffer has the same gap until its first publish.
+    ///
+    /// Bounded by the open-document set and empty in steady state; the
+    /// analysis is read from the salsa memo the pending publish computes
+    /// anyway, so nothing is analysed twice.
+    async fn open_but_unindexed_symbols(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Vec<core_workspace_symbols::IndexedWorkspaceSymbol> {
+        let unindexed: Vec<Uri> = {
+            // `documents` → `workspace_index`, the lock order `did_open`
+            // establishes.
+            let docs = self.documents.lock().await;
+            let index = self.workspace_index.read().await;
+            docs.keys()
+                .filter(|uri| !index.contains_document(uri.as_str()))
+                .cloned()
+                .collect()
+        };
+        if unindexed.is_empty() {
+            return Vec::new();
+        }
+        let mut pending = core_workspace_index::WorkspaceIndex::new();
+        for uri in &unindexed {
+            if let Some(analysis) = self.cached_analysis(uri).await {
+                pending.add_document(uri.as_str(), &analysis);
+            }
+        }
+        pending.symbols_matching(query, limit)
+    }
+
     async fn scan_workspace_folders(&self) {
         // Held for the whole scan so `ensure_autoload_indexed` can wait out
         // an in-flight scan instead of racing it — see the field doc on
@@ -8915,12 +10060,14 @@ impl Backend {
         }
         let discovered_cell = Arc::clone(&self.discovered_tcl);
 
+        // Stage 1: build the package database and walk the workspace trees for
+        // candidate paths. Cheap directory-metadata work, so it stays a single
+        // blocking call; the expensive per-file parse-and-analyse is stage 2,
+        // parallelised below (#1151 — this loop used to also run every file's
+        // `Analyser::analyse` here, serially, one root cause of the 38.7s/883-file
+        // startup cost).
         let resolver_roots = roots.clone();
-        let analysed = tokio::task::spawn_blocking(move || {
-            // Build the package database: the workspace trees plus the resolved
-            // `auto_path` (editor + config-file `libraryPaths`, discovered Tcl
-            // installations, and `TCLLIBPATH`). Discovery is cached for the
-            // session.
+        let (resolver, files) = tokio::task::spawn_blocking(move || {
             let discovered = discovered_cell.get_or_init(|| {
                 core_tcl_install::discover(&core_tcl_install::default_search_bases())
             });
@@ -8930,46 +10077,21 @@ impl Backend {
                 discovered,
                 WORKSPACE_SCAN_DIR_CAP,
             );
-
             let mut files: Vec<PathBuf> = Vec::new();
             for root in &roots {
                 collect_tcl_files(root, WORKSPACE_SCAN_FILE_CAP, &mut files);
             }
-            // Carry the source text + dialect alongside the analysis so the salsa
-            // db (cross-file diagnostics) can index the same disk-backed files.
-            let mut out: Vec<(Uri, String, String, AnalysisResult)> = Vec::new();
-            for path in files {
-                let Some(uri) = Uri::from_file_path(&path) else {
-                    continue;
-                };
-                if open.contains(&uri) {
-                    continue;
-                }
-                let Ok(text) = std::fs::read_to_string(&path) else {
-                    continue;
-                };
-                let dialect = folder_dialect_for(&uri, &folder_dialects)
-                    .unwrap_or_else(|| default_dialect.clone());
-                let mut analyser = Analyser::new();
-                let analysis = analyser.analyse(&text, &dialect).clone();
-                out.push((uri, text, dialect, analysis));
-            }
-            (resolver, out)
+            (resolver, files)
         })
         .await
         .unwrap_or_else(|_| (PackageResolver::new(), Vec::new()));
-        let (resolver, analysed) = analysed;
 
-        // Fold in the `auto_path` the workspace's own files install
-        // (`lappend auto_path [file dirname [file dirname [info script]]]`),
-        // then publish the package database for the diagnostics worker and
-        // merge the per-file analysis into the index + salsa db.
-        let resolver = extend_resolver_with_document_auto_paths(resolver, &analysed);
-        *self.package_resolver.write().await = resolver;
-        // The package database changed: drop the library files the autoload
-        // tier (M8) merged under the previous database.  A stale entry would
-        // keep answering for a library no longer on the resolved `auto_path`;
-        // dropping is cheap and the next query re-merges on demand.
+        // Drop the library files the autoload tier (M8) merged under the
+        // *previous* package database before this scan's own batches add their
+        // fresh entries below — a stale entry must not survive a rescan, and
+        // (rare, but possible) a workspace file that used to be reached only via
+        // autoload must end up present, not removed, if a later batch re-adds it
+        // under its own URI.
         let stale_library_uris: Vec<String> =
             self.autoloaded_library_uris.lock().await.drain().collect();
         if !stale_library_uris.is_empty() {
@@ -8978,14 +10100,35 @@ impl Backend {
                 index.remove_document(uri);
             }
         }
-        let files_count = analysed.len();
-        self.merge_workspace_scan_results(&analysed).await;
+
+        // Stage 2: read + analyse the candidate files across a bounded worker
+        // pool, merging into `workspace_index` / the salsa `Project` in
+        // batches as they complete.
+        let (resolver, files_count) = self
+            .analyse_and_merge_scanned_files(
+                files,
+                open,
+                folder_dialects,
+                default_dialect,
+                resolver,
+            )
+            .await;
+
+        // Publish the package database for the diagnostics worker now every
+        // batch's auto-path contribution has folded in.
+        *self.package_resolver.write().await = resolver;
         // Re-home sourced documents under their source-site namespaces (M9).
         self.refresh_source_rehoming().await;
-        // Now that the `Project` covers the whole workspace, warm the salsa
-        // per-file analysis in parallel (#844 Gap 3) so the first cross-file /
-        // enriched-token query finds cache hits instead of a serial cold walk.
+        // Warm the deep salsa tier for documents already open (#844 Gap 3,
+        // narrowed by #1151) so their first hover / semantic-tokens /
+        // diagnostics request is a cache hit; unopened files stay at the
+        // lightweight tier (`workspace_index` + the salsa `SourceFile` inputs
+        // just batched in, which answer `file_decls` / `item_sigs` on demand)
+        // until a request actually needs their deep analysis.
         self.spawn_workspace_warm();
+        // In-process readiness signal, released before the log line so a
+        // handler waiting on it is not held up by a client round-trip.
+        self.workspace_scan_ready.mark_complete();
         // Readiness signal for `package_resolver` / `workspace_index` having
         // just been (re)built from disk — a client (or a test) that needs to
         // know the autoload / cross-file workspace state is current rather
@@ -9001,6 +10144,86 @@ impl Backend {
                 ),
             )
             .await;
+    }
+
+    /// Stage 2 of [`Self::scan_workspace_folders`] (#1151): read + analyse
+    /// `files` across a bounded worker pool (the `spawn_workspace_warm`
+    /// semaphore pattern — acquire a permit before spawning, so at most
+    /// `WORKSPACE_ANALYSIS_MAX_CONCURRENCY` files are being read+analysed at
+    /// once), merging into `workspace_index` / the salsa `Project` in batches
+    /// as they complete rather than collecting every `AnalysisResult` for the
+    /// whole tree before merging any of it — bounding how much of the scan's
+    /// own output is ever live in memory at once on a large workspace. `files`
+    /// already open in the editor are skipped (their live buffer must not be
+    /// clobbered by the on-disk copy); an unreadable path is dropped.
+    ///
+    /// Returns `resolver` extended with every batch's own `auto_path`
+    /// contribution, plus the number of files actually analysed.
+    async fn analyse_and_merge_scanned_files(
+        &self,
+        files: Vec<PathBuf>,
+        open: HashSet<Uri>,
+        folder_dialects: Vec<(Uri, String)>,
+        default_dialect: String,
+        mut resolver: PackageResolver,
+    ) -> (PackageResolver, usize) {
+        let open = Arc::new(open);
+        let folder_dialects = Arc::new(folder_dialects);
+        let concurrency = std::thread::available_parallelism()
+            .map_or(4, std::num::NonZeroUsize::get)
+            .min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
+        let permits = Arc::new(Semaphore::new(concurrency));
+        let mut tasks = tokio::task::JoinSet::new();
+        for path in files {
+            let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
+                break;
+            };
+            let open = Arc::clone(&open);
+            let folder_dialects = Arc::clone(&folder_dialects);
+            let default_dialect = default_dialect.clone();
+            tasks.spawn(async move {
+                let _permit = permit;
+                tokio::task::spawn_blocking(move || {
+                    let uri = Uri::from_file_path(&path)?;
+                    if open.contains(&uri) {
+                        return None;
+                    }
+                    let text = std::fs::read_to_string(&path).ok()?;
+                    let dialect = folder_dialect_for(&uri, &folder_dialects)
+                        .unwrap_or_else(|| default_dialect.clone());
+                    let mut analyser = Analyser::new();
+                    let analysis = analyser.analyse(&text, &dialect);
+                    Some((uri, text, dialect, analysis))
+                })
+                .await
+                .ok()
+                .flatten()
+            });
+        }
+        let mut files_count = 0usize;
+        let mut batch: Vec<(Uri, String, String, AnalysisResult)> = Vec::new();
+        while let Some(result) = tasks.join_next().await {
+            let Ok(Some(item)) = result else {
+                continue;
+            };
+            batch.push(item);
+            if batch.len() >= SCAN_MERGE_BATCH_SIZE {
+                files_count += batch.len();
+                // Fold in the `auto_path` mutations this batch's own files
+                // install (`lappend auto_path [file dirname …]`) before
+                // merging, so the package database sees them as soon as
+                // their batch lands rather than only at the end of the scan.
+                resolver = extend_resolver_with_document_auto_paths(resolver, &batch);
+                self.merge_workspace_scan_results(&batch).await;
+                batch.clear();
+            }
+        }
+        if !batch.is_empty() {
+            files_count += batch.len();
+            resolver = extend_resolver_with_document_auto_paths(resolver, &batch);
+            self.merge_workspace_scan_results(&batch).await;
+        }
+        (resolver, files_count)
     }
 
     /// Merge disk-backed workspace scan results into the shared index **and** the
@@ -9046,21 +10269,33 @@ impl Backend {
     }
 
     /// Kick off a detached, concurrency-bounded parallel **warm** of the salsa
-    /// per-file analysis for every project file (#844 Gap 3).
+    /// per-file analysis for every currently **open** document (#844 Gap 3,
+    /// narrowed by #1151).
     ///
-    /// On a cold workspace the first enriched `semantic_tokens_project` otherwise
-    /// serially analyses every file inside `project_class_index` /
-    /// `project_proc_var_index`.  Pre-populating the memoised
-    /// `file_analysis_incremental` across the blocking pool collapses that serial
-    /// cold walk to a parallel one, so the tracked query's loop is all cache hits
-    /// by the time the enriched token / cross-file diagnostics query runs — the
-    /// enrichment side's analogue of the diagnostics deep pass's `join!`.
+    /// Deep state (`file_analysis_incremental` and everything built on it —
+    /// `compilation_unit`) is an
+    /// open-document cost, not a workspace one: an on-disk file the editor hasn't
+    /// opened only needs to answer cross-file resolution (`workspace_index`,
+    /// fed by the scan's own analyser pass, plus the light `file_decls` /
+    /// `item_sigs` / `file_token_facts` tier salsa computes on demand from the
+    /// `SourceFile`
+    /// inputs `db_set_sources_batch` sets). Warming the deep tier for every
+    /// workspace file — the pre-#1151 behaviour — analysed the whole project a
+    /// *second* time through salsa on top of the scan's own analyser walk, and
+    /// materialised `file_analysis` for files nobody has open (measured: 786 MB
+    /// RSS after a tcllib scan). This warm now only primes the files already
+    /// open when it runs, so the first hover / semantic-tokens / diagnostics
+    /// request on an already-open tab (e.g. several restored editor tabs right
+    /// after `initialized`, or a big multi-root reload) is a cache hit instead
+    /// of a cold `file_analysis_incremental` walk; an unopened file pays its
+    /// deep-tier cost only if a request actually needs it, exactly like a
+    /// document opened after the scan already does.
     ///
     /// Purely an optimisation, and safe by construction:
     /// - **Correctness**: it only primes the salsa cache; a concurrent real read
     ///   of the same `(file, config)` dedups against it (salsa blocks the second
     ///   requester and shares the memoised result — never a double analysis or a
-    ///   divergent one), so results are identical to the serial walk.
+    ///   divergent one), so results are identical to an unwarmed cold read.
     /// - **Never blocks a request**: fire-and-forget on a detached task.
     /// - **Never stalls an edit**: at most `WORKSPACE_WARM_MAX_CONCURRENCY`
     ///   snapshots are live at once (each warm clones its snapshot only after
@@ -9072,78 +10307,29 @@ impl Backend {
     ///   / config-change) keep that bound *global*, not merely per-warm, and drop
     ///   the redundant re-walk.
     ///
-    /// Warms under every distinct config a request could resolve to — the global
-    /// `db_config` plus each folder-scoped override in `folder_db_configs` —
-    /// because `project_class_index` / `project_proc_var_index` apply a single
-    /// `resolved_db_config(uri)` uniformly to *every* project file. A
-    /// global-config-only warm would therefore miss the whole-project enrichment
-    /// loop for every file the moment any folder sets an override (not just the
-    /// overridden folder's files), since the loop keys `file_analysis_incremental`
-    /// on that one resolved config. Deduped, so a single-config workspace (the
-    /// common case) still warms each file exactly once; for the handful of override
-    /// folders a real workspace has, the extra `files × configs` primes are cheap
-    /// salsa cache fills.
+    /// Each open document warms under its own [`Self::resolved_db_config`] —
+    /// the config the diagnostics / hover / completion path would actually
+    /// resolve for it — rather than the former full `files × configs` cross
+    /// product: that product existed only to cover `project_class_index` /
+    /// `project_proc_var_index` applying one config to *every* project file,
+    /// which no longer matters here because this warm no longer touches
+    /// unopened files at all and those two indexes are now config-free (#1163).
     fn spawn_workspace_warm(&self) {
         let db = Arc::clone(&self.db);
-        let db_project = Arc::clone(&self.db_project);
+        let db_files = Arc::clone(&self.db_files);
+        let documents = Arc::clone(&self.documents);
         let db_config = Arc::clone(&self.db_config);
         let folder_db_configs = Arc::clone(&self.folder_db_configs);
-        let task = tokio::spawn(async move {
-            let Some(project) = *db_project.lock().await else {
-                return;
-            };
-            // Every config a request could resolve to: the global one plus each
-            // folder override, deduped (a single-config workspace warms once).
-            let mut configs = vec![*db_config.lock().await];
-            for (_, folder_config) in folder_db_configs.lock().await.iter() {
-                if !configs.contains(folder_config) {
-                    configs.push(*folder_config);
-                }
-            }
-            let files: Vec<tcl_lsp_db::SourceFile> = {
-                let snapshot = db.lock().await.clone();
-                project.files(&snapshot).clone()
-            };
-            if files.is_empty() {
-                return;
-            }
-            let concurrency = std::thread::available_parallelism()
-                .map_or(4, std::num::NonZeroUsize::get)
-                .min(WORKSPACE_WARM_MAX_CONCURRENCY);
-            let permits = Arc::new(Semaphore::new(concurrency));
-            let mut warms = tokio::task::JoinSet::new();
-            for config in configs {
-                for file in files.iter().copied() {
-                    // Acquire the permit *before* spawning so at most `concurrency`
-                    // warm tasks (and thus snapshots) exist at once: the loop
-                    // backpressures on a very large workspace rather than parking one
-                    // pending task per item on the semaphore. `acquire_owned` moves
-                    // the permit into the task, which holds it until its analysis
-                    // returns.
-                    let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
-                        break;
-                    };
-                    let db = Arc::clone(&db);
-                    warms.spawn(async move {
-                        let _permit = permit;
-                        // Clone the snapshot only after the permit is held, so
-                        // `set_text` never waits on more than `concurrency` in-flight
-                        // reads.
-                        let snapshot = db.lock().await.clone();
-                        let _ = tokio::task::spawn_blocking(move || {
-                            let _ = salsa::Cancelled::catch(|| {
-                                tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
-                            });
-                        })
-                        .await;
-                    });
-                }
-            }
-            while warms.join_next().await.is_some() {}
-        });
+        let task = tokio::spawn(Self::warm_open_documents(
+            db,
+            db_files,
+            documents,
+            db_config,
+            folder_db_configs,
+        ));
         // Supersede any still-running warm so overlapping scans (initialize /
         // folder-add / config-change) can't stack their snapshots or redundantly
-        // re-walk the workspace. Aborting at the per-item await boundaries (with
+        // re-walk the open set. Aborting at the per-item await boundaries (with
         // the existing `Cancelled::catch`) keeps the global snapshot bound at
         // `WORKSPACE_WARM_MAX_CONCURRENCY`.
         if let Ok(mut guard) = self.warm_task.lock()
@@ -9151,6 +10337,72 @@ impl Backend {
         {
             prev.abort();
         }
+    }
+
+    /// The body [`Self::spawn_workspace_warm`] detaches — pulled out as its own
+    /// `async fn` over cloned `Arc` fields (rather than `&self`) so a test can
+    /// `.await` it directly and observe, deterministically, exactly which salsa
+    /// queries it executes (`TclDatabase::with_event_logger`) instead of racing
+    /// a fire-and-forget `tokio::spawn`.
+    async fn warm_open_documents(
+        db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
+        db_files: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
+        documents: Arc<Mutex<HashMap<Uri, DocumentState>>>,
+        db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
+        folder_db_configs: Arc<Mutex<Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>>,
+    ) {
+        let open_uris: Vec<Uri> = documents.lock().await.keys().cloned().collect();
+        if open_uris.is_empty() {
+            return;
+        }
+        let global_config = *db_config.lock().await;
+        let folder_configs = folder_db_configs.lock().await.clone();
+        let work: Vec<(tcl_lsp_db::SourceFile, tcl_lsp_db::AnalyserConfig)> = {
+            let files = db_files.lock().await;
+            open_uris
+                .iter()
+                .filter_map(|uri| {
+                    let file = *files.get(uri)?;
+                    let config = longest_folder_match(&folder_configs, uri)
+                        .copied()
+                        .unwrap_or(global_config);
+                    Some((file, config))
+                })
+                .collect()
+        };
+        if work.is_empty() {
+            return;
+        }
+        let concurrency = std::thread::available_parallelism()
+            .map_or(4, std::num::NonZeroUsize::get)
+            .min(WORKSPACE_WARM_MAX_CONCURRENCY);
+        let permits = Arc::new(Semaphore::new(concurrency));
+        let mut warms = tokio::task::JoinSet::new();
+        for (file, config) in work {
+            // Acquire the permit *before* spawning so at most `concurrency`
+            // warm tasks (and thus snapshots) exist at once: the loop
+            // backpressures rather than parking one pending task per item on
+            // the semaphore. `acquire_owned` moves the permit into the task,
+            // which holds it until its analysis returns.
+            let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
+                break;
+            };
+            let db = Arc::clone(&db);
+            warms.spawn(async move {
+                let _permit = permit;
+                // Clone the snapshot only after the permit is held, so
+                // `set_text` never waits on more than `concurrency` in-flight
+                // reads.
+                let snapshot = db.lock().await.clone();
+                let _ = tokio::task::spawn_blocking(move || {
+                    let _ = salsa::Cancelled::catch(|| {
+                        tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+                    });
+                })
+                .await;
+            });
+        }
+        while warms.join_next().await.is_some() {}
     }
 
     /// Race the memoised CU + analysis reads for `uri` against
@@ -9246,10 +10498,15 @@ impl Backend {
     /// `workspace/semanticTokens/refresh` if it genuinely differs from the coarse
     /// `served` stream. The range stream is never in `last_semantic_tokens`, so
     /// the diff is against the exact `served` bytes rather than the token cache.
+    ///
+    /// `guard` is the caller's per-URI claim (#1147); it is held for the
+    /// continuation's whole life so a later request for the same document skips
+    /// detaching a redundant second one.
     fn spawn_range_convergence(
         &self,
         inputs: RangeConvergenceInputs,
         pending: RangeConvergencePending,
+        guard: ConvergenceGuard,
     ) {
         let RangeConvergenceInputs {
             uri,
@@ -9260,10 +10517,15 @@ impl Backend {
             range,
         } = inputs;
         let (cu_slot, analysis_slot, cu_handle, analysis_handle) = pending;
+        let mut guard = guard;
+        // `uri` here is the log-line string; the claim carries the typed URI the
+        // repeat-ask bound is keyed by.
+        let claim_uri = guard.uri.clone();
         let refresh_ctx = SemanticTokensRefreshCtx {
             client: self.client.clone(),
             last_semantic_tokens: Arc::clone(&self.last_semantic_tokens),
             refresh_pending: Arc::clone(&self.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&self.semantic_tokens_refresh_asked),
         };
         tokio::spawn(async move {
             // Reuse a result that already landed within the budget; otherwise await
@@ -9298,9 +10560,14 @@ impl Backend {
                 })
                 .await;
                 match enriched {
+                    // Same repeat-ask bound as the `full` path
+                    // ([`EnrichedRefreshAsked`]): a viewport whose enriched
+                    // recompute keeps landing identical must not keep asking
+                    // the client to re-pull the tokens it already asked for.
                     Ok(enriched) if enriched != served => {
-                        refresh_ctx.request_refresh_coalesced();
-                        true
+                        refresh_ctx
+                            .request_refresh_for_enriched(&claim_uri, &enriched)
+                            .await
                     }
                     _ => false,
                 }
@@ -9317,6 +10584,14 @@ impl Backend {
             } else {
                 RangeSettleOutcome::Compared
             };
+            // Release the per-URI claim only now the decision is made, so every
+            // viewport request that arrived while this ran rode along with it —
+            // and honour what rode along: a viewport skipped as `coalesced` has
+            // no continuation of its own, so if this one's comparison found no
+            // difference (or its reads were cancelled) the skipped viewports
+            // would stay coarse until an unrelated re-request.  The refresh is
+            // workspace-scoped, so one covers every one of them.
+            let refreshed = refresh_if_coalesced(&refresh_ctx, &mut guard, refreshed);
             log_range_convergence_settled(&refresh_ctx.client, &uri, refreshed, outcome).await;
         });
     }
@@ -9340,6 +10615,10 @@ enum RangeSettleOutcome {
     /// unindexed buffer, or a `did_close` racing the two reads), so there is no
     /// enriched tier for this request to converge to.
     NoAnalysis,
+    /// A convergence continuation for this document was already in flight, so
+    /// no second one was detached (#1147): the pending one's workspace-scoped
+    /// refresh covers this viewport too.
+    Coalesced,
 }
 
 impl RangeSettleOutcome {
@@ -9349,6 +10628,7 @@ impl RangeSettleOutcome {
             Self::Cancelled => "cancelled",
             Self::ServedEnriched => "served-enriched",
             Self::NoAnalysis => "no-analysis",
+            Self::Coalesced => "coalesced",
         }
     }
 }
@@ -9530,13 +10810,13 @@ impl LanguageServer for Backend {
         // otherwise two rapid incremental edits splice out of order and corrupt
         // the buffer. The ticket must be drawn before the first await.
         let ticket = self.edit_order.take_ticket();
-        let _turn = self.edit_order.wait_turn(ticket).await;
+        let turn = self.edit_order.wait_turn(ticket).await;
         let uri = params.text_document.uri.clone();
         if params.content_changes.is_empty() {
             return;
         }
         let change_version = params.text_document.version;
-        let (dialect, language_id) = {
+        let (dialect, language_id, dialect_hint_may_have_changed) = {
             let mut docs = self.documents.lock().await;
             // tower-lsp-server 0.23 dispatches notification handlers
             // concurrently (`buffer_unordered(4)`), so a `didChange` can be
@@ -9556,32 +10836,66 @@ impl LanguageServer for Backend {
             // rebuilding it per edit / per position lookup.
             // Take it out, patch through the edit sequence, put it back.
             let mut index = std::mem::replace(&mut entry.line_index, tcl_lexer::LineIndex::new(""));
+            let mut has_bare_cr = entry.has_bare_cr;
+            // Only a generically-opened `tcl` buffer re-resolves the in-source
+            // dialect hint below (see the tail block), so only that case is
+            // worth watching the edits for a hint-touching change.
+            let watch_dialect_hint = entry.language_id == "tcl";
+            let mut dialect_hint_may_have_changed = false;
             for change in &params.content_changes {
-                text = apply_content_change_indexed(&text, change.range, &change.text, &mut index);
+                if watch_dialect_hint
+                    && !dialect_hint_may_have_changed
+                    && change_could_affect_dialect_hint(&text, change.range, &change.text, &index)
+                {
+                    dialect_hint_may_have_changed = true;
+                }
+                text = apply_content_change_indexed(
+                    &text,
+                    change.range,
+                    &change.text,
+                    &mut index,
+                    &mut has_bare_cr,
+                );
             }
             entry.text = text.clone();
             entry.line_index = index;
+            entry.has_bare_cr = has_bare_cr;
             entry.bump_revision(change_version);
             let dialect = entry.dialect.clone();
             let language_id = entry.language_id.clone();
-            // Update the salsa `SourceFile` input + the cross-document index
-            // WHILE still holding the `documents` lock (the `documents` →
-            // `workspace_index` order that replaced the global gate): no
-            // concurrent request can observe the new `doc.text` (from
-            // `read_document`) with a stale query result for the old text, and
-            // no diagnostics run can re-add a stale index entry between the
-            // commit and the removal.  (db_set_source locks db→db_files, never
-            // documents, so this nesting introduces no lock-order cycle.)
+            // Update the salsa `SourceFile` input WHILE still holding the
+            // `documents` lock, so no concurrent request can observe the new
+            // `doc.text` (from `read_document`) with a stale query result for
+            // the old text.  (db_set_source locks db→db_files, never documents,
+            // so this nesting introduces no lock-order cycle.)
+            //
+            // The workspace index is deliberately *not* touched here (#1149).
+            // Dropping the edited document's entries per keystroke bought
+            // nothing — `publish_diagnostics_result` re-indexes the document
+            // (remove + add) under the same `documents` lock behind an
+            // `is_current` re-check, so it can only ever install the analysis of
+            // the revision the buffer actually holds, and nothing between the
+            // edit and that publish requires the entries to be absent: every
+            // index consumer in the interim reads a *previous* published
+            // revision of this document, which is the same staleness the rest of
+            // the workspace already carries between publishes, and strictly less
+            // misleading than the alternative (a mid-keystroke window where the
+            // file contributes no procs, classes or call sites at all).
             self.db_set_source(&uri, text, dialect.clone()).await;
-            self.workspace_index
-                .write()
-                .await
-                .remove_document(uri.as_str());
             drop(docs);
-            (dialect, language_id)
+            (dialect, language_id, dialect_hint_may_have_changed)
         };
-        self.schedule_diagnostics(uri.clone(), dialect.clone())
-            .await;
+        // The splice and the salsa source are committed, so
+        // hand the ordering turn on before the tail below (#1150).  Everything
+        // after this point is order-insensitive — marking the diagnostics slot
+        // dirty (the worker reads the document's *current* state at drain time),
+        // and the dialect re-resolve, which re-reads the buffer under the
+        // `documents` lock before it commits anything.  Held across the tail,
+        // the ticket kept a whole-source `detect_dialect` scan and a full-text
+        // clone in front of every request handler's `edits_settled` and in front
+        // of the next keystroke.
+        drop(turn);
+        self.schedule_diagnostics(uri.clone(), dialect).await;
         // Re-resolve in-source dialect hints (a `# tcl-dialect:` directive, a
         // `#!…tclshX.Y` shebang, or `package require Tcl X.Y`) after the edit —
         // adding or changing one in an already-open buffer must take effect
@@ -9589,17 +10903,27 @@ impl LanguageServer for Backend {
         // the source (an explicit versioned / non-Tcl languageId is fixed), and
         // only the source hint is edit-sensitive, so this is the sole case that
         // can change.  When it does, commit the new dialect and re-analyse.
-        if language_id == "tcl" {
-            // Read the open buffer directly: `read_document` waits for this
-            // handler's own turn to finish (see `edits_settled`), so routing
-            // through it here would self-deadlock. The document is open — a
-            // closed one returned above.
-            let text = match self.documents.lock().await.get(&uri) {
-                Some(entry) => entry.text.clone(),
+        //
+        // `dialect_hint_may_have_changed` (computed above, alongside the
+        // splice) gates the whole-source `detect_dialect` re-scan and its
+        // text clone: the overwhelming majority of keystrokes land well past
+        // the directive/shebang lines and contain none of the content-signature
+        // marker words, so they cannot have changed what `detect_dialect`
+        // would return — re-running it on every such edit was pure waste.
+        if language_id == "tcl" && dialect_hint_may_have_changed {
+            // Read the open buffer directly rather than through
+            // `read_document`, which would wait for edits this one no longer
+            // holds up and answer from a buffer this handler has already
+            // superseded.  The *current* dialect comes from the same read: with
+            // the turn handed on, a newer edit may have re-resolved it already,
+            // and comparing against this handler's own captured value would
+            // re-commit a dialect that is no longer news.
+            let (text, current_dialect) = match self.documents.lock().await.get(&uri) {
+                Some(entry) => (entry.text.clone(), entry.dialect.clone()),
                 None => return,
             };
             let new_dialect = self.dialect_for_open(&uri, &language_id, &text).await;
-            if new_dialect != dialect {
+            if new_dialect != current_dialect {
                 {
                     let mut docs = self.documents.lock().await;
                     let Some(entry) = docs.get_mut(&uri) else {
@@ -9607,11 +10931,10 @@ impl LanguageServer for Backend {
                     };
                     entry.dialect.clone_from(&new_dialect);
                     let text = entry.text.clone();
+                    // As above (#1149): the reschedule below republishes, and
+                    // the publish re-indexes the document under its own
+                    // currency check.
                     self.db_set_source(&uri, text, new_dialect.clone()).await;
-                    self.workspace_index
-                        .write()
-                        .await
-                        .remove_document(uri.as_str());
                 }
                 self.reschedule_diagnostics(uri, new_dialect).await;
             }
@@ -9703,7 +11026,7 @@ impl LanguageServer for Backend {
         // close can't be reordered ahead of an in-flight edit. The ticket must be
         // drawn before the first await.
         let ticket = self.edit_order.take_ticket();
-        let _turn = self.edit_order.wait_turn(ticket).await;
+        let turn = self.edit_order.wait_turn(ticket).await;
         let uri = &params.text_document.uri;
         {
             // Remove the live document + its index entry while holding
@@ -9719,12 +11042,34 @@ impl LanguageServer for Backend {
                 .remove_document(uri.as_str());
             drop(docs);
         }
+        // Release the per-URI diagnostics slot (#1144).  The slot used to be
+        // kept deliberately, but the reason no longer holds: `did_open` re-
+        // resolves the inputs unconditionally (`reschedule_diagnostics`, #104),
+        // so a reopened document never reads the retained ones — while every
+        // browsed-and-closed file left its `DiagInputs` behind for good.
+        self.evict_diag_slot(uri).await;
         // Drop the cached semantic-token baseline so a reopened document starts
         // from a fresh `full` rather than diffing against a stale stream.
         self.last_semantic_tokens.lock().await.remove(uri);
+        self.semantic_tokens_refresh_asked.lock().await.remove(uri);
         // The workspace-class analysis memo is keyed by URI; a closed
         // document's entry would otherwise linger for the process's life.
         self.workspace_class_analyses.lock().await.remove(uri);
+        // Everything the ordering ticket exists to protect is now applied, so
+        // hand the turn on before the heavy tail below (#1150).  `EditOrder` is
+        // a *global* barrier — every request handler awaits `edits_settled`, and
+        // the next `did_change` waits for this ticket — so holding it across a
+        // disk read, a full uncached `Analyser::analyse`, an index rebuild and
+        // the closed-file diagnostics pipeline froze hover / completion /
+        // semantic tokens in *every* open document for the length of a close.
+        // None of that tail is an ordered buffer mutation: the document map,
+        // the index entry and the salsa source are already updated above, which
+        // is exactly what stops a close being reordered ahead of an in-flight
+        // edit.  Observable ordering is unchanged — the republish still happens
+        // after the mutations, on this same handler task — and both steps below
+        // re-check that the document is still closed under the `documents` lock,
+        // so a `did_open` that now wins the race still wins it.
+        drop(turn);
         // Re-index the file from disk rather than dropping it: the file still
         // exists on disk and was (or would be) part of the on-disk index, so
         // cross-document definition / references / rename / call-hierarchy — and
@@ -9829,15 +11174,15 @@ impl LanguageServer for Backend {
         // file, a deletion — must refresh the cross-document index so
         // definition / references / rename / call-hierarchy keep seeing the
         // project's true on-disk state between restarts.
-        let mut domain_changed = false;
         let mut config_changed = false;
-        // Closed files that already carry a badge (a pull-cache entry) and whose
-        // on-disk change must refresh (#865) or clear that badge.  Collected here
-        // and applied after the whole batch has updated the resolution domain, so
-        // each refresh analyses against the final on-disk state — never a
-        // half-applied one when several files change together.
-        let mut closed_badge_refresh: Vec<Uri> = Vec::new();
-        let mut closed_badge_clear: Vec<Uri> = Vec::new();
+        // Reduce to the *last* event per URI before partitioning: a batch can
+        // legitimately name the same path twice (a delete-and-recreate a
+        // branch switch or a rapid rename can coalesce into one
+        // `didChangeWatchedFiles` notification), and the serial per-file path
+        // this replaces applied each event as it arrived, so only the last
+        // one for a given URI survived. A HashMap insert naturally keeps that
+        // "last write wins" semantics without needing to preserve array order.
+        let mut last_kind: HashMap<Uri, FileChangeType> = HashMap::new();
         for change in params.changes {
             // A project `.tcl-lsp.ini` (or user `config.ini`) edit re-applies the
             // layered config — a live-reload for these files.
@@ -9845,37 +11190,71 @@ impl LanguageServer for Backend {
                 config_changed = true;
                 continue;
             }
+            last_kind.insert(change.uri, change.typ);
+        }
+        // Partition the (deduplicated) event set so the disk-backed work below
+        // runs once per kind — a parallel read+analyse and one batched
+        // index/db mutation — instead of once per file (#1161: a 500-file
+        // branch switch used to run 500 sequential full analyses, each with
+        // its own `documents.lock()` / pull-cache probe, here).
+        let mut deleted: Vec<Uri> = Vec::new();
+        let mut changed: Vec<Uri> = Vec::new();
+        for (uri, typ) in last_kind {
             // Files the editor has open are driven by did_open/did_change; their
             // unsaved buffer must not be clobbered by the on-disk copy.
-            // `reindex_index_from_disk` re-checks this under the lock as well.
-            if self.documents.lock().await.contains_key(&change.uri) {
+            // `batch_reindex_from_disk` re-checks this under the lock as well.
+            if self.documents.lock().await.contains_key(&uri) {
                 continue;
             }
-            // Only a file that already has a badge (was opened, so it has a
-            // pull-cache entry) has its diagnostics refreshed/cleared here — a
-            // never-opened file that changes on disk gains no surprise badge.
-            let had_badge = self.pull_diag_cache.lock().await.contains_key(&change.uri);
-            if change.typ == FileChangeType::DELETED {
-                self.workspace_index
-                    .write()
-                    .await
-                    .remove_document(change.uri.as_str());
-                // Drop it from the salsa `Project` too, so a deleted file's procs
-                // stop suppressing W123 / driving the arity error cross-file.
-                self.db_remove_source(&change.uri).await;
-                if had_badge {
-                    closed_badge_clear.push(change.uri.clone());
-                }
+            if typ == FileChangeType::DELETED {
+                deleted.push(uri);
             } else {
                 // CREATED or CHANGED: re-analyse from disk (a Tcl source file)
                 // or drop it if it no longer reads as one.
-                self.reindex_index_from_disk(&change.uri).await;
-                if had_badge {
-                    closed_badge_refresh.push(change.uri.clone());
+                changed.push(uri);
+            }
+        }
+        let domain_changed = !deleted.is_empty() || !changed.is_empty();
+
+        // Closed files that already carry a badge (a pull-cache entry) and whose
+        // on-disk change must refresh (#865) or clear that badge — computed once
+        // under one lock rather than once per file, and applied after the whole
+        // batch has updated the resolution domain, so each refresh analyses
+        // against the final on-disk state — never a half-applied one when
+        // several files change together.
+        let (closed_badge_clear, closed_badge_refresh): (Vec<Uri>, Vec<Uri>) = {
+            let cache = self.pull_diag_cache.lock().await;
+            (
+                deleted
+                    .iter()
+                    .filter(|uri| cache.contains_key(uri))
+                    .cloned()
+                    .collect(),
+                changed
+                    .iter()
+                    .filter(|uri| cache.contains_key(uri))
+                    .cloned()
+                    .collect(),
+            )
+        };
+
+        // DELETED: one batched index mutation, then one batched salsa retire —
+        // dropping each file's procs from the workspace index and the salsa
+        // `Project` so a deleted file stops suppressing W123 / driving the
+        // arity error cross-file.
+        if !deleted.is_empty() {
+            {
+                let mut index = self.workspace_index.write().await;
+                for uri in &deleted {
+                    index.remove_document(uri.as_str());
                 }
             }
-            domain_changed = true;
+            self.db_remove_sources_batch(&deleted).await;
         }
+        // CREATED / CHANGED: read + analyse every file across the bounded
+        // worker pool, then one batched index/db merge.
+        self.batch_reindex_from_disk(&changed).await;
+
         // Refresh/clear the badges of the closed files that changed on disk, now
         // the resolution domain has settled (#865).
         for uri in &closed_badge_clear {
@@ -9996,23 +11375,37 @@ impl LanguageServer for Backend {
         // blocks and leaves every stanza unfoldable) — the folding twin of
         // the outline split in `document_symbol`.
         let bigip = Self::is_bigip_dialect(&doc.dialect);
-        let registry = self.registry_for_dialect(&doc.dialect).await;
-        // Pure-CPU tokenise/segment work; run on a worker so a parser panic
-        // is contained as a JSON-RPC error rather than unwinding the event
-        // loop (defence in depth).
-        let ranges = tokio::task::spawn_blocking(move || {
-            if bigip {
-                core_bigip::folding_ranges(&doc.text)
-            } else {
+        let ranges = if bigip {
+            let text = doc.text.clone();
+            // Pure-CPU tokenise/segment work; run on a worker so a parser
+            // panic is contained as a JSON-RPC error rather than unwinding
+            // the event loop (defence in depth).
+            tokio::task::spawn_blocking(move || core_bigip::folding_ranges(&text))
+                .await
+                .map_err(|err| jsonrpc::Error {
+                    code: jsonrpc::ErrorCode::InternalError,
+                    message: format!("folding worker panicked: {err}").into(),
+                    data: None,
+                })?
+        } else if let Some(ranges) = self.db_folding_ranges(&params.text_document.uri).await {
+            // Served from the salsa query graph (memoised); avoids a fresh
+            // segmenter/registry walk on every request.
+            ranges
+        } else {
+            // Cold / cancelled fallback: compute directly so the request
+            // never returns empty due to a concurrent edit (behaviour
+            // preserved).
+            let registry = self.registry_for_dialect(&doc.dialect).await;
+            tokio::task::spawn_blocking(move || {
                 tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, registry)
-            }
-        })
-        .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("folding worker panicked: {err}").into(),
-            data: None,
-        })?;
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("folding worker panicked: {err}").into(),
+                data: None,
+            })?
+        };
         Ok(Some(ranges.into_iter().map(lift_folding_range).collect()))
     }
 
@@ -11065,13 +12458,18 @@ impl LanguageServer for Backend {
         // handles at all.
         let served_enriched = cached_cu.is_some() || cached_analysis.is_some();
         // Pure-CPU tokenisation on a worker so a parser panic is contained
-        // as a JSON-RPC error.
-        let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
+        // as a JSON-RPC error.  The text goes in behind an `Arc` so the
+        // convergence continuation below shares this buffer instead of taking a
+        // second full-document copy (#1147).
+        let text: Arc<str> = Arc::from(doc.text.as_str());
+        let dialect = doc.dialect.clone();
+        let serve_text = Arc::clone(&text);
+        let serve_dialect = dialect.clone();
         let serve_registry = registry;
         let core_data = tokio::task::spawn_blocking(move || {
             core_semantic_tokens::range_with_cu_and_analysis(
-                &text,
-                &dialect,
+                &serve_text,
+                &serve_dialect,
                 core_range,
                 serve_registry,
                 cached_cu.as_deref(),
@@ -11090,17 +12488,37 @@ impl LanguageServer for Backend {
         // enriched reads overran the budget, detach a continuation that awaits
         // them and refreshes once the enriched viewport differs.
         if let Some(pending) = pending {
-            self.spawn_range_convergence(
-                RangeConvergenceInputs {
-                    uri: uri.as_str().to_owned(),
-                    served: core_data.clone(),
-                    registry,
-                    text: doc.text.clone(),
-                    dialect: doc.dialect.clone(),
-                    range: core_range,
-                },
-                pending,
-            );
+            // At most one continuation per document (#1147): a client scrolling
+            // a cold file issues a viewport request per frame, and each detached
+            // continuation holds the document and queues a blocking recompute
+            // only to ask for the same workspace-wide refresh the pending one
+            // will already ask for.
+            if let Some(guard) = ConvergenceGuard::claim(&self.semantic_tokens_convergence, uri) {
+                self.spawn_range_convergence(
+                    RangeConvergenceInputs {
+                        uri: uri.as_str().to_owned(),
+                        served: core_data.clone(),
+                        registry,
+                        text,
+                        dialect,
+                        range: core_range,
+                    },
+                    pending,
+                    guard,
+                );
+            } else {
+                // Settle here: the in-flight continuation settles under its own
+                // request's marker, so without this one an observer waiting on
+                // *this* request's decision would wait for a line that never
+                // comes.
+                log_range_convergence_settled(
+                    &self.client,
+                    uri.as_str(),
+                    false,
+                    RangeSettleOutcome::Coalesced,
+                )
+                .await;
+            }
         } else {
             // No continuation to detach, so settle here instead: this request's
             // convergence decision is already final and an observer waiting on
@@ -11135,55 +12553,100 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
-        // Walk every cached document and collect matching
-        // symbols.  This iterates the document
-        // store on the LSP loop (acquiring the mutex briefly).
-        let docs = self.documents.lock().await.clone();
-        if docs.is_empty() {
+        // Answered from the workspace index, not from the open-document map
+        // (#1156).  VS Code re-issues this request on every keystroke in its
+        // Ctrl+T box, and the previous handler cloned the whole document store
+        // — every buffer and its `LineIndex` — and then serially re-analysed
+        // each open document per keystroke, while missing every symbol in a
+        // file the editor had not opened.  The index already holds each of
+        // them, filters before materialising, and caps the answer.
+        //
+        // Freshness: the index is refreshed on each document's diagnostics
+        // publish, which the debounce puts ~50 ms behind an edit.  A symbol
+        // picker tolerates that — it is the same staleness every other
+        // cross-document feature answers with.  What it does *not* tolerate is
+        // an index that has not been populated at all yet, so wait out the
+        // initial folder scan first (#1179).  The `didOpen`/`didChange`
+        // barrier comes first for the same reason every other reader takes it:
+        // a query issued after an open must observe that open.
+        self.edits_settled().await;
+        self.wait_for_workspace_scan().await;
+        let limit = core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS;
+        // Open buffers the index does not currently hold, filled in from their
+        // own analysis.  `did_open` drops a document's index entry (its
+        // on-disk records stop being authoritative the moment a buffer exists)
+        // and the debounced publish is what puts it back, so for that window
+        // every symbol in the file the user *just opened* — the file most
+        // likely to be searched for — was missing from the picker (#1179).
+        // Bounded by the open-document set, empty in steady state, and the
+        // analysis read here is the memoised one the pending publish is
+        // already computing.
+        let mut hits = self.open_but_unindexed_symbols(&params.query, limit).await;
+        if hits.len() < limit {
+            let remaining = limit - hits.len();
+            let index = self.workspace_index.read().await;
+            hits.extend(index.symbols_matching(&params.query, remaining));
+        }
+        if hits.is_empty() {
             return Ok(None);
         }
-        let query = params.query;
-        let mut all: Vec<SymbolInformation> = Vec::new();
-        for (uri, doc) in docs {
-            let text = doc.text.clone();
-            let dialect = doc.dialect.clone();
-            let q = query.clone();
-            let analysis = self.analysis_for(&uri, text.clone(), dialect.clone()).await;
-            let symbols = tokio::task::spawn_blocking(move || {
-                core_workspace_symbols::workspace_symbols(&text, &q, &analysis)
-            })
-            .await
-            .map_err(|err| jsonrpc::Error {
-                code: jsonrpc::ErrorCode::InternalError,
-                message: format!("workspace_symbols worker panicked: {err}").into(),
-                data: None,
-            })?;
-            for s in symbols {
-                #[allow(deprecated)]
-                all.push(SymbolInformation {
-                    name: s.name,
-                    kind: match s.kind {
-                        // A tcltest case has no dedicated LSP kind; it lists as
-                        // a function alongside real functions.
-                        CoreWorkspaceSymbolKind::Function | CoreWorkspaceSymbolKind::Test => {
-                            SymbolKind::FUNCTION
-                        }
-                        CoreWorkspaceSymbolKind::Class => SymbolKind::CLASS,
-                        CoreWorkspaceSymbolKind::Method => SymbolKind::METHOD,
-                        CoreWorkspaceSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
-                        CoreWorkspaceSymbolKind::Constant => SymbolKind::CONSTANT,
-                        CoreWorkspaceSymbolKind::Operator => SymbolKind::OPERATOR,
-                        CoreWorkspaceSymbolKind::Event => SymbolKind::EVENT,
-                    },
-                    tags: None,
-                    deprecated: None,
-                    location: Location {
-                        uri: uri.clone(),
-                        range: lift_lsp_range(s.range),
-                    },
-                    container_name: s.container_name,
-                });
+        // A name span becomes an LSP range only against its own document's
+        // source, which the index deliberately does not hold.  `hits` arrives
+        // grouped by URI, so each document is resolved once — from the open
+        // buffer when there is one, else from disk.
+        let mut sources: HashMap<String, Option<DocumentState>> = HashMap::new();
+        let mut all: Vec<SymbolInformation> = Vec::with_capacity(hits.len());
+        for hit in hits {
+            if !sources.contains_key(&hit.uri) {
+                let loaded = match Uri::from_str(&hit.uri) {
+                    Ok(uri) => self.read_document(&uri).await,
+                    Err(_) => None,
+                };
+                sources.insert(hit.uri.clone(), loaded);
             }
+            let (Some(Some(doc)), Ok(uri)) = (sources.get(&hit.uri), Uri::from_str(&hit.uri))
+            else {
+                continue;
+            };
+            let start = doc
+                .line_index
+                .position_at_utf16(hit.name_span.start(), &doc.text);
+            let end = doc
+                .line_index
+                .position_at_utf16(hit.name_span.end(), &doc.text);
+            #[allow(deprecated)]
+            all.push(SymbolInformation {
+                name: hit.name,
+                kind: match hit.kind {
+                    // A tcltest case has no dedicated LSP kind; it lists as
+                    // a function alongside real functions.
+                    CoreWorkspaceSymbolKind::Function | CoreWorkspaceSymbolKind::Test => {
+                        SymbolKind::FUNCTION
+                    }
+                    CoreWorkspaceSymbolKind::Class => SymbolKind::CLASS,
+                    CoreWorkspaceSymbolKind::Method => SymbolKind::METHOD,
+                    CoreWorkspaceSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
+                    CoreWorkspaceSymbolKind::Constant => SymbolKind::CONSTANT,
+                    CoreWorkspaceSymbolKind::Operator => SymbolKind::OPERATOR,
+                    CoreWorkspaceSymbolKind::Event => SymbolKind::EVENT,
+                },
+                tags: None,
+                deprecated: None,
+                location: Location {
+                    uri,
+                    range: Range {
+                        start: Position {
+                            line: start.line,
+                            character: start.character.get(),
+                        },
+                        end: Position {
+                            line: end.line,
+                            character: end.character.get(),
+                        },
+                    },
+                },
+                container_name: hit.container_name,
+            });
         }
         if all.is_empty() {
             return Ok(None);
@@ -11465,33 +12928,19 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        // Share the workspace index with the worker via a refcounted
-        // handle and take the read lock inside the blocking closure,
-        // so the recomputed count walk holds a shared read lock
-        // rather than a private copy.
-        let workspace_index = Arc::clone(&self.workspace_index);
-        let uri_str = uri.to_string();
-        let analysis_for_count = Arc::clone(&analysis);
-        let count_text = doc.text.clone();
-        let count_dialect = doc.dialect.clone();
-        let lenses = tokio::task::spawn_blocking(move || {
-            let workspace = workspace_index.blocking_read();
-            core_code_lens::code_lenses(
-                &count_text,
-                &count_dialect,
-                Some(&analysis_for_count),
-                Some(&*workspace),
-                &uri_str,
-            )
-        })
-        .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("code_lens_resolve worker panicked: {err}").into(),
-            data: None,
-        })?;
         let mut lens = lens;
-        if lenses.iter().any(|l| l.qname == qname) {
+        // Existence check only — is `qname` one of *this* document's own
+        // lenses at all? Previously answered by recomputing the whole
+        // document's lens set (`code_lenses`, O(every proc + every class +
+        // every member's own reference-resolution walk)) and searching it for
+        // a matching `qname`, even though that result was discarded the
+        // moment the check passed — the title below always comes from
+        // `reference_locations_at`, never from `code_lenses`'s own count
+        // (issue #991). `lens_qname_exists` answers the same question with
+        // direct lookups against `analysis`'s own tables (issue #1152), so a
+        // click on one lens no longer re-derives every *other* lens in the
+        // document.
+        if core_code_lens::lens_qname_exists(&analysis, &qname) {
             // Resolve the actual reference locations so clicking the lens opens
             // a peek (the lens title alone is informational — a bare title with
             // no command is rendered but inert, the "reference is not active"
@@ -12042,9 +13491,9 @@ impl LanguageServer for Backend {
     }
 
     /// `workspace/didRenameFiles`: after the client applies a
-    /// rename on disk, refresh the workspace index — drop the old URI's
-    /// entries and re-index the renamed file from its new path so
-    /// cross-document features (including future renames) stay current.
+    /// rename on disk, refresh the workspace — retire the old URI entirely
+    /// and re-index the renamed file from its new path so cross-document
+    /// features (including future renames) stay current.
     async fn did_rename_files(&self, params: RenameFilesParams) {
         // Same workspace-file-ops gate as `will_rename_files`.
         if !self
@@ -12057,10 +13506,7 @@ impl LanguageServer for Backend {
         }
         for f in &params.files {
             if let Ok(old_url) = Uri::from_str(&f.old_uri) {
-                self.workspace_index
-                    .write()
-                    .await
-                    .remove_document(old_url.as_str());
+                self.retire_renamed_uri(&old_url).await;
             }
             if let Ok(new_url) = Uri::from_str(&f.new_uri) {
                 self.reindex_index_from_disk(&new_url).await;
@@ -12149,7 +13595,7 @@ impl LanguageServer for Backend {
         // same gate `compute_definition` applies — otherwise an argument word
         // that happens to share a sibling proc's name would pop up that proc's
         // signature.  Computed here, while `analysis` is still in scope.
-        let on_command_head = position_is_command_head(&doc.text, pos, &analysis);
+        let on_command_head = position_is_command_head(&doc.text, pos, &analysis, &doc.line_index);
         // A namespace-name argument is answered here, in full, and never
         // reaches the tiers below — the position is definitive, and the
         // counts describe the whole workspace rather than just this document
@@ -12281,7 +13727,19 @@ fn materialise_selection_range(
 /// `character` is a UTF-16 code-unit offset. `None` when the line is
 /// out of range.
 fn line_col_to_byte_offset(source: &str, line: u32, col: u32) -> Option<usize> {
-    let index = tcl_lexer::LineIndex::new_lsp(source);
+    line_col_to_byte_offset_indexed(&tcl_lexer::LineIndex::new_lsp(source), source, line, col)
+}
+
+/// [`line_col_to_byte_offset`], but resolved through a caller-supplied
+/// `index` instead of rebuilding one — for a caller that already holds the
+/// document's persisted [`tcl_lexer::LineIndex`] (`DocumentState::line_index`),
+/// so a per-request lookup doesn't pay for a whole-document rescan.
+fn line_col_to_byte_offset_indexed(
+    index: &tcl_lexer::LineIndex,
+    source: &str,
+    line: u32,
+    col: u32,
+) -> Option<usize> {
     if line as usize >= index.line_count() {
         return None;
     }
@@ -12293,8 +13751,18 @@ fn line_col_to_byte_offset(source: &str, line: u32, col: u32) -> Option<usize> {
 /// invocations.  Used to gate the cross-document go-to-definition
 /// fallback so it only fires on call sites, not on argument words
 /// that happen to collide with a sibling proc/class name.
-fn position_is_command_head(source: &str, pos: Position, analysis: &AnalysisResult) -> bool {
-    let Some(offset) = line_col_to_byte_offset(source, pos.line, pos.character) else {
+///
+/// `index` is the caller's persisted [`tcl_lexer::LineIndex`]
+/// (`DocumentState::line_index`) — resolved through it rather than a fresh
+/// rebuild, since both hover and go-to-definition call this on every request.
+fn position_is_command_head(
+    source: &str,
+    pos: Position,
+    analysis: &AnalysisResult,
+    index: &tcl_lexer::LineIndex,
+) -> bool {
+    let Some(offset) = line_col_to_byte_offset_indexed(index, source, pos.line, pos.character)
+    else {
         return false;
     };
     analysis.command_invocations.iter().any(|inv| {
@@ -13193,33 +14661,80 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
 /// char boundaries within `text`.
 #[cfg(test)]
 fn apply_content_change(text: &str, range: Option<Range>, new_text: &str) -> String {
-    // Throwaway index for the splice-behaviour tests; the live path persists one
-    // through [`apply_content_change_indexed`].
+    // Throwaway index + flag for the splice-behaviour tests; the live path
+    // persists both through [`apply_content_change_indexed`].
     let mut index = tcl_lexer::LineIndex::new_lsp(text);
-    apply_content_change_indexed(text, range, new_text, &mut index)
+    let mut has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(text);
+    apply_content_change_indexed(text, range, new_text, &mut index, &mut has_bare_cr)
+}
+
+/// Whether splicing `new_text` into `text[start..end)` could leave a bare
+/// `\r` — a `\r` not immediately followed by `\n` — somewhere the edit
+/// touches, given that `text` itself has none (checked by the caller via
+/// [`tcl_lexer::LineIndex::contains_bare_cr`] before relying on this).
+///
+/// A change can only ever *introduce* a bare `\r` at the seam it touches: a
+/// `\r` inside `new_text` itself, or a `\r` immediately before `start` that
+/// `new_text` no longer pairs with a following `\n`. Nothing elsewhere in
+/// `text` is affected, so this is a local, `O(new_text.len())` check — not a
+/// document-wide rescan.
+fn edit_introduces_bare_cr(text: &str, start: usize, end: usize, new_text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let new_bytes = new_text.as_bytes();
+    let stays_paired = |next: Option<u8>| next == Some(b'\n');
+    if start > 0
+        && bytes[start - 1] == b'\r'
+        && !stays_paired(
+            new_bytes
+                .first()
+                .copied()
+                .or_else(|| bytes.get(end).copied()),
+        )
+    {
+        return true;
+    }
+    new_bytes.iter().enumerate().any(|(i, &b)| {
+        b == b'\r'
+            && !stays_paired(
+                new_bytes
+                    .get(i + 1)
+                    .copied()
+                    .or_else(|| bytes.get(end).copied()),
+            )
+    })
 }
 
 /// [`apply_content_change`] that resolves the edit through a **persisted**
 /// [`tcl_lexer::LineIndex`] built with the LSP end-of-line model
-/// ([`tcl_lexer::LineIndex::new_lsp`]), then rebuilds it from the spliced
-/// result so it stays consistent with the returned text.
+/// ([`tcl_lexer::LineIndex::new_lsp`]), keeping it (and `has_bare_cr`) in
+/// lock-step with the returned text.
 ///
 /// The index **must** use the LSP EOL model (`\n`, `\r\n`, *and lone `\r`*):
 /// the client resolves the incoming `range` against that model, so a `\n`-only
 /// index would resolve a bare-`\r` file's edit to the wrong byte offset and
-/// corrupt the shadow buffer. The `\n`-only [`tcl_lexer::LineIndex::apply_edit`]
-/// cannot maintain an LSP index incrementally across CR/LF boundary ambiguity,
-/// and re-analysis after a change is whole-document regardless, so the index is
-/// rebuilt (not patched) — correctness over a micro-optimisation that never
-/// dominated the change handler's cost.
+/// corrupt the shadow buffer.
+///
+/// [`tcl_lexer::LineIndex::apply_edit`] only tracks `\n`-delimited breaks
+/// (plus the LF half of a CRLF pair), so it patches an `new_lsp`-built index
+/// exactly as a full [`tcl_lexer::LineIndex::new_lsp`] rebuild would **only**
+/// while the document has no bare `\r` to disambiguate — the same condition
+/// its own fuzz-equivalence test (`apply_edit_matches_rebuild_under_fuzz`,
+/// whose edit alphabet is `\n`/`x` only) relies on. `*has_bare_cr` is the
+/// document-level fast path (checked once per edit rather than rescanning);
+/// [`edit_introduces_bare_cr`] additionally catches an edit that would be the
+/// *first* to introduce one, so a document that opened clean stays on the
+/// incremental path for exactly as long as it stays clean, and falls back —
+/// correctly, not just fast — the moment it doesn't.
 fn apply_content_change_indexed(
     text: &str,
     range: Option<Range>,
     new_text: &str,
     index: &mut tcl_lexer::LineIndex,
+    has_bare_cr: &mut bool,
 ) -> String {
     let Some(range) = range else {
         *index = tcl_lexer::LineIndex::new_lsp(new_text);
+        *has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(new_text);
         return new_text.to_owned();
     };
     let a = index.offset_at_utf16(
@@ -13239,9 +14754,106 @@ fn apply_content_change_indexed(
     out.push_str(&text[..start]);
     out.push_str(new_text);
     out.push_str(&text[end..]);
-    // Rebuild the LSP-EOL index from the spliced document.
-    *index = tcl_lexer::LineIndex::new_lsp(&out);
+    if *has_bare_cr || edit_introduces_bare_cr(text, start, end, new_text) {
+        *index = tcl_lexer::LineIndex::new_lsp(&out);
+        *has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&out);
+    } else {
+        index.apply_edit(
+            u32::try_from(start).expect("splice start fits u32 (LineIndex's own 4 GiB budget)"),
+            u32::try_from(end).expect("splice end fits u32 (LineIndex's own 4 GiB budget)"),
+            new_text,
+        );
+    }
     out
+}
+
+/// Leading lines within which a directive/shebang dialect hint can appear —
+/// generous margin over [`tcl_registry::dialects::DIALECT_DIRECTIVE_SCAN_LINES`]
+/// (5 lines) and the shebang's line 0, so a short header comment ahead of one
+/// still counts as "near the top" for [`change_could_affect_dialect_hint`].
+const DIALECT_HINT_LINE_MARGIN: u32 = 20;
+
+/// Whether an edit could change what [`Backend::dialect_for_open`]'s in-source
+/// detection ([`tcl_registry::dialects::detect_dialect`]) returns for this
+/// document, so `did_change` can skip the whole-document clone + rescan it
+/// would otherwise pay on every keystroke of a `languageId: "tcl"` buffer.
+///
+/// A conservative superset, not an exact replay of the detector: `true` when
+/// the edit touches the leading [`DIALECT_HINT_LINE_MARGIN`] lines (covers the
+/// directive/shebang tiers with margin), or when the **whole lines** the edit
+/// touches — before *and* after the splice — contain one of the substrings
+/// [`tcl_registry::dialects::dialect_hint_markers`] lists (covers the
+/// content-signature / version-guard tiers, wherever in the document they
+/// land). A `None` range (a full-document replacement) always returns `true`
+/// — there is no local edit to reason about.
+///
+/// Widening to line boundaries is what makes the marker test sound.
+/// [`tcl_registry::dialects::detect_dialect`] scans the *whole* source for
+/// those tiers (head first, then the full text on a miss), so a marker at line
+/// 500 counts — and a one-character edit *inside* such a line changes what the
+/// detector returns while the changed slice itself holds no marker at all.
+/// Editing the `6` of `package require Tcl 8.6` is the canonical case: the
+/// removed and inserted slices are both a single digit. Reading the touched
+/// lines instead costs those lines, not the document, and the persisted
+/// [`tcl_lexer::LineIndex`] gives their bounds without a scan.
+fn change_could_affect_dialect_hint(
+    text: &str,
+    range: Option<Range>,
+    new_text: &str,
+    index: &tcl_lexer::LineIndex,
+) -> bool {
+    let Some(range) = range else {
+        return true;
+    };
+    if range.start.line < DIALECT_HINT_LINE_MARGIN {
+        return true;
+    }
+    let len = text.len();
+    let offset = |line: u32, character: u32| {
+        index.offset_at_utf16(line, tcl_lexer::Utf16Col::new(character), text) as usize
+    };
+    let (first_line, last_line) = (
+        range.start.line.min(range.end.line),
+        range.start.line.max(range.end.line),
+    );
+    // The touched lines in full, in the pre-edit text: `[line_start(first) ..
+    // line_start(last + 1))`, clamped for the last line of the document.
+    let line_from = offset(first_line, 0).min(len);
+    let line_to = if (last_line as usize) + 1 < index.line_count() {
+        offset(last_line + 1, 0).min(len)
+    } else {
+        len
+    };
+    let touched = &text[line_from..line_to.max(line_from)];
+    if contains_dialect_hint_marker(touched) {
+        return true;
+    }
+    // The same lines as the splice leaves them: everything before the edit on
+    // the first touched line, the inserted text, everything after the edit on
+    // the last one. Built rather than tested piecewise so a marker straddling
+    // the splice point is still seen.
+    let a = offset(range.start.line, range.start.character).min(len);
+    let b = offset(range.end.line, range.end.character).min(len);
+    let (cut_from, cut_to) = (a.min(b), a.max(b));
+    let mut spliced =
+        String::with_capacity((cut_from - line_from) + new_text.len() + (line_to - cut_to));
+    spliced.push_str(&text[line_from..cut_from]);
+    spliced.push_str(new_text);
+    spliced.push_str(&text[cut_to..line_to.max(cut_to)]);
+    contains_dialect_hint_marker(&spliced)
+}
+
+/// Whether `s` contains any of [`tcl_registry::dialects::dialect_hint_markers`].
+///
+/// Case-insensitive to match the detector: the `tcl-dialect:` directive key is
+/// compared with `eq_ignore_ascii_case` and the content-signature tiers
+/// lowercase their words, so `# TCL-DIALECT: irules` is live to
+/// [`tcl_registry::dialects::detect_dialect`] and must not slip past this
+/// filter. The haystack is only an edit's touched lines, so the lowercase
+/// copy is a few bytes, not the document.
+fn contains_dialect_hint_marker(s: &str) -> bool {
+    let lower = s.to_ascii_lowercase();
+    tcl_registry::dialects::dialect_hint_markers().any(|m| lower.contains(m))
 }
 
 fn lift_span(source: &str, line_index: &tcl_lexer::LineIndex, span: tcl_lexer::Span) -> Range {
@@ -16610,6 +18222,7 @@ mod tests {
         };
         let mut text = "abc\ndef\nghi\n".to_string();
         let mut index = tcl_lexer::LineIndex::new_lsp(&text);
+        let mut has_bare_cr = false;
         let edits = [
             (
                 Some(Range {
@@ -16634,8 +18247,15 @@ mod tests {
                 "Z",
             ), // collapse a line
         ];
+        // None of these edits ever puts a `\r` in the buffer, so every one of
+        // them stays on the incremental `LineIndex::apply_edit` path — the
+        // same `\r`-free alphabet `apply_edit_matches_rebuild_under_fuzz`
+        // (tcl-lexer's own fuzz-equivalence gate) proves patched-vs-rebuilt
+        // for. This test is the `did_change` integration of that guarantee.
         for (range, new_text) in edits {
-            text = apply_content_change_indexed(&text, range, new_text, &mut index);
+            text =
+                apply_content_change_indexed(&text, range, new_text, &mut index, &mut has_bare_cr);
+            assert!(!has_bare_cr, "no edit here ever introduces a bare CR");
             assert_eq!(
                 line_starts(&index),
                 line_starts(&tcl_lexer::LineIndex::new_lsp(&text)),
@@ -16646,12 +18266,22 @@ mod tests {
 
     /// `RUST_ISSUE_033`: an incremental edit on an old-Mac (bare-`\r`) buffer must
     /// resolve against the LSP EOL model so the splice lands at the right byte
-    /// and the shadow buffer stays correct.
+    /// and the shadow buffer stays correct. A bare-`\r` document is exactly the
+    /// case [`apply_content_change_indexed`] cannot patch incrementally (the
+    /// `\n`-only `LineIndex::apply_edit` has no way to place the extra `\r`
+    /// break), so it must fall back to a full rebuild here — asserted via
+    /// `has_bare_cr` staying `true`, not just via the result being correct
+    /// (both paths would produce the same index; only the fallback is sound).
     #[test]
     fn apply_content_change_indexed_handles_bare_cr_document() {
         // Client models "a\rb\rc" as 3 lines (0="a", 1="b", 2="c").
         let mut text = "a\rb\rc".to_string();
         let mut index = tcl_lexer::LineIndex::new_lsp(&text);
+        let mut has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&text);
+        assert!(
+            has_bare_cr,
+            "the fixture must actually be a bare-CR document"
+        );
         // Replace line 1 ("b") with "BB": range (1,0)..(1,1).
         text = apply_content_change_indexed(
             &text,
@@ -16661,14 +18291,225 @@ mod tests {
             }),
             "BB",
             &mut index,
+            &mut has_bare_cr,
         );
         assert_eq!(text, "a\rBB\rc", "edit spliced at the wrong offset");
+        assert!(has_bare_cr, "the document is still bare-CR after the edit");
         // The persisted index matches a fresh LSP rebuild.
         let rebuilt = tcl_lexer::LineIndex::new_lsp(&text);
         assert_eq!(index.line_count(), rebuilt.line_count());
         for l in 0..u32::try_from(index.line_count()).unwrap() {
             assert_eq!(index.line_start(l), rebuilt.line_start(l), "line {l}");
         }
+    }
+
+    /// An edit on a document already free of a bare CR takes the incremental
+    /// `LineIndex::apply_edit` path from then on, only falling back for the
+    /// *specific* edit that would introduce one — [`edit_introduces_bare_cr`]
+    /// is the decision function that draws that line.
+    #[test]
+    fn edit_introduces_bare_cr_detects_boundary_and_internal_lone_cr() {
+        // A `\r` inside `new_text` with no following `\n` is bare.
+        assert!(edit_introduces_bare_cr("abc", 1, 1, "\rX"));
+        // `\r\n` inside `new_text` is a valid pair, not bare.
+        assert!(!edit_introduces_bare_cr("abc", 1, 1, "\r\nX"));
+        // A trailing `\r` in `new_text` that lands right before a pre-existing
+        // `\n` (at `end`) is not bare — the pair straddles the edit boundary.
+        assert!(!edit_introduces_bare_cr("a\nb", 1, 1, "\r"));
+        // The same trailing `\r`, but nothing follows it, is bare.
+        assert!(edit_introduces_bare_cr("ab", 1, 1, "\r"));
+        // A `\r` already sitting just before `start`, still paired with the
+        // `\n` that follows the edit, is not bare.
+        assert!(!edit_introduces_bare_cr("a\r\nb", 2, 2, ""));
+        // The same `\r`, once the edit removes the `\n` it was paired with,
+        // becomes bare.
+        assert!(edit_introduces_bare_cr("a\r\nb", 2, 3, ""));
+        // No `\r` anywhere near the edit.
+        assert!(!edit_introduces_bare_cr("abcdef", 2, 3, "XY"));
+    }
+
+    /// Pure unit coverage of the dialect-hint edit gate — no async backend
+    /// needed, since [`change_could_affect_dialect_hint`] is a pure function
+    /// of the edit and the pre-edit buffer. A plain-file edit deep in the
+    /// document does not look hint-touching; the same edit landing on line 0
+    /// (or spelling out a directive/content-signature marker) does.
+    #[test]
+    fn dialect_hint_gate_skips_a_deep_plain_edit_but_catches_a_directive() {
+        use std::fmt::Write as _;
+        let mut body = String::from("# an ordinary Tcl script\n");
+        for i in 0..500 {
+            writeln!(body, "puts {i}").unwrap();
+        }
+        let index = tcl_lexer::LineIndex::new_lsp(&body);
+        // An edit at line 500 that only touches ordinary text: no hint marker
+        // anywhere near it, nowhere near the directive/shebang lines.
+        let deep_edit = Range {
+            start: pos(500, 5),
+            end: pos(500, 6),
+        };
+        assert!(
+            !change_could_affect_dialect_hint(&body, Some(deep_edit), "9", &index),
+            "an edit to a bare digit deep in a plain file must not re-trigger detection"
+        );
+        // The same line, but the inserted text spells out a directive form —
+        // caught by the marker-text check even though it's nowhere near the
+        // top of the file.
+        let deep_directive_edit = Range {
+            start: pos(500, 0),
+            end: pos(500, 0),
+        };
+        assert!(
+            change_could_affect_dialect_hint(
+                &body,
+                Some(deep_directive_edit),
+                "# tcl-dialect: tcl8.4\n",
+                &index
+            ),
+            "inserting a tcl-dialect directive text must re-trigger detection"
+        );
+        // An edit on line 0 (where a directive or shebang could land) always
+        // re-triggers, regardless of what the edit itself contains.
+        let top_edit = Range {
+            start: pos(0, 0),
+            end: pos(0, 0),
+        };
+        assert!(
+            change_could_affect_dialect_hint(&body, Some(top_edit), "x", &index),
+            "an edit on the leading lines must always re-trigger detection"
+        );
+        // A full-document replacement always re-triggers.
+        assert!(change_could_affect_dialect_hint(
+            &body,
+            None,
+            "puts hi\n",
+            &index
+        ));
+    }
+
+    /// PR #1179 review (Codex P1): the marker test must widen the edit to the
+    /// **lines** it touches, not just the changed slice.
+    ///
+    /// `detect_dialect` scans the whole source for the version-guard and
+    /// content-signature tiers, so a `package require Tcl 8.6` at line 500 is
+    /// live — and retyping its version digit changes what the detector
+    /// returns while the removed and inserted slices are both a bare digit
+    /// holding no marker at all.  The gate must re-trigger on that, and still
+    /// not on an edit to an ordinary line at the same depth.
+    #[test]
+    fn dialect_hint_gate_catches_an_edit_inside_a_deep_marker_line() {
+        use std::fmt::Write as _;
+        let mut body = String::from("# an ordinary Tcl script\n");
+        for i in 0..500 {
+            writeln!(body, "puts {i}").unwrap();
+        }
+        // Line 501 (0-based) carries a live version guard, far past the
+        // leading-lines margin.
+        let guard_line = u32::try_from(body.lines().count()).unwrap();
+        body.push_str("package require Tcl 8.6\n");
+        writeln!(body, "puts done").unwrap();
+        let index = tcl_lexer::LineIndex::new_lsp(&body);
+        // Retype the minor version: `8.6` → `8.4`. The slice on both sides of
+        // the splice is one digit.
+        let digit = u32::try_from("package require Tcl 8.".len()).unwrap();
+        let version_edit = Range {
+            start: pos(guard_line, digit),
+            end: pos(guard_line, digit + 1),
+        };
+        assert!(
+            change_could_affect_dialect_hint(&body, Some(version_edit), "4", &index),
+            "a version-digit edit inside a deep `package require` line must re-trigger detection"
+        );
+        // Deleting the digit (no inserted text at all) is the same case.
+        assert!(
+            change_could_affect_dialect_hint(&body, Some(version_edit), "", &index),
+            "deleting inside the marker line must re-trigger detection too"
+        );
+        // The plain line right after it, at the same depth, still does not.
+        let plain_edit = Range {
+            start: pos(guard_line + 1, 5),
+            end: pos(guard_line + 1, 6),
+        };
+        assert!(
+            !change_could_affect_dialect_hint(&body, Some(plain_edit), "x", &index),
+            "an edit to an ordinary deep line must still skip the rescan"
+        );
+        // A marker typed one character at a time is caught the moment the
+        // spliced line first spells one out, even though no single keystroke
+        // ever carries the whole marker.
+        let partial_line = u32::try_from(body.lines().count()).unwrap();
+        body.push_str("packag\n");
+        let index = tcl_lexer::LineIndex::new_lsp(&body);
+        let finish_marker = Range {
+            start: pos(partial_line, 6),
+            end: pos(partial_line, 6),
+        };
+        assert!(
+            change_could_affect_dialect_hint(&body, Some(finish_marker), "e", &index),
+            "the keystroke that completes a marker on the line must re-trigger detection"
+        );
+    }
+
+    /// The pre-edit half of the widened test: **removing** a marker matters as
+    /// PR #1179 review (Copilot): the marker filter must be case-insensitive,
+    /// because the detector is.  The `tcl-dialect:` directive key is matched
+    /// with `eq_ignore_ascii_case` and the content-signature tiers lowercase
+    /// their words, so `# TCL-DIALECT: irules` typed deep in a document is
+    /// live to `detect_dialect` — a case-sensitive `contains` over the
+    /// lowercase marker list would skip the re-detect and strand the buffer
+    /// on its stale dialect.
+    #[test]
+    fn dialect_hint_gate_is_case_insensitive_like_the_detector() {
+        use std::fmt::Write as _;
+        let mut body = String::from("# an ordinary Tcl script\n");
+        for i in 0..500 {
+            writeln!(body, "puts {i}").unwrap();
+        }
+        let index = tcl_lexer::LineIndex::new_lsp(&body);
+        let deep_insert = Range {
+            start: pos(500, 0),
+            end: pos(500, 0),
+        };
+        assert!(
+            change_could_affect_dialect_hint(
+                &body,
+                Some(deep_insert),
+                "# TCL-DIALECT: irules\n",
+                &index
+            ),
+            "an upper-case directive is live to the detector and must re-trigger"
+        );
+        assert!(
+            change_could_affect_dialect_hint(
+                &body,
+                Some(deep_insert),
+                "PACKAGE REQUIRE Tcl 8.6\n",
+                &index
+            ),
+            "upper-case marker words must re-trigger like their lower-case forms"
+        );
+    }
+
+    /// much as adding one.  Deleting the `package require Tcl 8.4` line from
+    /// deep in a document changes the detected dialect back to the default,
+    /// and the deleted slice is the only place that marker still appears.
+    #[test]
+    fn dialect_hint_gate_catches_deleting_a_deep_marker_line() {
+        use std::fmt::Write as _;
+        let mut body = String::from("# an ordinary Tcl script\n");
+        for i in 0..500 {
+            writeln!(body, "puts {i}").unwrap();
+        }
+        let guard_line = u32::try_from(body.lines().count()).unwrap();
+        body.push_str("package require Tcl 8.4\n");
+        let index = tcl_lexer::LineIndex::new_lsp(&body);
+        let delete_line = Range {
+            start: pos(guard_line, 0),
+            end: pos(guard_line + 1, 0),
+        };
+        assert!(
+            change_could_affect_dialect_hint(&body, Some(delete_line), "", &index),
+            "deleting the whole marker line must re-trigger detection"
+        );
     }
 
     /// The source-style pass must reach the
@@ -18074,8 +19915,16 @@ mod tests {
     /// `LspService::new` and copy the wrapped `Client` into a
     /// fresh `Backend` with reset state.
     fn test_backend() -> Backend {
+        test_backend_over(tcl_lsp_db::TclDatabase::default())
+    }
+
+    /// [`test_backend`] over a caller-supplied query database, so a test can
+    /// supply one with an event logger attached and observe which salsa queries
+    /// a handler actually executes.  The `AnalyserConfig` input must be created
+    /// against the same database, which is why it cannot simply be swapped in
+    /// after the fact.
+    fn test_backend_over(db: tcl_lsp_db::TclDatabase) -> Backend {
         let (service, _socket) = tower_lsp_server::LspService::new(Backend::new);
-        let db = tcl_lsp_db::TclDatabase::default();
         let db_config = tcl_lsp_db::AnalyserConfig::new(
             &db,
             default_disabled_set().into_iter().collect(),
@@ -18093,14 +19942,18 @@ mod tests {
             folder_dialects: Mutex::new(Vec::new()),
             folder_configs: Mutex::new(Vec::new()),
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
+            folder_db_config_tombstones: Arc::new(Mutex::new(HashMap::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(default_disabled_set()),
             severity_overrides: Mutex::new(HashMap::new()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
+            recovery_names: Arc::new(Mutex::new(RecoveryNameCache::default())),
             workspace_scan_gate: tokio::sync::Mutex::new(()),
+            workspace_scan_ready: Arc::new(WorkspaceScanReadiness::default()),
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
+            rehoming_gate: tokio::sync::Mutex::new(()),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
@@ -18116,14 +19969,18 @@ mod tests {
             style_line_length: Mutex::new(120),
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
+            db_tombstones: Arc::new(Mutex::new(HashMap::new())),
             db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
             closed_diag_gen: Arc::new(Mutex::new(HashMap::new())),
+            closed_diag_order: Arc::new(Mutex::new(VecDeque::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
+            semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
         }
@@ -18280,21 +20137,204 @@ mod tests {
         );
     }
 
+    /// #1144: `diag_slots` must shrink when a document closes.  Every URI ever
+    /// scheduled used to keep its slot — and with it a [`DiagInputs`] holding
+    /// per-URI clones of the disabled / extra-command / severity-override /
+    /// entry-point sets — for the process's life, so browsing a workspace grew
+    /// the map without bound.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn did_close_drops_the_diagnostics_slot() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///slot-drop.tcl").unwrap();
+        backend
+            .did_open(DidOpenTextDocumentParams {
+                text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "tcl".to_owned(),
+                    version: 1,
+                    text: "proc foo {} { set y 1 }\n".to_owned(),
+                },
+            })
+            .await;
+        assert!(
+            backend.diag_slots.lock().await.contains_key(&uri),
+            "sanity: opening a document schedules it, creating the slot",
+        );
+
+        backend
+            .did_close(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+            })
+            .await;
+
+        // The close releases the inputs immediately; the slot itself goes with
+        // them once the debounced worker that was draining the open buffer
+        // retires (`retire_slot`), so poll rather than assume an instant drop.
+        assert!(
+            wait_for(|| async { !backend.diag_slots.lock().await.contains_key(&uri) }).await,
+            "a closed document must not keep its diagnostics slot (#1144)",
+        );
+    }
+
+    /// #1144: the closed-file badge cache is bounded.  #865 keeps a closed
+    /// file's diagnostics, but every entry used to live for the process's life,
+    /// so browsing a large tree retained a `Vec<Diagnostic>` per file ever
+    /// opened.  Past [`CLOSED_DIAG_BADGE_CAP`] the least-recently-published
+    /// closed entry is evicted from both `pull_diag_cache` and `closed_diag_gen`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn closed_diag_badge_cache_is_capped() {
+        let backend = test_backend();
+        let uri_at = |i: usize| Uri::from_str(&format!("file:///browse/f{i}.tcl")).unwrap();
+        let total = CLOSED_DIAG_BADGE_CAP + 64;
+        for i in 0..total {
+            let uri = uri_at(i);
+            backend.pull_diag_cache.lock().await.insert(
+                uri.clone(),
+                PullDiagEntry {
+                    result_id: next_pull_diag_result_id(),
+                    revision: 0,
+                    diagnostics: Vec::new(),
+                },
+            );
+            backend.closed_diag_gen.lock().await.insert(uri.clone(), 1);
+            backend.record_closed_diag_badge(&uri).await;
+        }
+
+        let cache = backend.pull_diag_cache.lock().await;
+        assert_eq!(
+            cache.len(),
+            CLOSED_DIAG_BADGE_CAP,
+            "the closed-file badge cache must stop at the cap",
+        );
+        let gens = backend.closed_diag_gen.lock().await;
+        assert_eq!(
+            gens.len(),
+            CLOSED_DIAG_BADGE_CAP,
+            "the closed-run generations share the cache entry's lifetime",
+        );
+        // The oldest badge is gone; the newest is kept (least-recently-published
+        // eviction, not arbitrary).
+        assert!(!cache.contains_key(&uri_at(0)), "oldest badge evicted");
+        assert!(!gens.contains_key(&uri_at(0)), "oldest generation evicted");
+        assert!(cache.contains_key(&uri_at(total - 1)), "newest badge kept");
+    }
+
+    /// #1144: the inline closed-file republish must not memoise the deep
+    /// compiler tier.  `did_close` runs `run_diagnostics_core` synchronously for
+    /// every file the editor ever opened; routing that through the salsa
+    /// `SourceFile` pinned the file's `compilation_unit` (IR/CFG/SSA) and
+    /// `compiler_check_diagnostics` memos, which salsa cannot evict — the
+    /// unbounded term that OOM-killed the server on a workspace browse.  The
+    /// badge itself (#865) is unchanged: the same diagnostics, computed
+    /// uncached and thrown away.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn closed_file_republish_does_not_memoise_the_deep_compiler_tier() {
+        let root = unique_scratch_dir("close-no-deep-memo");
+        let on_disk = root.join("warn.tcl");
+        let src = "proc foo {} { set y 1 }\n";
+        std::fs::write(&on_disk, src).unwrap();
+        let executed: Arc<std::sync::Mutex<Vec<String>>> = Arc::default();
+        let sink = Arc::clone(&executed);
+        let backend = test_backend_over(tcl_lsp_db::TclDatabase::with_event_logger(move |key| {
+            sink.lock().unwrap().push(key);
+        }));
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        register(&backend, &uri, src).await;
+        backend
+            .db_set_source(&uri, src.to_owned(), "tcl8.6".to_owned())
+            .await;
+
+        backend
+            .did_close(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+            })
+            .await;
+
+        // The lightweight signature/decl queries a closed file still answers for
+        // open documents' cross-file resolution are fine; the deep tier is not.
+        let deep: Vec<String> = executed
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|key| {
+                [
+                    "compilation_unit",
+                    "compiler_check_diagnostics",
+                    "file_analysis_incremental",
+                ]
+                .iter()
+                .any(|query| key.contains(query))
+            })
+            .cloned()
+            .collect();
+        assert!(
+            deep.is_empty(),
+            "a closed file's republish must not build memoised deep-tier queries: {deep:?}",
+        );
+        // …and it still produces the badge #865 promises.
+        let cache = backend.pull_diag_cache.lock().await;
+        let entry = cache.get(&uri).expect("closed on-disk file keeps a badge");
+        assert!(
+            entry.diagnostics.iter().any(|d| matches!(
+                &d.code,
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W211"
+            )),
+            "the uncached closed tier must still carry the file's W211: {:?}",
+            entry.diagnostics,
+        );
+        drop(cache);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// #1144: an **open** document is exempt from the closed-badge cap — its
+    /// cache entry is owned by the open pipeline and must survive an eviction
+    /// sweep that happens to reach its URI.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn closed_diag_badge_cap_spares_reopened_documents() {
+        let backend = test_backend();
+        let reopened = Uri::from_str("file:///browse/reopened.tcl").unwrap();
+        backend.pull_diag_cache.lock().await.insert(
+            reopened.clone(),
+            PullDiagEntry {
+                result_id: next_pull_diag_result_id(),
+                revision: 0,
+                diagnostics: Vec::new(),
+            },
+        );
+        // Queued while closed, then reopened before the cap pushed it out.
+        backend.record_closed_diag_badge(&reopened).await;
+        backend.documents.lock().await.insert(
+            reopened.clone(),
+            DocumentState::new("set x 1\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        for i in 0..CLOSED_DIAG_BADGE_CAP {
+            let uri = Uri::from_str(&format!("file:///browse/g{i}.tcl")).unwrap();
+            backend.record_closed_diag_badge(&uri).await;
+        }
+
+        assert!(
+            backend.pull_diag_cache.lock().await.contains_key(&reopened),
+            "an open document's cache entry must survive the closed-badge sweep",
+        );
+    }
+
     /// #104 regression: reopening a document after the diagnostics master
     /// switch (`tclLsp.features.diagnostics`) was turned off *while the file
     /// was closed* must analyse under the current (off) switch and clear the
     /// squiggles — not republish the file's pre-toggle diagnostics.
     ///
-    /// Root cause: `did_close` retains the URI's [`DiagSlot`] (only the live
-    /// document and index entry are dropped), so `slot.latest_inputs` keeps the
-    /// `diagnostics_enabled = true` captured on the pre-close analysis. `did_open`
-    /// used to take the reuse-cached-inputs fast path (`schedule_diagnostics`,
-    /// `force_refresh = false`), so the reopen's worker drained under those stale
-    /// on-switch inputs and republished the diagnostics even though the master
-    /// switch was now off (the `test-ext` `#104` flake, which only lined up under
-    /// full-suite load). Opening a document is a config-context boundary, so it
-    /// now force-refreshes the inputs; the slot's post-reopen
-    /// `diagnostics_enabled` reflecting the *current* toggle proves it.
+    /// Root cause: `did_close` used to retain the URI's [`DiagSlot`] (only the
+    /// live document and index entry were dropped), so `slot.latest_inputs` kept
+    /// the `diagnostics_enabled = true` captured on the pre-close analysis.
+    /// `did_open` used to take the reuse-cached-inputs fast path
+    /// (`schedule_diagnostics`, `force_refresh = false`), so the reopen's worker
+    /// drained under those stale on-switch inputs and republished the diagnostics
+    /// even though the master switch was now off (the `test-ext` `#104` flake,
+    /// which only lined up under full-suite load). Opening a document is a
+    /// config-context boundary, so it now force-refreshes the inputs; the slot's
+    /// post-reopen `diagnostics_enabled` reflecting the *current* toggle proves
+    /// it.  (#1144 additionally releases the slot on close, so the stale inputs
+    /// are gone by then too — belt and braces for the same bug.)
     ///
     /// Asserted on the slot's captured inputs (set synchronously by
     /// `schedule_diagnostics_impl` before the worker spawns) rather than a
@@ -18330,9 +20370,9 @@ mod tests {
             "sanity: the initial open captures the master switch as on",
         );
 
-        // 2. Close the tab — the DiagSlot (with its now-stale inputs) is
-        //    retained, so the file keeps a badge (#865). The switch is still on
-        //    at close time, so the retained inputs are `true`.
+        // 2. Close the tab. The slot's captured inputs are released (#1144) —
+        //    either with the slot itself or, if its worker is still draining,
+        //    as a cleared `latest_inputs`. Nothing stale survives to be reused.
         backend
             .did_close(DidCloseTextDocumentParams {
                 text_document: TextDocumentIdentifier { uri: uri.clone() },
@@ -18340,13 +20380,13 @@ mod tests {
             .await;
         assert_eq!(
             captured_switch().await,
-            Some(true),
-            "did_close retains the DiagSlot with its (now-stale) on-switch inputs",
+            None,
+            "did_close must release the slot's captured inputs (#1144)",
         );
 
         // 3. Turn the diagnostics master switch off while the file is closed —
-        //    the toggle store changes, but nothing re-resolves the closed URI's
-        //    retained slot inputs.
+        //    the toggle store changes, and the closed URI holds no resolved
+        //    inputs to go stale.
         backend.feature_toggles.lock().await.apply(
             serde_json::json!({ "diagnostics": false })
                 .as_object()
@@ -18653,6 +20693,98 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
+    /// Issue #1154: the recovery path's widened known-command set must be
+    /// rebuilt only when the workspace index (or the package database, or the
+    /// configured extra commands) actually changes — not on every keystroke
+    /// inside an unterminated block.
+    #[tokio::test]
+    async fn recovery_widening_is_reused_across_edits_and_invalidated_by_the_index() {
+        let backend = test_backend();
+        let registry = tcl_registry::cache::registry_for_profile(
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
+        let ctx = RecoveryWidenCtx {
+            cache: &backend.recovery_names,
+            registry,
+            workspace_index: &backend.workspace_index,
+            package_resolver: &backend.package_resolver,
+        };
+        let base: HashSet<String> = ["mycmd".to_owned()].into_iter().collect();
+
+        // Seed the index with a workspace proc, so the widened set has
+        // something index-derived in it.
+        {
+            let mut analysis = tcl_compiler::analyser::Analyser::new();
+            let result = analysis.analyse("proc ::ws::helper {} {}\n", "tcl8.6");
+            backend
+                .workspace_index
+                .write()
+                .await
+                .add_document("file:///ws.tcl", &result);
+        }
+
+        let first = widen_recovery_extra_commands(&ctx, &base, "proc foo {", "tcl8.6").await;
+        assert!(
+            first.contains("ws::helper") && first.contains("helper") && first.contains("mycmd"),
+            "the widened set must carry the workspace proc (qualified + tail) and the base",
+        );
+
+        // A keystroke inside the same unterminated block: different text, same
+        // index / package database / config — the identical allocation is
+        // handed back.
+        let second = widen_recovery_extra_commands(&ctx, &base, "proc foo {x", "tcl8.6").await;
+        assert!(
+            Arc::ptr_eq(&first, &second),
+            "an edit that does not change the index must reuse the cached set",
+        );
+
+        // Indexing another document bumps the index generation, which must
+        // invalidate the memo.
+        {
+            let mut analysis = tcl_compiler::analyser::Analyser::new();
+            let result = analysis.analyse("proc ::ws::second {} {}\n", "tcl8.6");
+            backend
+                .workspace_index
+                .write()
+                .await
+                .add_document("file:///ws2.tcl", &result);
+        }
+        let third = widen_recovery_extra_commands(&ctx, &base, "proc foo {x", "tcl8.6").await;
+        assert!(
+            !Arc::ptr_eq(&second, &third),
+            "an index change must rebuild the widened set",
+        );
+        assert!(
+            third.contains("ws::second"),
+            "the rebuilt set must carry the newly-indexed proc",
+        );
+    }
+
+    /// A `PackageResolver` mutation must move its revision, and an unmutated
+    /// resolver must keep it — the signal the recovery memo keys on for the
+    /// package half of the widened set (issue #1154).
+    #[test]
+    fn package_resolver_revision_tracks_mutations() {
+        let mut resolver = PackageResolver::new();
+        let start = resolver.revision();
+        assert_eq!(
+            start,
+            resolver.revision(),
+            "a read must not move the revision"
+        );
+        resolver.add_tcl_index(Vec::new());
+        assert_ne!(
+            start,
+            resolver.revision(),
+            "recording an index must move the revision",
+        );
+        assert_ne!(
+            PackageResolver::new().revision(),
+            PackageResolver::new().revision(),
+            "two distinct resolvers must never share a revision",
+        );
+    }
+
     /// Codex #2: a closed run whose generation has been superseded by a newer
     /// close / watched-change refresh must not publish — so an older run
     /// finishing late cannot overwrite the current set with stale diagnostics.
@@ -18824,6 +20956,367 @@ mod tests {
             "deleting a closed file must clear its badge",
         );
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// #1161: a single `did_change_watched_files` event batch carrying a
+    /// CREATED, a CHANGED and a DELETED file together must land on the same
+    /// end state the old one-file-at-a-time serial path produced — the
+    /// `workspace_index` and salsa db reflecting exactly the final on-disk
+    /// population, in one batched pass rather than three sequential full
+    /// analyses.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn watched_files_batch_applies_created_changed_and_deleted_together() {
+        let root = unique_scratch_dir("watched-batch");
+        let created_path = root.join("created.tcl");
+        let changed_path = root.join("changed.tcl");
+        let deleted_path = root.join("deleted.tcl");
+        std::fs::write(&created_path, "proc created_proc {} {}\n").unwrap();
+        std::fs::write(&changed_path, "proc changed_proc {} {}\n").unwrap();
+        std::fs::write(&deleted_path, "proc deleted_proc {} {}\n").unwrap();
+
+        let backend = test_backend();
+        let created_uri = Uri::from_file_path(&created_path).unwrap();
+        let changed_uri = Uri::from_file_path(&changed_path).unwrap();
+        let deleted_uri = Uri::from_file_path(&deleted_path).unwrap();
+
+        // Seed the pre-event state: `changed.tcl` and `deleted.tcl` are
+        // already indexed (as a prior scan would have left them) under their
+        // *old* content — `changed.tcl`'s on-disk copy above is already the
+        // new content, standing in for the edit the CHANGED event reports;
+        // `deleted.tcl`'s on-disk file is removed below before the event
+        // fires, standing in for the delete. `created.tcl` starts entirely
+        // unindexed.
+        for (uri, old_src) in [
+            (&changed_uri, "proc old_changed_proc {} {}\n"),
+            (&deleted_uri, "proc deleted_proc {} {}\n"),
+        ] {
+            backend
+                .db_set_source(uri, (*old_src).to_owned(), "tcl8.6".to_owned())
+                .await;
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(old_src, "tcl8.6").clone();
+            backend
+                .workspace_index
+                .write()
+                .await
+                .add_document(uri.as_str(), &analysis);
+        }
+        std::fs::remove_file(&deleted_path).unwrap();
+
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![
+                    tower_lsp_server::ls_types::FileEvent {
+                        uri: created_uri.clone(),
+                        typ: FileChangeType::CREATED,
+                    },
+                    tower_lsp_server::ls_types::FileEvent {
+                        uri: changed_uri.clone(),
+                        typ: FileChangeType::CHANGED,
+                    },
+                    tower_lsp_server::ls_types::FileEvent {
+                        uri: deleted_uri.clone(),
+                        typ: FileChangeType::DELETED,
+                    },
+                ],
+            })
+            .await;
+
+        let index = backend.workspace_index.read().await;
+        assert!(
+            !index
+                .proc_definitions("created_proc", "created_proc")
+                .is_empty(),
+            "the CREATED file must be indexed",
+        );
+        assert!(
+            !index
+                .proc_definitions("changed_proc", "changed_proc")
+                .is_empty(),
+            "the CHANGED file's new content must be indexed",
+        );
+        assert!(
+            index
+                .proc_definitions("old_changed_proc", "old_changed_proc")
+                .is_empty(),
+            "the CHANGED file's stale content must not survive the batch",
+        );
+        assert!(
+            index
+                .proc_definitions("deleted_proc", "deleted_proc")
+                .is_empty(),
+            "the DELETED file must be dropped from the index",
+        );
+        drop(index);
+
+        let files = backend.db_files.lock().await;
+        assert!(
+            files.contains_key(&created_uri),
+            "the CREATED file must gain a salsa SourceFile input",
+        );
+        assert!(
+            files.contains_key(&changed_uri),
+            "the CHANGED file keeps its salsa SourceFile input",
+        );
+        assert!(
+            !files.contains_key(&deleted_uri),
+            "the DELETED file's salsa SourceFile input must be retired",
+        );
+        drop(files);
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// #1145: removing a source retires its salsa input with an emptied payload
+    /// instead of dropping it, and re-creating the same URI revives that handle
+    /// rather than allocating a second one salsa can never free.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn db_remove_source_retires_input_for_reuse() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///retired.tcl").unwrap();
+        backend
+            .db_set_source(&uri, "proc foo {} {}\n".to_owned(), "tcl8.6".to_owned())
+            .await;
+        let first = *backend
+            .db_files
+            .lock()
+            .await
+            .get(&uri)
+            .expect("the source is tracked once set");
+
+        backend.db_remove_source(&uri).await;
+
+        assert!(
+            !backend.db_files.lock().await.contains_key(&uri),
+            "a removed source must leave the live file set",
+        );
+        {
+            let db = backend.db.lock().await;
+            let tombstones = backend.db_tombstones.lock().await;
+            let retired = *tombstones
+                .get(&uri)
+                .expect("the input must be retired, not dropped — salsa never frees one");
+            assert!(retired == first, "the retired handle is the original input");
+            assert!(
+                retired.text(&*db).is_empty(),
+                "a retired input must release its text: {:?}",
+                retired.text(&*db),
+            );
+            assert!(
+                retired.external_call_sites(&*db).is_none(),
+                "a retired input must release its cross-file evidence",
+            );
+        }
+
+        backend
+            .db_set_source(&uri, "proc bar {} {}\n".to_owned(), "tcl8.6".to_owned())
+            .await;
+        let second = *backend
+            .db_files
+            .lock()
+            .await
+            .get(&uri)
+            .expect("the re-created source is tracked again");
+        assert!(
+            first == second,
+            "re-creating a removed URI must revive its retired input",
+        );
+        assert!(
+            backend.db_tombstones.lock().await.is_empty(),
+            "a revived input must leave the tombstone map",
+        );
+        // The revived handle carries the new text and is the project's only file.
+        {
+            let db = backend.db.lock().await;
+            assert_eq!(second.text(&*db), "proc bar {} {}\n");
+            let project = backend.db_project.lock().await;
+            let files = project
+                .expect("a project exists once a file is tracked")
+                .files(&*db);
+            assert!(
+                files.as_slice() == [second],
+                "the project file set must hold exactly the one live input",
+            );
+        }
+    }
+
+    /// #1148: the project-wide evidence read now runs on a cloned salsa
+    /// snapshot off the `db` mutex, so the write section has to re-check
+    /// currency against the live database rather than trusting the snapshot's
+    /// view.  A second pass over an unchanged project must therefore write
+    /// nothing — no input moves, nothing downstream is invalidated, and no peer
+    /// is rescheduled — which is also what stops the worker/peer loop from
+    /// running forever.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cross_file_evidence_sync_settles_after_one_pass() {
+        let backend = test_backend();
+        let lib = Uri::from_str("file:///w/lib.tcl").unwrap();
+        let main = Uri::from_str("file:///w/main.tcl").unwrap();
+        backend
+            .db_set_source(
+                &lib,
+                "proc helper {mode} { return $mode }\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        backend
+            .db_set_source(&main, "helper dev\n".to_owned(), "tcl8.6".to_owned())
+            .await;
+        let handles = EvidenceHandles {
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+        };
+
+        let first = sync_cross_file_evidence(&handles).await;
+        assert_eq!(
+            first.len(),
+            2,
+            "the cold pass gives both covered files a view: {first:?}"
+        );
+        let second = sync_cross_file_evidence(&handles).await;
+        assert!(
+            second.is_empty(),
+            "an unchanged project must write no input: {second:?}"
+        );
+
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        let evidence = files[&lib]
+            .external_call_sites(&*db)
+            .clone()
+            .expect("a covered file gets a view");
+        assert_eq!(
+            evidence.callees().collect::<Vec<_>>(),
+            vec!["::helper"],
+            "main.tcl's call reaches lib.tcl's proc"
+        );
+    }
+
+    /// #1145: a watched `DELETED` → `CREATED` pair — what a `git checkout` or
+    /// branch switch fires for every changed file — must not allocate a second
+    /// salsa input per cycle.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn watched_delete_then_create_reuses_source_input() {
+        let root = unique_scratch_dir("watched-recreate");
+        let on_disk = root.join("switched.tcl");
+        std::fs::write(&on_disk, "proc foo {} {}\n").unwrap();
+        let backend = test_backend();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        backend
+            .db_set_source(&uri, "proc foo {} {}\n".to_owned(), "tcl8.6".to_owned())
+            .await;
+        let before = *backend
+            .db_files
+            .lock()
+            .await
+            .get(&uri)
+            .expect("the scanned file is tracked");
+
+        // The branch switch: the file disappears, then reappears with new content.
+        std::fs::remove_file(&on_disk).unwrap();
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::DELETED,
+                }],
+            })
+            .await;
+        std::fs::write(&on_disk, "proc bar {} {}\n").unwrap();
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::CREATED,
+                }],
+            })
+            .await;
+
+        let after = *backend
+            .db_files
+            .lock()
+            .await
+            .get(&uri)
+            .expect("the re-created file is tracked again");
+        assert!(
+            before == after,
+            "a delete/re-create cycle must reuse the retired input, not leak it",
+        );
+        assert!(
+            backend.db_tombstones.lock().await.is_empty(),
+            "the revived input must leave the tombstone map",
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// #1145: a folder whose override set empties retires its `AnalyserConfig`
+    /// handle (payload cleared) and revives it when the override comes back —
+    /// `.tcl-lsp.ini` churn must not allocate a config input per save.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn folder_db_config_handle_is_retired_and_revived() {
+        let backend = test_backend();
+        let folder = Uri::from_str("file:///proj-a").unwrap();
+        *backend.workspace_folders.lock().await = vec![folder.clone()];
+        let overriding = || FolderConfig {
+            disabled_diagnostics: Some(std::iter::once("W100".to_owned()).collect()),
+            ..FolderConfig::default()
+        };
+
+        backend
+            .apply_folder_configs(vec![(folder.clone(), overriding())])
+            .await;
+        let first = backend
+            .folder_db_configs
+            .lock()
+            .await
+            .iter()
+            .find(|(u, _)| u == &folder)
+            .map(|(_, handle)| *handle)
+            .expect("an overriding folder gets its own AnalyserConfig handle");
+
+        // The next re-pull drops the override, so the folder needs no handle.
+        backend
+            .apply_folder_configs(vec![(folder.clone(), FolderConfig::default())])
+            .await;
+        assert!(
+            backend.folder_db_configs.lock().await.is_empty(),
+            "a folder with no overrides must not keep a live handle",
+        );
+        {
+            let db = backend.db.lock().await;
+            let tombstones = backend.folder_db_config_tombstones.lock().await;
+            let retired = *tombstones
+                .get(&folder)
+                .expect("the handle must be retired, not dropped");
+            assert!(retired == first, "the retired handle is the original input");
+            assert!(
+                retired.disabled_diagnostics(&*db).is_empty(),
+                "a retired config must release its code list",
+            );
+        }
+
+        // Re-enabling the override revives the retired handle.
+        backend
+            .apply_folder_configs(vec![(folder.clone(), overriding())])
+            .await;
+        let second = backend
+            .folder_db_configs
+            .lock()
+            .await
+            .iter()
+            .find(|(u, _)| u == &folder)
+            .map(|(_, handle)| *handle)
+            .expect("the re-enabled folder has a handle again");
+        assert!(
+            first == second,
+            "re-enabling an override must revive the retired config input",
+        );
+        assert!(
+            backend.folder_db_config_tombstones.lock().await.is_empty(),
+            "a revived config must leave the tombstone map",
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -19977,6 +22470,129 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
+    /// #1151: a workspace scan of unopened files must build only the
+    /// lightweight tier — `workspace_index` (from the scan's own analyser
+    /// pass) and the salsa `SourceFile` inputs — never the deep salsa tier
+    /// (`file_analysis_incremental` / `compilation_unit` /
+    /// `compiler_check_diagnostics`).  Uses the same
+    /// `TclDatabase::with_event_logger` technique as
+    /// `closed_file_republish_does_not_memoise_the_deep_compiler_tier` to
+    /// observe exactly which salsa queries a scan with no open documents
+    /// executes.
+    #[tokio::test]
+    async fn scan_workspace_folders_does_not_build_deep_tier_for_unopened_files() {
+        let root = unique_scratch_dir("scan-no-deep-tier");
+        std::fs::write(
+            root.join("lib.tcl"),
+            "proc greet {name} { puts \"hi $name\" }\n",
+        )
+        .unwrap();
+        std::fs::write(root.join("main.tcl"), "greet world\n").unwrap();
+
+        let executed: Arc<std::sync::Mutex<Vec<String>>> = Arc::default();
+        let sink = Arc::clone(&executed);
+        let backend = test_backend_over(tcl_lsp_db::TclDatabase::with_event_logger(move |key| {
+            sink.lock().unwrap().push(key);
+        }));
+        let root_url = Uri::from_file_path(&root).unwrap();
+        *backend.workspace_folders.lock().await = vec![root_url];
+
+        backend.scan_workspace_folders().await;
+
+        let deep: Vec<String> = executed
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|key| {
+                [
+                    "compilation_unit",
+                    "compiler_check_diagnostics",
+                    "file_analysis_incremental",
+                ]
+                .iter()
+                .any(|query| key.contains(query))
+            })
+            .cloned()
+            .collect();
+        assert!(
+            deep.is_empty(),
+            "a workspace scan with no open documents must not build any \
+             deep-tier salsa query for the files it discovers: {deep:?}",
+        );
+
+        // The lightweight index the scan's own analyser pass builds must still
+        // cover both files — cross-file resolution for open documents is not
+        // lost, only the eager deep-tier warm.
+        let index = backend.workspace_index.read().await;
+        assert!(
+            !index.proc_definitions("greet", "greet").is_empty(),
+            "the scan must still index the unopened file's declarations",
+        );
+        assert!(
+            !index.invocations_of("greet", "").is_empty(),
+            "the scan must still index the unopened file's call sites",
+        );
+        drop(index);
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// #1151: [`Backend::warm_open_documents`] (the body
+    /// [`Backend::spawn_workspace_warm`] detaches) primes the deep salsa tier
+    /// for an **open** document but must not touch an unopened one the scan
+    /// only fed into `db_files` as a lightweight `SourceFile` input.
+    #[tokio::test]
+    async fn warm_open_documents_only_touches_open_files() {
+        let executed: Arc<std::sync::Mutex<Vec<String>>> = Arc::default();
+        let sink = Arc::clone(&executed);
+        let backend = test_backend_over(tcl_lsp_db::TclDatabase::with_event_logger(move |key| {
+            sink.lock().unwrap().push(key);
+        }));
+        let open_uri = Uri::from_str("file:///workspace/open.tcl").unwrap();
+        let closed_uri = Uri::from_str("file:///workspace/closed.tcl").unwrap();
+        backend.documents.lock().await.insert(
+            open_uri.clone(),
+            DocumentState::new("proc open_proc {} {}\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        backend
+            .db_set_source(
+                &open_uri,
+                "proc open_proc {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        // Never opened, but present in `db_files` — exactly the state a
+        // workspace scan leaves an unopened file in after #1151.
+        backend
+            .db_set_source(
+                &closed_uri,
+                "proc closed_proc {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+
+        Backend::warm_open_documents(
+            Arc::clone(&backend.db),
+            Arc::clone(&backend.db_files),
+            Arc::clone(&backend.documents),
+            Arc::clone(&backend.db_config),
+            Arc::clone(&backend.folder_db_configs),
+        )
+        .await;
+
+        let deep_runs = executed
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|key| key.contains("file_analysis_incremental"))
+            .count();
+        assert_eq!(
+            deep_runs, 1,
+            "the warm must run the deep tier exactly once, for the one open \
+             document, never for the unopened one",
+        );
+    }
+
     #[tokio::test]
     async fn workspace_scan_merge_does_not_clobber_open_document() {
         let backend = test_backend();
@@ -20432,6 +23048,23 @@ mod tests {
         assert!(!is_skipped_scan_dir(Path::new("/a/irules")));
     }
 
+    /// Poll `cond` until it holds or ~2s elapse, reporting whether it held.
+    /// For assertions on state a detached background task settles (a debounced
+    /// diagnostics worker retiring, say) rather than the awaited call itself.
+    async fn wait_for<F, Fut>(mut cond: F) -> bool
+    where
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = bool>,
+    {
+        for _ in 0..200 {
+            if cond().await {
+                return true;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        false
+    }
+
     /// Build a unique scratch directory under the system temp dir
     /// for a disk-walk test, returning its path. The caller removes
     /// it when done.
@@ -20653,6 +23286,7 @@ mod tests {
     fn command_head_gate_distinguishes_head_from_argument() {
         let src = "proc greet {x} {}\ngreet arg\n";
         let analysis = Analyser::new().analyse(src, "tcl8.6").clone();
+        let index = tcl_lexer::LineIndex::new_lsp(src);
         // `greet` at line 1 is a command head (the call site).
         assert!(position_is_command_head(
             src,
@@ -20661,6 +23295,7 @@ mod tests {
                 character: 2
             },
             &analysis,
+            &index,
         ));
         // `arg` at line 1 is an argument word, not a command head, so
         // the cross-document fallback must not fire on it.
@@ -20671,6 +23306,7 @@ mod tests {
                 character: 7
             },
             &analysis,
+            &index,
         ));
     }
 
@@ -20969,6 +23605,204 @@ mod tests {
         assert_eq!(text.as_deref(), Some("set x 2\n"));
     }
 
+    /// Wait for the single document-sync handler under test to draw its
+    /// `EditOrder` ticket **and** hand it on, or give up.
+    ///
+    /// `edits_settled` alone cannot express this: called before the handler has
+    /// drawn its ticket it returns immediately and proves nothing, so the wait
+    /// is on the counters directly.
+    async fn one_edit_turn_released(backend: &Backend) -> bool {
+        use std::sync::atomic::Ordering;
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let order = &backend.edit_order;
+                if order.next_ticket.load(Ordering::Acquire) == 1
+                    && order.now_serving.load(Ordering::Acquire) == 1
+                {
+                    return;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .is_ok()
+    }
+
+    /// #1150: `did_close` must hand its `EditOrder` turn on as soon as the
+    /// ordered mutations are applied, rather than holding it across the disk
+    /// reindex and the closed-file republish.  The ticket is a *global*
+    /// barrier — every request handler awaits `edits_settled` and the next
+    /// `did_change` waits for the ticket itself — so a close that keeps it
+    /// across that tail freezes hover / completion / semantic tokens in every
+    /// open document for as long as the close takes.
+    ///
+    /// The `db` mutex stands in for the tail's cost: the ordered mutations (the
+    /// documents map, the index entry) never take it, and the reindex always
+    /// does, so holding it here pins the close inside its tail — with the turn
+    /// necessarily already handed on, or, before the fix, still held.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_close_hands_its_edit_turn_on_before_the_reindex_tail() {
+        let backend = Arc::new(test_backend());
+        let root = unique_scratch_dir("close-off-ticket");
+        let on_disk = root.join("closing.tcl");
+        std::fs::write(&on_disk, "proc foo {} {}\n").unwrap();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        register(&backend, &uri, "proc foo {} {}\n").await;
+
+        let db_held = backend.db.lock().await;
+        let closing = tokio::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_close(DidCloseTextDocumentParams {
+                        text_document: TextDocumentIdentifier { uri },
+                    })
+                    .await;
+            }
+        });
+
+        assert!(
+            one_edit_turn_released(&backend).await,
+            "did_close must release its turn before the reindex, which cannot \
+             run while the db lock is held",
+        );
+        assert!(
+            !backend.documents.lock().await.contains_key(&uri),
+            "the mutations the ticket covers must already be applied",
+        );
+        assert!(
+            !backend.closed_diag_gen.lock().await.contains_key(&uri),
+            "the closed republish is the tail; it must still be pending here",
+        );
+
+        drop(db_held);
+        tokio::time::timeout(std::time::Duration::from_secs(30), closing)
+            .await
+            .expect("the close must finish once its tail can take the db lock")
+            .expect("did_close panicked");
+        assert!(
+            backend.closed_diag_gen.lock().await.contains_key(&uri),
+            "the closed republish still lands, ordered after the mutations",
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// #1150, the edit side: `did_change` must hand its turn on once the splice
+    /// and the salsa source are committed — not hold it across the diagnostics
+    /// scheduling and the whole-source `detect_dialect` re-scan.
+    ///
+    /// `diag_slots` stands in for that tail here: the ordered mutations never
+    /// take it and `schedule_diagnostics` takes it first thing, so a held
+    /// `diag_slots` lock pins the handler in its tail.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_change_hands_its_edit_turn_on_before_the_scheduling_tail() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/edited.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+
+        let slots_held = backend.diag_slots.lock().await;
+        let editing = tokio::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change(DidChangeTextDocumentParams {
+                        text_document: VersionedTextDocumentIdentifier { uri, version: 2 },
+                        content_changes: vec![TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text: "set x 2\n".to_owned(),
+                        }],
+                    })
+                    .await;
+            }
+        });
+
+        assert!(
+            one_edit_turn_released(&backend).await,
+            "did_change must release its turn before scheduling diagnostics",
+        );
+        assert_eq!(
+            backend
+                .documents
+                .lock()
+                .await
+                .get(&uri)
+                .map(|doc| doc.text.clone())
+                .as_deref(),
+            Some("set x 2\n"),
+            "the splice the ticket covers must already be committed",
+        );
+
+        drop(slots_held);
+        tokio::time::timeout(std::time::Duration::from_secs(30), editing)
+            .await
+            .expect("the edit must finish once its tail can take the diag_slots lock")
+            .expect("did_change panicked");
+    }
+
+    /// #1149: an edit no longer evicts the edited document from the workspace
+    /// index.  `publish_diagnostics_result` re-indexes it (remove + add) behind
+    /// its own `is_current` check, so all the per-keystroke removal bought was
+    /// a window in which the file contributed no procs, classes or call sites
+    /// to any cross-file query — on top of fourteen workspace-wide `retain`
+    /// passes per edit.
+    ///
+    /// Pinned the same way as the #1150 test above: `diag_slots` is held, so
+    /// the handler is parked in its tail and no publish can have run by the
+    /// time the assertion reads the index.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_change_does_not_evict_the_document_from_the_workspace_index() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/indexed.tcl").unwrap();
+        register(&backend, &uri, "proc published {} {}\n").await;
+
+        let slots_held = backend.diag_slots.lock().await;
+        let editing = tokio::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change(DidChangeTextDocumentParams {
+                        text_document: VersionedTextDocumentIdentifier { uri, version: 2 },
+                        content_changes: vec![TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text: "proc renamed {} {}\n".to_owned(),
+                        }],
+                    })
+                    .await;
+            }
+        });
+
+        assert!(
+            one_edit_turn_released(&backend).await,
+            "did_change must release its turn before scheduling diagnostics",
+        );
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .procs()
+                .any(|p| p.uri == uri.as_str() && p.name == "published"),
+            "the last published analysis must still be indexed mid-edit",
+        );
+
+        drop(slots_held);
+        tokio::time::timeout(std::time::Duration::from_secs(30), editing)
+            .await
+            .expect("the edit must finish once its tail can take the diag_slots lock")
+            .expect("did_change panicked");
+    }
+
     async fn register(backend: &Backend, uri: &Uri, src: &str) {
         backend.documents.lock().await.insert(
             uri.clone(),
@@ -20981,6 +23815,76 @@ mod tests {
             .write()
             .await
             .add_document(uri.as_str(), &analysis);
+    }
+
+    /// Issue #1153: `resolve_target_locations` now reads each unique target
+    /// URI once rather than once per site. Correctness check: several sites
+    /// interleaved across two documents must all resolve, each against the
+    /// *right* document's source, and the result must keep the exact input
+    /// order (some callers, e.g. the code-lens click target, rely on
+    /// `resolve_target_locations`'s order matching `textDocument/references`'
+    /// own).
+    #[tokio::test]
+    async fn resolve_target_locations_groups_by_uri_and_preserves_site_order() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///a.tcl").unwrap();
+        let b = Uri::from_str("file:///b.tcl").unwrap();
+        // a.tcl: "aaa\nbbb\nccc\n" — three one-word lines.
+        // b.tcl: "xxx\nyyy\n" — two one-word lines.
+        register(&backend, &a, "aaa\nbbb\nccc\n").await;
+        register(&backend, &b, "xxx\nyyy\n").await;
+        let span_at = |line_start_byte: u32, len: u32| {
+            tcl_lexer::Span::new(line_start_byte, line_start_byte + len)
+        };
+        // Interleaved: b, a, b, a, a — deliberately not grouped by URI, and
+        // not in either document's own line order, so a naive "sort by URI"
+        // implementation would be caught by the order assertion below.
+        let targets = vec![
+            (b.to_string(), span_at(4, 3)), // b.tcl line 1: "yyy"
+            (a.to_string(), span_at(8, 3)), // a.tcl line 2: "ccc"
+            (b.to_string(), span_at(0, 3)), // b.tcl line 0: "xxx"
+            (a.to_string(), span_at(0, 3)), // a.tcl line 0: "aaa"
+            (a.to_string(), span_at(4, 3)), // a.tcl line 1: "bbb"
+        ];
+        let locations = backend.resolve_target_locations(targets).await;
+        assert_eq!(locations.len(), 5, "{locations:?}");
+        let got: Vec<(String, u32)> = locations
+            .iter()
+            .map(|l| (l.uri.to_string(), l.range.start.line))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                (b.to_string(), 1),
+                (a.to_string(), 2),
+                (b.to_string(), 0),
+                (a.to_string(), 0),
+                (a.to_string(), 1),
+            ],
+            "grouping by URI must not reorder the result",
+        );
+    }
+
+    /// A target URI that fails to parse, or has no document, is dropped
+    /// (matching the pre-#1153 per-site behaviour) without disturbing the
+    /// other targets' resolution or order.
+    #[tokio::test]
+    async fn resolve_target_locations_drops_unresolvable_targets_and_keeps_the_rest() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///a.tcl").unwrap();
+        register(&backend, &a, "aaa\nbbb\n").await;
+        let targets = vec![
+            ("not a uri".to_owned(), tcl_lexer::Span::new(0, 3)),
+            (a.to_string(), tcl_lexer::Span::new(0, 3)),
+            (
+                "file:///never-opened-and-not-on-disk.tcl".to_owned(),
+                tcl_lexer::Span::new(0, 3),
+            ),
+            (a.to_string(), tcl_lexer::Span::new(4, 7)),
+        ];
+        let locations = backend.resolve_target_locations(targets).await;
+        let got: Vec<u32> = locations.iter().map(|l| l.range.start.line).collect();
+        assert_eq!(got, vec![0, 1], "{locations:?}");
     }
 
     #[tokio::test]
@@ -21485,6 +24389,76 @@ mod tests {
             a_edit_lines,
             [2, 3].into_iter().collect(),
             "both views' callers must be rewritten: {changes:?}"
+        );
+    }
+
+    /// Issue #1158: concurrent `refresh_source_rehoming` callers (every
+    /// navigation handler calls it at its own entry) must not each run their
+    /// own full re-analysis of the same re-homed document — that duplicated
+    /// disk reads / analyses and serialised on `workspace_index`'s write
+    /// lock, turning one caller's O(sourced files) convergence cost into
+    /// O(concurrent callers × that cost) and head-of-line-blocking unrelated
+    /// requests behind it.
+    ///
+    /// Proxy for "did the real reconciliation work run more than once":
+    /// each genuine reconciliation of a document is one `remove_document` +
+    /// one `add_document`, so it bumps [`core_workspace_index::WorkspaceIndex::generation`]
+    /// by exactly 2; a second, redundant pass over the same document would
+    /// bump it by 2 more. Run on a real multi-thread runtime with genuine
+    /// `tokio::spawn` tasks (not `tokio::join!` on one task, which never
+    /// gives two `.await`-separated bodies true concurrent access to the
+    /// gate) so the two calls can actually race for
+    /// [`Backend::rehoming_gate`] — with the gate, the outcome is
+    /// deterministic regardless of scheduling: whichever call acquires it
+    /// second always finds the reconciliation already converged, because the
+    /// first call fully completes (and releases the gate) before the second
+    /// can proceed. A build that dropped the gate could still pass this test
+    /// on an unlucky schedule (the two spawned tasks not actually
+    /// overlapping), so it is a genuine, non-flaky proof *with* the fix
+    /// rather than a guaranteed catch of its absence — the reconciliation
+    /// path's several `.await` points (disk read, `spawn_blocking`, index
+    /// write) give a wide window for the race to manifest in practice.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn rehoming_gate_dedups_concurrent_reconciliation_passes() {
+        let backend = Arc::new(test_backend());
+        let a = Uri::from_str("file:///proj/a.tcl").unwrap();
+        let b = Uri::from_str("file:///proj/b.tcl").unwrap();
+        register(&backend, &b, "proc helper {} {}\n").await;
+        register(
+            &backend,
+            &a,
+            "namespace eval ::x { source b.tcl }\n::x::helper\n",
+        )
+        .await;
+
+        let before = backend.workspace_index.read().await.generation();
+        let (b1, b2) = (Arc::clone(&backend), Arc::clone(&backend));
+        let (r1, r2) = tokio::join!(
+            tokio::spawn(async move { b1.refresh_source_rehoming().await }),
+            tokio::spawn(async move { b2.refresh_source_rehoming().await }),
+        );
+        r1.expect("first pass must not panic");
+        r2.expect("second pass must not panic");
+        let after = backend.workspace_index.read().await.generation();
+        assert_eq!(
+            after.wrapping_sub(before),
+            2,
+            "two concurrent reconciliation passes must not each re-index the same document",
+        );
+
+        // The result is still correct: b.tcl's declaration is reachable
+        // under its seeded identity from a.tcl's qualified call.
+        let b_src = "proc helper {} {}\n";
+        let analysis = {
+            let mut an = Analyser::new();
+            an.analyse(b_src, "tcl8.6").clone()
+        };
+        let refs = backend
+            .cross_document_references(&b, b_src, &analysis, Position::new(0, 6), false)
+            .await;
+        assert!(
+            refs.iter().any(|l| l.uri == a),
+            "the sourcing document's qualified call must still resolve: {refs:?}"
         );
     }
 
@@ -23163,6 +26137,7 @@ mod tests {
             client: backend.client.clone(),
             last_semantic_tokens: Arc::clone(&backend.last_semantic_tokens),
             refresh_pending: Arc::clone(&backend.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&backend.semantic_tokens_refresh_asked),
         };
 
         // No cache entry yet: "changed" (there is nothing to match), but still
@@ -23204,6 +26179,74 @@ mod tests {
         );
     }
 
+    /// PR #1179 review: the converge → refresh → re-request cycle must
+    /// terminate.
+    ///
+    /// A request that overruns the fast-path budget serves the coarse tier and
+    /// caches *that*, so the continuation's enriched stream differs and asks
+    /// for a refresh.  If the client's re-request also overruns the budget —
+    /// which a loaded machine does even on a warm memo — the coarse tier is
+    /// served and cached again, and the identical enriched stream asks for the
+    /// identical refresh.  Left unbounded the server fires a workspace-wide
+    /// `workspace/semanticTokens/refresh` every debounce window forever,
+    /// cancelling and re-issuing the editor's in-flight token request each
+    /// time, so a `provideDocumentSemanticTokens` call never settles.  The
+    /// second ask for the same enriched bytes must be dropped; a genuinely
+    /// different enriched stream must still get through.
+    #[tokio::test]
+    async fn a_repeated_identical_enriched_stream_asks_for_one_refresh_only() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///storm.tcl").unwrap();
+        let other = Uri::from_str("file:///storm-other.tcl").unwrap();
+        let ctx = SemanticTokensRefreshCtx {
+            client: backend.client.clone(),
+            last_semantic_tokens: Arc::clone(&backend.last_semantic_tokens),
+            refresh_pending: Arc::clone(&backend.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&backend.semantic_tokens_refresh_asked),
+        };
+        // Round 1: the coarse tier was served and cached; the enriched stream
+        // differs, so the client is asked to re-pull.
+        let coarse = ("coarse".to_owned(), vec![0, 0, 3, 1, 0]);
+        let enriched = vec![0, 0, 3, 7, 0];
+        backend
+            .last_semantic_tokens
+            .lock()
+            .await
+            .insert(uri.clone(), coarse.clone());
+        assert!(
+            ctx.deliver_if_changed(&uri, &enriched).await,
+            "the first enriched stream that differs must ask for a refresh",
+        );
+        // Round 2: the re-request overran the budget again, so the same coarse
+        // stream is cached and the same enriched stream lands. Asking again
+        // could only repeat what the client has already been told.
+        backend
+            .last_semantic_tokens
+            .lock()
+            .await
+            .insert(uri.clone(), coarse.clone());
+        assert!(
+            !ctx.deliver_if_changed(&uri, &enriched).await,
+            "a repeat ask for the identical enriched stream must be dropped",
+        );
+        // A genuinely different enriched stream (an edit landed, a cross-file
+        // class resolved) re-arms the ask.
+        assert!(
+            ctx.deliver_if_changed(&uri, &[0, 0, 3, 9, 0]).await,
+            "a changed enriched stream must ask again",
+        );
+        // The bound is per URI, not global.
+        backend
+            .last_semantic_tokens
+            .lock()
+            .await
+            .insert(other.clone(), coarse);
+        assert!(
+            ctx.deliver_if_changed(&other, &enriched).await,
+            "another document's identical stream must ask on its own account",
+        );
+    }
+
     /// A fire already scheduled must absorb a second request rather than
     /// scheduling a duplicate: the `workspace/semanticTokens/refresh`
     /// notification carries no data, so a client that receives it re-pulls
@@ -23219,6 +26262,7 @@ mod tests {
             client: backend.client.clone(),
             last_semantic_tokens: Arc::clone(&backend.last_semantic_tokens),
             refresh_pending: Arc::clone(&backend.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&backend.semantic_tokens_refresh_asked),
         };
 
         // Simulate a fire already scheduled (e.g. by a different document's
@@ -23305,6 +26349,7 @@ mod tests {
             client: backend.client.clone(),
             last_semantic_tokens: Arc::clone(&backend.last_semantic_tokens),
             refresh_pending: Arc::clone(&backend.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&backend.semantic_tokens_refresh_asked),
         };
         ctx.deliver_if_changed(&uri, &[9, 9, 9]).await;
         assert!(
@@ -23323,6 +26368,150 @@ mod tests {
                 .is_none(),
             "deliver_if_changed must not resurrect a cache entry for a \
              closed document",
+        );
+    }
+
+    /// #1147: only the first of several concurrent convergence attempts on one
+    /// URI may detach a continuation, and the claim is released once it
+    /// finishes, so the next request converges normally. Other URIs are
+    /// independent.
+    #[test]
+    fn convergence_guard_admits_one_continuation_per_uri() {
+        let in_flight: ConvergenceInFlight = Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let uri = Uri::from_str("file:///cold.tcl").unwrap();
+        let other = Uri::from_str("file:///warm.tcl").unwrap();
+
+        let first = ConvergenceGuard::claim(&in_flight, &uri).expect("the first attempt detaches");
+        assert!(
+            ConvergenceGuard::claim(&in_flight, &uri).is_none(),
+            "a second attempt on the same URI must not detach a redundant \
+             continuation",
+        );
+        let sibling =
+            ConvergenceGuard::claim(&in_flight, &other).expect("a different URI is unaffected");
+
+        // The continuation finishes: the URI converges again on the next request.
+        drop(first);
+        let again = ConvergenceGuard::claim(&in_flight, &uri)
+            .expect("a completed continuation releases its URI");
+        drop(again);
+        drop(sibling);
+        assert!(
+            in_flight
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_empty(),
+            "every released claim must leave the in-flight set",
+        );
+    }
+
+    /// PR #1179 review (Codex P2): a claim reports whether anything was
+    /// coalesced onto it, and `refresh_if_coalesced` turns that into a refresh
+    /// exactly when the claim holder itself decided against one.
+    ///
+    /// Without this a skipped viewport is stranded: it detached no
+    /// continuation of its own on the strength of this claim's refresh, but
+    /// the claim only refreshes when *its* comparison found a difference.
+    #[tokio::test]
+    async fn coalesced_claim_refreshes_even_when_the_holder_found_no_difference() {
+        let backend = test_backend();
+        let refresh_ctx = SemanticTokensRefreshCtx {
+            client: backend.client.clone(),
+            last_semantic_tokens: Arc::clone(&backend.last_semantic_tokens),
+            refresh_pending: Arc::clone(&backend.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&backend.semantic_tokens_refresh_asked),
+        };
+        let in_flight: ConvergenceInFlight = Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let uri = Uri::from_str("file:///coalesced.tcl").unwrap();
+
+        // Nothing coalesced, no difference found: today's behaviour — no refresh.
+        let mut lone = ConvergenceGuard::claim(&in_flight, &uri).expect("claimed");
+        assert!(
+            !refresh_if_coalesced(&refresh_ctx, &mut lone, false),
+            "a solitary claim that found no difference must not refresh",
+        );
+        assert!(
+            !backend
+                .semantic_tokens_refresh_pending
+                .load(std::sync::atomic::Ordering::Acquire),
+            "no refresh may have been scheduled",
+        );
+
+        // A viewport coalesced onto the claim, and the holder still found no
+        // difference: the coalesced one would otherwise stay coarse forever.
+        let mut held = ConvergenceGuard::claim(&in_flight, &uri).expect("re-claimed after release");
+        assert!(
+            ConvergenceGuard::claim(&in_flight, &uri).is_none(),
+            "the second request coalesces onto the held claim",
+        );
+        assert!(
+            refresh_if_coalesced(&refresh_ctx, &mut held, false),
+            "a coalesced claim must refresh on behalf of the requests it absorbed",
+        );
+        assert!(
+            backend
+                .semantic_tokens_refresh_pending
+                .load(std::sync::atomic::Ordering::Acquire),
+            "the coalesced refresh must actually have been scheduled",
+        );
+        assert!(
+            in_flight
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_empty(),
+            "releasing must drop the claim so the next request converges normally",
+        );
+    }
+
+    /// The cancelled/error arm of the same rule: the claim holder's reads dying
+    /// must not swallow the coalesced requests' only chance at a refresh.
+    #[test]
+    fn a_released_claims_coalesced_flag_survives_a_cancelled_holder() {
+        let in_flight: ConvergenceInFlight = Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let uri = Uri::from_str("file:///cancelled.tcl").unwrap();
+        let mut held = ConvergenceGuard::claim(&in_flight, &uri).expect("claimed");
+        assert!(ConvergenceGuard::claim(&in_flight, &uri).is_none());
+        assert!(ConvergenceGuard::claim(&in_flight, &uri).is_none());
+        assert!(
+            held.release(),
+            "two coalesced requests must be reported to the holder",
+        );
+        // Idempotent: a second release (or the guard's own `Drop`) must not
+        // report again, nor remove a claim a later request has since taken.
+        let later = ConvergenceGuard::claim(&in_flight, &uri).expect("re-claimed");
+        assert!(!held.release());
+        drop(held);
+        assert!(
+            in_flight
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .contains_key(&uri),
+            "the released guard must not evict the later claim",
+        );
+        drop(later);
+    }
+
+    /// #1147: the claim is a guard, not a flag, so a continuation that is
+    /// aborted mid-flight (or panics) still releases its URI — a stuck marker
+    /// would silence convergence for that document for the session.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn convergence_guard_releases_on_cancellation() {
+        let in_flight: ConvergenceInFlight = Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let uri = Uri::from_str("file:///aborted.tcl").unwrap();
+        let guard = ConvergenceGuard::claim(&in_flight, &uri).expect("claimed");
+
+        let task = tokio::spawn(async move {
+            // Never completes; the abort below drops the future — and the guard
+            // it owns — instead.
+            tokio::time::sleep(std::time::Duration::from_hours(1)).await;
+            drop(guard);
+        });
+        task.abort();
+        assert!(task.await.is_err(), "the continuation was cancelled");
+
+        assert!(
+            ConvergenceGuard::claim(&in_flight, &uri).is_some(),
+            "a cancelled continuation must release its URI",
         );
     }
 
@@ -23442,6 +26631,87 @@ mod tests {
                 .expect("ok")
                 .is_none(),
             "workspaceSymbols disabled must yield None",
+        );
+    }
+
+    /// Issue #1156: `workspace/symbol` is answered from the workspace index,
+    /// so a file the folder scan indexed but the editor never opened is
+    /// searchable.  The previous handler walked the open-document map, which
+    /// made every symbol in an unopened file invisible to Ctrl+T.
+    #[tokio::test]
+    async fn workspace_symbol_finds_a_symbol_in_an_unopened_indexed_file() {
+        let backend = test_backend();
+        let root = unique_scratch_dir("ws-symbol-unopened");
+        let on_disk = root.join("scanned.tcl");
+        let src = "proc scanned_only_helper {} {}\n";
+        std::fs::write(&on_disk, src).unwrap();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        // Indexed like the folder scan does it — never inserted into
+        // `documents`, so the old open-document walk could not have seen it.
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(src, "tcl8.6").clone()
+        };
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(uri.as_str(), &analysis);
+        assert!(
+            backend.documents.lock().await.is_empty(),
+            "the fixture must not be an open document",
+        );
+
+        let found = backend
+            .symbol(WorkspaceSymbolParams {
+                query: "scanned_only".to_owned(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            })
+            .await
+            .expect("ok");
+        let Some(WorkspaceSymbolResponse::Flat(syms)) = found else {
+            panic!("expected a flat symbol list, got {found:?}");
+        };
+        assert_eq!(syms.len(), 1, "{syms:?}");
+        assert_eq!(syms[0].name, "scanned_only_helper");
+        assert_eq!(syms[0].kind, SymbolKind::FUNCTION);
+        assert_eq!(syms[0].location.uri, uri);
+        // The span was resolved against the file's own text, read from disk.
+        assert_eq!(syms[0].location.range.start.line, 0);
+        assert_eq!(syms[0].location.range.start.character, 5);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// Issue #1156: the answer is capped, so an empty or one-character query
+    /// against a large workspace cannot turn a per-keystroke request into an
+    /// unbounded response.
+    #[tokio::test]
+    async fn workspace_symbol_caps_its_answer() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w/many.tcl").unwrap();
+        let over_the_cap = core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS + 25;
+        let src = (0..over_the_cap).fold(String::new(), |mut src, n| {
+            use std::fmt::Write;
+            let _ = writeln!(src, "proc capped_{n} {{}} {{}}");
+            src
+        });
+        register(&backend, &uri, &src).await;
+
+        let found = backend
+            .symbol(WorkspaceSymbolParams {
+                query: "capped_".to_owned(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            })
+            .await
+            .expect("ok");
+        let Some(WorkspaceSymbolResponse::Flat(syms)) = found else {
+            panic!("expected a flat symbol list, got {found:?}");
+        };
+        assert_eq!(
+            syms.len(),
+            core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS,
         );
     }
 
@@ -23641,8 +26911,49 @@ mod tests {
     async fn did_rename_reindexes_moved_document() {
         let backend = test_backend();
         let old = Uri::from_str("file:///gone.tcl").unwrap();
-        register(&backend, &old, "proc helper {} {}\n").await;
-        assert_eq!(backend.workspace_index.read().await.procs().len(), 1);
+        let src = "proc helper {} {}\n";
+        register(&backend, &old, src).await;
+        // A renamed-away path is not an open buffer — the client moved the file
+        // on disk — so drop the live document `register` seeded and stand the
+        // rest of the old URI's per-URI state up as a real session would have.
+        backend.documents.lock().await.remove(&old);
+        backend
+            .db_set_source(&old, src.to_owned(), "tcl8.6".to_owned())
+            .await;
+        let old_file = *backend
+            .db_files
+            .lock()
+            .await
+            .get(&old)
+            .expect("precondition: the old URI has a salsa source");
+        backend
+            .last_semantic_tokens
+            .lock()
+            .await
+            .insert(old.clone(), ("st-1".to_owned(), Vec::new()));
+        backend.workspace_class_analyses.lock().await.insert(
+            old.clone(),
+            WorkspaceClassAnalysis {
+                fingerprint: (0, 0),
+                analysis: Arc::default(),
+            },
+        );
+        backend
+            .diag_slots
+            .lock()
+            .await
+            .insert(old.clone(), DiagSlot::default());
+        backend.pull_diag_cache.lock().await.insert(
+            old.clone(),
+            PullDiagEntry {
+                result_id: next_pull_diag_result_id(),
+                revision: 0,
+                diagnostics: Vec::new(),
+            },
+        );
+        backend.closed_diag_gen.lock().await.insert(old.clone(), 3);
+        assert_eq!(backend.workspace_index.read().await.procs().count(), 1);
+
         let params = RenameFilesParams {
             files: vec![tower_lsp_server::ls_types::FileRename {
                 old_uri: old.to_string(),
@@ -23652,9 +26963,47 @@ mod tests {
             }],
         };
         backend.did_rename_files(params).await;
+
         // The old document's proc is gone from the index.
-        let index = backend.workspace_index.read().await;
-        assert!(index.procs().iter().all(|p| p.uri != old.as_str()));
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .procs()
+                .all(|p| p.uri != old.as_str()),
+        );
+        // #1146: and out of the salsa db, so the renamed file's procedures are
+        // not counted twice in cross-file resolution (and the old URI's memo
+        // chain is not retained for the process's life).
+        assert!(
+            !backend.db_files.lock().await.contains_key(&old),
+            "the old URI's salsa SourceFile must be dropped",
+        );
+        let project_holds_old = {
+            let db = backend.db.lock().await;
+            backend
+                .db_project
+                .lock()
+                .await
+                .is_some_and(|project| project.files(&*db).contains(&old_file))
+        };
+        assert!(
+            !project_holds_old,
+            "the old URI must leave the salsa Project file set",
+        );
+        // …along with every per-URI cache keyed on the dead path, and its badge.
+        assert!(!backend.pull_diag_cache.lock().await.contains_key(&old));
+        assert!(!backend.closed_diag_gen.lock().await.contains_key(&old));
+        assert!(!backend.diag_slots.lock().await.contains_key(&old));
+        assert!(!backend.last_semantic_tokens.lock().await.contains_key(&old));
+        assert!(
+            !backend
+                .workspace_class_analyses
+                .lock()
+                .await
+                .contains_key(&old)
+        );
     }
 
     #[tokio::test]

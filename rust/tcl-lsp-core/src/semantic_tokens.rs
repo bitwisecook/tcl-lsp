@@ -438,6 +438,23 @@ pub struct VarNameArgRoles {
     /// ([`ProcArgTrait::Command`] — a `$param` command head or a `CommandPrefix`
     /// argument), so a literal call-site arg highlights as a command.
     command: FxHashMap<String, Vec<u32>>,
+    /// Names this index *abstained* on because the procs it was built from
+    /// disagreed about their indices, per direction.
+    ///
+    /// Carried rather than discarded so [`VarNameArgRoles::merge`] can fold
+    /// per-file indexes into a project-wide one that equals
+    /// [`VarNameArgRoles::from_procs`] over every file's procs at once: without
+    /// it, a name one file already dropped as ambiguous would silently be
+    /// re-adopted from another file's unambiguous entry.
+    ambiguous: RoleAmbiguity,
+}
+
+/// The per-direction abstention sets of a [`VarNameArgRoles`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct RoleAmbiguity {
+    write: FxHashSet<String>,
+    read: FxHashSet<String>,
+    command: FxHashSet<String>,
 }
 
 impl VarNameArgRoles {
@@ -467,10 +484,42 @@ impl VarNameArgRoles {
             read.insert(&keys, &proc_var_read_indices(proc));
             command.insert(&keys, &proc_command_indices(proc));
         }
+        Self::from_builders(write, read, command)
+    }
+
+    /// Fold per-file indexes into one project-wide index, applying the same
+    /// abstain-on-conflict rule [`Self::from_procs`] applies within a file — and
+    /// inheriting each part's own abstentions, so the result is exactly
+    /// `from_procs` over every part's procs concatenated, and independent of the
+    /// order the parts arrive in.
+    #[must_use]
+    pub fn merge<'a>(parts: impl IntoIterator<Item = &'a Self>) -> Self {
+        let mut write = RoleMapBuilder::default();
+        let mut read = RoleMapBuilder::default();
+        let mut command = RoleMapBuilder::default();
+        for part in parts {
+            write.absorb(&part.write, &part.ambiguous.write);
+            read.absorb(&part.read, &part.ambiguous.read);
+            command.absorb(&part.command, &part.ambiguous.command);
+        }
+        Self::from_builders(write, read, command)
+    }
+
+    /// Close the three per-direction builders into an index, keeping each
+    /// direction's abstentions alongside its map.
+    fn from_builders(write: RoleMapBuilder, read: RoleMapBuilder, command: RoleMapBuilder) -> Self {
+        let (write, write_ambiguous) = write.finish();
+        let (read, read_ambiguous) = read.finish();
+        let (command, command_ambiguous) = command.finish();
         Self {
-            write: write.finish(),
-            read: read.finish(),
-            command: command.finish(),
+            write,
+            read,
+            command,
+            ambiguous: RoleAmbiguity {
+                write: write_ambiguous,
+                read: read_ambiguous,
+                command: command_ambiguous,
+            },
         }
     }
 
@@ -538,8 +587,20 @@ impl RoleMapBuilder {
         }
     }
 
-    fn finish(self) -> FxHashMap<String, Vec<u32>> {
-        self.map
+    /// Fold an already-built map and its abstention set in, so merging finished
+    /// indexes reaches the same fixed point as inserting every underlying proc.
+    fn absorb(&mut self, map: &FxHashMap<String, Vec<u32>>, ambiguous: &FxHashSet<String>) {
+        for key in ambiguous {
+            self.map.remove(key);
+            self.ambiguous.insert(key.clone());
+        }
+        for (key, indices) in map {
+            self.insert(std::slice::from_ref(key), indices);
+        }
+    }
+
+    fn finish(self) -> (FxHashMap<String, Vec<u32>>, FxHashSet<String>) {
+        (self.map, self.ambiguous)
     }
 }
 

@@ -2112,6 +2112,10 @@ fn unresolved_word_without_an_unknown_handler_still_fires_i230() {
 /// in-file callers.
 const CROSS_FILE_LIB: &str = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n}\nhelper prod\nhelper prod\n";
 
+/// Also the standing proof that the project's call-site evidence is **not**
+/// an opt-in refinement: this session leaves `tclLsp.features.
+/// crossFileResolution` at its default (off), so gating the server's evidence
+/// sync on that toggle reinstates the unsound fold and fails here (#1148).
 #[test]
 fn caller_in_a_sourcing_file_with_a_differing_literal_clears_i230() {
     let mut lsp = Lsp::tcl();

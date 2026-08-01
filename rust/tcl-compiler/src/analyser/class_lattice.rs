@@ -639,7 +639,7 @@ fn seed_from_type_lattice<S: std::hash::BuildHasher + Clone>(
     out: &mut HashMap<String, ClassValue>,
 ) {
     use crate::types::TypeKind;
-    for ((sym, _ver), tl) in &fu.types {
+    for ((sym, _ver), tl) in fu.types.iter() {
         if tl.kind() != TypeKind::Known {
             continue;
         }

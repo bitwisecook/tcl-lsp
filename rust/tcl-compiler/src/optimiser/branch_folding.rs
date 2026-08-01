@@ -385,7 +385,6 @@ mod tests {
     use crate::analyses::{ConstValue, LatticeValue};
     use crate::cfg::{Block, BlockId, Function as CfgFunction, Terminator};
     use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-    use crate::def_use::DefUseResult;
     use crate::expr_ast::{BinOp, ExprNode};
     use crate::interprocedural::InterproceduralAnalysis;
     use crate::sccp::{ConstantBranch, SccpResult};
@@ -468,12 +467,12 @@ mod tests {
             name: name.into(),
             cfg,
             ssa,
-            def_use: DefUseResult::default(),
+            def_use: std::sync::Arc::default(),
             sccp,
-            types: std::collections::HashMap::new(),
+            types: std::sync::Arc::default(),
             return_type: crate::types::TypeLattice::unknown(),
-            taints: std::collections::HashMap::new(),
-            rendered_props: std::collections::HashMap::new(),
+            taints: std::sync::Arc::default(),
+            rendered_props: std::sync::Arc::default(),
             memory_ssa: None,
             dynamic_names: crate::dynamic_names::DynamicNameBarrier::default(),
             complexity_guarded: false,

@@ -22,6 +22,7 @@ entry has an identity another document can spell:
 | `variable_refs` | occurrences written with a `::` qualifier | **qualified name only** |
 | `namespace_refs` | every word naming a namespace, declaring or not | qualified name (rooted at record time) |
 | `sources` / `package_requires` / `command_links` / `glob_imports` / `namespace_exports` | the cross-file graph edges | — |
+| `defined_symbols` | registry symbol-definer definitions — `tcltest` test cases / constraints / match modes, iRules `when EVENT` handlers | qualified name |
 
 `glob_imports` and `namespace_exports` each carry their document **and their
 byte offset within it**, because a `namespace import` binds the names its
@@ -264,6 +265,43 @@ silently misses something:
   candidate scan nor rewritten.  The match stays narrow: whichever half of
   the cell is still written literally must agree with the cell being renamed.
 
+`workspace/symbol` is answered from here too (`symbols_matching`, issue
+#1156), which is why a class record carries its methods' `name_span`s and its
+`constructor_spans`, and why `defined_symbols` exists: the picker must be able
+to locate a member in a file the editor never opened.  Cross-file *dispatch*
+needs none of those spans; they are carried for the picker alone.
+
+## How the tables are stored
+
+The tables are held **per document** (`DocumentRecords`, one slot per URI)
+and exposed as workspace-wide iterators that chain the slots in slot order —
+`procs()`, `classes()`, `invocations()` and the rest return an
+`impl Iterator`, not a slice.  That is what makes `remove_document` cost the
+removed document's own rows rather than a pass over the whole workspace
+(issue #1149): flat workspace-wide vectors made a removal fourteen
+`Vec::retain` passes with a `String` compare per element, over tables that
+hold one row per call site and per qualified variable occurrence — 10⁵–10⁶
+rows on tcllib — and the server re-indexes a document on every diagnostics
+publish.
+
+A removal clears the document's slot and returns it to a LIFO free list, so
+the remove-then-add of a publish hands the document straight back the slot it
+just gave up: its position in the workspace-wide order is stable across a
+re-index, and the slot vector stays bounded by the workspace's peak document
+count.  Adding the **same** URI twice without an intervening removal
+accumulates (it does not replace): the M9 source-rehoming pass indexes one
+analysis per source-site namespace, and those views are several runtime
+identities of one physical file.
+
+An **edit** does not touch the index.  `did_change` commits the buffer splice
+and the salsa source only; `publish_diagnostics_result` re-indexes the
+document (remove + add) under the `documents` lock behind its `is_current`
+re-check, so it can only ever install the analysis of the revision the buffer
+actually holds.  Between the two the document contributes its *previous
+published* rows — the same staleness every other document carries between
+publishes, and strictly less misleading than a per-keystroke window in which
+the edited file contributes no procs, classes or call sites at all.
+
 ## Derived views and their invalidation
 
 `WorkspaceIndex::generation()` is bumped by `add_document` /
@@ -276,16 +314,26 @@ command-name set the cross-file unknown-command pass consults
 cache.
 
 The rule is a single type, `Derived<T>`, rather than one hand-rolled
-`OnceLock` + reset per view (issue #1105).  Three views use it:
-`command_names`, the `command_links` liveness mask, and the two
+`OnceLock` + reset per view (issue #1105).  Every view uses it:
+`command_names`, the `command_links` liveness mask, the two
 `defined_command_names` readings (with and without the names links
 introduce — a consumer wants exactly one, since folding link names into the
 direct set would let rename rewrite a call that merely spells an imported
-name).  The last of those was the motivating regression:
+name), the `command_link_map`, and the two `invocations_by_settled_target`
+readings.  `defined_command_names` was the motivating regression:
 `workspace_command_exists` rebuilt the whole set per call, and
 `follow_import_chain` asks it once per candidate per hop.  Measured on the
 same 400-file / 10 000-proc workspace, 10 000 existence checks take **870 µs**
 cached against **7.87 s** rebuilding per call.
+
+`invocations_by_settled_target` is the same shape one level up (issue #1152):
+settling *is* the expensive answer, so every invocation is settled once per
+generation and the results grouped by their target, rather than re-settling
+the whole workspace once per candidate.  The view stores `(document slot,
+index within that slot's invocations)` pairs, which stay valid because a
+document's invocation vector is only ever cleared and refilled wholesale, and
+anything that could invalidate a pair also bumps the generation and drops the
+view.
 
 ## Decision rules / contracts
 

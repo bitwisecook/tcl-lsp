@@ -1074,7 +1074,9 @@ fn range_semantic_tokens_no_spurious_refresh_when_converged() {
     // it against the recomputed enriched viewport.  A loaded machine can instead
     // reach `no-analysis` (the document is not yet in the salsa db when the
     // request lands) or `cancelled`, and a very quick one `served-enriched` —
-    // none of which run the compare.  The refresh assertion below is asserted in
+    // none of which run the compare.  `coalesced` (#1147) is a fourth: a
+    // continuation for this document was already in flight, so this request rode
+    // along with it.  The refresh assertion below is asserted in
     // *every* case, because "no spurious refresh" must hold on all of them; the
     // outcome is reported so a run that did not exercise the compare is visible
     // rather than silently vacuous.

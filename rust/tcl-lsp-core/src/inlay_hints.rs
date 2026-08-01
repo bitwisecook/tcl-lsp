@@ -145,6 +145,26 @@ pub fn inlay_hints(
     }
 
     if parameter_hints {
+        // The segmenter has no sound way to start mid-file (a command
+        // boundary requires tracking brace/bracket nesting from the top), so
+        // it still walks the whole document. What a requested viewport buys
+        // is skipping the *resolution* work per segment — the namespace walk
+        // (`lookup_proc`) and the registry synopsis lookup — for a command
+        // that falls entirely outside the range: cheap span arithmetic on
+        // data the segmenter already produced, applied before any of that
+        // work runs, not after (the `position_within_range` filter inside
+        // `emit_hints_for_call`/`emit_builtin_hints` only ever trimmed the
+        // *output*).
+        let range_start_off = line_index.offset_at_utf16(
+            range.start_line,
+            tcl_lexer::Utf16Col::new(range.start_character),
+            source,
+        );
+        let range_end_off = line_index.offset_at_utf16(
+            range.end_line,
+            tcl_lexer::Utf16Col::new(range.end_character),
+            source,
+        );
         let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
             source,
             0,
@@ -152,6 +172,9 @@ pub fn inlay_hints(
         );
         for seg in &segments {
             if seg.texts.is_empty() || seg.argv.is_empty() {
+                continue;
+            }
+            if seg.span.end() <= range_start_off || seg.span.start() >= range_end_off {
                 continue;
             }
             let cmd_name = &seg.texts[0];
@@ -240,7 +263,7 @@ fn collect_type_hints(
     let mut by_function: FxHashMap<String, FxHashMap<String, String>> = FxHashMap::default();
     for fu in cu.functions() {
         let mut m: FxHashMap<String, String> = FxHashMap::default();
-        for ((name, _ver), tl) in &fu.types {
+        for ((name, _ver), tl) in fu.types.iter() {
             if let Some(display) = type_display(tl) {
                 m.insert(fu.ssa.var_name(*name).to_owned(), display);
             }
@@ -1197,6 +1220,44 @@ mod tests {
         let hints = inlay_hints(src, "tcl", range, Some(&analysis), None, false, true);
         assert_eq!(hints.len(), 1, "{hints:?}");
         assert_eq!(hints[0].position_line, 2);
+    }
+
+    /// Issue #1160: a command whose span falls entirely outside the
+    /// requested range must never reach `lookup_proc` or the registry
+    /// synopsis lookup. There is no call counter to assert against through
+    /// the public API, so this is parity: the narrow-range result must equal
+    /// the in-range subset of the full-range result, for a document whose
+    /// out-of-range lines exercise *both* resolution branches the skip has to
+    /// short-circuit — an unresolvable call (line 2) and a real builtin call
+    /// that would otherwise emit its own hints (line 3, `puts`, two
+    /// positionals).
+    #[test]
+    fn out_of_range_segments_are_skipped_without_changing_in_range_results() {
+        let src =
+            "proc greet {name} {}\ngreet alice\nunknownproc foo bar\nputs hello world\ngreet zed\n";
+        let analysis = analyse(src);
+        let reg = registry();
+        let full = LspRange {
+            start_line: 0,
+            start_character: 0,
+            end_line: 10,
+            end_character: 0,
+        };
+        let narrow = LspRange {
+            start_line: 4,
+            start_character: 0,
+            end_line: 4,
+            end_character: u32::MAX,
+        };
+        let full_hints = inlay_hints(src, "tcl", full, Some(&analysis), Some(&reg), false, true);
+        let narrow_hints =
+            inlay_hints(src, "tcl", narrow, Some(&analysis), Some(&reg), false, true);
+        let expected: Vec<_> = full_hints
+            .into_iter()
+            .filter(|h| h.position_line == 4)
+            .collect();
+        assert_eq!(narrow_hints, expected);
+        assert_eq!(narrow_hints.len(), 1, "{narrow_hints:?}");
     }
 
     // built-in command synopsis hints

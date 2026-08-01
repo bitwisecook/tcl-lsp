@@ -62,7 +62,7 @@ fn var_types(src: &str, qname: &str, var: &str) -> HashMap<u32, TypeLattice> {
             .unwrap_or_else(|| panic!("procedure {qname} not found"))
     };
     let mut out = HashMap::new();
-    for ((sym, ver), t) in &fu.types {
+    for ((sym, ver), t) in fu.types.iter() {
         if fu.ssa.var_name(*sym) == var {
             out.insert(*ver, t.clone());
         }

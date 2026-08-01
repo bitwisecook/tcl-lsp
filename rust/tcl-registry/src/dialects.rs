@@ -395,6 +395,29 @@ fn has_irules_when(head: &str) -> bool {
     false
 }
 
+/// Textual substrings that a plausible in-source dialect hint would contain:
+/// the directive key, a shebang marker, the `package`/`vsatisfies`
+/// version-guard vocabulary, and every [`CONTENT_SIGNATURES`] marker word
+/// (plus `has_irules_when`'s `when` keyword).
+///
+/// A conservative *superset* filter for "could this text change what
+/// [`detect_dialect`] returns" — it does not replicate the word-boundary or
+/// tokenisation rules those heuristics apply, so it can false-positive (a
+/// comment mentioning "package" re-triggers a detect that then confirms
+/// nothing changed), but nothing that changes the detected dialect can
+/// appear in a diff without containing one of these substrings. Intended for
+/// a caller that wants to skip a full re-detect on an edit that plainly
+/// cannot touch the hint (see the LSP server's `did_change`), not as a
+/// detector in its own right.
+pub fn dialect_hint_markers() -> impl Iterator<Item = &'static str> {
+    const EXTRA: &[&str] = &["tcl-dialect:", "#!", "package", "vsatisfies", "when"];
+    EXTRA.iter().copied().chain(
+        CONTENT_SIGNATURES
+            .iter()
+            .flat_map(|&(_, markers)| markers.iter().copied()),
+    )
+}
+
 /// Content signatures for the non-Tcl-core dialects, checked in priority order.
 /// Each entry is `(dialect, &[marker words])`; a marker matches when it appears
 /// as a whole word anywhere in the scanned head. Ordered most-specific first so

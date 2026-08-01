@@ -32,6 +32,52 @@
 //! carried as a durable field on the database and read via [`TclDb::registry`]
 //! rather than modelled as a salsa input — reading an immutable value inside a
 //! tracked query is sound and avoids requiring `CommandRegistry: PartialEq`.
+//!
+//! # Deep-memo eviction (`lru = N`)
+//!
+//! Salsa has no input-deletion API and re-setting an input frees nothing:
+//! an invalidated memo keeps its old value until the query re-executes and
+//! *replaces* it, and setting identical text backdates and changes nothing at
+//! all.  So a session that opens 150 files and closes them again retains
+//! every deep memo those files accrued while open — measured at ~930 MB of
+//! unreclaimed RSS across exactly that cycle (issue #1144 follow-up, PR #1179
+//! review).  Dropping the closed files' `SourceFile` handles does not help;
+//! the memos are keyed on the salsa ids, which stay in the tables.
+//!
+//! `#[salsa::tracked(lru = N)]` is the one mechanism that releases a memo's
+//! payload: at each revision boundary the least-recently-used ids have
+//! `memo.value` cleared while their dependency information is kept, so an
+//! evicted query is simply recomputed on demand.  It is sound by construction
+//! — salsa refuses to evict anything that is not `Derived` — and this crate
+//! has no untracked reads (`registry()` is a process-wide immutable cache), so
+//! every deep query qualifies.
+//!
+//! Two caps, sized by what the key counts:
+//!
+//! * **512** on the per-*item* queries (`item_body_analysis`,
+//!   `function_lattice`, `lower_proc_body`, `taint_cascade`,
+//!   `proc_summary_cascade`, `function_checks`, `proc_taint_solve`,
+//!   `function_optimisations`, `compilation_unit`).  Their keys are interned
+//!   per procedure body, so the live set is roughly *procedures per file ×
+//!   open files*; 512 covers a realistic working set (say twenty open
+//!   documents of twenty-five procedures) without holding a browsed-and-closed
+//!   file's bodies for the session.
+//! * **64** on the per-*file* queries (`file_analysis_incremental`,
+//!   `compiler_check_diagnostics`, `document_compilation_unit`) — one entry
+//!   per open document, and no reader walks them project-wide (the whole-file
+//!   aggregates read the light `file_token_facts` / `item_sigs` tiers
+//!   instead), so the cap cannot thrash on a large workspace.
+//!
+//! The light signature/structure tiers (`file_decls`, `item_sigs`,
+//! `file_token_facts`, the `project_*` aggregates) are deliberately **not**
+//! capped: they are small, they are what an unopened workspace file is meant
+//! to be resolvable from, and evicting them would make the cross-file
+//! resolution every open document depends on recompute from scratch.
+//!
+//! This composes correctly only because closed files no longer create deep
+//! memos at all (#1144: the closed-file republish takes the uncached
+//! pipeline).  While they did, every closed-file sweep would `record_use` on
+//! hundreds of closed files and evict the *open* documents' units instead.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
@@ -356,8 +402,31 @@ fn component_root(parent: &mut [usize], mut i: usize) -> usize {
     i
 }
 
-/// The procedures an *unenumerable* dispatch in `file` may reach — every proc
-/// declared by a file in the same `source`-connected component.
+/// The `source`-connected components of a project, each carrying the merged
+/// declarations of its members — the per-project half of
+/// [`file_dispatch_reach`].
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct DispatchComponents {
+    /// Component number of each project file, positionally aligned with
+    /// [`Project::files`].
+    component_of: Vec<usize>,
+    /// Per component, every procedure its member files declare.  Shared by
+    /// `Arc` with each member's [`file_dispatch_reach`], so a component is
+    /// merged once and stored once however many files belong to it.
+    procs: Vec<Arc<BTreeSet<String>>>,
+}
+
+impl DispatchComponents {
+    /// The procedures the file at `index` in [`Project::files`] may reach
+    /// through an unenumerable dispatch; `None` when `index` is past the file
+    /// set this was computed for.
+    #[must_use]
+    pub fn reach(&self, index: usize) -> Option<&Arc<BTreeSet<String>>> {
+        self.procs.get(*self.component_of.get(index)?)
+    }
+}
+
+/// Decompose the project into `source`-connected components once per revision.
 ///
 /// `set cmd [gets stdin]; $cmd dev` names a command this analysis cannot
 /// determine, so it is a caller of *something*. Which something is bounded by
@@ -375,15 +444,19 @@ fn component_root(parent: &mut [usize], mut i: usize) -> usize {
 /// library's unreadable dispatch silently fails to retract its sourcing file's
 /// seeds — the hole this replaces.
 ///
+/// **Why this is a project query rather than per-file work** (issue #1148): the
+/// union-find is over the whole `source` graph and the merge visits every
+/// component member's [`file_decls`], so computing it inside
+/// [`file_dispatch_reach`] cost `O(N)` *per file* — `O(N²)` `String` clones and
+/// path-map inserts across a project, which a signature edit re-paid in full
+/// because it invalidates every file's reach at once. Hoisted here it is paid
+/// once, and each file's reach becomes an `Arc` clone.
+///
 /// Depends only on signature-level facts ([`file_link_targets`],
 /// [`file_decls`]), so it sits behind the same firewall as the rest of the
 /// cross-file layer.
 #[salsa::tracked]
-pub fn file_dispatch_reach(
-    db: &dyn TclDb,
-    file: SourceFile,
-    project: Project,
-) -> Arc<BTreeSet<String>> {
+pub fn project_dispatch_components(db: &dyn TclDb, project: Project) -> Arc<DispatchComponents> {
     let files = project.files(db);
     // Index files by path so `source` targets can be matched to project files.
     let mut by_path: HashMap<&str, usize> = HashMap::new();
@@ -408,17 +481,49 @@ pub fn file_dispatch_reach(
             }
         }
     }
-    let Some(me) = files.iter().position(|f| *f == file) else {
+    // Number the roots densely, then merge each component's declarations once.
+    let mut number: HashMap<usize, usize> = HashMap::new();
+    let mut component_of: Vec<usize> = Vec::with_capacity(files.len());
+    for i in 0..files.len() {
+        let root = component_root(&mut parent, i);
+        let next = number.len();
+        component_of.push(*number.entry(root).or_insert(next));
+    }
+    let mut merged: Vec<BTreeSet<String>> = vec![BTreeSet::new(); number.len()];
+    for (i, f) in files.iter().enumerate() {
+        merged[component_of[i]].extend(file_decls(db, *f).procs.iter().cloned());
+    }
+    Arc::new(DispatchComponents {
+        component_of,
+        procs: merged.into_iter().map(Arc::new).collect(),
+    })
+}
+
+/// The procedures an *unenumerable* dispatch in `file` may reach — every proc
+/// declared by a file in the same `source`-connected component.
+///
+/// An index into [`project_dispatch_components`], which does the work; see
+/// there for what the component bound means and why it is not computed here.
+/// A file the project does not contain reaches only its own declarations.
+///
+/// Kept as its own query so the result still early-cutoffs per file: a decl
+/// change in one component recomputes the project decomposition, but every
+/// file outside that component gets back an equal set and backdates, leaving
+/// [`file_call_site_evidence`] untouched.
+#[salsa::tracked]
+pub fn file_dispatch_reach(
+    db: &dyn TclDb,
+    file: SourceFile,
+    project: Project,
+) -> Arc<BTreeSet<String>> {
+    let Some(me) = project.files(db).iter().position(|f| *f == file) else {
         return Arc::new(file_decls(db, file).procs.clone());
     };
-    let mine = component_root(&mut parent, me);
-    let mut reach: BTreeSet<String> = BTreeSet::new();
-    for (i, f) in files.iter().enumerate() {
-        if component_root(&mut parent, i) == mine {
-            reach.extend(file_decls(db, *f).procs.iter().cloned());
-        }
+    let components = project_dispatch_components(db, project);
+    match components.reach(me) {
+        Some(reach) => Arc::clone(reach),
+        None => Arc::new(file_decls(db, file).procs.clone()),
     }
-    Arc::new(reach)
 }
 
 /// Every call site **this** file contributes, resolved against the whole
@@ -881,8 +986,16 @@ pub fn project_diagnostics(
 /// the offset-0 facts by the body's real span).
 #[salsa::interned]
 pub struct ItemBodyKey<'db> {
+    /// The proc / method body source, shared with the
+    /// [`tcl_compiler::analyser::per_item::DeferredBody`] the aggregator built
+    /// it from rather than copied out of it.  Interning is content-addressed, so
+    /// the text must be *in* the key; what it must not be is a fresh `String`
+    /// per proc per edit (issue #1159 — on a 114-proc file that was 114 full
+    /// body copies before a single memo was consulted, and the copies were
+    /// discarded the moment the intern hit).  `Arc<str>` also makes
+    /// [`item_body_analysis`]'s rebuild of the `DeferredBody` a refcount bump.
     #[returns(ref)]
-    pub body_text: String,
+    pub body_text: Arc<str>,
     #[returns(ref)]
     pub namespace: String,
     #[returns(ref)]
@@ -918,13 +1031,14 @@ pub struct ItemBodyKey<'db> {
 /// Memoised offset-0 isolated analysis of one `proc` body.  A body-only edit
 /// changes only that body's [`ItemBodyKey`], so salsa reuses every other body's
 /// result; an edit that merely *shifts* a body leaves its key unchanged.
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc<BodyFragment> {
     // The isolated analysis works at offset 0 and ignores `body_tok` / scope
     // path (the aggregator supplies the real position when grafting), so a
     // placeholder token is fine.
     let body = DeferredBody {
-        body_text: key.body_text(db).clone(),
+        body_text: Arc::clone(key.body_text(db)),
         body_tok: tcl_lexer::Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, 0)),
         scope_path: Vec::new(),
         is_method: key.is_method(db),
@@ -1028,7 +1142,8 @@ pub struct FnLatticeKey<'db> {
 /// new key).  The interprocedural taint re-run still happens at aggregation time
 /// (`with_interprocedural`).  Uses `db.registry` — byte-identical to the
 /// registry both diagnostics consumers build (`build_default` + `load_dialect`).
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<FunctionUnit> {
     let context = key.context(db);
     let upvar: HashMap<String, UpvarInfo> = context.upvar_ctx(db).iter().cloned().collect();
@@ -1097,7 +1212,8 @@ pub struct ProcBodyKey<'db> {
 /// with an empty const-map frame, lowering at offset 0).  Byte-identical to the
 /// body the whole-file lowering produces for that procedure, normalised to
 /// offset 0 — for the context-free files the caller gates on.
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Script> {
     let registry = db.registry(key.dialect(db));
     let config = tcl_lexer::LexerConfig {
@@ -1206,6 +1322,19 @@ fn build_unit_with_keys<'db>(
             req.has_dynamic_variable_trace,
         );
         lattice_keys.insert(req.qname.to_owned(), key);
+        // The memo stores the unit at **offset 0** and the builder rebases the
+        // returned unit to the procedure's real position
+        // (`lattice_rebase::rebase_function_unit` mutates `cfg` / `ssa` /
+        // `sccp.constant_branches` in place), so the span-carrying half genuinely
+        // has to be owned here — an `Arc` reader would only defer the copy to
+        // the rebase. Issue #1159's win is instead that the *span-free* half
+        // (`def_use` / `types` / `taints` / `rendered_props`) is now `Arc`-held
+        // inside `FunctionUnit`, so this clone is a refcount bump for each of
+        // those four lattices and copies only what the rebase must rewrite.
+        // Making the whole read an `Arc` would mean lazy rebasing via
+        // `FunctionUnit::base_offset` / `abs_span`, which was deliberately
+        // rejected: consumers read `fu.cfg` spans directly and would silently
+        // get relative positions.
         (*function_lattice(db, key)).clone()
     };
     // SRV-INCREMENTAL Task 3: lower each *eligible* top-level proc body through the
@@ -1223,6 +1352,9 @@ fn build_unit_with_keys<'db>(
     let cu = if tcl_compiler::lowering::source_may_alias_commands(source) {
         CompilationUnit::build_for_memoized(source, options, &mut lattice_memo)
     } else {
+        // Same offset-0-plus-rebase contract as `lattice_memo` above: the caller
+        // shifts the returned `Script` to the body's real position, so it needs
+        // an owned copy (issue #1159).
         let body_memo = |body_text: &str, namespace: &str| -> Script {
             let key = ProcBodyKey::new(
                 db,
@@ -1250,7 +1382,11 @@ fn build_unit_with_keys<'db>(
         &mut |qname: &str, ia: &InterproceduralAnalysis| {
             let key = *lattice_keys.get(qname)?;
             let summary_key = taint_summary_key(db, ia, qname, dialect);
-            Some((*taint_cascade(db, key, summary_key)).clone())
+            // A hit returns the memoised map by refcount: `FunctionUnit::taints`
+            // is span-free (the offset rebase never touches it), so the unit can
+            // share the cached lattice rather than deep-copying it per procedure
+            // per build (issue #1159).
+            Some(taint_cascade(db, key, summary_key))
         },
     );
     (unit, lattice_keys)
@@ -1349,7 +1485,8 @@ fn taint_summary_key<'db>(
 /// installed directly into the rebased unit (no rebase needed).  Byte-identical
 /// to [`CompilationUnit::with_interprocedural`]'s per-procedure re-run, guarded
 /// by the `compiler_check` corpus differential + the taint-cascade edit tests.
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn taint_cascade<'db>(
     db: &'db dyn TclDb,
     lattice_key: FnLatticeKey<'db>,
@@ -1516,7 +1653,8 @@ fn summary_deps_key<'db>(
 /// parameter/return taint, not positions), so the offset-0 result is the same
 /// the whole-module build computes.  A body edit re-keys only the edited
 /// procedure and the callers that reach it; everything else is a cache hit.
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn proc_summary_cascade<'db>(
     db: &'db dyn TclDb,
     lattice_key: FnLatticeKey<'db>,
@@ -1581,7 +1719,8 @@ pub fn proc_summary_cascade<'db>(
 /// offset-0 [`function_lattice`] unit, *before* `rebase_function_unit`); the
 /// caller adds the procedure's `body_offset`.  A body edit re-runs only the
 /// edited procedure's checks; every other proc is a cache hit.
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<Vec<CompilerCheck>> {
     let fu = function_lattice(db, key);
     let dialect = key.dialect(db);
@@ -1660,7 +1799,8 @@ fn rebase_check(mut d: CompilerCheck, body_offset: u32) -> CompilerCheck {
 
 /// Byte-identical to a bare `run_all_checks`, guarded by the `compiler_check`
 /// corpus differential + the debug fixpoint guard.
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn proc_taint_solve<'db>(
     db: &'db dyn TclDb,
     file: SourceFile,
@@ -1985,7 +2125,8 @@ fn opt_deps_key<'db>(
 /// `body_offset` and runs the whole-module [`finalise_optimisations`] over the
 /// assembled set.  A body edit re-runs only the edited proc; an unrelated proc's
 /// edit is a cache hit unless this proc reads its summary (a resolved direct call).
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn function_optimisations<'db>(
     db: &'db dyn TclDb,
     key: FnLatticeKey<'db>,
@@ -2303,7 +2444,8 @@ fn lexer_cfg_key(db: &dyn TclDb, config: tcl_lexer::LexerConfig) -> LexerCfgKey<
 /// / `f5-irules`); for those two dialects the configs differ, so each consumer
 /// builds its own (status quo).  Byte-identical to a direct
 /// `memoised_compilation_unit` call.
-#[salsa::tracked]
+// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512)]
 pub fn compilation_unit<'db>(
     db: &'db dyn TclDb,
     file: SourceFile,
@@ -2334,7 +2476,8 @@ pub fn compilation_unit<'db>(
 /// (and rebased) instead of rebuilt.  Byte-identical to [`file_analysis`] (and
 /// `analyse`) — proven by the `per_item_corpus` gate over the shared
 /// `analyse_per_item_with` orchestration.
-#[salsa::tracked]
+// LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 64)]
 pub fn file_analysis_incremental(
     db: &dyn TclDb,
     file: SourceFile,
@@ -2365,7 +2508,7 @@ pub fn file_analysis_incremental(
     let mut body_fn = |body: &DeferredBody| -> BodyFragment {
         let key = ItemBodyKey::new(
             db,
-            body.body_text.clone(),
+            Arc::clone(&body.body_text),
             body.namespace.clone(),
             body.scope_name.clone(),
             body.params.clone(),
@@ -2377,6 +2520,9 @@ pub fn file_analysis_incremental(
             disabled_vec.clone(),
             non_ascii,
         );
+        // Owned for the same reason as the lattice memo: `graft_proc_body`
+        // rebases the offset-0 fragment to the body's real span and then moves
+        // its fields into the shell, so the fragment cannot be shared.
         (*item_body_analysis(db, key)).clone()
     };
     Arc::new(analyser.analyse_per_item_with(&text, &dialect, &mut body_fn))
@@ -2424,7 +2570,8 @@ fn compiler_diagnostics_from_unit(
 /// the analyser tail's default config, so the two intern different bodies and
 /// never cross-pollute.  Byte-identical to the former direct
 /// `lift_compiler_diagnostics` build.
-#[salsa::tracked]
+// LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 64)]
 pub fn compiler_check_diagnostics(
     db: &dyn TclDb,
     file: SourceFile,
@@ -2510,7 +2657,8 @@ pub fn document_symbols(
 /// file's dialect, so callers that only have `(db, file)` (semantic tokens,
 /// server-side accessors) share the same memoised build as the diagnostics
 /// path.
-#[salsa::tracked]
+// LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 64)]
 pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<CompilationUnit> {
     let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::for_dialect(file.dialect(db)));
     compilation_unit(db, file, cfg_key)
@@ -2555,27 +2703,70 @@ pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig)
     )
 }
 
+/// The cross-file facts the project-level token aggregates read from **one**
+/// file: its class definitions and its inferred variable-name argument roles.
+///
+/// Deliberately small and `PartialEq`: it is the per-file firewall in front of
+/// [`project_class_index`] / [`project_proc_var_index`], so an edit that leaves
+/// a file's classes and parameter roles alone — which is nearly every keystroke
+/// — backdates here and the project aggregates do not re-execute at all.
+#[derive(Clone, Default, PartialEq)]
+pub struct FileTokenFacts {
+    /// Classes declared in this file, keyed by qualified name.
+    pub classes: HashMap<String, ClassDef>,
+    /// The file's user-proc parameter roles.
+    pub proc_roles: VarNameArgRoles,
+}
+
+/// The light (structure-only) per-file tier feeding [`project_class_index`] and
+/// [`project_proc_var_index`] (issue #1163).
+///
+/// These aggregates read *every* file in the project, so whatever per-file
+/// query they call decides what an interactive `semanticTokens` request costs
+/// on a large workspace.  Reading the deep tier
+/// ([`file_analysis_incremental`]) meant one whole-workspace *deep* analysis —
+/// CFG/SSA units, per-body lattices, diagnostic emitters — behind a token
+/// request for a single file: measured at ~19 s of CPU over an 883-file
+/// tcllib checkout, which no request survives.  Every attempt was cancelled by
+/// the next `set_text`, so it never memoised and every subsequent request paid
+/// it again, while the in-flight read blocked the writer that cancelled it
+/// (`didOpen`'s `set_text` measured at 270–660 ms) — the open-to-tokens spikes
+/// #1163 reports.
+///
+/// The structural facts these aggregates want do not need the deep tier: an
+/// unopened workspace file only ever needs the lightweight state the scan
+/// leaves it at.  `structure_only` builds the identical declaration structure
+/// while skipping diagnostic emission and cross-feature recording — the bulk of
+/// the cost — for the same 883 files in ~2.9 s, and the result is a projection
+/// small enough to backdate.
+///
+/// Config-independent by construction: `structure_only` emits no diagnostics,
+/// so the disabled-diagnostic set / non-ASCII mode / extra commands cannot
+/// reach the class and role facts.  That is what lets both aggregates drop
+/// their `AnalyserConfig` key — one index per project rather than one per
+/// distinct per-folder config.
+#[salsa::tracked]
+pub fn file_token_facts(db: &dyn TclDb, file: SourceFile) -> Arc<FileTokenFacts> {
+    let mut analyser = Analyser::new()
+        .structure_only()
+        .with_file_path(file.path(db).clone());
+    let result = analyser.analyse(file.text(db), file.dialect(db));
+    Arc::new(FileTokenFacts {
+        proc_roles: VarNameArgRoles::from_procs(result.all_procs.values()),
+        classes: result.all_classes,
+    })
+}
+
 /// The project's workspace-merged class hierarchy: every file's `ClassDef`s
 /// unioned into one cross-file MRO index, so a `$obj method` dispatch resolves
 /// against a class defined in *another* file.
 ///
-/// Aggregates `file_analysis_incremental(f, config).all_classes` across
-/// `project`.  A body-only edit rebuilds this (cheap re-aggregation) but yields
-/// an equal [`ClassHierarchy`], so salsa backdates and dependent token queries
-/// do not recompute.  On a class-signature change the merged index changes and
-/// the affected tokens recompute — the correct cross-file invalidation.
-///
-/// Uses the incremental, per-item-memoised [`file_analysis_incremental`] (not
-/// the coarse [`file_analysis`]) for each project file, the same template
-/// [`project_diagnostics`] establishes: a file whose diagnostics the worker has
-/// already analysed for this revision is a cache hit here too, rather than a
-/// second independent whole-file walk (issue #829).
+/// Aggregates [`file_token_facts`]`(f).classes` across `project`.  A body-only
+/// edit backdates at the per-file firewall, so this does not even re-aggregate.
+/// On a class-signature change the merged index changes and the affected tokens
+/// recompute — the correct cross-file invalidation.
 #[salsa::tracked]
-pub fn project_class_index(
-    db: &dyn TclDb,
-    project: Project,
-    config: AnalyserConfig,
-) -> Arc<ClassHierarchy> {
+pub fn project_class_index(db: &dyn TclDb, project: Project) -> Arc<ClassHierarchy> {
     // `project.files(db)` is an unordered `Vec` with no stable identity, so a
     // "first definition wins" merge would make the winner for a duplicate
     // qualified class name depend on file-enumeration order — non-deterministic
@@ -2587,8 +2778,7 @@ pub fn project_class_index(
     let mut merged: HashMap<String, ClassDef> = HashMap::new();
     let mut ambiguous: HashSet<String> = HashSet::new();
     for &file in project.files(db) {
-        let analysis = file_analysis_incremental(db, file, config);
-        for (name, class) in &analysis.all_classes {
+        for (name, class) in &file_token_facts(db, file).classes {
             if ambiguous.contains(name) {
                 continue;
             }
@@ -2614,26 +2804,20 @@ pub fn project_class_index(
 /// target even when `myproc` is defined in another file (issue #813 follow-up).
 ///
 /// A proc name defined with *conflicting* roles across files is dropped as
-/// ambiguous by [`VarNameArgRoles::from_procs`], so the merged index is
+/// ambiguous by [`VarNameArgRoles::merge`], so the merged index is
 /// order-independent — matching the abstention posture of
 /// [`project_class_index`].
 ///
-/// Uses [`file_analysis_incremental`] per file, matching [`project_class_index`]
-/// and [`project_diagnostics`] — a cache hit against the diagnostics worker's
-/// already-computed per-item analysis rather than a second whole-file walk.
+/// Reads the same light [`file_token_facts`] firewall as [`project_class_index`].
 #[salsa::tracked]
-pub fn project_proc_var_index(
-    db: &dyn TclDb,
-    project: Project,
-    config: AnalyserConfig,
-) -> Arc<VarNameArgRoles> {
-    let analyses: Vec<Arc<AnalysisResult>> = project
+pub fn project_proc_var_index(db: &dyn TclDb, project: Project) -> Arc<VarNameArgRoles> {
+    let per_file: Vec<Arc<FileTokenFacts>> = project
         .files(db)
         .iter()
-        .map(|&file| file_analysis_incremental(db, file, config))
+        .map(|&file| file_token_facts(db, file))
         .collect();
-    Arc::new(VarNameArgRoles::from_procs(
-        analyses.iter().flat_map(|a| a.all_procs.values()),
+    Arc::new(VarNameArgRoles::merge(
+        per_file.iter().map(|f| &f.proc_roles),
     ))
 }
 
@@ -2641,17 +2825,21 @@ pub fn project_proc_var_index(
 /// a `$obj method …` dispatch on a class defined in another project file
 /// resolves too.  The server calls this when a [`Project`] is available; the
 /// bare [`semantic_tokens`] (local file only) is the fallback.
+///
+/// Takes no [`AnalyserConfig`]: every input it reads — the document's
+/// compilation unit and the two project indexes — is config-independent, so
+/// keying on one would only fragment the memo across per-folder configs that
+/// cannot change the answer.
 #[salsa::tracked]
 pub fn semantic_tokens_project(
     db: &dyn TclDb,
     file: SourceFile,
-    config: AnalyserConfig,
     project: Project,
 ) -> SemanticTokens {
     let registry = db.registry(file.dialect(db));
     let cu = document_compilation_unit(db, file);
-    let classes = project_class_index(db, project, config);
-    let proc_roles = project_proc_var_index(db, project, config);
+    let classes = project_class_index(db, project);
+    let proc_roles = project_proc_var_index(db, project);
     tcl_lsp_core::semantic_tokens::full_with_cu_and_classes_and_roles(
         file.text(db),
         file.dialect(db),
@@ -2740,6 +2928,107 @@ mod tests {
         let expected = direct.analyse(SRC, "tcl");
         assert_eq!(*got, expected);
         assert!(got.all_procs.contains_key("::greet"));
+    }
+
+    /// Issue #1159: a memo *hit* must hand its per-procedure lattices over by
+    /// refcount, not deep-copy them.
+    ///
+    /// The span-carrying halves of a `FunctionUnit` (`cfg` / `ssa` /
+    /// `sccp.constant_branches`) genuinely have to be copied — the memo stores
+    /// the unit at offset 0 and every consumer is rebased to the procedure's
+    /// real position — but `def_use` / `types` / `taints` / `rendered_props` are
+    /// span-free, so a rebuild that hits the memo must share them.
+    #[test]
+    fn memoised_lattices_are_shared_not_deep_copied_across_builds() {
+        const SRC: &str = "proc alpha {a b} {\n    set s [expr {$a + $b}]\n    return $s\n}\n\
+                           proc beta {x} {\n    return [alpha $x 1]\n}\n";
+        let db = TclDatabase::default();
+        let registry = db.registry("tcl8.6");
+        let options = || UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::default(),
+            dialect: "tcl8.6",
+            external_call_sites: None,
+        };
+        let first = memoised_compilation_unit(&db, SRC, options());
+        let second = memoised_compilation_unit(&db, SRC, options());
+        for qname in ["::alpha", "::beta"] {
+            let a = first
+                .procedures
+                .get(qname)
+                .expect("procedure in first build");
+            let b = second
+                .procedures
+                .get(qname)
+                .expect("procedure in second build");
+            assert!(
+                Arc::ptr_eq(&a.def_use, &b.def_use),
+                "{qname}: def-use chains must be shared across a memo hit",
+            );
+            assert!(
+                Arc::ptr_eq(&a.types, &b.types),
+                "{qname}: the type lattice must be shared across a memo hit",
+            );
+            assert!(
+                Arc::ptr_eq(&a.rendered_props, &b.rendered_props),
+                "{qname}: rendered properties must be shared across a memo hit",
+            );
+            assert!(
+                Arc::ptr_eq(&a.taints, &b.taints),
+                "{qname}: the taint cascade result must be shared across a memo hit",
+            );
+        }
+    }
+
+    /// Issue #1159: an unchanged proc body must re-intern to the *same*
+    /// `ItemBodyKey` (so the memo hits) and must not cost a fresh copy of the
+    /// body text to get there — the key shares the analyser's `Arc<str>`.
+    #[test]
+    fn unchanged_body_reinterns_to_the_same_key_without_copying_its_text() {
+        let db = TclDatabase::default();
+        let body: Arc<str> = Arc::from("set s 1\nreturn $s\n");
+        let make = || {
+            ItemBodyKey::new(
+                &db,
+                Arc::clone(&body),
+                "::".to_owned(),
+                "alpha".to_owned(),
+                Vec::new(),
+                false,
+                false,
+                Vec::new(),
+                None,
+                "tcl8.6".to_owned(),
+                Vec::new(),
+                NonAsciiMode::Default,
+            )
+        };
+        assert!(make() == make(), "unchanged text must re-intern to one key");
+        assert!(
+            Arc::ptr_eq(make().body_text(&db), &body),
+            "the interned key must share the caller's body text, not copy it",
+        );
+        // A different body must not collide with it.
+        let other: Arc<str> = Arc::from("set s 2\nreturn $s\n");
+        let other_key = ItemBodyKey::new(
+            &db,
+            other,
+            "::".to_owned(),
+            "alpha".to_owned(),
+            Vec::new(),
+            false,
+            false,
+            Vec::new(),
+            None,
+            "tcl8.6".to_owned(),
+            Vec::new(),
+            NonAsciiMode::Default,
+        );
+        assert!(
+            make() != other_key,
+            "distinct bodies must intern distinctly"
+        );
     }
 
     #[test]
@@ -3115,16 +3404,136 @@ mod tests {
             let after = file_external_call_sites(&db, lib, project);
             assert_eq!(*before, *after, "an unrelated edit must not move evidence");
         }
+
+        /// The component bound itself: both ends of a `source` edge see the
+        /// same merged set — and see the *same* `Arc`, so a component is
+        /// stored once however many files belong to it.  An unlinked file
+        /// shares no interpreter, so it reaches only its own declarations.
+        #[test]
+        fn dispatch_reach_is_the_shared_source_component_merge() {
+            let db = TclDatabase::default();
+            let a = SourceFile::new(
+                &db,
+                "source b.tcl\nproc a {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                Some("/w/a.tcl".to_owned()),
+            );
+            let b = SourceFile::new(
+                &db,
+                "proc b {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                Some("/w/b.tcl".to_owned()),
+            );
+            let unlinked = SourceFile::new(
+                &db,
+                "proc c {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                Some("/w/c.tcl".to_owned()),
+            );
+            let project = Project::new(&db, vec![a, b, unlinked]);
+            let reach_a = file_dispatch_reach(&db, a, project);
+            let reach_b = file_dispatch_reach(&db, b, project);
+            let reach_c = file_dispatch_reach(&db, unlinked, project);
+            assert_eq!(
+                reach_a.iter().map(String::as_str).collect::<Vec<_>>(),
+                vec!["::a", "::b"],
+                "the sourcing file reaches its own and the sourced file's procs"
+            );
+            assert!(
+                Arc::ptr_eq(&reach_a, &reach_b),
+                "component members share one merged set: {reach_b:?}"
+            );
+            assert_eq!(
+                reach_c.iter().map(String::as_str).collect::<Vec<_>>(),
+                vec!["::c"],
+                "an unlinked file shares no interpreter"
+            );
+        }
+
+        /// Issue #1148: the `source`-graph decomposition is *project* work, not
+        /// per-file work.  Demanding every file's reach must execute
+        /// [`project_dispatch_components`] exactly **once** — the property that
+        /// turns the old union-find-and-merge-per-file into `O(N)` — and a decl
+        /// change must recompute it once for the project rather than once per
+        /// file.  A body edit backdates its inputs and recomputes nothing.
+        #[test]
+        fn dispatch_components_are_computed_once_per_project_revision() {
+            use salsa::Setter as _;
+            const FILES: usize = 6;
+            let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+            let mut db = {
+                let sink = Arc::clone(&log);
+                TclDatabase::with_event_logger(move |key| sink.lock().unwrap().push(key))
+            };
+            // A single `source` chain, so every file lands in one component —
+            // the shape whose merge the old query re-paid per file.
+            let body = |i: usize| {
+                if i + 1 < FILES {
+                    format!("source f{}.tcl\nproc p{i} {{}} {{ set r 1 }}\n", i + 1)
+                } else {
+                    format!("proc p{i} {{}} {{ set r 1 }}\n")
+                }
+            };
+            let files: Vec<SourceFile> = (0..FILES)
+                .map(|i| {
+                    SourceFile::new(
+                        &db,
+                        body(i),
+                        "tcl8.6".to_owned(),
+                        Some(format!("/w/f{i}.tcl")),
+                    )
+                })
+                .collect();
+            let project = Project::new(&db, files.clone());
+            let drain = || std::mem::take(&mut *log.lock().unwrap());
+            let decompositions = |events: &[String]| {
+                events
+                    .iter()
+                    .filter(|key| key.contains("project_dispatch_components"))
+                    .count()
+            };
+
+            for &file in &files {
+                let _ = file_dispatch_reach(&db, file, project);
+            }
+            assert_eq!(
+                decompositions(&drain()),
+                1,
+                "cold: one decomposition serves every file's reach"
+            );
+
+            files[3]
+                .set_text(&mut db)
+                .to("source f4.tcl\nproc p3 {} { set r 999 }\n".to_owned());
+            for &file in &files {
+                let _ = file_dispatch_reach(&db, file, project);
+            }
+            assert_eq!(
+                decompositions(&drain()),
+                0,
+                "a body edit leaves file_decls / file_link_targets equal"
+            );
+
+            files[3]
+                .set_text(&mut db)
+                .to("source f4.tcl\nproc p3 {} { set r 999 }\nproc extra {} {}\n".to_owned());
+            for &file in &files {
+                let _ = file_dispatch_reach(&db, file, project);
+            }
+            assert_eq!(
+                decompositions(&drain()),
+                1,
+                "a decl change recomputes the decomposition once, not once per file"
+            );
+            assert!(
+                file_dispatch_reach(&db, files[0], project).contains("::extra"),
+                "the new proc joins every component member's reach"
+            );
+        }
     }
 
-    /// [`project_class_index`] and [`project_proc_var_index`] must likewise
-    /// use [`file_analysis_incremental`] per project file (not the coarse
-    /// [`file_analysis`]), matching [`project_diagnostics`]'s established
-    /// template — otherwise `semantic_tokens_project` pays for a fresh
-    /// whole-file walk of every project file on top of what diagnostics
-    /// already computed for them.
-    #[test]
-    fn project_indexes_use_incremental_analysis_not_coarse() {
+    /// Build a database whose executed-query keys land in the returned log.
+    fn logging_db() -> (TclDatabase, Arc<Mutex<Vec<String>>>) {
         let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
         let sink = {
             let l = Arc::clone(&log);
@@ -3137,14 +3546,20 @@ mod tests {
         let db = TclDatabase {
             storage: salsa::Storage::new(Some(Box::new(sink))),
         };
-        let cfg = AnalyserConfig::new(
-            &db,
-            Vec::new(),
-            NonAsciiMode::Default,
-            Vec::new(),
-            None,
-            None,
-        );
+        (db, log)
+    }
+
+    /// Issue #1163: [`project_class_index`] / [`project_proc_var_index`] read
+    /// *every* file in the project, so the tier they read decides what an
+    /// interactive `semanticTokens` request costs on a large workspace. They
+    /// must stay on the light [`file_token_facts`] tier and never reach the deep
+    /// one — reading `file_analysis_incremental` there meant a whole-workspace
+    /// deep analysis (CFG/SSA units, per-body lattices, diagnostic emitters)
+    /// behind a token request for one file, which on an 883-file checkout never
+    /// completed before the next `set_text` cancelled it.
+    #[test]
+    fn project_indexes_never_touch_the_deep_tier() {
+        let (db, log) = logging_db();
         let lib = SourceFile::new(
             &db,
             "oo::configurable create ::Pin { property node }\n".to_owned(),
@@ -3159,51 +3574,28 @@ mod tests {
         );
         let project = Project::new(&db, vec![lib, main]);
 
-        let _ = project_class_index(&db, project, cfg);
-        let _ = project_proc_var_index(&db, project, cfg);
+        let _ = project_class_index(&db, project);
+        let _ = project_proc_var_index(&db, project);
         let log_snapshot = log.lock().unwrap().clone();
         assert!(
-            log_snapshot
-                .iter()
-                .any(|s| s.contains("file_analysis_incremental")),
-            "project indexes must read the incremental analysis: {log_snapshot:?}"
+            log_snapshot.iter().any(|s| s.contains("file_token_facts")),
+            "project indexes must read the light per-file tier: {log_snapshot:?}"
         );
         assert!(
-            log_snapshot.iter().all(|s| !s.contains("file_analysis(")),
-            "project indexes must never invoke the coarse file_analysis query: \
-             {log_snapshot:?}"
+            log_snapshot.iter().all(|s| !s.contains("file_analysis")),
+            "project indexes must never analyse a project file at the deep tier \
+             (#1163): {log_snapshot:?}"
         );
     }
 
+    /// The per-file [`file_token_facts`] firewall: a body edit that changes no
+    /// class and no parameter role backdates, so neither project index
+    /// re-executes — the property that keeps the cross-file token aggregates off
+    /// the per-keystroke path once they are warm.
     #[test]
-    fn pre_warming_makes_project_index_loop_all_cache_hits() {
-        // #844 Gap 3: the server-layer parallel warm pre-populates
-        // `file_analysis_incremental` for every project file so the enriched
-        // `project_class_index` / `project_proc_var_index` loops are pure cache
-        // hits — no per-file re-analysis. That is exactly what lets the warm
-        // collapse a cold workspace's serial walk into a parallel one: the
-        // tracked query does only the cheap cross-file aggregation, not N whole
-        // -file analyses. This pins the salsa property the warm relies on.
-        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
-        let sink = {
-            let l = Arc::clone(&log);
-            move |ev: salsa::Event| {
-                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
-                    l.lock().unwrap().push(format!("{database_key:?}"));
-                }
-            }
-        };
-        let db = TclDatabase {
-            storage: salsa::Storage::new(Some(Box::new(sink))),
-        };
-        let cfg = AnalyserConfig::new(
-            &db,
-            Vec::new(),
-            NonAsciiMode::Default,
-            Vec::new(),
-            None,
-            None,
-        );
+    fn project_indexes_backdate_on_a_role_neutral_body_edit() {
+        use salsa::Setter as _;
+        let (mut db, log) = logging_db();
         let lib = SourceFile::new(
             &db,
             "oo::configurable create ::Pin { property node }\n".to_owned(),
@@ -3217,26 +3609,59 @@ mod tests {
             None,
         );
         let project = Project::new(&db, vec![lib, main]);
+        let _ = project_class_index(&db, project);
+        let _ = project_proc_var_index(&db, project);
 
-        // The warm: analyse every project file once, exactly what
-        // `spawn_workspace_warm` fans across the blocking pool.  Uses the *same*
-        // `(file, config)` keys the project indexes will read.
-        for &file in project.files(&db) {
-            let _ = file_analysis_incremental(&db, file, cfg);
-        }
-        // From here the project-index loops must not re-execute the per-file
-        // query — every read is served from the warmed cache.
         log.lock().unwrap().clear();
-        let _ = project_class_index(&db, project, cfg);
-        let _ = project_proc_var_index(&db, project, cfg);
+        main.set_text(&mut db)
+            .to("proc ::helper {a b} { return [expr {$a * $b}] }\n".to_owned());
+        let _ = project_class_index(&db, project);
+        let _ = project_proc_var_index(&db, project);
         let after = log.lock().unwrap().clone();
         assert!(
-            after
-                .iter()
-                .all(|s| !s.contains("file_analysis_incremental")),
-            "after the warm, the project indexes must hit cache, not re-run \
-             file_analysis_incremental: {after:?}"
+            after.iter().any(|s| s.contains("file_token_facts")),
+            "the edited file's own facts must be recomputed: {after:?}"
         );
+        assert!(
+            after.iter().all(
+                |s| !s.contains("project_class_index") && !s.contains("project_proc_var_index")
+            ),
+            "a role-neutral body edit must backdate at the per-file firewall, \
+             leaving the project aggregates memoised: {after:?}"
+        );
+    }
+
+    /// The merged project role index must equal one built from every file's
+    /// procs at once — including the abstentions each file made on its own, so
+    /// a name one file already dropped as ambiguous is not re-adopted from
+    /// another file's unambiguous entry.
+    #[test]
+    fn merged_role_index_equals_the_all_at_once_build() {
+        let sources = [
+            // `::a::grow` and `::b::grow` disagree, so this file abstains on the
+            // bare `grow` key all by itself.
+            "namespace eval a { proc grow {v} { upvar 1 $v x; set x 1 } }\n\
+             namespace eval b { proc grow {n v} { upvar 1 $v x; set x 1 } }\n",
+            // A third `grow`, unambiguous within its own file.
+            "namespace eval c { proc grow {v} { upvar 1 $v x; set x 2 } }\n",
+        ];
+        let db = TclDatabase::default();
+        let files: Vec<SourceFile> = sources
+            .iter()
+            .map(|s| SourceFile::new(&db, (*s).to_owned(), "tcl8.6".to_owned(), None))
+            .collect();
+        let project = Project::new(&db, files.clone());
+
+        let all_procs: Vec<Arc<AnalysisResult>> = sources
+            .iter()
+            .map(|s| Arc::new(Analyser::new().structure_only().analyse(s, "tcl8.6")))
+            .collect();
+        let expected =
+            VarNameArgRoles::from_procs(all_procs.iter().flat_map(|a| a.all_procs.values()));
+        assert_eq!(*project_proc_var_index(&db, project), expected);
+        // Order-independent: reversing the project's files changes nothing.
+        let reversed = Project::new(&db, files.into_iter().rev().collect());
+        assert_eq!(*project_proc_var_index(&db, reversed), expected);
     }
 
     #[test]
@@ -3259,7 +3684,7 @@ mod tests {
             None,
         );
         let project = Project::new(&db, vec![lib, user]);
-        let cross = semantic_tokens_project(&db, user, cfg(&db), project);
+        let cross = semantic_tokens_project(&db, user, project);
         let local = semantic_tokens(&db, user, cfg(&db));
         assert_ne!(
             cross.data, local.data,
@@ -3267,7 +3692,7 @@ mod tests {
         );
         // The merged index sees the class from the other file.
         assert!(
-            project_class_index(&db, project, cfg(&db))
+            project_class_index(&db, project)
                 .classes
                 .contains_key("::Pin"),
             "project index should contain ::Pin from the library file"
@@ -3298,7 +3723,7 @@ mod tests {
         for files in [vec![a, b], vec![b, a]] {
             let project = Project::new(&db, files);
             assert!(
-                !project_class_index(&db, project, cfg(&db))
+                !project_class_index(&db, project)
                     .classes
                     .contains_key("::Pin"),
                 "an ambiguous cross-file class name must be dropped, not resolved"
@@ -3314,6 +3739,40 @@ mod tests {
         let reg = db.registry("tcl");
         let expected = tcl_lsp_core::folding::folding_ranges(SRC, "tcl", reg);
         assert_eq!(got, expected);
+    }
+
+    /// Folding served through salsa is memoised: a repeat request for the
+    /// same revision must not re-execute the tracked query — the property
+    /// `Backend::db_folding_ranges` relies on to avoid a fresh
+    /// segmenter/registry walk on every `textDocument/foldingRange`.
+    #[test]
+    fn folding_ranges_memoised_across_repeat_queries() {
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let db = {
+            let sink = Arc::clone(&log);
+            TclDatabase::with_event_logger(move |key| sink.lock().unwrap().push(key))
+        };
+        let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
+        let drain = || std::mem::take(&mut *log.lock().unwrap());
+        let executions = |events: &[String]| {
+            events
+                .iter()
+                .filter(|key| key.contains("folding_ranges"))
+                .count()
+        };
+
+        let _ = folding_ranges(&db, file);
+        assert_eq!(
+            executions(&drain()),
+            1,
+            "cold: one execution for the first request"
+        );
+        let _ = folding_ranges(&db, file);
+        assert_eq!(
+            executions(&drain()),
+            0,
+            "warm: memoised, no re-execution for a repeat request at the same revision"
+        );
     }
 
     #[test]

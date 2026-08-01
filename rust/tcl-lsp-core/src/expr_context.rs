@@ -284,16 +284,20 @@ fn word_at_is_expr_argument(source: &str, probe: usize, registry: &CommandRegist
 /// argument is the braced word and the cursor is inside it.  A `[…]`
 /// substitution re-enters script context, so a cursor inside one is never in
 /// an expression argument of the command outside it.
+///
+/// Takes a pre-built `line_index` so a caller resolving several positions per
+/// request (`completions`) shares one index instead of each probe rebuilding
+/// its own.
 #[must_use]
 pub fn expr_arg_context_at(
     source: &str,
     line: u32,
     character: u32,
+    line_index: &tcl_lexer::LineIndex,
     registry: &CommandRegistry,
 ) -> bool {
-    let line_index = tcl_lexer::LineIndex::new(source);
     let cursor_off =
-        crate::definition::byte_offset_at(&line_index, source, line, character) as usize;
+        crate::definition::byte_offset_at(line_index, source, line, character) as usize;
     match innermost_unclosed_opener(source, cursor_off) {
         // Inside a braced word: that word is the candidate argument.
         Some((pos, '{')) => word_at_is_expr_argument(source, pos, registry),
@@ -311,38 +315,45 @@ mod tests {
         tcl_registry::registry_for_dialect("tcl8.6")
     }
 
+    /// Builds the `line_index` [`expr_arg_context_at`] now expects, so the
+    /// tests keep passing a bare source string.
+    fn ctx(source: &str, line: u32, character: u32) -> bool {
+        let line_index = tcl_lexer::LineIndex::new(source);
+        expr_arg_context_at(source, line, character, &line_index, reg())
+    }
+
     /// TP: the canonical incomplete-source shape from issue #974 defect 2.
     #[test]
     fn expr_context_detected_in_a_partially_typed_expr() {
         let src = "set a [expr {si";
-        assert!(expr_arg_context_at(src, 0, 15, reg()));
+        assert!(ctx(src, 0, 15));
     }
 
     /// TP: `if` / `while` / `for` conditions are EXPR-role arguments too — the
     /// registry says so, nothing here names a command.
     #[test]
     fn expr_context_detected_in_if_and_while_conditions() {
-        assert!(expr_arg_context_at("if {si", 0, 6, reg()));
-        assert!(expr_arg_context_at("while {ma", 0, 9, reg()));
+        assert!(ctx("if {si", 0, 6));
+        assert!(ctx("while {ma", 0, 9));
         // `for`'s third word is the condition; its second is a body.
-        assert!(expr_arg_context_at("for {set i 0} {si", 0, 17, reg()));
+        assert!(ctx("for {set i 0} {si", 0, 17));
     }
 
     /// TN: command position, an ordinary argument, a body argument, and a
     /// `[…]` substitution nested inside an expression (script context again).
     #[test]
     fn expr_context_not_detected_outside_expression_arguments() {
-        assert!(!expr_arg_context_at("si", 0, 2, reg()));
-        assert!(!expr_arg_context_at("puts si", 0, 7, reg()));
-        assert!(!expr_arg_context_at("set si", 0, 6, reg()));
-        assert!(!expr_arg_context_at("if {1} {si", 0, 10, reg()));
-        assert!(!expr_arg_context_at("set a [expr {[si", 0, 16, reg()));
+        assert!(!ctx("si", 0, 2));
+        assert!(!ctx("puts si", 0, 7));
+        assert!(!ctx("set si", 0, 6));
+        assert!(!ctx("if {1} {si", 0, 10));
+        assert!(!ctx("set a [expr {[si", 0, 16));
     }
 
     /// The unbraced `expr` form is an EXPR argument as well.
     #[test]
     fn expr_context_detected_for_the_unbraced_expr_form() {
-        assert!(expr_arg_context_at("set a [expr si", 0, 14, reg()));
+        assert!(ctx("set a [expr si", 0, 14));
     }
 
     /// A completed earlier command on a previous line must not leak its role
@@ -350,7 +361,7 @@ mod tests {
     #[test]
     fn expr_context_is_scoped_to_the_command_being_typed() {
         let src = "if {$a > 1} { puts hi }\nputs si";
-        assert!(!expr_arg_context_at(src, 1, 7, reg()));
+        assert!(!ctx(src, 1, 7));
     }
 
     #[test]

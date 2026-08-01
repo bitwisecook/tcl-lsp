@@ -581,17 +581,14 @@ where
 /// The E204-E206 lexer-warning
 /// codes are emitted separately by the analyser.
 #[must_use]
-pub fn segment_with_recovery<S>(
+pub fn segment_with_recovery(
     source: &str,
     config: LexerConfig,
-    known: &std::collections::HashSet<String, S>,
+    known: &crate::analyser::utils::RecoveryKnownCommands,
 ) -> (
     Vec<SegmentedCommand>,
     Vec<crate::analyser::types::Diagnostic>,
-)
-where
-    S: std::hash::BuildHasher,
-{
+) {
     // Cap the re-lex iterations to bound work on pathological input.
     const MAX_GHOST_RECOVERY_PASSES: usize = 32;
 
@@ -851,7 +848,7 @@ mod tests {
         // known command re-lexes into a clean two-command stream and
         // yields an E201 diagnostic.
         let reg = tcl_registry::CommandRegistry::build_default();
-        let known: std::collections::HashSet<String> =
+        let known: crate::analyser::utils::RecoveryKnownCommands =
             reg.command_names().map(str::to_owned).collect();
         let cfg = LexerConfig::default();
         let (rec, diags) = segment_with_recovery("set x [foo bar\nputs done\n", cfg, &known);
@@ -865,7 +862,7 @@ mod tests {
     #[test]
     fn recovery_is_a_noop_on_clean_input() {
         let reg = tcl_registry::CommandRegistry::build_default();
-        let known: std::collections::HashSet<String> =
+        let known: crate::analyser::utils::RecoveryKnownCommands =
             reg.command_names().map(str::to_owned).collect();
         let cfg = LexerConfig::default();
         let src = "set ok [foo]\nputs hi\n";

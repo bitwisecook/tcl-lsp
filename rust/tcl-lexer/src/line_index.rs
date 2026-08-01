@@ -192,6 +192,29 @@ impl LineIndex {
         self.line_starts = next.into_boxed_slice();
     }
 
+    /// Whether `source` contains a *lone* `\r` — a `\r` not immediately
+    /// followed by `\n`.
+    ///
+    /// This is the exact ambiguity that separates [`Self::new_lsp`] from
+    /// [`Self::new`]: a CRLF pair is a single break at the `\n` in *both*
+    /// models, so it is never itself the source of a divergence, but a bare
+    /// `\r` is a break under [`Self::new_lsp`] and plain whitespace under
+    /// [`Self::new`]. When `source` has none, `new_lsp(source)` and
+    /// `new(source)` therefore agree line-start-for-line-start, which is
+    /// exactly the condition [`Self::apply_edit`] needs to stay sound when
+    /// patching an `new_lsp`-built index (see its fuzz-equivalence test,
+    /// which never puts a `\r` in its edit alphabet, and the LSP server's
+    /// `did_change`, which uses this to decide whether the incremental patch
+    /// remains valid for a given document).
+    #[must_use]
+    pub fn contains_bare_cr(source: &str) -> bool {
+        let bytes = source.as_bytes();
+        bytes
+            .iter()
+            .enumerate()
+            .any(|(i, &b)| b == b'\r' && bytes.get(i + 1) != Some(&b'\n'))
+    }
+
     /// Number of lines in the index. Always ≥ 1 for any `LineIndex`
     /// built from a non-`None` source (even an empty string contains
     /// one line).
@@ -671,6 +694,17 @@ mod tests {
             idx.position_at(4),
             SourcePosition::new(0, ByteCol::new(4), 4)
         );
+    }
+
+    #[test]
+    fn contains_bare_cr_distinguishes_lone_cr_from_crlf() {
+        assert!(!LineIndex::contains_bare_cr("abc\ndef"));
+        assert!(!LineIndex::contains_bare_cr("abc\r\ndef\r\n"));
+        assert!(!LineIndex::contains_bare_cr(""));
+        assert!(LineIndex::contains_bare_cr("abc\rdef"));
+        assert!(LineIndex::contains_bare_cr("abc\r\ndef\r"));
+        // A trailing `\r` with nothing after it is bare.
+        assert!(LineIndex::contains_bare_cr("abc\r"));
     }
 
     #[test]
