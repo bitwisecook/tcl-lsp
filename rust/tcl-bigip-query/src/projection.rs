@@ -728,6 +728,7 @@ fn monitor_value(raw: &str) -> Value {
 
 fn profile_type_str(t: ProfileType) -> Value {
     let name = match t {
+        ProfileType::Aimcp => "AIMCP",
         ProfileType::Http => "HTTP",
         ProfileType::Tcp => "TCP",
         ProfileType::Udp => "UDP",
@@ -742,7 +743,9 @@ fn profile_type_str(t: ProfileType) -> Value {
         ProfileType::Mqtt => "MQTT",
         ProfileType::Websocket => "WEBSOCKET",
         ProfileType::Stream => "STREAM",
+        ProfileType::Sse => "SSE",
         ProfileType::Html => "HTML",
+        ProfileType::Json => "JSON",
         ProfileType::Rewrite => "REWRITE",
         ProfileType::Fasthttp => "FASTHTTP",
         ProfileType::Fastl4 => "FASTL4",
@@ -1032,6 +1035,10 @@ fn project_profile(o: &BigipProfile, _root: &Rc<Root>) -> IndexMap<String, Value
         .s("via-request", &o.via_request)
         .s("via-response", &o.via_response)
         .s("ciphers", &o.ciphers)
+        .v(
+            "cipher-group",
+            path_ref(&o.cipher_group, "ltm cipher group"),
+        )
         .v("cert", path_ref(&o.cert, "sys file ssl-cert"))
         .v("key", path_ref(&o.key, "sys file ssl-key"))
         .v("chain", path_ref(&o.chain, "sys file ssl-cert"))
@@ -1091,6 +1098,11 @@ fn project_profile(o: &BigipProfile, _root: &Rc<Root>) -> IndexMap<String, Value
             "publisher",
             path_ref(&o.publisher, "sys log-config publisher"),
         )
+        .s("maximum-bytes", &o.maximum_bytes)
+        .s("maximum-entries", &o.maximum_entries)
+        .s("maximum-non-json-bytes", &o.maximum_non_json_bytes)
+        .s("max-buffered-msg-bytes", &o.max_buffered_msg_bytes)
+        .s("max-field-name-size", &o.max_field_name_size)
         .done()
 }
 
@@ -1178,6 +1190,7 @@ fn project_persistence(o: &BigipPersistence, _root: &Rc<Root>) -> IndexMap<Strin
         .s("method", &o.method)
         .s("hash-length", &o.hash_length)
         .s("hash-offset", &o.hash_offset)
+        .s("mcp-encryption-passphrase", &o.mcp_encryption_passphrase)
         .done()
 }
 

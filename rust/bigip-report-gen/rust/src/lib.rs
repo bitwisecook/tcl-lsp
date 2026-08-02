@@ -46,6 +46,7 @@ pub mod enrich;
 mod forensics;
 mod graph;
 mod jutil;
+mod lifecycle;
 mod markdown;
 mod model;
 mod query;
@@ -56,6 +57,7 @@ mod services;
 pub use tcl_lexer::highlight_tcl;
 
 pub use forensics::collect_forensics;
+pub use lifecycle::{K5903_URL, bigip_release_lifecycle};
 pub use markdown::render_markdown;
 pub use model::{
     ENGINE_VERSION, GIT_DESCRIBE, GIT_HASH, collect_model, collect_model_full,

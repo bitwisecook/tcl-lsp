@@ -399,6 +399,16 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
+            name: "AIMCP",
+            layer: "application",
+            side: "both",
+            requires: &["HTTP"],
+            conflicts: &[],
+            capabilities: &[],
+            bigip_min_version: Some("21.1.0"),
+            ..ProfileSpec::DEFAULT
+        },
+        ProfileSpec {
             name: "ANTIFRAUD",
             layer: "security",
             side: "client",
@@ -1928,6 +1938,16 @@ mod tests {
         let http = reg.get_profile("HTTP").unwrap();
         assert_eq!(http.layer, "application");
         assert!(http.requires.contains(&"TCP"));
+    }
+
+    #[test]
+    fn aimcp_is_gated_to_bigip_21_1() {
+        let reg = ProfileRegistry::build();
+        let aimcp = reg.get_profile("AIMCP").expect("AIMCP profile registered");
+        assert_eq!(aimcp.layer, "application");
+        assert_eq!(aimcp.requires, &["HTTP"]);
+        assert!(!reg.profile_available_at("AIMCP", "21.0.0"));
+        assert!(reg.profile_available_at("AIMCP", "21.1.0"));
     }
 
     #[test]

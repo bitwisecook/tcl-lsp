@@ -3555,6 +3555,10 @@ impl crate::canonical::Canon for BigipPersistence {
             "hash_offset".to_owned(),
             serde_json::Value::String(self.hash_offset.clone()),
         );
+        o.insert(
+            "mcp_encryption_passphrase".to_owned(),
+            serde_json::Value::String(self.mcp_encryption_passphrase.clone()),
+        );
         o.insert("range".to_owned(), crate::canonical::opt_range(self.range));
         serde_json::Value::Object(o)
     }
@@ -3980,6 +3984,10 @@ impl crate::canonical::Canon for BigipProfile {
             serde_json::Value::String(self.ciphers.clone()),
         );
         o.insert(
+            "cipher_group".to_owned(),
+            serde_json::Value::String(self.cipher_group.clone()),
+        );
+        o.insert(
             "cert".to_owned(),
             serde_json::Value::String(self.cert.clone()),
         );
@@ -4154,6 +4162,26 @@ impl crate::canonical::Canon for BigipProfile {
         o.insert(
             "publisher".to_owned(),
             serde_json::Value::String(self.publisher.clone()),
+        );
+        o.insert(
+            "maximum_bytes".to_owned(),
+            serde_json::Value::String(self.maximum_bytes.clone()),
+        );
+        o.insert(
+            "maximum_entries".to_owned(),
+            serde_json::Value::String(self.maximum_entries.clone()),
+        );
+        o.insert(
+            "maximum_non_json_bytes".to_owned(),
+            serde_json::Value::String(self.maximum_non_json_bytes.clone()),
+        );
+        o.insert(
+            "max_buffered_msg_bytes".to_owned(),
+            serde_json::Value::String(self.max_buffered_msg_bytes.clone()),
+        );
+        o.insert(
+            "max_field_name_size".to_owned(),
+            serde_json::Value::String(self.max_field_name_size.clone()),
         );
         o.insert("range".to_owned(), crate::canonical::opt_range(self.range));
         serde_json::Value::Object(o)

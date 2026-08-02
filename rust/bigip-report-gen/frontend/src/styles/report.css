@@ -115,11 +115,27 @@ tr.part-hidden{display:none !important}
 .badge{font-size:11px;padding:3px 8px;border-radius:20px;background:var(--tag-bg);color:var(--tag-ink);font-family:var(--mono)}
 .badge.muted{color:var(--muted)}
 
+.release-lifecycle{display:grid;grid-template-columns:minmax(280px,1.4fr) minmax(330px,1fr);gap:10px 20px;
+  align-items:center;margin:10px 0 14px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.release-lifecycle.warn{border-color:color-mix(in srgb,var(--amber) 48%,var(--line))}
+.release-lifecycle.danger{border-color:color-mix(in srgb,var(--red) 52%,var(--line))}
+.release-lifecycle-status{display:flex;align-items:flex-start;gap:10px}
+.release-lifecycle-status .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;margin-top:5px;background:var(--green)}
+.release-lifecycle.warn .release-lifecycle-status .dot{background:var(--amber)}
+.release-lifecycle.danger .release-lifecycle-status .dot{background:var(--red)}
+.release-lifecycle-dates{display:grid;grid-template-columns:repeat(3,minmax(92px,1fr));gap:8px;margin:0}
+.release-lifecycle-dates div{padding-left:10px;border-left:1px solid var(--line)}
+.release-lifecycle-dates dt{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+.release-lifecycle-dates dd{margin:2px 0 0;font-family:var(--mono);font-size:12px;font-weight:650}
+.release-lifecycle-source{grid-column:1/-1}
+@media (max-width:780px){.release-lifecycle{grid-template-columns:1fr}.release-lifecycle-dates{grid-template-columns:1fr 1fr 1fr}}
+
 .insights{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px;margin:12px 0 18px}
 .insight{display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel);font-size:13px}
 .insight .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
 .insight.warn .dot{background:var(--amber)} .insight.info .dot{background:var(--blue)}
 .insight.ok .dot{background:var(--green)} .insight.warn{border-color:color-mix(in srgb,var(--amber) 40%,var(--line))}
+.insight.danger .dot{background:var(--red)} .insight.danger{border-color:color-mix(in srgb,var(--red) 45%,var(--line))}
 
 .tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:14px}
 .tab{padding:9px 14px;border:none;background:none;color:var(--muted);cursor:pointer;font-weight:600;

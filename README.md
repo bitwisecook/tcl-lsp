@@ -1165,6 +1165,14 @@ pack .f
 Open a BIG-IP `.conf` or `.scf` file to get syntax highlighting, object
 navigation, and iRule extraction.
 
+The standalone BIG-IP report generator reads `#TMSH-VERSION` from an SCF and
+uses the matching `/config/profile_base.conf` defaults when a profile omits a
+field. Its versioned catalogue includes the BIG-IP 21.1 secure Client SSL and
+Server SSL defaults, plus the AIMCP, JSON, SSE, and MCP persistence object
+types introduced across BIG-IP 21.x. The report also maps the detected TMOS
+branch to F5 K5903, showing its first-customer-ship, EoSD, EoTS, and EoL dates
+and warning when a support milestone is within one year or has passed.
+
 ```
 # BIG-IP config file (bigip.conf)
 ltm virtual /Common/my_vs {

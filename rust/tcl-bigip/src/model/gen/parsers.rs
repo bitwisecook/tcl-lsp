@@ -1837,6 +1837,8 @@ pub fn parse_bigip_persistence(
     obj.method = crate::parser::scalar::get_str(&props, "method");
     obj.hash_length = crate::parser::scalar::get_str(&props, "hash-length");
     obj.hash_offset = crate::parser::scalar::get_str(&props, "hash-offset");
+    obj.mcp_encryption_passphrase =
+        crate::parser::scalar::get_str(&props, "mcp-encryption-passphrase");
     obj.range = Some(range);
     obj
 }
@@ -2016,6 +2018,7 @@ pub fn parse_bigip_profile(
     obj.via_request = crate::parser::scalar::get_str(&props, "via-request");
     obj.via_response = crate::parser::scalar::get_str(&props, "via-response");
     obj.ciphers = crate::parser::scalar::get_str(&props, "ciphers");
+    obj.cipher_group = crate::parser::scalar::get_str(&props, "cipher-group");
     obj.cert = crate::parser::scalar::get_str(&props, "cert");
     obj.key = crate::parser::scalar::get_str(&props, "key");
     obj.chain = crate::parser::scalar::get_str(&props, "chain");
@@ -2064,6 +2067,11 @@ pub fn parse_bigip_profile(
     obj.collected_stats_external_logging =
         crate::parser::scalar::get_str(&props, "collected-stats-external-logging");
     obj.publisher = crate::parser::scalar::get_str(&props, "publisher");
+    obj.maximum_bytes = crate::parser::scalar::get_str(&props, "maximum-bytes");
+    obj.maximum_entries = crate::parser::scalar::get_str(&props, "maximum-entries");
+    obj.maximum_non_json_bytes = crate::parser::scalar::get_str(&props, "maximum-non-json-bytes");
+    obj.max_buffered_msg_bytes = crate::parser::scalar::get_str(&props, "max-buffered-msg-bytes");
+    obj.max_field_name_size = crate::parser::scalar::get_str(&props, "max-field-name-size");
     obj.range = Some(range);
     obj
 }

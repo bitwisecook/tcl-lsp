@@ -732,6 +732,8 @@ pub struct BigipPersistence {
     pub hash_length: String,
     /// `hash_offset`
     pub hash_offset: String,
+    /// `mcp_encryption_passphrase`
+    pub mcp_encryption_passphrase: String,
     /// `range`
     pub range: Option<crate::range::Range>,
 }
@@ -1034,6 +1036,8 @@ pub struct BigipProfile {
     pub via_response: String,
     /// `ciphers`
     pub ciphers: String,
+    /// `cipher_group`
+    pub cipher_group: String,
     /// `cert`
     pub cert: String,
     /// `key`
@@ -1122,6 +1126,16 @@ pub struct BigipProfile {
     pub collected_stats_external_logging: String,
     /// `publisher`
     pub publisher: String,
+    /// `maximum_bytes`
+    pub maximum_bytes: String,
+    /// `maximum_entries`
+    pub maximum_entries: String,
+    /// `maximum_non_json_bytes`
+    pub maximum_non_json_bytes: String,
+    /// `max_buffered_msg_bytes`
+    pub max_buffered_msg_bytes: String,
+    /// `max_field_name_size`
+    pub max_field_name_size: String,
     /// `range`
     pub range: Option<crate::range::Range>,
 }

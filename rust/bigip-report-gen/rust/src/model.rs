@@ -31,6 +31,7 @@ use std::sync::OnceLock;
 use regex::Regex;
 use serde_json::{Map, Value as J};
 use tcl_registry::events::EventRegistry;
+use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults};
 
 use crate::jutil::{barr, bbool, bstr, sarr, truthy};
 use crate::query::{Source, query};
@@ -857,15 +858,33 @@ fn shape_nat_translation(f: &Map<String, J>) -> J {
     J::Object(o)
 }
 
-fn shape_profile(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
+fn shape_profile(
+    f: &Map<String, J>,
+    used: &HashMap<String, Vec<J>>,
+    bigip_version: Option<BigipVersion>,
+) -> J {
     let ptype = bstr(f, "type").replace("ProfileType.", "");
     let fp = bstr(f, "full-path");
+    let mut default_fields = Map::new();
+    for (field, value) in profile_field_defaults(&ptype, bigip_version) {
+        default_fields.insert(field.to_owned(), J::String(value.to_owned()));
+    }
+    let mut effective_fields = default_fields.clone();
+    for (field, value) in f {
+        if matches!(field.as_str(), "name" | "full-path" | "type") {
+            continue;
+        }
+        if let Some(value) = value.as_str().filter(|value| !value.is_empty()) {
+            effective_fields.insert(field.clone(), J::String(clean_path(value)));
+        }
+    }
     let ciphers = {
-        let c = bstr(f, "ciphers");
-        if c.is_empty() {
-            bstr(f, "cipher-group").to_string()
+        let ciphers = bstr(&effective_fields, "ciphers");
+        let cipher_group = bstr(&effective_fields, "cipher-group");
+        if ciphers.is_empty() || ciphers == "none" {
+            cipher_group.to_owned()
         } else {
-            c.to_string()
+            ciphers.to_owned()
         }
     };
     let mut o = Map::new();
@@ -874,9 +893,20 @@ fn shape_profile(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
     o.insert("type".into(), J::String(ptype));
     o.insert("parent".into(), J::String(clean_field(f, "defaults-from")));
     o.insert("ciphers".into(), J::String(ciphers));
-    o.insert("cert".into(), J::String(clean_field(f, "cert")));
-    o.insert("key".into(), J::String(clean_field(f, "key")));
-    o.insert("chain".into(), J::String(clean_field(f, "chain")));
+    o.insert(
+        "cert".into(),
+        J::String(clean_field(&effective_fields, "cert")),
+    );
+    o.insert(
+        "key".into(),
+        J::String(clean_field(&effective_fields, "key")),
+    );
+    o.insert(
+        "chain".into(),
+        J::String(clean_field(&effective_fields, "chain")),
+    );
+    o.insert("defaultFields".into(), J::Object(default_fields));
+    o.insert("effectiveFields".into(), J::Object(effective_fields));
     o.insert("usedBy".into(), J::Array(used_by(used, fp)));
     J::Object(o)
 }
@@ -968,6 +998,12 @@ fn insight(level: &str, text: String) -> J {
 
 fn insights(device: &Map<String, J>) -> Vec<J> {
     let mut out = Vec::new();
+    if let Some(lifecycle) = device.get("releaseLifecycle").and_then(J::as_object) {
+        let level = bstr(lifecycle, "level");
+        if matches!(level, "warn" | "danger") {
+            out.push(insight(level, bstr(lifecycle, "text").to_owned()));
+        }
+    }
     let orphans = device
         .get("orphans")
         .and_then(J::as_object)
@@ -1449,11 +1485,21 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>, 
         .captures(source)
         .map(|c| c[1].to_string())
         .unwrap_or_default();
+    let bigip_version = BigipVersion::parse(&tmsh);
 
     let mut device = Map::new();
     device.insert("uri".into(), J::String(uri.into()));
     device.insert("name".into(), J::String(device_name(uri, source)));
     device.insert("tmshVersion".into(), J::String(tmsh));
+    device.insert(
+        "releaseLifecycle".into(),
+        crate::bigip_release_lifecycle(
+            device
+                .get("tmshVersion")
+                .and_then(J::as_str)
+                .unwrap_or_default(),
+        ),
+    );
 
     for (key, container) in CONTAINERS {
         let rows = fields_of(query(&format!("{container}[]"), &sources).unwrap_or_default());
@@ -1465,7 +1511,10 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>, 
             "monitors" => rows.iter().map(|f| shape_monitor(f, used)).collect(),
             "rules" => rows.iter().map(|f| shape_rule(f, used)).collect(),
             "dataGroups" => rows.iter().map(|f| shape_data_group(f, used)).collect(),
-            "profiles" => rows.iter().map(|f| shape_profile(f, used)).collect(),
+            "profiles" => rows
+                .iter()
+                .map(|f| shape_profile(f, used, bigip_version))
+                .collect(),
             "policies" => rows.iter().map(shape_policy).collect(),
             // snatpools / persistence / virtual-addresses: keep the projected
             // fields, tidy up the name/full-path for display; carry `usedBy`.

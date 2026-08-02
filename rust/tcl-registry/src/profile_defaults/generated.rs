@@ -6,6 +6,11 @@ use super::{BigipVersion, FieldDefault, ProfileDefaults, VersionRange};
 /// a report's version to the nearest not-newer snapshot. See [`super::PROFILE_DEFAULTS`].
 pub static PROFILE_DEFAULTS_GENERATED: &[ProfileDefaults] = &[
     ProfileDefaults {
+        profile: "AIMCP",
+        tmsh_kind: "ltm profile aimcp",
+        fields: &[],
+    },
+    ProfileDefaults {
         profile: "ANALYTICS",
         tmsh_kind: "ltm profile analytics",
         fields: &[
@@ -232,9 +237,30 @@ pub static PROFILE_DEFAULTS_GENERATED: &[ProfileDefaults] = &[
                 range: VersionRange::from(BigipVersion::new(17, 1, 0, 0)),
             },
             FieldDefault {
+                field: "cipher-group",
+                value: "none",
+                range: VersionRange::between(
+                    BigipVersion::new(17, 1, 0, 0),
+                    BigipVersion::new(21, 1, 0, 0),
+                ),
+            },
+            FieldDefault {
+                field: "cipher-group",
+                value: "/Common/f5-default",
+                range: VersionRange::from(BigipVersion::new(21, 1, 0, 0)),
+            },
+            FieldDefault {
                 field: "ciphers",
                 value: "DEFAULT",
-                range: VersionRange::from(BigipVersion::new(17, 1, 0, 0)),
+                range: VersionRange::between(
+                    BigipVersion::new(17, 1, 0, 0),
+                    BigipVersion::new(21, 1, 0, 0),
+                ),
+            },
+            FieldDefault {
+                field: "ciphers",
+                value: "none",
+                range: VersionRange::from(BigipVersion::new(21, 1, 0, 0)),
             },
             FieldDefault {
                 field: "client-cert-ca",
@@ -274,7 +300,15 @@ pub static PROFILE_DEFAULTS_GENERATED: &[ProfileDefaults] = &[
             FieldDefault {
                 field: "options",
                 value: "dont-insert-empty-fragments no-tlsv1.3 no-dtlsv1.2",
-                range: VersionRange::from(BigipVersion::new(17, 1, 0, 0)),
+                range: VersionRange::between(
+                    BigipVersion::new(17, 1, 0, 0),
+                    BigipVersion::new(21, 1, 0, 0),
+                ),
+            },
+            FieldDefault {
+                field: "options",
+                value: "dont-insert-empty-fragments no-tlsv1.1 no-tlsv1 no-ssl",
+                range: VersionRange::from(BigipVersion::new(21, 1, 0, 0)),
             },
             FieldDefault {
                 field: "passphrase",
@@ -835,6 +869,27 @@ pub static PROFILE_DEFAULTS_GENERATED: &[ProfileDefaults] = &[
         ],
     },
     ProfileDefaults {
+        profile: "JSON",
+        tmsh_kind: "ltm profile json",
+        fields: &[
+            FieldDefault {
+                field: "maximum-bytes",
+                value: "65536",
+                range: VersionRange::from(BigipVersion::new(21, 0, 0, 0)),
+            },
+            FieldDefault {
+                field: "maximum-entries",
+                value: "2048",
+                range: VersionRange::from(BigipVersion::new(21, 0, 0, 0)),
+            },
+            FieldDefault {
+                field: "maximum-non-json-bytes",
+                value: "32768",
+                range: VersionRange::from(BigipVersion::new(21, 0, 0, 0)),
+            },
+        ],
+    },
+    ProfileDefaults {
         profile: "MAPT",
         tmsh_kind: "ltm profile map-t",
         fields: &[
@@ -1247,9 +1302,30 @@ pub static PROFILE_DEFAULTS_GENERATED: &[ProfileDefaults] = &[
                 range: VersionRange::from(BigipVersion::new(17, 1, 0, 0)),
             },
             FieldDefault {
+                field: "cipher-group",
+                value: "none",
+                range: VersionRange::between(
+                    BigipVersion::new(17, 1, 0, 0),
+                    BigipVersion::new(21, 1, 0, 0),
+                ),
+            },
+            FieldDefault {
+                field: "cipher-group",
+                value: "/Common/f5-default",
+                range: VersionRange::from(BigipVersion::new(21, 1, 0, 0)),
+            },
+            FieldDefault {
                 field: "ciphers",
                 value: "DEFAULT",
-                range: VersionRange::from(BigipVersion::new(17, 1, 0, 0)),
+                range: VersionRange::between(
+                    BigipVersion::new(17, 1, 0, 0),
+                    BigipVersion::new(21, 1, 0, 0),
+                ),
+            },
+            FieldDefault {
+                field: "ciphers",
+                value: "none",
+                range: VersionRange::from(BigipVersion::new(21, 1, 0, 0)),
             },
             FieldDefault {
                 field: "crl-file",
@@ -1279,7 +1355,15 @@ pub static PROFILE_DEFAULTS_GENERATED: &[ProfileDefaults] = &[
             FieldDefault {
                 field: "options",
                 value: "dont-insert-empty-fragments no-tlsv1.3 no-dtlsv1.2",
-                range: VersionRange::from(BigipVersion::new(17, 1, 0, 0)),
+                range: VersionRange::between(
+                    BigipVersion::new(17, 1, 0, 0),
+                    BigipVersion::new(21, 1, 0, 0),
+                ),
+            },
+            FieldDefault {
+                field: "options",
+                value: "dont-insert-empty-fragments no-tlsv1.1 no-tlsv1 no-ssl",
+                range: VersionRange::from(BigipVersion::new(21, 1, 0, 0)),
             },
             FieldDefault {
                 field: "passphrase",
@@ -1413,6 +1497,22 @@ pub static PROFILE_DEFAULTS_GENERATED: &[ProfileDefaults] = &[
         profile: "SPLITSESSIONSERVER",
         tmsh_kind: "ltm profile splitsessionserver",
         fields: &[],
+    },
+    ProfileDefaults {
+        profile: "SSE",
+        tmsh_kind: "ltm profile sse",
+        fields: &[
+            FieldDefault {
+                field: "max-buffered-msg-bytes",
+                value: "65536",
+                range: VersionRange::from(BigipVersion::new(21, 0, 0, 0)),
+            },
+            FieldDefault {
+                field: "max-field-name-size",
+                value: "1024",
+                range: VersionRange::from(BigipVersion::new(21, 0, 0, 0)),
+            },
+        ],
     },
     ProfileDefaults {
         profile: "STATISTICS",
