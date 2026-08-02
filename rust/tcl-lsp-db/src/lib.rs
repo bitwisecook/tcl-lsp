@@ -3859,6 +3859,34 @@ mod tests {
         }
     }
 
+    #[test]
+    fn file_analysis_incremental_carries_bigip_version_override() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            Some("21.1.0".to_owned()),
+        );
+        let file = SourceFile::new(
+            &db,
+            "SSL::c3d cert_lifespan 24\n".to_owned(),
+            "f5-irules".to_owned(),
+            None,
+        );
+
+        let incremental = file_analysis_incremental(&db, file, cfg);
+        let full = file_analysis(&db, file, cfg);
+
+        assert_eq!(*incremental, *full);
+        assert_eq!(
+            incremental.library_versions.bigip_version.as_deref(),
+            Some("21.1.0")
+        );
+    }
+
     /// The slice-3 firewall: a body-only edit (same length, so other bodies
     /// keep their offset) recomputes exactly one `item_body_analysis`.
     #[test]

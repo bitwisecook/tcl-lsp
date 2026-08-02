@@ -312,6 +312,7 @@ impl Analyser {
         self.source = source.to_string();
         self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
+        self.result.library_versions = self.library_versions.clone();
         let file_codes = super::utils::parse_file_suppression(source);
         for code in &file_codes {
             self.disabled_diagnostics.insert(code.clone());
