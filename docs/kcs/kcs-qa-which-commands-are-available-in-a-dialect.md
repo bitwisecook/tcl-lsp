@@ -65,8 +65,11 @@ A third axis covers **library versions**: the F5 surfaces are keyed on
 the BIG-IP (TMOS) release, defaulting to the oldest supported version —
 the conservative choice, so a command introduced in a later TMOS (for
 example `HTTP2::header`, BIG-IP 16.1.0) is only offered once the target
-version covers it, and using it below that pin draws W135 naming the
-runtime as the guarantor. Likewise, a plain-Tcl host pins the Tk it
+version covers it. The same floor applies below the command level:
+`SSL::c3d cert_lifespan`, `SSL::c3d cert_start_date`, and the `mcp` forms of
+`persist` require BIG-IP 21.1. Using a command or subcommand below its pin
+draws W135; using a gated enumerated value such as `persist add mcp ...`
+also draws W135. Likewise, a plain-Tcl host pins the Tk it
 ships: on `tcl8.6`, a `package require Tk` guarantees Tk 8.6, so an
 8.7-introduced widget option is not offered even when the require names
 no version.

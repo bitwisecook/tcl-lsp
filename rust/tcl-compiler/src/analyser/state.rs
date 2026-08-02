@@ -1087,6 +1087,7 @@ impl Analyser {
         self.source = source.to_string();
         self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
+        self.result.library_versions = self.library_versions.clone();
         self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
         self.tk_dialect = dialect == "tk";
         // Clear the per-run iRules file-profile memo so a reused analyser
@@ -1465,6 +1466,7 @@ impl Analyser {
         self.source = source.to_string();
         self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
+        self.result.library_versions = self.library_versions.clone();
         self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
         self.tk_dialect = dialect == "tk";
         self.unresolved_commands_emitted = false;
@@ -1548,6 +1550,7 @@ impl Analyser {
         self.source = source.to_string();
         self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
+        self.result.library_versions = self.library_versions.clone();
         self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
         self.tk_dialect = dialect == "tk";
         self.unresolved_commands_emitted = false;

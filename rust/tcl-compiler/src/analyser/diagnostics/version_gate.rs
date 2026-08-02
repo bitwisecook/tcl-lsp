@@ -62,7 +62,7 @@ pub(in crate::analyser) struct VersionGateSite {
     min_version: &'static str,
     /// Which bound this site checks.
     bound: VersionBound,
-    /// What is gated — a command, or an option on one.
+    /// What is gated — a command, subcommand, option, or argument value.
     item: VersionGateItem,
 }
 
@@ -75,15 +75,242 @@ enum VersionBound {
     Removed,
 }
 
-/// Payload distinguishing a gated command (W135) from a gated option (W136).
-#[derive(Debug)]
+/// Payload distinguishing the package-version gate's syntax granularity.
+#[derive(Debug, Clone)]
 enum VersionGateItem {
     Command(String),
-    Option { command: String, option: String },
+    Subcommand {
+        command: String,
+        subcommand: String,
+    },
+    Option {
+        command: String,
+        option: String,
+    },
+    ArgumentValue {
+        command: String,
+        subcommand: String,
+        value: String,
+    },
+}
+
+fn is_literal_option(arg: &str, token: Option<&Token>) -> bool {
+    if !arg.starts_with('-') || arg.len() < 2 {
+        return false;
+    }
+    // Negative-number literals (`-1`, `-1.5`) are positional values, not
+    // options.
+    let rest = arg[1..].trim_start_matches('-');
+    if !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return false;
+    }
+    // A `Var`/`Cmd` token's text is not a literal option name.
+    !token.is_some_and(|tok| matches!(tok.kind, TokenType::Var | TokenType::Cmd))
+}
+
+fn version_bound_is_violated(site: &VersionGateSite, floor: &str) -> bool {
+    match site.bound {
+        VersionBound::Introduced => !tcl_registry::version::meets_min(floor, site.min_version),
+        VersionBound::Removed => tcl_registry::version::compare(floor, site.min_version).is_gt(),
+    }
+}
+
+fn version_gate_diagnostic(site: &VersionGateSite, guarantee: &str) -> (DiagCode, String) {
+    let package = site.package;
+    let version = site.min_version;
+    match (&site.item, site.bound) {
+        (VersionGateItem::Command(cmd), VersionBound::Introduced) => (
+            DiagCode::W135,
+            format!("'{cmd}' requires {package} {version} but {guarantee}."),
+        ),
+        (VersionGateItem::Command(cmd), VersionBound::Removed) => (
+            DiagCode::W139,
+            format!("'{cmd}' was removed after {package} {version} but {guarantee}."),
+        ),
+        (
+            VersionGateItem::Subcommand {
+                command,
+                subcommand,
+            },
+            VersionBound::Introduced,
+        ) => (
+            DiagCode::W135,
+            format!(
+                "Subcommand '{subcommand}' on '{command}' requires {package} {version} but \
+                 {guarantee}."
+            ),
+        ),
+        (
+            VersionGateItem::Subcommand {
+                command,
+                subcommand,
+            },
+            VersionBound::Removed,
+        ) => (
+            DiagCode::W139,
+            format!(
+                "Subcommand '{subcommand}' on '{command}' was removed after {package} {version} \
+                 but {guarantee}."
+            ),
+        ),
+        (VersionGateItem::Option { command, option }, VersionBound::Introduced) => (
+            DiagCode::W136,
+            format!(
+                "Option '{option}' on '{command}' requires {package} {version} but {guarantee}."
+            ),
+        ),
+        (VersionGateItem::Option { command, option }, VersionBound::Removed) => (
+            DiagCode::W139,
+            format!(
+                "Option '{option}' on '{command}' was removed after {package} {version} but \
+                 {guarantee}."
+            ),
+        ),
+        (
+            VersionGateItem::ArgumentValue {
+                command,
+                subcommand,
+                value,
+            },
+            VersionBound::Introduced,
+        ) => (
+            DiagCode::W135,
+            format!(
+                "Argument value '{value}' on '{command} {subcommand}' requires {package} {version} \
+                 but {guarantee}."
+            ),
+        ),
+        (
+            VersionGateItem::ArgumentValue {
+                command,
+                subcommand,
+                value,
+            },
+            VersionBound::Removed,
+        ) => (
+            DiagCode::W139,
+            format!(
+                "Argument value '{value}' on '{command} {subcommand}' was removed after {package} \
+                 {version} but {guarantee}."
+            ),
+        ),
+    }
 }
 
 impl Analyser {
-    /// Buffer version-gated command/option uses at a dispatch site.
+    fn record_version_bounds(
+        &mut self,
+        span: Span,
+        package: &'static str,
+        min_version: Option<&'static str>,
+        max_version: Option<&'static str>,
+        item: VersionGateItem,
+    ) {
+        if let Some(min_version) = min_version {
+            self.version_gate_sites.push(VersionGateSite {
+                span,
+                package,
+                min_version,
+                bound: VersionBound::Introduced,
+                item: item.clone(),
+            });
+        }
+        if let Some(min_version) = max_version {
+            self.version_gate_sites.push(VersionGateSite {
+                span,
+                package,
+                min_version,
+                bound: VersionBound::Removed,
+                item,
+            });
+        }
+    }
+
+    fn record_subcommand_version_sites(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        package: &'static str,
+        sub: &tcl_registry::SubCommand,
+    ) {
+        let sub_is_literal = arg_tokens
+            .first()
+            .is_some_and(|tok| !matches!(tok.kind, TokenType::Var | TokenType::Cmd));
+        if sub_is_literal {
+            self.record_version_bounds(
+                arg_tokens[0].span,
+                package,
+                sub.min_version,
+                sub.max_version,
+                VersionGateItem::Subcommand {
+                    command: cmd_name.to_owned(),
+                    subcommand: sub.name.to_owned(),
+                },
+            );
+        }
+        for gate in sub.versioned_arg_values {
+            let arg_idx = 1usize + usize::from(gate.index);
+            let (Some(arg), Some(tok)) = (args.get(arg_idx), arg_tokens.get(arg_idx)) else {
+                continue;
+            };
+            if arg != gate.value || matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
+                continue;
+            }
+            self.record_version_bounds(
+                tok.span,
+                package,
+                gate.min_version,
+                gate.max_version,
+                VersionGateItem::ArgumentValue {
+                    command: cmd_name.to_owned(),
+                    subcommand: sub.name.to_owned(),
+                    value: gate.value.to_owned(),
+                },
+            );
+        }
+    }
+
+    fn record_option_version_sites(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        package: &'static str,
+        options: &[tcl_registry::hover::OptionSpec],
+        start_idx: usize,
+    ) {
+        let mut i = start_idx;
+        while i < args.len() {
+            let arg = args[i].as_str();
+            if arg == "--" {
+                break;
+            }
+            if !is_literal_option(arg, arg_tokens.get(i)) {
+                i += 1;
+                continue;
+            }
+            if let Some(opt) = options.iter().find(|o| o.matches(arg)) {
+                if let (Some(min_version), Some(tok)) = (opt.min_version, arg_tokens.get(i)) {
+                    self.version_gate_sites.push(VersionGateSite {
+                        span: tok.span,
+                        package,
+                        min_version,
+                        bound: VersionBound::Introduced,
+                        item: VersionGateItem::Option {
+                            command: cmd_name.to_owned(),
+                            option: arg.to_owned(),
+                        },
+                    });
+                }
+                i += 1 + opt.value_word_count(args, i);
+                continue;
+            }
+            i += 1;
+        }
+    }
+
+    /// Buffer package-version-gated syntax uses at a dispatch site.
     ///
     /// The command's `min_version` (if any) records a W135 candidate at the
     /// command head; each option argument matching a value-gated
@@ -121,24 +348,14 @@ impl Analyser {
             return;
         };
         let effective_min = keyed.map_or(spec.min_version, |(min, _)| min);
-        if let Some(min) = effective_min {
-            self.version_gate_sites.push(VersionGateSite {
-                span: cmd_tok.span,
-                package: pkg,
-                min_version: min,
-                bound: VersionBound::Introduced,
-                item: VersionGateItem::Command(cmd_name.to_owned()),
-            });
-        }
-        if let Some(max) = keyed.and_then(|(_, max)| max).or(spec.max_version) {
-            self.version_gate_sites.push(VersionGateSite {
-                span: cmd_tok.span,
-                package: pkg,
-                min_version: max,
-                bound: VersionBound::Removed,
-                item: VersionGateItem::Command(cmd_name.to_owned()),
-            });
-        }
+        let effective_max = keyed.and_then(|(_, max)| max).or(spec.max_version);
+        self.record_version_bounds(
+            cmd_tok.span,
+            pkg,
+            effective_min,
+            effective_max,
+            VersionGateItem::Command(cmd_name.to_owned()),
+        );
 
         // Option-level gates.  Resolve subcommand-scoped options when the first
         // argument names a subcommand.
@@ -148,6 +365,10 @@ impl Analyser {
                 spec.resolve_subcommand(first)
             })
             .flatten();
+
+        if let Some(sub) = sub_match {
+            self.record_subcommand_version_sites(cmd_name, args, arg_tokens, pkg, sub);
+        }
         let (options, start_idx) = match sub_match {
             Some(sub) => (sub.options, 1usize),
             None => (spec.options, 0usize),
@@ -156,53 +377,7 @@ impl Analyser {
             return;
         }
 
-        let mut i = start_idx;
-        while i < args.len() {
-            let arg = args[i].as_str();
-            if arg == "--" {
-                break;
-            }
-            if !arg.starts_with('-') || arg.len() < 2 {
-                i += 1;
-                continue;
-            }
-            // Skip negative-number literals (`-1`, `-1.5`).
-            let rest = arg[1..].trim_start_matches('-');
-            if !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit() || c == '.') {
-                i += 1;
-                continue;
-            }
-            // Skip dynamic-value args — a `Var`/`Cmd` token's text is not the
-            // literal option name.
-            if i < arg_tokens.len() && matches!(arg_tokens[i].kind, TokenType::Var | TokenType::Cmd)
-            {
-                i += 1;
-                continue;
-            }
-            if let Some(opt) = options.iter().find(|o| o.matches(arg)) {
-                if let Some(min) = opt.min_version
-                    && i < arg_tokens.len()
-                {
-                    self.version_gate_sites.push(VersionGateSite {
-                        span: arg_tokens[i].span,
-                        package: pkg,
-                        min_version: min,
-                        bound: VersionBound::Introduced,
-                        item: VersionGateItem::Option {
-                            command: cmd_name.to_owned(),
-                            option: arg.to_owned(),
-                        },
-                    });
-                }
-                // Skip the value word(s) this option consumes, so a value that
-                // itself looks like a flag (`-textvariable -placeholder`) is not
-                // re-tested as an option — the same `value_word_count` skip the
-                // W004 dialect-option loop uses (RUST_ISSUE_077).
-                i += 1 + opt.value_word_count(args, i);
-                continue;
-            }
-            i += 1;
-        }
+        self.record_option_version_sites(cmd_name, args, arg_tokens, pkg, options, start_idx);
     }
 
     /// Emit W135/W136 for each buffered site whose package's resolved
@@ -223,15 +398,7 @@ impl Analyser {
             let Some((floor, source)) = self.package_version_floor(site.package) else {
                 continue;
             };
-            let violated = match site.bound {
-                VersionBound::Introduced => {
-                    !tcl_registry::version::meets_min(&floor, site.min_version)
-                }
-                VersionBound::Removed => {
-                    tcl_registry::version::compare(&floor, site.min_version).is_gt()
-                }
-            };
-            if !violated {
+            if !version_bound_is_violated(&site, &floor) {
                 continue;
             }
             let guarantee = match source {
@@ -240,37 +407,7 @@ impl Analyser {
                     format!("{} ships {} {floor}", self.profile.name, site.package)
                 }
             };
-            let (code, message) = match (&site.item, site.bound) {
-                (VersionGateItem::Command(cmd), VersionBound::Introduced) => (
-                    DiagCode::W135,
-                    format!(
-                        "'{cmd}' requires {} {} but {guarantee}.",
-                        site.package, site.min_version
-                    ),
-                ),
-                (VersionGateItem::Command(cmd), VersionBound::Removed) => (
-                    DiagCode::W139,
-                    format!(
-                        "'{cmd}' was removed after {} {} but {guarantee}.",
-                        site.package, site.min_version
-                    ),
-                ),
-                (VersionGateItem::Option { command, option }, VersionBound::Introduced) => (
-                    DiagCode::W136,
-                    format!(
-                        "Option '{option}' on '{command}' requires {} {} but {guarantee}.",
-                        site.package, site.min_version
-                    ),
-                ),
-                (VersionGateItem::Option { command, option }, VersionBound::Removed) => (
-                    DiagCode::W139,
-                    format!(
-                        "Option '{option}' on '{command}' was removed after {} {} but \
-                         {guarantee}.",
-                        site.package, site.min_version
-                    ),
-                ),
-            };
+            let (code, message) = version_gate_diagnostic(&site, &guarantee);
             new_diags.push(Diagnostic {
                 code,
                 span: site.span,
@@ -539,7 +676,7 @@ mod tests {
         a.analyse(source, dialect)
             .diagnostics
             .iter()
-            .filter(|d| matches!(d.code.as_str(), "W135" | "W136"))
+            .filter(|d| matches!(d.code.as_str(), "W135" | "W136" | "W139"))
             .map(|d| (d.code.to_string(), d.message.clone()))
             .collect()
     }
@@ -592,6 +729,44 @@ mod tests {
             version_diags_for(src, "f5-irules", Some("17.1.0")).is_empty(),
             "a 17.1.0 pin satisfies a 16.1.0 introduction"
         );
+    }
+
+    #[test]
+    fn bigip_21_1_subcommands_follow_the_configured_floor() {
+        for source in [
+            "SSL::c3d cert_lifespan 5\n",
+            "SSL::c3d cert_start_date override\n",
+            "persist mcp persistence_name\n",
+        ] {
+            let below = version_diags_for(source, "f5-irules", Some("21.0.0"));
+            assert!(
+                below.iter().any(|(code, message)| code == "W135"
+                    && message.contains("requires f5-irules-cmds 21.1.0")),
+                "21.0 must reject the 21.1 subcommand: {below:?}"
+            );
+            assert!(
+                version_diags_for(source, "f5-irules", Some("21.1.0")).is_empty(),
+                "21.1 must admit {source:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn persist_table_mcp_mode_follows_the_configured_floor() {
+        for operation in ["add", "lookup", "delete"] {
+            let source = format!("persist {operation} mcp key\n");
+            let below = version_diags_for(&source, "f5-irules", Some("21.0.0"));
+            assert!(
+                below.iter().any(|(code, message)| code == "W135"
+                    && message.contains("Argument value 'mcp'")
+                    && message.contains("requires f5-irules-cmds 21.1.0")),
+                "21.0 must reject persist {operation} mcp: {below:?}"
+            );
+            assert!(
+                version_diags_for(&source, "f5-irules", Some("21.1.0")).is_empty(),
+                "21.1 must admit persist {operation} mcp"
+            );
+        }
     }
 
     /// Version-gate + argument-DSL codes for `source` under `dialect`.

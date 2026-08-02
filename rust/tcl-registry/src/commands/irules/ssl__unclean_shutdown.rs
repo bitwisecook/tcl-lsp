@@ -29,7 +29,7 @@ pub const fn spec() -> CommandSpec {
             snippet: "Sets the value of the Unclean Shutdown setting. This command only affects the current connection, and only affects the current context (e.g., when run in a client-side context, it only affects the current client-side connection).",
             source: "https://clouddocs.f5.com/api/irules/SSL__unclean_shutdown.html",
             examples: "# Note that for this iRule, unclean shutdown should be disabled in the clientssl profile\nwhen HTTP_REQUEST {\n    if { [HTTP::header \"User-Agent\"] contains \"MSIE\" } {\n        SSL::unclean_shutdown enable\n    }\n}",
-            return_value: "SSL::unclean_shutdown <\"enable\" | \"disable\"> Sets the value of the current client-side or server-side SSL connection’s Unclean Shutdown setting.",
+            return_value: "SSL::unclean_shutdown <\"enable\" | \"disable\"> sets the current client-side or server-side SSL connection's Unclean Shutdown setting.",
         }),
         forms: &[FormSpec {
             kind: FormKind::Default,

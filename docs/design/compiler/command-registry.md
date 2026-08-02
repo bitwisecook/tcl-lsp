@@ -243,6 +243,8 @@ subcommand (`binary scan` destructures where the bare `binary` does not).
 | `detail` | `str` | `""` | Short description for completion items |
 | `synopsis` | `str` | `""` | Usage synopsis for completion/hover |
 | `dialects` | `frozenset[str] \| None` | `None` | Override parent's dialect set.  `None` = inherit |
+| `min_version` / `max_version` | `Option<&str>` | `None` | Owning-package release range for this subcommand. On iRules commands this is compared with the existing `tclLsp.bigipVersion` / `--bigip-version` keyed BIG-IP floor |
+| `versioned_arg_values` | `&[VersionedArgValue]` | `&[]` | Owning-package release ranges for individual literal values declared in `arg_values`, indexed after the subcommand word (for example, the `mcp` mode of `persist add`) |
 | `destructive` | `bool` | `False` | Destructive operation (e.g. `file delete`) |
 | `credential_arg` | `int \| None` | `None` | Arg index that carries a secret |
 | `taint_output_sink` | `str \| None` | `None` | Per-subcommand output sink diagnostic code |

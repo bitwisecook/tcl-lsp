@@ -76,7 +76,7 @@ pub const fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Overrides the current setting for authentication frequency or for the maximum depth of certificate chain traversal.",
             synopsis: &["SSL::authenticate (once | always | (depth DEPTH))"],
-            snippet: "Overrides the current setting for authentication frequency or for the maximum depth of certificate chain traversal.\n\nSSL::authenticate <\"once\" | \"always\">\n    Valid in a client-side context only, this command overrides the client-side SSL connection's current setting regarding authentication frequency.\n\nSSL::authenticate depth <number>\n    When the system evaluates the command in a client-side context, the command overrides the client-side SSL connection's current setting regarding maximum certificate chain traversal depth.",
+            snippet: "Overrides the current setting for authentication frequency or for the maximum depth of certificate chain traversal.\n\nSSL::authenticate <\"once\" | \"always\">\n    Valid in a client-side context only, this command overrides the client-side SSL connection's current setting regarding authentication frequency.\n\nSSL::authenticate depth <number>\n    In a client-side context, this overrides the client-side SSL connection's maximum certificate-chain traversal depth. In a server-side context, it overrides the server-side SSL connection's maximum certificate-chain traversal depth.",
             source: "https://clouddocs.f5.com/api/irules/SSL__authenticate.html",
             examples: "when CLIENT_ACCEPTED {\n    set session_flag 0\n}",
             return_value: "",

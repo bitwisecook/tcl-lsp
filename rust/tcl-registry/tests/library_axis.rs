@@ -73,6 +73,67 @@ fn introduced_in_big_ip_prose_matches_min_version_data() {
     }
 }
 
+/// Subcommand introduction prose is locked to the structured package-version
+/// floor just as command-level prose is.
+#[test]
+fn introduced_in_big_ip_subcommand_prose_matches_min_version_data() {
+    let marker = "Introduced in BIG-IP ";
+    let profile = DialectProfile::irules();
+    let reg = registry_for_dialect("f5-irules");
+    for name in reg.command_names() {
+        let spec = reg.get(name).expect("registry command");
+        for sub in spec.subcommands {
+            let prose_version = sub.hover.as_ref().and_then(|hover| {
+                let idx = hover.snippet.find(marker)?;
+                let rest = &hover.snippet[idx + marker.len()..];
+                let end = rest
+                    .find(|c: char| !(c.is_ascii_digit() || c == '.'))
+                    .unwrap_or(rest.len());
+                Some(rest[..end].trim_end_matches('.'))
+            });
+            assert_eq!(
+                prose_version, sub.min_version,
+                "{} {}: introduction prose and min_version must agree",
+                spec.name, sub.name
+            );
+            if sub.min_version.is_some() {
+                assert!(
+                    profile.keyed_pin_for(spec).is_some(),
+                    "{} {}: a versioned iRules subcommand needs the keyed BIG-IP axis",
+                    spec.name,
+                    sub.name
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn bigip_21_1_irules_subcommands_and_values_are_versioned() {
+    let reg = registry_for_dialect("f5-irules");
+    let c3d = reg.get("SSL::c3d").expect("SSL::c3d spec");
+    for name in ["cert_lifespan", "cert_start_date"] {
+        let sub = c3d.resolve_subcommand(name).expect("21.1 C3D subcommand");
+        assert_eq!(sub.min_version, Some("21.1.0"));
+        assert!(!sub.available_for_version(Some("21.0.0")));
+        assert!(sub.available_for_version(Some("21.1.0")));
+    }
+
+    let persist = reg.get("persist").expect("persist spec");
+    let mcp = persist.resolve_subcommand("mcp").expect("persist mcp");
+    assert_eq!(mcp.min_version, Some("21.1.0"));
+    assert!(!mcp.available_for_version(Some("21.0.0")));
+    assert!(mcp.available_for_version(Some("21.1.0")));
+    for operation in ["add", "lookup", "delete"] {
+        let sub = persist
+            .resolve_subcommand(operation)
+            .expect("table operation");
+        assert!(!sub.arg_value_available_for_version(0, "mcp", Some("21.0.0")));
+        assert!(sub.arg_value_available_for_version(0, "mcp", Some("21.1.0")));
+        assert!(sub.arg_value_available_for_version(0, "ssl", Some("21.0.0")));
+    }
+}
+
 /// D5 floors over the backfilled datum: at the oldest-supported default
 /// the 16.1.0-introduced command is available; pinned below it is not;
 /// pinned above it is again.

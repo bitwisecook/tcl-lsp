@@ -122,7 +122,7 @@ pub mod prelude {
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
     pub use crate::spec::{
         BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord,
-        ObjectClassSpec, OoContextFact, SubCommand, SubSubCommand,
+        ObjectClassSpec, OoContextFact, SubCommand, SubSubCommand, VersionedArgValue,
     };
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
     pub use crate::taint::{SetterConstraint, TaintColour};
@@ -150,7 +150,7 @@ pub use profile_queries::{ProfileQueries, VendorSurface};
 pub use registry::{CommandRegistry, MethodDispatchKind, ResolvedCall, ResolvedTerminator};
 pub use spec::{
     BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord, ObjectClassSpec,
-    OoContextFact, SubCommand, SubSubCommand,
+    OoContextFact, SubCommand, SubSubCommand, VersionedArgValue,
 };
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, VarAccess, VarOrigin,

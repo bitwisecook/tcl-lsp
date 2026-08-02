@@ -805,7 +805,10 @@ profiles.  Tk, tcllib, and stdlib commands activate automatically when their
 under Tcl 9.0. F5 iRules metadata follows BIG-IP command/event
 source data, including profile aliases used by newer namespaces and events,
 shared TLS helper profiles such as `PERSIST`, and protocol namespace layer
-metadata that stays aligned with the enabling profile stack.
+metadata that stays aligned with the enabling profile stack. The configured
+BIG-IP target also gates subcommands and their enumerated modes: for example,
+`SSL::c3d cert_lifespan`, `SSL::c3d cert_start_date`, and `persist mcp` are
+offered only for BIG-IP 21.1+.
 
 ```tcl
 # With dialect = tcl8.6:

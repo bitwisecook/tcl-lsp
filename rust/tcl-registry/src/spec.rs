@@ -1303,6 +1303,36 @@ impl CommandSpec {
     }
 }
 
+/// A package-version gate on one literal positional argument value of a
+/// subcommand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VersionedArgValue {
+    /// Argument index after the subcommand word.
+    pub index: u8,
+    /// Literal value whose availability is gated.
+    pub value: &'static str,
+    /// First owning-package version that accepts the value.
+    pub min_version: Option<&'static str>,
+    /// Last owning-package version that accepts the value.
+    pub max_version: Option<&'static str>,
+}
+
+impl VersionedArgValue {
+    /// Whether this value exists at `package_version`.
+    #[must_use]
+    pub fn available_for_version(&self, package_version: Option<&str>) -> bool {
+        if let (Some(max), Some(version)) = (self.max_version, package_version)
+            && crate::version::compare(version, max).is_gt()
+        {
+            return false;
+        }
+        match (self.min_version, package_version) {
+            (Some(min), Some(have)) => crate::version::meets_min(have, min),
+            _ => true,
+        }
+    }
+}
+
 /// Complete metadata for a single subcommand.
 ///
 /// Carries its own arity, arg roles, return type, effect classification,
@@ -1426,6 +1456,10 @@ pub struct SubCommand {
     /// complete at the first sub-arg.
     pub arg_values: &'static [(u8, &'static [ArgValue])],
 
+    /// Package-version gates for individual literal values in
+    /// [`Self::arg_values`].
+    pub versioned_arg_values: &'static [VersionedArgValue],
+
     /// Structured invocation-form descriptors for the subcommand.
     ///
     /// Same shape as [`CommandSpec::command_forms`]; entries are
@@ -1435,6 +1469,14 @@ pub struct SubCommand {
 
     /// Dialect membership. `None` = inherit from parent `CommandSpec`.
     pub dialects: Option<DialectSet>,
+
+    /// Minimum version of the parent command's owning package that introduced
+    /// this subcommand. `None` means it is present in every package version.
+    pub min_version: Option<&'static str>,
+
+    /// Last version of the parent command's owning package that provides this
+    /// subcommand. `None` means it has not been removed.
+    pub max_version: Option<&'static str>,
 
     /// Safe-on-uninit dialect set.
     pub safe_on_uninit: Option<DialectSet>,
@@ -1621,8 +1663,11 @@ impl SubCommand {
         command_table_effect: None,
         options: &[],
         arg_values: &[],
+        versioned_arg_values: &[],
         subcommand_forms: &[],
         dialects: None,
+        min_version: None,
+        max_version: None,
         safe_on_uninit: None,
         loop_list_header: false,
         creates_scope_alias: false,
@@ -1659,6 +1704,37 @@ impl SubCommand {
         std::iter::once(self.synopsis)
             .chain(self.hover.iter().flat_map(|h| h.synopsis.iter().copied()))
             .find(|s| !s.is_empty())
+    }
+
+    /// Whether this subcommand exists at `package_version`.
+    ///
+    /// `None` is permissive, matching [`CommandSpec::available_for_version`].
+    #[must_use]
+    pub fn available_for_version(&self, package_version: Option<&str>) -> bool {
+        if let (Some(max), Some(version)) = (self.max_version, package_version)
+            && crate::version::compare(version, max).is_gt()
+        {
+            return false;
+        }
+        match (self.min_version, package_version) {
+            (Some(min), Some(have)) => crate::version::meets_min(have, min),
+            _ => true,
+        }
+    }
+
+    /// Whether an enumerable positional argument value exists at
+    /// `package_version`.
+    #[must_use]
+    pub fn arg_value_available_for_version(
+        &self,
+        index: u8,
+        value: &str,
+        package_version: Option<&str>,
+    ) -> bool {
+        self.versioned_arg_values
+            .iter()
+            .find(|gate| gate.index == index && gate.value == value)
+            .is_none_or(|gate| gate.available_for_version(package_version))
     }
 
     /// [`leading_option_word_count`] against this subcommand's own

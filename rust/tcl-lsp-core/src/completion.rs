@@ -345,6 +345,33 @@ fn switch_completion_items(
     ))
 }
 
+fn subcommand_arg_value_completion(
+    spec: &tcl_registry::CommandSpec,
+    source: &str,
+    line: u32,
+    word_idx: usize,
+    analysis: &AnalysisResult,
+    partial: &str,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Option<Vec<CompletionItem>> {
+    if word_idx < 2 {
+        return None;
+    }
+    let sub_name = nth_word_on_line(source, line, 1)?;
+    let sub = spec.resolve_subcommand(&sub_name)?;
+    let sub_arg_idx = u8::try_from(word_idx - 2).unwrap_or(u8::MAX);
+    let values = sub.arg_values_at(sub_arg_idx);
+    if values.is_empty() {
+        return None;
+    }
+    let floor = package_version_floor(analysis, spec, profile);
+    let available = values
+        .iter()
+        .filter(|value| sub.arg_value_available_for_version(sub_arg_idx, value.value, floor))
+        .collect();
+    Some(arg_value_completions_from(available, partial))
+}
+
 /// Registry-driven, context-aware completion: switch / event-name /
 /// user-proc / subcommand / arg-value suggestions resolved from the
 /// surrounding command's [`CommandRegistry`] spec.  Returns `None` when the
@@ -443,7 +470,7 @@ fn context_aware_completions(
         return Some(invoked_proc_completions(analysis, partial));
     }
     if word_idx == 1 && !spec.subcommands.is_empty() {
-        return Some(subcommand_completions(spec, profile, partial));
+        return Some(subcommand_completions(spec, analysis, profile, partial));
     }
     // Second-level subcommand completion — the word after a two-level
     // ensemble's first-level subcommand (`info object <op>`, `info class <op>`,
@@ -461,15 +488,10 @@ fn context_aware_completions(
     // word-index ≥ 2 of a command whose subcommand
     // (the word at index 1) declares enumerable
     // values for that sub-arg position, list them.
-    if word_idx >= 2
-        && let Some(sub_name) = nth_word_on_line(source, line, 1)
-        && let Some(sub) = spec.resolve_subcommand(&sub_name)
+    if let Some(items) =
+        subcommand_arg_value_completion(spec, source, line, word_idx, analysis, partial, profile)
     {
-        let sub_arg_idx = u8::try_from(word_idx - 2).unwrap_or(u8::MAX);
-        let values = sub.arg_values_at(sub_arg_idx);
-        if !values.is_empty() {
-            return Some(arg_value_completions(values, partial));
-        }
+        return Some(items);
     }
     // Option-value completion — when the word immediately before the cursor is
     // a value-taking option that declares an enumerable value set, offer those
@@ -1383,7 +1405,10 @@ fn package_version_floor<'a>(
     spec: &tcl_registry::CommandSpec,
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<&'a str> {
-    let pkg = spec.owning_package()?;
+    let pkg = profile
+        .keyed_pin_for(spec)
+        .map(|pin| pin.package)
+        .or_else(|| spec.owning_package())?;
     let require_floor = analysis
         .package_requires
         .iter()
@@ -1397,7 +1422,7 @@ fn package_version_floor<'a>(
     // The profile's library pin supplies the base floor (§7.1: the shipped
     // Tk on a plain Tcl base, a keyed vendor surface at its D5
     // oldest-supported default); an explicit require can only raise it.
-    let pin_floor = profile.library_floor_default(pkg);
+    let pin_floor = profile.library_floor(pkg, &analysis.library_versions);
     match (pin_floor, require_floor) {
         (Some(pin), Some(req)) => {
             if tcl_registry::version::compare(req, pin).is_gt() {
@@ -1534,6 +1559,7 @@ fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
 
 fn subcommand_completions(
     spec: &tcl_registry::CommandSpec,
+    analysis: &AnalysisResult,
     profile: &'static tcl_dialect::DialectProfile,
     partial: &str,
 ) -> Vec<CompletionItem> {
@@ -1541,7 +1567,12 @@ fn subcommand_completions(
     // the §5.1 `available_subcommands` gap: `dict getwithdefault` (9.0+)
     // must not be offered in an 8.6 buffer, and an iRules-only subcommand
     // must not surface in plain Tcl.
-    let mut subs: Vec<&tcl_registry::SubCommand> = profile.available_subcommands(spec);
+    let floor = package_version_floor(analysis, spec, profile);
+    let mut subs: Vec<&tcl_registry::SubCommand> = profile
+        .available_subcommands(spec)
+        .into_iter()
+        .filter(|sub| sub.available_for_version(floor))
+        .collect();
     subs.sort_unstable_by_key(|sub| sub.name);
     let FilteredCandidates {
         candidates: subs,
@@ -1691,7 +1722,13 @@ fn nth_word_on_line(source: &str, line: u32, n: usize) -> Option<String> {
 /// Build completions for a fixed set of enumerable argument
 /// values (e.g. `string is <class>`), filtered by `partial`.
 fn arg_value_completions(values: &[tcl_registry::ArgValue], partial: &str) -> Vec<CompletionItem> {
-    let mut values: Vec<&tcl_registry::ArgValue> = values.iter().collect();
+    arg_value_completions_from(values.iter().collect(), partial)
+}
+
+fn arg_value_completions_from(
+    mut values: Vec<&tcl_registry::ArgValue>,
+    partial: &str,
+) -> Vec<CompletionItem> {
     // Pre-sort by value so the prefix path's output matches the
     // historical post-build label sort, while the fuzzy path keeps its
     // `(distance, name)` ranking.
@@ -2550,6 +2587,30 @@ mod tests {
             command_detail(http2, tcl_dialect::DialectProfile::irules()),
             "built-in"
         );
+    }
+
+    #[test]
+    fn irules_subcommand_completion_uses_configured_bigip_version() {
+        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let profile = tcl_dialect::DialectProfile::irules();
+        let c3d = registry.get("SSL::c3d").expect("SSL::c3d spec");
+
+        let mut analysis = AnalysisResult::default();
+        analysis.library_versions.bigip_version = Some("21.0.0".to_owned());
+        let labels_21_0: Vec<String> = subcommand_completions(c3d, &analysis, profile, "")
+            .into_iter()
+            .map(|item| item.label)
+            .collect();
+        assert!(!labels_21_0.iter().any(|label| label == "cert_lifespan"));
+        assert!(!labels_21_0.iter().any(|label| label == "cert_start_date"));
+
+        analysis.library_versions.bigip_version = Some("21.1.0".to_owned());
+        let labels_21_1: Vec<String> = subcommand_completions(c3d, &analysis, profile, "")
+            .into_iter()
+            .map(|item| item.label)
+            .collect();
+        assert!(labels_21_1.iter().any(|label| label == "cert_lifespan"));
+        assert!(labels_21_1.iter().any(|label| label == "cert_start_date"));
     }
 
     #[test]

@@ -1130,6 +1130,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Enumerable values per index after the subcommand word.",
     ),
     f(
+        "versioned_arg_values",
+        "Versioned argument values",
+        AVAILABILITY,
+        FieldKind::RustExpr {
+            hint: "VERSIONED_ARG_VALUES",
+        },
+        "Package-version gates for literal positional argument values.",
+    ),
+    f(
         "subcommand_forms",
         "Structured subcommand forms",
         ADVANCED,
@@ -1145,6 +1154,20 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
             optional: true,
         },
         "Dialect membership. Unset inherits the parent command's set.",
+    ),
+    f(
+        "min_version",
+        "Minimum package version",
+        AVAILABILITY,
+        FieldKind::OptText,
+        "Dotted version of the owning package that introduced the subcommand.",
+    ),
+    f(
+        "max_version",
+        "Maximum package version",
+        AVAILABILITY,
+        FieldKind::OptText,
+        "Last package version that still provides the subcommand.",
     ),
     f(
         "safe_on_uninit",

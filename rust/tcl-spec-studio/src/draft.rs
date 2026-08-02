@@ -499,10 +499,16 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     d.insert("options".into(), Value::Array(options));
     d.insert("arg_values".into(), arg_value_map(sub.arg_values));
     d.insert(
+        "versioned_arg_values".into(),
+        lost.expr("versioned_arg_values", !sub.versioned_arg_values.is_empty()),
+    );
+    d.insert(
         "subcommand_forms".into(),
         lost.expr("subcommand_forms", !sub.subcommand_forms.is_empty()),
     );
     d.insert("dialects".into(), dialects(sub.dialects));
+    d.insert("min_version".into(), opt_str(sub.min_version));
+    d.insert("max_version".into(), opt_str(sub.max_version));
     d.insert("safe_on_uninit".into(), dialects(sub.safe_on_uninit));
     d.insert("loop_list_header".into(), json!(sub.loop_list_header));
     d.insert("creates_scope_alias".into(), json!(sub.creates_scope_alias));
