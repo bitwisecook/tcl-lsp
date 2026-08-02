@@ -77,6 +77,7 @@ resolves the current default. Unknown types yield an empty object.
 ```
 profile_defaults("tcp")                      # every default field of ltm profile tcp
 profile_defaults("clientssl", "13.1.0.8")    # as they were on 13.1.0.8
+profile_defaults("json", "21.1")             # JSON profile limits introduced in 21.x
 ```
 
 ### `profile_default`
@@ -92,8 +93,17 @@ because they drift across releases — e.g. the base `clientssl` `options` gaine
 ```
 profile_default("clientssl", "options", "13.1")   # "dont-insert-empty-fragments"
 profile_default("clientssl", "options", "16.1")   # "dont-insert-empty-fragments no-tlsv1.3"
+profile_default("clientssl", "ciphers", "20.1")   # "DEFAULT"
+profile_default("clientssl", "ciphers", "21.1")   # "none"
+profile_default("clientssl", "cipher-group", "21.1") # "/Common/f5-default"
 profile_default("tcp", "idle-timeout")             # "300"
 ```
+
+BIG-IP 21.1 changes the canonical Client SSL and Server SSL profiles to use
+`/Common/f5-default` and disables TLS 1.0 and TLS 1.1. The earlier settings
+remain available on BIG-IP as the `clientssl-legacy` and `serverssl-legacy`
+profiles; the resolver keeps the canonical defaults separated at the 21.1
+version boundary.
 
 ## stream
 

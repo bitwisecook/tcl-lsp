@@ -805,7 +805,10 @@ profiles.  Tk, tcllib, and stdlib commands activate automatically when their
 under Tcl 9.0. F5 iRules metadata follows BIG-IP command/event
 source data, including profile aliases used by newer namespaces and events,
 shared TLS helper profiles such as `PERSIST`, and protocol namespace layer
-metadata that stays aligned with the enabling profile stack.
+metadata that stays aligned with the enabling profile stack. The configured
+BIG-IP target also gates subcommands and their enumerated modes: for example,
+`SSL::c3d cert_lifespan`, `SSL::c3d cert_start_date`, and `persist mcp` are
+offered only for BIG-IP 21.1+.
 
 ```tcl
 # With dialect = tcl8.6:
@@ -1161,6 +1164,14 @@ pack .f
 
 Open a BIG-IP `.conf` or `.scf` file to get syntax highlighting, object
 navigation, and iRule extraction.
+
+The standalone BIG-IP report generator reads `#TMSH-VERSION` from an SCF and
+uses the matching `/config/profile_base.conf` defaults when a profile omits a
+field. Its versioned catalogue includes the BIG-IP 21.1 secure Client SSL and
+Server SSL defaults, plus the AIMCP, JSON, SSE, and MCP persistence object
+types introduced across BIG-IP 21.x. The report also maps the detected TMOS
+branch to F5 K5903, showing its first-customer-ship, EoSD, EoTS, and EoL dates
+and warning when a support milestone is within one year or has passed.
 
 ```
 # BIG-IP config file (bigip.conf)

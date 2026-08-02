@@ -303,10 +303,9 @@ struct FieldOverride {
 
 /// Cross-version splits the single-snapshot generated table can't express.
 ///
-/// `client-ssl` / `server-ssl` `options` gained TLS/DTLS opt-outs over time:
-/// `no-tlsv1.3` at 14.0 and `no-dtlsv1.2` by the 17.1 snapshot. Without these
-/// bands, `profile_default(..., options, "13.1")` would report 17.1-era flags
-/// for a 13.x device.
+/// `client-ssl` / `server-ssl` `options` gained TLS/DTLS opt-outs over time.
+/// BIG-IP 21.1 then made the canonical profiles TLS 1.2/1.3-only while moving
+/// the older behaviour to `clientssl-legacy` / `serverssl-legacy`.
 static FIELD_OVERRIDES: &[FieldOverride] = &[
     FieldOverride {
         profile: "CLIENTSSL",
@@ -338,7 +337,15 @@ static SSL_OPTIONS_BANDS: &[FieldDefault] = &[
     FieldDefault {
         field: "options",
         value: "dont-insert-empty-fragments no-tlsv1.3 no-dtlsv1.2",
-        range: VersionRange::from(BigipVersion::new(17, 1, 0, 0)),
+        range: VersionRange::between(
+            BigipVersion::new(17, 1, 0, 0),
+            BigipVersion::new(21, 1, 0, 0),
+        ),
+    },
+    FieldDefault {
+        field: "options",
+        value: "dont-insert-empty-fragments no-tlsv1.1 no-tlsv1 no-ssl",
+        range: VersionRange::from(BigipVersion::new(21, 1, 0, 0)),
     },
 ];
 
@@ -407,7 +414,7 @@ mod tests {
         // case / separator / prefix insensitivity
         assert_eq!(
             profile_field_default("ProfileType.CLIENT_SSL", "ciphers", None),
-            Some("DEFAULT")
+            Some("none")
         );
         assert_eq!(
             profile_field_default("client-ssl", "renegotiation", None),
@@ -422,13 +429,13 @@ mod tests {
         let cur = "dont-insert-empty-fragments no-tlsv1.3 no-dtlsv1.2";
         let mid = "dont-insert-empty-fragments no-tlsv1.3";
         let orig = "dont-insert-empty-fragments";
-        // 17.1 onward → current value.
+        // 17.1 through 21.0 → the legacy-compatible value.
         assert_eq!(
             profile_field_default("CLIENTSSL", "options", Some(v("17.1"))),
             Some(cur)
         );
         assert_eq!(
-            profile_field_default("CLIENTSSL", "options", Some(v("17.5.1.3"))),
+            profile_field_default("CLIENTSSL", "options", Some(v("20.1"))),
             Some(cur)
         );
         // [14.0, 17.1) → no-tlsv1.3 but not yet no-dtlsv1.2.
@@ -445,10 +452,15 @@ mod tests {
             profile_field_default("CLIENTSSL", "options", Some(v("13.1.0.8"))),
             Some(orig)
         );
-        // No version → current (newest).
+        // 21.1 and no-version current use the new secure canonical profile.
+        let secure = "dont-insert-empty-fragments no-tlsv1.1 no-tlsv1 no-ssl";
+        assert_eq!(
+            profile_field_default("CLIENTSSL", "options", Some(v("21.1"))),
+            Some(secure)
+        );
         assert_eq!(
             profile_field_default("CLIENTSSL", "options", None),
-            Some(cur)
+            Some(secure)
         );
         // server-ssl shares the identical history.
         assert_eq!(
@@ -479,7 +491,12 @@ mod tests {
             let generated = PROFILE_DEFAULTS
                 .iter()
                 .find(|p| normalise_type(p.profile) == normalise_type(over.profile))
-                .and_then(|p| p.fields.iter().find(|f| f.field == over.field))
+                .and_then(|p| {
+                    p.fields
+                        .iter()
+                        .filter(|f| f.field == over.field)
+                        .max_by_key(|f| (f.range.is_current(), f.range.min))
+                })
                 .map(|f| f.value);
             assert_eq!(
                 Some(newest.value),
@@ -513,6 +530,23 @@ mod tests {
             Some("65535")
         );
         assert!(profile_field_defaults("tcp", None).len() >= 40);
+        assert_eq!(
+            profile_field_default("clientssl", "cipher-group", Some(v("21.1"))),
+            Some("/Common/f5-default")
+        );
+        assert_eq!(
+            profile_field_default("clientssl", "ciphers", Some(v("20.1"))),
+            Some("DEFAULT")
+        );
+        assert_eq!(
+            profile_field_default("clientssl", "ciphers", Some(v("21.1"))),
+            Some("none")
+        );
+        assert_eq!(
+            profile_field_default("json", "maximum-entries", Some(v("21.1"))),
+            Some("2048")
+        );
+        assert_eq!(profile_tmsh_kind("aimcp"), Some("ltm profile aimcp"));
         // A nested block is flattened to a faithful tmsh string.
         assert_eq!(
             profile_field_default("clientssl", "cert-key-chain", None),

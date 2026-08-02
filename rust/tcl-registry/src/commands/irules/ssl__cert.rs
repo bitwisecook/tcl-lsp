@@ -109,7 +109,7 @@ pub const fn spec() -> CommandSpec {
             snippet: "Returns data about an X509 SSL certificate, or sets the certificate mode.",
             source: "https://clouddocs.f5.com/api/irules/SSL__cert.html",
             examples: "when RULE_INIT {\n    set ::key [AES::key 128]\n}",
-            return_value: "SSL::cert <index> Returns the X509 SSL certificate at the specified index in the peer certificate chain, where index is a value greater than or equal to zero. A value of zero denotes the first certificate in the chain, a value of one denotes the next, and so on.",
+            return_value: "SSL::cert <index> returns the X509 SSL certificate at the specified peer-chain index. SSL::cert issuer <index> returns its issuer certificate. SSL::cert count returns the number of peer certificates. SSL::cert mode gets or sets the certificate mode; only require and ignore are valid in a server-side context.",
         }),
         forms: &[FormSpec {
             kind: FormKind::Default,

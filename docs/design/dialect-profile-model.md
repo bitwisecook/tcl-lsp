@@ -948,8 +948,9 @@ regen.
   — `dialects.rs:860-862`, test at `:1094-1104`;
   `is_irules_dialect(Some("irules"))=true` — `:848-849`. Alias canonicalization
   is required (§2.4).
-- `version_gate.rs` (W135/W136) reaches command+option depth via `min_version`
-  against a `package require` floor — `version_gate.rs:19-116`; does **not**
+- `version_gate.rs` (W135/W136) reaches command, subcommand, option, and
+  enumerated argument-value depth via structured package-version ranges
+  against the owning library floor — it does **not**
   reach argument DSLs.
 - `format.rs::parse_spec(fmt, i)` and `scan.rs::parse_conversion` are
   version-agnostic, in tcl-syntax (below registry) — the DSL rung is a GAP.

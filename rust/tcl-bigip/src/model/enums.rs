@@ -42,6 +42,8 @@ impl DataGroupType {
 /// Broad classification of BIG-IP profile types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ProfileType {
+    /// `aimcp`.
+    Aimcp,
     /// `http`.
     Http,
     /// `tcp`.
@@ -70,8 +72,12 @@ pub enum ProfileType {
     Websocket,
     /// `stream`.
     Stream,
+    /// `sse`.
+    Sse,
     /// `html`.
     Html,
+    /// `json`.
+    Json,
     /// `rewrite`.
     Rewrite,
     /// `fasthttp`.
@@ -92,6 +98,7 @@ impl ProfileType {
     #[must_use]
     pub const fn py_name(self) -> &'static str {
         match self {
+            Self::Aimcp => "AIMCP",
             Self::Http => "HTTP",
             Self::Tcp => "TCP",
             Self::Udp => "UDP",
@@ -106,7 +113,9 @@ impl ProfileType {
             Self::Mqtt => "MQTT",
             Self::Websocket => "WEBSOCKET",
             Self::Stream => "STREAM",
+            Self::Sse => "SSE",
             Self::Html => "HTML",
+            Self::Json => "JSON",
             Self::Rewrite => "REWRITE",
             Self::Fasthttp => "FASTHTTP",
             Self::Fastl4 => "FASTL4",

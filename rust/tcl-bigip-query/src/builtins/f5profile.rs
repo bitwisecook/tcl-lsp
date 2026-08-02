@@ -320,7 +320,8 @@ mod tests {
             call(&args)
         };
 
-        let current = "dont-insert-empty-fragments no-tlsv1.3 no-dtlsv1.2";
+        let before_21_1 = "dont-insert-empty-fragments no-tlsv1.3 no-dtlsv1.2";
+        let current = "dont-insert-empty-fragments no-tlsv1.1 no-tlsv1 no-ssl";
         // Before 14.0 → the original single-flag value (the override band covers it).
         assert_eq!(
             as_string(&clientssl_options(Some("13.1"))),
@@ -331,8 +332,13 @@ mod tests {
             as_string(&clientssl_options(Some("15.1"))),
             Some("dont-insert-empty-fragments no-tlsv1.3")
         );
-        // A version at/after 17.1 resolves to the current snapshot.
-        assert_eq!(as_string(&clientssl_options(Some("17.5"))), Some(current));
+        // [17.1, 21.1) adds no-dtlsv1.2.
+        assert_eq!(
+            as_string(&clientssl_options(Some("17.5"))),
+            Some(before_21_1)
+        );
+        // 21.1 adopts the secure TLS defaults extracted from profile_base.conf.
+        assert_eq!(as_string(&clientssl_options(Some("21.1"))), Some(current));
         // No version → current (newest) band.
         assert_eq!(as_string(&clientssl_options(None)), Some(current));
     }

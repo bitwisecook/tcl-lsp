@@ -29,7 +29,7 @@ pub const fn spec() -> CommandSpec {
             snippet: "Returns a list of fields that the system will add to the HTTP headers, in order to emulate modssl behavior. The return type is a Tcl list; this list will be interpreted as a header-name/header-value pair by HTTP::header, for example.",
             source: "https://clouddocs.f5.com/api/irules/SSL__modssl_sessionid_headers.html",
             examples: "when HTTP_REQUEST {\n    HTTP::header insert [SSL::modssl_sessionid_headers]\n}",
-            return_value: "SSL::modssl_sessionid_headers Returns a header name of \"SSLClientSessionId\", and a header value of the session id requested by the client.",
+            return_value: "The bare and initial forms return an SSLClientSessionId header containing the session ID requested by the client. The current form returns an SSLClientCurrentSessionId header containing the session ID actually selected by the server.",
         }),
         forms: &[FormSpec {
             kind: FormKind::Default,

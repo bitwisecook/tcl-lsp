@@ -155,6 +155,27 @@
     </div>
   </div>
 
+  {% if d.releaseLifecycle %}
+  <section class="release-lifecycle {{ d.releaseLifecycle.level }}" aria-label="BIG-IP software lifecycle">
+    <div class="release-lifecycle-status">
+      <span class="dot"></span>
+      <div>
+        <strong>{{ d.releaseLifecycle.text }}</strong>
+        <div class="small">Branch {{ d.releaseLifecycle.branch }} · policy snapshot {{ d.releaseLifecycle.policyUpdated }}</div>
+      </div>
+    </div>
+    <dl class="release-lifecycle-dates">
+      <div><dt>Released</dt><dd>{{ d.releaseLifecycle.releaseDate }}</dd></div>
+      <div><dt>EoSD</dt><dd>{{ d.releaseLifecycle.eosdDate }}</dd></div>
+      <div><dt>EoTS / EoL</dt><dd>{{ d.releaseLifecycle.eolDate }}</dd></div>
+    </dl>
+    <div class="release-lifecycle-source small">
+      {{ d.releaseLifecycle.scopeNote }}
+      <a href="{{ d.releaseLifecycle.sourceUrl }}" target="_blank" rel="noopener noreferrer">Verify against F5 K5903</a>.
+    </div>
+  </section>
+  {% endif %}
+
   {% if d.partitions and d.partitions | length > 1 %}
   <div class="partition-bar">
     <span class="partition-lbl">Partition</span>

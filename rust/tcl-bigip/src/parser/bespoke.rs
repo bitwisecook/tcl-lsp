@@ -387,6 +387,7 @@ fn split_compact_props(body: &str, known: &[String]) -> HashMap<String, String> 
 /// Map a profile type string to a [`ProfileType`].
 fn classify_profile(type_str: &str) -> ProfileType {
     match type_str.to_lowercase().as_str() {
+        "aimcp" => ProfileType::Aimcp,
         "http" | "http2" | "http-compression" | "http-proxy-connect" | "web-acceleration" => {
             ProfileType::Http
         }
@@ -403,7 +404,9 @@ fn classify_profile(type_str: &str) -> ProfileType {
         "mqtt" => ProfileType::Mqtt,
         "websocket" => ProfileType::Websocket,
         "stream" => ProfileType::Stream,
+        "sse" => ProfileType::Sse,
         "html" => ProfileType::Html,
+        "json" => ProfileType::Json,
         "rewrite" => ProfileType::Rewrite,
         "fasthttp" => ProfileType::Fasthttp,
         "fastl4" => ProfileType::Fastl4,
@@ -2062,6 +2065,38 @@ mod tests {
         };
         assert_eq!(s.persistence_type, "source-addr");
         assert_eq!(s.timeout, "300");
+    }
+
+    #[test]
+    fn bigip_21_1_ai_profiles_are_typed() {
+        let source = "ltm profile aimcp /Common/ai { }\n\
+                      ltm profile json /Common/json_ai { maximum-entries 4096 }\n\
+                      ltm profile sse /Common/sse_ai { max-field-name-size 2048 }\n\
+                      ltm persistence mcp /Common/mcp_ai { mcp-encryption-passphrase secret }\n";
+        let cfg = parse_bigip_conf(source, "Common");
+
+        let ModelObject::Profile(aimcp) = find(&cfg, "profiles", "/Common/ai") else {
+            panic!("not an AIMCP profile");
+        };
+        assert_eq!(aimcp.profile_type, ProfileType::Aimcp);
+
+        let ModelObject::Profile(json) = find(&cfg, "profiles", "/Common/json_ai") else {
+            panic!("not a JSON profile");
+        };
+        assert_eq!(json.profile_type, ProfileType::Json);
+        assert_eq!(json.maximum_entries, "4096");
+
+        let ModelObject::Profile(sse) = find(&cfg, "profiles", "/Common/sse_ai") else {
+            panic!("not an SSE profile");
+        };
+        assert_eq!(sse.profile_type, ProfileType::Sse);
+        assert_eq!(sse.max_field_name_size, "2048");
+
+        let ModelObject::Persistence(mcp) = find(&cfg, "persistence", "/Common/mcp_ai") else {
+            panic!("not MCP persistence");
+        };
+        assert_eq!(mcp.persistence_type, "mcp");
+        assert_eq!(mcp.mcp_encryption_passphrase, "secret");
     }
 
     #[test]

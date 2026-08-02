@@ -1596,6 +1596,9 @@ pub struct AnalysisResult {
     /// global fallback ([`Self::ns_var_global_fallback`]) — without
     /// re-detecting the dialect.  Empty for a default-constructed result.
     pub dialect: String,
+    /// Session library-version overrides used for this analysis. Downstream
+    /// providers use the same keyed BIG-IP/tool floors as diagnostics.
+    pub library_versions: tcl_dialect::LibraryVersionOverrides,
 }
 
 impl AnalysisResult {

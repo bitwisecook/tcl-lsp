@@ -406,6 +406,9 @@ def _device_name(uri: str, source: str) -> str:
 def _insights(device: dict[str, Any]) -> list[dict[str, str]]:
     """Actionable findings — the kind of thing an operator scans a report for."""
     out: list[dict[str, str]] = []
+    lifecycle = device.get("releaseLifecycle") or {}
+    if lifecycle.get("level") in {"warn", "danger"}:
+        out.append({"level": lifecycle["level"], "text": lifecycle.get("text", "")})
     orph = device["orphans"]
     for kind in ("pools", "nodes", "rules", "monitors", "profiles"):
         n = len(orph.get(kind, []))
@@ -559,10 +562,12 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
     refmaps = {name: _refmap(sources, _CONTAINERS[name]) for name in _REFERABLE}
 
     tmsh = _TMSH_RE.search(source)
+    tmsh_version = tmsh.group(1) if tmsh else ""
     device: dict[str, Any] = {
         "uri": uri,
         "name": _device_name(uri, source),
-        "tmshVersion": tmsh.group(1) if tmsh else "",
+        "tmshVersion": tmsh_version,
+        "releaseLifecycle": json.loads(_engine.bigip_release_lifecycle(tmsh_version)),
     }
 
     for key, container in _CONTAINERS.items():

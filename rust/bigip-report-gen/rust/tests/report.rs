@@ -194,6 +194,48 @@ fn totals_sum_devices() {
 }
 
 #[test]
+fn tmsh_version_adds_k5903_release_lifecycle() {
+    let sources = vec![(
+        "mem://bigip-21.1.conf".to_owned(),
+        "#TMSH-VERSION: 21.1.0.1\n".to_owned(),
+    )];
+    let m = collect_model(&sources, "Lifecycle");
+    let lifecycle = &arr(&m, "devices")[0]["releaseLifecycle"];
+
+    assert_eq!(lifecycle["branch"], "21.1.x");
+    assert_eq!(lifecycle["releaseDate"], "2026-05-05");
+    assert_eq!(lifecycle["eosdDate"], "2029-05-05");
+    assert_eq!(lifecycle["eotsDate"], "2029-05-05");
+    assert_eq!(lifecycle["eolDate"], "2029-05-05");
+    assert_eq!(lifecycle["policyUpdated"], "2026-07-01");
+    assert_eq!(
+        lifecycle["sourceUrl"],
+        "https://my.f5.com/manage/s/article/K5903"
+    );
+}
+
+#[test]
+fn lifecycle_panel_is_rendered_without_loading_remote_assets() {
+    let sources = vec![(
+        "mem://bigip-21.0.conf".to_owned(),
+        "#TMSH-VERSION: 21.0.0\n".to_owned(),
+    )];
+    let opts = RenderOptions {
+        title: "Lifecycle".into(),
+        generated_at: "2026-08-02 00:00:00 UTC".into(),
+        embed_console: false,
+        ..Default::default()
+    };
+    let html = build_report(&sources, &opts).expect("render");
+
+    assert!(html.contains("BIG-IP software lifecycle"));
+    assert!(html.contains("EoSD"));
+    assert!(html.contains("EoTS / EoL"));
+    assert!(html.contains("Verify against F5 K5903"));
+    assert!(!html.contains("src=\"https://my.f5.com"));
+}
+
+#[test]
 fn build_report_html_self_contained() {
     let sources = vec![load("lab-device-01.ucs")];
     let opts = RenderOptions {
@@ -503,4 +545,61 @@ fn relative_custom_profile_names_ordered_by_traffic() {
         .map(|p| p.as_str().unwrap())
         .collect();
     assert_eq!(profs, vec!["my_tcp", "my_http"], "got {profs:?}");
+}
+
+#[test]
+fn profile_defaults_follow_the_bigip_version() {
+    let report_profile = |version: &str| {
+        let scf = format!(
+            "#TMSH-VERSION: {version}\nltm profile client-ssl /Common/custom_clientssl {{ }}\n"
+        );
+        let model = collect_model(&[("mem://defaults".to_owned(), scf)], "T");
+        arr(&model["devices"][0], "profiles")[0].clone()
+    };
+
+    let old = report_profile("20.1.0");
+    assert_eq!(old["ciphers"], "DEFAULT");
+    assert_eq!(old["effectiveFields"]["ciphers"], "DEFAULT");
+    assert_eq!(old["defaultFields"]["cipher-group"], "none");
+
+    let current = report_profile("21.1.0.1");
+    assert_eq!(current["type"], "CLIENT_SSL");
+    assert_eq!(current["ciphers"], "/Common/f5-default");
+    assert_eq!(current["effectiveFields"]["ciphers"], "none");
+    assert_eq!(
+        current["defaultFields"]["cipher-group"],
+        "/Common/f5-default"
+    );
+    assert_eq!(
+        current["effectiveFields"]["options"],
+        "dont-insert-empty-fragments no-tlsv1.1 no-tlsv1 no-ssl"
+    );
+}
+
+#[test]
+fn bigip_21_1_ai_defaults_and_mcp_persistence_reach_the_report() {
+    let scf = "#TMSH-VERSION: 21.1.0.1\n\
+               ltm profile aimcp /Common/ai { }\n\
+               ltm profile json /Common/json_ai { }\n\
+               ltm profile sse /Common/sse_ai { }\n\
+               ltm persistence mcp /Common/mcp_ai { mcp-encryption-passphrase none }\n";
+    let model = collect_model(&[("mem://ai".to_owned(), scf.to_owned())], "T");
+    let device = &model["devices"][0];
+    let profiles = arr(device, "profiles");
+
+    let aimcp = profiles.iter().find(|p| p["name"] == "ai").unwrap();
+    assert_eq!(aimcp["type"], "AIMCP");
+    let json = profiles.iter().find(|p| p["name"] == "json_ai").unwrap();
+    assert_eq!(json["type"], "JSON");
+    assert_eq!(json["effectiveFields"]["maximum-entries"], "2048");
+    let sse = profiles.iter().find(|p| p["name"] == "sse_ai").unwrap();
+    assert_eq!(sse["type"], "SSE");
+    assert_eq!(sse["effectiveFields"]["max-field-name-size"], "1024");
+
+    let persistence = arr(device, "persistence")
+        .iter()
+        .find(|p| p["name"] == "mcp_ai")
+        .unwrap();
+    assert_eq!(persistence["fields"]["type"], "mcp");
+    assert_eq!(persistence["fields"]["mcp-encryption-passphrase"], "none");
 }
