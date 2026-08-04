@@ -467,6 +467,15 @@ pub struct ProcDef {
     /// trait alone.  Populated by
     /// [`super::param_traits::caller_frame_upvar_params`].
     pub caller_frame_params: std::collections::HashSet<String>,
+    /// **Literal** caller-frame names this proc binds in its immediate
+    /// caller's frame — spelled in the proc's *own* body (`upvar 1 name
+    /// name`), so no call-site argument word carries them (issue #923 audit
+    /// idx 22 / issue #1139).  `name → written-through-alias`: `true` means
+    /// a call *creates* the variable in the calling frame, `false` that it
+    /// only reads it.  Populated by
+    /// [`super::param_traits::caller_frame_literal_targets`]; empty when
+    /// the body binds none.
+    pub caller_frame_literals: std::collections::HashMap<String, bool>,
 }
 
 impl ProcDef {

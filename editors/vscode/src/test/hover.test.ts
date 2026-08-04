@@ -80,4 +80,32 @@ suite("Hover", () => {
       `imported 'test' should hover as tcltest::test, got: ${hoverText}`,
     );
   });
+
+  // Issue #1139 (issue #923 audit idx 22): a callee that binds a literal
+  // caller-frame name in its own body (`upvar name name`) creates the
+  // variable in the calling frame with no call-site word to point at.
+  // Hovering the `$name` read must render the caller-frame card naming the
+  // creating callee instead of answering nothing.
+  test("hovers a literal upvar caller-frame read with the caller-frame card", async () => {
+    const uri = getDocUri("callerFrame.tcl");
+    await activate(uri);
+    // Line 9: `    set out $name` — position inside `name` (col 14).
+    const position = new vscode.Position(9, 14);
+
+    const hovers = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeHoverProvider", uri, position),
+      (r) => Array.isArray(r) && r.length > 0,
+      { timeout: 10_000, label: "hover for literal caller-frame read" },
+    )) as vscode.Hover[];
+
+    const hoverText = hovers
+      .flatMap((h) => h.contents)
+      .map((c) => (typeof c === "string" ? c : (c as { value: string }).value))
+      .join("\n");
+
+    assert.ok(
+      hoverText.includes("Caller-frame variable") && hoverText.includes("NameProcess"),
+      `expected the caller-frame card naming the callee, got: ${hoverText}`,
+    );
+  });
 });

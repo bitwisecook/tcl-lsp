@@ -224,6 +224,91 @@ fn references_link_the_call_site_word_and_the_caller_frame_read() {
     assert!(!from_read.contains(&9), "{from_read:?}");
 }
 
+// -- Literal caller-frame targets (issue #923 audit idx 22 / issue #1139) --
+
+/// The SpiceGenTcl shape, minimised to its proc half: the callee spells the
+/// caller-frame name **in its own body** (`upvar name name`), so no
+/// call-site word carries it.  tclsh 9.0.4: `build` returns `W1`.
+const LITERAL_TARGET_SRC: &str = "\
+proc NameProcess {arguments object} {
+    upvar name name
+    set name W1
+}
+proc build {} {
+    NameProcess x obj
+    set out $name
+}
+";
+
+#[test]
+fn hover_on_a_literal_upvar_target_read_names_the_creating_call() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, LITERAL_TARGET_SRC);
+    // Line 6 col 15 — inside the `name` of `set out $name`.
+    let text = hover_text(&lsp.hover(&uri, 6, 15));
+    assert!(
+        text.contains("Caller-frame variable") && text.contains("NameProcess"),
+        "expected the caller-frame card naming the callee: {text:?}"
+    );
+}
+
+#[test]
+fn definition_on_a_literal_upvar_target_read_reaches_the_creating_call() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, LITERAL_TARGET_SRC);
+    let locs = locations(&lsp.definition(&uri, 6, 15));
+    assert_eq!(locs.len(), 1, "one definition: {locs:?}");
+    assert_eq!(
+        locs[0].range["start"]["line"].as_i64(),
+        Some(5),
+        "the creating call is the nearest thing to a declaration: {locs:?}"
+    );
+}
+
+#[test]
+fn references_on_a_literal_upvar_target_link_the_call_and_the_read() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, LITERAL_TARGET_SRC);
+    let from_read = start_lines(&lsp.references(&uri, 6, 15, true));
+    assert_eq!(
+        from_read.iter().copied().collect::<Vec<i64>>(),
+        vec![5, 6],
+        "the creating call and the read are one variable: {from_read:?}"
+    );
+}
+
+/// Issue #923 audit idx 98: `upvar ::tk::FocusGrab($index) data` names one
+/// fixed global cell (level-independent), so the sibling proc's
+/// `$::tk::FocusGrab($index)` read and the `upvar` `otherVar` word now
+/// cross-reference — previously every anchor answered nothing.
+///
+/// Pinned at the parity point with a plain qualified write: the server's
+/// per-item incremental analysis merges a proc-body `set
+/// ::tk::FocusGrab($i) 1` to exactly the same answer (references link the
+/// write word and the `$` read; read-anchored hover/definition and the
+/// bareword `info exists` / `unset` occurrences are a known per-item
+/// residual shared by both spellings — the whole-file analysis pinned in
+/// `tcl-lsp-core`'s `caller_frame` tests answers all four anchors).
+#[test]
+fn a_fully_qualified_upvar_target_cross_references_between_procs() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc SetFocusGrab {grab focus} {\n    set index \"$grab,$focus\"\n    upvar ::tk::FocusGrab($index) data\n    lappend data one\n}\nproc RestoreFocusGrab {grab focus} {\n    set index \"$grab,$focus\"\n    if {[info exists ::tk::FocusGrab($index)]} {\n        set data2 $::tk::FocusGrab($index)\n        unset ::tk::FocusGrab($index)\n    }\n}\n",
+    );
+    // Line 8 col 26 — inside the `FocusGrab` of the
+    // `$::tk::FocusGrab($index)` read.
+    let refs = start_lines(&lsp.references(&uri, 8, 26, true));
+    assert!(
+        refs.contains(&2) && refs.contains(&8),
+        "the read must link the upvar otherVar word across procs: {refs:?}"
+    );
+}
+
 /// TN — an unbound `$`-led read abstains rather than resolving to a
 /// coincidentally same-named method.  This is the wrong-kind conflation the
 /// audit confirmed: Tcl's variable and command namespaces are disjoint.

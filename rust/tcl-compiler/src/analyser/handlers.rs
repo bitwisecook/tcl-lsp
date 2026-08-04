@@ -1030,9 +1030,12 @@ impl Analyser {
     /// [`ProcDef::caller_frame_params`](super::types::ProcDef::caller_frame_params)
     /// — the strictly narrower "this parameter's value names a variable in the
     /// *immediate caller's* frame" fact, which the trait map alone cannot
-    /// answer because it records no frame level.  Computed here, from the same
-    /// body text and the same dialect config, so the two can never be derived
-    /// from different views of the proc.
+    /// answer because it records no frame level — and
+    /// [`ProcDef::caller_frame_literals`](super::types::ProcDef::caller_frame_literals),
+    /// the literal caller-frame names the body spells itself (`upvar 1 name
+    /// name`, issue #1139).  Computed here, from the same
+    /// body text and the same dialect config, so the three can never be
+    /// derived from different views of the proc.
     fn infer_proc_param_traits(
         &self,
         params: &[crate::signature_scan::types::ParamDef],
@@ -1040,11 +1043,13 @@ impl Analyser {
     ) -> (
         std::collections::HashMap<String, std::collections::HashSet<super::types::ProcArgTrait>>,
         std::collections::HashSet<String>,
+        std::collections::HashMap<String, bool>,
     ) {
         let Some(registry) = self.registry else {
             return (
                 std::collections::HashMap::new(),
                 std::collections::HashSet::new(),
+                std::collections::HashMap::new(),
             );
         };
         let overlay = self.stub_overlay.as_ref();
@@ -1056,6 +1061,8 @@ impl Analyser {
             registry,
             config,
         );
+        let caller_frame_literals =
+            super::param_traits::caller_frame_literal_targets(body_text, registry, config);
         let shallow = super::param_traits::infer_param_traits_with_config(
             &param_names,
             body_text,
@@ -1075,7 +1082,7 @@ impl Analyser {
         } else {
             shallow
         };
-        (traits, caller_frame_params)
+        (traits, caller_frame_params, caller_frame_literals)
     }
 
     /// **W113** — a `proc` name shadows a built-in command.
@@ -1432,7 +1439,8 @@ impl Analyser {
         }
 
         let body_text = &args[2];
-        let (param_traits, caller_frame_params) = self.infer_proc_param_traits(&params, body_text);
+        let (param_traits, caller_frame_params, caller_frame_literals) =
+            self.infer_proc_param_traits(&params, body_text);
 
         let proc = ProcDef {
             name: simple,
@@ -1444,6 +1452,7 @@ impl Analyser {
             doc,
             param_traits,
             caller_frame_params,
+            caller_frame_literals,
         };
 
         // Register globally and in the current scope. ``scope.procs``
@@ -1688,7 +1697,7 @@ impl Analyser {
         combined_params.extend(opt_locals.iter().cloned());
 
         let body_text = &args[2];
-        let (param_traits, caller_frame_params) =
+        let (param_traits, caller_frame_params, caller_frame_literals) =
             self.infer_proc_param_traits(&combined_params, body_text);
 
         let proc = ProcDef {
@@ -1704,6 +1713,7 @@ impl Analyser {
             doc,
             param_traits,
             caller_frame_params,
+            caller_frame_literals,
         };
 
         self.register_proc_definition(&qualified, &proc, name_span);
@@ -4064,7 +4074,23 @@ impl Analyser {
                     // `otherVar` (at `i - 1`) names the cell; `args[i]` is an
                     // independent local spelling.  Renaming the cell must
                     // rewrite the former, never the latter.
-                    self.set_var_link_target(&args[i], scope_path, target, other_tok.span);
+                    self.set_var_link_target(
+                        &args[i],
+                        scope_path,
+                        target.clone(),
+                        other_tok.span,
+                    );
+                    // The fixed cell itself gets a definition at the
+                    // `otherVar` word (issue #923 audit idx 98 / issue
+                    // #1139): `upvar ::tk::FocusGrab($index) data` is the
+                    // only place the array ever comes to exist, so without
+                    // a `VarDef` for `::tk::FocusGrab` every occurrence —
+                    // this word, a sibling proc's `$::tk::FocusGrab($idx)`
+                    // read, its `info exists` / `unset` — answered nothing.
+                    // Defined in the GLOBAL scope: both qualifying
+                    // spellings (a `::`-qualified target, any target at
+                    // `#0`) name a cell reachable from everywhere.
+                    self.define_var(&target, *other_tok, &[], false, None);
                 }
             }
             i += 2;
@@ -9811,6 +9837,7 @@ mod tests {
                 doc: String::new(),
                 param_traits: std::collections::HashMap::new(),
                 caller_frame_params: std::collections::HashSet::new(),
+                caller_frame_literals: std::collections::HashMap::new(),
             },
         );
         let resolved = a.resolve_proc_call("a::b", &[]);
@@ -9839,6 +9866,7 @@ mod tests {
                     doc: String::new(),
                     param_traits: std::collections::HashMap::new(),
                     caller_frame_params: std::collections::HashSet::new(),
+                    caller_frame_literals: std::collections::HashMap::new(),
                 },
             );
         }

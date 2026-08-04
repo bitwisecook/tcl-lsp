@@ -1013,7 +1013,14 @@ pub fn caller_frame_upvar_params(
     }
     let param_set: HashSet<&str> = params.iter().copied().collect();
     for seg in &segment_commands_with_offset_and_config(body_source, 0, config) {
-        if seg.texts.first().map(String::as_str) != Some("upvar") {
+        // Registry-driven recognition (`FrameArgLayout::AliasPairs`), the
+        // same test `caller_frame_literal_targets` applies — never a
+        // spelled command name.
+        if seg.texts.first().is_none_or(|head| {
+            registry
+                .frame_effect(head)
+                .is_none_or(|spec| spec.layout != tcl_registry::frame_effect::FrameArgLayout::AliasPairs)
+        }) {
             continue;
         }
         let (level, pairs) = upvar_level_and_pairs(&seg.texts[1..], registry);
@@ -1031,6 +1038,110 @@ pub fn caller_frame_upvar_params(
         }
     }
     out
+}
+
+/// The **literal caller-frame targets** a proc body binds through `upvar` —
+/// caller-frame names the callee spells in its *own* text, with no call-site
+/// argument word to key on (`upvar 1 name name`, issue #923 audit idx 22 /
+/// issue #1139).  Returns `caller_name → written-through-alias`.
+///
+/// Strictly the complement of [`caller_frame_upvar_params`]: that fact keys
+/// on a `$param` **source** (the name arrives from the call site); this one
+/// keys on a *literal* source (the name is fixed by the callee).  tclsh
+/// 9.0.4 / 8.6.14, identical: with `proc np {} {upvar name name; set name
+/// W1}`, a caller running `np; puts $name` prints `W1` — `name` exists in
+/// the caller's frame although the caller never assigns it and no call-site
+/// word spells it.
+///
+/// Exclusions, each the abstaining direction:
+///
+/// * a non-caller frame level (`upvar 0` / `#0` / `2` / `$lvl`) — a
+///   different frame entirely, see [`caller_frame_upvar_params`]'s table;
+/// * a `::`-qualified source (`upvar 1 ::ns::x local`) — a fixed global/
+///   namespace cell, level-independent, already linked by the analyser's
+///   `handle_upvar_command` `otherVar` link (issue #923 idx 98);
+/// * an array element or any substituted/computed source — not a plain
+///   caller-frame scalar name this scan can claim;
+/// * a dynamic **local** side — with no alias name, the write-through scan
+///   below has nothing to match, so the pair contributes nothing here (the
+///   compiler-side summary still widens the call site, issue #1165).
+///
+/// The write-through upgrade mirrors [`record_upvar_pairs`]'s rule for
+/// params: a later registry-declared `VarWrite` on the alias local (`set
+/// name …`, `lassign … name`) marks the caller name as *created* by a call;
+/// an alias only ever read leaves it `false` (a referencing call site, not a
+/// creating one).  Only the top-level command scan is walked, matching the
+/// shallow trait pass exactly.
+#[must_use]
+pub fn caller_frame_literal_targets(
+    body_source: &str,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> HashMap<String, bool> {
+    use tcl_registry::frame_effect::FrameArgLayout;
+
+    let mut targets: HashMap<String, bool> = HashMap::new();
+    if body_source.trim().is_empty() {
+        return targets;
+    }
+    // local alias name → the caller-frame name it stands for.
+    let mut alias_to_target: HashMap<String, String> = HashMap::new();
+    let segs = segment_commands_with_offset_and_config(body_source, 0, config);
+    for seg in &segs {
+        let Some(head) = seg.texts.first() else {
+            continue;
+        };
+        // Registry-driven recognition: any command whose frame-effect
+        // grammar is `otherVar myVar` alias pairs (`upvar`), never a
+        // spelled name.
+        if registry
+            .frame_effect(head)
+            .is_none_or(|spec| spec.layout != FrameArgLayout::AliasPairs)
+        {
+            continue;
+        }
+        let (level, pairs) = upvar_level_and_pairs(&seg.texts[1..], registry);
+        if !level.is_caller_frame() {
+            continue;
+        }
+        let mut i = 0;
+        while i + 1 < pairs.len() {
+            let (src, dst) = (&pairs[i], &pairs[i + 1]);
+            i += 2;
+            if is_literal_caller_frame_name(src) && is_plain_local_name(dst) {
+                targets.entry(src.clone()).or_insert(false);
+                alias_to_target.insert(dst.clone(), src.clone());
+            }
+        }
+    }
+    if alias_to_target.is_empty() {
+        return targets;
+    }
+    for seg in &segs {
+        let Some(head) = seg.texts.first() else {
+            continue;
+        };
+        let args: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
+        for idx in registry.arg_indices_for_role(head, &args, ArgRole::VarWrite) {
+            if let Some(word) = args.get(idx)
+                && let Some(caller_name) = alias_to_target.get(*word)
+            {
+                targets.insert(caller_name.clone(), true);
+            }
+        }
+    }
+    targets
+}
+
+/// A plain caller-frame scalar name: no substitution, no bracket, no
+/// namespace qualifier, no array element.  Anything else is either a
+/// different cell (`::`-qualified) or unknowable, and abstains.
+fn is_literal_caller_frame_name(word: &str) -> bool {
+    !word.is_empty()
+        && !word.contains("::")
+        && word
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 /// `namespace upvar namespace ?otherVar myVar ...?` — the pairs alias namespace
@@ -1400,6 +1511,58 @@ mod tests {
                 expected,
                 "{body:?} -> {got:?} (expected caller-frame param: {expected})"
             );
+        }
+    }
+
+    /// Issue #1139: the literal-target fact — `upvar 1 name name` binds the
+    /// caller's `name`, written through the alias when the body assigns it.
+    /// tclsh 9.0.4: `proc np {} {upvar name name; set name W1}` then
+    /// `np; puts $name` prints `W1` in the caller.
+    #[test]
+    fn caller_frame_literal_targets_records_written_and_read_only() {
+        let registry = CommandRegistry::build_default();
+        let got = caller_frame_literal_targets(
+            "upvar name name\nset name W1",
+            &registry,
+            LexerConfig::default(),
+        );
+        assert_eq!(got.get("name"), Some(&true), "written through the alias");
+        // A body that only reads through the alias creates nothing.
+        let got = caller_frame_literal_targets(
+            "upvar name name\nreturn [string length $name]",
+            &registry,
+            LexerConfig::default(),
+        );
+        assert_eq!(got.get("name"), Some(&false), "read-only alias");
+        // Distinct local alias spelling still records the CALLER name.
+        let got = caller_frame_literal_targets(
+            "upvar 1 other mine\nset mine 1",
+            &registry,
+            LexerConfig::default(),
+        );
+        assert_eq!(got.get("other"), Some(&true));
+        assert!(!got.contains_key("mine"));
+    }
+
+    /// The exclusions: non-caller levels, `::`-qualified cells, array
+    /// elements, substituted sources, dynamic locals, `namespace upvar`.
+    #[test]
+    fn caller_frame_literal_targets_excludes_other_frames_and_cells() {
+        let registry = CommandRegistry::build_default();
+        for body in [
+            "upvar 0 name name; set name 1",
+            "upvar #0 name name; set name 1",
+            "upvar 2 name name; set name 1",
+            "upvar $lvl name name; set name 1",
+            "upvar 1 ::tk::FocusGrab($i) data; set data 1",
+            "upvar 1 ::ns::cell local; set local 1",
+            "upvar 1 arr(k) local; set local 1",
+            "upvar 1 $src local; set local 1",
+            "upvar 1 name $dst",
+            "namespace upvar ::cfg name local; set local 1",
+        ] {
+            let got = caller_frame_literal_targets(body, &registry, LexerConfig::default());
+            assert!(got.is_empty(), "{body:?} must record nothing, got {got:?}");
         }
     }
 
