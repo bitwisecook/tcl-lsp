@@ -582,6 +582,66 @@ fn o102_upvar_aliased_variable_blocks_forward() {
 }
 
 #[test]
+fn o102_upvar_dynamic_local_alias_blocks_forward() {
+    // TP (issue #1165): `upvar 1 x $dst` has a dynamic *local* side, so the
+    // per-local alias maps cannot key it — but the caller-side name is the
+    // literal `x`, and the callee really does rewrite it. tclsh 9.0.4:
+    // prints `2`, so folding the later `$x` read to the stale `1` would be
+    // a silent miscompile.
+    let src = "proc p {dst} {\n    upvar 1 x $dst\n    set $dst 2\n}\nproc c {} {\n    set x 1\n    p x\n    puts $x\n}\nc\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts 1"),
+        "the caller's x must not fold across `p x`: {out}"
+    );
+}
+
+#[test]
+fn o102_upvar_dynamic_local_alias_param_source_blocks_forward() {
+    // TP (issue #1165): `upvar 1 $name $dst` — both the caller-side name
+    // (the value of `name`) and the local key are call-site data, but the
+    // caller-side name IS resolvable from the argument. tclsh 9.0.4:
+    // prints `9`.
+    let src = "proc r {name dst} {\n    upvar 1 $name $dst\n    set $dst 9\n}\nproc c3 {} {\n    set t 0\n    r t alias\n    puts $t\n}\nc3\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts 0"),
+        "the caller's t must not fold across `r t alias`: {out}"
+    );
+}
+
+#[test]
+fn o102_upvar_dynamic_local_alias_does_not_block_unrelated_forward() {
+    // FP guard (issue #1165): the widening is per-name — an unrelated
+    // local `y` in the same caller must still forward. tclsh 9.0.4: prints
+    // `5` then `2`.
+    let src = "proc p {dst} {\n    upvar 1 x $dst\n    set $dst 2\n}\nproc c4 {} {\n    set x 1\n    set y 5\n    p x\n    puts $y\n    puts $x\n}\nc4\n";
+    let out = optimised(src, TCL);
+    assert!(
+        out.contains("puts 5") || out.contains("puts $y"),
+        "y is untouched by p and may fold: {out}"
+    );
+    assert!(
+        !out.contains("puts 1"),
+        "x must still not fold across the call: {out}"
+    );
+}
+
+#[test]
+fn o102_upvar_zero_dynamic_local_is_callee_own_frame_and_still_forwards() {
+    // TN (issue #1165): `upvar 0 own $dst` aliases the *callee's own*
+    // frame — no caller effect, so the caller's constant still forwards.
+    // tclsh 9.0.4: prints `3` (the caller's x is untouched).
+    let src = "proc q {dst} {\n    upvar 0 own $dst\n    set $dst 7\n}\nproc c2 {} {\n    set x 3\n    q alias\n    puts $x\n}\nc2\n";
+    let out = optimised(src, TCL);
+    assert!(
+        out.contains("puts 3") || out.contains("puts $x"),
+        "an own-frame alias must not block the caller's forward: {out}"
+    );
+    assert!(!out.contains("puts 7"), "never the callee's value: {out}");
+}
+
+#[test]
 fn o102_pure_intervening_call_is_still_forwarded() {
     // TN / precision guard: the fix must not be so conservative that a
     // provably pure intervening call (no side effects, registry `pure:
@@ -622,17 +682,94 @@ fn o102_unregistered_proc_call_between_def_and_use_still_forwards() {
 }
 
 #[test]
-fn o102_uplevel_hash_zero_in_called_proc_is_a_known_gap() {
-    // Documented, deliberate scope limitation (see `run_load_forwarding`'s
-    // doc comment): `uplevel #0` inside a *called* proc can rewrite a
-    // caller-visible variable with no trace and no memory-SSA alias
-    // recorded against the *caller's* function unit, so this specific
-    // shape is not yet caught. tclsh: prints `99`; the optimiser still
-    // (incorrectly) forwards `5`. Asserting the current, known-wrong
-    // behaviour here — rather than silently leaving it uncovered — so a
-    // future fix flips this assertion instead of a fix regressing
-    // silently past an absent test.
+fn o102_uplevel_hash_zero_in_called_proc_kills_the_stale_global() {
+    // TP (issue #1198) — the formerly known-wrong gap, now fixed: `uplevel
+    // #0 {set x 99}` inside a *called* proc rewrites the caller-visible
+    // global, so the earlier literal must not forward across the call.
+    // tclsh 9.0.3/9.0.4: prints `99`; the optimiser used to (incorrectly)
+    // emit `puts 5`. The callee's global-frame write is now part of its
+    // `GlobalWriteInfo` summary and widens the call site's defs.
     let src = "proc setter {} {\n    uplevel #0 {\n        set x 99\n    }\n}\nset x 5\nsetter\nputs $x\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts 5"),
+        "the stale global 5 must not forward across `setter`: {out}"
+    );
+    assert!(out.contains("puts $x"), "the read must survive: {out}");
+}
+
+#[test]
+fn o102_uplevel_hash_zero_list_built_script_kills_the_stale_global() {
+    // TP (issue #1198) — the list-built spelling: `uplevel #0 [list set k
+    // 77]` names its command and target statically. tclsh 9.0.4: prints
+    // `77`.
+    let src = "proc s3 {} {\n    uplevel #0 [list set k 77]\n}\nset k 5\ns3\nputs $k\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts 5"),
+        "the stale global 5 must not forward across `s3`: {out}"
+    );
+}
+
+#[test]
+fn o102_uplevel_hash_zero_through_a_call_chain_kills_the_stale_global() {
+    // TP (issue #1198) — nested call chain: `outer` calls `setter`; the
+    // global-frame write is transitive through the direct-call closure.
+    // tclsh 9.0.4: prints `99`.
+    let src = "proc setter {} {\n    uplevel #0 {\n        set g2 99\n    }\n}\nproc outer {} {\n    setter\n}\nset g2 5\nouter\nputs $g2\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts 5"),
+        "the stale global 5 must not forward across `outer`: {out}"
+    );
+}
+
+#[test]
+fn o102_uplevel_hash_zero_dynamic_script_widens_every_global() {
+    // TP (issue #1198) — `uplevel #0 $body` is an unreadable script at the
+    // global frame: no name is enumerable, so the call site must widen to
+    // an opaque barrier. tclsh 9.0.4: prints `42`.
+    let src = "proc s2 {body} {\n    uplevel #0 $body\n}\nset h 5\ns2 {set h 42}\nputs $h\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts 5"),
+        "the stale global 5 must not forward across `s2`: {out}"
+    );
+}
+
+#[test]
+fn o102_uplevel_hash_zero_embedded_substitution_widens_too() {
+    // TP (issue #1198) — the same callee reached through a command
+    // substitution (`set y [s2 …]`) instead of a bare statement.
+    let src = "proc s2 {body} {\n    uplevel #0 $body\n}\nset h 5\nset y [s2 {set h 42}]\nputs $h\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts 5"),
+        "the stale global 5 must not forward across `[s2 …]`: {out}"
+    );
+}
+
+#[test]
+fn o102_uplevel_hash_zero_unrelated_global_still_forwards() {
+    // FP guard (issue #1198) — a *literal* global-frame write is per-name:
+    // `setter` writes only `x`, so the untouched `y` still forwards.
+    // tclsh 9.0.4: prints `7` then `99`.
+    let src = "proc setter {} {\n    uplevel #0 {\n        set x 99\n    }\n}\nset x 5\nset y 7\nsetter\nputs $y\nputs $x\n";
+    let out = optimised(src, TCL);
+    assert!(
+        out.contains("puts 7") || out.contains("puts $y"),
+        "y is untouched by setter and may fold: {out}"
+    );
+    assert!(!out.contains("puts 5"), "x must not fold: {out}");
+}
+
+#[test]
+fn o102_uplevel_hash_zero_non_writing_script_still_forwards() {
+    // TN (issue #1198) — a global-frame script that writes no variable
+    // (`uplevel #0 [list puts hi]`) has no global effect at all, so the
+    // caller's constant still forwards. tclsh 9.0.4: prints `hi` then `5`.
+    let src = "proc shout {} {\n    uplevel #0 [list puts hi]\n}\nset x 5\nshout\nputs $x\n";
+    assert!(opt_fires(src, TCL, "O102"));
     assert!(optimised(src, TCL).contains("puts 5"));
 }
 

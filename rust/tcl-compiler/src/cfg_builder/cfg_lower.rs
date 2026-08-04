@@ -84,7 +84,7 @@ impl CfgBuilder {
                 // 122) — in the condition writes result variables; record
                 // them as defs so a read in the guarded body is not
                 // flagged read-before-set (W210).
-                let cond_defs = self.condition_out_vars(&clause.condition);
+                let (cond_defs, opaque_global) = self.condition_out_vars(&clause.condition);
                 self.block_mut(&dispatch).statements.push(Statement::Call {
                     span: *span,
                     command: "<cond>".into(),
@@ -97,6 +97,19 @@ impl CfgBuilder {
                     tokens: None,
                     foreach_groups: None,
                 });
+                // A condition-embedded callee that runs an unreadable
+                // script at the global frame (issue #1198) clobbers names
+                // no def list can enumerate — widen with a barrier.
+                if opaque_global {
+                    self.block_mut(&dispatch).statements.push(Statement::Barrier {
+                        span: *span,
+                        reason: "condition runs an unreadable script at the global frame".into(),
+                        command: "<global-frame-script>".into(),
+                        canonical_command: None,
+                        args: Vec::new(),
+                        tokens: None,
+                    });
+                }
             }
 
             let then_block = self.new_block("if_then");
@@ -286,7 +299,7 @@ impl CfgBuilder {
         // them as defs in the header so a read in the body is not flagged
         // read-before-set (W210).
         if expr_has_command(condition) {
-            let cond_defs = self.condition_out_vars(condition);
+            let (cond_defs, opaque_global) = self.condition_out_vars(condition);
             self.block_mut(&header).statements.push(Statement::Call {
                 span: *condition_span,
                 command: "<cond>".into(),
@@ -299,6 +312,18 @@ impl CfgBuilder {
                 tokens: None,
                 foreach_groups: None,
             });
+            // See `lower_if`: an unreadable global-frame script in the
+            // condition (issue #1198) widens with a barrier.
+            if opaque_global {
+                self.block_mut(&header).statements.push(Statement::Barrier {
+                    span: *condition_span,
+                    reason: "condition runs an unreadable script at the global frame".into(),
+                    command: "<global-frame-script>".into(),
+                    canonical_command: None,
+                    args: Vec::new(),
+                    tokens: None,
+                });
+            }
         }
 
         let body_id = self.bid(&body_block);
