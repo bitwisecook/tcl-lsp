@@ -541,13 +541,21 @@ fn render_call(name: &str, by_value: &[String], by_name: &[String]) -> String {
 /// The generated name is a placeholder the user renames straight away, but it
 /// must not *shadow* something in the meantime: defining `proc lsort {…}` by
 /// accident would silently replace the builtin for the rest of the file.
+///
+/// The comparison is against each proc's **qualified** name, not its simple
+/// one.  The generated definition is written at the top level, so the name it
+/// would occupy is `::<candidate>` — a `::app::extracted_proc` in some other
+/// namespace is a different command and is no reason to pick a different
+/// placeholder.  (A namespace-blind `proc_def.name == candidate` scan is also
+/// the M1 drift class `cargo xtask resolution-drift` flags.)
 fn unique_proc_name(analysis: &AnalysisResult, registry: &CommandRegistry) -> String {
     let taken = |candidate: &str| {
+        let global = format!("::{candidate}");
         registry.get(candidate).is_some()
             || analysis
                 .all_procs
                 .values()
-                .any(|proc_def| proc_def.name == candidate)
+                .any(|proc_def| proc_def.qualified_name == global)
     };
     if !taken(BASE_NAME) {
         return BASE_NAME.to_string();
