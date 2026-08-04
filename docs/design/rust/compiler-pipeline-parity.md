@@ -9,9 +9,28 @@ which covers the command/event/object **registries**; this document covers the
 
 - **Python baseline (source of truth):** working tree on
   `claude/sleepy-goodall-pa351e` (mirrors `origin/main`), packages
-  `compiler/…`, `analyser/…`, `shared/…`.
+  `compiler/…`, `analyser/…`, `shared/…`. Python has since been **fully
+  retired** from this repository (see `AGENTS.md`) — the comparison below is a
+  historical snapshot, not a live moving target. Treat every row as "how the
+  since-removed Python implementation compared to Rust at the time it was
+  written", not as a description of a still-existing second implementation.
 - **Rust baseline (rewrite):** `rust/tcl-lexer`, `rust/tcl-syntax`,
   `rust/tcl-compiler`, `rust/tcl-bytecode` on the same tree.
+
+> **Snapshot date: 2026-06-19. Last revalidated: 2026-08-04, against `rust`
+> tip `efe3dd9566dfc593bf875e95a03d1b55fabbb95c`.** This document is a
+> point-in-time audit, not a live backlog — the Rust codebase has moved on
+> since 2026-06-19 and several rows below are now stale. The 2026-08-04 pass
+> (issue #1189) re-checked the memory-SSA section in full plus every
+> cross-cutting `complexity_guarded` reference and confirmed/corrected the
+> items marked **RESOLVED (2026-08-04 revalidation)** below, each with a
+> current code citation. Rows *not* carrying that marker have **not** been
+> re-verified since 2026-06-19 and may equally be stale — before relying on
+> any unmarked row, re-check it against current code (or current tests)
+> yourself. A gap confirmed still live in this pass has no separate GitHub
+> issue unless one is explicitly linked; do not assume the mere presence of a
+> gap here means it is tracked or scheduled — file an issue before treating it
+> as planned work.
 
 ## Scope and method
 
@@ -82,10 +101,19 @@ are soundness issues that should gate the default-off shim flips.
 
 **Cross-cutting themes (touch several subsystems):**
 
-1. **`complexity_guarded` skip is absent everywhere in Rust** (SSA §4, taint and
-   interprocedural §6). Python bails out of deep analysis on pathologically
-   large generated bodies; Rust analyses them unconditionally → runaway latency
-   **and** over-optimistic interproc summaries on adversarial input.
+1. ~~**`complexity_guarded` skip is absent everywhere in Rust**~~ **RESOLVED
+   (2026-08-04 revalidation, issue #1189).** `ssa.rs` now carries both halves
+   of the guard — `COMPLEXITY_GUARD_BLOCKS` (20,000 blocks, `is_complexity_guarded`)
+   and `DEEP_ANALYSIS_BODY_BYTES` (256 KiB, for block-light-but-byte-huge
+   bodies) — and `compilation_unit.rs::build_procedure_units` consults both
+   before building each proc's `FunctionUnit`: an oversized body gets
+   `FunctionUnit::trivial_guarded` (`compilation_unit.rs:618-637`) instead of
+   real SSA/taint/SCCP, with `complexity_guarded: true` set on the unit so
+   every per-proc consumer (`functions()`, interprocedural summarisation, …)
+   filters it out (`compilation_unit.rs:1661,1702,1734`) rather than
+   over-optimistically summarising it. Pinned by
+   `complexity_guard_skips_oversized_ssa` (`ssa.rs`) and
+   `complexity_guard_flags_byte_huge_proc` (`compilation_unit.rs`).
 2. **C1 byte-vs-UTF-16 columns** (already in `review-findings.md`) is *amplified*
    by re-derivation: positions resolve at ~29 independent `LineIndex` sites
    (§1, §2).
@@ -103,16 +131,18 @@ are soundness issues that should gate the default-off shim flips.
 **Genuine regressions, by kind** (full list in the
 [Consolidated gap register](#consolidated-prioritised-gap-register)):
 
-- *Correctness/soundness (should block the relevant shim flips):* the `${a\}b}`
-  braced-variable lexer scan (verified, §1); optimiser **O120** (string-compare
-  rewrite without a numeric-value proof) and **O114** (incr idiom without an
-  INT-type proof) drop soundness gates and can miscompile; **O108** ADCE is
-  over-aggressive; SCCP omits escaping-var widening and break-edge modelling
-  (false unreachable / unsound DCE on `while 1 {… break}`); memory-SSA upvar
-  transitive-merge and `IRUpFrame`-clobber divergences weaken may-alias; shimmer
-  severity (S100 emitted as Warning, not Information) and the phi-S101/expr-S100
-  code-string mislabels; the missing `DynamicNameLocal` param trait re-opens
-  call-by-name suppression false positives.
+- *Correctness/soundness (should block the relevant shim flips):* optimiser
+  **O120** (string-compare rewrite without a numeric-value proof) and **O114**
+  (incr idiom without an INT-type proof) drop soundness gates and can
+  miscompile; **O108** ADCE is over-aggressive; shimmer severity (S100 emitted
+  as Warning, not Information) and the phi-S101/expr-S100 code-string
+  mislabels. *(The `${a\}b}` braced-variable lexer scan was already fixed
+  and marked resolved in the original 2026-06-19 snapshot — §1 — but this
+  bullet was never updated to match. SCCP escaping-var widening, the
+  `while 1 {… break}` false-unreachable case, the memory-SSA upvar
+  transitive-merge, the `IRUpFrame` clobber, and the `DynamicNameLocal` param
+  trait are newly confirmed **RESOLVED** in the 2026-08-04 revalidation; see
+  §4-§6 for each's current-code citation.)*
 - *Capability gaps (Python feature, no/weak Rust):* the general proc inliner
   (`compiler/inlining/`, ~1900 LOC) is unported; `var_escape` is ported but
   **unwired** and missing the `pure_leaf` family; **snit** OO support is absent;
@@ -371,7 +401,7 @@ Python: `compiler/{ir,lowering,compilation_unit,command_binding,dialect_context,
 | `assigns_variable_at` tier | runtime.py:376 | spec.rs:94 (field unused in role path) | ❗ | Rust carries the field but no var-write consumer reads it. |
 | `resolve_arg_role_map` (multi-role) | runtime.py:1497 | param_traits.rs:421 | ❗ | Rust single-role over Body/Expr/VarWrite/VarRead only; OO-body/regexp-pattern special-casing + `_REWRITE_ALIASES` not found. |
 | command_binding lattice (name resolution) | command_binding.py | command_binding.rs | ✅ | BindingKind lattice — faithful port. |
-| CompilationUnit / FunctionUnit | compilation_unit.py:42-60 | compilation_unit.rs:101-308 | ⚠️ | Rust lacks `execution_intent`, `complexity_guarded`, `known_classes`. |
+| CompilationUnit / FunctionUnit | compilation_unit.py:42-60 | compilation_unit.rs:101-308 | ⚠️ | Rust lacks `execution_intent`, `known_classes`. `complexity_guarded` is **RESOLVED (2026-08-04)** — `FunctionUnit.complexity_guarded: bool` (compilation_unit.rs:256) exists and is set by `build_procedure_units`; see §4. |
 | **Taint build count** | once/fn (core_analyses.py:3977) | **2× top-level + every proc** (compilation_unit.rs:206,584,596) | ❗ | First intra-proc taint discarded; confirms the "2–3×" review finding. |
 | inline_uplevel | inline_uplevel.py | inline_uplevel.rs | ⚠️ | Same gates; Rust lacks the `redefined_procedures` guard; static path test-disabled. |
 | source_inliner / stdlib_prelude | source_inliner.py / stdlib_prelude.py | — | ❌ | No Rust equivalent (compile-time bundling for WASM self-containment). |
@@ -403,9 +433,10 @@ Python: `compiler/{ir,lowering,compilation_unit,command_binding,dialect_context,
    applied elsewhere, BODY/PATTERN/VAR_WRITE under-reported for
    `method`/`constructor`/`regexp`/`regsub`.
 9. Smaller field drops: `IRForeach.tokens`, `IRIncr.safe_on_uninit`,
-   `IRProcedure` inlining fields, `FunctionUnit.execution_intent`/
-   `complexity_guarded`, `CompilationUnit.known_classes`, inline_uplevel
-   `redefined_procedures`.
+   `IRProcedure` inlining fields, `FunctionUnit.execution_intent`,
+   `CompilationUnit.known_classes`, inline_uplevel `redefined_procedures`.
+   (`FunctionUnit.complexity_guarded` is **RESOLVED** — the field exists;
+   removed from this list 2026-08-04.)
 
 ### Rust-ahead / divergent-by-design
 - Typed `LoweringHookId` enum (24 variants) replacing name-string `match`;
@@ -463,12 +494,12 @@ complexity guard) and a few aliasing-merge divergences.
 | **Phi placement (semi-pruned, Briggs)** | ssa.py:974-998 | ssa.rs:487-525 | ✅ | Both semi-pruned — output-equivalent phi sets. |
 | Variable renaming / v0 read-before-set | ssa.py:1054-1143 | ssa.rs:1122-1305 | ✅ | Sorted → deterministic versions. |
 | `dom_in`/`dom_out` Euler-tour O(1) dominance | ssa.py:885-924 | absent | ⚠️ | Rust walks idom chain; perf-only. |
-| **SSA complexity guard** (skip huge bodies) | ssa.py:1008-1043 | absent | ❗ | No 20k-block/byte guard in Rust `build_ssa` or callers. |
-| `dynamic_target_name_reads` (`set $X v`) | ssa.py:247-261 | absent | ❗ | Dead-store/unused suppression divergence. |
+| **SSA complexity guard** (skip huge bodies) | ssa.py:1008-1043 | `COMPLEXITY_GUARD_BLOCKS`/`DEEP_ANALYSIS_BODY_BYTES` (ssa.rs:309-323), wired at compilation_unit.rs:962-970 | ✅ **RESOLVED (2026-08-04)** | Both the 20k-block and the 256 KiB body-byte half exist and gate `build_procedure_units` (a guarded proc gets `FunctionUnit::trivial_guarded`, not real SSA). Pinned by `complexity_guard_skips_oversized_ssa` / `complexity_guard_flags_byte_huge_proc`. |
+| `dynamic_target_name_reads` (`set $X v`) | ssa.py:247-261 | `is_dynamic_write_target` (ssa.rs:384) + analyser suppression (state.rs) | ✅ **RESOLVED (2026-08-04)**, different mechanism | Not a literal port of the Python SSA-layer read-set, but the same user-facing guarantee — `set $p 1` does not dead-store/unused-flag `p` — is implemented in the analyser walker and pinned by `dynamic_name_write_does_not_dead_store_the_name_var` (state.rs). |
 | MemoryLocationKind / MemoryOpKind | memory_ssa.py:40-126 | memory_ssa.rs:40-186 | ✅ | All variants 1:1. |
-| upvar/global/variable/ns-upvar detection | memory_ssa.py:195-233 | memory_ssa.rs:361-411 | ⚠️ | Rust dispatches on surface `command`, Python on `canonical_command`. |
-| **upvar transitive merge** | memory_ssa.py:303-311 | memory_ssa.rs:519-524 | ❗ | `upvar 1 x a; upvar 1 x b`: Python merges a&b; Rust keeps 2 → `may_alias` False in Rust. |
-| `IRUpFrame` clobber | memory_ssa.py:240-244 | absent in `is_clobber` | ❗ | Non-inlined `uplevel {…}` doesn't bump memory version. |
+| upvar/global/variable/ns-upvar detection | memory_ssa.py:195-233 | memory_ssa.rs:361-411 | ⚠️ | Rust dispatches on surface `command`, Python on `canonical_command`. Re-checked 2026-08-04: still true, unchanged; not observed to cause a divergence in practice (surface and canonical agree for the un-aliased `upvar`/`global`/`variable` spellings these detectors match). |
+| **upvar/global/variable transitive merge** | memory_ssa.py:303-311 | `compute_aliases` (memory_ssa.rs:533-593) | ✅ **RESOLVED (2026-08-04)** | `compute_aliases` was rewritten to a union-find over `MemoryLocation`: `upvar 1 x a; upvar 1 x b` now merges `a`/`b` into one alias set because both key off the shared caller-side node (memory_ssa.rs:545-555, comment explains the encoding). Pinned by `compute_aliases_merges_shared_caller_upvars`. The union-find is generic, so `global`/`variable` pairs get the same transitive treatment for free. |
+| `IRUpFrame` clobber | memory_ssa.py:240-244 | `is_clobber` (memory_ssa.rs:437-439) | ✅ **RESOLVED (2026-08-04)** | `Statement::Barrier { .. } \| Statement::UpFrame { .. } => true` — a non-inlined `uplevel {…}` bumps the memory version. Pinned by `build_memory_ssa_emits_clobber_for_upframe`. |
 | `eval`-origin IRBlock clobber | memory_ssa.py:245-254 | flattened (mod.rs:511) | ❗ | Rust more precise where enumerable; drops eval-barrier pessimism. |
 | DefKind/UseKind + 2-pass build + v0 lazy PARAMETER | def_use.py:26-236 | def_use.rs:24-272 | ✅ | Full structural parity. |
 | DataFlowGraph + 4 EdgeKinds + JSON `to_dict` | dataflow_graph.py:30-325 | dataflow_graph.rs | ✅ | All keys match; Rust sorts nodes. |
@@ -476,34 +507,38 @@ complexity guard) and a few aliasing-merge divergences.
 | Place model (7 PlaceKind, overlap, may_alias) | place.py:37-254 | place.rs:33-394 | ✅ | Faithful incl. 8D/8E precision. |
 | place_bridge read/write/alias extraction | place_bridge.py:49-341 | place_bridge.rs:46-734 | ✅ | Must-alias-kill / element-observed relocated into bridge. |
 | Natural-loop detection (back-edge + reverse flood) | loops.py:79-195 | loops.rs:82-166 | ✅ | Rust RPO-ordered (deterministic). |
-| `build_loop_forest` single source of truth | called by gvn/intervals/shimmer/core_analyses | loops.rs:112 (**0 prod callers**) | ❗ | Rust re-derives loop detection inline in 4 places. |
+| `build_loop_forest` single source of truth | called by gvn/intervals/shimmer/core_analyses | loops.rs:127 (production caller: `analyser/diagnostics/helpers.rs:876`) | ✅ **RESOLVED (2026-08-04)** | No longer dead code: `build_loop_entry_only_undef` (the W210 read-before-set loop-entry-only-undef suppression) calls it live, on the production diagnostics path. Still re-derived inline in other spots (not fully consolidated), but "0 prod callers" is no longer accurate. |
 | static `for` simulation (env, 4096 cap) | static_loops.py:254-305 | static_loops.rs:314-375 | ✅ | Same cap. |
-| static `for` raw-string-args entry | static_loops.py:219-251 | absent | ❌ | Rust only accepts pre-lowered IR. |
-| static-loop → SCCP/interval const-fold wiring | core_analyses.py:947-961 | absent | ❗ | `summarise_for_statement` exists but no SCCP caller. |
-| SCCP break-exit precompute (infinite-loop+break) | core_analyses.py:1345-1374 | absent | ❗ | Risk of false unreachable/unsound DCE on `while 1 {… break}`. |
+| static `for` raw-string-args entry | static_loops.py:219-251 | absent | ❌ | Rust only accepts pre-lowered IR. Not re-verified 2026-08-04. |
+| static-loop → SCCP/interval const-fold wiring | core_analyses.py:947-961 | absent | ❗ | `summarise_for_statement` exists but no SCCP caller. Not re-verified 2026-08-04. |
+| break/`while 1 {… break}` post-loop reachability | core_analyses.py:1345-1374 (SCCP break-exit precompute) | `escaping_loop_jumps` (cfg_builder/mod.rs:1913) wires a real `break_target` CFG edge (cfg_lower.rs:498-537) at CFG-construction time | ✅ **RESOLVED (2026-08-04)**, different mechanism | Rust does not port a Python-style SCCP break-exit precompute; instead the CFG builder gives `break` a genuine successor edge to the post-loop block whenever a break is reachable, so ordinary SCCP reachability propagation (no special-casing needed) marks the post-loop block executable. Pinned by `rch_while1_with_break_post_loop_is_reachable` (control: reachable) alongside `rch_while1_no_break_post_loop_is_dead` (a `while 1` with **no** break still correctly reports the post-loop block unreachable) in `tests/compiler_analysis_residual.rs`. |
 
 ### Gaps (Rust missing or weaker)
-1. **No SSA complexity guard** (`ssa.rs:1111` runs phi-placement + rename
-   unconditionally). Machine-generated mega-procs (a ~34k-block `filetypes.tcl`)
-   get full analysis instead of being skipped — latency, not crash.
+
+> Items 1, 3, 4, 5 below (SSA complexity guard, SCCP break-exit /
+> `while 1 {… break}`, upvar transitive-merge, `IRUpFrame` clobber) were
+> **RESOLVED** as of the 2026-08-04 revalidation (issue #1189) — see the
+> parity table above for the current-code citation and pinning test for each.
+> They are struck through here rather than deleted so the historical gap
+> numbering stays stable for cross-references.
+
+1. ~~**No SSA complexity guard**~~ **RESOLVED** — see parity table.
 2. **Static-loop summarisation not wired into SCCP/interval** —
    `summarise_for_statement` has **zero production callers**; compounded by
    `LoopNode` dropping the `IRFor`. Weaker constant propagation/bounds after a
-   counted `for`.
-3. **SCCP break-exit modelling absent** — potential false "unreachable" + unsound
-   DCE on `while 1 {… break}` (confirm Rust doesn't model break edges another
-   way).
-4. **upvar transitive-merge divergence** — `may_alias("a","b")` is False in Rust
-   for `upvar 1 x a; upvar 1 x b`; Rust code/test/doc-comment disagree. Weaker
-   GVN/DSE/copy-prop alias guards.
-5. **`IRUpFrame` not a clobber in Rust** — a non-inlined `uplevel 1 {…}` doesn't
-   bump the memory version; may-alias consumers can miss a caller-frame store.
+   counted `for`. *(Not re-verified 2026-08-04 — re-check before relying on
+   this.)*
+3. ~~**SCCP break-exit modelling absent**~~ **RESOLVED** (via a real CFG
+   `break_target` edge, not an SCCP-level precompute) — see parity table.
+4. ~~**upvar transitive-merge divergence**~~ **RESOLVED** — see parity table.
+5. ~~**`IRUpFrame` not a clobber in Rust**~~ **RESOLVED** — see parity table.
 6. **`break`/`continue` not gated on `faithful_exceptions`** — the codegen-path
    CFG gains goto edges Python leaves as fall-through; relevant to the
-   byte-identical-to-tclsh invariant.
+   byte-identical-to-tclsh invariant. *(Not re-verified 2026-08-04.)*
 7. `dataflow_graph_to_mermaid` missing (bounded: JSON `to_dict` present);
-   `dynamic_target_name_reads` not ported; static `for` raw-args entry missing;
-   `build_loop_forest` is dead code in Rust (4 inline re-derivations).
+   static `for` raw-args entry missing. *(`dynamic_target_name_reads` and
+   `build_loop_forest`-as-dead-code are **RESOLVED** — see parity table;
+   the remaining two items in this line were not re-verified 2026-08-04.)*
 
 ### Rust-ahead / divergent-by-design
 - `escaping_loop_jumps` recurses into `try` and stops at dead code (mod.rs:1090)
@@ -523,17 +558,30 @@ complexity guard) and a few aliasing-merge divergences.
   explicit sorting at output boundaries.
 
 ### Open questions for maintainer
-1. Is the absent SSA complexity guard intentional (does the analyser gate large
-   procs before `build_ssa`)?
+1. ~~Is the absent SSA complexity guard intentional?~~ **Answered (2026-08-04):**
+   it isn't absent — `is_complexity_guarded` + `DEEP_ANALYSIS_BODY_BYTES` gate
+   `build_procedure_units` before SSA is ever built for an oversized proc.
 2. Is the static-loop → SCCP/interval const-fold wiring planned? (`LoopNode`
-   would need to carry the `IRFor`.)
-3. Does Rust SCCP handle the break-into-infinite-loop exit edge another way?
-4. Should Rust match Python's single-set upvar merge (code/test/doc disagree)?
+   would need to carry the `IRFor`.) *(Not re-verified 2026-08-04.)*
+3. ~~Does Rust SCCP handle the break-into-infinite-loop exit edge another
+   way?~~ **Answered (2026-08-04):** yes — the CFG builder
+   (`escaping_loop_jumps` + `break_target`) gives `break` a real successor
+   edge to the post-loop block, so plain SCCP reachability propagation
+   handles it without any SCCP-level special-casing.
+4. ~~Should Rust match Python's single-set upvar merge?~~ **Answered
+   (2026-08-04):** it already does — `compute_aliases`'s union-find merges
+   `upvar 1 x a; upvar 1 x b` into one alias set.
 5. Should memory-SSA detection consult `canonical_command` instead of surface
-   `command`?
+   `command`? *(Re-checked 2026-08-04: still dispatches on surface `command`;
+   the maintainer question stands, though no concrete divergence was found in
+   this pass.)*
 6. Confirm codegen uses `build_cfg_codegen` so the un-gated break/continue goto
-   edges don't leak into emitted bytecode.
-7. Is `build_loop_forest` meant to become the Rust single source of truth?
+   edges don't leak into emitted bytecode. *(Not re-verified 2026-08-04.)*
+7. ~~Is `build_loop_forest` meant to become the Rust single source of
+   truth?~~ **Partially answered (2026-08-04):** it now has a real production
+   caller (`analyser/diagnostics/helpers.rs:876`), so it is no longer dead
+   code; whether it should also replace the *other* inline re-derivations is
+   still open.
 
 ## 5. Value/type analyses — type inference, SCCP, intervals, shapes, shimmer
 
@@ -553,7 +601,7 @@ Rust: `rust/tcl-compiler/src/{type_infer,types,analyses,value_shapes,intervals,i
 | **W232** | `string index` proven out-of-range | interval_bounds.py:463 | interval_bounds.rs:541 | ✅ | |
 | **W233** | Division/modulo by provably-zero divisor | interval_bounds.py:501 | DivZeroFinding interval_bounds.rs:642 (**DEAD**); emitted via diagnostics.rs:7275 (SCCP-only) | ❗ | Production path uses SCCP-constant-only; misses interval `[0,0]` divisors Python catches. |
 | **I230** | Constant branch / `info exists` fold | core_analyses.py:1563 | sccp.rs:480/548 | ✅/⚠️ | Records produced both; Rust existence-fold gate weaker, doesn't prune edges. |
-| **O107** | Unreachable block | executable_blocks | diagnostics.rs:5882 | ❗ | Rust SCCP lacks break-edge synthesis → false O107 for `while 1 {… break …}`. |
+| **O107** | Unreachable block | executable_blocks | diagnostics.rs:5882 | ✅ **RESOLVED (2026-08-04)** | The CFG builder gives `break` a real successor edge to the post-loop block (`escaping_loop_jumps`/`break_target`, §4), so ordinary SCCP reachability marks it executable — no false O107 for `while 1 {… break …}`. Pinned by `rch_while1_with_break_post_loop_is_reachable` / `rch_while1_no_break_post_loop_is_dead` (`tests/compiler_analysis_residual.rs`). |
 
 ### Parity table (selected)
 
@@ -584,9 +632,16 @@ Rust: `rust/tcl-compiler/src/{type_infer,types,analyses,value_shapes,intervals,i
 2. **Shimmer code-string bugs (observable).** `phi.rs:146` hardcodes "S101" ignoring `in_loop` (out-of-loop merge should be S100); `expr.rs:273,322` hardcode "S100" ignoring `in_loop` (in-loop expr shimmer should be S101).
 3. **Shimmer loop-invariant reclassification missing** (S101→S100 downgrade for loop-invariant single-target vars; the largest use-site heuristic, shimmer.py:270-456). Rust over-reports S101.
 4. **Shimmer `incr` amount not checked** (shimmer.py:564-606); Rust's Incr arm never inspects the amount.
-5. **SCCP break-edge reachability missing** → false O107 / unsound DCE for `while 1 {… break}` (Python core_analyses.py:1337-1374).
-6. **SCCP optimistic (Wegman–Zadeck) UNKNOWN deferral missing** (sccp.rs:444-456 opens both arms immediately); loses loop-carried-constant folding.
-7. **SCCP externally-mutable/escaping-var widening missing (soundness).** Python forces `::g`/escaping defs to OVERDEFINED (core_analyses.py:1308); Rust's `evaluate_def` has no such guard despite `escaping_var_names` existing.
+5. ~~**SCCP break-edge reachability missing**~~ **RESOLVED (2026-08-04)** —
+   see §4/O107 above (real CFG `break_target` edge, not an SCCP-level fix).
+6. **SCCP optimistic (Wegman–Zadeck) UNKNOWN deferral missing** (sccp.rs:444-456 opens both arms immediately); loses loop-carried-constant folding. *(Not re-verified 2026-08-04.)*
+7. ~~**SCCP externally-mutable/escaping-var widening missing (soundness).**~~
+   **RESOLVED (2026-08-04)** — `evaluate_def` (sccp.rs:300-335) now calls
+   `var_observability::analyse_var_observability(..).escaping_var_names()`
+   and forces every escaping/global/namespace/upvar-aliased/traced
+   definition to `Overdefined` before the fixpoint runs, with the same
+   soundness rationale Python used (`set ::g 5; mut; expr {$::g+1}` must not
+   fold through the opaque `mut` call).
 8. **SCCP interpolation folding + registry-driven cmd-subst folding narrower** (Rust hand-codes list/format/llength/string-length/expr only; no CONSTSET cartesian product; no FOLD_HINTS rename guard).
 9. **Type-prop scope-alias & TclOO object typing missing**; **expr-context literal typing & `~` typing wrong**; **W233 interval path bypassed**; **rendered-props ESC numeric escape rendering weaker** (W201 FNs); **`value_shapes.is_pure_var_ref` acceptance-set differs** (`is_braced_whole_name_array_ref` not ported).
 
@@ -608,7 +663,10 @@ Rust: `rust/tcl-compiler/src/{type_infer,types,analyses,value_shapes,intervals,i
 1. Shimmer severity + phi-S101/expr-S100 hardcodes — design simplification or port bugs?
 2. Loop-invariant S101→S100 downgrade and incr-amount check — deferred or overlooked?
 3. W233: is the SCCP-only divisor check deliberate (making `find_divide_by_zero` dead code)?
-4. SCCP break-edges / optimistic deferral / escaping-var widening — tracked simplifications or gaps? (`escaping_var_names` already exists but SCCP doesn't consume it.)
+4. ~~SCCP break-edges / escaping-var widening — tracked simplifications or
+   gaps?~~ **Answered (2026-08-04):** both are resolved — see items 5 and 7
+   above. The optimistic (Wegman–Zadeck) UNKNOWN-deferral half of this
+   question was not re-verified.
 5. Type-prop TclOO object typing & scope-alias OVERDEFINED — planned?
 6. expr-context literal typing (`0o`→INT, unknown→NUMERIC) and `~`→INT — distinct expr classifier needed?
 7. `value_shapes.is_pure_var_ref` acceptance-set — match Python (shared primitive across passes)?
@@ -666,7 +724,15 @@ Rust: `rust/tcl-compiler/src/{taint,taint_interproc,path_concat,uri_split,interp
 
 ### Gaps (Rust missing or weaker) — by severity
 1. **Taint lattice: `PATH_JOINED` (1<<15) and `CHANNEL` (1<<16) colours missing from the compiler mirror enum** (taint.rs stops at FQDN 1<<14). The registry defines both; `reg_colour` uses `from_bits_truncate`, so they're silently dropped. Breaks the W201 `PATH_JOINED` suppression arm. **Currently dormant** (no engine propagates these yet) but the lattice cannot represent them.
-2. **`complexity_guarded` skip absent in Rust (cross-cutting).** Python skips deep analysis for pathologically large bodies (`_api.py:127`, `interprocedural.py:1081`). **Zero** `complexity_guard` occurrences in Rust → runaway work and *over-optimistic* interproc summaries on adversarial input. (Same gap noted in §4 for SSA.)
+2. ~~**`complexity_guarded` skip absent in Rust (cross-cutting).**~~
+   **RESOLVED (2026-08-04)** — see §4's SSA-complexity-guard entry. The guard
+   is checked once, at `FunctionUnit` construction
+   (`compilation_unit.rs::build_procedure_units`), and a guarded proc's taint
+   is trivially empty (`FunctionUnit::trivial_guarded` sets
+   `taints: Arc::default()`) and is filtered out of every per-proc
+   interprocedural consumer (`compilation_unit.rs:1661,1702,1734`) — so taint
+   and interprocedural summarisation inherit the same skip as SSA, from one
+   wiring point, rather than needing their own separate guard.
 3. **var_escape not wired up.** No Rust `analyse_var_escape` orchestrator, no `CfgEscapeResult → ProcEscapeSummary` conversion; transfer functions reachable only from var_escape's own tests. Missing the entire `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) and its transitive IPA fixpoint.
 4. **var_escape precision regressions:** array-element narrowing (`set arr($k) v` spills all locals in Rust vs only `arr`); multi-command `[a; b]` cmd-subst fallback unported; value-embedded cmd-subst head not recorded as a callee (breaks interproc through `set x [::ns::Helper ...]`); `with_escapes` missing `CALLEE_UPVAR` reasons + interprocedural UNKNOWN barrier.
 5. **interprocedural precision:** constant-return/param-dependency derived textually vs Python's SSA/SCCP lattice; CFG-augmented upvar global-write 2nd pass missing; `can_fold_static_calls` doesn't consult `redefined_procedures`; `::call` indirection not seen through. (O103 fold recovered separately in `propagation.rs`, so end-to-end folding may still work.)
@@ -695,8 +761,10 @@ Rust: `rust/tcl-compiler/src/{taint,taint_interproc,path_concat,uri_split,interp
 2. Is **var_escape staged work** (no orchestrator, passes only exercised by tests)? Are `pure_leaf` + its IPA fixpoint deferred because Rust inlining/DCE consumers don't exist yet?
 3. **proc_fingerprint:** absence intentional because whole-unit interproc rebuild subsumes external-symbol invalidation, or a genuine incremental-correctness gap?
 4. **`PATH_JOINED`/`CHANNEL` colours:** extend the compiler mirror enum to the full 17-bit registry set, or keep registry-only until propagation lands?
-5. **`complexity_guarded`:** replicate the guard (taint + interproc) to avoid over-optimistic summaries / runaway work?
-6. **`DYNAMIC_NAME_LOCAL`:** add the variant and emit it (instead of `VarWrite`) for dynamic-name-local cases?
+5. ~~**`complexity_guarded`:** replicate the guard (taint + interproc)?~~
+   **Answered (2026-08-04):** yes, already done — see §4.
+6. ~~**`DYNAMIC_NAME_LOCAL`:** add the variant and emit it?~~ **Answered
+   (2026-08-04):** already done — see §8.
 7. **side_effects:** protocol-NS classifier, form resolution, structured trace-composition — planned or accepted gaps?
 8. **Registry trait fidelity** (var_escape slot resolution): do `FRAME_HASH_BUILTIN`/`INTROSPECTS_BY_NAME`/`TARGETS_VARIABLE_BY_NAME`/`DYNAMIC_EVAL_BODY` reproduce the Python frozensets exactly?
 
@@ -887,7 +955,7 @@ Rust: `rust/tcl-compiler/src/analyser/*`, `compiler_checks.rs`, `irules_checks.r
 | W211 | Variable set but never used | _diag_var_lifecycle.py | state.rs:362 | ✅ | See param-trait caveat below. |
 | W212 | `$x` where var name expected | checks/_style.py:1111 | state.rs:1983 | ✅ | |
 | W213 | Var may not exist — use `unset -nocomplain` | _analyser/_utils.py:167 | state.rs:1621 | ✅ | |
-| W214 | Unused proc parameter | _analyser/_utils.py:172 | state.rs:1775 | ⚠️ | `DynamicNameLocal` gap can shift verdicts on `set $p`. |
+| W214 | Unused proc parameter | _analyser/_utils.py:172 | state.rs:1775 | ✅ | `DynamicNameLocal` is implemented (see §8), so `set $p` verdicts match Python. |
 | W215 | Var name unreachable via `$`-subst | _analyser/_utils.py:177 | scope.rs:616 | ✅ | |
 | W216 | Broken brace-form array ref `${arr}(x)` | _analyser/_utils.py:182 | state.rs:1983 | ✅ | |
 | W220 | Dead store | _diag_var_lifecycle.py | state.rs:1640 | ✅ | |
@@ -967,14 +1035,14 @@ Rust: `rust/tcl-compiler/src/analyser/*`, `compiler_checks.rs`, `irules_checks.r
 | snit support | _oo.py:492-790 + class_names.py | — | ❌ | **Largest OO gap** — no snit handling in the Rust analyser. |
 | Signature discovery | analyser/signature_scan.py | signature_scan/* | ✅ | Full parity (proc/namespace/import/package/source/interp-alias/oo::class/itcl::class, conditional recursion, tcllib factory resolver). |
 | proc lookup / reference matching | analyser/proc_lookup.py | signature_help.rs:322 | ✅ | Identical 3-way name predicate. |
-| Param traits | proc_arg_traits.py (7 traits incl `DYNAMIC_NAME_LOCAL`) | param_traits.rs (6 traits) | ❗ | **Rust missing `DynamicNameLocal`** → over-suppresses W211/W214/dead-store on `set $p`/`scan`/`lassign`/`regsub` out-vars; can reintroduce the FPs PR #498/#499 fixed. Rust is dialect-aware (➕). |
+| Param traits | proc_arg_traits.py (7 traits incl `DYNAMIC_NAME_LOCAL`) | `ProcArgTrait` (analyser/types.rs, 8 variants incl. `DynamicNameLocal`) | ✅ **RESOLVED (2026-08-04)** | `DynamicNameLocal` is a real variant, deliberately distinct from `VarWrite`/`VarRead` (see the doc comment at its definition and PR #498/#499), and is emitted for `set $p 1`/`scan`/`lassign`/`regsub` callee-local dynamic-name uses in `param_traits.rs`. Pinned by `lassign_records_dynamic_name_local` and siblings in `param_traits.rs`. Rust is additionally dialect-aware (➕). |
 | Connection scope | connection_scope.py | connection_scope.rs | ⚠️ | Rust omits branch-condition v0 sweep. |
 | Event-ordering model | irules_flow.py:1545 `extract_event_order` | — | ❗ | Not ported (the 1002/1003/1004 checks themselves are at parity). |
 | Static names | irules_static_names.py (configurable) | inlined `GENERIC_STATIC_NAMES` | ⚠️ | Default-config equivalent; user patterns not plumbed. |
 
 ### Gaps (Rust missing or weaker)
 **Codes with NO Rust emitter (analyser-relevant):** E001, W125 (C41e5), IRULE1001 (high-impact, frequently-firing), IRULE5005 (C41d6), TK1001–1003, BIGIP6001–6011, IAPP7001–7003, XC100–301, W130–W134 (tclpkg, out of scope).
-**Weaker behaviour (emit but diverge):** IRULE1201/1202/5002/5004 (linear vs path-sensitive; dropped quick-fixes); IRULE4004 (narrower); param-trait `DynamicNameLocal` missing; snit unported; OO body walks (`oo::class new`, `initialise`, `property` accessors); connection_scope branch-condition sweep; event-ordering model; configurable name patterns.
+**Weaker behaviour (emit but diverge):** IRULE1201/1202/5002/5004 (linear vs path-sensitive; dropped quick-fixes); IRULE4004 (narrower); snit unported; connection_scope branch-condition sweep; event-ordering model; configurable name patterns. *(Param-trait `DynamicNameLocal` and the three OO-body-walk gaps this line used to list are **RESOLVED** — see the parity table above.)*
 
 ### Rust-ahead / divergent-by-design
 - Per-item incremental analysis (offset-stable item identity + per-body memoisation for salsa early-cutoff); no Python equivalent.
@@ -993,7 +1061,8 @@ Rust: `rust/tcl-compiler/src/analyser/*`, `compiler_checks.rs`, `irules_checks.r
 1. **Output-ordering oracle** — does the Python↔Rust differential test compare diagnostics as an unordered set or an ordered list? Rust sorts by position; if the oracle is ordered this is the one place strict byte-equivalence breaks for the ported codes.
 2. **Deferred-code roadmap** — E001, W125, IRULE5005, IRULE1001 are tagged deferred. Scheduled or dropped? IRULE1001 is a core, frequently-firing check.
 3. **F5 dialect subsystems** (TK/BIGIP/IAPP/XC ~30 codes) — intended to stay Python-only, or should the Rust analyser eventually emit them?
-4. **`ProcArgTrait::DynamicNameLocal`** — confirm intent to port; its absence reintroduces call-by-name suppression FPs.
+4. ~~**`ProcArgTrait::DynamicNameLocal`** — confirm intent to port.~~
+   **Answered (2026-08-04):** already ported — see the parity table above.
 5. **iRules path-sensitivity (C44)** — IRULE1201/1202/5002/5004 are linear MVPs; is the path-sensitive walker (and the dropped quick-fixes) on the roadmap?
 6. **snit support** — intended for the Rust analyser or out of scope?
 
@@ -1109,20 +1178,30 @@ not a decision.
 > intentionally-not-ported-and-benign; needs reconciliation, not a confirmed
 > regression. The authoritative live open-work set is maintained in
 > [`../../rust-rewrite.md`](../../rust-rewrite.md).
+>
+> **Revalidation (2026-08-04, issue #1189).** Re-checked against `rust` tip
+> `efe3dd9566dfc593bf875e95a03d1b55fabbb95c`: **#4, #5, #7, #8, and #11 are
+> RESOLVED** — code, tests, and (for #7/#8) doc comments now agree, with no
+> remaining conflict. #11 specifically: `ProcArgTrait::DynamicNameLocal`
+> (`analyser/types.rs`) is a genuine, distinct, tested variant — the 2026-06-19
+> note's "conflict" framing undersold it; it is not merely benign-by-omission,
+> it is actually implemented. See each row below and the memory-SSA / SSA /
+> SCCP sections (§4-§6) for the current-code citation. #1 (O120) was
+> re-checked and remains genuinely open — see its row.
 
 | # | Subsystem | Gap | Evidence | Disposition |
 |---|---|---|---|---|
 | 1 | Optimiser §7 | **O120** string-compare `==`→`eq` promotion fires on any `String` operand with **no non-numeric proof** → `$x == "1"` → `$x eq "1"` flips the result when `$x` is numeric | `streq_promote_node` (`optimiser/helpers/expr_simplify.rs:1040`, no `NumericCtx`); called `:408`/`:695`. Python gates both operands via `_is_provably_non_numeric_expr_node` (`_expr_simplify.py:484`) | Gate the promotion on provably-non-numeric operands (mirror Python's D5-O120). |
 | 2 | Optimiser §7 | **O114** incr idiom rewrites `set x [expr {$x+N}]`→`incr x N` gating only the literal, not `$x` numericity → suggests a rewrite that errors on float `$x` | pattern_recognition.rs:219 (no var gate) | Confirm whether Python gates the variable; add the gate if so. |
 | 3 | Optimiser §7 | **O108** ADCE treats every assignment as side-effect-free → can delete `set x [impureCmd]` | elimination.rs:740 | Verify against landed RHS-purity gate; restore if genuinely dropped. |
-| 4 | Value/SCCP §5 | SCCP omits **escaping-var widening** (`::g`/escaping names not forced OVERDEFINED) | sccp.rs `evaluate_def` (no guard; `escaping_var_names` lives in var_observability.rs, unused by SCCP) | Consult `escaping_var_names` in `evaluate_def`. |
-| 5 | Value/SCCP §5 | SCCP omits **break-edge reachability** → false O107 / unsound DCE on `while 1 {… break}` (already tracked as `fp_rch`, rust-rewrite.md:5037) | sccp.rs (no `break_exits`) | Port the break-exit precompute (core_analyses.py:1337). |
+| 4 | Value/SCCP §5 | ~~SCCP omits **escaping-var widening**~~ **RESOLVED (2026-08-04)** | `evaluate_def` (sccp.rs:300-335) now consults `var_observability::analyse_var_observability(..).escaping_var_names()` and forces every escaping def to `Overdefined` | Closed. |
+| 5 | Value/SCCP §5 | ~~SCCP omits **break-edge reachability**~~ **RESOLVED (2026-08-04)**, via a real CFG edge rather than an SCCP precompute | `escaping_loop_jumps`/`break_target` (cfg_builder); pinned by `rch_while1_with_break_post_loop_is_reachable` | Closed. |
 | 6 | Lexer §1 | ~~**`${a\}b}` / `${a{b}c}`** braced-var scan stops at first `}`~~ **DONE (FE-LEX, 2026-06-19)** — `parse_var` + `scan_dollar_brace` track inner-brace depth and consume `\X` (9.0.3 reference; verified against `tclsh9.0`) | lexer.rs `parse_var` | Landed; see history. |
-| 7 | Memory-SSA §4 | **upvar transitive-merge** divergence (`upvar 1 x a; upvar 1 x b` → `may_alias("a","b")` False); code/test/doc disagree | memory_ssa.rs:519 | Decide intended semantics; align code+test+doc. |
-| 8 | Memory-SSA §4 | **`IRUpFrame` not a clobber** → non-inlined `uplevel {…}` doesn't bump memory version | memory_ssa.rs `is_clobber` | Add `IRUpFrame` to the clobber set. |
-| 9 | Shimmer §5 | **S100 severity** emitted as Warning, not Information; **phi-S101 / expr-S100** code-strings ignore `in_loop` | compiler_checks.rs:113; phi.rs:146; expr.rs:273 | Map S100→Information; compute code from `in_loop`. |
-| 10 | Lowering §3 | dynamic `uplevel $body` lowers to generic **Call** not **Barrier** (no `_DYNAMIC_BARRIER_COMMANDS`, `uplevel_.rs` lacks `ArgRole::Body`) → downstream treats it as analysable | mod.rs:1397/1609 | Add a Body role / barrier fallback. |
-| 11 | Analyser §8 | **`DynamicNameLocal`** trait absent (**CONFLICT** — see reconciliation note; Rust marks the 4 out-var commands `VarWrite`, rust-rewrite.md:2019 calls it benign) | param_traits.rs:479-482 | Reconcile: does withholding `VarWrite` change caller-side W211/W214 suppression? |
+| 7 | Memory-SSA §4 | ~~**upvar transitive-merge** divergence~~ **RESOLVED (2026-08-04)** — `compute_aliases`'s union-find merges `upvar 1 x a; upvar 1 x b` into one alias set; code/test/doc now agree | memory_ssa.rs:533-593; `compute_aliases_merges_shared_caller_upvars` | Closed. |
+| 8 | Memory-SSA §4 | ~~**`IRUpFrame` not a clobber**~~ **RESOLVED (2026-08-04)** — `is_clobber` matches `Statement::Barrier { .. } \| Statement::UpFrame { .. }` | memory_ssa.rs:437-439; `build_memory_ssa_emits_clobber_for_upframe` | Closed. |
+| 9 | Shimmer §5 | **S100 severity** emitted as Warning, not Information; **phi-S101 / expr-S100** code-strings ignore `in_loop` | compiler_checks.rs:113; phi.rs:146; expr.rs:273 | Map S100→Information; compute code from `in_loop`. *(Not re-verified 2026-08-04.)* |
+| 10 | Lowering §3 | dynamic `uplevel $body` lowers to generic **Call** not **Barrier** (no `_DYNAMIC_BARRIER_COMMANDS`, `uplevel_.rs` lacks `ArgRole::Body`) → downstream treats it as analysable | mod.rs:1397/1609 | Add a Body role / barrier fallback. *(Not re-verified 2026-08-04.)* |
+| 11 | Analyser §8 | ~~**`DynamicNameLocal`** trait absent~~ **RESOLVED (2026-08-04)** — it is a real, tested `ProcArgTrait` variant, not merely a benign omission | analyser/types.rs (definition); param_traits.rs (emission + tests) | Closed. |
 | 12 | Value/type §5 | expr-context literal typing wrong (`0o`→INT/unknown→NUMERIC) and `~$double`→INT | type_infer.rs:128/197 | Use a distinct expr-context classifier. |
 
 ### P1 — Missing user-facing capability (a diagnostic or transform the user loses)
@@ -1147,7 +1226,7 @@ not a decision.
 
 | # | Subsystem | Gap | Evidence | Disposition |
 |---|---|---|---|---|
-| 26 | SSA §4 / Taint §6 | **`complexity_guarded` skip absent everywhere** → runaway work + over-optimistic interproc summaries on huge generated bodies | no `complexity_guard` in Rust tree | Port the guard (SSA + taint + interproc). |
+| 26 | SSA §4 / Taint §6 | ~~**`complexity_guarded` skip absent everywhere**~~ **RESOLVED (2026-08-04)** — `is_complexity_guarded` + `DEEP_ANALYSIS_BODY_BYTES` gate `FunctionUnit` construction; a guarded proc's taint/SSA/SCCP are all trivial and it is filtered from interprocedural summarisation | ssa.rs:309-323; compilation_unit.rs:618-637,962-970,1661,1702,1734 | Closed. |
 | 27 | IR/WASM §3,§7 | WASM-codegen passes unported: `IRInterpBoundary`+`passes/interp_boundaries.py`, `passes/dce.py`, `passes/gvn.py`, `source_inliner`, `stdlib_prelude` | absent | Expected while WASM codegen is in progress; track. |
 | 28 | Analyser §8 | Diagnostic **ordering**: Rust sorts by position, Python emits in order — confirm the differential oracle is set-based | diagnostics.rs:8747 | Confirm oracle semantics. |
 | 29 | IR §3 | Taint + CompilationUnit built **2–3×** per document (perf) | compilation_unit.rs:206,584,596 | Build once, share `&CompilationUnit`. |
@@ -1157,10 +1236,25 @@ not a decision.
 | 33 | Various §3,§6 | Smaller field/precision drops: `IRBlock.caller_scope`/`source_args`, `IRForeach.tokens`, `IRProcedure` inlining fields; `proc_fingerprint`; O103 namespace-chain/rename gating; side_effects protocol-NS classifier; var_refs read-before-set helpers; O106 missing from `OPT_CATEGORIES` | per-section | Triage individually. |
 
 ### Suggested sequencing
-1. **Before flipping `TCL_LSP_RUST_OPTIMISER`/`_GVN` default-on:** close P0 #1–#5 (the optimiser/SCCP soundness gates) and #18 (O128/O130/O104/O119).
-2. **Before retiring the Python analyser fallback:** close #6, #9, #11 (lexer brace-var, shimmer severity/codes, `DynamicNameLocal`) and decide #13–#17 (IRULE1001, deferred codes, F5 subsystems, snit).
-3. **Independent of flips:** #26 (`complexity_guarded`) and #28 (ordering-oracle confirmation) are low-effort, high-value robustness fixes.
-4. **WASM-path (#27, #20, #21):** sequence with the Rust WASM codegen work; out of the LSP critical path.
+
+> **2026-08-04 note:** #4, #5, #7, #8, #11, and #26 (referenced below as
+> already-closed prerequisites) are **RESOLVED** — see their rows above. The
+> sequencing below is otherwise as originally written and has not been
+> re-verified beyond those six items.
+
+1. **Before flipping `TCL_LSP_RUST_OPTIMISER`/`_GVN` default-on:** close the
+   remaining open P0 soundness gates — **#1** (O120, confirmed still open) and
+   **#18** (O128/O130/O104/O119). #4/#5 (the other former SCCP soundness
+   gates in this range) are already closed.
+2. **Before retiring the Python analyser fallback:** close #6, #9 (lexer
+   brace-var — already done — and shimmer severity/codes) and decide #13–#17
+   (IRULE1001, deferred codes, F5 subsystems, snit). #11 (`DynamicNameLocal`)
+   is already closed.
+3. **Independent of flips:** #28 (ordering-oracle confirmation) is a
+   low-effort, high-value robustness fix. #26 (`complexity_guarded`) is
+   already closed.
+4. **WASM-path (#27, #20, #21):** sequence with the Rust WASM codegen work;
+   out of the LSP critical path.
 
 ## Related
 - [`review-findings.md`](review-findings.md) — workspace-wide correctness /
