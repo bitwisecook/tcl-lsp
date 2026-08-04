@@ -1135,12 +1135,24 @@ window.addEventListener('message', function(event) {
       compile();
       break;
     case 'result':
-      data = msg.data;
-      compiledSource = lastSource;
-      compiledDialect = lastDialect;
-      renderAll();
-      $('#spinner').style.display = 'none';
-      updateStatusLight();
+      try {
+        data = msg.data;
+        compiledSource = lastSource;
+        compiledDialect = lastDialect;
+        const failures = renderAll();
+        if (failures && failures.length && vscodeApi) {
+          vscodeApi.postMessage({
+            type: 'renderError',
+            panes: failures.map(f => f.name),
+            message: failures.map(f => f.name + ': ' + (f.error && f.error.message || f.error)).join('; '),
+          });
+        }
+      } finally {
+        // The spinner must stop whatever the renderers did — a stuck
+        // throbber is indistinguishable from a hung compile (issue #1183).
+        $('#spinner').style.display = 'none';
+        updateStatusLight();
+      }
       break;
     case 'error':
       showError(msg.data && msg.data.error || 'Unknown error', msg.data && msg.data.traceback);
@@ -1218,22 +1230,29 @@ function updateStatusLight() {
 }
 
 // Consumer hooks: renderAll / updateBadges
+//
+// Every step runs in isolation (runRenderSteps, from explorer-core.js): a
+// renderer that throws reports the failure in its own pane while the other
+// tabs still render, and renderAll itself never throws — so the caller's
+// spinner always settles (issues #1182 / #1183).
 function renderAll() {
-  renderStats();
-  renderIR();
-  renderCfgPre();
-  renderCfgPost();
-  renderInterproc();
-  renderTypes();
-  renderOpt();
-  renderGvn();
-  renderShimmer();
-  renderTaint();
-  renderIrulesFlow();
-  renderCallouts();
-  renderAsm();
-  renderWasm();
-  updateBadges();
+  return runRenderSteps([
+    { name: 'Stats', run: renderStats },
+    { name: 'IR', pane: '#pane-ir', run: renderIR },
+    { name: 'CFG', pane: '#pane-cfg-pre', run: renderCfgPre },
+    { name: 'SSA+Analysis', pane: '#pane-cfg-post', run: renderCfgPost },
+    { name: 'Interproc', pane: '#pane-interproc', run: renderInterproc },
+    { name: 'Types', pane: '#pane-types', run: renderTypes },
+    { name: 'Optimisations', pane: '#pane-opt', run: renderOpt },
+    { name: 'GVN', pane: '#pane-gvn', run: renderGvn },
+    { name: 'Shimmer', pane: '#pane-shimmer', run: renderShimmer },
+    { name: 'Taint', pane: '#pane-taint', run: renderTaint },
+    { name: 'iRules Flow', pane: '#pane-irules-flow', run: renderIrulesFlow },
+    { name: 'Callouts', pane: '#pane-callouts', run: renderCallouts },
+    { name: 'Tcl ASM', pane: '#pane-asm', run: renderAsm },
+    { name: 'WASM', pane: '#pane-wasm', run: renderWasm },
+    { name: 'badges', run: updateBadges },
+  ]);
 }
 
 function updateBadges() {
