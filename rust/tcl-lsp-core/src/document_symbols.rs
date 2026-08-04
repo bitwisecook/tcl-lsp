@@ -1781,4 +1781,88 @@ mod tests {
             "dynamic event name leaked into the outline: {all:?}"
         );
     }
+
+    /// Assert every symbol range lands inside the document the client holds.
+    ///
+    /// An outline symbol whose `range.end` addresses a line the client does
+    /// not have is dropped wholesale by the outline-model sticky-scroll
+    /// provider — `StickyRange(selectionRange.start, range.end)` fails
+    /// `TextModel.isValidRange` — while breadcrumbs, which use the same
+    /// symbols but no such check, keep working.  That asymmetry is exactly
+    /// what masked issue #1122, so the bound is pinned here.
+    fn assert_symbol_ranges_in_bounds(source: &str, label: &str) {
+        fn walk(symbol: &DocumentSymbol, last_line: u32, label: &str) {
+            assert!(
+                symbol.range.end_line <= last_line,
+                "{label}: symbol {} range ends on line {} but the last line is {last_line}",
+                symbol.name,
+                symbol.range.end_line,
+            );
+            assert!(
+                symbol.selection_range.end_line <= last_line,
+                "{label}: symbol {} selectionRange ends on line {} but the last line is \
+                 {last_line}",
+                symbol.name,
+                symbol.selection_range.end_line,
+            );
+            for child in &symbol.children {
+                walk(child, last_line, label);
+            }
+        }
+        let last_line = u32::try_from(tcl_lexer::LineIndex::new_lsp(source).line_count())
+            .expect("line count fits u32")
+            - 1;
+        let symbols = document_symbols(source, "tcl8.6");
+        assert!(!symbols.is_empty(), "{label}: expected outline symbols");
+        for symbol in &symbols {
+            walk(symbol, last_line, label);
+        }
+    }
+
+    /// Definitions closing on the document's final line, in the four shapes
+    /// the issue #1122 report can take: LF and CRLF (the reporter is on
+    /// Windows), each with and without a final newline.  The class fixture
+    /// keeps the reported module's structure — a top-level `oo::class
+    /// create` with a superclass, an instance variable, a constructor, and
+    /// methods — under invented names.
+    #[test]
+    fn symbol_ranges_stay_inside_the_document_when_definitions_end_at_eof() {
+        let sources: [(&str, &str); 3] = [
+            (
+                "class",
+                concat!(
+                    "oo::class create Widget {\n",
+                    "    superclass WidgetBase\n",
+                    "    variable label\n",
+                    "    constructor {text} {\n",
+                    "        set label $text\n",
+                    "    }\n",
+                    "    method render {} {\n",
+                    "        puts \"widget $label\"\n",
+                    "    }\n",
+                    "}",
+                ),
+            ),
+            ("proc", "proc demo {} {\n    set x 1\n    set y 2\n}"),
+            (
+                "namespace",
+                "namespace eval ns {\n    proc a {} {\n        set x 1\n    }\n}",
+            ),
+        ];
+        for (kind, base) in sources {
+            for (eol, source) in [
+                ("lf", base.to_owned()),
+                ("crlf", base.replace('\n', "\r\n")),
+            ] {
+                assert_symbol_ranges_in_bounds(
+                    &source,
+                    &format!("{kind} at EOF, {eol}, no trailing newline"),
+                );
+                assert_symbol_ranges_in_bounds(
+                    &format!("{source}\n"),
+                    &format!("{kind} at EOF, {eol}, trailing newline"),
+                );
+            }
+        }
+    }
 }

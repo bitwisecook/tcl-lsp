@@ -327,9 +327,11 @@ fn test_folding_toggle_suppresses_ranges() {
     lsp.clear_notifications();
     lsp.apply_configuration(json!({ "features": { "folding": false } }));
     lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(15));
-    // An authoritative empty set (not `None`) so the client does not fall back
-    // to built-in indentation folding.
-    assert_eq!(lsp.folding_range(&uri), json!([]));
+    // `null`, never an empty array (issue #1122): VS Code's sticky-scroll
+    // model provider accepts a non-null folding model as valid and terminal,
+    // so an authoritative empty set would leave sticky scroll permanently
+    // blank instead of falling through to its indentation model.
+    assert_eq!(lsp.folding_range(&uri), Value::Null);
 }
 
 #[test]

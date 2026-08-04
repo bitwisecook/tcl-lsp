@@ -1199,4 +1199,174 @@ mod tests {
             );
         }
     }
+
+    /// A `TclOO` class whose closing `}` is the file's own last line, with no
+    /// trailing newline.  This is the tightest bound the provider can hit:
+    /// there is no line after the closer to absorb an off-by-one, so an
+    /// `end_line` at or past `line_count` would address a line the client
+    /// does not have.  VS Code discards a whole sticky-scroll candidate
+    /// *and its subtree* when the range is out of bounds, so an overflow
+    /// here silently removes the outline from sticky scroll (issue #1122).
+    ///
+    /// The shape (a versioned `.tm` module holding one top-level
+    /// `oo::class create` with a superclass, instance variables, a
+    /// constructor, and methods, closing on the final line) mirrors the
+    /// module in the issue #1122 report; the names here are invented.
+    const CLASS_AT_EOF: &str = concat!(
+        "oo::class create Widget {\n",
+        "    superclass WidgetBase\n",
+        "    variable label\n",
+        "    constructor {text} {\n",
+        "        set label $text\n",
+        "    }\n",
+        "    method render {} {\n",
+        "        puts \"widget $label\"\n",
+        "    }\n",
+        "}",
+    );
+
+    /// Number of lines the LSP client sees for `source` (a trailing newline
+    /// opens a final, empty line).
+    fn lsp_line_count(source: &str) -> u32 {
+        u32::try_from(tcl_lexer::LineIndex::new_lsp(source).line_count())
+            .expect("line count fits u32")
+    }
+
+    /// `source` with every `\n` rewritten to `\r\n` — the reporter is on
+    /// Windows, and a trailing `\r` on the closing-brace line is exactly the
+    /// kind of off-by-one that would push a fold past the last line.
+    fn crlf(source: &str) -> String {
+        source.replace('\n', "\r\n")
+    }
+
+    fn assert_folds_in_bounds(source: &str, label: &str) {
+        let line_count = lsp_line_count(source);
+        let ranges = folding_ranges_default(source, "tcl8.6");
+        assert!(!ranges.is_empty(), "{label}: expected at least one fold");
+        for r in &ranges {
+            assert!(
+                r.end_line < line_count,
+                "{label}: fold {}..{} ends past the last line (line_count {line_count})",
+                r.start_line,
+                r.end_line,
+            );
+            assert!(
+                r.start_line < r.end_line,
+                "{label}: degenerate fold {}..{}",
+                r.start_line,
+                r.end_line,
+            );
+        }
+    }
+
+    #[test]
+    fn tcloo_class_closing_at_eof_without_trailing_newline_stays_in_bounds() {
+        assert_folds_in_bounds(CLASS_AT_EOF, "class at EOF, no trailing newline");
+    }
+
+    #[test]
+    fn tcloo_class_closing_at_eof_with_trailing_newline_stays_in_bounds() {
+        assert_folds_in_bounds(
+            &format!("{CLASS_AT_EOF}\n"),
+            "class at EOF, trailing newline",
+        );
+    }
+
+    #[test]
+    fn tcloo_class_closing_at_eof_with_crlf_endings_stays_in_bounds() {
+        assert_folds_in_bounds(&crlf(CLASS_AT_EOF), "CRLF class at EOF, no final newline");
+        assert_folds_in_bounds(
+            &crlf(&format!("{CLASS_AT_EOF}\n")),
+            "CRLF class at EOF, final newline",
+        );
+    }
+
+    /// The remaining shapes that end flush with EOF: an unterminated body
+    /// (mid-edit), a trailing comment block, a trailing backslash
+    /// continuation, and CRLF / lone-CR line endings — the last two because
+    /// this module indexes lines on `\n` only while the client counts `\r`
+    /// as a break too.
+    #[test]
+    fn no_fold_ends_past_the_last_line_for_eof_shapes() {
+        let cases: [(&str, &str); 8] = [
+            (
+                "unterminated class",
+                "oo::class create C {\n  method m {} {\n    puts hi\n",
+            ),
+            ("unterminated proc", "proc p {} {\n    set x 1\n"),
+            ("trailing comment block", "# one\n# two\n# three"),
+            ("trailing continuation", "set x $a \\\n    $b \\\n"),
+            ("continuation to EOF", "foo a \\\nbar b"),
+            (
+                "crlf proc at EOF",
+                "proc p {} {\r\n    set x 1\r\n    set y 2\r\n}",
+            ),
+            (
+                "lone-cr proc at EOF",
+                "proc p {} {\r    set x 1\r    set y 2\r}",
+            ),
+            (
+                "nested namespace at EOF",
+                "namespace eval n {\n    proc a {} {\n        set x 1\n    }\n}",
+            ),
+        ];
+        for (label, source) in cases {
+            let line_count = lsp_line_count(source);
+            for r in folding_ranges_default(source, "tcl8.6") {
+                assert!(
+                    r.end_line < line_count,
+                    "{label}: fold {}..{} ends past the last line (line_count {line_count})",
+                    r.start_line,
+                    r.end_line,
+                );
+            }
+        }
+    }
+
+    /// The sticky-scroll contract for a realistic versioned-module class.
+    ///
+    /// VS Code (since 1.105) rejects a sticky candidate whose 1-based
+    /// `foldEnd + 1` exceeds `lineCount` — in the 0-based terms this module
+    /// uses, `end_line + 2 > line_count`.  A *top-level* range that ends on
+    /// the document's last content line trips that unavoidably, and that is
+    /// VS Code's own bug: contorting the fold output to dodge it would break
+    /// the folding UI for every other client.  What we can guarantee, and
+    /// what this test pins, is that we never make it worse — no range may
+    /// exceed the last line, and the nested member folds (the ones sticky
+    /// scroll actually shows while scrolling through a method) must clear
+    /// the filter with room to spare.
+    #[test]
+    fn tcloo_class_fixture_meets_the_sticky_scroll_bounds_contract() {
+        let source = format!("{CLASS_AT_EOF}\n");
+        let line_count = lsp_line_count(&source);
+        let ranges = folding_ranges_default(&source, "tcl8.6");
+        assert!(!ranges.is_empty(), "expected folds for the class fixture");
+
+        for r in &ranges {
+            assert!(
+                r.end_line < line_count,
+                "fold {}..{} ends past the last line (line_count {line_count})",
+                r.start_line,
+                r.end_line,
+            );
+            assert!(r.start_line < r.end_line, "degenerate fold {r:?}");
+        }
+
+        // Every member fold (anything nested inside the class) survives
+        // VS Code's `foldEnd + 1 > lineCount` rejection.
+        let members: Vec<&FoldingRange> = ranges.iter().filter(|r| r.start_line > 0).collect();
+        assert!(
+            !members.is_empty(),
+            "expected constructor/method folds inside the class",
+        );
+        for r in members {
+            assert!(
+                r.end_line + 2 <= line_count,
+                "member fold {}..{} would be rejected by VS Code's sticky filter \
+                 (line_count {line_count})",
+                r.start_line,
+                r.end_line,
+            );
+        }
+    }
 }

@@ -10882,6 +10882,19 @@ impl LanguageServer for Backend {
         // the same pattern `did_change_watched_files` already uses after its
         // own `scan_workspace_folders` call on a config change.
         self.reschedule_all_open_documents().await;
+        // VS Code computes a document's sticky-scroll model once, when the
+        // editor opens, and a folding provider that registers *after* that
+        // first computation does not itself trigger a recompute — the tabs
+        // restored at startup would keep an empty sticky bar until the next
+        // edit.  `workspace/foldingRange/refresh` does trigger one (it fires
+        // `SyntaxRangeProvider.onDidChange`), so send it once the provider is
+        // genuinely live.  Best-effort and idempotent, exactly as in
+        // `did_change_configuration`: a client without refresh support
+        // rejects the request, which is harmless.
+        let _ = self
+            .client
+            .send_request::<FoldingRangeRefreshRequest>(())
+            .await;
     }
 
     async fn shutdown(&self) -> jsonrpc::Result<()> {
@@ -11503,12 +11516,17 @@ impl LanguageServer for Backend {
             .feature_enabled("folding", &params.text_document.uri)
             .await
         {
-            // Return an authoritative *empty* set, not `None`: a `None` result
-            // makes VS Code fall back to its built-in indentation folding (so
-            // the ranges reappear), whereas an empty list is honoured as "this
-            // provider has no folding ranges", suppressing folding as the toggle
-            // intends.
-            return Ok(Some(Vec::new()));
+            // `None`, never `Some([])` — and the same holds for every other
+            // return path below (issue #1122).  An *empty* folding result is
+            // not neutral in VS Code: its sticky-scroll model provider treats
+            // the folding candidate as valid whenever the model is non-null,
+            // so an authoritative empty list is accepted as a valid, terminal
+            // sticky model and the chain never falls through to the
+            // indentation model — sticky scroll stays permanently blank for
+            // the whole session.  `None` is the only result that both lets
+            // the folding UI fall back to built-in indentation folding and
+            // lets sticky scroll fall through to its indentation model.
+            return Ok(None);
         }
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
             return Ok(None);
@@ -11549,6 +11567,9 @@ impl LanguageServer for Backend {
                 data: None,
             })?
         };
+        if ranges.is_empty() {
+            return Ok(None);
+        }
         Ok(Some(ranges.into_iter().map(lift_folding_range).collect()))
     }
 
@@ -16337,9 +16358,11 @@ fn client_supports_pull_diagnostics(params: &InitializeParams) -> bool {
 ///
 /// `ls-types` 0.0.6 predates this method, so it is declared locally to be sent
 /// via [`Client::send_request`].  Params and result are both `()` per the spec.
-/// Asks the client to re-request folding ranges for all editors — used after a
-/// config change flips `features.folding`, since the client otherwise keeps its
-/// cached ranges until the next document edit.
+/// Asks the client to re-request folding ranges for all editors.  Sent after a
+/// config change flips `features.folding` (the client otherwise keeps its
+/// cached ranges until the next document edit) and once from `initialized`,
+/// so a tab restored before the provider went live recomputes its folding —
+/// and, in VS Code, its sticky-scroll model with it (issue #1122).
 enum FoldingRangeRefreshRequest {}
 
 impl tower_lsp_server::ls_types::request::Request for FoldingRangeRefreshRequest {
