@@ -18,6 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
+import { LanguageClient } from "vscode-languageclient/node";
 import {
   getDocUri,
   activate,
@@ -31,6 +32,33 @@ import {
   waitForMasterOffDiagnostics,
   setTestContent,
 } from "./helper";
+
+interface TclLspApi {
+  getClient(): LanguageClient;
+}
+
+function getClient(): LanguageClient {
+  const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp")!;
+  return (ext.exports as TclLspApi).getClient();
+}
+
+/**
+ * Raw `textDocument/foldingRange` request, bypassing
+ * `vscode.executeFoldingRangeProvider`. That command is unsuitable for the
+ * folding-toggle tests below: it is answered by the editor's own
+ * FoldingController, which VS Code gates on the live `editor.folding`
+ * setting and which VS Code >=1.105 has fall through to a generic
+ * indentation-based folding when a provider returns `null` -- both of which
+ * are `vscode.executeFoldingRangeProvider`-level normalisations, not the LSP
+ * provider's actual output. Sticky scroll consumes the provider's raw
+ * response the same way this helper does, so this is the faithful oracle for
+ * "does our provider have data".
+ */
+function foldingRangeViaLsp(docUri: vscode.Uri): Promise<unknown> {
+  return getClient().sendRequest("textDocument/foldingRange", {
+    textDocument: { uri: docUri.toString() },
+  });
+}
 
 suite("Configuration Settings", () => {
   const cfg = () => vscode.workspace.getConfiguration("tclLsp");
@@ -77,12 +105,14 @@ suite("Configuration Settings", () => {
     // [feature key, editor setting path, editor default value]
     ["hover", "editor.hover.enabled", true],
     ["codeLens", "editor.codeLens", true],
-    ["folding", "editor.folding", true],
     ["signatureHelp", "editor.parameterHints.enabled", true],
     ["linkedEditingRange", "editor.linkedEditing", false],
     // semanticTokens and documentHighlight are verified in the round-trip
     // tests below; their editor globals are non-boolean so they are not
     // included in this boolean-assertion loop.
+    //
+    // folding is deliberately absent here (issue #1122): it used to inherit
+    // editor.folding but no longer does -- see the round-trip test below.
   ];
 
   for (const [featureKey, editorSetting] of editorGlobalMappings) {
@@ -187,32 +217,50 @@ suite("Configuration Settings", () => {
     }
   });
 
-  // folding — editor.folding
+  // folding — deliberately NOT inherited from editor.folding (issue #1122).
+  // Vanilla VS Code's sticky-scroll model provider queries folding-range
+  // providers unconditionally -- it never reads EditorOption.folding -- so a
+  // user with the folding UI off in vanilla VS Code still gets
+  // provider-based sticky scroll. `features.folding` used to inherit
+  // `editor.folding`, so the same user's Tcl files got no folding ranges at
+  // all, which VS Code >=1.105 treats as a terminal (not a fall-through)
+  // sticky-scroll model: sticky scroll went blank for every Tcl file. The
+  // explicit `tclLsp.features.folding` override still works; only the
+  // implicit inheritance from `editor.folding` is gone.
 
-  test("editor.folding=false suppresses folding via null inheritance", async () => {
+  test("editor.folding=false does not suppress the LSP folding provider (issue #1122)", async () => {
     const docUri = getDocUri("folding.tcl");
     await activate(docUri);
 
-    const before = (await pollUntil(
-      () => vscode.commands.executeCommand("vscode.executeFoldingRangeProvider", docUri),
+    const before = await pollUntil(
+      () => foldingRangeViaLsp(docUri),
       (r) => Array.isArray(r) && r.length > 0,
-      { timeout: 10_000, label: "folding before disable (editor global)" },
-    )) as vscode.FoldingRange[];
-    assert.ok(before && before.length > 0, "Folding should work with default editor globals");
+      { timeout: 10_000, label: "folding before editor.folding=false" },
+    );
+    assert.ok(
+      Array.isArray(before) && before.length > 0,
+      "Folding should work with default editor globals",
+    );
 
     const editorCfg = vscode.workspace.getConfiguration("editor");
     try {
       await editorCfg.update("folding", false, undefined);
-      await waitForFeatureToggle(docUri, "folding", false);
+      // features.folding must round-trip back to true -- confirms the
+      // middleware re-resolved it after the editor.folding change rather
+      // than leaving a stale cached value.
+      await waitForFeatureToggle(docUri, "folding", true);
 
-      const after = (await pollUntil(
-        () => vscode.commands.executeCommand("vscode.executeFoldingRangeProvider", docUri),
-        (r) => !r || (Array.isArray(r) ? r.length === 0 : true),
-        { timeout: 10_000, label: "folding suppressed (editor global)" },
-      )) as vscode.FoldingRange[];
+      // Raw LSP response, not `vscode.executeFoldingRangeProvider`: that
+      // command is answered by the editor's own FoldingController, which VS
+      // Code gates on the live `editor.folding` setting regardless of what
+      // the provider returns -- it cannot distinguish "our provider has no
+      // data" from "the folding UI is off for this editor". The raw request
+      // is what the LSP client's registered FoldingRangeProvider (and, in
+      // turn, sticky scroll) actually sees.
+      const after = await foldingRangeViaLsp(docUri);
       assert.ok(
-        !after || after.length === 0,
-        `Folding should be suppressed when editor.folding=false, got ${after?.length ?? 0}`,
+        Array.isArray(after) && after.length > 0,
+        `LSP folding provider should stay enabled when editor.folding=false (issue #1122), got ${JSON.stringify(after)}`,
       );
     } finally {
       await editorCfg.update("folding", undefined, undefined);
@@ -916,26 +964,36 @@ suite("Configuration Settings", () => {
     const docUri = getDocUri("folding.tcl");
     await activate(docUri);
 
-    const before = (await pollUntil(
-      () => vscode.commands.executeCommand("vscode.executeFoldingRangeProvider", docUri),
+    const before = await pollUntil(
+      () => foldingRangeViaLsp(docUri),
       (r) => Array.isArray(r) && r.length > 0,
       { timeout: 10_000, label: "folding before disable (feature)" },
-    )) as vscode.FoldingRange[];
-    assert.ok(before && before.length > 0, "Folding should work by default");
+    );
+    assert.ok(Array.isArray(before) && before.length > 0, "Folding should work by default");
 
     const config = vscode.workspace.getConfiguration("tclLsp.features");
     try {
       await config.update("folding", false, undefined);
       await waitForFeatureToggle(docUri, "folding", false);
 
-      const after = (await pollUntil(
-        () => vscode.commands.executeCommand("vscode.executeFoldingRangeProvider", docUri),
-        (r) => !r || (Array.isArray(r) ? r.length === 0 : true),
+      // Raw LSP response (see `foldingRangeViaLsp`), not
+      // `vscode.executeFoldingRangeProvider`: since issue #1122's server-side
+      // fix, a disabled folding provider answers `null` (never an empty
+      // array, which VS Code's sticky-scroll model treats as terminal
+      // instead of falling through) -- and `executeFoldingRangeProvider`
+      // normalises a `null` response into indentation-based fallback ranges,
+      // which are non-empty and would make this assertion fail for the
+      // *right* reason working as designed. The raw request lets us assert
+      // on what the provider itself returned: `null` or an empty array,
+      // either of which means "no ranges from us".
+      const after = await pollUntil(
+        () => foldingRangeViaLsp(docUri),
+        (r) => r === null || r === undefined || (Array.isArray(r) && r.length === 0),
         { timeout: 10_000, label: "folding suppressed (feature)" },
-      )) as vscode.FoldingRange[];
+      );
       assert.ok(
-        !after || after.length === 0,
-        `Folding should be suppressed when disabled, got ${after?.length ?? 0}`,
+        after === null || after === undefined || (Array.isArray(after) && after.length === 0),
+        `Folding should be suppressed when disabled (null or empty), got ${JSON.stringify(after)}`,
       );
     } finally {
       await config.update("folding", undefined, undefined);

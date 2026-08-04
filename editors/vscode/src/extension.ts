@@ -274,7 +274,19 @@ const FEATURE_EDITOR_DEFAULTS: Record<string, () => boolean> = {
       .get<boolean | string>("semanticHighlighting.enabled", true);
     return v !== false; // "configuredByTheme" and true both resolve to enabled
   },
-  folding: () => workspace.getConfiguration("editor").get<boolean>("folding", true),
+  // Deliberately NOT inherited from `editor.folding` (issue #1122). Vanilla
+  // VS Code's sticky-scroll model provider calls
+  // `FoldingController.getFoldingRangeProviders` unconditionally — it never
+  // reads `EditorOption.folding` — so a user who has switched the folding UI
+  // off in vanilla VS Code still gets provider-based sticky scroll. Our
+  // toggle used to inherit `editor.folding`, so the same user's Tcl files
+  // got NO folding ranges at all; since VS Code >=1.105 treats an empty
+  // folding-range array as a *terminal* sticky model (only null/undefined
+  // falls through to the indentation heuristic), that silently killed
+  // sticky scroll for every Tcl file — a divergence from platform semantics
+  // and the most consistent explanation of the bug report. Folding stays
+  // on unless a user explicitly sets `tclLsp.features.folding: false`.
+  folding: () => true,
   signatureHelp: () =>
     workspace.getConfiguration("editor").get<boolean>("parameterHints.enabled", true),
   // Inlay hints split into two opt-in families, both off unless the user
@@ -323,6 +335,33 @@ function resolveAllFeatureToggles(): Record<string, boolean> {
     resolved[key] = resolveFeatureToggle(key, val);
   }
   return resolved;
+}
+
+/**
+ * One-line breadcrumb for support: our `configurationDefaults` block sets
+ * `editor.stickyScroll.defaultModel` to `foldingProviderModel` for `tcl`
+ * (see the "Sticky Scroll" test suite for the dotted-language-id caveat that
+ * excludes `tcl8.4` etc). A third-party extension shipping its own dotted
+ * `[lang.id]` `configurationDefaults` block can throw while VS Code builds
+ * the default-configuration value tree and abort processing the rest of
+ * that block, silently reverting Tcl to `outlineModel` (issue #1122) with
+ * no error visible anywhere in the UI. Logging this once at activation
+ * gives a support triage something to grep for instead of asking the user
+ * to dig through Settings JSON. No popup — this is a log-only breadcrumb.
+ */
+function checkStickyScrollDefaultModel(ch: vscode.OutputChannel): void {
+  const model = workspace
+    .getConfiguration("editor", { languageId: "tcl" })
+    .get<string>("stickyScroll.defaultModel");
+  if (model !== "foldingProviderModel") {
+    ch.appendLine(
+      `Tcl LSP: editor.stickyScroll.defaultModel for 'tcl' is '${String(model)}', not the ` +
+        "expected 'foldingProviderModel' -- our configurationDefaults override may have been " +
+        "dropped (e.g. another extension's dotted [lang.id] configurationDefaults block " +
+        "aborting VS Code's defaults processing). Sticky scroll may fall back to the outline " +
+        "or indentation model for Tcl files.",
+    );
+  }
 }
 
 export async function activate(context: ExtensionContext) {
@@ -477,10 +516,11 @@ export async function activate(context: ExtensionContext) {
 
   // Update status bar label when manually changing settings, and re-push
   // resolved feature toggles when the underlying editor globals change.
+  // editor.folding is deliberately absent (issue #1122): `features.folding`
+  // no longer inherits it, so changing it has nothing to re-push here.
   const editorSettingsAffectingFeatures = [
     "editor.hover.enabled",
     "editor.semanticHighlighting.enabled",
-    "editor.folding",
     "editor.parameterHints.enabled",
     "editor.inlayHints.enabled",
     "editor.occurrencesHighlight",
@@ -652,6 +692,7 @@ export async function activate(context: ExtensionContext) {
   const clientStartTime = Date.now();
   await client.start();
   ch.appendLine(`[timing] client.start: ${Date.now() - clientStartTime}ms`);
+  checkStickyScrollDefaultModel(ch);
   await applyDialectForEditor(window.activeTextEditor);
 
   try {

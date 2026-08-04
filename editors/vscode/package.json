@@ -3191,7 +3191,7 @@
               "null"
             ],
             "default": null,
-            "description": "Override code folding. When null, inherits from editor.folding.",
+            "description": "Override code folding. When null, enabled (does not inherit editor.folding -- sticky scroll needs folding ranges even when the folding UI is off).",
             "order": 9
           },
           "tclLsp.features.rename": {

@@ -33,6 +33,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-lsp-features-are-missing.md](kcs-issue-lsp-features-are-missing.md)
   — squiggles, hovers, and completions do not appear in VS Code and
   you want to know whether the Tcl Language Server started at all.
+- [kcs-issue-sticky-scroll-shows-nothing.md](kcs-issue-sticky-scroll-shows-nothing.md)
+  — sticky scroll pins nothing for Tcl files while the extension is
+  enabled, even though breadcrumbs and the outline look fine.
 - [kcs-issue-stale-compiler-cache.md](kcs-issue-stale-compiler-cache.md)
   — stale incremental cache produces wrong diagnostics.
 - [kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md](kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md)
