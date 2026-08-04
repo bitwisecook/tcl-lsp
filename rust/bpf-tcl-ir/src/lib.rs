@@ -26,6 +26,7 @@
 //! [`ir::BpfProgram`] is the shared waist consumed by the codegen backends.
 #![forbid(unsafe_code)]
 
+pub mod alloc;
 pub mod capability;
 pub mod deploy;
 pub mod diag;
@@ -42,8 +43,12 @@ pub use capability::CapabilityPolicy;
 pub use deploy::collect_attach;
 pub use diag::{BpfDiag, BpfError};
 pub use frontend::compile_module;
-pub use ir::{AttachSpec, BpfModule, BpfProgram, BpfProgramDecl, ProgType};
+pub use ir::{
+    AttachSpec, BpfModule, BpfProgram, BpfProgramDecl, MapConcurrency, MapDef, MapKind, OobAction,
+    ProgType,
+};
 pub use lower::lower_function;
 pub use profile::{BpfProfileSpec, FieldDef};
 pub use template::TemplateDef;
+pub use ty::ByteOrder;
 pub use unroll::unroll_loops;

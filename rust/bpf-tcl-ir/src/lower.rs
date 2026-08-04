@@ -19,27 +19,54 @@
 //! Typed lowering: a Tcl front-end CFG ([`tcl_compiler::cfg::Function`]) → typed
 //! [`BpfProgram`], rejecting anything outside the DSL subset with span-anchored
 //! diagnostics. This is where "typed Tcl, not dynamic Tcl" is *enforced*.
+//!
+//! Dispatch is **registry-described**: every BPF-Tcl command's spec carries a
+//! typed [`BpfOpSpec`](tcl_registry::bpf_op::BpfOpSpec) descriptor (scalar
+//! width, packet-load width, map role, verdict family + compatible program
+//! types), and this lowerer matches on the descriptor — never on the command
+//! name — so registry, lowering, capability policy, and documentation cannot
+//! drift (issue #1202).
 
 use std::collections::HashMap;
 
 use tcl_compiler::cfg::{Block as CfgBlock, Function, Terminator};
 use tcl_compiler::{BinOp, ExprNode, Statement, UnaryOp, parse_expr};
 use tcl_lexer::Span;
+use tcl_registry::bpf_op::{
+    BpfDeclKind, BpfOpKind, BpfProgTypeSet, BpfScalarWidth, BpfVerdictKind,
+};
+use tcl_registry::registry::CommandRegistry;
 
+use crate::alloc::assign_slots;
 use crate::diag::{BpfDiag, BpfError};
 use crate::ir::{
-    Block, BlockId, BpfProgram, CmpOp, Inst, IntBinOp, MapDef, ProgType, SlotId, Term, UnOp,
+    Block, BlockId, BpfProgram, CmpOp, Inst, IntBinOp, MapConcurrency, MapDef, MapKind, OobAction,
+    ProgType, SlotId, Term, UnOp,
 };
-use crate::ty::{Region, Ty, Width};
+use crate::ty::{ByteOrder, Region, Ty, Width};
 
-/// 64 slots × 8 bytes = the 512-byte eBPF stack.
-const MAX_SLOTS: usize = 64;
+/// Guard against runaway macro/loop expansion during lowering. The *real*
+/// stack cap (64 slots / 512 bytes) is enforced after liveness-based slot
+/// reuse by [`crate::alloc::assign_slots`]; this raw cap only exists so a
+/// pathological expansion fails fast instead of allocating without bound.
+const MAX_RAW_SLOTS: usize = 4096;
 
 /// Lower a single CFG function to a typed [`BpfProgram`] of the given type.
 ///
+/// `registry` must have the BPF dialect loaded (its `BpfOpSpec` descriptors
+/// drive all command dispatch). Slot allocation (liveness-based reuse + the
+/// 512-byte stack cap) runs as part of lowering, so the returned program is
+/// ready for any codegen target.
+///
 /// # Errors
-/// Returns a [`BpfError`] for any construct outside the typed DSL subset.
-pub fn lower_function(func: &Function, prog_type: ProgType) -> Result<BpfProgram, BpfError> {
+/// Returns a [`BpfError`] for any construct outside the typed DSL subset, a
+/// handler path with no explicit verdict, or a program that exceeds the eBPF
+/// stack even after slot reuse.
+pub fn lower_function(
+    func: &Function,
+    prog_type: ProgType,
+    registry: &CommandRegistry,
+) -> Result<BpfProgram, BpfError> {
     // v1 supports no loops; reject any back-edge up front. Bounded loops are a
     // planned follow-on.
     if let Some(span) = first_loop_span(func) {
@@ -51,6 +78,7 @@ pub fn lower_function(func: &Function, prog_type: ProgType) -> Result<BpfProgram
     }
     let mut l = Lowerer {
         func,
+        registry,
         prog_type,
         env: HashMap::new(),
         slot_types: Vec::new(),
@@ -78,18 +106,25 @@ pub fn lower_function(func: &Function, prog_type: ProgType) -> Result<BpfProgram
     let mut blocks: Vec<Block> = l.lowered.into_values().collect();
     blocks.sort_by_key(|b| b.id.0);
     let num_slots = u32::try_from(l.slot_types.len()).unwrap_or(u32::MAX);
-    Ok(BpfProgram {
+    let mut program = BpfProgram {
         prog_type,
         entry,
         blocks,
         num_slots,
         slot_types: l.slot_types,
+        raw_slot_count: num_slots,
+        zero_init: Vec::new(),
         maps: l.map_defs,
-    })
+    };
+    assign_slots(&mut program)?;
+    Ok(program)
 }
 
 struct Lowerer<'f> {
     func: &'f Function,
+    /// The command registry (with the BPF dialect loaded) whose `BpfOpSpec`
+    /// descriptors drive all command dispatch.
+    registry: &'f CommandRegistry,
     /// Program type — selects verdict semantics (`accept`/`drop` vs `pass`/`tx`).
     prog_type: ProgType,
     /// Typed symbol table: variable name → (stable slot, type). Function-global
@@ -107,11 +142,14 @@ struct Lowerer<'f> {
 
 impl Lowerer<'_> {
     fn fresh_slot(&mut self, ty: Ty, span: Span) -> Result<SlotId, BpfError> {
-        if self.slot_types.len() >= MAX_SLOTS {
+        if self.slot_types.len() >= MAX_RAW_SLOTS {
             return Err(BpfError::new(
                 BpfDiag::StackOverflow,
                 span,
-                "program needs more than 64 values (the 512-byte eBPF stack is exceeded)",
+                format!(
+                    "program computes more than {MAX_RAW_SLOTS} values — \
+                     shrink the unrolled `loop`/`use` expansion"
+                ),
             ));
         }
         let id = SlotId(u32::try_from(self.slot_types.len()).unwrap_or(u32::MAX));
@@ -148,8 +186,13 @@ impl Lowerer<'_> {
         id
     }
 
-    /// Pre-scan every block for `map` declarations so `map_get`/`map_set` can
-    /// resolve names regardless of ordering.
+    /// The registry descriptor for a command, if it is a BPF-Tcl command.
+    fn bpf_op(&self, cmd: &str) -> Option<&'static tcl_registry::bpf_op::BpfOpSpec> {
+        self.registry.bpf_op(cmd)
+    }
+
+    /// Pre-scan every block for `map` declarations so `map_get`/`map_set`/
+    /// `map_has` can resolve names regardless of ordering.
     fn collect_maps(&mut self) -> Result<(), BpfError> {
         let func = self.func;
         for block in func.blocks.values() {
@@ -161,9 +204,11 @@ impl Lowerer<'_> {
                     span,
                     ..
                 } = stmt
-                    && canonical_command.as_deref().unwrap_or(command.as_str()) == "map"
                 {
-                    self.declare_map(args, *span)?;
+                    let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
+                    if self.bpf_op(cmd).map(|op| op.kind) == Some(BpfOpKind::MapDeclare) {
+                        self.declare_map(args, *span)?;
+                    }
                 }
             }
         }
@@ -171,35 +216,77 @@ impl Lowerer<'_> {
     }
 
     fn declare_map(&mut self, args: &[String], span: Span) -> Result<(), BpfError> {
-        // map NAME hash KEYSZ VALSZ MAX  (the kind word is metadata in v1)
-        if args.len() != 5 {
-            return Err(arity(span, "map", "NAME hash KEYSZ VALSZ MAX"));
+        // map NAME hash|array KEYSZ VALSZ MAX ?shared|percpu?
+        if args.len() < 5 || args.len() > 6 {
+            return Err(arity(
+                span,
+                "map",
+                "NAME hash|array KEYSZ VALSZ MAX ?shared|percpu?",
+            ));
         }
         let name = args[0].clone();
         if self.map_index.contains_key(&name) {
             return Err(BpfError::new(
-                BpfDiag::TypeMismatch,
+                BpfDiag::BadMap,
                 span,
                 format!("map `{name}` is already declared"),
             ));
         }
-        let key_size = parse_u32(&args[2]).ok_or_else(|| {
-            BpfError::new(BpfDiag::BadInt, span, "map key size must be an integer")
+        let kind = MapKind::parse(&args[1]).ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::BadMap,
+                span,
+                format!("unknown map kind `{}` (want hash or array)", args[1]),
+            )
         })?;
-        let value_size = parse_u32(&args[3]).ok_or_else(|| {
-            BpfError::new(BpfDiag::BadInt, span, "map value size must be an integer")
+        let key_size = parse_size(&args[2]).ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::BadMap,
+                span,
+                "map key size must be 1, 2, 4, or 8 bytes (keys are passed by value)",
+            )
         })?;
-        let max_entries = parse_u32(&args[4]).ok_or_else(|| {
-            BpfError::new(BpfDiag::BadInt, span, "map max-entries must be an integer")
+        let value_size = parse_size(&args[3]).ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::BadMap,
+                span,
+                "map value size must be 1, 2, 4, or 8 bytes (values are passed by value)",
+            )
         })?;
+        if kind == MapKind::Array && key_size != 4 {
+            return Err(BpfError::new(
+                BpfDiag::BadMap,
+                span,
+                "an array map's key is a 4-byte index (declare key size 4)",
+            ));
+        }
+        let max_entries = parse_u32(&args[4]).filter(|m| *m >= 1).ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::BadMap,
+                span,
+                "map max-entries must be a positive integer",
+            )
+        })?;
+        let concurrency = match args.get(5) {
+            None => MapConcurrency::default(),
+            Some(word) => MapConcurrency::parse(word).ok_or_else(|| {
+                BpfError::new(
+                    BpfDiag::BadMap,
+                    span,
+                    format!("unknown map concurrency `{word}` (want shared or percpu)"),
+                )
+            })?,
+        };
         let index = u32::try_from(self.map_defs.len()).unwrap_or(u32::MAX);
         self.map_index.insert(name.clone(), index);
         self.map_defs.push(MapDef {
             name,
             index,
+            kind,
             key_size,
             value_size,
             max_entries,
+            concurrency,
             span,
         });
         Ok(())
@@ -237,6 +324,28 @@ impl Lowerer<'_> {
         Ok(None)
     }
 
+    fn lower_map_has(
+        &mut self,
+        args: &[String],
+        span: Span,
+        insts: &mut Vec<Inst>,
+    ) -> Result<Option<Term>, BpfError> {
+        // map_has DST NAME {KEY}
+        if args.len() != 3 {
+            return Err(arity(span, "map_has", "DST NAME {KEY}"));
+        }
+        let map = self.resolve_map(&args[1], span)?;
+        let key = self.lower_expr(&parse_expr(&args[2], None), insts, span)?;
+        let dst = self.var_slot(&args[0], Ty::Int, span)?;
+        insts.push(Inst::MapHas {
+            dst,
+            map,
+            key,
+            span,
+        });
+        Ok(None)
+    }
+
     fn lower_map_set(
         &mut self,
         args: &[String],
@@ -262,12 +371,13 @@ impl Lowerer<'_> {
     fn lower_load(
         &mut self,
         cmd: &str,
+        width_bits: u8,
         args: &[String],
         span: Span,
         insts: &mut Vec<Inst>,
     ) -> Result<Option<Term>, BpfError> {
-        if args.len() != 3 {
-            return Err(arity(span, cmd, "DST SRC OFFSET"));
+        if args.len() < 3 || args.len() > 4 {
+            return Err(arity(span, cmd, "DST SRC OFFSET ?be|le|native?"));
         }
         let ptr = self.expect_ctx_ptr(&args[1], span)?;
         let off_i64 = parse_int(&args[2]).ok_or_else(|| {
@@ -279,9 +389,26 @@ impl Lowerer<'_> {
         })?;
         let off = i32::try_from(off_i64)
             .map_err(|_| BpfError::new(BpfDiag::BadInt, span, "load offset out of range"))?;
-        let width = match cmd {
-            "load8" => Width::B8,
-            "load16" => Width::B16,
+        if off < 0 {
+            return Err(BpfError::new(
+                BpfDiag::BadInt,
+                span,
+                "load offset must be non-negative",
+            ));
+        }
+        let order = match args.get(3) {
+            None => ByteOrder::Native,
+            Some(word) => ByteOrder::parse(word).ok_or_else(|| {
+                BpfError::new(
+                    BpfDiag::OutOfSubset,
+                    span,
+                    format!("unknown byte order `{word}` (want be, le, or native)"),
+                )
+            })?,
+        };
+        let width = match width_bits {
+            8 => Width::B8,
+            16 => Width::B16,
             _ => Width::B32,
         };
         let dst = self.var_slot(&args[0], Ty::Int, span)?;
@@ -290,29 +417,42 @@ impl Lowerer<'_> {
             width,
             ptr,
             off,
+            order,
+            oob: OobAction::ReturnVerdict(self.drop_verdict()),
             span,
         });
         Ok(None)
     }
 
-    /// Lower a verdict command (`accept`/`drop`/`pass`/`tx`), validated against
-    /// the program type, into a `Return`.
+    /// Lower a verdict command, validated against the program type, into a
+    /// `Return`.
     fn lower_verdict(
         &mut self,
         cmd: &str,
+        kind: BpfVerdictKind,
+        prog_types: BpfProgTypeSet,
         args: &[String],
         span: Span,
         insts: &mut Vec<Inst>,
     ) -> Result<Option<Term>, BpfError> {
-        let verdict = match cmd {
-            "accept" => {
-                if self.prog_type != ProgType::SocketFilter {
-                    return Err(BpfError::new(
-                        BpfDiag::OutOfSubset,
-                        span,
-                        "`accept` is a socket-filter verdict; use `pass`/`drop`/`tx` for XDP",
-                    ));
-                }
+        let compatible = match prog_types {
+            BpfProgTypeSet::All => true,
+            BpfProgTypeSet::SocketFilterOnly => self.prog_type == ProgType::SocketFilter,
+            BpfProgTypeSet::XdpOnly => self.prog_type == ProgType::Xdp,
+        };
+        if !compatible {
+            let hint = match self.prog_type {
+                ProgType::SocketFilter => "use `accept`/`drop` for socket filters",
+                ProgType::Xdp => "use `pass`/`drop`/`tx` for XDP",
+            };
+            return Err(BpfError::new(
+                BpfDiag::OutOfSubset,
+                span,
+                format!("`{cmd}` is not a valid verdict for this program type; {hint}"),
+            ));
+        }
+        let verdict = match kind {
+            BpfVerdictKind::Accept => {
                 if args.is_empty() {
                     let dst = self.fresh_slot(Ty::Int, span)?;
                     insts.push(Inst::CtxLen { dst, span });
@@ -320,29 +460,20 @@ impl Lowerer<'_> {
                 } else if args.len() == 1 {
                     self.lower_expr(&parse_expr(&args[0], None), insts, span)?
                 } else {
-                    return Err(arity(span, "accept", "?N?"));
+                    return Err(arity(span, cmd, "?N?"));
                 }
             }
-            "pass" | "tx" => {
-                if self.prog_type != ProgType::Xdp {
-                    return Err(BpfError::new(
-                        BpfDiag::OutOfSubset,
-                        span,
-                        format!(
-                            "`{cmd}` is an XDP verdict; use `accept`/`drop` for socket filters"
-                        ),
-                    ));
-                }
+            BpfVerdictKind::Pass | BpfVerdictKind::Tx => {
                 if !args.is_empty() {
                     return Err(arity(span, cmd, "(no arguments)"));
                 }
-                let val = if cmd == "pass" { 2 } else { 3 };
+                let val = if kind == BpfVerdictKind::Pass { 2 } else { 3 };
                 self.const_slot(val, span, insts)?
             }
             // `drop` is valid for both; the value differs by program type.
-            _ => {
+            BpfVerdictKind::Drop => {
                 if !args.is_empty() {
-                    return Err(arity(span, "drop", "(no arguments)"));
+                    return Err(arity(span, cmd, "(no arguments)"));
                 }
                 let val = self.drop_verdict();
                 self.const_slot(val, span, insts)?
@@ -423,8 +554,8 @@ impl Lowerer<'_> {
         Ok(succs)
     }
 
-    /// Lower one statement. Returns `Some(term)` for `accept`/`drop` (which
-    /// terminate the block early), `None` otherwise.
+    /// Lower one statement. Returns `Some(term)` for a verdict (which
+    /// terminates the block early), `None` otherwise.
     fn lower_stmt(
         &mut self,
         stmt: &Statement,
@@ -467,15 +598,15 @@ impl Lowerer<'_> {
         }
     }
 
-    /// Truncate a computed value `tmp` into `dst` to the named integer width:
-    /// `seti32` sign-extends the low 32 bits (`(v << 32) >> 32`, arithmetic), so
-    /// a value overflowing 32 bits becomes its signed 32-bit truncation; `setu32`
-    /// zeroes the high half (`v & ((1 << 32) - 1)`, the mask computed because a
-    /// bare `0xFFFFFFFF` immediate exceeds the v1 32-bit const limit); `setint`
-    /// keeps the full 64-bit value (`RUST_ISSUE_172`).
+    /// Truncate a computed value `tmp` into `dst` to the descriptor's integer
+    /// width: [`BpfScalarWidth::I32SignExtended`] sign-extends the low 32 bits
+    /// (`(v << 32) >> 32`, arithmetic), so a value overflowing 32 bits becomes
+    /// its signed 32-bit truncation; [`BpfScalarWidth::U32ZeroExtended`] zeroes
+    /// the high half (`v & 0xFFFF_FFFF`); [`BpfScalarWidth::I64`] keeps the
+    /// full 64-bit value (`RUST_ISSUE_172`).
     fn emit_width_set(
         &mut self,
-        cmd: &str,
+        width: BpfScalarWidth,
         tmp: SlotId,
         dst: SlotId,
         insts: &mut Vec<Inst>,
@@ -486,8 +617,8 @@ impl Lowerer<'_> {
             insts.push(Inst::Const { dst: s, val, span });
             Ok(s)
         };
-        match cmd {
-            "seti32" => {
+        match width {
+            BpfScalarWidth::I32SignExtended => {
                 let sh = konst(self, 32)?;
                 let hi = self.fresh_slot(Ty::Int, span)?;
                 insts.push(Inst::Bin {
@@ -505,25 +636,8 @@ impl Lowerer<'_> {
                     span,
                 });
             }
-            "setu32" => {
-                let one = konst(self, 1)?;
-                let sh = konst(self, 32)?;
-                let hi = self.fresh_slot(Ty::Int, span)?;
-                insts.push(Inst::Bin {
-                    dst: hi,
-                    op: IntBinOp::Shl,
-                    a: one,
-                    b: sh,
-                    span,
-                });
-                let mask = self.fresh_slot(Ty::Int, span)?;
-                insts.push(Inst::Bin {
-                    dst: mask,
-                    op: IntBinOp::Sub,
-                    a: hi,
-                    b: one,
-                    span,
-                });
+            BpfScalarWidth::U32ZeroExtended => {
+                let mask = konst(self, 0xFFFF_FFFF)?;
                 insts.push(Inst::Bin {
                     dst,
                     op: IntBinOp::And,
@@ -532,7 +646,7 @@ impl Lowerer<'_> {
                     span,
                 });
             }
-            _ => insts.push(Inst::Copy {
+            BpfScalarWidth::I64 => insts.push(Inst::Copy {
                 dst,
                 src: tmp,
                 span,
@@ -548,21 +662,39 @@ impl Lowerer<'_> {
         span: Span,
         insts: &mut Vec<Inst>,
     ) -> Result<Option<Term>, BpfError> {
-        match cmd {
-            "setint" | "seti32" | "setu32" => {
+        let Some(op) = self.bpf_op(cmd) else {
+            if is_concurrency_command(cmd) {
+                return Err(BpfError::new(
+                    BpfDiag::OutOfSubset,
+                    span,
+                    format!(
+                        "`{cmd}`: concurrency is not supported on the eBPF backend \
+                         (no coroutines, threads, or event loop — an eBPF program is a \
+                         single bounded run to a verdict)"
+                    ),
+                ));
+            }
+            return Err(BpfError::new(
+                BpfDiag::UnknownCommand,
+                span,
+                format!("unknown BPF-Tcl command `{cmd}`"),
+            ));
+        };
+        match op.kind {
+            BpfOpKind::ScalarSet(width) => {
                 if args.len() != 2 {
                     return Err(arity(span, cmd, "NAME {EXPR}"));
                 }
                 let expr = parse_expr(&args[1], None);
                 let tmp = self.lower_expr(&expr, insts, span)?;
                 let dst = self.var_slot(&args[0], Ty::Int, span)?;
-                self.emit_width_set(cmd, tmp, dst, insts, span)?;
+                self.emit_width_set(width, tmp, dst, insts, span)?;
                 Ok(None)
             }
-            "setbuf" => {
+            BpfOpKind::BindPacket => {
                 // `setbuf NAME ctx` or `setbuf NAME = ctx`.
                 if args.is_empty() {
-                    return Err(arity(span, "setbuf", "NAME ctx"));
+                    return Err(arity(span, cmd, "NAME ctx"));
                 }
                 if !args.iter().any(|a| a == "ctx") {
                     return Err(BpfError::new(
@@ -575,39 +707,35 @@ impl Lowerer<'_> {
                 insts.push(Inst::CtxPtr { dst, span });
                 Ok(None)
             }
-            "load8" | "load16" | "load32" => self.lower_load(cmd, args, span, insts),
-            "pktlen" => {
+            BpfOpKind::PacketLoad { width_bits } => {
+                self.lower_load(cmd, width_bits, args, span, insts)
+            }
+            BpfOpKind::PacketLen => {
                 if args.len() != 2 {
-                    return Err(arity(span, "pktlen", "DST SRC"));
+                    return Err(arity(span, cmd, "DST SRC"));
                 }
                 self.expect_ctx_ptr(&args[1], span)?;
                 let dst = self.var_slot(&args[0], Ty::Int, span)?;
                 insts.push(Inst::CtxLen { dst, span });
                 Ok(None)
             }
-            "accept" | "drop" | "pass" | "tx" => self.lower_verdict(cmd, args, span, insts),
-            // `map NAME hash KEYSZ VALSZ MAX` is a declaration, collected up front.
-            "map" => Ok(None),
-            "map_get" => self.lower_map_get(args, span, insts),
-            "map_set" => self.lower_map_set(args, span, insts),
-            "loop" => Err(BpfError::new(
+            BpfOpKind::Verdict(kind) => {
+                self.lower_verdict(cmd, kind, op.prog_types, args, span, insts)
+            }
+            // A `map` declaration was collected up front.
+            BpfOpKind::MapDeclare => Ok(None),
+            BpfOpKind::MapGet => self.lower_map_get(args, span, insts),
+            BpfOpKind::MapHas => self.lower_map_has(args, span, insts),
+            BpfOpKind::MapSet => self.lower_map_set(args, span, insts),
+            BpfOpKind::LoopMacro => Err(BpfError::new(
                 BpfDiag::OutOfSubset,
                 span,
                 "`loop` must appear at the handler/loop top level, not nested inside `if` (v1)",
             )),
-            other if is_concurrency_command(other) => Err(BpfError::new(
+            BpfOpKind::Framework(decl) => Err(BpfError::new(
                 BpfDiag::OutOfSubset,
                 span,
-                format!(
-                    "`{other}`: concurrency is not supported on the eBPF backend \
-                     (no coroutines, threads, or event loop — an eBPF program is a \
-                     single bounded run to a verdict)"
-                ),
-            )),
-            other => Err(BpfError::new(
-                BpfDiag::UnknownCommand,
-                span,
-                format!("unknown BPF-Tcl command `{other}`"),
+                framework_in_handler_message(cmd, decl),
             )),
         }
     }
@@ -751,33 +879,49 @@ impl Lowerer<'_> {
                     vec![tname, fname],
                 ))
             }
-            // A fall-through with no explicit verdict defaults to the program's
-            // `drop` value (0 for socket filters, XDP_DROP for XDP).
+            // Control reaches the end of the handler with no explicit
+            // verdict. Never synthesize one silently — this is a hard error
+            // (issue #1202: "define whether verdict-less handlers are an
+            // error … never synthesize it silently").
             Some(Terminator::Return { span, .. }) => {
-                let sp = span.unwrap_or_else(|| Span::empty(0));
-                let val = self.drop_verdict();
-                let dst = self.const_slot(val, sp, insts)?;
-                Ok((
-                    Term::Return {
-                        verdict: dst,
-                        span: sp,
-                    },
-                    Vec::new(),
-                ))
+                Err(self.missing_verdict(span.unwrap_or_else(|| Span::empty(0))))
             }
-            None => {
-                let sp = Span::empty(0);
-                let val = self.drop_verdict();
-                let dst = self.const_slot(val, sp, insts)?;
-                Ok((
-                    Term::Return {
-                        verdict: dst,
-                        span: sp,
-                    },
-                    Vec::new(),
-                ))
-            }
+            None => Err(self.missing_verdict(Span::empty(0))),
         }
+    }
+
+    fn missing_verdict(&self, span: Span) -> BpfError {
+        let verdicts = match self.prog_type {
+            ProgType::SocketFilter => "`accept`/`drop`",
+            ProgType::Xdp => "`pass`/`drop`/`tx`",
+        };
+        BpfError::new(
+            BpfDiag::MissingVerdict,
+            span,
+            format!(
+                "control can reach the end of the handler without a verdict — \
+                 end every path with an explicit verdict ({verdicts})"
+            ),
+        )
+    }
+}
+
+/// The diagnostic for a framework declaration reaching the typed lowering
+/// (i.e. written inside a handler body where it has no meaning).
+fn framework_in_handler_message(cmd: &str, decl: BpfDeclKind) -> String {
+    match decl {
+        BpfDeclKind::Field => format!(
+            "`{cmd}` declarations belong inside a `profile NAME {{ … }}` body, \
+             not in a handler"
+        ),
+        BpfDeclKind::Use => format!(
+            "`{cmd}` could not be expanded here — template expansion happens \
+             before lowering, so this `use` is malformed or out of place"
+        ),
+        _ => format!(
+            "`{cmd}` is a framework declaration — it must appear at the file \
+             top level, not inside a handler"
+        ),
     }
 }
 
@@ -822,7 +966,9 @@ fn arity(span: Span, cmd: &str, usage: &str) -> BpfError {
 /// is a single bounded run to a verdict), so they earn a specific `OutOfSubset`
 /// diagnostic rather than the generic "unknown command". (The event loop —
 /// `after`/`vwait`/`update` — is rejected earlier by the typed front-end as an
-/// out-of-subset construct.)
+/// out-of-subset construct.)  This is a diagnostics nicety over commands the
+/// BPF registry deliberately does *not* describe, not per-command lowering
+/// knowledge.
 fn is_concurrency_command(cmd: &str) -> bool {
     matches!(
         cmd,
@@ -890,6 +1036,11 @@ fn parse_int(text: &str) -> Option<i64> {
 /// Parse a non-negative integer literal into a `u32`.
 fn parse_u32(s: &str) -> Option<u32> {
     parse_int(s).and_then(|v| u32::try_from(v).ok())
+}
+
+/// Parse a by-value map key/value size: 1, 2, 4, or 8 bytes.
+fn parse_size(s: &str) -> Option<u32> {
+    parse_u32(s).filter(|v| matches!(v, 1 | 2 | 4 | 8))
 }
 
 /// The span of some loop in `func`, if it contains a cycle (back-edge).

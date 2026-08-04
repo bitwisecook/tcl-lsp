@@ -20,10 +20,12 @@
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
+    const OP: BpfOpSpec = BpfOpSpec::verdict(BpfVerdictKind::Pass, BpfProgTypeSet::XdpOnly);
     CommandSpec {
         name: "pass",
         dialects: Some(DialectSet::BPF),
         arity: Arity::exact(0),
+        bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }
 }

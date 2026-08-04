@@ -53,11 +53,22 @@ impl Insn {
 }
 
 // ── instruction classes (low 3 bits) ───────────────────────────────────────
+pub const LD: u8 = 0x00;
 pub const LDX: u8 = 0x01;
 pub const ST: u8 = 0x02;
 pub const STX: u8 = 0x03;
+pub const ALU: u8 = 0x04; // 32-bit ALU (used only for the byte-order ops)
 pub const JMP: u8 = 0x05;
 pub const ALU64: u8 = 0x07;
+
+// ── load mode: 64-bit immediate (`lddw`) ────────────────────────────────────
+pub const IMM: u8 = 0x00;
+pub const DW: u8 = 0x18;
+
+// ── byte-order (BPF_END) ────────────────────────────────────────────────────
+// The `BPF_END` operation converts a register's byte order. With the source
+// (`K`) bit clear it converts to little-endian; the `X` bit selects big-endian.
+pub const END: u8 = 0xd0;
 
 // ── ALU / JMP source ────────────────────────────────────────────────────────
 pub const K: u8 = 0x00; // immediate
@@ -92,9 +103,13 @@ pub const ARSH: u8 = 0xc0;
 // ── JMP operations (high nibble) ───────────────────────────────────────────
 pub const JA: u8 = 0x00;
 pub const JEQ: u8 = 0x10;
+/// Unsigned greater-than.
+pub const JGT: u8 = 0x20;
 pub const JNE: u8 = 0x50;
 pub const JSGT: u8 = 0x60;
 pub const JSGE: u8 = 0x70;
+/// Unsigned less-than-or-equal.
+pub const JLE: u8 = 0xb0;
 pub const JSLT: u8 = 0xc0;
 pub const JSLE: u8 = 0xd0;
 pub const EXIT: u8 = 0x90;
@@ -105,6 +120,7 @@ pub const R0: u8 = 0;
 pub const R1: u8 = 1;
 pub const R2: u8 = 2;
 pub const R3: u8 = 3;
+pub const R4: u8 = 4;
 pub const R6: u8 = 6;
 pub const R7: u8 = 7;
 pub const R10: u8 = 10;
@@ -261,5 +277,54 @@ pub fn call(helper_id: i32) -> Insn {
         src: 0,
         off: 0,
         imm: helper_id,
+    }
+}
+
+/// `dst = imm64` — the two-instruction wide immediate load (`lddw`). The low
+/// 32 bits ride in the first instruction's `imm`, the high 32 bits in the
+/// second's; the second instruction has a zero opcode by convention.
+pub fn lddw(dst: u8, imm: i64) -> [Insn; 2] {
+    let lo = (imm & 0xffff_ffff) as i32;
+    let hi = ((imm >> 32) & 0xffff_ffff) as i32;
+    [
+        Insn {
+            op: LD | IMM | DW,
+            dst,
+            src: 0,
+            off: 0,
+            imm: lo,
+        },
+        Insn {
+            op: 0,
+            dst: 0,
+            src: 0,
+            off: 0,
+            imm: hi,
+        },
+    ]
+}
+
+/// `dst = bswap<width>(dst)` selecting host↔big-endian (`bpf_htobe*`). `width`
+/// is 16, 32, or 64. Encoded as `BPF_ALU | BPF_X | BPF_END` (the X bit selects
+/// the big-endian direction), with the width in the immediate.
+pub fn bswap_be(dst: u8, width: i32) -> Insn {
+    Insn {
+        op: ALU | X | END,
+        dst,
+        src: 0,
+        off: 0,
+        imm: width,
+    }
+}
+
+/// `dst = bswap<width>(dst)` selecting host↔little-endian (`bpf_htole*`).
+/// Encoded as `BPF_ALU | BPF_K | BPF_END`.
+pub fn bswap_le(dst: u8, width: i32) -> Insn {
+    Insn {
+        op: ALU | K | END,
+        dst,
+        src: 0,
+        off: 0,
+        imm: width,
     }
 }

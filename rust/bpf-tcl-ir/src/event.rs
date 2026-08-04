@@ -19,19 +19,43 @@
 //! The BPF-native event space. Inspired by F5's `when <EVENT>` shape, but a
 //! whole separate namespace — these events map to eBPF program types / attach
 //! points, not F5 iRules events.
+//!
+//! The event table itself is **registry data**
+//! ([`tcl_registry::bpf_op::BPF_EVENTS`]): each event pairs its name and
+//! aliases with a program type, ELF section convention, and verdict set.
+//! This module only maps the registry's dependency-free descriptor onto the
+//! IR's [`ProgType`] — adding an event is a registry edit, not a new match
+//! arm here.
+
+use tcl_registry::bpf_op::{BpfEventProgType, BpfEventSpec, lookup_bpf_event};
 
 use crate::ir::ProgType;
+
+/// Resolve an event name (as written in `when <EVENT> …`) to its registry
+/// spec. Case-insensitive, aliases included. `None` for unknown events.
+#[must_use]
+pub fn event_spec(event: &str) -> Option<&'static BpfEventSpec> {
+    lookup_bpf_event(event)
+}
 
 /// Resolve an event name (as written in `when <EVENT> …`) to a program type.
 /// Case-insensitive. Returns `None` for unknown events.
 #[must_use]
 pub fn event_to_prog_type(event: &str) -> Option<ProgType> {
-    match event.to_ascii_uppercase().as_str() {
-        "SOCKET_FILTER" | "SOCKET" => Some(ProgType::SocketFilter),
-        "XDP" => Some(ProgType::Xdp),
-        _ => None,
+    event_spec(event).map(|spec| prog_type_of(spec.prog_type))
+}
+
+/// Map the registry's dependency-free program-type enum onto the IR's.
+#[must_use]
+pub fn prog_type_of(pt: BpfEventProgType) -> ProgType {
+    match pt {
+        BpfEventProgType::SocketFilter => ProgType::SocketFilter,
+        BpfEventProgType::Xdp => ProgType::Xdp,
     }
 }
 
-/// The known event names, for diagnostics and help text.
-pub const KNOWN_EVENTS: &[&str] = &["SOCKET_FILTER", "XDP"];
+/// The canonical event names, for diagnostics and help text.
+#[must_use]
+pub fn known_event_names() -> Vec<&'static str> {
+    tcl_registry::bpf_op::bpf_event_names()
+}

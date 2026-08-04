@@ -108,13 +108,13 @@ removed from the host.
 
 ## Layer 2: typed low-level language and BPF-IR
 
-The low-level language is deliberately closed. Its 24 registered commands are:
+The low-level language is deliberately closed. Its 25 registered commands are:
 
 | Group | Commands | Meaning |
 |---|---|---|
 | Typed scalars | `setint`, `seti32`, `setu32` | Evaluate integer expressions and commit a 64-, signed 32-, or unsigned 32-bit value. |
-| Packet context | `setbuf`, `pktlen`, `load8`, `load16`, `load32` | Bind the packet, inspect its length, and read fixed-width fields at constant offsets. |
-| State | `map`, `map_get`, `map_set` | Declare and access userspace-emulated integer-to-integer maps. |
+| Packet context | `setbuf`, `pktlen`, `load8`, `load16`, `load32` | Bind the packet, inspect its length, and read fixed-width fields at constant offsets (with an optional `be`/`le`/`native` byte-order word). |
+| State | `map`, `map_get`, `map_has`, `map_set` | Declare and access userspace-emulated integer-to-integer maps; `map_has` distinguishes a missing key from a stored zero. |
 | Control flow | `if`, `loop` | Branch, or expand a literal-count loop up to 64 iterations before CFG construction. |
 | Socket verdicts | `accept`, `drop` | Return an accepted byte count or zero. |
 | XDP verdicts | `pass`, `drop`, `tx` | Return `XDP_PASS`, `XDP_DROP`, or `XDP_TX`. |
@@ -125,13 +125,38 @@ numeric comparisons. Dynamic Tcl values, strings, command substitution,
 procedures, namespaces, coroutines, event loops, native `while`/`for`, file or
 socket I/O, and arbitrary commands are rejected.
 
-BPF-IR is a typed three-address CFG over mutable slots. It models constants,
-copies, integer operations, context pointer/length acquisition, packet loads,
-map access, branches, and verdict returns. Types currently distinguish an
-integer from a packet-context pointer; widths are attached to load operations.
-This narrow waist is the right place to add target-independent guarantees such
-as checked packet ranges, byte order, map schemas, and event-context field
-access.
+**The registry is the source of truth.** Every command spec in `tcl-registry`
+carries a typed `BpfOpSpec` descriptor (`bpf_op` field) describing the core
+operation or framework declaration it stands for — scalar width, packet-load
+width, map role, verdict family and its compatible program types, and an
+effect classification (packet read, map read/write, termination). The BPF-Tcl
+front-end (`bpf-tcl-ir`) and its capability policy dispatch on this descriptor,
+never on the command name. Adding a verb is a registry edit; a new command
+without a descriptor fails the registry drift test rather than being silently
+mishandled.
+
+BPF-IR is a typed three-address CFG over mutable slots. It models constants
+(including full 64-bit values via `lddw`), copies, integer operations, context
+pointer/length acquisition, **checked** packet loads, map access, branches, and
+verdict returns. A packet load (`Inst::Load`) carries a constant byte range,
+width, byte order (`Native`/`Big`/`Little`), and an explicit out-of-bounds
+action, so the failure semantics of a short packet are stated in the IR rather
+than implied by a target's runtime. Maps carry a typed schema (kind, key/value
+size, capacity, concurrency). After lowering, a liveness-based allocator
+(`bpf-tcl-ir/src/alloc.rs`) re-colours the virtual slots so values with disjoint
+live ranges share a stack slot, computes the exact zero-init set (only the
+slots read before every write), and enforces the 64-slot / 512-byte cap
+*after* reuse — reporting stack pressure with the source span of the first
+value that no longer fits.
+
+### Integer semantics
+
+BPF-Tcl integers are signed 64-bit, but `/` and `%` follow eBPF's **signed
+truncated-toward-zero** division (`BPF_SDIV` / `BPF_SMOD`), *not* Tcl's floor
+division. The two agree for same-sign operands and diverge only when exactly
+one operand is negative (`-7 / 2` is `-3` here, `-4` in Tcl). This narrower,
+verifier-native contract is deliberate and documented; the front-end does not
+silently pretend to be Tcl. `>>` is arithmetic (sign-preserving).
 
 ## Layer 3: framework and event model
 
@@ -189,36 +214,51 @@ loader therefore cannot yet preserve the apparent multi-handler semantics.
    proof required by the kernel verifier.
 3. **No kernel maps or relocations.** Map kind, key/value sizes, and capacity
    are metadata in the simulator; capacity is not enforced. ELF rejects maps.
-4. **Packet fields are native-endian.** Multi-byte network fields are compared
-   in host order. Existing tests deliberately use little-endian synthetic
-   bytes, so realistic network-order packets expose the mismatch.
+4. **Kernel-target packet fields need a kernel context ABI.** The BPF-IR and
+   the rbpf target now interpret multi-byte fields in the declared byte order
+   (built-in profiles default to network order, matching real headers), but the
+   *kernel* XDP/socket-filter context lowering that consumes this is issue
+   #1203 work. On the rbpf target this is resolved; on the kernel target it is
+   pending.
 5. **No loader or attachment lifecycle.** `attach xdp eth0` does not create a
    BPF link, configure an interface, pin maps, detach cleanly, or roll back a
    partial deployment.
 
 ### Low-layer correctness and maintainability
 
-1. **The registry does not describe lowering.** BPF command specs contain
-   names and arities, while `bpf-tcl-ir` matches command names again. Adding a
-   verb can make registry, lowering, capability policy, and documentation drift.
-   A typed BPF lowering descriptor or hook ID should make the registry the
-   command source of truth.
-2. **Malformed framework syntax can be accepted.** A non-integer priority
-   silently becomes 500, extra `when` header words can be ignored, and
-   non-`field` statements inside a user profile are dropped. This is tracked as
-   `RUST_ISSUE_063`.
-3. **The IR cannot state byte order or checked ranges.** `Load` carries only a
-   pointer, width, and constant offset. It cannot distinguish host/network
-   order or prove what failure verdict to use when the packet is short.
-4. **Integer semantics are only partly Tcl-like.** Signed BPF division
-   truncates towards zero, while Tcl integer division is floor division. Large
-   constants are rejected because the emitter only creates 32-bit immediates.
-5. **Stack allocation is intentionally naive.** Every temporary receives a
-   permanent eight-byte slot, all slots are zeroed, and there is no liveness-
-   based reuse. Unrolled handlers can hit the 64-slot limit well before the
-   instruction limit.
-6. **Map absence is conflated with zero.** `map_get` returns zero for a missing
-   key, so callers cannot distinguish absence from a stored zero.
+The items in this section were the subject of
+[issue #1202](https://github.com/bitwisecook/tcl-lsp/issues/1202) and are now
+**resolved**; they are kept here as a record of the contract each one settled.
+
+1. **The registry describes lowering.** Every BPF command spec carries a typed
+   `BpfOpSpec` descriptor; `bpf-tcl-ir` and the capability policy dispatch on
+   it, never on the command name. A registry drift test proves the command set,
+   lowering dispatch, and capability classification stay complete and
+   consistent. *(Resolved.)*
+2. **Malformed framework syntax is rejected.** A `when` header must be exactly
+   `when EVENT { body }` or `when EVENT priority N { body }` — a non-integer or
+   substituted priority, an unknown header keyword, or a substituted event is a
+   span-anchored error, never silently normalised. A user `profile` body accepts
+   only `field` declarations; anything else is rejected rather than dropped
+   (`RUST_ISSUE_063`). A handler path that reaches the end without an explicit
+   verdict is a `MissingVerdict` error, never a silent drop. *(Resolved.)*
+3. **The IR states byte order and checked ranges.** `Inst::Load` carries a
+   constant range, width, byte order (`Native`/`Big`/`Little`), and an explicit
+   out-of-bounds action. The rbpf emitter proves `base + off + width <=
+   data_end` before every dereference and takes the declared verdict on a short
+   packet, and converts multi-byte fields with `BPF_END`. *(Resolved.)*
+4. **Integer semantics are documented.** `/` and `%` are eBPF signed
+   truncated-toward-zero division, a documented narrower contract than Tcl floor
+   division (see *Integer semantics* above). Full 64-bit constants materialise
+   with `lddw`. *(Resolved.)*
+5. **Stack allocation reuses slots.** A liveness-based allocator re-colours
+   virtual slots for disjoint live ranges, zeroes only the slots read before
+   every write, and reports stack pressure with source context after reuse.
+   *(Resolved.)*
+6. **Map absence is distinguishable from zero.** `map_has` reports key presence
+   (1/0) independently of the stored value, and maps carry a typed schema (kind,
+   key/value size, capacity, concurrency) with capacity and array-range
+   enforcement in the simulator. *(Resolved.)*
 
 ### Framework limitations
 

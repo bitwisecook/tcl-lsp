@@ -53,8 +53,9 @@ const SSH_FILTER: &str = "profile ipv4_tcp\n\
 fn ipv4_tcp_drops_ssh() {
     let mut pkt = frame();
     pkt[23] = 6; // IPPROTO_TCP
-    pkt[36] = 0x16; // dport 22, native-endian
-    pkt[37] = 0x00;
+    // dport 22 in network order (big-endian), as a real TCP header carries it.
+    pkt[36] = 0x00;
+    pkt[37] = 0x16;
     assert_eq!(run(SSH_FILTER, &mut pkt), 1); // XDP_DROP
 }
 
@@ -62,8 +63,9 @@ fn ipv4_tcp_drops_ssh() {
 fn ipv4_tcp_passes_http() {
     let mut pkt = frame();
     pkt[23] = 6; // IPPROTO_TCP
-    pkt[36] = 0x50; // dport 80
-    pkt[37] = 0x00;
+    // dport 80 in network order.
+    pkt[36] = 0x00;
+    pkt[37] = 0x50;
     assert_eq!(run(SSH_FILTER, &mut pkt), 2); // XDP_PASS
 }
 
@@ -74,9 +76,20 @@ fn ipv4_tcp_passes_non_tcp() {
     assert_eq!(run(SSH_FILTER, &mut pkt), 2); // XDP_PASS
 }
 
-/// A user-defined profile declaring its own field (`field NAME OFFSET WIDTH`).
+/// A user-defined profile declaring its own field. A bare `field` defaults to
+/// network order (big-endian), matching real headers.
 const USER_PROFILE: &str = "profile myproto {\n\
         field http_alt 36 16\n\
+    }\n\
+    when XDP {\n\
+        http_alt port\n\
+        if {$port == 8080} { drop }\n\
+        pass\n\
+    }\n";
+
+/// A user field that opts into little-endian order with an explicit word.
+const USER_PROFILE_LE: &str = "profile myproto {\n\
+        field http_alt 36 16 le\n\
     }\n\
     when XDP {\n\
         http_alt port\n\
@@ -87,17 +100,36 @@ const USER_PROFILE: &str = "profile myproto {\n\
 #[test]
 fn user_profile_field_drops() {
     let mut pkt = frame();
-    pkt[36] = 0x90; // 8080 = 0x1f90, native-endian
-    pkt[37] = 0x1f;
+    // 8080 = 0x1f90 in network order.
+    pkt[36] = 0x1f;
+    pkt[37] = 0x90;
     assert_eq!(run(USER_PROFILE, &mut pkt), 1); // XDP_DROP
 }
 
 #[test]
 fn user_profile_field_passes() {
     let mut pkt = frame();
-    pkt[36] = 0x50; // 80
-    pkt[37] = 0x00;
+    pkt[36] = 0x00; // 80 in network order
+    pkt[37] = 0x50;
     assert_eq!(run(USER_PROFILE, &mut pkt), 2); // XDP_PASS
+}
+
+#[test]
+fn user_profile_little_endian_field() {
+    // The same value, little-endian bytes, matched by an `le` field.
+    let mut pkt = frame();
+    pkt[36] = 0x90; // 8080 = 0x1f90, little-endian
+    pkt[37] = 0x1f;
+    assert_eq!(run(USER_PROFILE_LE, &mut pkt), 1); // XDP_DROP
+}
+
+#[test]
+fn profile_body_rejects_non_field_statement() {
+    // A user profile body is a pure declaration list — a stray command is
+    // rejected, not silently dropped (RUST_ISSUE_063).
+    let src = "profile p { field a 0 16\n setint x 5 }\nwhen XDP { pass }\n";
+    let err = compile_module(src).unwrap_err();
+    assert_eq!(err.code, BpfDiag::BadProfile);
 }
 
 #[test]

@@ -30,12 +30,13 @@ use tcl_compiler::ir::CommandTokens;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::{Script, Statement};
 use tcl_lexer::Span;
+use tcl_registry::bpf_op::{BpfDeclKind, BpfOpKind};
 use tcl_registry::registry::CommandRegistry;
 
 use crate::capability::{CapabilityPolicy, check_policy, collect_policy};
 use crate::deploy::resolve_attach;
 use crate::diag::{BpfDiag, BpfError};
-use crate::event::{KNOWN_EVENTS, event_to_prog_type};
+use crate::event::{event_to_prog_type, known_event_names};
 use crate::ir::{BpfModule, BpfProgramDecl, ProgType};
 use crate::lower::lower_function;
 use crate::profile::{BpfProfileSpec, collect_profile, expand_fields};
@@ -61,7 +62,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     // Reusable parameterised handlers a `use` site can splice in.
     let templates = collect_templates(&module.top_level, &registry)?;
     // The capability policy that sandboxes each handler's operations.
-    let policy = collect_policy(&module.top_level)?;
+    let policy = collect_policy(&module.top_level, &registry)?;
 
     let mut programs = Vec::new();
     let mut saw_when = false;
@@ -69,12 +70,16 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     for stmt in &module.top_level.statements {
         if let Statement::Call {
             command,
+            canonical_command,
             args,
             tokens,
             span,
             ..
         } = stmt
-            && command == "when"
+            && decl_kind(
+                canonical_command.as_deref().unwrap_or(command.as_str()),
+                &registry,
+            ) == Some(BpfDeclKind::When)
         {
             saw_when = true;
             programs.push(lower_when_decl(
@@ -99,9 +104,12 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
             let is_when = matches!(
                 stmt,
                 Statement::Call { command, canonical_command, .. }
-                    if canonical_command.as_deref().unwrap_or(command.as_str()) == "when"
+                    if decl_kind(
+                        canonical_command.as_deref().unwrap_or(command.as_str()),
+                        &registry,
+                    ) == Some(BpfDeclKind::When)
             );
-            if !is_when && !is_decl(stmt) {
+            if !is_when && !is_decl(stmt, &registry) {
                 let (name, span) = stray_stmt_info(stmt);
                 return Err(BpfError::new(
                     BpfDiag::StrayTopLevel,
@@ -118,7 +126,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     // No framework envelope: treat the top level (minus profile/field decls) as a
     // single anonymous SOCKET_FILTER program (the raw-DSL path, handy for tests).
     if !saw_when {
-        let body = strip_decls(&module.top_level);
+        let body = strip_decls(&module.top_level, &registry);
         if !body.statements.is_empty() {
             let used = expand_uses(&body, &templates)?;
             let unrolled = unroll_loops(&used, &registry)?;
@@ -126,9 +134,9 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
                 Some(p) => expand_fields(&unrolled, p)?,
                 None => unrolled,
             };
-            check_policy(&expanded, &policy)?;
+            check_policy(&expanded, &policy, &registry)?;
             let cfg = build_cfg_function("main", &expanded, false);
-            let program = lower_function(&cfg, ProgType::SocketFilter)?;
+            let program = lower_function(&cfg, ProgType::SocketFilter, &registry)?;
             programs.push(BpfProgramDecl {
                 event: "SOCKET_FILTER".to_owned(),
                 priority: 500,
@@ -153,6 +161,10 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     Ok(BpfModule { programs })
 }
 
+/// The default handler priority when the `when` header names none
+/// (F5-inspired: lower runs first).
+const DEFAULT_PRIORITY: u32 = 500;
+
 fn lower_when_decl(
     args: &[String],
     tokens: Option<&CommandTokens>,
@@ -162,36 +174,78 @@ fn lower_when_decl(
     templates: &[TemplateDef],
     policy: &CapabilityPolicy,
 ) -> Result<BpfProgramDecl, BpfError> {
-    if args.len() < 2 {
-        return Err(BpfError::new(
-            BpfDiag::BadArity,
-            call_span,
-            "`when` expects: when EVENT ?priority N? { body }",
-        ));
-    }
+    // The span of header word `i`, falling back to the whole call.
+    let word_span = |i: usize| {
+        tokens
+            .and_then(|t| t.argv.get(i).copied())
+            .unwrap_or(call_span)
+    };
+
+    // Accept exactly `when EVENT { body }` or `when EVENT priority N { body }`
+    // — nothing else. A malformed header must never be silently normalised
+    // (`RUST_ISSUE_063`: `when XDP priority nope { … }` used to become
+    // priority 500 with no diagnostic).
+    let priority = match args.len() {
+        2 => DEFAULT_PRIORITY,
+        4 => {
+            if args[1] != "priority" {
+                return Err(BpfError::new(
+                    BpfDiag::BadArity,
+                    word_span(1),
+                    format!(
+                        "unknown `when` header keyword `{}` — the only supported \
+                         forms are `when EVENT {{ body }}` and \
+                         `when EVENT priority N {{ body }}`",
+                        args[1]
+                    ),
+                ));
+            }
+            if !is_literal_word(&args[2]) {
+                return Err(BpfError::new(
+                    BpfDiag::BadArity,
+                    word_span(2),
+                    "the `when` priority must be a literal (no substitutions)",
+                ));
+            }
+            args[2].parse::<u32>().map_err(|_| {
+                BpfError::new(
+                    BpfDiag::BadArity,
+                    word_span(2),
+                    format!(
+                        "invalid `when` priority `{}` — must be a non-negative \
+                         integer literal",
+                        args[2]
+                    ),
+                )
+            })?
+        }
+        _ => {
+            return Err(BpfError::new(
+                BpfDiag::BadArity,
+                call_span,
+                "`when` expects: when EVENT { body }  or  when EVENT priority N { body }",
+            ));
+        }
+    };
 
     let event = args[0].clone();
+    if !is_literal_word(&event) {
+        return Err(BpfError::new(
+            BpfDiag::BadEvent,
+            word_span(0),
+            "the `when` event must be a literal name (no substitutions)",
+        ));
+    }
     let prog_type = event_to_prog_type(&event).ok_or_else(|| {
-        let espan = tokens
-            .and_then(|t| t.argv.first().copied())
-            .unwrap_or(call_span);
         BpfError::new(
             BpfDiag::BadEvent,
-            espan,
+            word_span(0),
             format!(
                 "unknown BPF event `{event}` (known: {})",
-                KNOWN_EVENTS.join(", ")
+                known_event_names().join(", ")
             ),
         )
     })?;
-
-    let mut priority = 500u32;
-    if args.len() >= 4
-        && args[1] == "priority"
-        && let Ok(p) = args[2].parse::<u32>()
-    {
-        priority = p;
-    }
 
     let body_idx = args.len() - 1;
     let body_text = &args[body_idx];
@@ -208,9 +262,9 @@ fn lower_when_decl(
         Some(p) => expand_fields(&unrolled, p).map_err(|e| e.offset(source_base))?,
         None => unrolled,
     };
-    check_policy(&expanded, policy).map_err(|e| e.offset(source_base))?;
+    check_policy(&expanded, policy, registry).map_err(|e| e.offset(source_base))?;
     let cfg = build_cfg_function(&format!("::bpf::{event}"), &expanded, false);
-    let program = lower_function(&cfg, prog_type).map_err(|e| e.offset(source_base))?;
+    let program = lower_function(&cfg, prog_type, registry).map_err(|e| e.offset(source_base))?;
 
     Ok(BpfProgramDecl {
         event,
@@ -221,13 +275,22 @@ fn lower_when_decl(
     })
 }
 
-/// Remove top-level `profile`/`field`/`template`/`allow`/`deny`/`attach`
-/// declarations (metadata, macro definitions, or policy — not executable code).
-fn strip_decls(script: &Script) -> Script {
+/// Whether a `when` header word is a plain literal — no variable or command
+/// substitution. The header is static configuration; dynamic events or
+/// priorities cannot exist in a verifier-shaped program.
+fn is_literal_word(word: &str) -> bool {
+    !word.contains('$') && !word.contains('[')
+}
+
+/// Remove top-level `profile`/`template`/`allow`/`deny`/`attach` declarations
+/// (metadata, macro definitions, or policy — not executable code). A stray
+/// `field` outside a `profile` body is deliberately *not* stripped: it flows
+/// into lowering, which rejects it with a pointer to where fields belong.
+fn strip_decls(script: &Script, registry: &CommandRegistry) -> Script {
     let kept = script
         .statements
         .iter()
-        .filter(|s| !is_decl(s))
+        .filter(|s| !is_decl(s, registry))
         .cloned()
         .collect();
     Script::from_statements(kept)
@@ -253,14 +316,41 @@ fn stray_stmt_info(stmt: &Statement) -> (String, Span) {
     }
 }
 
-fn is_decl(stmt: &Statement) -> bool {
+/// The framework-declaration kind of a command name, from its registry
+/// descriptor.
+fn decl_kind(cmd: &str, registry: &CommandRegistry) -> Option<BpfDeclKind> {
+    match registry.bpf_op(cmd).map(|op| op.kind) {
+        Some(BpfOpKind::Framework(decl)) => Some(decl),
+        _ => None,
+    }
+}
+
+/// Whether a top-level statement is a consumed framework declaration.
+/// Deliberately excluded: `field` (only meaningful inside a `profile` body,
+/// so a top-level one is a stray that lowering rejects), `use` (an expansion
+/// site, spliced in place by `expand_uses`, not a stripped declaration), and
+/// `when` (handled separately).
+fn is_decl(stmt: &Statement, registry: &CommandRegistry) -> bool {
+    let Statement::Call {
+        command,
+        canonical_command,
+        ..
+    } = stmt
+    else {
+        return false;
+    };
     matches!(
-        stmt,
-        Statement::Call { command, canonical_command, .. }
-            if matches!(
-                canonical_command.as_deref().unwrap_or(command.as_str()),
-                "profile" | "field" | "template" | "allow" | "deny" | "attach"
-            )
+        decl_kind(
+            canonical_command.as_deref().unwrap_or(command.as_str()),
+            registry,
+        ),
+        Some(
+            BpfDeclKind::Profile
+                | BpfDeclKind::Template
+                | BpfDeclKind::Allow
+                | BpfDeclKind::Deny
+                | BpfDeclKind::Attach
+        )
     )
 }
 
@@ -343,5 +433,69 @@ mod tests {
         let module = compile_module(src).expect("port filter should compile");
         assert_eq!(module.programs.len(), 1);
         assert!(module.programs[0].program.blocks.len() >= 3);
+    }
+
+    /// Registry/lowering drift gate (issue #1202 acceptance criterion): every
+    /// BPF-dialect command carries a typed `bpf_op` descriptor, and the
+    /// lowerer/capability policy dispatch on that descriptor — never on a
+    /// command-name switch. This walks the *actual* registered BPF command set
+    /// and proves each command is describable, so a newly registered command
+    /// without a descriptor fails here rather than being silently mishandled.
+    #[test]
+    fn every_registered_bpf_command_has_a_descriptor() {
+        use tcl_registry::bpf_op::BpfOpKind;
+        let mut registry = CommandRegistry::build_default();
+        registry.load_bpf();
+        let bpf_names: Vec<&str> = registry
+            .command_names()
+            .filter(|n| registry.bpf_op(n).is_some())
+            .collect();
+        assert!(
+            bpf_names.len() >= 25,
+            "expected the full BPF command surface, found {}",
+            bpf_names.len()
+        );
+        for name in bpf_names {
+            let op = registry.bpf_op(name).expect("descriptor present");
+            // The classification the capability policy relies on must be
+            // internally consistent: a verdict terminates, a gated op has a
+            // packet/map effect, and the two are disjoint.
+            match op.kind {
+                BpfOpKind::Verdict(_) => assert!(
+                    op.effects.is_verdict() && !op.effects.is_gated(),
+                    "{name} is a verdict but misclassified"
+                ),
+                BpfOpKind::PacketLoad { .. }
+                | BpfOpKind::PacketLen
+                | BpfOpKind::MapGet
+                | BpfOpKind::MapHas
+                | BpfOpKind::MapSet => assert!(
+                    op.effects.is_gated(),
+                    "{name} accesses packet/map but is not gated"
+                ),
+                _ => {}
+            }
+        }
+    }
+
+    /// Every event resolvable through the registry maps to a program type, and
+    /// the framework front-end accepts a handler for it — proving the event
+    /// space is registry-described end to end (no string-match arm).
+    #[test]
+    fn every_registry_event_compiles_a_handler() {
+        for event in tcl_registry::bpf_op::BPF_EVENTS {
+            assert!(
+                crate::event::event_to_prog_type(event.name).is_some(),
+                "event {} has no program type",
+                event.name
+            );
+            let verdict = match event.prog_type {
+                tcl_registry::bpf_op::BpfEventProgType::SocketFilter => "accept",
+                tcl_registry::bpf_op::BpfEventProgType::Xdp => "pass",
+            };
+            let src = format!("when {} {{ {verdict} }}\n", event.name);
+            compile_module(&src)
+                .unwrap_or_else(|e| panic!("event {} handler failed: {e}", event.name));
+        }
     }
 }

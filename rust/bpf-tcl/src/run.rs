@@ -26,16 +26,52 @@
 //! test thread gets its own, so parallel tests don't interfere. A real kernel
 //! uses map fds; this is test/run scaffolding. Map keys and values are passed
 //! by value (v1 maps are integer→integer).
+//!
+//! The emulation honours the declared map schema: an **array** map is
+//! preallocated and zero-filled (every in-range key is present from the
+//! start, out-of-range keys are ignored), a **hash** map is sparse and
+//! enforces `max_entries` (an update introducing a new key when the map is
+//! full is dropped, matching `bpf_map_update_elem`'s `E2BIG`). `map_has`
+//! reports presence so a caller can tell a missing key from a stored zero.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
 
 use bpf_tcl_codegen::ebpf::EbpfObject;
+use bpf_tcl_ir::{MapDef, MapKind};
 use rbpf::EbpfVmFixedMbuff;
 
+/// One emulated map: its declared schema plus its live contents.
+struct EmuMap {
+    kind: MapKind,
+    max_entries: u32,
+    store: HashMap<u64, u64>,
+}
+
+impl EmuMap {
+    fn new(def: &MapDef) -> Self {
+        let mut store = HashMap::new();
+        // An array map is preallocated and zero-filled.
+        if def.kind == MapKind::Array {
+            for k in 0..u64::from(def.max_entries) {
+                store.insert(k, 0);
+            }
+        }
+        Self {
+            kind: def.kind,
+            max_entries: def.max_entries,
+            store,
+        }
+    }
+
+    fn key_in_range(&self, key: u64) -> bool {
+        self.kind != MapKind::Array || key < u64::from(self.max_entries)
+    }
+}
+
 thread_local! {
-    /// One emulated map (key → value) per declared map, indexed by map index.
-    static MAPS: RefCell<Vec<HashMap<u64, u64>>> = const { RefCell::new(Vec::new()) };
+    /// One emulated map per declared map, indexed by map index.
+    static MAPS: RefCell<Vec<EmuMap>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Helper id 1: `bpf_map_lookup`-style. `r0 = MAPS[map][key]` or 0 if absent.
@@ -43,20 +79,43 @@ fn map_get_helper(map: u64, key: u64, _: u64, _: u64, _: u64) -> u64 {
     let Ok(idx) = usize::try_from(map) else {
         return 0;
     };
-    MAPS.with_borrow(|m| m.get(idx).and_then(|t| t.get(&key)).copied().unwrap_or(0))
+    MAPS.with_borrow(|m| {
+        m.get(idx)
+            .and_then(|t| t.store.get(&key))
+            .copied()
+            .unwrap_or(0)
+    })
 }
 
-/// Helper id 2: `bpf_map_update`-style. `MAPS[map][key] = val`.
+/// Helper id 2: `bpf_map_update`-style. `MAPS[map][key] = val`, subject to the
+/// map's capacity and (for arrays) key range.
 fn map_set_helper(map: u64, key: u64, val: u64, _: u64, _: u64) -> u64 {
     let Ok(idx) = usize::try_from(map) else {
         return 0;
     };
     MAPS.with_borrow_mut(|m| {
         if let Some(t) = m.get_mut(idx) {
-            t.insert(key, val);
+            if !t.key_in_range(key) {
+                return;
+            }
+            let new_key = !t.store.contains_key(&key);
+            // A hash map at capacity rejects a brand-new key (E2BIG).
+            if new_key && t.kind == MapKind::Hash && t.store.len() >= t.max_entries as usize {
+                return;
+            }
+            t.store.insert(key, val);
         }
     });
     0
+}
+
+/// Helper id 3: `bpf_map_lookup`-presence. `r0 = 1` when `key` is present,
+/// else `0` — the way to distinguish a missing key from a stored zero.
+fn map_has_helper(map: u64, key: u64, _: u64, _: u64, _: u64) -> u64 {
+    let Ok(idx) = usize::try_from(map) else {
+        return 0;
+    };
+    MAPS.with_borrow(|m| u64::from(m.get(idx).is_some_and(|t| t.store.contains_key(&key))))
 }
 
 /// Run an emitted socket-filter program once over `packet`, returning the
@@ -69,8 +128,8 @@ pub fn run_socket_filter(obj: &EbpfObject, packet: &mut [u8]) -> Result<u64, Str
 }
 
 /// Run an emitted program `times` times over `packet` (sharing one map store),
-/// returning the last verdict and the final state of every emulated map. Useful
-/// for asserting stateful map behaviour (e.g. a counter).
+/// returning the last verdict and the final contents of every emulated map.
+/// Useful for asserting stateful map behaviour (e.g. a counter).
 ///
 /// # Errors
 /// Returns rbpf's load/verify/run error rendered as a string.
@@ -89,7 +148,7 @@ fn run_with_maps(
 ) -> Result<(u64, Vec<HashMap<u64, u64>>), String> {
     MAPS.with_borrow_mut(|m| {
         m.clear();
-        m.resize(obj.maps.len(), HashMap::new());
+        m.extend(obj.maps.iter().map(EmuMap::new));
     });
 
     // Copy the program so the VM's lifetime stays local and unifies with the
@@ -104,9 +163,11 @@ fn run_with_maps(
             .map_err(|e| e.to_string())?;
         vm.register_helper(2, map_set_helper)
             .map_err(|e| e.to_string())?;
+        vm.register_helper(3, map_has_helper)
+            .map_err(|e| e.to_string())?;
         last = vm.execute_program(packet).map_err(|e| e.to_string())?;
     }
 
-    let maps = MAPS.with_borrow(Clone::clone);
+    let maps = MAPS.with_borrow(|m| m.iter().map(|t| t.store.clone()).collect());
     Ok((last, maps))
 }

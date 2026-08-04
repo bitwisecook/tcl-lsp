@@ -22,7 +22,7 @@
 
 use tcl_lexer::Span;
 
-use crate::ty::{Ty, Width};
+use crate::ty::{ByteOrder, Ty, Width};
 
 /// A mutable storage slot (a typed local). Lowered to a fixed stack location by
 /// the backend; slots are mutable like C locals, so control flow needs no phi.
@@ -158,7 +158,20 @@ pub enum Inst {
         /// Source span.
         span: Span,
     },
-    /// `dst = load<width>(ptr + off)` (bounds-checked by the runtime/verifier).
+    /// `dst = load<width>(ptr + off)` — a checked packet read.
+    ///
+    /// The contract every target must honour:
+    ///
+    /// - The load touches the constant byte range `off .. off + width.bytes()`
+    ///   relative to the packet start (the range a dominating bounds proof
+    ///   must cover — there is no dynamic-offset form yet).
+    /// - No static in-bounds proof is attached: the **target** must emit a
+    ///   dominating `ptr + off + width <= data_end` check (or equivalent)
+    ///   before the dereference.
+    /// - When the packet is too short, the program takes the explicit
+    ///   [`OobAction`] — it never reads out of bounds and never traps.
+    /// - Multi-byte results are interpreted per [`ByteOrder`] and
+    ///   zero-extended to 64 bits.
     Load {
         /// Destination slot.
         dst: SlotId,
@@ -168,11 +181,16 @@ pub enum Inst {
         ptr: SlotId,
         /// Byte offset.
         off: i32,
+        /// How the loaded bytes are interpreted.
+        order: ByteOrder,
+        /// What happens when `off + width` exceeds the packet.
+        oob: OobAction,
         /// Source span.
         span: Span,
     },
     /// `dst = map_get(map, key)` — the value for `key`, or `0` if absent (the
-    /// null case is folded to zero by the helper).
+    /// null case is folded to zero by the helper). Use [`Inst::MapHas`] to
+    /// distinguish a missing key from a stored zero.
     MapGet {
         /// Destination slot.
         dst: SlotId,
@@ -183,7 +201,19 @@ pub enum Inst {
         /// Source span.
         span: Span,
     },
-    /// `map_set(map, key, val)` — store `val` for `key`.
+    /// `dst = map_has(map, key)` — 1 when `key` is present, 0 when absent.
+    MapHas {
+        /// Destination slot.
+        dst: SlotId,
+        /// Map index.
+        map: u32,
+        /// Key slot.
+        key: SlotId,
+        /// Source span.
+        span: Span,
+    },
+    /// `map_set(map, key, val)` — store `val` for `key`. Fails silently (the
+    /// stored state is unchanged) when a hash map is at capacity.
     MapSet {
         /// Map index.
         map: u32,
@@ -194,6 +224,16 @@ pub enum Inst {
         /// Source span.
         span: Span,
     },
+}
+
+/// What an out-of-bounds packet read does. Attached to every [`Inst::Load`]
+/// so the failure semantics are explicit in the IR rather than implied by a
+/// target's runtime behaviour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OobAction {
+    /// Terminate the program immediately with this verdict value (the
+    /// program type's drop verdict in v1).
+    ReturnVerdict(i64),
 }
 
 /// How a basic block ends.
@@ -246,26 +286,94 @@ pub enum ProgType {
     Xdp,
 }
 
+/// The kind of a declared map.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MapKind {
+    /// `BPF_MAP_TYPE_HASH` — sparse; a key is absent until stored.
+    Hash,
+    /// `BPF_MAP_TYPE_ARRAY` — preallocated and zero-filled; the key is an
+    /// index (`0 .. max_entries`, key size fixed at 4 bytes) and every
+    /// in-range key is always present.
+    Array,
+}
+
+impl MapKind {
+    /// Parse the DSL map-kind word.
+    #[must_use]
+    pub fn parse(word: &str) -> Option<Self> {
+        match word {
+            "hash" => Some(MapKind::Hash),
+            "array" => Some(MapKind::Array),
+            _ => None,
+        }
+    }
+
+    /// Stable display spelling.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            MapKind::Hash => "hash",
+            MapKind::Array => "array",
+        }
+    }
+}
+
+/// The declared concurrency model of a map.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MapConcurrency {
+    /// One value per key, shared by every invocation (the default). Updates
+    /// from concurrent invocations race — last write wins; there is no
+    /// atomic read-modify-write in v1.
+    #[default]
+    Shared,
+    /// One value per key **per CPU** (`BPF_MAP_TYPE_PERCPU_*`). Declared for
+    /// the kernel target; the single-threaded rbpf harness runs it exactly
+    /// like [`MapConcurrency::Shared`].
+    PerCpu,
+}
+
+impl MapConcurrency {
+    /// Parse the DSL concurrency word.
+    #[must_use]
+    pub fn parse(word: &str) -> Option<Self> {
+        match word {
+            "shared" => Some(MapConcurrency::Shared),
+            "percpu" => Some(MapConcurrency::PerCpu),
+            _ => None,
+        }
+    }
+}
+
 /// A declared BPF map. In v1 maps are integer-keyed, integer-valued (`key` and
-/// `value` are passed by value to the map helpers); the declared sizes are kept
-/// as metadata.
+/// `value` are passed by value to the map helpers); key/value sizes must be
+/// 1, 2, 4, or 8 bytes so a value fits one register.
 #[derive(Debug, Clone)]
 pub struct MapDef {
     /// Map name as written.
     pub name: String,
     /// Dense map index (0-based, in declaration order).
     pub index: u32,
-    /// Declared key size in bytes.
+    /// Map kind (validated at declaration).
+    pub kind: MapKind,
+    /// Declared key size in bytes (1, 2, 4, or 8; exactly 4 for an array).
     pub key_size: u32,
-    /// Declared value size in bytes.
+    /// Declared value size in bytes (1, 2, 4, or 8).
     pub value_size: u32,
-    /// Declared maximum entries.
+    /// Declared maximum entries (enforced: a hash update on a full map with
+    /// a new key fails; an array key is valid only below this bound).
     pub max_entries: u32,
+    /// Declared concurrency model.
+    pub concurrency: MapConcurrency,
     /// Source span of the declaration.
     pub span: Span,
 }
 
 /// A complete, typed, verifier-shaped program.
+///
+/// Slots are allocated by the liveness-based allocator
+/// ([`crate::alloc::assign_slots`]): values with disjoint live ranges share a
+/// stack slot, and `zero_init` lists exactly the slots that may be read
+/// before every write (the only ones a target needs to zero at entry).
 #[derive(Debug, Clone)]
 pub struct BpfProgram {
     /// Program type / attach point.
@@ -274,10 +382,16 @@ pub struct BpfProgram {
     pub entry: BlockId,
     /// All blocks, sorted by [`BlockId`].
     pub blocks: Vec<Block>,
-    /// Number of slots; each occupies 8 bytes of stack.
+    /// Number of allocated slots; each occupies 8 bytes of stack.
     pub num_slots: u32,
     /// Type of each slot, indexed by [`SlotId`].
     pub slot_types: Vec<Ty>,
+    /// Number of values the program computed with *before* liveness-based
+    /// slot reuse (diagnostic metadata for `check` output).
+    pub raw_slot_count: u32,
+    /// Slots that may be read on some path before they are written — the
+    /// target must zero-initialise exactly these at entry. Sorted, deduped.
+    pub zero_init: Vec<SlotId>,
     /// Declared maps, indexed by [`MapDef::index`].
     pub maps: Vec<MapDef>,
 }

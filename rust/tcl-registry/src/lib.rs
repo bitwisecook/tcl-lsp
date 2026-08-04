@@ -55,6 +55,7 @@ pub mod arity;
 pub mod base_objects;
 pub mod bigip;
 pub mod body_kind;
+pub mod bpf_op;
 pub mod byte_array_effect;
 pub mod cache;
 pub mod clause_shape;
@@ -98,6 +99,10 @@ pub mod prelude {
     pub use crate::arg_role::{AppendedArity, ArgRole};
     pub use crate::arity::Arity;
     pub use crate::body_kind::BodyKind;
+    pub use crate::bpf_op::{
+        BpfDeclKind, BpfEffects, BpfOpKind, BpfOpSpec, BpfProgTypeSet, BpfScalarWidth,
+        BpfVerdictKind,
+    };
     pub use crate::byte_array_effect::ByteArrayEffect;
     pub use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
     pub use crate::command_table::CommandTableEffect;

@@ -20,11 +20,13 @@
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
+    const OP: BpfOpSpec = BpfOpSpec::framework(BpfDeclKind::Use);
     CommandSpec {
         name: "use",
         dialects: Some(DialectSet::BPF),
         // `use NAME` plus zero or more `key=value` bindings.
         arity: Arity::at_least(1),
+        bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }
 }

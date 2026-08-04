@@ -90,8 +90,13 @@ The script builds `bpf-tcl`, then demonstrates:
 5. emitted eBPF assembly; and
 6. a map-free `EM_BPF` ELF object inspected with `readelf` when available.
 
-The XDP marker example uses an 8-bit field at byte zero, avoiding the current
-native-endian limitation for multi-byte network fields.
+Multi-byte packet fields are read in the declared byte order. Built-in and
+user profile fields default to network order (big-endian), matching real
+Ethernet/IP/TCP/UDP headers, so a `tcp_dport` comparison works against a
+realistic packet on a little-endian host. A `load8`/`load16`/`load32` verb or a
+`field` declaration may override the order with a trailing `be`, `le`, or
+`native` word; `native` is a compatibility mode for synthetic host-order test
+packets only.
 
 ## Run one example
 

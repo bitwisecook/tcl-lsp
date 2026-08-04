@@ -20,11 +20,13 @@
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
+    const OP: BpfOpSpec = BpfOpSpec::framework(BpfDeclKind::Profile);
     CommandSpec {
         name: "profile",
         dialects: Some(DialectSet::BPF),
         // `profile NAME`  or  `profile NAME { body }`
         arity: Arity::new(1, 2),
+        bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }
 }

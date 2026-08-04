@@ -144,3 +144,4 @@ combine them when more than one form helps:
 - [kcs-feature-claude-code-skills.md](kcs-feature-claude-code-skills.md)
 - [kcs-feature-tcl-pkg.md](kcs-feature-tcl-pkg.md)
 - [kcs-feature-tcl-venv.md](kcs-feature-tcl-venv.md)
+- [kcs-feature-bpf-tcl.md](kcs-feature-bpf-tcl.md)

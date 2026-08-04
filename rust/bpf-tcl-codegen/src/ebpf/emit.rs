@@ -33,15 +33,18 @@
 
 use std::collections::HashMap;
 
-use bpf_tcl_ir::ir::{Block, BpfProgram, CmpOp, Inst, IntBinOp, MapDef, ProgType, Term, UnOp};
-use bpf_tcl_ir::ty::Width;
+use bpf_tcl_ir::ir::{
+    Block, BpfProgram, CmpOp, Inst, IntBinOp, MapDef, OobAction, ProgType, Term, UnOp,
+};
+use bpf_tcl_ir::ty::{ByteOrder, Width};
 use bpf_tcl_ir::{BpfDiag, BpfError};
 use tcl_lexer::Span;
 
 use crate::ebpf::insn::{
-    ADD, AND, ARSH, DIV, Insn, JEQ, JNE, JSGE, JSGT, JSLE, JSLT, LSH, MOD, MUL, OR, R0, R1, R2, R3,
-    R6, R7, R10, SUB, SZ_B, SZ_DW, SZ_H, SZ_W, XOR, alu64_imm, alu64_reg, alu64_reg_off, call,
-    exit, ja, jmp_imm, jmp_reg, ldx, mov64_imm, mov64_reg, neg64, st_imm, stx,
+    ADD, AND, ARSH, DIV, Insn, JEQ, JLE, JNE, JSGE, JSGT, JSLE, JSLT, LSH, MOD, MUL, OR, R0, R1,
+    R2, R3, R6, R7, R10, SUB, SZ_B, SZ_DW, SZ_H, SZ_W, XOR, alu64_imm, alu64_reg, alu64_reg_off,
+    bswap_be, bswap_le, call, exit, ja, jmp_imm, jmp_reg, lddw, ldx, mov64_imm, mov64_reg, neg64,
+    st_imm, stx,
 };
 
 /// Packet `data` pointer (loaded from the metadata buffer; callee-saved).
@@ -58,6 +61,8 @@ const DATA_END_OFF: i16 = 8;
 const MAP_GET_ID: i32 = 1;
 /// Helper id for `map_set`.
 const MAP_SET_ID: i32 = 2;
+/// Helper id for `map_has` (key-presence test).
+const MAP_HAS_ID: i32 = 3;
 
 /// The execution ABI an emitted instruction stream targets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -119,10 +124,13 @@ impl EbpfObject {
 }
 
 /// A not-yet-laid-out instruction. Block jumps carry a target block id resolved
-/// to a relative offset in a second pass. Every variant is exactly one slot, so
-/// the pending index equals the final instruction index.
+/// to a relative offset in a second pass. A `Pending` may expand to more than
+/// one instruction (`Wide` is two), so pending-index and instruction-index are
+/// distinct — a prefix sum maps between them.
 enum Pending {
     Ins(Insn),
+    /// A two-instruction wide-immediate load (`lddw`).
+    Wide([Insn; 2]),
     /// `ja <block>`
     Ja(u32),
     /// `if reg != 0 goto <block>`
@@ -130,6 +138,16 @@ enum Pending {
         reg: u8,
         target: u32,
     },
+}
+
+impl Pending {
+    /// How many machine instructions this pending item expands to.
+    fn len(&self) -> usize {
+        match self {
+            Pending::Wide(_) => 2,
+            _ => 1,
+        }
+    }
 }
 
 /// Stack offset of a slot: slot `i` lives at `[r10 - 8*(i+1)]`.
@@ -167,10 +185,11 @@ pub fn emit_program_for_target(
         pend.push(Pending::Ins(ldx(SZ_DW, RPTR, R1, DATA_OFF)));
         pend.push(Pending::Ins(ldx(SZ_DW, REND, R1, DATA_END_OFF)));
     }
-    // Zero every slot so no value is read before it is written (verifier "init
-    // before read").
-    for i in 0..prog.num_slots {
-        pend.push(Pending::Ins(st_imm(SZ_DW, R10, slot_off(i), 0)));
+    // Zero only the slots that may be read before being written (the
+    // liveness-based zero-init set), not every slot — blanket zeroing wastes
+    // instructions and verifier state. `assign_slots` computed this set.
+    for slot in &prog.zero_init {
+        pend.push(Pending::Ins(st_imm(SZ_DW, R10, slot_off(slot.0), 0)));
     }
 
     // Lay out the entry block first, then the rest in id order.
@@ -184,26 +203,44 @@ pub fn emit_program_for_target(
         }
     }
 
+    // `block_start` keys are *pending* indices; converted to instruction
+    // indices via the prefix sum below.
     let mut block_start: HashMap<u32, usize> = HashMap::new();
     for block in &order {
         block_start.insert(block.id.0, pend.len());
         for inst in &block.insts {
-            emit_inst(inst, &mut pend)?;
+            emit_inst(inst, target_abi, &mut pend)?;
         }
         emit_term(&block.term, &mut pend);
     }
 
-    // Resolve block jumps to relative offsets.
-    let mut insns = Vec::with_capacity(pend.len());
-    for (idx, p) in pend.iter().enumerate() {
-        let insn = match p {
-            Pending::Ins(i) => *i,
-            Pending::Ja(target) => ja(rel_off(idx, block_start[target])?),
-            Pending::JmpNeZero { reg, target } => {
-                jmp_imm(JNE, *reg, 0, rel_off(idx, block_start[target])?)
+    // Prefix sum: instruction index at which each pending item begins.
+    let mut insn_index_of: Vec<usize> = Vec::with_capacity(pend.len() + 1);
+    let mut acc = 0usize;
+    for p in &pend {
+        insn_index_of.push(acc);
+        acc += p.len();
+    }
+    insn_index_of.push(acc);
+    let block_insn_start = |pend_idx: usize| -> usize { insn_index_of[pend_idx] };
+
+    // Resolve block jumps to relative offsets in instruction units.
+    let mut insns = Vec::with_capacity(acc);
+    for (pend_idx, p) in pend.iter().enumerate() {
+        let here = insn_index_of[pend_idx];
+        match p {
+            Pending::Ins(i) => insns.push(*i),
+            Pending::Wide(pair) => insns.extend_from_slice(pair),
+            Pending::Ja(target) => {
+                insns.push(ja(rel_off(here, block_insn_start(block_start[target]))?));
             }
-        };
-        insns.push(insn);
+            Pending::JmpNeZero { reg, target } => insns.push(jmp_imm(
+                JNE,
+                *reg,
+                0,
+                rel_off(here, block_insn_start(block_start[target]))?,
+            )),
+        }
     }
     Ok(EbpfObject::assemble(
         target_abi,
@@ -236,7 +273,9 @@ fn validate_target(prog: &BpfProgram, target_abi: TargetAbi) -> Result<(), BpfEr
             Inst::CtxPtr { span, .. } => (Some("`setbuf`"), *span),
             Inst::CtxLen { span, .. } => (Some("`pktlen`"), *span),
             Inst::Load { span, .. } => (Some("packet loads"), *span),
-            Inst::MapGet { span, .. } | Inst::MapSet { span, .. } => (Some("map access"), *span),
+            Inst::MapGet { span, .. } | Inst::MapHas { span, .. } | Inst::MapSet { span, .. } => {
+                (Some("map access"), *span)
+            }
             _ => (None, Span::empty(0)),
         };
         if let Some(operation) = unsupported {
@@ -264,17 +303,17 @@ fn rel_off(from: usize, to: usize) -> Result<i16, BpfError> {
     })
 }
 
-fn emit_inst(inst: &Inst, pend: &mut Vec<Pending>) -> Result<(), BpfError> {
+fn emit_inst(inst: &Inst, target_abi: TargetAbi, pend: &mut Vec<Pending>) -> Result<(), BpfError> {
     match inst {
-        Inst::Const { dst, val, span } => {
-            let imm = i32::try_from(*val).map_err(|_| {
-                BpfError::new(
-                    BpfDiag::BadInt,
-                    *span,
-                    format!("constant {val} is out of 32-bit range (a v1 limitation)"),
-                )
-            })?;
-            pend.push(Pending::Ins(mov64_imm(R1, imm)));
+        Inst::Const { dst, val, .. } => {
+            // A value fitting a sign-extended 32-bit immediate uses the single
+            // `mov`; a full 64-bit constant uses the two-instruction `lddw`
+            // (`RUST_ISSUE_172`: large constants must materialise correctly).
+            if let Ok(imm) = i32::try_from(*val) {
+                pend.push(Pending::Ins(mov64_imm(R1, imm)));
+            } else {
+                pend.push(Pending::Wide(lddw(R1, *val)));
+            }
             pend.push(Pending::Ins(stx(SZ_DW, R10, R1, slot_off(dst.0))));
         }
         Inst::Copy { dst, src, .. } => {
@@ -321,29 +360,19 @@ fn emit_inst(inst: &Inst, pend: &mut Vec<Pending>) -> Result<(), BpfError> {
             pend.push(Pending::Ins(alu64_reg(SUB, R1, RPTR)));
             pend.push(Pending::Ins(stx(SZ_DW, R10, R1, slot_off(dst.0))));
         }
-        Inst::Load {
-            dst,
-            width,
-            ptr,
-            off,
-            span,
-        } => {
-            let off16 = i16::try_from(*off).map_err(|_| {
-                BpfError::new(
-                    BpfDiag::BadInt,
-                    *span,
-                    "load offset out of range (must fit in 16 bits)",
-                )
-            })?;
-            pend.push(Pending::Ins(ldx(SZ_DW, R1, R10, slot_off(ptr.0))));
-            pend.push(Pending::Ins(ldx(width_size(*width), R2, R1, off16)));
-            pend.push(Pending::Ins(stx(SZ_DW, R10, R2, slot_off(dst.0))));
-        }
+        load @ Inst::Load { .. } => emit_load(load, target_abi, pend)?,
         Inst::MapGet { dst, map, key, .. } => {
             // r1 = map index, r2 = key; r0 = map_get(...); store r0.
             pend.push(Pending::Ins(mov64_imm(R1, map_imm(*map))));
             pend.push(Pending::Ins(ldx(SZ_DW, R2, R10, slot_off(key.0))));
             pend.push(Pending::Ins(call(MAP_GET_ID)));
+            pend.push(Pending::Ins(stx(SZ_DW, R10, R0, slot_off(dst.0))));
+        }
+        Inst::MapHas { dst, map, key, .. } => {
+            // r1 = map index, r2 = key; r0 = map_has(...) (1 present / 0 absent).
+            pend.push(Pending::Ins(mov64_imm(R1, map_imm(*map))));
+            pend.push(Pending::Ins(ldx(SZ_DW, R2, R10, slot_off(key.0))));
+            pend.push(Pending::Ins(call(MAP_HAS_ID)));
             pend.push(Pending::Ins(stx(SZ_DW, R10, R0, slot_off(dst.0))));
         }
         Inst::MapSet { map, key, val, .. } => {
@@ -354,6 +383,79 @@ fn emit_inst(inst: &Inst, pend: &mut Vec<Pending>) -> Result<(), BpfError> {
             pend.push(Pending::Ins(call(MAP_SET_ID)));
         }
     }
+    Ok(())
+}
+
+/// Emit a checked packet load honouring its byte order and out-of-bounds
+/// action. Under the rbpf metadata-buffer ABI the callee-saved `r7` holds
+/// `data_end`, so the load first proves the field lies inside the packet:
+///
+/// ```text
+///   r2 = base                       ; the bound packet pointer
+///   r2 += off + width               ; one past the field
+///   if r2 <= r7 goto +2             ; in bounds → skip the OOB return
+///   r0 = <oob verdict>; exit        ; short packet → take the OOB action
+///   r2 = *(width *)(base + off)      ; the load itself
+///   r2 = bswap(r2)                   ; byte-order conversion (multi-byte only)
+///   store r2
+/// ```
+///
+/// This is the verifier-safe shape (a dominating `ptr + off + width <=
+/// data_end` check before the dereference), so a short packet returns the
+/// declared verdict instead of trapping in the simulator.
+fn emit_load(load: &Inst, target_abi: TargetAbi, pend: &mut Vec<Pending>) -> Result<(), BpfError> {
+    let Inst::Load {
+        dst,
+        width,
+        ptr,
+        off,
+        order,
+        oob,
+        span,
+    } = load
+    else {
+        return Err(BpfError::new(
+            BpfDiag::Internal,
+            Span::empty(0),
+            "emit_load called with a non-load instruction",
+        ));
+    };
+    let (dst, width, ptr, off, order, oob, span) = (*dst, *width, *ptr, *off, *order, *oob, *span);
+    let off16 = i16::try_from(off).map_err(|_| {
+        BpfError::new(
+            BpfDiag::BadInt,
+            span,
+            "load offset out of range (must fit in 16 bits)",
+        )
+    })?;
+    // Only the rbpf simulator target reaches codegen with a packet load; the
+    // kernel-XDP slice rejects context access in `validate_target`. When a
+    // kernel context ABI lands it emits its own proof against `xdp_md`.
+    debug_assert_eq!(target_abi, TargetAbi::RbpfFixedMbuff);
+    let field_end = i32::try_from(width.bytes()).unwrap_or(0) + off;
+    let OobAction::ReturnVerdict(verdict) = oob;
+    let vimm = i32::try_from(verdict).unwrap_or(0);
+
+    // Bounds proof: r2 = base + field_end; if r2 <= data_end skip the return.
+    pend.push(Pending::Ins(ldx(SZ_DW, R2, R10, slot_off(ptr.0))));
+    pend.push(Pending::Ins(alu64_imm(ADD, R2, field_end)));
+    pend.push(Pending::Ins(jmp_reg(JLE, R2, R7, 2)));
+    pend.push(Pending::Ins(mov64_imm(R0, vimm)));
+    pend.push(Pending::Ins(exit()));
+
+    // The load itself, from the original base pointer.
+    pend.push(Pending::Ins(ldx(SZ_DW, R1, R10, slot_off(ptr.0))));
+    pend.push(Pending::Ins(ldx(width_size(width), R2, R1, off16)));
+    // Byte-order conversion (a single-byte field needs none).
+    if width != Width::B8 {
+        let bits = i32::try_from(width.bytes()).unwrap_or(0) * 8;
+        match order {
+            ByteOrder::Big => pend.push(Pending::Ins(bswap_be(R2, bits))),
+            ByteOrder::Little => pend.push(Pending::Ins(bswap_le(R2, bits))),
+            ByteOrder::Native => {}
+        }
+    }
+    pend.push(Pending::Ins(stx(SZ_DW, R10, R2, slot_off(dst.0))));
     Ok(())
 }
 
@@ -382,15 +484,19 @@ fn emit_term(term: &Term, pend: &mut Vec<Pending>) {
 
 /// Map an [`IntBinOp`] to its eBPF ALU opcode plus the instruction `off` field.
 ///
-/// Tcl integers are signed 64-bit — the CFG lowers comparisons to signed jumps
-/// (`JSLT`, …) and uses sign-extending moves — so `/`, `%`, and `>>` must use the
-/// **signed** eBPF ops. `BPF_SDIV` / `BPF_SMOD` are encoded as `DIV` / `MOD` with
-/// `off == 1`; the plain unsigned `DIV` / `MOD` (off 0) reinterpret a negative
-/// operand as a huge unsigned value, giving a catastrophically wrong result
-/// silently (`RUST_ISSUE_031`). `>>` likewise lowers to the arithmetic
-/// (sign-preserving) `ARSH`, not the logical `RSH`, so `-8 >> 1` is `-4` as Tcl
-/// requires rather than a huge positive (`RUST_ISSUE_062` / `097`). Every other
-/// op keeps `off == 0`.
+/// **Integer-semantics contract.** BPF-Tcl integers are signed 64-bit, but
+/// `/` and `%` follow eBPF's **signed truncated-toward-zero** division
+/// (`BPF_SDIV` / `BPF_SMOD`), *not* Tcl's floor division. The two agree for
+/// operands of the same sign and diverge only when exactly one operand is
+/// negative: `-7 / 2` is `-3` here (truncation) where Tcl yields `-4` (floor),
+/// and `-7 % 2` is `-1` here where Tcl yields `1`. This narrower, verifier-
+/// native contract is deliberate and documented (issue #1202); the front-end
+/// does not silently pretend to be Tcl. `BPF_SDIV` / `BPF_SMOD` are encoded as
+/// `DIV` / `MOD` with `off == 1`; the plain unsigned forms (off 0) reinterpret
+/// a negative operand as a huge unsigned value, giving a catastrophically
+/// wrong result (`RUST_ISSUE_031`). `>>` lowers to the arithmetic
+/// (sign-preserving) `ARSH`, not the logical `RSH`, so `-8 >> 1` is `-4`
+/// (`RUST_ISSUE_062` / `097`). Every other op keeps `off == 0`.
 fn bin_alu(op: IntBinOp) -> (u8, i16) {
     match op {
         IntBinOp::Add => (ADD, 0),
@@ -453,7 +559,10 @@ mod tests {
         let obj = emit_program_for_target(&module.programs[0].program, TargetAbi::KernelXdp)
             .expect("emits for the kernel");
         assert_eq!(obj.target_abi, TargetAbi::KernelXdp);
-        assert_eq!(obj.insns.len(), 5);
+        // No prologue and no slot zeroing (the `pass` verdict's slot is
+        // written before it is read, so the liveness-based zero-init set is
+        // empty): `mov r1,2; stx; ldx r0; exit` — four instructions.
+        assert_eq!(obj.insns.len(), 4);
         assert_ne!(obj.insns[0], ldx(SZ_DW, R6, R1, 0));
         assert_eq!(obj.insns.last().unwrap().op, 0x95);
     }

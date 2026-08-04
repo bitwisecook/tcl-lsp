@@ -106,13 +106,34 @@ fn cmd_check(args: &[String]) -> ExitCode {
                     .attach
                     .as_ref()
                     .map_or_else(String::new, |a| format!(", attach {} {}", a.kind, a.target));
+                // Show slot reuse when the liveness allocator saved any: N
+                // physical slots reused from M computed values.
+                let reuse = if d.program.raw_slot_count > d.program.num_slots {
+                    format!(" (reused from {})", d.program.raw_slot_count)
+                } else {
+                    String::new()
+                };
                 println!(
-                    "  when {} (priority {}, {} slots, {} blocks{attach})",
+                    "  when {} (priority {}, {} slots{reuse}, {} bytes stack, {} blocks{attach})",
                     d.event,
                     d.priority,
                     d.program.num_slots,
+                    d.program.num_slots * 8,
                     d.program.blocks.len()
                 );
+                if !d.program.maps.is_empty() {
+                    for m in &d.program.maps {
+                        println!(
+                            "    map {} ({} key={}B val={}B max={} {:?})",
+                            m.name,
+                            m.kind.as_str(),
+                            m.key_size,
+                            m.value_size,
+                            m.max_entries,
+                            m.concurrency
+                        );
+                    }
+                }
             }
             ExitCode::SUCCESS
         }
