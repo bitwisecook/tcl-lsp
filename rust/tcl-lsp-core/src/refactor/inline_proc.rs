@@ -154,7 +154,7 @@ fn plan_inline(
                 .to_string(),
         );
     }
-    let body = single_command_body(source, proc_def, registry)?;
+    let body = single_command_body(source, proc_def)?;
     let bindings = bind_arguments(source, call, proc_def)?;
     reject_frame_sensitive_body(&body, registry)?;
     reject_body_variable_writes(&body, registry)?;
@@ -175,7 +175,6 @@ struct BodyCommand {
 fn single_command_body(
     source: &str,
     proc_def: &tcl_compiler::analyser::ProcDef,
-    registry: &CommandRegistry,
 ) -> Result<BodyCommand, String> {
     let span = proc_def.body_span;
     let raw = source
@@ -209,7 +208,6 @@ fn single_command_body(
         ));
     }
     let command = commands.into_iter().next().expect("length checked above");
-    let _ = registry;
     Ok(BodyCommand { text, command })
 }
 
