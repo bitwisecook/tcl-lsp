@@ -65,7 +65,7 @@ fn usage() {
     eprintln!(
         "usage:\n  \
          bpf-tcl check   <file.bpftcl>\n  \
-         bpf-tcl compile <file.bpftcl> [--target rbpf|kernel-xdp] [--emit asm|hex|raw|elf] [--program N] [-o OUT]\n  \
+         bpf-tcl compile <file.bpftcl> [--target rbpf|kernel-xdp|kernel-socket] [--emit asm|hex|raw|elf] [--program N] [-o OUT]\n  \
          bpf-tcl run     <file.bpftcl> --packet <HEX> [--program N] [--repeat N]"
     );
 }
@@ -163,8 +163,11 @@ fn cmd_compile(args: &[String]) -> ExitCode {
                 target_abi = match value.as_str() {
                     "rbpf" => TargetAbi::RbpfFixedMbuff,
                     "kernel-xdp" => TargetAbi::KernelXdp,
+                    "kernel-socket" | "kernel-socket-filter" => TargetAbi::KernelSocketFilter,
                     other => {
-                        eprintln!("compile: unknown --target `{other}` (want rbpf|kernel-xdp)");
+                        eprintln!(
+                            "compile: unknown --target `{other}` (want rbpf|kernel-xdp|kernel-socket)"
+                        );
                         return ExitCode::FAILURE;
                     }
                 };

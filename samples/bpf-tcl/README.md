@@ -1,10 +1,14 @@
 # BPF-Tcl userspace demos
 
-These demos exercise both backend targets that exist today. The default `rbpf`
+These demos exercise the backend targets that exist today. The default `rbpf`
 target executes real eBPF instructions over synthetic packet bytes in a
-userspace virtual machine. The explicit `kernel-xdp` target supports a small,
-map-free, verdict-only XDP subset that the Linux kernel can verifier-load and
-test-run.
+userspace virtual machine. The explicit `kernel-xdp` (`struct xdp_md`) and
+`kernel-socket` (`struct __sk_buff`) targets emit Linux-loadable objects with
+real context access, verifier-safe packet bounds proofs, and BTF-defined maps
+with relocations (issue #1203). The map-free verdict-only XDP demo below is
+verifier-loaded and test-run end to end; the packet-access and map objects are
+validated structurally here and load on a real kernel behind the `#[ignore]`d
+`rust/bpf-tcl/tests/kernel_load.rs` gate.
 
 The clean-room instructions and full script were validated on Ubuntu 26.04
 with Rust 1.97.0, GNU `readelf`, and LLVM 21.

@@ -70,6 +70,19 @@ pub const DW: u8 = 0x18;
 // (`K`) bit clear it converts to little-endian; the `X` bit selects big-endian.
 pub const END: u8 = 0xd0;
 
+/// `BPF_PSEUDO_MAP_FD` — the `src_reg` value of a `ld_imm64` whose immediate is
+/// a map file descriptor. libbpf rewrites such an instruction's immediate to the
+/// real map fd at load time, driven by an ELF relocation against the map symbol.
+pub const PSEUDO_MAP_FD: u8 = 1;
+
+// ── kernel helper ids (`BPF_FUNC_*` from the UAPI helper table) ──────────────
+/// `bpf_map_lookup_elem(map, key) -> value_ptr_or_null`.
+pub const FN_MAP_LOOKUP: i32 = 1;
+/// `bpf_map_update_elem(map, key, value, flags) -> 0/err`.
+pub const FN_MAP_UPDATE: i32 = 2;
+/// `bpf_map_delete_elem(map, key) -> 0/err`.
+pub const FN_MAP_DELETE: i32 = 3;
+
 // ── ALU / JMP source ────────────────────────────────────────────────────────
 pub const K: u8 = 0x00; // immediate
 pub const X: u8 = 0x08; // src register
@@ -123,6 +136,7 @@ pub const R3: u8 = 3;
 pub const R4: u8 = 4;
 pub const R6: u8 = 6;
 pub const R7: u8 = 7;
+pub const R8: u8 = 8;
 pub const R10: u8 = 10;
 
 // ── builders ───────────────────────────────────────────────────────────────
@@ -284,13 +298,22 @@ pub fn call(helper_id: i32) -> Insn {
 /// 32 bits ride in the first instruction's `imm`, the high 32 bits in the
 /// second's; the second instruction has a zero opcode by convention.
 pub fn lddw(dst: u8, imm: i64) -> [Insn; 2] {
+    lddw_src(dst, 0, imm)
+}
+
+/// `dst = <pseudo imm64>` — a wide-immediate load with an explicit `src_reg`.
+///
+/// A `src_reg` of [`PSEUDO_MAP_FD`] marks the immediate as a map file
+/// descriptor placeholder (zero here), to be rewritten by libbpf from a
+/// relocation against the map symbol.
+pub fn lddw_src(dst: u8, src: u8, imm: i64) -> [Insn; 2] {
     let lo = (imm & 0xffff_ffff) as i32;
     let hi = ((imm >> 32) & 0xffff_ffff) as i32;
     [
         Insn {
             op: LD | IMM | DW,
             dst,
-            src: 0,
+            src,
             off: 0,
             imm: lo,
         },

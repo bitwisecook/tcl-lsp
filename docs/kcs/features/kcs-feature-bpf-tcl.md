@@ -6,8 +6,9 @@
 ## Summary
 
 BPF-Tcl is a small, statically typed packet-programming language with Tcl
-syntax that compiles to eBPF and runs under a userspace simulator (with a
-verdict-only kernel-XDP slice).
+syntax that compiles to eBPF and runs under a userspace simulator, and also
+emits Linux-loadable XDP and socket-filter objects with real context access,
+bounds-checked packet reads, and maps.
 
 ## Applies to
 
@@ -26,7 +27,10 @@ with `load8` / `load16` / `load32`, keep state in a `map`, and end every path
 with an explicit verdict — `accept` / `drop` for a socket filter, or
 `pass` / `drop` / `tx` for XDP. Build the CLI with `make rust-clis` (the
 binary is `bpf-tcl`), then run `bpf-tcl check FILE`, `bpf-tcl compile FILE`,
-or `bpf-tcl run FILE --packet HEX`.
+or `bpf-tcl run FILE --packet HEX`. `bpf-tcl compile FILE --emit elf` writes an
+ELF object; add `--target kernel-xdp` or `--target kernel-socket` for a
+Linux-loadable object (the default `--target rbpf` is a simulator artefact for
+inspection).
 
 Key contracts to know:
 
@@ -70,8 +74,13 @@ bpf-tcl run   drop-ssh.bpftcl --packet 00...   # simulate over a hex packet
 ## Limits
 
 The default target is the userspace `rbpf` simulator. The explicit
-`kernel-xdp` target (`--target kernel-xdp`) currently compiles only map-free,
-verdict-only XDP handlers; kernel packet access, kernel maps, and live
-attachment are follow-on work. See
+`kernel-xdp` and `kernel-socket` targets (`--target kernel-xdp` /
+`--target kernel-socket`) emit Linux-loadable objects with `struct xdp_md` /
+`struct __sk_buff` context access, verifier-safe packet bounds proofs, and
+BTF-defined maps with relocations. The emitted objects are validated in the test
+suite with `readelf`/`llvm-objdump` and an in-repo verifier model; the actual
+`bpf()` kernel load needs root and a live kernel, so it runs behind an
+`#[ignore]`d test (`rust/bpf-tcl/tests/kernel_load.rs`). Live attachment
+(links, pins, interface configuration) is still follow-on work. See
 [`docs/design/compiler/ebpf-backend.md`](../../design/compiler/ebpf-backend.md)
 for the full architecture and roadmap.

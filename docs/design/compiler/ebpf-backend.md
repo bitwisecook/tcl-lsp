@@ -1,9 +1,16 @@
 # BPF-Tcl eBPF backend architecture and production roadmap
 
-> **Status:** Experimental dual-target backend, audited 2026-08-01.
+> **Status:** Experimental multi-target backend, kernel codegen landed
+> 2026-08-04 (issue #1203).
 > The default target runs under the bundled `rbpf` harness. The explicit
-> `kernel-xdp` target now verifier-loads and test-runs map-free, verdict-only
-> XDP handlers; packet access, maps, and live attachment remain future work.
+> `kernel-xdp` and `kernel-socket` targets emit Linux-loadable objects with real
+> `struct xdp_md` / `struct __sk_buff` context lowering, verifier-safe packet
+> bounds proofs, BTF-defined maps, and map relocations. Rootless tests validate
+> the objects with `readelf`/`llvm-objdump` and an in-repo verifier model;
+> genuine kernel `bpf()` load and `BPF_PROG_TEST_RUN` acceptance is gated behind
+> an `#[ignore]`d privileged test (`rust/bpf-tcl/tests/kernel_load.rs`), since
+> loading needs root and a live kernel. Live attachment (links/pins) remains
+> issue #1204 work.
 
 ## Purpose
 
@@ -26,14 +33,14 @@ flowchart TB
     TclIR["Shared Tcl front-end<br/>lexer → command IR → CFG"]
     BpfIR["BPF-IR<br/>typed slots, blocks, loads, map ops,<br/>branches, typed verdict"]
     Codegen["eBPF codegen<br/>stack-machine lowering, jumps,<br/>raw bytes, disassembly, ELF wrapper"]
-    Rbpf["Current target<br/>rbpf FixedMbuff userspace VM"]
-    Kernel["Current kernel-xdp slice<br/>map-free verdict-only XDP"]
-    Production["Required production expansion<br/>context ABI, verifier proofs,<br/>maps/relocations, loader and links"]
+    Rbpf["Simulator target<br/>rbpf FixedMbuff userspace VM"]
+    Kernel["Kernel targets<br/>kernel-xdp (xdp_md) /<br/>kernel-socket (__sk_buff):<br/>context lowering, verifier proofs,<br/>BTF maps + relocations"]
+    Loader["Loader and links<br/>attach lifecycle, pins,<br/>handler composition (issue #1204)"]
 
     Source --> Framework --> Core --> TclIR --> BpfIR --> Codegen
     Codegen --> Rbpf
     Codegen --> Kernel
-    Kernel -. incomplete .-> Production
+    Kernel -. future .-> Loader
 ```
 
 The important boundary is BPF-IR. Framework conveniences must expand into
@@ -45,42 +52,77 @@ framework.
 ## Layer 1: low-level eBPF code generation
 
 `bpf-tcl-codegen/src/ebpf/` implements an instruction encoder, a two-pass block
-layout, a disassembler, and a hand-written ELF64 relocatable-object writer.
+layout, a disassembler, a hand-written ELF64 relocatable-object writer, a BTF
+writer, and an in-repo verifier model.
 
-The default `rbpf` emitter uses a simple and predictable strategy:
+There are three execution ABIs, selected by [`TargetAbi`](../../../rust/bpf-tcl-codegen/src/ebpf/emit.rs)
+and requested on the CLI with `--target`:
 
-1. `r1` points to an `rbpf` metadata buffer containing 64-bit `data` and
-   `data_end` pointers at offsets 0 and 8.
-2. The prologue copies those pointers into callee-saved `r6` and `r7`.
-3. Every BPF-IR slot owns one eight-byte eBPF stack location.
-4. Each instruction reloads operands into scratch registers, computes the
-   result, and writes it back to the stack.
-5. A second pass resolves block IDs to signed 16-bit relative jumps.
-6. Map operations call userspace helper IDs 1 and 2 with map indexes and
-   integer keys and values passed by value.
+| Target | Context | Packet `data`/`data_end` | Map ABI |
+|---|---|---|---|
+| `rbpf` (default) | `rbpf` metadata buffer | 64-bit words at ctx+0 / ctx+8 | by-value userspace helper ids 1/2/3 |
+| `kernel-xdp` | `struct xdp_md` | 32-bit fields at ctx+0 / ctx+4 | BTF-defined maps + `bpf_map_*` helpers |
+| `kernel-socket` | `struct __sk_buff` | 32-bit fields at ctx+76 / ctx+80 | BTF-defined maps + `bpf_map_*` helpers |
 
-This is a good reference backend: the mapping from BPF-IR to instructions is
-easy to inspect, deterministic, and covered end to end under `rbpf`. Its packet
-and map operations are not a Linux-kernel ABI:
+All three share one lowering strategy:
 
-- XDP's real context is `struct xdp_md`, whose `data` and `data_end` fields are
-  32-bit offsets in the context, not 64-bit pointers at offsets 0 and 8.
-- A socket filter receives `struct __sk_buff`; it does not share the XDP direct
-  packet-access ABI.
-- Packet loads have no emitted `data_end` proof before dereference. The `rbpf`
-  VM bounds-checks them at execution time, but the kernel verifier would reject
-  them.
-- Map helpers need map file descriptors or BTF-defined maps, pointer arguments,
-  helper-compatible value lifetimes, and ELF relocations. The current ELF
-  writer rejects every object containing a map.
-- The ELF writer records a conventional program section and GPL licence, but
-  `attach` is metadata only and there is no loader.
+1. A prologue loads `data` into callee-saved `r6` and `data_end` into `r7` (a
+   verdict-only kernel program that never touches the packet skips the prologue
+   entirely).
+2. Every BPF-IR slot owns one eight-byte eBPF stack location.
+3. Each instruction reloads operands into scratch registers, computes, and
+   writes back to the stack.
+4. A second pass resolves block IDs to signed 16-bit relative jumps and records
+   map-fd relocations.
 
-The explicit `kernel-xdp` ABI omits the simulator prologue and currently accepts
-only map-free XDP programs that do not read packet context. This verdict-only
-slice produces kernel-loadable ELF. Default `bpf-tcl compile --emit elf`
-remains an `rbpf` object for `readelf` and `llvm-objdump`; kernel objects must
-be requested with `--target kernel-xdp`. Neither target performs live
+**Context and packet access.** Under a kernel target the prologue reads the
+32-bit `data`/`data_end` context fields, which the verifier rewrites into a
+`PTR_TO_PACKET` / `PTR_TO_PACKET_END`. Every packet load emits a dominating
+bounds proof before the dereference:
+
+```text
+r2 = r6                 ; r6 holds the packet pointer (data)
+r2 += off + width       ; one past the field
+if r2 <= r7 goto +2     ; in bounds → skip the OOB return
+r0 = <oob verdict>; exit
+r2 = *(width *)(r6 + off)
+```
+
+Because the compared register (`r2 = r6 + C`) and the load base (`r6`) share a
+packet-pointer id, proving `r6 + C <= data_end` teaches the verifier that
+`r6 + off` (with `off < C`) is in bounds — the canonical direct-packet-access
+idiom. The out-of-bounds verdict is the program type's drop value
+(`XDP_DROP` / socket `0`). Multi-byte fields are converted with `BPF_END`
+according to the field's declared byte order.
+
+**Maps.** A kernel map operation spills its integer key (and, for a store, its
+value) into stack scratch cells above the slot region, loads the map file
+descriptor with a pseudo `ld_imm64` (`src = BPF_PSEUDO_MAP_FD`, immediate zero),
+and calls `bpf_map_lookup_elem` / `bpf_map_update_elem`. Each pseudo map-fd load
+is recorded as a relocation the ELF writer emits against the map's symbol, so
+libbpf patches in the real fd at load time. A lookup result is null-checked
+before its value is read.
+
+**BTF-defined maps and relocations.** The ELF writer emits a BTF-defined `.maps`
+section (each map a global object symbol over a zero-filled struct variable), a
+`.BTF` section describing each map's type/key-size/value-size/max-entries via the
+array-encoded libbpf form, and a `.rel<prog>` section with one `R_BPF_64_64`
+entry per map-fd load. `map_flags`, per-CPU map types, and array vs hash all flow
+from the typed `MapDef`. `readelf` and `llvm-objdump` parse the object, and the
+relocations name the map symbols.
+
+**Verifier model.** `verifier.rs` is a rootless structural checker of the safety
+invariants the kernel verifier enforces on our own output: exit reachability,
+correct context-field prologue, a dominating `data_end` proof before every
+packet dereference, a relocation for every pseudo map-fd load, and in-range stack
+accesses. It is *not* the kernel verifier — genuine `bpf()` acceptance is a
+separate `#[ignore]`d privileged test — but it catches a codegen regression that
+would make the kernel reject a program, without needing root.
+
+The `rbpf` simulator target is unchanged: `data`/`data_end` are 64-bit metadata
+words and map helpers pass keys/values by value. `bpf-tcl compile --emit elf`
+defaults to the `rbpf` object for inspection; kernel objects are requested with
+`--target kernel-xdp` or `--target kernel-socket`. No target performs live
 attachment.
 
 ### Linux verifier experiment
@@ -98,13 +140,22 @@ invalid bpf_context access off=0 size=8
 This isolated the first production blocker precisely: ELF structure was not the
 problem. The `rbpf` context prologue is invalid for `struct xdp_md`.
 
-The first fix introduced a separate `kernel-xdp` target and made it reject all
-context and map operations until their verifier-safe lowering exists. A
-five-instruction `pass` handler was then accepted by the Linux 6.17 verifier
-with a stack depth of eight bytes. `BPF_PROG_TEST_RUN` over a 64-byte synthetic
-frame returned `2` (`XDP_PASS`) in 232 ns. Neither experiment attached to an
-interface, and the temporary pins, objects, packets, logs, and copied tool were
-removed from the host.
+The first fix (issue #1205) introduced a separate `kernel-xdp` target as a
+map-free, verdict-only vertical slice. A five-instruction `pass` handler was
+accepted by the Linux 6.17 verifier with a stack depth of eight bytes, and
+`BPF_PROG_TEST_RUN` over a 64-byte synthetic frame returned `2` (`XDP_PASS`) in
+232 ns. Neither experiment attached to an interface, and the temporary pins,
+objects, packets, logs, and copied tool were removed from the host.
+
+Issue #1203 then made context access, packet loads, and maps real for both a
+`kernel-xdp` (`struct xdp_md`) and a `kernel-socket` (`struct __sk_buff`) target,
+with dominating verifier bounds proofs, BTF-defined maps, and `R_BPF_64_64`
+relocations. That kernel codegen is validated in this repository structurally
+(`readelf`/`llvm-objdump`) and against the in-repo verifier model; the privileged
+`bpf()` load + `BPF_PROG_TEST_RUN` acceptance for the packet-access and map
+programs is written but gated behind `#[ignore]` (it needs root and a live
+kernel), so a maintainer re-runs it on a Linux host — see
+`rust/bpf-tcl/tests/kernel_load.rs`.
 
 ## Layer 2: typed low-level language and BPF-IR
 
@@ -174,10 +225,10 @@ The framework processes declarations in this order:
 
 ### Events handled today
 
-| Event | Alias | Input available to the program | Valid explicit verdicts | Current execution |
+| Event | Alias | Input available to the program | Valid explicit verdicts | Targets |
 |---|---|---|---|---|
-| `SOCKET_FILTER` | `SOCKET` | Synthetic packet bytes and length | `accept ?N?`, `drop` | `rbpf` userspace VM; result is an accepted byte count. |
-| `XDP` | — | The same synthetic packet model | `pass`, `drop`, `tx` | `rbpf` userspace VM; result is an XDP action number. |
+| `SOCKET_FILTER` | `SOCKET` | Packet bytes and length (`__sk_buff` on the kernel) | `accept ?N?`, `drop` | `rbpf` simulator; `--target kernel-socket` emits a loadable object (accepted byte count / `0`). |
+| `XDP` | — | Packet bytes and length (`xdp_md` on the kernel) | `pass`, `drop`, `tx` | `rbpf` simulator; `--target kernel-xdp` emits a loadable object (XDP action number). |
 
 There are no TC, cgroup, tracepoint, kprobe, uprobe, perf-event, LSM, socket-op,
 or syscall events. There is no event-specific metadata such as interface index,
@@ -204,25 +255,34 @@ loader therefore cannot yet preserve the apparent multi-handler semantics.
 
 ## Verified design issues
 
-### Production blockers
+### Kernel codegen (issue #1203) — resolved
 
-1. **The kernel target is only a verdict-only vertical slice.** It intentionally
-   rejects context access and maps. XDP context lowering and a separate socket-
-   filter ABI still need to be implemented.
-2. **No verifier-visible packet bounds checks.** Source can guard `pktlen`
-   manually, but the emitted pointer arithmetic and load do not express the
-   proof required by the kernel verifier.
-3. **No kernel maps or relocations.** Map kind, key/value sizes, and capacity
-   are metadata in the simulator; capacity is not enforced. ELF rejects maps.
-4. **Kernel-target packet fields need a kernel context ABI.** The BPF-IR and
-   the rbpf target now interpret multi-byte fields in the declared byte order
-   (built-in profiles default to network order, matching real headers), but the
-   *kernel* XDP/socket-filter context lowering that consumes this is issue
-   #1203 work. On the rbpf target this is resolved; on the kernel target it is
-   pending.
-5. **No loader or attachment lifecycle.** `attach xdp eth0` does not create a
+These were the subject of [issue #1203](https://github.com/bitwisecook/tcl-lsp/issues/1203)
+and are now **implemented**, validated structurally and against the in-repo
+verifier model (real `bpf()` acceptance is gated behind an `#[ignore]`d test):
+
+1. **Explicit target ABIs with separate context lowering.** `rbpf`, `kernel-xdp`
+   (`struct xdp_md`), and `kernel-socket` (`struct __sk_buff`) each own their
+   context field offsets, prologue, and helper ABI. *(Resolved.)*
+2. **Verifier-visible packet bounds checks.** Every packet load emits a
+   dominating `data + off + width <= data_end` proof against the packet pointer,
+   using the shared-id direct-packet-access idiom, and takes the program type's
+   drop verdict on a short packet. *(Resolved.)*
+3. **Kernel maps and relocations.** Kernel targets emit BTF-defined `.maps`, a
+   `.BTF` section, and `R_BPF_64_64` relocations for each pseudo map-fd load;
+   map ops lower to `bpf_map_lookup_elem`/`bpf_map_update_elem` with
+   stack-resident keys/values and null checks. Map kind, key/value size,
+   capacity, and per-CPU concurrency flow from the typed `MapDef`. *(Resolved.)*
+4. **Network-byte-order fields.** Multi-byte loads convert with `BPF_END` per the
+   declared byte order on both the rbpf and kernel paths (verified against
+   Ethernet/IPv4/TCP fixtures under the simulator). *(Resolved.)*
+
+### Remaining production blocker
+
+1. **No loader or attachment lifecycle.** `attach xdp eth0` does not create a
    BPF link, configure an interface, pin maps, detach cleanly, or roll back a
-   partial deployment.
+   partial deployment. This — plus handler composition and userspace event
+   channels — is [issue #1204](https://github.com/bitwisecook/tcl-lsp/issues/1204).
 
 ### Low-layer correctness and maintainability
 
@@ -274,9 +334,11 @@ The items in this section were the subject of
    convention, and minimum kernel capability.
 5. **No userspace event channel exists.** Observability programs need typed
    records and ring-buffer/perf-buffer delivery, not packet verdicts.
-6. **Kernel tests cover only the first verdict-only program.** There is no
-   automated privileged verifier gate, loader/link-lifecycle,
-   network-byte-order, packet-access, map, or live namespace test yet.
+6. **Privileged kernel-load tests are gated, not automated.** Rootless tests
+   cover the verifier model, structural ELF/BTF/relocation validation, and
+   network-byte-order fixtures, but genuine `bpf()` load + `BPF_PROG_TEST_RUN`
+   acceptance is `#[ignore]`d (needs root and a live kernel) and there is no
+   loader/link-lifecycle or live-namespace test yet.
 
 ## Real-world use cases
 
@@ -287,13 +349,15 @@ The items in this section were the subject of
 - Prototype profiles, templates, capability policies, and bounded state logic.
 - Inspect deterministic assembly and structurally valid ELF sections.
 
-### Useful with the current kernel target
+### Useful with the current kernel targets
 
-- Verifier-load and test-run map-free, verdict-only XDP policies.
-- Exercise the full source-to-kernel-object path without attaching to a live
-  interface.
-- Establish a fail-closed target boundary: unsupported packet or map semantics
-  are diagnosed instead of being emitted with the simulator ABI.
+- Emit libbpf-loadable XDP and socket-filter objects with real context access,
+  verifier-safe packet bounds proofs, and BTF-defined maps.
+- Build allow/deny packet filters and map-backed packet/flow counters, then
+  inspect them with `readelf` / `llvm-objdump` and load them with a maintainer's
+  privileged `bpf()` gate.
+- Exercise the full source-to-kernel-object path — context, packet reads, maps,
+  relocations — without attaching to a live interface.
 
 ### Enabled by a production XDP/socket-filter target
 
