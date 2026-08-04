@@ -19,8 +19,8 @@ Tcl versions without manual switching.
 | 6 | **Hardcoded fallback** | `tcl8.6` |
 
 Language ids and dialect names are separate namespaces. The VS Code extension
-contributes *undotted* version-pinned language ids (`tcl84`, `tcl85`, `tcl90`,
-`tcl91`) because a language id containing a `.` cannot carry a
+contributes *undotted* version-pinned language ids (`tcl84`, `tcl85`, `tcl86`,
+`tcl90`, `tcl91`) because a language id containing a `.` cannot carry a
 `configurationDefaults` override — VS Code splits the key on the dot, throws,
 and drops the rest of the block. The other editor integrations still send the
 dotted `tcl8.4`-style id, so the server accepts both spellings and maps them to

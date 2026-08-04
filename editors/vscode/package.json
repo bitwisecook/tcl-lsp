@@ -31,6 +31,7 @@
     "onLanguage:tcl-bigip",
     "onLanguage:tcl84",
     "onLanguage:tcl85",
+    "onLanguage:tcl86",
     "onLanguage:tcl90",
     "onLanguage:tcl91",
     "onLanguage:tcl-synopsys",
@@ -131,6 +132,13 @@
         "id": "tcl85",
         "aliases": [
           "Tcl 8.5"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl86",
+        "aliases": [
+          "Tcl 8.6"
         ],
         "configuration": "./language-configuration.json"
       },
@@ -239,6 +247,11 @@
       },
       {
         "language": "tcl85",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl86",
         "scopeName": "source.tcl",
         "path": "./syntaxes/tcl.tmLanguage.json"
       },
@@ -1376,6 +1389,74 @@
         }
       },
       {
+        "language": "tcl86",
+        "scopes": {
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
         "language": "tcl90",
         "scopes": {
           "regexp": [
@@ -2102,6 +2183,21 @@
             "foreground": "#9cdcfe",
             "italic": true
           },
+          "regexp:tcl86": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "escape:tcl86": {
+            "foreground": "#d7ba7d"
+          },
+          "event:tcl86": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "decorator:tcl86": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
           "regexp:tcl90": {
             "foreground": "#d16969",
             "italic": true
@@ -2537,6 +2633,64 @@
             "bold": true
           },
           "clockModifier:tcl85": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexpGroup:tcl86": {
+            "foreground": "#c586c0"
+          },
+          "regexpCharClass:tcl86": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexpQuantifier:tcl86": {
+            "foreground": "#dcdcaa"
+          },
+          "regexpAnchor:tcl86": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "regexpEscape:tcl86": {
+            "foreground": "#d7ba7d"
+          },
+          "regexpBackref:tcl86": {
+            "foreground": "#b5cea8"
+          },
+          "regexpAlternation:tcl86": {
+            "foreground": "#c586c0"
+          },
+          "binarySpec:tcl86": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "binaryCount:tcl86": {
+            "foreground": "#b5cea8"
+          },
+          "binaryFlag:tcl86": {
+            "foreground": "#569cd6",
+            "italic": true
+          },
+          "formatPercent:tcl86": {
+            "foreground": "#c586c0"
+          },
+          "formatSpec:tcl86": {
+            "foreground": "#4fc1ff",
+            "bold": true
+          },
+          "formatFlag:tcl86": {
+            "foreground": "#d8a0df"
+          },
+          "formatWidth:tcl86": {
+            "foreground": "#b5cea8"
+          },
+          "clockPercent:tcl86": {
+            "foreground": "#dcdcaa"
+          },
+          "clockSpec:tcl86": {
+            "foreground": "#ce9178",
+            "bold": true
+          },
+          "clockModifier:tcl86": {
             "foreground": "#9cdcfe",
             "italic": true
           },
@@ -2982,6 +3136,9 @@
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },
       "[tcl85]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl86]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },
       "[tcl90]": {

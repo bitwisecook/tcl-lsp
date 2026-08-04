@@ -194,7 +194,7 @@ suite("Sticky Scroll", () => {
       STICKY_FOLDING_LANGUAGES.length === TCL_LANGUAGE_IDS.size,
       "every contributed language id should be checked for the sticky-scroll default",
     );
-    for (const languageId of ["tcl84", "tcl85", "tcl90", "tcl91"]) {
+    for (const languageId of ["tcl84", "tcl85", "tcl86", "tcl90", "tcl91"]) {
       assert.ok(
         TCL_LANGUAGE_IDS.has(languageId),
         `'${languageId}' should be a contributed language id`,

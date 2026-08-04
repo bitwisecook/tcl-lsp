@@ -983,6 +983,7 @@ function isTclLanguageId(languageId: string): boolean {
     languageId === "tcl-bigip" ||
     languageId === "tcl84" ||
     languageId === "tcl85" ||
+    languageId === "tcl86" ||
     languageId === "tcl90" ||
     languageId === "tcl-synopsys" ||
     languageId === "tcl-cadence" ||

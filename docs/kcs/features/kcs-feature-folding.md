@@ -66,7 +66,7 @@ against real data.
 
 The version-pinned dialect languages carry the same default as every other Tcl
 language. Their VS Code language ids are deliberately undotted — `tcl84`,
-`tcl85`, `tcl90`, `tcl91` — because a language id containing a `.` cannot be
+`tcl85`, `tcl86`, `tcl90`, `tcl91` — because a language id containing a `.` cannot be
 used as a configuration override identifier at all: VS Code splits `[tcl8.4]`
 on the dot while building the default-configuration value tree, throws, and
 drops every remaining override in the block (its own and, since the tree is

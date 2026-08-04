@@ -4355,7 +4355,7 @@ impl Backend {
             // Every other editor integration (Neovim, Sublime, JetBrains,
             // Emacs, Helix) still sends the dotted form, as do direct/MCP
             // callers passing a canonical dialect name, so both are accepted.
-            "tcl" | "tcl8.6" => "tcl8.6",
+            "tcl" | "tcl8.6" | "tcl86" => "tcl8.6",
             "tcl8.4" | "tcl84" => "tcl8.4",
             "tcl8.5" | "tcl85" => "tcl8.5",
             "tcl9.0" | "tcl90" => "tcl9.0",
@@ -19936,6 +19936,7 @@ mod tests {
         for (undotted, dotted) in [
             ("tcl84", "tcl8.4"),
             ("tcl85", "tcl8.5"),
+            ("tcl86", "tcl8.6"),
             ("tcl90", "tcl9.0"),
             ("tcl91", "tcl9.1"),
         ] {

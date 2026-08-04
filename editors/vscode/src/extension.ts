@@ -135,6 +135,7 @@ const LANGUAGE_ID_DIALECTS: Record<string, string> = {
   "tcl-bigip": "f5-bigip",
   tcl84: "tcl8.4",
   tcl85: "tcl8.5",
+  tcl86: "tcl8.6",
   tcl90: "tcl9.0",
   tcl91: "tcl9.1",
   "tcl-synopsys": "synopsys-eda-tcl",

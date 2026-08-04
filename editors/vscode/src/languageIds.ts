@@ -36,6 +36,7 @@ export const TCL_LANGUAGE_IDS = new Set([
   "tcl-bigip",
   "tcl84",
   "tcl85",
+  "tcl86",
   "tcl90",
   "tcl91",
   "tcl-synopsys",
