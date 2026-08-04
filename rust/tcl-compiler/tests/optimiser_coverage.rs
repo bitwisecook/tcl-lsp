@@ -741,7 +741,8 @@ fn o102_uplevel_hash_zero_dynamic_script_widens_every_global() {
 fn o102_uplevel_hash_zero_embedded_substitution_widens_too() {
     // TP (issue #1198) — the same callee reached through a command
     // substitution (`set y [s2 …]`) instead of a bare statement.
-    let src = "proc s2 {body} {\n    uplevel #0 $body\n}\nset h 5\nset y [s2 {set h 42}]\nputs $h\n";
+    let src =
+        "proc s2 {body} {\n    uplevel #0 $body\n}\nset h 5\nset y [s2 {set h 42}]\nputs $h\n";
     let out = optimised(src, TCL);
     assert!(
         !out.contains("puts 5"),

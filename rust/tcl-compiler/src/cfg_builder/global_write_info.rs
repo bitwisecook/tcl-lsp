@@ -692,9 +692,7 @@ mod tests {
 
     #[test]
     fn uplevel_hash_zero_opaqueness_is_transitive() {
-        let m = module(
-            "proc ::s2 {body} { uplevel #0 $body }\nproc ::outer {body} { s2 $body }",
-        );
+        let m = module("proc ::s2 {body} { uplevel #0 $body }\nproc ::outer {body} { s2 $body }");
         let info = detect_global_write_procs(&m);
         assert!(info.get("::outer").unwrap().opaque_global_frame);
     }

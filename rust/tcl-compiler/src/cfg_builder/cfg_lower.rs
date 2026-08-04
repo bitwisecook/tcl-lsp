@@ -101,14 +101,17 @@ impl CfgBuilder {
                 // script at the global frame (issue #1198) clobbers names
                 // no def list can enumerate — widen with a barrier.
                 if opaque_global {
-                    self.block_mut(&dispatch).statements.push(Statement::Barrier {
-                        span: *span,
-                        reason: "condition runs an unreadable script at the global frame".into(),
-                        command: "<global-frame-script>".into(),
-                        canonical_command: None,
-                        args: Vec::new(),
-                        tokens: None,
-                    });
+                    self.block_mut(&dispatch)
+                        .statements
+                        .push(Statement::Barrier {
+                            span: *span,
+                            reason: "condition runs an unreadable script at the global frame"
+                                .into(),
+                            command: "<global-frame-script>".into(),
+                            canonical_command: None,
+                            args: Vec::new(),
+                            tokens: None,
+                        });
                 }
             }
 

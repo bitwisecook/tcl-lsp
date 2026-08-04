@@ -4074,12 +4074,7 @@ impl Analyser {
                     // `otherVar` (at `i - 1`) names the cell; `args[i]` is an
                     // independent local spelling.  Renaming the cell must
                     // rewrite the former, never the latter.
-                    self.set_var_link_target(
-                        &args[i],
-                        scope_path,
-                        target.clone(),
-                        other_tok.span,
-                    );
+                    self.set_var_link_target(&args[i], scope_path, target.clone(), other_tok.span);
                     // The fixed cell itself gets a definition at the
                     // `otherVar` word (issue #923 audit idx 98 / issue
                     // #1139): `upvar ::tk::FocusGrab($index) data` is the

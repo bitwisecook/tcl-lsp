@@ -1017,9 +1017,9 @@ pub fn caller_frame_upvar_params(
         // same test `caller_frame_literal_targets` applies — never a
         // spelled command name.
         if seg.texts.first().is_none_or(|head| {
-            registry
-                .frame_effect(head)
-                .is_none_or(|spec| spec.layout != tcl_registry::frame_effect::FrameArgLayout::AliasPairs)
+            registry.frame_effect(head).is_none_or(|spec| {
+                spec.layout != tcl_registry::frame_effect::FrameArgLayout::AliasPairs
+            })
         }) {
             continue;
         }
@@ -1139,9 +1139,7 @@ pub fn caller_frame_literal_targets(
 fn is_literal_caller_frame_name(word: &str) -> bool {
     !word.is_empty()
         && !word.contains("::")
-        && word
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+        && word.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 /// `namespace upvar namespace ?otherVar myVar ...?` — the pairs alias namespace

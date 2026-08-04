@@ -1339,9 +1339,7 @@ impl CompilationUnit {
             if crate::cfg_builder::upvar_info::module_method_dispatch_evidence_is_incomplete(
                 ir_module,
             ) {
-                map.extend(crate::cfg_builder::upvar_info::oo_dispatch_widening_entries(
-                    registry,
-                ));
+                map.extend(crate::cfg_builder::upvar_info::oo_dispatch_widening_entries(registry));
             }
             map
         };

@@ -866,8 +866,7 @@ proc build {} {
     fn a_literal_upvar_target_binds_at_the_call_head() {
         let analysis = analyse(IDX22);
         let read = offset_of(IDX22, "$name") + 1;
-        let bindings =
-            caller_frame_bindings(&analysis, IDX22, "tcl9.0", Some(reg()), read, "name");
+        let bindings = caller_frame_bindings(&analysis, IDX22, "tcl9.0", Some(reg()), read, "name");
         assert_eq!(bindings.len(), 1, "one binding call site: {bindings:?}");
         assert_eq!(bindings[0].param, None, "no call-site word carries it");
         assert!(!bindings[0].read_only, "the alias is written through");
@@ -921,7 +920,7 @@ proc build {} {
         let src = "proc peekname {} { upvar name name; return [string length $name] }\n\
                    proc build {} { set name N0\n peekname }\n";
         let analysis = analyse(src);
-        let call = offset_of(src, "peekname }") ;
+        let call = offset_of(src, "peekname }");
         let bindings = caller_frame_bindings(&analysis, src, "tcl9.0", Some(reg()), call, "name");
         assert_eq!(bindings.len(), 1, "{bindings:?}");
         assert!(bindings[0].read_only, "{bindings:?}");
@@ -1254,8 +1253,12 @@ proc build {} {
 }
 ";
         let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
-        let line =
-            u32::try_from(src.lines().position(|l| l.contains("set out $name")).unwrap()).unwrap();
+        let line = u32::try_from(
+            src.lines()
+                .position(|l| l.contains("set out $name"))
+                .unwrap(),
+        )
+        .unwrap();
         let col = u32::try_from(
             src.lines()
                 .nth(line as usize)
