@@ -1322,6 +1322,29 @@ impl CompilationUnit {
         }
         let (upvar_procs, proc_params, global_write_procs) =
             cfg_context.expect("cfg_context computed when methods are present");
+        // Issue #1177: a callee reached via `my` / `next` is a method, never
+        // in the upvar-procs table (the dispatch does not name its target),
+        // so its `upvar 1 $refvar …` caller-frame definition was invisible
+        // and every defs-based check treated the dispatch as a no-op — a
+        // false always-false I230 on `info exists` of an upvar-defined local
+        // (oracle, tclsh 9.0.4 / 8.6.14: after `my Reference? $lookup ref`
+        // returns true, `[info exists ref]` in the caller is 1).  When the
+        // module's method-dispatch evidence is incomplete, widen every
+        // dispatch site in method bodies through synthetic frame-effect
+        // entries — same abstention rule as the optimiser's propagation
+        // barrier, consumed through the same per-call-site machinery procs
+        // already use.
+        let upvar_procs = {
+            let mut map = upvar_procs.clone();
+            if crate::cfg_builder::upvar_info::module_method_dispatch_evidence_is_incomplete(
+                ir_module,
+            ) {
+                map.extend(crate::cfg_builder::upvar_info::oo_dispatch_widening_entries(
+                    registry,
+                ));
+            }
+            map
+        };
         ir_module
             .methods
             .iter()

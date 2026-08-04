@@ -5710,6 +5710,90 @@ fn info_exists_folds_true_not_false_for_method_parameter() {
     );
 }
 
+#[test]
+fn info_exists_does_not_fold_upvar_defined_local_across_my_dispatch() {
+    // FP guard (issue #1177) — the callee reached via `my` is a method,
+    // never in the upvar-procs table, so its `upvar 1 $refvar ref`
+    // caller-frame definition was invisible and the guard folded always
+    // false.  Oracle (tclsh 9.0.4 and 8.6.14): after `my Reference?
+    // $lookup ref` returns true, `[info exists ref]` in the caller is 1;
+    // on a miss, 0 — live code either way, so the fold must abstain.
+    let codes = codes_for(
+        "oo::class create Formatter {\n \
+         method Reference? {lookup refvar} {\n upvar 1 $refvar ref\n \
+         if {$lookup eq \"x\"} { set ref 1; return 1 }\n return 0\n }\n \
+         method ResolvableReference? {lookup} {\n \
+         my Reference? $lookup ref\n \
+         if {[info exists ref]} { puts hi }\n }\n}\n",
+    );
+    assert!(
+        !codes.contains(&"I230".to_string()),
+        "an upvar-defined local across a `my` dispatch must not fold; got {codes:?}",
+    );
+}
+
+#[test]
+fn info_exists_does_not_fold_upvar_defined_local_across_next_dispatch() {
+    // Abstention guard (issue #1177), `next`-chain shape.  `next` names no
+    // target at all, so which implementation runs — and which frame its
+    // `upvar 1` lands in — needs MRO modelling this analysis does not do
+    // (issue #1164).  Oracle (tclsh 9.0.4): the chained implementation's
+    // `upvar 1` actually SKIPS the calling implementation's frame and
+    // lands in the frame of whoever invoked the whole method
+    // (`in-sub:0`, `global:1` for a top-level `[Sub new] probe`) — so a
+    // per-chain answer is provable only with the chain in hand.  Until
+    // then the fold must abstain rather than claim either constant.
+    let codes = codes_for(
+        "oo::class create Base {\n \
+         method probe {} { upvar 1 status status\n set status ok\n return 1 }\n}\n\
+         oo::class create Sub {\n superclass Base\n \
+         method probe {} {\n next\n \
+         if {[info exists status]} { puts hi }\n }\n}\n",
+    );
+    assert!(
+        !codes.contains(&"I230".to_string()),
+        "an upvar-defined local across a `next` dispatch must not fold; got {codes:?}",
+    );
+}
+
+#[test]
+fn info_exists_still_folds_across_my_when_no_method_reaches_the_caller_frame() {
+    // TN guard (issue #1177) — the widening is evidence-gated, not a
+    // blanket "no folds near `my`": when no method in the module can reach
+    // its caller's frame, a dispatch cannot create locals here, so a
+    // never-set non-instance local still folds always false (tclsh 9.0.4 /
+    // 8.6.14: `[info exists zzz]` is 0 after `my Helper`).
+    let codes = codes_for(
+        "oo::class create C {\n \
+         method Helper {} { return 1 }\n \
+         method m {} {\n my Helper\n \
+         if {[info exists zzz]} { puts hi }\n }\n}\n",
+    );
+    assert!(
+        codes.contains(&"I230".to_string()),
+        "with complete dispatch evidence the fold must survive; got {codes:?}",
+    );
+}
+
+#[test]
+fn read_after_my_dispatch_to_an_upvar_sibling_draws_no_read_before_set() {
+    // The W210 face of the same evidence rule (issue #1177): `$ref` after
+    // the dispatch is genuinely defined on the hit path — tclsh 9.0.4 /
+    // 8.6.14 run it to completion.
+    let codes = codes_for(
+        "oo::class create Formatter {\n \
+         method Reference? {lookup refvar} {\n upvar 1 $refvar ref\n \
+         set ref 1\n return 1\n }\n \
+         method ResolvableReference? {lookup} {\n \
+         my Reference? $lookup ref\n \
+         return $ref\n }\n}\n",
+    );
+    assert!(
+        !codes.contains(&"W210".to_string()),
+        "a `my` dispatch to an upvar sibling defines the local; got {codes:?}",
+    );
+}
+
 /// Every I230 message emitted for `src`, in emission order.
 fn i230_messages(src: &str) -> Vec<String> {
     let mut a = Analyser::new();
