@@ -1,7 +1,9 @@
 # BPF-Tcl eBPF backend architecture and production roadmap
 
 > **Status:** Experimental multi-target backend, kernel codegen landed
-> 2026-08-04 (issue #1203).
+> 2026-08-04 (issue #1203). Event framework, handler composition, typed
+> ring-buffer records, and the loader/link lifecycle model landed 2026-08-04
+> (issue #1204).
 > The default target runs under the bundled `rbpf` harness. The explicit
 > `kernel-xdp` and `kernel-socket` targets emit Linux-loadable objects with real
 > `struct xdp_md` / `struct __sk_buff` context lowering, verifier-safe packet
@@ -9,8 +11,15 @@
 > the objects with `readelf`/`llvm-objdump` and an in-repo verifier model;
 > genuine kernel `bpf()` load and `BPF_PROG_TEST_RUN` acceptance is gated behind
 > an `#[ignore]`d privileged test (`rust/bpf-tcl/tests/kernel_load.rs`), since
-> loading needs root and a live kernel. Live attachment (links/pins) remains
-> issue #1204 work.
+> loading needs root and a live kernel. The event framework adds a typed,
+> registry-described event schema (XDP, socket filter, and schema-described TC /
+> cgroup families), explicit `next`-based handler composition, a versioned
+> userspace record ABI with ring-buffer transport and loss accounting, and a
+> loader/link lifecycle state machine (plan → load → test-run → attach → status →
+> detach, with rollback and resource ownership). The lifecycle is modelled and
+> unit-tested deterministically in userspace over a `ModelKernel`; real
+> attachment (`bpf()` links/pins on a live interface or cgroup) is gated behind
+> `#[ignore]`d privileged tests (`rust/bpf-tcl/tests/kernel_attach.rs`).
 
 ## Purpose
 
@@ -159,7 +168,9 @@ kernel), so a maintainer re-runs it on a Linux host — see
 
 ## Layer 2: typed low-level language and BPF-IR
 
-The low-level language is deliberately closed. Its 25 registered commands are:
+The low-level language is deliberately closed. Its 26 registered commands are
+(the 26th, `next`, is the explicit non-terminal composition outcome — issue
+#1204):
 
 | Group | Commands | Meaning |
 |---|---|---|
@@ -169,6 +180,7 @@ The low-level language is deliberately closed. Its 25 registered commands are:
 | Control flow | `if`, `loop` | Branch, or expand a literal-count loop up to 64 iterations before CFG construction. |
 | Socket verdicts | `accept`, `drop` | Return an accepted byte count or zero. |
 | XDP verdicts | `pass`, `drop`, `tx` | Return `XDP_PASS`, `XDP_DROP`, or `XDP_TX`. |
+| Composition | `next` | Explicit non-terminal continuation: end a path without a decision so the next handler in priority order runs (issue #1204). |
 | Framework | `when`, `profile`, `field`, `template`, `use`, `allow`, `deny`, `attach` | Declare handlers and expand policy/configuration conveniences. |
 
 Expressions support signed integer arithmetic, bitwise operations, shifts, and
@@ -223,23 +235,105 @@ The framework processes declarations in this order:
 8. apply matching `attach` metadata; and
 9. sort programs by ascending priority and event name.
 
-### Events handled today
+### The event schema (issue #1204)
 
-| Event | Alias | Input available to the program | Valid explicit verdicts | Targets |
-|---|---|---|---|---|
-| `SOCKET_FILTER` | `SOCKET` | Packet bytes and length (`__sk_buff` on the kernel) | `accept ?N?`, `drop` | `rbpf` simulator; `--target kernel-socket` emits a loadable object (accepted byte count / `0`). |
-| `XDP` | — | Packet bytes and length (`xdp_md` on the kernel) | `pass`, `drop`, `tx` | `rbpf` simulator; `--target kernel-xdp` emits a loadable object (XDP action number). |
+Every event is a **typed registry contract** — a `BpfEventSpec` in
+`tcl-registry/src/bpf_op.rs`, resolved by `bpf-tcl-ir::event` — not a
+string-match arm. Each spec carries: canonical name + aliases; Linux program
+type and ELF `SEC(...)` convention; a typed context (`struct` name + readable
+fixed-offset fields with byte order); a permitted-capability set (packet read,
+map read/write, ring-buffer output, context read); the verdict algebra
+(permitted terminal verdicts + a **default verdict** applied when no handler
+terminates); the `attach` parameter schema; minimum kernel / BTF / `bpf_link`
+requirements; the output kind (packet decision, userspace record, or both); and
+a codegen-readiness flag. `check` prints the resolved contract for each handler.
 
-There are no TC, cgroup, tracepoint, kprobe, uprobe, perf-event, LSM, socket-op,
-or syscall events. There is no event-specific metadata such as interface index,
-queue, process ID, user ID, cgroup, socket tuple, tracepoint fields, or return
-value. There is also no ring buffer or perf buffer for sending records to
-userspace.
+| Event | Alias | Context | Verdicts (+`next`) | Default | Codegen |
+|---|---|---|---|---|---|
+| `SOCKET_FILTER` | `SOCKET` | `__sk_buff` | `accept ?N?`, `drop` | `accept` | ready (`--target kernel-socket`) |
+| `XDP` | — | `xdp_md` | `pass`, `drop`, `tx` | `pass` | ready (`--target kernel-xdp`) |
+| `TC_INGRESS` | `TC` | `__sk_buff` | `pass`, `drop` | `pass` | schema-described |
+| `TC_EGRESS` | — | `__sk_buff` | `pass`, `drop` | `pass` | schema-described |
+| `CGROUP_CONNECT4` | — | `bpf_sock_addr` | `pass`, `drop` | `pass` | schema-described |
+| `CGROUP_BIND4` | — | `bpf_sock_addr` | `pass`, `drop` | `pass` | schema-described |
 
-Multiple handlers are separate programs. Priority currently controls only
-their order in the `BpfModule` and CLI program indexes; it does not generate a
-dispatcher, program array, tail-call chain, or link ordering. An external
-loader therefore cannot yet preserve the apparent multi-handler semantics.
+The TC and cgroup events are *fully described* (context, capabilities, verdict
+algebra, attach params, kernel requirements) but their codegen (SCHED_CLS /
+CGROUP_SOCK_ADDR lowering) is sequenced for a later change. A `when TC_INGRESS`
+handler resolves its schema and is rejected with a **precise** "registry-described
+but its codegen is not yet implemented" diagnostic — never treated as an unknown
+event. Tracepoints/kprobes/uprobes and LSM remain out of the schema until typed
+ring-buffer records (now available, see below) and stronger deployment
+guarantees are wired to codegen.
+
+### Handler composition
+
+Multiple `when EVENT priority N { … }` handlers of one event compose into an
+ordered **handler chain** (`bpf-tcl-ir::compose`) with explicit, tested
+semantics:
+
+- **lower priority numbers run first** (F5-inspired), event name as a stable
+  tiebreaker;
+- **a terminal verdict stops the chain** — the first `accept`/`drop`/`pass`/`tx`
+  decides;
+- **continuation is explicit** — a handler continues only by ending a path with
+  `next`, which lowers to a reserved continuation sentinel return
+  (`CONTINUE_SENTINEL`);
+- **each event declares its default** — if every handler yields `next`, the
+  event's `default_verdict` applies;
+- **ambiguous composition is rejected** — two handlers of one event sharing a
+  priority have no deterministic order and are a hard `AmbiguousComposition`
+  error ("sorting independent object files is not sufficient").
+
+These are the *source* semantics. The *deployment* semantics are a **verified
+program chain**: each handler is compiled independently, and the chain is
+evaluated by running the handlers in priority order and classifying each one's
+return value with `Outcome::classify` — a dispatcher expressed in the loader
+rather than fused into one object. Because the rules are pure over the
+per-handler outcomes, composition is deterministic and unit-tested in userspace
+(`bpf-tcl/tests/composition.rs` runs a two-handler deny/audit chain under `rbpf`).
+
+### Userspace event channel
+
+Observability events emit **typed records** to userspace rather than a verdict.
+`bpf-tcl-ir::ringbuf` defines a versioned record ABI (a fixed 16-byte
+little-endian header carrying magic, ABI version, event type, payload length,
+and a sequence number, followed by the schema's fields packed at their declared
+widths and byte order), a `RecordSchema` generated from an event's context
+fields, a bounded `RingBuffer` transport with explicit **loss accounting**
+(records that do not fit are dropped whole and counted — the same
+lossy-but-counted contract as the kernel `BPF_MAP_TYPE_RINGBUF` under
+back-pressure), and a structured JSON/text consumer. A consumer rejects a record
+whose magic or version it does not recognise, so the transport can evolve
+without silently misreading old records
+(`bpf-tcl/tests/observability.rs` exercises the whole producer → ring buffer →
+JSON consumer path).
+
+### Loader and link lifecycle
+
+`bpf-tcl-ir::loader` models the deployment state machine
+`plan → load → test-run → attach → status → detach`:
+
+- `DeploymentPlan::from_module` builds a plan from a compiled module, giving each
+  program a **unique, ownership-labelled pin path** under
+  `/sys/fs/bpf/bpftcl/<deployment>/`;
+- `load` verifier-loads every program (atomic: a partial failure unloads
+  everything already loaded);
+- `test-run` runs a supported program through `BPF_PROG_TEST_RUN` before any live
+  attach (dry-run is the obvious path);
+- `attach` creates a pinned link per program (a partial failure rolls back only
+  the links created in that call and stays in `Loaded`);
+- `detach` removes **only** this deployment's owned resources and **refuses to
+  touch a pin owned by anything else**;
+- `status` reports the live programs, links, and pins.
+
+Every kernel effect goes through the `KernelOps` trait. The lifecycle is
+unit-tested deterministically over a `ModelKernel` (rollback, ownership refusal,
+out-of-order rejection, no-leak cleanup) with **no kernel required**; the CLI
+`plan` subcommand renders a dry-run plan. Real `bpf()`-syscall attachment is
+exercised only by the `#[ignore]`d privileged tests
+(`bpf-tcl/tests/kernel_attach.rs`), which run inside a disposable network
+namespace that is torn down unconditionally so nothing leaks onto the host.
 
 ## Profiles, templates, capabilities, and deployment metadata
 
@@ -277,12 +371,38 @@ verifier model (real `bpf()` acceptance is gated behind an `#[ignore]`d test):
    declared byte order on both the rbpf and kernel paths (verified against
    Ethernet/IPv4/TCP fixtures under the simulator). *(Resolved.)*
 
-### Remaining production blocker
+### Event framework and loader (issue #1204) — modelled
 
-1. **No loader or attachment lifecycle.** `attach xdp eth0` does not create a
-   BPF link, configure an interface, pin maps, detach cleanly, or roll back a
-   partial deployment. This — plus handler composition and userspace event
-   channels — is [issue #1204](https://github.com/bitwisecook/tcl-lsp/issues/1204).
+These were the subject of [issue #1204](https://github.com/bitwisecook/tcl-lsp/issues/1204).
+The registry event schema, handler composition, typed ring-buffer records, and
+the loader/link lifecycle **state machine** are implemented and tested
+deterministically in userspace; genuine kernel attachment is gated behind
+`#[ignore]`d privileged tests (this environment has no kernel):
+
+1. **Typed registry event schema.** Events are declared by `BpfEventSpec` data
+   (context, capabilities, verdict algebra + default, attach params, kernel/BTF
+   requirements, output kind), not command/event-name branches. TC ingress/egress
+   and cgroup connect/bind are described; their codegen is sequenced next.
+   *(Resolved for schema; TC/cgroup codegen pending.)*
+2. **Composition with documented source + deployment semantics.** Priority
+   ordering, terminal-verdict stop, explicit `next` continuation, per-event
+   default, and ambiguous-priority rejection are documented and tested; the
+   deployment semantics are a verified per-handler program chain evaluated in
+   priority order. *(Resolved.)*
+3. **Loader/link lifecycle state machine.** `plan`/`load`/`test-run`/`attach`/
+   `status`/`detach` with atomic rollback, ownership-labelled unique pin paths,
+   and refusal to touch foreign pins — modelled over `KernelOps`/`ModelKernel`
+   and unit-tested for no-leak cleanup. *(Resolved as a model; real `bpf()`
+   attach is `#[ignore]`d.)*
+4. **Versioned userspace record ABI.** Typed, schema-generated records with a
+   versioned header, ring-buffer transport, and observable loss accounting.
+   *(Resolved.)*
+
+**Remaining production blocker.** TC / cgroup / tracepoint codegen and a
+privileged real-kernel loader are not yet implemented — the compiler emits only
+XDP and socket-filter objects, and live attach/link creation requires the
+gated privileged path. Wiring the modelled lifecycle to real `bpf()` syscalls
+(and the described TC/cgroup families to codegen) is the follow-up.
 
 ### Low-layer correctness and maintainability
 
@@ -320,25 +440,27 @@ The items in this section were the subject of
    key/value size, capacity, concurrency) with capacity and array-range
    enforcement in the simulator. *(Resolved.)*
 
-### Framework limitations
+### Remaining framework limitations
 
-1. **Priority has no deployment semantics.** It sorts independent artefacts but
-   does not define how their verdicts compose or how later handlers run.
-2. **One global profile, policy, and attach declaration constrain mixed-event
-   files.** Event-specific context and deployment settings need scoped config.
-3. **Fixed packet profiles do not parse protocols.** VLAN tags, variable IPv4
+1. **Scoped configuration is not yet implemented.** Profiles, capability policy,
+   and `attach` are still one-per-file globals. Event/handler scopes (so a
+   mixed-event file can give each event its own context and deployment settings)
+   remain a follow-up; ambiguous *composition* (duplicate priorities) is already
+   rejected.
+2. **Fixed packet profiles do not parse protocols.** VLAN tags, variable IPv4
    header length, fragments, IPv6 extension headers, and tunnels invalidate
    hard-coded transport offsets.
-4. **Events are a two-arm string match.** There is no schema that pairs an event
-   with context type, allowed helpers, attachment parameters, fields, return
-   convention, and minimum kernel capability.
-5. **No userspace event channel exists.** Observability programs need typed
-   records and ring-buffer/perf-buffer delivery, not packet verdicts.
-6. **Privileged kernel-load tests are gated, not automated.** Rootless tests
-   cover the verifier model, structural ELF/BTF/relocation validation, and
-   network-byte-order fixtures, but genuine `bpf()` load + `BPF_PROG_TEST_RUN`
-   acceptance is `#[ignore]`d (needs root and a live kernel) and there is no
-   loader/link-lifecycle or live-namespace test yet.
+3. **TC / cgroup / trace codegen is not implemented.** These events are
+   schema-described (context, verdicts, attach params, kernel requirements) and
+   compose/plan/record correctly, but the compiler cannot yet emit SCHED_CLS,
+   CGROUP_SOCK_ADDR, or tracepoint/kprobe programs — a `when TC_INGRESS` handler
+   is rejected with a precise "codegen pending" diagnostic.
+4. **Privileged load / attach tests are gated, not automated.** Rootless tests
+   cover the verifier model, structural ELF/BTF/relocation validation,
+   network-byte-order fixtures, composition, ring-buffer records, and the loader
+   state machine over a `ModelKernel`; genuine `bpf()` load, `BPF_PROG_TEST_RUN`,
+   and link attachment are `#[ignore]`d (need root and a live kernel) and run
+   inside disposable namespaces that clean up unconditionally.
 
 ## Real-world use cases
 

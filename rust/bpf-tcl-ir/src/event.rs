@@ -38,19 +38,34 @@ pub fn event_spec(event: &str) -> Option<&'static BpfEventSpec> {
     lookup_bpf_event(event)
 }
 
-/// Resolve an event name (as written in `when <EVENT> …`) to a program type.
-/// Case-insensitive. Returns `None` for unknown events.
+/// Resolve an event name to a *codegen-ready* IR program type. Case-insensitive.
+/// Returns `None` for an unknown event **or** an event whose codegen is still
+/// pending (TC, cgroup) — the front-end distinguishes the two so it can give a
+/// precise diagnostic (see [`event_is_described`]).
 #[must_use]
 pub fn event_to_prog_type(event: &str) -> Option<ProgType> {
-    event_spec(event).map(|spec| prog_type_of(spec.prog_type))
+    event_spec(event).and_then(|spec| prog_type_of(spec.prog_type))
 }
 
-/// Map the registry's dependency-free program-type enum onto the IR's.
+/// Whether `event` resolves to a registry-described event whose codegen is not
+/// yet implemented (a schema-only contract). `false` for unknown or ready
+/// events.
 #[must_use]
-pub fn prog_type_of(pt: BpfEventProgType) -> ProgType {
+pub fn event_is_described(event: &str) -> bool {
+    event_spec(event).is_some_and(|spec| !spec.is_codegen_ready())
+}
+
+/// Map the registry's dependency-free program-type enum onto the IR's, for the
+/// codegen-ready targets. `None` for events the IR has no lowering for yet.
+#[must_use]
+pub fn prog_type_of(pt: BpfEventProgType) -> Option<ProgType> {
     match pt {
-        BpfEventProgType::SocketFilter => ProgType::SocketFilter,
-        BpfEventProgType::Xdp => ProgType::Xdp,
+        BpfEventProgType::SocketFilter => Some(ProgType::SocketFilter),
+        BpfEventProgType::Xdp => Some(ProgType::Xdp),
+        BpfEventProgType::TcIngress
+        | BpfEventProgType::TcEgress
+        | BpfEventProgType::CgroupInet4Connect
+        | BpfEventProgType::CgroupInet4Bind => None,
     }
 }
 
@@ -58,4 +73,10 @@ pub fn prog_type_of(pt: BpfEventProgType) -> ProgType {
 #[must_use]
 pub fn known_event_names() -> Vec<&'static str> {
     tcl_registry::bpf_op::bpf_event_names()
+}
+
+/// The canonical names of events that currently compile to a program.
+#[must_use]
+pub fn codegen_ready_event_names() -> Vec<&'static str> {
+    tcl_registry::bpf_op::codegen_ready_event_names()
 }

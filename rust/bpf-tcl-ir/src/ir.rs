@@ -24,6 +24,17 @@ use tcl_lexer::Span;
 
 use crate::ty::{ByteOrder, Ty, Width};
 
+/// The reserved return value a handler yields for the `next` outcome — the
+/// explicit, non-terminal continuation of handler composition (issue #1204).
+///
+/// It is the 32-bit all-ones sentinel (`-1` as a signed 32-bit action), a value
+/// no real verdict uses: socket-filter accept counts are non-negative byte
+/// counts and `0` drops; XDP actions are `0..=4`; TC actions are small
+/// non-negative constants. The composition evaluator
+/// ([`crate::compose`]) reads a run result equal to this (masked to 32 bits) as
+/// "continue to the next handler"; every other value is a terminal decision.
+pub const CONTINUE_SENTINEL: i64 = 0xffff_ffff;
+
 /// A mutable storage slot (a typed local). Lowered to a fixed stack location by
 /// the backend; slots are mutable like C locals, so control flow needs no phi.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

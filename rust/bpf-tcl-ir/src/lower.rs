@@ -478,6 +478,15 @@ impl Lowerer<'_> {
                 let val = self.drop_verdict();
                 self.const_slot(val, span, insts)?
             }
+            // `next` — the explicit non-terminal continuation. The handler
+            // returns the reserved continuation sentinel; the composition model
+            // reads it as "run the next handler" (issue #1204).
+            BpfVerdictKind::Next => {
+                if !args.is_empty() {
+                    return Err(arity(span, cmd, "(no arguments)"));
+                }
+                self.const_slot(crate::ir::CONTINUE_SENTINEL, span, insts)?
+            }
         };
         Ok(Some(Term::Return { verdict, span }))
     }

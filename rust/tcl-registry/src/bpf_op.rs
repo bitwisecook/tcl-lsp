@@ -95,6 +95,12 @@ pub enum BpfScalarWidth {
 }
 
 /// A verdict family member.
+///
+/// Every variant except [`BpfVerdictKind::Next`] is **terminal**: it ends the
+/// handler and, under handler composition (issue #1204), stops the chain. `Next`
+/// is the sole **non-terminal** outcome — an explicit "continue to the next
+/// handler" that the composition model recognises (see
+/// [`BpfVerdictKind::is_terminal`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BpfVerdictKind {
     /// Socket filter `accept ?N?` — accept N bytes (defaults to whole packet).
@@ -105,6 +111,33 @@ pub enum BpfVerdictKind {
     Pass,
     /// XDP `tx` — `XDP_TX`.
     Tx,
+    /// `next` — the explicit, non-terminal continuation outcome. The handler
+    /// returns without a decision so the next handler in priority order runs;
+    /// if every handler yields `next`, the event's declared default verdict
+    /// applies. Valid in every program type.
+    Next,
+}
+
+impl BpfVerdictKind {
+    /// Whether returning this verdict ends handler-chain evaluation. Every
+    /// verdict is terminal except [`BpfVerdictKind::Next`] (an explicit
+    /// continuation).
+    #[must_use]
+    pub const fn is_terminal(self) -> bool {
+        !matches!(self, Self::Next)
+    }
+
+    /// The DSL verb that produces this verdict.
+    #[must_use]
+    pub const fn verb(self) -> &'static str {
+        match self {
+            Self::Accept => "accept",
+            Self::Drop => "drop",
+            Self::Pass => "pass",
+            Self::Tx => "tx",
+            Self::Next => "next",
+        }
+    }
 }
 
 /// A framework declaration kind — a statement consumed by the front-end
@@ -227,17 +260,158 @@ impl BpfOpSpec {
 }
 
 /// The eBPF program type an event maps to. The registry keeps its own small
-/// enum so descriptor data stays dependency-free; `bpf-tcl-ir` maps it onto
-/// its IR `ProgType`.
+/// enum so descriptor data stays dependency-free; `bpf-tcl-ir` maps the
+/// codegen-ready variants onto its IR `ProgType`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BpfEventProgType {
     /// `BPF_PROG_TYPE_SOCKET_FILTER`.
     SocketFilter,
     /// `BPF_PROG_TYPE_XDP`.
     Xdp,
+    /// `BPF_PROG_TYPE_SCHED_CLS` on the ingress hook (`__sk_buff`).
+    TcIngress,
+    /// `BPF_PROG_TYPE_SCHED_CLS` on the egress hook (`__sk_buff`).
+    TcEgress,
+    /// `BPF_PROG_TYPE_CGROUP_SOCK_ADDR`, `connect4` attach (`bpf_sock_addr`).
+    CgroupInet4Connect,
+    /// `BPF_PROG_TYPE_CGROUP_SOCK_ADDR`, `bind4` attach (`bpf_sock_addr`).
+    CgroupInet4Bind,
 }
 
-/// A registry-described BPF event: the contract behind `when <EVENT> …`.
+/// How far the compiler backend supports an event today. Every event is fully
+/// *described* by its schema; only [`BpfCodegen::Ready`] events currently lower
+/// to a compiled program (issue #1203's XDP and socket-filter targets). The
+/// rest are declared contracts whose codegen is sequenced for a later change —
+/// the front-end resolves the schema and reports a precise "described, codegen
+/// pending" diagnostic rather than an "unknown event".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BpfCodegen {
+    /// The event lowers to a compiled program on at least one target.
+    Ready,
+    /// The event is schema-described; its codegen is not yet implemented.
+    Described,
+}
+
+/// The kernel context object a handler of an event receives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BpfContext {
+    /// The C context struct name (`xdp_md`, `__sk_buff`, `bpf_sock_addr`).
+    pub struct_name: &'static str,
+    /// The typed, fixed-offset fields a handler may read from the context.
+    pub fields: &'static [BpfCtxField],
+}
+
+/// The byte order a context or packet field is read in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BpfFieldOrder {
+    /// Host byte order (a scalar the kernel already presents natively).
+    Host,
+    /// Network byte order (big-endian on the wire; needs a byte swap on LE).
+    Network,
+}
+
+/// One readable, fixed-layout field of an event's context.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BpfCtxField {
+    /// Field name as a handler would refer to it.
+    pub name: &'static str,
+    /// Byte offset within the context struct.
+    pub offset: u16,
+    /// Field width in bits (8, 16, 32, or 64).
+    pub width_bits: u16,
+    /// Byte order the field is interpreted in.
+    pub order: BpfFieldOrder,
+    /// One-line description.
+    pub description: &'static str,
+}
+
+/// The helper/access capabilities a handler of an event is permitted to use.
+/// A registry-described allowlist: a handler that needs a capability its event
+/// does not grant is a schema violation, checkable without naming a command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BpfEventCaps(u16);
+
+impl BpfEventCaps {
+    /// No capabilities beyond returning a verdict.
+    pub const NONE: Self = Self(0);
+    /// May read packet bytes / length.
+    pub const PKT_READ: Self = Self(1);
+    /// May read map values.
+    pub const MAP_READ: Self = Self(1 << 1);
+    /// May write map values.
+    pub const MAP_WRITE: Self = Self(1 << 2);
+    /// May emit records to a userspace ring buffer.
+    pub const RINGBUF_OUTPUT: Self = Self(1 << 3);
+    /// May read the event's typed context fields.
+    pub const CTX_READ: Self = Self(1 << 4);
+
+    /// The union of two capability sets.
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+
+    /// Whether every bit of `other` is present.
+    #[must_use]
+    pub const fn contains(self, other: Self) -> bool {
+        self.0 & other.0 == other.0
+    }
+}
+
+/// The kind of value an `attach` parameter carries. Drives validation of an
+/// event's attachment parameter schema.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BpfAttachParamKind {
+    /// A network interface name (`eth0`, `lo`) — resolved to an ifindex.
+    Interface,
+    /// A cgroup v2 directory path (`/sys/fs/cgroup/…`).
+    CgroupPath,
+    /// A traffic-control direction word (`ingress`/`egress`), fixed by the event.
+    Direction,
+}
+
+/// One parameter an event's `attach` declaration accepts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BpfAttachParam {
+    /// Parameter name (documentation/diagnostics).
+    pub name: &'static str,
+    /// The kind of value it carries.
+    pub kind: BpfAttachParamKind,
+    /// Whether the parameter is mandatory.
+    pub required: bool,
+    /// One-line description.
+    pub description: &'static str,
+}
+
+/// What an event's program produces: a packet decision (a verdict), userspace
+/// records (ring-buffer entries), or both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BpfEventOutput {
+    /// Returns a packet verdict only.
+    PacketDecision,
+    /// Emits typed userspace records only (observability events).
+    UserspaceRecord,
+    /// Both a packet decision and userspace records.
+    Both,
+}
+
+/// The minimum kernel / BTF requirements to load and attach an event's program.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BpfKernelReq {
+    /// Minimum kernel major version.
+    pub min_major: u8,
+    /// Minimum kernel minor version.
+    pub min_minor: u8,
+    /// Whether the event needs kernel BTF to attach (CO-RE / typed links).
+    pub requires_btf: bool,
+    /// Whether a first-class `bpf_link` attach is available (vs. a
+    /// type-specific fallback such as netlink `tc` or `setsockopt`).
+    pub bpf_link: bool,
+}
+
+/// A registry-described BPF event: the full typed contract behind
+/// `when <EVENT> …`. This is the single source of event truth — the compiler,
+/// loader, and documentation read it and never branch on an event name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BpfEventSpec {
     /// Canonical event name (as documented).
@@ -248,20 +422,214 @@ pub struct BpfEventSpec {
     pub prog_type: BpfEventProgType,
     /// The libbpf `SEC(...)` section convention for emitted ELF objects.
     pub elf_section: &'static str,
-    /// Verdicts a handler of this event may return.
+    /// The typed context a handler receives.
+    pub context: BpfContext,
+    /// Helper/access capabilities a handler is permitted to use.
+    pub capabilities: BpfEventCaps,
+    /// Terminal verdicts a handler of this event may return (the verdict
+    /// algebra). `next` (the non-terminal continuation) is always permitted
+    /// and is *not* listed here.
     pub verdicts: &'static [BpfVerdictKind],
+    /// The verdict applied when no handler in the chain terminates.
+    pub default_verdict: BpfVerdictKind,
+    /// The `attach` parameter schema.
+    pub attach_params: &'static [BpfAttachParam],
+    /// Minimum kernel / BTF requirements.
+    pub kernel: BpfKernelReq,
+    /// Whether the program emits packet decisions, userspace records, or both.
+    pub output: BpfEventOutput,
+    /// How far compiler codegen supports this event today.
+    pub codegen: BpfCodegen,
     /// One-line description for help/diagnostics.
     pub description: &'static str,
 }
 
-/// Every BPF event the framework recognises, in documentation order.
+impl BpfEventSpec {
+    /// Whether this event currently lowers to a compiled program.
+    #[must_use]
+    pub const fn is_codegen_ready(self) -> bool {
+        matches!(self.codegen, BpfCodegen::Ready)
+    }
+
+    /// Whether `verb` names a verdict this event permits (terminal verdicts
+    /// from the schema, plus the always-available non-terminal `next`).
+    #[must_use]
+    pub fn permits_verdict(&self, verb: &str) -> bool {
+        if verb == BpfVerdictKind::Next.verb() {
+            return true;
+        }
+        self.verdicts.iter().any(|v| v.verb() == verb)
+    }
+
+    /// Resolve a named context field.
+    #[must_use]
+    pub fn context_field(&self, name: &str) -> Option<&'static BpfCtxField> {
+        self.context.fields.iter().find(|f| f.name == name)
+    }
+
+    /// The permitted-capability names, for `check`/help output.
+    #[must_use]
+    pub fn capability_names(&self) -> Vec<&'static str> {
+        let mut out = Vec::new();
+        for (bit, name) in [
+            (BpfEventCaps::PKT_READ, "pkt-read"),
+            (BpfEventCaps::MAP_READ, "map-read"),
+            (BpfEventCaps::MAP_WRITE, "map-write"),
+            (BpfEventCaps::RINGBUF_OUTPUT, "ringbuf"),
+            (BpfEventCaps::CTX_READ, "ctx-read"),
+        ] {
+            if self.capabilities.contains(bit) {
+                out.push(name);
+            }
+        }
+        out
+    }
+
+    /// A stable label for the event's output kind.
+    #[must_use]
+    pub fn output_label(&self) -> &'static str {
+        match self.output {
+            BpfEventOutput::PacketDecision => "packet-decision",
+            BpfEventOutput::UserspaceRecord => "userspace-record",
+            BpfEventOutput::Both => "packet-decision+userspace-record",
+        }
+    }
+
+    /// A one-line kernel-requirement summary (`>=5.6, BTF, bpf_link`).
+    #[must_use]
+    pub fn kernel_summary(&self) -> String {
+        let mut s = format!(">={}.{}", self.kernel.min_major, self.kernel.min_minor);
+        if self.kernel.requires_btf {
+            s.push_str(", BTF");
+        }
+        s.push_str(if self.kernel.bpf_link {
+            ", bpf_link"
+        } else {
+            ", type-specific attach"
+        });
+        s
+    }
+}
+
+/// The Ethernet/IPv4/TCP `__sk_buff` metadata fields a socket-filter / TC
+/// handler can read directly (a small, safe subset — the packet body is read
+/// with `load8/16/32`).
+const SK_BUFF_FIELDS: &[BpfCtxField] = &[
+    BpfCtxField {
+        name: "len",
+        offset: 0,
+        width_bits: 32,
+        order: BpfFieldOrder::Host,
+        description: "total packet length in bytes",
+    },
+    BpfCtxField {
+        name: "protocol",
+        offset: 16,
+        width_bits: 32,
+        order: BpfFieldOrder::Network,
+        description: "L3 protocol (network byte order)",
+    },
+    BpfCtxField {
+        name: "ifindex",
+        offset: 24,
+        width_bits: 32,
+        order: BpfFieldOrder::Host,
+        description: "interface index the packet arrived on / leaves by",
+    },
+    BpfCtxField {
+        name: "mark",
+        offset: 20,
+        width_bits: 32,
+        order: BpfFieldOrder::Host,
+        description: "skb mark (readable/settable fwmark)",
+    },
+];
+
+/// The `xdp_md` metadata fields.
+const XDP_MD_FIELDS: &[BpfCtxField] = &[
+    BpfCtxField {
+        name: "ingress_ifindex",
+        offset: 12,
+        width_bits: 32,
+        order: BpfFieldOrder::Host,
+        description: "interface index the frame arrived on",
+    },
+    BpfCtxField {
+        name: "rx_queue_index",
+        offset: 16,
+        width_bits: 32,
+        order: BpfFieldOrder::Host,
+        description: "RX queue index",
+    },
+];
+
+/// The `bpf_sock_addr` fields a cgroup connect/bind hook inspects.
+const SOCK_ADDR_FIELDS: &[BpfCtxField] = &[
+    BpfCtxField {
+        name: "user_ip4",
+        offset: 4,
+        width_bits: 32,
+        order: BpfFieldOrder::Network,
+        description: "destination/bind IPv4 address (network byte order)",
+    },
+    BpfCtxField {
+        name: "user_port",
+        offset: 24,
+        width_bits: 32,
+        order: BpfFieldOrder::Network,
+        description: "destination/bind port (network byte order, low 16 bits)",
+    },
+    BpfCtxField {
+        name: "family",
+        offset: 0,
+        width_bits: 32,
+        order: BpfFieldOrder::Host,
+        description: "address family (AF_INET)",
+    },
+];
+
+const IFACE_PARAM: &[BpfAttachParam] = &[BpfAttachParam {
+    name: "interface",
+    kind: BpfAttachParamKind::Interface,
+    required: true,
+    description: "network interface to attach to",
+}];
+
+const CGROUP_PARAM: &[BpfAttachParam] = &[BpfAttachParam {
+    name: "cgroup",
+    kind: BpfAttachParamKind::CgroupPath,
+    required: true,
+    description: "cgroup v2 directory the policy applies to",
+}];
+
+/// Every BPF event the framework recognises, in documentation order. The first
+/// two are codegen-ready (issue #1203); TC and cgroup are schema-described with
+/// codegen sequenced for a later change (issue #1204's event framework).
 pub const BPF_EVENTS: &[BpfEventSpec] = &[
     BpfEventSpec {
         name: "SOCKET_FILTER",
         aliases: &["SOCKET"],
         prog_type: BpfEventProgType::SocketFilter,
         elf_section: "socket",
+        context: BpfContext {
+            struct_name: "__sk_buff",
+            fields: SK_BUFF_FIELDS,
+        },
+        capabilities: BpfEventCaps::PKT_READ
+            .union(BpfEventCaps::MAP_READ)
+            .union(BpfEventCaps::MAP_WRITE)
+            .union(BpfEventCaps::CTX_READ),
         verdicts: &[BpfVerdictKind::Accept, BpfVerdictKind::Drop],
+        default_verdict: BpfVerdictKind::Accept,
+        attach_params: IFACE_PARAM,
+        kernel: BpfKernelReq {
+            min_major: 3,
+            min_minor: 19,
+            requires_btf: false,
+            bpf_link: false,
+        },
+        output: BpfEventOutput::PacketDecision,
+        codegen: BpfCodegen::Ready,
         description: "socket filter: verdict is the number of bytes to accept (0 drops)",
     },
     BpfEventSpec {
@@ -269,12 +637,135 @@ pub const BPF_EVENTS: &[BpfEventSpec] = &[
         aliases: &[],
         prog_type: BpfEventProgType::Xdp,
         elf_section: "xdp",
+        context: BpfContext {
+            struct_name: "xdp_md",
+            fields: XDP_MD_FIELDS,
+        },
+        capabilities: BpfEventCaps::PKT_READ
+            .union(BpfEventCaps::MAP_READ)
+            .union(BpfEventCaps::MAP_WRITE)
+            .union(BpfEventCaps::CTX_READ),
         verdicts: &[
             BpfVerdictKind::Pass,
             BpfVerdictKind::Drop,
             BpfVerdictKind::Tx,
         ],
+        default_verdict: BpfVerdictKind::Pass,
+        attach_params: IFACE_PARAM,
+        kernel: BpfKernelReq {
+            min_major: 4,
+            min_minor: 8,
+            requires_btf: false,
+            bpf_link: true,
+        },
+        output: BpfEventOutput::PacketDecision,
+        codegen: BpfCodegen::Ready,
         description: "XDP ingress: verdict is an XDP action (PASS/DROP/TX)",
+    },
+    BpfEventSpec {
+        name: "TC_INGRESS",
+        aliases: &["TC"],
+        prog_type: BpfEventProgType::TcIngress,
+        elf_section: "tc",
+        context: BpfContext {
+            struct_name: "__sk_buff",
+            fields: SK_BUFF_FIELDS,
+        },
+        capabilities: BpfEventCaps::PKT_READ
+            .union(BpfEventCaps::MAP_READ)
+            .union(BpfEventCaps::MAP_WRITE)
+            .union(BpfEventCaps::CTX_READ),
+        // TC classifier verdicts reuse pass/drop naming (TC_ACT_OK / TC_ACT_SHOT).
+        verdicts: &[BpfVerdictKind::Pass, BpfVerdictKind::Drop],
+        default_verdict: BpfVerdictKind::Pass,
+        attach_params: IFACE_PARAM,
+        kernel: BpfKernelReq {
+            min_major: 6,
+            min_minor: 6,
+            requires_btf: true,
+            bpf_link: true,
+        },
+        output: BpfEventOutput::PacketDecision,
+        codegen: BpfCodegen::Described,
+        description: "TC ingress classifier: verdict is a TC action (OK/SHOT)",
+    },
+    BpfEventSpec {
+        name: "TC_EGRESS",
+        aliases: &[],
+        prog_type: BpfEventProgType::TcEgress,
+        elf_section: "tc",
+        context: BpfContext {
+            struct_name: "__sk_buff",
+            fields: SK_BUFF_FIELDS,
+        },
+        capabilities: BpfEventCaps::PKT_READ
+            .union(BpfEventCaps::MAP_READ)
+            .union(BpfEventCaps::MAP_WRITE)
+            .union(BpfEventCaps::CTX_READ),
+        verdicts: &[BpfVerdictKind::Pass, BpfVerdictKind::Drop],
+        default_verdict: BpfVerdictKind::Pass,
+        attach_params: IFACE_PARAM,
+        kernel: BpfKernelReq {
+            min_major: 6,
+            min_minor: 6,
+            requires_btf: true,
+            bpf_link: true,
+        },
+        output: BpfEventOutput::PacketDecision,
+        codegen: BpfCodegen::Described,
+        description: "TC egress classifier: verdict is a TC action (OK/SHOT)",
+    },
+    BpfEventSpec {
+        name: "CGROUP_CONNECT4",
+        aliases: &[],
+        prog_type: BpfEventProgType::CgroupInet4Connect,
+        elf_section: "cgroup/connect4",
+        context: BpfContext {
+            struct_name: "bpf_sock_addr",
+            fields: SOCK_ADDR_FIELDS,
+        },
+        capabilities: BpfEventCaps::MAP_READ
+            .union(BpfEventCaps::MAP_WRITE)
+            .union(BpfEventCaps::CTX_READ),
+        // A cgroup sock_addr hook returns 1 (allow) or 0 (deny); modelled with
+        // pass = allow, drop = deny.
+        verdicts: &[BpfVerdictKind::Pass, BpfVerdictKind::Drop],
+        default_verdict: BpfVerdictKind::Pass,
+        attach_params: CGROUP_PARAM,
+        kernel: BpfKernelReq {
+            min_major: 4,
+            min_minor: 17,
+            requires_btf: true,
+            bpf_link: true,
+        },
+        output: BpfEventOutput::PacketDecision,
+        codegen: BpfCodegen::Described,
+        description: "cgroup IPv4 connect policy: verdict allows (pass) or denies (drop) the connect",
+    },
+    BpfEventSpec {
+        name: "CGROUP_BIND4",
+        aliases: &[],
+        prog_type: BpfEventProgType::CgroupInet4Bind,
+        elf_section: "cgroup/bind4",
+        context: BpfContext {
+            struct_name: "bpf_sock_addr",
+            fields: SOCK_ADDR_FIELDS,
+        },
+        capabilities: BpfEventCaps::MAP_READ
+            .union(BpfEventCaps::MAP_WRITE)
+            .union(BpfEventCaps::CTX_READ),
+        verdicts: &[BpfVerdictKind::Pass, BpfVerdictKind::Drop],
+        default_verdict: BpfVerdictKind::Pass,
+        attach_params: CGROUP_PARAM,
+        kernel: BpfKernelReq {
+            min_major: 4,
+            min_minor: 17,
+            requires_btf: true,
+            bpf_link: true,
+        },
+        output: BpfEventOutput::PacketDecision,
+        codegen: BpfCodegen::Described,
+        description: "cgroup IPv4 bind policy: verdict allows (pass) or denies (drop) the bind",
     },
 ];
 
@@ -294,6 +785,16 @@ pub fn lookup_bpf_event(name: &str) -> Option<&'static BpfEventSpec> {
 #[must_use]
 pub fn bpf_event_names() -> Vec<&'static str> {
     BPF_EVENTS.iter().map(|e| e.name).collect()
+}
+
+/// The canonical names of events that currently lower to a compiled program.
+#[must_use]
+pub fn codegen_ready_event_names() -> Vec<&'static str> {
+    BPF_EVENTS
+        .iter()
+        .filter(|e| e.is_codegen_ready())
+        .map(|e| e.name)
+        .collect()
 }
 
 #[cfg(test)]
@@ -340,6 +841,72 @@ mod tests {
             );
             assert!(!e.elf_section.is_empty());
             assert!(!e.description.is_empty());
+        }
+    }
+
+    #[test]
+    fn tc_and_cgroup_events_are_schema_described() {
+        // Issue #1204: TC ingress/egress and cgroup connect/bind exist as typed
+        // registry contracts, resolvable by name/alias.
+        for name in ["TC_INGRESS", "TC_EGRESS", "CGROUP_CONNECT4", "CGROUP_BIND4"] {
+            let e = lookup_bpf_event(name).unwrap_or_else(|| panic!("{name} missing"));
+            assert_eq!(
+                e.codegen,
+                BpfCodegen::Described,
+                "{name} should be described"
+            );
+            assert!(!e.context.fields.is_empty(), "{name} has no context fields");
+            assert!(!e.attach_params.is_empty(), "{name} has no attach params");
+        }
+        assert_eq!(lookup_bpf_event("tc").map(|e| e.name), Some("TC_INGRESS"));
+    }
+
+    #[test]
+    fn every_event_has_a_consistent_verdict_algebra() {
+        for e in BPF_EVENTS {
+            // The default verdict must be one the event actually permits, and
+            // must be terminal (a chain cannot default to "continue").
+            assert!(
+                e.verdicts.contains(&e.default_verdict),
+                "{}: default verdict not in its verdict set",
+                e.name
+            );
+            assert!(
+                e.default_verdict.is_terminal(),
+                "{}: default verdict must be terminal",
+                e.name
+            );
+            // `next` is always permitted and never listed as a terminal verdict.
+            assert!(e.permits_verdict("next"), "{} must permit next", e.name);
+            assert!(
+                !e.verdicts.contains(&BpfVerdictKind::Next),
+                "{}: next must not be listed as terminal",
+                e.name
+            );
+            // Context reads imply the CTX_READ capability.
+            assert!(
+                e.capabilities.contains(BpfEventCaps::CTX_READ),
+                "{}: context fields need CTX_READ",
+                e.name
+            );
+        }
+    }
+
+    #[test]
+    fn codegen_ready_events_are_exactly_xdp_and_socket_filter() {
+        assert_eq!(codegen_ready_event_names(), vec!["SOCKET_FILTER", "XDP"]);
+    }
+
+    #[test]
+    fn next_is_the_only_non_terminal_verdict() {
+        assert!(!BpfVerdictKind::Next.is_terminal());
+        for v in [
+            BpfVerdictKind::Accept,
+            BpfVerdictKind::Drop,
+            BpfVerdictKind::Pass,
+            BpfVerdictKind::Tx,
+        ] {
+            assert!(v.is_terminal(), "{v:?} should be terminal");
         }
     }
 }

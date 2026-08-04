@@ -162,6 +162,43 @@ not mounted, mount it once with:
 sudo mount -t bpf bpf /sys/fs/bpf
 ```
 
+## Handler composition and the loader plan (issue #1204)
+
+Multiple `when EVENT priority N { … }` handlers for one event compose into an
+ordered chain. Lower priority numbers run first; the first handler that returns a
+terminal verdict (`accept`/`drop`/`pass`/`tx`) decides, and a handler continues
+to the next only by ending a path with the explicit non-terminal `next` outcome.
+If every handler yields `next`, the event's default verdict applies. Two handlers
+of one event that share a priority are rejected as an ambiguous composition.
+
+```sh
+target/debug/bpf-tcl check samples/bpf-tcl/compose-deny-audit.bpftcl
+```
+
+`check` prints the resolved event contract per handler (context struct, permitted
+capabilities, default verdict, output kind, kernel requirements) and, for a
+multi-handler event, the composition chain in run order.
+
+`plan` is the loader dry-run. It shows each program's type, priority, deployment
+target, ownership-labelled pin path, maps, and kernel requirements — without
+touching any kernel state:
+
+```sh
+target/debug/bpf-tcl plan samples/bpf-tcl/compose-deny-audit.bpftcl --name demo
+```
+
+The rest of the loader/link lifecycle (`load` → `test-run` → `attach` →
+`status` → `detach`, with atomic rollback and resource ownership) is modelled and
+unit-tested deterministically in `bpf-tcl-ir::loader` over a `ModelKernel`. Real
+`bpf()`-syscall attachment needs a live kernel plus `CAP_BPF` / `CAP_NET_ADMIN`
+(root in practice) and is exercised only by the `#[ignore]`d privileged tests in
+`rust/bpf-tcl/tests/kernel_attach.rs`, which run inside a disposable network
+namespace torn down unconditionally so nothing leaks onto the host:
+
+```sh
+sudo -E cargo test -p bpf-tcl --test kernel_attach -- --ignored --nocapture
+```
+
 ## Compile a `.bpftcl` file
 
 `check` runs the framework expansion and typed lowering without emitting an

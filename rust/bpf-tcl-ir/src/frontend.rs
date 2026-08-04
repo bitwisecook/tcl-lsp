@@ -158,7 +158,28 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
             .then_with(|| a.event.cmp(&b.event))
     });
 
-    Ok(BpfModule { programs })
+    let module = BpfModule { programs };
+
+    // Handler composition (issue #1204): two handlers of the *same* event at the
+    // *same* priority have no deterministic order — the priority sort cannot
+    // distinguish them and the event-name tiebreaker is identical. That is an
+    // ambiguous composition; reject it rather than emit a non-deterministic
+    // chain ("sorting independent object files is not sufficient").
+    if let Some((event, priority)) = crate::compose::ambiguous_priorities(&module)
+        .into_iter()
+        .next()
+    {
+        return Err(BpfError::new(
+            BpfDiag::AmbiguousComposition,
+            Span::empty(0),
+            format!(
+                "two `when {event}` handlers share priority {priority}; give each a \
+                 distinct priority so their composition order is deterministic"
+            ),
+        ));
+    }
+
+    Ok(module)
 }
 
 /// The default handler priority when the `when` header names none
@@ -236,16 +257,7 @@ fn lower_when_decl(
             "the `when` event must be a literal name (no substitutions)",
         ));
     }
-    let prog_type = event_to_prog_type(&event).ok_or_else(|| {
-        BpfError::new(
-            BpfDiag::BadEvent,
-            word_span(0),
-            format!(
-                "unknown BPF event `{event}` (known: {})",
-                known_event_names().join(", ")
-            ),
-        )
-    })?;
+    let prog_type = resolve_event_prog_type(&event, word_span(0))?;
 
     let body_idx = args.len() - 1;
     let body_text = &args[body_idx];
@@ -273,6 +285,36 @@ fn lower_when_decl(
         attach: None,
         source_base,
     })
+}
+
+/// Resolve a `when` event name to a codegen-ready IR program type, or a precise
+/// diagnostic: a registry-described-but-not-yet-compilable event (TC, cgroup) is
+/// distinguished from a genuinely unknown one.
+fn resolve_event_prog_type(event: &str, span: Span) -> Result<ProgType, BpfError> {
+    if let Some(pt) = event_to_prog_type(event) {
+        return Ok(pt);
+    }
+    if crate::event::event_is_described(event) {
+        // A real event — say so precisely rather than claiming it is unknown —
+        // but the compiler cannot lower it yet.
+        return Err(BpfError::new(
+            BpfDiag::BadEvent,
+            span,
+            format!(
+                "BPF event `{event}` is registry-described but its codegen is not \
+                 yet implemented; compilable events: {}",
+                crate::event::codegen_ready_event_names().join(", ")
+            ),
+        ));
+    }
+    Err(BpfError::new(
+        BpfDiag::BadEvent,
+        span,
+        format!(
+            "unknown BPF event `{event}` (known: {})",
+            known_event_names().join(", ")
+        ),
+    ))
 }
 
 /// Whether a `when` header word is a plain literal — no variable or command
@@ -421,6 +463,47 @@ mod tests {
     }
 
     #[test]
+    fn described_but_uncompilable_event_is_rejected_precisely() {
+        // TC is a registry-described event whose codegen is not ready — the
+        // message must say so, not "unknown event".
+        let err = compile_module("when TC_INGRESS { pass }\n").unwrap_err();
+        assert_eq!(err.code, BpfDiag::BadEvent);
+        assert!(
+            err.msg.contains("codegen") && err.msg.contains("TC_INGRESS"),
+            "precise described-event message: {}",
+            err.msg
+        );
+    }
+
+    #[test]
+    fn next_is_a_valid_handler_outcome() {
+        // A handler may end a path with `next` (explicit continuation).
+        let src = "when XDP { setbuf p ctx\n pktlen n p\n if {$n < 20} { next }\n pass }\n";
+        let module = compile_module(src).expect("next compiles");
+        assert_eq!(module.programs.len(), 1);
+    }
+
+    #[test]
+    fn two_handlers_sharing_a_priority_are_ambiguous() {
+        // Same event, same explicit priority -> non-deterministic composition.
+        let src = "when XDP priority 10 { pass }\nwhen XDP priority 10 { drop }\n";
+        let err = compile_module(src).unwrap_err();
+        assert_eq!(err.code, BpfDiag::AmbiguousComposition);
+    }
+
+    #[test]
+    fn two_handlers_with_distinct_priorities_compose() {
+        let src = "when XDP priority 10 { next }\nwhen XDP priority 20 { pass }\n";
+        let module = compile_module(src).expect("distinct priorities compose");
+        // Lower priority first.
+        assert_eq!(module.programs[0].priority, 10);
+        assert_eq!(module.programs[1].priority, 20);
+        let chains = crate::compose::event_chains(&module);
+        assert_eq!(chains.len(), 1);
+        assert_eq!(chains[0].handler_indices, vec![0, 1]);
+    }
+
+    #[test]
     fn port_filter_compiles() {
         let src = "when SOCKET_FILTER {\n\
                    setbuf pkt ctx\n\
@@ -478,24 +561,45 @@ mod tests {
         }
     }
 
-    /// Every event resolvable through the registry maps to a program type, and
-    /// the framework front-end accepts a handler for it — proving the event
-    /// space is registry-described end to end (no string-match arm).
+    /// Every codegen-ready event resolvable through the registry maps to a
+    /// program type and the framework front-end compiles a handler for it —
+    /// proving the event space is registry-described end to end (no
+    /// string-match arm). Schema-described-but-not-ready events (TC, cgroup)
+    /// resolve their spec and are rejected with a *precise* diagnostic, never
+    /// treated as unknown.
     #[test]
-    fn every_registry_event_compiles_a_handler() {
+    fn every_registry_event_is_handled_by_its_schema() {
         for event in tcl_registry::bpf_op::BPF_EVENTS {
-            assert!(
-                crate::event::event_to_prog_type(event.name).is_some(),
-                "event {} has no program type",
-                event.name
-            );
-            let verdict = match event.prog_type {
-                tcl_registry::bpf_op::BpfEventProgType::SocketFilter => "accept",
-                tcl_registry::bpf_op::BpfEventProgType::Xdp => "pass",
-            };
-            let src = format!("when {} {{ {verdict} }}\n", event.name);
-            compile_module(&src)
-                .unwrap_or_else(|e| panic!("event {} handler failed: {e}", event.name));
+            if event.is_codegen_ready() {
+                assert!(
+                    crate::event::event_to_prog_type(event.name).is_some(),
+                    "ready event {} has no program type",
+                    event.name
+                );
+                // Its default verdict's verb is a valid handler body.
+                let verb = event.default_verdict.verb();
+                let src = format!("when {} {{ {verb} }}\n", event.name);
+                compile_module(&src)
+                    .unwrap_or_else(|e| panic!("event {} handler failed: {e}", event.name));
+            } else {
+                assert!(
+                    crate::event::event_is_described(event.name),
+                    "non-ready event {} should be described",
+                    event.name
+                );
+                let src = format!(
+                    "when {} {{ {} }}\n",
+                    event.name,
+                    event.default_verdict.verb()
+                );
+                let err = compile_module(&src).expect_err("described event must not compile yet");
+                assert_eq!(err.code, BpfDiag::BadEvent);
+                assert!(
+                    err.msg.contains("codegen"),
+                    "described-event message should mention codegen: {}",
+                    err.msg
+                );
+            }
         }
     }
 }

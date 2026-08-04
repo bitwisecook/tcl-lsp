@@ -28,27 +28,36 @@
 
 pub mod alloc;
 pub mod capability;
+pub mod compose;
 pub mod deploy;
 pub mod diag;
 pub mod event;
 pub mod frontend;
 pub mod ir;
+pub mod loader;
 pub mod lower;
 pub mod profile;
+pub mod ringbuf;
 pub mod template;
 pub mod ty;
 pub mod unroll;
 
 pub use capability::CapabilityPolicy;
+pub use compose::{ChainResult, EventChain, Outcome, ambiguous_priorities, compose, event_chains};
 pub use deploy::collect_attach;
 pub use diag::{BpfDiag, BpfError};
+pub use event::{event_is_described, event_spec, event_to_prog_type, known_event_names};
 pub use frontend::compile_module;
 pub use ir::{
-    AttachSpec, BpfModule, BpfProgram, BpfProgramDecl, MapConcurrency, MapDef, MapKind, OobAction,
-    ProgType,
+    AttachSpec, BpfModule, BpfProgram, BpfProgramDecl, CONTINUE_SENTINEL, MapConcurrency, MapDef,
+    MapKind, OobAction, ProgType,
+};
+pub use loader::{
+    Deployment, DeploymentPlan, DeploymentStatus, KernelOps, LoaderError, ModelKernel, State,
 };
 pub use lower::lower_function;
 pub use profile::{BpfProfileSpec, FieldDef};
+pub use ringbuf::{DecodedRecord, RecordHeader, RecordSchema, RingBuffer};
 pub use template::TemplateDef;
 pub use ty::ByteOrder;
 pub use unroll::unroll_loops;

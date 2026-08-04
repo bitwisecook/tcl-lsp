@@ -45,6 +45,7 @@ mod map_set;
 // Layer 2 — verdicts.
 mod accept;
 mod drop;
+mod next;
 mod pass;
 mod tx;
 // Control flow.
@@ -83,6 +84,7 @@ pub fn bpf_command_specs() -> Vec<CommandSpec> {
         map_set::spec(),
         accept::spec(),
         drop::spec(),
+        next::spec(),
         pass::spec(),
         tx::spec(),
         loop_::spec(),
@@ -105,12 +107,12 @@ mod tests {
     #[test]
     fn all_bpf_commands_present_and_tagged() {
         let specs = bpf_command_specs();
-        assert_eq!(specs.len(), 25);
+        assert_eq!(specs.len(), 26);
         let names: Vec<&str> = specs.iter().map(|s| s.name).collect();
         for n in [
             "setint", "seti32", "setu32", "setbuf", "load8", "load16", "load32", "pktlen", "map",
-            "map_get", "map_has", "map_set", "accept", "drop", "pass", "tx", "loop", "when",
-            "profile", "field", "template", "use", "allow", "deny", "attach",
+            "map_get", "map_has", "map_set", "accept", "drop", "next", "pass", "tx", "loop",
+            "when", "profile", "field", "template", "use", "allow", "deny", "attach",
         ] {
             assert!(names.contains(&n), "missing `{n}`");
         }
