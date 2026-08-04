@@ -34,14 +34,17 @@ import { getDocUri, activate, pollUntil } from "./helper";
 // and kind nodes select the line of their *first* child, so the outline
 // model pins the first `ltm` stanza in the file no matter where you scroll.
 //
-// The version-pinned dialects (`tcl8.4`, `tcl9.0`, …) are excluded because a
-// language id containing a `.` cannot be used as a configuration override
-// identifier: VS Code splits `[tcl8.4]` on the dot while building the
-// default-configuration value tree, throws, and drops every remaining
-// override in the same `configurationDefaults` block.  See the
-// "dotted language ids" test below.
-const DOTTED_LANGUAGE_IDS = [...TCL_LANGUAGE_IDS].filter((id) => id.includes("."));
-const STICKY_FOLDING_LANGUAGES = [...TCL_LANGUAGE_IDS].filter((id) => !id.includes("."));
+// The version-pinned dialect languages (`tcl84`, `tcl90`, …) carry the same
+// default as every other Tcl language.  They only can because their ids are
+// *undotted*: a language id containing a `.` cannot be used as a configuration
+// override identifier at all.  VS Code splits `[tcl8.4]` on the dot while
+// building the default-configuration value tree, throws a TypeError, and drops
+// every remaining override in the same `configurationDefaults` block — ours
+// and, since the tree is shared, any other extension's (issue #1122).  That is
+// why the four version-pinned ids were renamed `tcl8.4` → `tcl84` and why a
+// dotted id must never be reintroduced.  The "no contributed language id
+// contains a dot" test below is the guard.
+const STICKY_FOLDING_LANGUAGES = [...TCL_LANGUAGE_IDS];
 
 // VS Code exposes no API to read the sticky-scroll widget itself, so the
 // tests below replicate its folding-provider candidate pipeline against
@@ -165,6 +168,40 @@ suite("Sticky Scroll", () => {
       .getConfiguration("editor", { languageId })
       .get<string>("stickyScroll.defaultModel");
 
+  test("no contributed language id contains a dot", () => {
+    // A dotted language id is unusable as a `configurationDefaults` override
+    // key: VS Code splits `"[tcl8.4]"` on the `.` while building the
+    // default-configuration value tree, throws a TypeError, and abandons every
+    // remaining override in that block.  The damage is not even limited to us —
+    // the defaults tree is shared, so one dotted id can silently strip other
+    // extensions' defaults too (issue #1122).  This is why the version-pinned
+    // dialect ids are `tcl84` / `tcl85` / `tcl90` / `tcl91` rather than
+    // `tcl8.4` / … .  Do not reintroduce a dotted id; the *dialect* strings
+    // (`tcl8.4`) are a separate namespace and keep their dots.
+    const dotted = [...TCL_LANGUAGE_IDS].filter((id) => id.includes("."));
+    assert.deepStrictEqual(
+      dotted,
+      [],
+      `language ids must not contain a '.' (would break configurationDefaults): ${dotted.join(", ")}`,
+    );
+  });
+
+  test("every contributed Tcl language id is covered by the sticky-scroll default", () => {
+    // Guards the flip side of the rename: the point of undotted ids is that
+    // the four version-pinned languages can now carry the default, so none of
+    // them may be missing from `configurationDefaults`.
+    assert.ok(
+      STICKY_FOLDING_LANGUAGES.length === TCL_LANGUAGE_IDS.size,
+      "every contributed language id should be checked for the sticky-scroll default",
+    );
+    for (const languageId of ["tcl84", "tcl85", "tcl90", "tcl91"]) {
+      assert.ok(
+        TCL_LANGUAGE_IDS.has(languageId),
+        `'${languageId}' should be a contributed language id`,
+      );
+    }
+  });
+
   for (const languageId of STICKY_FOLDING_LANGUAGES) {
     test(`'${languageId}' defaults sticky scroll to the folding-provider model`, () => {
       assert.strictEqual(
@@ -174,18 +211,6 @@ suite("Sticky Scroll", () => {
       );
     });
   }
-
-  test("dotted language ids cannot carry a sticky-scroll default", () => {
-    // Known VS Code limitation, asserted so we notice if it is ever fixed:
-    // `"[tcl8.4]"` in `configurationDefaults` makes VS Code throw while
-    // updating the default configuration model, so the override never lands
-    // (and takes the rest of the block with it).  If this starts returning
-    // `foldingProviderModel`, add the dotted ids back to the manifest.
-    assert.ok(DOTTED_LANGUAGE_IDS.length > 0, "expected version-pinned dialects like tcl9.0");
-    for (const languageId of DOTTED_LANGUAGE_IDS) {
-      assert.strictEqual(stickyModelFor(languageId), "outlineModel", languageId);
-    }
-  });
 
   test("BIG-IP config stanzas fold, so sticky scroll has real lines to pin", async () => {
     // A `.conf` is not Tcl, so it used to produce only comment folds and the

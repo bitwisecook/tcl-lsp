@@ -29,10 +29,10 @@
     "onLanguage:tcl-iapp",
     "onLanguage:tcl-apl",
     "onLanguage:tcl-bigip",
-    "onLanguage:tcl8.4",
-    "onLanguage:tcl8.5",
-    "onLanguage:tcl9.0",
-    "onLanguage:tcl9.1",
+    "onLanguage:tcl84",
+    "onLanguage:tcl85",
+    "onLanguage:tcl90",
+    "onLanguage:tcl91",
     "onLanguage:tcl-synopsys",
     "onLanguage:tcl-cadence",
     "onLanguage:tcl-xilinx",
@@ -121,28 +121,28 @@
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "tcl8.4",
+        "id": "tcl84",
         "aliases": [
           "Tcl 8.4"
         ],
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "tcl8.5",
+        "id": "tcl85",
         "aliases": [
           "Tcl 8.5"
         ],
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "tcl9.0",
+        "id": "tcl90",
         "aliases": [
           "Tcl 9.0"
         ],
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "tcl9.1",
+        "id": "tcl91",
         "aliases": [
           "Tcl 9.1"
         ],
@@ -233,22 +233,22 @@
         }
       },
       {
-        "language": "tcl8.4",
+        "language": "tcl84",
         "scopeName": "source.tcl",
         "path": "./syntaxes/tcl.tmLanguage.json"
       },
       {
-        "language": "tcl8.5",
+        "language": "tcl85",
         "scopeName": "source.tcl",
         "path": "./syntaxes/tcl.tmLanguage.json"
       },
       {
-        "language": "tcl9.0",
+        "language": "tcl90",
         "scopeName": "source.tcl",
         "path": "./syntaxes/tcl.tmLanguage.json"
       },
       {
-        "language": "tcl9.1",
+        "language": "tcl91",
         "scopeName": "source.tcl",
         "path": "./syntaxes/tcl.tmLanguage.json"
       },
@@ -1240,7 +1240,7 @@
         }
       },
       {
-        "language": "tcl8.4",
+        "language": "tcl84",
         "scopes": {
           "regexp": [
             "string.regexp.tcl"
@@ -1308,7 +1308,7 @@
         }
       },
       {
-        "language": "tcl8.5",
+        "language": "tcl85",
         "scopes": {
           "regexp": [
             "string.regexp.tcl"
@@ -1376,7 +1376,7 @@
         }
       },
       {
-        "language": "tcl9.0",
+        "language": "tcl90",
         "scopes": {
           "regexp": [
             "string.regexp.tcl"
@@ -1444,7 +1444,7 @@
         }
       },
       {
-        "language": "tcl9.1",
+        "language": "tcl91",
         "scopes": {
           "regexp": [
             "string.regexp.tcl"
@@ -2072,48 +2072,48 @@
             "foreground": "#ff9e64",
             "underline": true
           },
-          "regexp:tcl8.4": {
+          "regexp:tcl84": {
             "foreground": "#d16969",
             "italic": true
           },
-          "escape:tcl8.4": {
+          "escape:tcl84": {
             "foreground": "#d7ba7d"
           },
-          "event:tcl8.4": {
+          "event:tcl84": {
             "foreground": "#4ec9b0",
             "bold": true
           },
-          "decorator:tcl8.4": {
+          "decorator:tcl84": {
             "foreground": "#9cdcfe",
             "italic": true
           },
-          "regexp:tcl8.5": {
+          "regexp:tcl85": {
             "foreground": "#d16969",
             "italic": true
           },
-          "escape:tcl8.5": {
+          "escape:tcl85": {
             "foreground": "#d7ba7d"
           },
-          "event:tcl8.5": {
+          "event:tcl85": {
             "foreground": "#4ec9b0",
             "bold": true
           },
-          "decorator:tcl8.5": {
+          "decorator:tcl85": {
             "foreground": "#9cdcfe",
             "italic": true
           },
-          "regexp:tcl9.0": {
+          "regexp:tcl90": {
             "foreground": "#d16969",
             "italic": true
           },
-          "escape:tcl9.0": {
+          "escape:tcl90": {
             "foreground": "#d7ba7d"
           },
-          "event:tcl9.0": {
+          "event:tcl90": {
             "foreground": "#4ec9b0",
             "bold": true
           },
-          "decorator:tcl9.0": {
+          "decorator:tcl90": {
             "foreground": "#9cdcfe",
             "italic": true
           },
@@ -2424,177 +2424,177 @@
             "foreground": "#9cdcfe",
             "italic": true
           },
-          "regexpGroup:tcl8.4": {
+          "regexpGroup:tcl84": {
             "foreground": "#c586c0"
           },
-          "regexpCharClass:tcl8.4": {
+          "regexpCharClass:tcl84": {
             "foreground": "#d16969",
             "italic": true
           },
-          "regexpQuantifier:tcl8.4": {
+          "regexpQuantifier:tcl84": {
             "foreground": "#dcdcaa"
           },
-          "regexpAnchor:tcl8.4": {
+          "regexpAnchor:tcl84": {
             "foreground": "#569cd6",
             "bold": true
           },
-          "regexpEscape:tcl8.4": {
+          "regexpEscape:tcl84": {
             "foreground": "#d7ba7d"
           },
-          "regexpBackref:tcl8.4": {
+          "regexpBackref:tcl84": {
             "foreground": "#b5cea8"
           },
-          "regexpAlternation:tcl8.4": {
+          "regexpAlternation:tcl84": {
             "foreground": "#c586c0"
           },
-          "binarySpec:tcl8.4": {
+          "binarySpec:tcl84": {
             "foreground": "#4ec9b0",
             "bold": true
           },
-          "binaryCount:tcl8.4": {
+          "binaryCount:tcl84": {
             "foreground": "#b5cea8"
           },
-          "binaryFlag:tcl8.4": {
+          "binaryFlag:tcl84": {
             "foreground": "#569cd6",
             "italic": true
           },
-          "formatPercent:tcl8.4": {
+          "formatPercent:tcl84": {
             "foreground": "#c586c0"
           },
-          "formatSpec:tcl8.4": {
+          "formatSpec:tcl84": {
             "foreground": "#4fc1ff",
             "bold": true
           },
-          "formatFlag:tcl8.4": {
+          "formatFlag:tcl84": {
             "foreground": "#d8a0df"
           },
-          "formatWidth:tcl8.4": {
+          "formatWidth:tcl84": {
             "foreground": "#b5cea8"
           },
-          "clockPercent:tcl8.4": {
+          "clockPercent:tcl84": {
             "foreground": "#dcdcaa"
           },
-          "clockSpec:tcl8.4": {
+          "clockSpec:tcl84": {
             "foreground": "#ce9178",
             "bold": true
           },
-          "clockModifier:tcl8.4": {
+          "clockModifier:tcl84": {
             "foreground": "#9cdcfe",
             "italic": true
           },
-          "regexpGroup:tcl8.5": {
+          "regexpGroup:tcl85": {
             "foreground": "#c586c0"
           },
-          "regexpCharClass:tcl8.5": {
+          "regexpCharClass:tcl85": {
             "foreground": "#d16969",
             "italic": true
           },
-          "regexpQuantifier:tcl8.5": {
+          "regexpQuantifier:tcl85": {
             "foreground": "#dcdcaa"
           },
-          "regexpAnchor:tcl8.5": {
+          "regexpAnchor:tcl85": {
             "foreground": "#569cd6",
             "bold": true
           },
-          "regexpEscape:tcl8.5": {
+          "regexpEscape:tcl85": {
             "foreground": "#d7ba7d"
           },
-          "regexpBackref:tcl8.5": {
+          "regexpBackref:tcl85": {
             "foreground": "#b5cea8"
           },
-          "regexpAlternation:tcl8.5": {
+          "regexpAlternation:tcl85": {
             "foreground": "#c586c0"
           },
-          "binarySpec:tcl8.5": {
+          "binarySpec:tcl85": {
             "foreground": "#4ec9b0",
             "bold": true
           },
-          "binaryCount:tcl8.5": {
+          "binaryCount:tcl85": {
             "foreground": "#b5cea8"
           },
-          "binaryFlag:tcl8.5": {
+          "binaryFlag:tcl85": {
             "foreground": "#569cd6",
             "italic": true
           },
-          "formatPercent:tcl8.5": {
+          "formatPercent:tcl85": {
             "foreground": "#c586c0"
           },
-          "formatSpec:tcl8.5": {
+          "formatSpec:tcl85": {
             "foreground": "#4fc1ff",
             "bold": true
           },
-          "formatFlag:tcl8.5": {
+          "formatFlag:tcl85": {
             "foreground": "#d8a0df"
           },
-          "formatWidth:tcl8.5": {
+          "formatWidth:tcl85": {
             "foreground": "#b5cea8"
           },
-          "clockPercent:tcl8.5": {
+          "clockPercent:tcl85": {
             "foreground": "#dcdcaa"
           },
-          "clockSpec:tcl8.5": {
+          "clockSpec:tcl85": {
             "foreground": "#ce9178",
             "bold": true
           },
-          "clockModifier:tcl8.5": {
+          "clockModifier:tcl85": {
             "foreground": "#9cdcfe",
             "italic": true
           },
-          "regexpGroup:tcl9.0": {
+          "regexpGroup:tcl90": {
             "foreground": "#c586c0"
           },
-          "regexpCharClass:tcl9.0": {
+          "regexpCharClass:tcl90": {
             "foreground": "#d16969",
             "italic": true
           },
-          "regexpQuantifier:tcl9.0": {
+          "regexpQuantifier:tcl90": {
             "foreground": "#dcdcaa"
           },
-          "regexpAnchor:tcl9.0": {
+          "regexpAnchor:tcl90": {
             "foreground": "#569cd6",
             "bold": true
           },
-          "regexpEscape:tcl9.0": {
+          "regexpEscape:tcl90": {
             "foreground": "#d7ba7d"
           },
-          "regexpBackref:tcl9.0": {
+          "regexpBackref:tcl90": {
             "foreground": "#b5cea8"
           },
-          "regexpAlternation:tcl9.0": {
+          "regexpAlternation:tcl90": {
             "foreground": "#c586c0"
           },
-          "binarySpec:tcl9.0": {
+          "binarySpec:tcl90": {
             "foreground": "#4ec9b0",
             "bold": true
           },
-          "binaryCount:tcl9.0": {
+          "binaryCount:tcl90": {
             "foreground": "#b5cea8"
           },
-          "binaryFlag:tcl9.0": {
+          "binaryFlag:tcl90": {
             "foreground": "#569cd6",
             "italic": true
           },
-          "formatPercent:tcl9.0": {
+          "formatPercent:tcl90": {
             "foreground": "#c586c0"
           },
-          "formatSpec:tcl9.0": {
+          "formatSpec:tcl90": {
             "foreground": "#4fc1ff",
             "bold": true
           },
-          "formatFlag:tcl9.0": {
+          "formatFlag:tcl90": {
             "foreground": "#d8a0df"
           },
-          "formatWidth:tcl9.0": {
+          "formatWidth:tcl90": {
             "foreground": "#b5cea8"
           },
-          "clockPercent:tcl9.0": {
+          "clockPercent:tcl90": {
             "foreground": "#dcdcaa"
           },
-          "clockSpec:tcl9.0": {
+          "clockSpec:tcl90": {
             "foreground": "#ce9178",
             "bold": true
           },
-          "clockModifier:tcl9.0": {
+          "clockModifier:tcl90": {
             "foreground": "#9cdcfe",
             "italic": true
           },
@@ -2888,76 +2888,76 @@
             "foreground": "#9cdcfe",
             "italic": true
           },
-          "regexp:tcl9.1": {
+          "regexp:tcl91": {
             "foreground": "#d16969",
             "italic": true
           },
-          "escape:tcl9.1": {
+          "escape:tcl91": {
             "foreground": "#d7ba7d"
           },
-          "event:tcl9.1": {
+          "event:tcl91": {
             "foreground": "#4ec9b0",
             "bold": true
           },
-          "decorator:tcl9.1": {
+          "decorator:tcl91": {
             "foreground": "#9cdcfe",
             "italic": true
           },
-          "regexpGroup:tcl9.1": {
+          "regexpGroup:tcl91": {
             "foreground": "#c586c0"
           },
-          "regexpCharClass:tcl9.1": {
+          "regexpCharClass:tcl91": {
             "foreground": "#d16969",
             "italic": true
           },
-          "regexpQuantifier:tcl9.1": {
+          "regexpQuantifier:tcl91": {
             "foreground": "#dcdcaa"
           },
-          "regexpAnchor:tcl9.1": {
+          "regexpAnchor:tcl91": {
             "foreground": "#569cd6",
             "bold": true
           },
-          "regexpEscape:tcl9.1": {
+          "regexpEscape:tcl91": {
             "foreground": "#d7ba7d"
           },
-          "regexpBackref:tcl9.1": {
+          "regexpBackref:tcl91": {
             "foreground": "#b5cea8"
           },
-          "regexpAlternation:tcl9.1": {
+          "regexpAlternation:tcl91": {
             "foreground": "#c586c0"
           },
-          "binarySpec:tcl9.1": {
+          "binarySpec:tcl91": {
             "foreground": "#4ec9b0",
             "bold": true
           },
-          "binaryCount:tcl9.1": {
+          "binaryCount:tcl91": {
             "foreground": "#b5cea8"
           },
-          "binaryFlag:tcl9.1": {
+          "binaryFlag:tcl91": {
             "foreground": "#569cd6",
             "italic": true
           },
-          "formatPercent:tcl9.1": {
+          "formatPercent:tcl91": {
             "foreground": "#c586c0"
           },
-          "formatSpec:tcl9.1": {
+          "formatSpec:tcl91": {
             "foreground": "#4fc1ff",
             "bold": true
           },
-          "formatFlag:tcl9.1": {
+          "formatFlag:tcl91": {
             "foreground": "#d8a0df"
           },
-          "formatWidth:tcl9.1": {
+          "formatWidth:tcl91": {
             "foreground": "#b5cea8"
           },
-          "clockPercent:tcl9.1": {
+          "clockPercent:tcl91": {
             "foreground": "#dcdcaa"
           },
-          "clockSpec:tcl9.1": {
+          "clockSpec:tcl91": {
             "foreground": "#ce9178",
             "bold": true
           },
-          "clockModifier:tcl9.1": {
+          "clockModifier:tcl91": {
             "foreground": "#9cdcfe",
             "italic": true
           }
@@ -2976,6 +2976,18 @@
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },
       "[tcl-bigip]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl84]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl85]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl90]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl91]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },
       "[tcl-synopsys]": {

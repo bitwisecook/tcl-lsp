@@ -1976,8 +1976,12 @@ constraints apply.
 The dialect is selected automatically using the following priority chain
 (highest to lowest):
 
-1. **Editor language ID** -- opening a file as `tcl-irule`, `tcl8.4`, etc.
-   selects the matching dialect immediately.
+1. **Editor language ID** -- opening a file as `tcl-irule`, `tcl84`, etc.
+   selects the matching dialect immediately.  (The version-pinned VS Code
+   language ids are undotted -- `tcl84`, `tcl85`, `tcl90`, `tcl91` -- because
+   VS Code cannot carry a `configurationDefaults` override for a language id
+   containing a `.`.  The *dialect* names below keep their dots, and the server
+   still accepts the dotted `tcl8.4`-style id other editors send.)
 2. **File extension** -- `.irul`/`.irule` → `f5-irules`,
    `.iapp`/`.iappimpl`/`.impl` → `f5-iapps`, `.exp` → `expect`.
 3. **Comment directive** -- a `# tcl-dialect: <dialect>` comment in the

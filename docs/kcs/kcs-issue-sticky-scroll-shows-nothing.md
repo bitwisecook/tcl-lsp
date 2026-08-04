@@ -43,12 +43,15 @@ of the extension keeps working.
    `true`) for brace-accurate sticky scroll. `editor.folding` only
    hides the fold arrows in the gutter — it no longer affects sticky
    scroll.
-3. Open the Output panel (**View > Output**), select **Tcl Language
-   Server**, and look for a line mentioning
-   `editor.stickyScroll.defaultModel`. The extension logs it when
-   another installed extension has caused VS Code to drop our
-   sticky-scroll default for Tcl. If you see it, add the default back
-   yourself in your settings JSON:
+3. The extension detects this automatically once, shortly after it starts:
+   when another installed extension has caused VS Code to drop our
+   sticky-scroll default for Tcl, it shows a one-time notification offering
+   a **Restore** button — click it and the default is written back for
+   every Tcl language, no JSON editing required. If you dismissed that
+   notification (or want to check what happened), open the Output panel
+   (**View > Output**), select **Tcl Language Server**, and look for a line
+   mentioning `editor.stickyScroll.defaultModel`. As a fallback, add the
+   default back yourself in your settings JSON:
 
    ```json
    "[tcl]": { "editor.stickyScroll.defaultModel": "foldingProviderModel" }

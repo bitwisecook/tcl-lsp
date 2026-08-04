@@ -43,8 +43,13 @@ headers folding already knows about. BIG-IP config needs the same default
 for a different reason: its outline is a synthesised `module → kind →
 object` tree whose module and kind nodes take their selection range from
 their first child, so the outline model pins the first `ltm` stanza in the
-file no matter where the cursor is. It is a default, so a user setting for
-`editor.stickyScroll.defaultModel` still wins.
+file no matter where the cursor is. It is a default, so a *language-scoped*
+user setting for `editor.stickyScroll.defaultModel` (e.g. under `"[tcl]"`)
+still wins outright. A *global* user setting is different: VS Code's
+precedence rules let our language-scoped default beat it even though the user
+chose it on purpose, so the extension runs a one-time check after startup
+and offers to honour the user's global choice for Tcl too (issue #1122); see
+[the sticky-scroll KCS note](../kcs-issue-sticky-scroll-shows-nothing.md).
 
 Because sticky scroll rides on folding, the folding response contract
 matters beyond the fold gutter: VS Code (≥1.105) accepts an *empty*
@@ -59,11 +64,16 @@ scroll fall through to its indentation model. The server also sends
 so a sticky model computed before the provider registered is recomputed
 against real data.
 
-The version-pinned dialect languages (`tcl8.4`, `tcl8.5`, `tcl9.0`, `tcl9.1`)
-are the one gap. A language id containing a `.` cannot be used as a
-configuration override identifier — VS Code splits `[tcl8.4]` on the dot while
-building the default-configuration value tree, throws, and drops every
-remaining override in the block — so those four keep the outline model.
+The version-pinned dialect languages carry the same default as every other Tcl
+language. Their VS Code language ids are deliberately undotted — `tcl84`,
+`tcl85`, `tcl90`, `tcl91` — because a language id containing a `.` cannot be
+used as a configuration override identifier at all: VS Code splits `[tcl8.4]`
+on the dot while building the default-configuration value tree, throws, and
+drops every remaining override in the block (its own and, since the tree is
+shared, other extensions' too). No language id contributed by the extension may
+ever contain a dot. The *dialect* names (`tcl8.4`, `tcl9.0`, …) are a separate
+namespace and keep their dots; the server accepts both spellings as a
+`languageId` so the other editor integrations keep working.
 
 ## File-path anchors
 

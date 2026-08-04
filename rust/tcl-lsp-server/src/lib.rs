@@ -4200,8 +4200,8 @@ impl Backend {
     /// Resolution order:
     ///
     /// 1. The LSP ``languageId`` field — when it names a known
-    ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl9.0"``
-    ///    / etc.), use it directly.
+    ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl90"`` /
+    ///    ``"tcl9.0"`` / etc.), use it directly.
     /// 2. Detection over the document itself — for the bare ``"tcl"``
     ///    id every editor sends for a `.tcl` buffer, the shared
     ///    [`tcl_registry::dialects::detect_dialect`] (directive,
@@ -4227,8 +4227,8 @@ impl Backend {
     /// Resolution order:
     ///
     /// 1. The LSP ``languageId`` field — when it names a known
-    ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl9.0"``
-    ///    / etc.), use it directly.
+    ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl90"`` /
+    ///    ``"tcl9.0"`` / etc.), use it directly.
     /// 2. Detection over the document itself — for the bare ``"tcl"``
     ///    id every editor sends for a `.tcl` buffer, the shared
     ///    [`tcl_registry::dialects::detect_dialect`] (directive,
@@ -4295,7 +4295,8 @@ impl Backend {
                 return detected.to_owned();
             }
         }
-        // A *versioned* or non-Tcl language id (`tcl8.4`, `tcl9.0`,
+        // A *versioned* or non-Tcl language id (`tcl84`/`tcl8.4`,
+        // `tcl90`/`tcl9.0`,
         // `f5-irules`, …) is a deliberate, specific choice and wins over the
         // per-folder and session (config-file) dialect below. The bare `"tcl"`
         // id is different: editors send it for *every* `.tcl` file, so it names
@@ -4346,11 +4347,19 @@ impl Backend {
         // name they map to so callers in either world land on the
         // string the registry / provider trait expects.
         let mapped = match language_id {
+            // The version-pinned ids come in two spellings. The VS Code
+            // extension contributes the *undotted* `tcl84` … `tcl91` because a
+            // language id containing a `.` cannot carry a
+            // `configurationDefaults` override (VS Code splits the key on the
+            // dot and throws, dropping the rest of the block — issue #1122).
+            // Every other editor integration (Neovim, Sublime, JetBrains,
+            // Emacs, Helix) still sends the dotted form, as do direct/MCP
+            // callers passing a canonical dialect name, so both are accepted.
             "tcl" | "tcl8.6" => "tcl8.6",
-            "tcl8.4" => "tcl8.4",
-            "tcl8.5" => "tcl8.5",
-            "tcl9.0" => "tcl9.0",
-            "tcl9.1" => "tcl9.1",
+            "tcl8.4" | "tcl84" => "tcl8.4",
+            "tcl8.5" | "tcl85" => "tcl8.5",
+            "tcl9.0" | "tcl90" => "tcl9.0",
+            "tcl9.1" | "tcl91" => "tcl9.1",
             "tcl-irule" | "f5-irules" => "f5-irules",
             // `tcl-apl` is the APL (iApp presentation language) editor id — an
             // iApp sublanguage, so it analyses as `f5-iapps` rather than
@@ -19915,6 +19924,32 @@ mod tests {
             Backend::dialect_from_language_id("synopsys-eda-tcl"),
             Some("synopsys-eda-tcl"),
         );
+    }
+
+    /// The VS Code extension contributes *undotted* version-pinned language
+    /// ids (`tcl84` … `tcl91`) because a dotted id cannot carry a
+    /// `configurationDefaults` override (issue #1122). Every other editor
+    /// integration still sends the dotted form, so both spellings must resolve
+    /// to the same dialect.
+    #[test]
+    fn dialect_from_language_id_accepts_undotted_and_dotted_version_ids() {
+        for (undotted, dotted) in [
+            ("tcl84", "tcl8.4"),
+            ("tcl85", "tcl8.5"),
+            ("tcl90", "tcl9.0"),
+            ("tcl91", "tcl9.1"),
+        ] {
+            assert_eq!(
+                Backend::dialect_from_language_id(undotted),
+                Some(dotted),
+                "undotted VS Code language id `{undotted}` should map to dialect `{dotted}`",
+            );
+            assert_eq!(
+                Backend::dialect_from_language_id(dotted),
+                Some(dotted),
+                "dotted language id `{dotted}` must keep working for non-VS Code editors",
+            );
+        }
     }
 
     #[test]

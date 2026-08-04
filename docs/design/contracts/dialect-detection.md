@@ -11,12 +11,20 @@ Tcl versions without manual switching.
 
 | Priority | Source | Example |
 |----------|--------|---------|
-| 1 | **Editor language ID** | Opening a file as `tcl-irule` or `tcl8.4` in the editor's language mode picker |
+| 1 | **Editor language ID** | Opening a file as `tcl-irule` or `tcl84` in the editor's language mode picker |
 | 2 | **File extension** | `.irul` / `.irule` -> `f5-irules`, `.exp` -> `expect` |
 | 3 | **Comment directive** | `# tcl-dialect: tcl8.4` in the first 5 lines |
 | 4 | **Shebang** | `#!/usr/bin/env tclsh8.5` or `#!/usr/bin/expect` |
 | 5 | **User setting** | `tclLsp.dialect` in editor config or XDG `config.ini` |
 | 6 | **Hardcoded fallback** | `tcl8.6` |
+
+Language ids and dialect names are separate namespaces. The VS Code extension
+contributes *undotted* version-pinned language ids (`tcl84`, `tcl85`, `tcl90`,
+`tcl91`) because a language id containing a `.` cannot carry a
+`configurationDefaults` override — VS Code splits the key on the dot, throws,
+and drops the rest of the block. The other editor integrations still send the
+dotted `tcl8.4`-style id, so the server accepts both spellings and maps them to
+the same dialect. Dialect *names* always keep their dots (`tcl8.4`).
 
 ## Comment directive format
 

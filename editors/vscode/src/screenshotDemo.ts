@@ -981,9 +981,9 @@ function isTclLanguageId(languageId: string): boolean {
     languageId === "tcl-irule" ||
     languageId === "tcl-iapp" ||
     languageId === "tcl-bigip" ||
-    languageId === "tcl8.4" ||
-    languageId === "tcl8.5" ||
-    languageId === "tcl9.0" ||
+    languageId === "tcl84" ||
+    languageId === "tcl85" ||
+    languageId === "tcl90" ||
     languageId === "tcl-synopsys" ||
     languageId === "tcl-cadence" ||
     languageId === "tcl-xilinx" ||

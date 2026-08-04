@@ -72,6 +72,7 @@ import {
 } from "./compilerExplorer";
 import { openTkPreview, tkPreviewDocChanged, tkPreviewEditorChanged } from "./tkPreviewPanel";
 import { registerHighlightingHealthChecks } from "./highlightingHealth";
+import { ensureStickyScrollDefaultModel } from "./stickyScrollHealth";
 import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
 import { TCL_LANGUAGE_IDS, isTclLanguage } from "./languageIds";
 
@@ -117,7 +118,14 @@ const DEFAULT_DIALECT = "tcl8.6";
 // importers that pull these from ./extension keep working.
 export { TCL_LANGUAGE_IDS, isTclLanguage };
 
-/** Map language IDs that imply a specific dialect. */
+/**
+ * Map language IDs that imply a specific dialect.
+ *
+ * Keys are *language ids* (undotted — see `./languageIds`); values are
+ * *dialect* names, which keep their dots. The two namespaces are distinct:
+ * `tcl84` is what VS Code calls the language, `tcl8.4` is what the server
+ * calls the dialect.
+ */
 const LANGUAGE_ID_DIALECTS: Record<string, string> = {
   "tcl-irule": "f5-irules",
   "tcl-iapp": "f5-iapps",
@@ -125,10 +133,10 @@ const LANGUAGE_ID_DIALECTS: Record<string, string> = {
   // server maps `tcl-apl` → `f5-iapps`, so mirror that here.
   "tcl-apl": "f5-iapps",
   "tcl-bigip": "f5-bigip",
-  "tcl8.4": "tcl8.4",
-  "tcl8.5": "tcl8.5",
-  "tcl9.0": "tcl9.0",
-  "tcl9.1": "tcl9.1",
+  tcl84: "tcl8.4",
+  tcl85: "tcl8.5",
+  tcl90: "tcl9.0",
+  tcl91: "tcl9.1",
   "tcl-synopsys": "synopsys-eda-tcl",
   "tcl-cadence": "cadence-eda-tcl",
   "tcl-xilinx": "xilinx-eda-tcl",
@@ -335,33 +343,6 @@ function resolveAllFeatureToggles(): Record<string, boolean> {
     resolved[key] = resolveFeatureToggle(key, val);
   }
   return resolved;
-}
-
-/**
- * One-line breadcrumb for support: our `configurationDefaults` block sets
- * `editor.stickyScroll.defaultModel` to `foldingProviderModel` for `tcl`
- * (see the "Sticky Scroll" test suite for the dotted-language-id caveat that
- * excludes `tcl8.4` etc). A third-party extension shipping its own dotted
- * `[lang.id]` `configurationDefaults` block can throw while VS Code builds
- * the default-configuration value tree and abort processing the rest of
- * that block, silently reverting Tcl to `outlineModel` (issue #1122) with
- * no error visible anywhere in the UI. Logging this once at activation
- * gives a support triage something to grep for instead of asking the user
- * to dig through Settings JSON. No popup — this is a log-only breadcrumb.
- */
-function checkStickyScrollDefaultModel(ch: vscode.OutputChannel): void {
-  const model = workspace
-    .getConfiguration("editor", { languageId: "tcl" })
-    .get<string>("stickyScroll.defaultModel");
-  if (model !== "foldingProviderModel") {
-    ch.appendLine(
-      `Tcl LSP: editor.stickyScroll.defaultModel for 'tcl' is '${String(model)}', not the ` +
-        "expected 'foldingProviderModel' -- our configurationDefaults override may have been " +
-        "dropped (e.g. another extension's dotted [lang.id] configurationDefaults block " +
-        "aborting VS Code's defaults processing). Sticky scroll may fall back to the outline " +
-        "or indentation model for Tcl files.",
-    );
-  }
 }
 
 export async function activate(context: ExtensionContext) {
@@ -692,7 +673,7 @@ export async function activate(context: ExtensionContext) {
   const clientStartTime = Date.now();
   await client.start();
   ch.appendLine(`[timing] client.start: ${Date.now() - clientStartTime}ms`);
-  checkStickyScrollDefaultModel(ch);
+  void ensureStickyScrollDefaultModel(context, ch);
   await applyDialectForEditor(window.activeTextEditor);
 
   try {
