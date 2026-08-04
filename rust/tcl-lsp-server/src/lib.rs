@@ -100,9 +100,9 @@ use tower_lsp_server::ls_types::{
     DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkOptions,
     DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams,
     DocumentSymbolResponse, Documentation, ExecuteCommandOptions, ExecuteCommandParams,
-    FileChangeType, FileOperationFilter, FileOperationPattern, FileOperationRegistrationOptions,
-    FileSystemWatcher, FoldingRange, FoldingRangeKind, FoldingRangeParams,
-    FoldingRangeProviderCapability, FullDocumentDiagnosticReport, GlobPattern,
+    FileChangeType, FileOperationFilter, FileOperationPattern, FileOperationPatternOptions,
+    FileOperationRegistrationOptions, FileSystemWatcher, FoldingRange, FoldingRangeKind,
+    FoldingRangeParams, FoldingRangeProviderCapability, FullDocumentDiagnosticReport, GlobPattern,
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
     HoverProviderCapability, ImplementationProviderCapability, InitializeParams, InitializeResult,
     InitializedParams, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams,
@@ -182,6 +182,17 @@ struct DocumentState {
     /// with published diagnostics so clients can discard obsolete
     /// diagnostics if messages arrive out of order.
     version: Option<i32>,
+    /// The backing file was deleted on disk while this buffer stayed open —
+    /// an out-of-band `mv`/`rm`/branch switch, for which no editor sends a
+    /// `didClose`.
+    ///
+    /// The buffer keeps working (its own diagnostics, hover, symbols all still
+    /// resolve from `text`), but it stops contributing to the **cross-document**
+    /// workspace index: the path it claims no longer exists, so leaving it
+    /// indexed duplicates every proc of the file it was renamed to and sends
+    /// go-to-definition to a path the editor cannot open.  Cleared when the
+    /// path comes back (`didOpen`, a save, or a watched `CREATED`/`CHANGED`).
+    backing_file_deleted: bool,
 }
 
 impl DocumentState {
@@ -197,6 +208,7 @@ impl DocumentState {
             language_id: String::new(),
             revision: 0,
             version: None,
+            backing_file_deleted: false,
         }
     }
 
@@ -212,6 +224,7 @@ impl DocumentState {
             language_id: String::new(),
             revision: 0,
             version: Some(version),
+            backing_file_deleted: false,
         }
     }
 
@@ -2733,10 +2746,20 @@ async fn publish_diagnostics_result(
             // newer state.
             return true;
         }
+        // A buffer whose backing file has been deleted (an out-of-band rename /
+        // removal — no `didClose` arrives) is re-analysed and re-published like
+        // any other, but must not be re-added to the cross-document index: the
+        // path is dead, and re-adding it here is what used to resurrect the
+        // ghost `did_change_watched_files` had just retired.
+        let orphaned = docs
+            .get(delivery.uri)
+            .is_some_and(|doc| doc.backing_file_deleted);
         {
             let mut index = workspace_index.write().await;
             index.remove_document(delivery.uri.as_str());
-            index.add_document(delivery.uri.as_str(), analysis);
+            if !orphaned {
+                index.add_document(delivery.uri.as_str(), analysis);
+            }
         }
         // The document is now indexed standalone: invalidate its applied
         // source-site seed record (M9) so the next cross-document query
@@ -2817,6 +2840,13 @@ pub struct Backend {
     /// Updated by ``did_change_configuration`` so editor reconfigures
     /// take effect for subsequently-opened documents.
     default_dialect: Mutex<String>,
+    /// Whether [`Backend::default_dialect`] was set by an explicit
+    /// `tclLsp.dialect` — a pulled/pushed configuration value or the
+    /// `tcl-lsp.setDialect` command — rather than still being the built-in
+    /// fallback.  Reported as `dialect_explicitly_set` by
+    /// `tcl-lsp.getEffectiveConfig` so a caller tracing a surprising dialect can
+    /// tell "nobody configured one" from "someone configured exactly this".
+    default_dialect_explicit: Mutex<bool>,
     /// Workspace folder roots received from `initialize` /
     /// `workspace/didChangeWorkspaceFolders`.  Stored as
     /// `Uri` (typically `file://...` directories).
@@ -3419,10 +3449,19 @@ enum FolderGenericPatterns {
 /// Each field is `None` (or empty) when the folder's pulled `tclLsp` config
 /// did not set it, in which case the resolver falls back to the process-global
 /// value.  In a multi-root workspace each root can
-/// carry its own diagnostics, optimiser, formatting, and feature settings.
-/// Per-folder *dialect* is handled separately by [`Backend::folder_dialects`].
+/// carry its own diagnostics, optimiser, formatting, dialect, and feature
+/// settings.  The other source of a per-folder dialect —
+/// `initializationOptions.folderDialects` — lives in
+/// [`Backend::folder_dialects`]; [`Backend::folder_dialect_overrides`] merges
+/// the two.
 #[derive(Clone, Default)]
 struct FolderConfig {
+    /// `tclLsp.dialect` scoped to this folder (issue #407).  `None` when the
+    /// folder's pulled config names no dialect (or names an unknown one, which
+    /// is dropped by [`is_known_dialect_name`] exactly as the
+    /// `initializationOptions.folderDialects` path drops it), in which case the
+    /// document falls back to the session `default_dialect`.
+    dialect: Option<String>,
     feature_toggles: FeatureToggles,
     disabled_diagnostics: Option<HashSet<String>>,
     /// `tclLsp.diagnosticSeverity` per-code LSP severity overrides; `None`
@@ -3631,6 +3670,7 @@ impl Backend {
             documents: Arc::new(Mutex::new(HashMap::new())),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
+            default_dialect_explicit: Mutex::new(false),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
             folder_configs: Mutex::new(Vec::new()),
@@ -4225,13 +4265,7 @@ impl Backend {
                 let Some(dialect) = dialect_val.as_str() else {
                     continue;
                 };
-                // Valid names: any catalog profile (now including the
-                // config-only f5-tmsh / f5-bigip / bpf, which the old
-                // DialectSet::parse check wrongly rejected) plus `tk`
-                // (a parseable library shell, not a profile — §7.2).
-                if tcl_dialect::DialectProfile::find(dialect).is_none()
-                    && DialectSet::parse(dialect).is_none()
-                {
+                if !is_known_dialect_name(dialect) {
                     continue;
                 }
                 parsed.push((url, dialect.to_owned()));
@@ -4264,14 +4298,54 @@ impl Backend {
     ///    id every editor sends for a `.tcl` buffer, the shared
     ///    [`tcl_registry::dialects::detect_dialect`] (directive,
     ///    shebang, version guard, content signatures, then extension).
-    /// 3. The per-folder override map (`folder_dialects`) — when
-    ///    the document URI sits under one of the configured folder
-    ///    URLs, use the deepest-matching folder's dialect.
+    /// 3. The per-folder override map ([`Self::folder_dialect_overrides`] —
+    ///    `initializationOptions.folderDialects` merged over each folder's
+    ///    pulled `tclLsp.dialect`) — when the document URI sits under one of
+    ///    the configured folder URLs, use the deepest-matching folder's
+    ///    dialect.
     /// 4. The session-wide ``default_dialect`` fallback.
     async fn dialect_for_open(&self, uri: &Uri, language_id: &str, text: &str) -> String {
-        let folder_dialects = self.folder_dialects.lock().await.clone();
+        let folder_dialects = self.folder_dialect_overrides().await;
         let default_dialect = self.default_dialect.lock().await.clone();
         Self::dialect_for_open_sync(uri, language_id, text, &folder_dialects, &default_dialect)
+    }
+
+    /// Every per-folder dialect override in effect, as the
+    /// `(folder-uri, dialect)` list [`folder_dialect_for`] resolves a document
+    /// against.
+    ///
+    /// Two sources can set one and they are merged here so every dialect
+    /// resolution — open document, closed on-disk file, batched watched-file
+    /// reindex, the `getEffectiveConfig` command — sees the same mapping:
+    ///
+    /// 1. `initializationOptions.folderDialects` (`folder_dialects`) — a
+    ///    host-supplied mapping fixed at `initialize` and never re-pulled.  It
+    ///    wins for the folder URIs it names: a host that states the mapping
+    ///    outright is making a deliberate choice the editor's settings files
+    ///    should not silently override.
+    /// 2. The folder's pulled `tclLsp.dialect` (`folder_configs`) — what VS
+    ///    Code resolves for a `.vscode/settings.json` at the folder scope
+    ///    (issue #407).  Applies to every folder the map above does not name.
+    ///
+    /// Across *different* folders precedence is unchanged: `folder_dialect_for`
+    /// still picks the longest matching folder prefix, so a nested folder
+    /// shadows its parent whichever source each of them came from.
+    async fn folder_dialect_overrides(&self) -> Vec<(Uri, String)> {
+        let mut merged = self.folder_dialects.lock().await.clone();
+        let from_config: Vec<(Uri, String)> = {
+            let configs = self.folder_configs.lock().await;
+            configs
+                .iter()
+                .filter_map(|(folder, fc)| fc.dialect.clone().map(|d| (folder.clone(), d)))
+                .collect()
+        };
+        for (folder, dialect) in from_config {
+            if merged.iter().any(|(u, _)| u.as_str() == folder.as_str()) {
+                continue;
+            }
+            merged.push((folder, dialect));
+        }
+        merged
     }
 
     /// Pure core of [`Self::dialect_for_open`] (and so of
@@ -4291,9 +4365,11 @@ impl Backend {
     ///    id every editor sends for a `.tcl` buffer, the shared
     ///    [`tcl_registry::dialects::detect_dialect`] (directive,
     ///    shebang, version guard, content signatures, then extension).
-    /// 3. The per-folder override map (`folder_dialects`) — when
-    ///    the document URI sits under one of the configured folder
-    ///    URLs, use the deepest-matching folder's dialect.
+    /// 3. The per-folder override map ([`Self::folder_dialect_overrides`] —
+    ///    `initializationOptions.folderDialects` merged over each folder's
+    ///    pulled `tclLsp.dialect`) — when the document URI sits under one of
+    ///    the configured folder URLs, use the deepest-matching folder's
+    ///    dialect.
     /// 4. The session-wide ``default_dialect`` fallback.
     fn dialect_for_open_sync(
         uri: &Uri,
@@ -4392,8 +4468,7 @@ impl Backend {
     /// preferring the deepest (longest-prefix) match so nested
     /// folders shadow their parents.
     async fn resolve_folder_dialect(&self, uri: &Uri) -> Option<String> {
-        let folders = self.folder_dialects.lock().await;
-        folder_dialect_for(uri, &folders)
+        folder_dialect_for(uri, &self.folder_dialect_overrides().await)
     }
 
     /// Map an LSP ``languageId`` string to a dialect name accepted
@@ -5010,7 +5085,7 @@ impl Backend {
         if uris.is_empty() {
             return;
         }
-        let folder_dialects = Arc::new(self.folder_dialects.lock().await.clone());
+        let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.default_dialect.lock().await.clone());
         let concurrency = std::thread::available_parallelism()
             .map_or(4, std::num::NonZeroUsize::get)
@@ -5090,7 +5165,7 @@ impl Backend {
         // same on-disk population as the workspace index, so a proc defined in
         // a closed/never-opened file still suppresses W123 / drives the arity
         // error in its siblings.
-        let folder_dialects = Arc::new(self.folder_dialects.lock().await.clone());
+        let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.default_dialect.lock().await.clone());
         let scanned = Self::scan_disk_file(uri.clone(), folder_dialects, default_dialect).await;
         // Serialise the standalone replacement with source-site reconciliation,
@@ -8614,6 +8689,11 @@ impl Backend {
     /// switch, line length, and analyser settings.  Tests poll this command
     /// after a `tclLsp.features.X = false` config change to confirm the server
     /// has applied the toggle without sleeping on wall-clock time.
+    ///
+    /// The argument may name a *folder* rather than a document — the multi-root
+    /// suite polls each workspace folder's URI to watch the per-folder pull
+    /// settle — so every resolved value goes through the same folder chain a
+    /// document under that folder would use.
     async fn get_effective_config_command(
         &self,
         args: &[serde_json::Value],
@@ -8622,15 +8702,44 @@ impl Backend {
             .first()
             .and_then(serde_json::Value::as_str)
             .unwrap_or_default();
-        // Resolve the dialect via the open document when the URI names one,
-        // else the session default — never `null`, so a polling client always
-        // sees a concrete value.
-        let dialect = match Uri::from_str(uri_str) {
-            Ok(uri) => match self.read_document(&uri).await {
+        let parsed_uri = Uri::from_str(uri_str).ok();
+        let folder_overrides = self.folder_dialect_overrides().await;
+        let known_folders = self.workspace_folder_urls().await;
+        // The deepest workspace folder containing the queried URI (the folder
+        // itself when a folder URI was passed) — the scope whose overrides the
+        // values below resolved through.
+        let folder_uri = parsed_uri.as_ref().and_then(|uri| {
+            known_folders
+                .iter()
+                .filter(|folder| uri_under_folder(uri.as_str(), folder.as_str()))
+                .max_by_key(|folder| folder.as_str().len())
+                .map(|folder| folder.as_str().to_owned())
+        });
+        // Resolve the dialect via the open document when the URI names one.  A
+        // folder (or any other non-document) URI is not readable as a document,
+        // so it resolves through the per-folder override chain before falling
+        // back to the session default — never `null`, so a polling client
+        // always sees a concrete value.
+        let dialect = match &parsed_uri {
+            Some(uri) => match self.read_document(uri).await {
                 Some(doc) => doc.dialect,
-                None => self.default_dialect.lock().await.clone(),
+                None => match folder_dialect_for(uri, &folder_overrides) {
+                    Some(d) => d,
+                    None => self.default_dialect.lock().await.clone(),
+                },
             },
-            Err(_) => self.default_dialect.lock().await.clone(),
+            None => self.default_dialect.lock().await.clone(),
+        };
+        // Whether a `tclLsp.dialect` was actually configured for this URI — by
+        // the folder it sits under, or session-wide — as opposed to the
+        // built-in fallback that a never-configured session reports.
+        let dialect_explicitly_set = parsed_uri
+            .as_ref()
+            .is_some_and(|uri| folder_dialect_for(uri, &folder_overrides).is_some())
+            || *self.default_dialect_explicit.lock().await;
+        let extra_commands = match &parsed_uri {
+            Some(uri) => self.resolved_extra_commands(uri).await,
+            None => self.extra_commands.lock().await.clone(),
         };
         let features = self.feature_toggles.lock().await.resolved_map();
         let optimiser_enabled = *self.optimiser_enabled.lock().await;
@@ -8652,8 +8761,8 @@ impl Backend {
         // reflect what actually applies to `uri_str`.  A URI naming no
         // overriding folder (or a single-root workspace) falls back to the
         // global `db_config`, matching the previous behaviour exactly.
-        let (mut disabled_sorted, mode) = if let Ok(uri) = Uri::from_str(uri_str) {
-            let config = self.resolved_db_config(&uri).await;
+        let (mut disabled_sorted, mode) = if let Some(uri) = &parsed_uri {
+            let config = self.resolved_db_config(uri).await;
             let db = self.db.lock().await;
             (
                 config.disabled_diagnostics(&*db).clone(),
@@ -8666,7 +8775,14 @@ impl Backend {
         disabled_sorted.sort();
         Ok(Some(serde_json::json!({
             "uri": uri_str,
+            "folder_uri": folder_uri,
             "dialect": dialect,
+            "dialect_explicitly_set": dialect_explicitly_set,
+            "extra_commands": extra_commands,
+            "known_folder_uris": known_folders
+                .iter()
+                .map(|f| f.as_str().to_owned())
+                .collect::<Vec<String>>(),
             "features": features,
             "optimiser_enabled": optimiser_enabled,
             "optimiser_profile": optimiser_profile,
@@ -8699,6 +8815,7 @@ impl Backend {
             })));
         }
         *self.default_dialect.lock().await = dialect.to_owned();
+        *self.default_dialect_explicit.lock().await = true;
         self.reresolve_open_document_dialects().await;
         Ok(Some(
             serde_json::json!({ "success": true, "dialect": dialect }),
@@ -8837,6 +8954,18 @@ impl Backend {
                 self.apply_folder_configs(parsed).await;
             }
         }
+        // Both applies above can move a document's dialect: `apply_global_config`
+        // rewrites the session `default_dialect`, and `apply_folder_configs`
+        // replaces the per-folder `tclLsp.dialect` map.  Every already-open
+        // buffer must be re-resolved against the new state here, at the single
+        // point every pull passes through, rather than at each of the four call
+        // sites (`initialized`, `did_change_configuration`, the workspace-folder
+        // change, and the `.tcl-lsp.ini` watcher) — two of which previously did
+        // not, which is what let a transient session-global dialect stay baked
+        // into open buffers (the pull reverted the global without re-resolving)
+        // and what left a document opened concurrently with `initialized`'s pull
+        // stuck on the pre-config default.
+        self.reresolve_open_document_dialects().await;
     }
 
     /// Apply the *content* of a pulled `tclLsp` config section (`cfg`) onto the
@@ -8985,6 +9114,7 @@ impl Backend {
         }
         if let Some(dialect) = cfg.get("dialect").and_then(serde_json::Value::as_str) {
             *self.default_dialect.lock().await = dialect.to_owned();
+            *self.default_dialect_explicit.lock().await = true;
         }
     }
 
@@ -10319,7 +10449,7 @@ impl Backend {
         // open documents so the blocking worker can run without
         // touching any async mutex.
         let open: HashSet<Uri> = self.documents.lock().await.keys().cloned().collect();
-        let folder_dialects = self.folder_dialects.lock().await.clone();
+        let folder_dialects = self.folder_dialect_overrides().await;
         let default_dialect = self.default_dialect.lock().await.clone();
         // Inputs for the package-database `auto_path`: the editor's
         // `tclLsp.libraryPaths` (config.ini / .tcl-lsp.ini layers are read from
@@ -11270,6 +11400,7 @@ impl LanguageServer for Backend {
                 let was = std::mem::replace(&mut *default, d.clone());
                 was != d
             };
+            *self.default_dialect_explicit.lock().await = true;
             // A document's resolved dialect only depends on the session
             // default as a fallback (an explicit language id / BIG-IP
             // basename / folder override still wins), so nothing changes
@@ -11299,8 +11430,9 @@ impl LanguageServer for Backend {
         self.pull_and_apply_config().await;
         // The re-pull may have flipped `features.diagnostics`,
         // `optimiser.enabled`, or the disabled-diagnostics set — none of which
-        // changes a document's dialect, so `reresolve_open_document_dialects`
-        // above skips them.  Re-run diagnostics for every open buffer so the
+        // changes a document's dialect (the dialect the re-pull *does* resolve
+        // is re-applied by `pull_and_apply_config`'s own re-resolve).  Re-run
+        // diagnostics for every open buffer so the
         // new toggles take effect immediately (clearing squiggles when the
         // master switch goes off, dropping O-codes when the optimiser goes off)
         // rather than lingering until the next keystroke.
@@ -11501,23 +11633,63 @@ impl LanguageServer for Backend {
         // branch switch used to run 500 sequential full analyses, each with
         // its own `documents.lock()` / pull-cache probe, here).
         let mut deleted: Vec<Uri> = Vec::new();
+        // The subset of `deleted` whose buffer is still open. Their index entry
+        // is retired like any other deletion, but they must not have their
+        // *diagnostics* cleared as a closed file's badge would be — the editor
+        // is still showing the buffer.
+        let mut deleted_while_open: HashSet<Uri> = HashSet::new();
         let mut changed: Vec<Uri> = Vec::new();
+        // Open buffers whose backing file reappeared (a branch switch that
+        // deletes then restores a path emits CREATED/CHANGED for it): clear the
+        // orphan mark so the buffer rejoins the cross-document index.
+        let mut revived_while_open: Vec<Uri> = Vec::new();
         for (uri, typ) in last_kind {
-            // Files the editor has open are driven by did_open/did_change; their
-            // unsaved buffer must not be clobbered by the on-disk copy.
-            // `batch_reindex_from_disk` re-checks this under the lock as well.
-            if self.documents.lock().await.contains_key(&uri) {
-                continue;
-            }
+            let is_open = self.documents.lock().await.contains_key(&uri);
             if typ == FileChangeType::DELETED {
+                if is_open {
+                    deleted_while_open.insert(uri.clone());
+                }
+                // A DELETED event runs even for an open buffer.  The editor
+                // sends no `didClose` when a file is renamed or removed
+                // out-of-band (a terminal `mv`, a branch switch), so skipping
+                // open URIs here left the dead path in `workspace_index` and the
+                // salsa `Project` for the process's life — duplicate workspace
+                // symbols and a go-to-definition jump to a file that no longer
+                // exists, once the new path was indexed alongside it.  Only the
+                // *index* is retired; `self.documents` is untouched, so the
+                // still-open buffer keeps working exactly as `did_close`'s
+                // reindex-from-disk leaves a closed-and-deleted file.
                 deleted.push(uri);
-            } else {
+            } else if !is_open {
                 // CREATED or CHANGED: re-analyse from disk (a Tcl source file)
-                // or drop it if it no longer reads as one.
+                // or drop it if it no longer reads as one.  Files the editor has
+                // open are driven by did_open/did_change; their unsaved buffer
+                // must not be clobbered by the on-disk copy.
+                // `batch_reindex_from_disk` re-checks this under the lock as
+                // well.
                 changed.push(uri);
+            } else {
+                revived_while_open.push(uri);
             }
         }
-        let domain_changed = !deleted.is_empty() || !changed.is_empty();
+        // Apply the orphan marks before any re-analysis is scheduled, so the
+        // publish path (which consults the flag under the `documents` lock)
+        // cannot re-add a just-retired path.
+        if !deleted_while_open.is_empty() || !revived_while_open.is_empty() {
+            let mut docs = self.documents.lock().await;
+            for uri in &deleted_while_open {
+                if let Some(doc) = docs.get_mut(uri) {
+                    doc.backing_file_deleted = true;
+                }
+            }
+            for uri in &revived_while_open {
+                if let Some(doc) = docs.get_mut(uri) {
+                    doc.backing_file_deleted = false;
+                }
+            }
+        }
+        let domain_changed =
+            !deleted.is_empty() || !changed.is_empty() || !revived_while_open.is_empty();
 
         // Closed files that already carry a badge (a pull-cache entry) and whose
         // on-disk change must refresh (#865) or clear that badge — computed once
@@ -11530,7 +11702,7 @@ impl LanguageServer for Backend {
             (
                 deleted
                     .iter()
-                    .filter(|uri| cache.contains_key(uri))
+                    .filter(|uri| cache.contains_key(uri) && !deleted_while_open.contains(*uri))
                     .cloned()
                     .collect(),
                 changed
@@ -14894,6 +15066,17 @@ fn parse_folder_formatting(
 fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     let obj = cfg.as_object()?;
     let mut fc = FolderConfig::default();
+    // `tclLsp.dialect` scoped to this folder (issue #407).  Validated with the
+    // same predicate the `initializationOptions.folderDialects` path uses, so an
+    // unknown name is dropped (the folder inherits the session default) rather
+    // than pinning documents to a dialect no provider can resolve.
+    if let Some(dialect) = obj
+        .get("dialect")
+        .and_then(serde_json::Value::as_str)
+        .filter(|d| is_known_dialect_name(d))
+    {
+        fc.dialect = Some(dialect.to_owned());
+    }
     if let Some(features) = obj.get("features").and_then(serde_json::Value::as_object) {
         fc.feature_toggles.apply(features);
     }
@@ -16148,6 +16331,18 @@ fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
     ))
 }
 
+/// Whether `name` is a dialect the server accepts wherever a dialect *name* is
+/// configured — `initializationOptions.folderDialects` and the per-folder
+/// `tclLsp.dialect` pulled by `workspace/configuration`.
+///
+/// Valid names: any catalog profile (including the config-only f5-tmsh /
+/// f5-bigip / bpf, which a bare `DialectSet::parse` check wrongly rejects) plus
+/// `tk` (a parseable library shell, not a profile — §7.2).  One predicate so
+/// the two configuration paths cannot drift apart on what they accept.
+fn is_known_dialect_name(name: &str) -> bool {
+    tcl_dialect::DialectProfile::find(name).is_some() || DialectSet::parse(name).is_some()
+}
+
 /// Resolve the per-folder dialect override for the given URI. The
 /// longest matching folder prefix wins so a nested folder mapping
 /// shadows its parent. Returns `None` when no folder covers the
@@ -16393,14 +16588,36 @@ const TCL_SOURCE_EXTENSIONS: &[&str] = &[
 /// references / rename / call-hierarchy / workspace-symbols miss
 /// definitions that live in `.itcl`/`.irule`/`.iapp`/… files until they
 /// are opened.
+///
+/// The extension is compared case-insensitively, matching every other
+/// extension test in the server (`tcl_registry::dialects`'
+/// `dialect_from_extension`, `core_bigip::is_bigip_conf_name`, the APL source
+/// check) — an `UPPER.TCL` opens as Tcl but used to be invisible to the
+/// workspace scan, the watched-file filter, and the rename filter.
 fn is_tcl_source(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
-        .is_some_and(|ext| TCL_SOURCE_EXTENSIONS.contains(&ext))
+        .is_some_and(|ext| {
+            TCL_SOURCE_EXTENSIONS
+                .iter()
+                .any(|known| known.eq_ignore_ascii_case(ext))
+        })
 }
 
 /// The `**/*.{…}` glob naming exactly [`TCL_SOURCE_EXTENSIONS`], for the
 /// LSP registrations that take a glob rather than a predicate.
+///
+/// Lower-case only.  A glob cannot express "any casing" — brace-expanding to
+/// `{tcl,TCL,…}` would still miss `Upper.Tcl`, so the extension list stays
+/// single-cased and the *predicate* ([`is_tcl_source`]) does the case-folding.
+/// `willRename` / `didRename` close the gap properly via the protocol's own
+/// `FileOperationPatternOptions.ignoreCase` (see
+/// [`rename_file_operation_options`]); `workspace/didChangeWatchedFiles` has no
+/// such option, and VS Code matches watcher globs against the platform file
+/// system — case-insensitively on Windows and macOS, case-**sensitively** on
+/// Linux.  So a residual gap remains: on Linux an oddly-cased `FOO.TCL` that
+/// changes on disk outside the editor is not watched.  It is still scanned,
+/// indexed, and renameable; only the external-change notification is missed.
 fn tcl_source_glob() -> String {
     format!("**/*.{{{}}}", TCL_SOURCE_EXTENSIONS.join(","))
 }
@@ -16670,6 +16887,10 @@ fn build_server_capabilities(
 
 /// File-operation filter for `willRename` / `didRename`: match the Tcl
 /// source extensions the workspace scan indexes ([`TCL_SOURCE_EXTENSIONS`]).
+///
+/// `ignoreCase` so the filter agrees with [`is_tcl_source`], which case-folds:
+/// an `UPPER.TCL` the scan indexed must still have its `source` references
+/// rewritten when it is renamed.
 fn rename_file_operation_options() -> FileOperationRegistrationOptions {
     FileOperationRegistrationOptions {
         filters: vec![FileOperationFilter {
@@ -16677,7 +16898,9 @@ fn rename_file_operation_options() -> FileOperationRegistrationOptions {
             pattern: FileOperationPattern {
                 glob: tcl_source_glob(),
                 matches: None,
-                options: None,
+                options: Some(FileOperationPatternOptions {
+                    ignore_case: Some(true),
+                }),
             },
         }],
     }
@@ -20298,6 +20521,7 @@ mod tests {
             documents: Arc::new(Mutex::new(HashMap::new())),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
+            default_dialect_explicit: Mutex::new(false),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
             folder_configs: Mutex::new(Vec::new()),
@@ -22514,6 +22738,71 @@ mod tests {
         );
     }
 
+    /// Issue #407: the folder-scoped `tclLsp.dialect` must survive the parse.
+    /// It used to have nowhere to land — `FolderConfig` carried no dialect
+    /// field — so the scoped `workspace/configuration` reply's value was
+    /// silently dropped and every folder used the session default.
+    #[test]
+    fn parse_folder_config_reads_and_validates_the_dialect() {
+        let fc = parse_folder_config(&serde_json::json!({ "dialect": "f5-irules" }))
+            .expect("folder config");
+        assert_eq!(fc.dialect.as_deref(), Some("f5-irules"));
+        // A config-only profile (not a `DialectSet`-parseable Tcl dialect) is
+        // accepted, matching what `initializationOptions.folderDialects` takes.
+        let bigip =
+            parse_folder_config(&serde_json::json!({ "dialect": "f5-bigip" })).expect("folder cfg");
+        assert_eq!(bigip.dialect.as_deref(), Some("f5-bigip"));
+        // An unknown name is dropped rather than pinning the folder to a
+        // dialect no provider can resolve.
+        let bogus =
+            parse_folder_config(&serde_json::json!({ "dialect": "klingon" })).expect("folder cfg");
+        assert_eq!(bogus.dialect, None);
+        // An absent key inherits the session default.
+        let absent =
+            parse_folder_config(&serde_json::json!({ "extraCommands": [] })).expect("folder cfg");
+        assert_eq!(absent.dialect, None);
+    }
+
+    /// `initializationOptions.folderDialects` is authoritative for the folders
+    /// it names; every other folder takes its dialect from the pulled
+    /// per-folder config.
+    #[tokio::test]
+    async fn folder_dialect_overrides_prefer_initialisation_options() {
+        let backend = test_backend();
+        let pinned = Uri::from_str("file:///ws/pinned").unwrap();
+        let pulled = Uri::from_str("file:///ws/pulled").unwrap();
+        *backend.folder_dialects.lock().await = vec![(pinned.clone(), "tcl9.0".to_owned())];
+        *backend.folder_configs.lock().await = vec![
+            (
+                pinned.clone(),
+                FolderConfig {
+                    dialect: Some("tcl8.4".to_owned()),
+                    ..FolderConfig::default()
+                },
+            ),
+            (
+                pulled.clone(),
+                FolderConfig {
+                    dialect: Some("f5-irules".to_owned()),
+                    ..FolderConfig::default()
+                },
+            ),
+        ];
+        let merged = backend.folder_dialect_overrides().await;
+        let pinned_doc = Uri::from_str("file:///ws/pinned/a.tcl").unwrap();
+        let pulled_doc = Uri::from_str("file:///ws/pulled/a.tcl").unwrap();
+        assert_eq!(
+            folder_dialect_for(&pinned_doc, &merged).as_deref(),
+            Some("tcl9.0"),
+            "the host-supplied mapping wins for the folder it names",
+        );
+        assert_eq!(
+            folder_dialect_for(&pulled_doc, &merged).as_deref(),
+            Some("f5-irules"),
+            "an unnamed folder takes its pulled `tclLsp.dialect`",
+        );
+    }
+
     #[test]
     fn parse_folder_config_reads_extra_library_and_generic_patterns() {
         let cfg = serde_json::json!({
@@ -23502,6 +23791,48 @@ mod tests {
         // living in an un-opened `.test` file were invisible to
         // cross-document find-references / rename-safety.
         assert!(is_tcl_source(Path::new("/ws/test/argparse.test")));
+    }
+
+    /// The extension test must case-fold, like every other extension check in
+    /// the server (`dialect_from_extension`, `is_bigip_conf_name`, the APL
+    /// source check).  An `UPPER.TCL` opened fine but was invisible to the
+    /// workspace scan, the watched-file filter, and the rename filter — so its
+    /// procs never reached cross-document navigation until it was opened, and a
+    /// rename never rewrote the `source` lines pointing at it.
+    #[test]
+    fn is_tcl_source_ignores_extension_case() {
+        for name in [
+            "/ws/UPPER.TCL",
+            "/ws/Mixed.Tcl",
+            "/ws/rule.IRULE",
+            "/ws/suite.TEST",
+            "/ws/mod.Tm",
+        ] {
+            assert!(
+                is_tcl_source(Path::new(name)),
+                "expected {name} to be a Tcl-family source",
+            );
+        }
+        // NEGATIVE control: case-folding must not widen the set itself.
+        assert!(!is_tcl_source(Path::new("/ws/notes.TXT")));
+    }
+
+    /// The `willRename` / `didRename` filter must carry `ignoreCase`, because
+    /// [`is_tcl_source`] case-folds and a glob cannot express "any casing":
+    /// without it an `UPPER.TCL` the scan indexed would be renamed on a
+    /// case-sensitive file system without its `source` references being
+    /// rewritten.
+    #[test]
+    fn rename_filter_matches_case_insensitively() {
+        let options = rename_file_operation_options().filters[0]
+            .pattern
+            .options
+            .clone();
+        assert_eq!(
+            options.and_then(|o| o.ignore_case),
+            Some(true),
+            "the rename filter must set ignoreCase",
+        );
     }
 
     /// The file-watcher registration and the `willRename` / `didRename` filter

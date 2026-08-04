@@ -351,10 +351,10 @@ export async function waitForFeatureToggle(
  * Open a document and wait for the language server to finish its initial
  * analysis. Returns the opened TextDocument.
  *
- * The auto-detected dialect is applied *and awaited* before this returns,
- * so tests that depend on dialect-specific completions or diagnostics
- * don't race the fire-and-forget ``onDidChangeActiveTextEditor`` path
- * the extension uses in normal interactive use.
+ * The document's dialect is resolved by the *server*, per document, from the
+ * ``didOpen`` the editor sends — the extension only mirrors it into the status
+ * bar.  So this waits for the server to have drained that ``didOpen`` (via the
+ * hover round trips below) rather than for a dialect notification.
  */
 export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument> {
   // Ensure the extension is activated first.
@@ -369,23 +369,21 @@ export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument>
   const doc = await vscode.workspace.openTextDocument(docUri);
   await vscode.window.showTextDocument(doc);
 
-  // Synchronously apply the auto-detected dialect.  In normal interactive
-  // use the extension's onDidChangeActiveTextEditor handler kicks off
-  // ``applyDialectForDocument`` as fire-and-forget, which races test
-  // assertions that follow immediately.  Tests need to know the server
-  // has the right dialect's command catalog loaded before they query
-  // completions/diagnostics.
+  // Mirror the detected dialect into the status bar, exactly as the
+  // extension's onDidChangeActiveTextEditor handler does.  Purely cosmetic
+  // now — it sends the server nothing — but tests that assert on the status
+  // bar still need it applied deterministically rather than on the editor
+  // event.
   if (ext && ext.isActive && typeof ext.exports?.applyDialectForDocument === "function") {
-    await ext.exports.applyDialectForDocument(doc);
+    ext.exports.applyDialectForDocument(doc);
   }
 
-  // After a dialect change the server reloads its command catalog (large
-  // for ``f5-irules`` / ``f5-iapps``).  Send a request that will be
-  // serialised behind the server's processing queue so we don't return
-  // until both the ``didOpen`` notification AND any dialect-change
-  // notification have been drained.  Two hovers — one to flush, one
-  // belt-and-braces — eliminates the residual race we saw on macOS where
-  // a single hover sometimes raced the config-change apply.
+  // The server resolves this document's dialect from the ``didOpen`` and
+  // loads the matching command catalog (large for ``f5-irules`` /
+  // ``f5-iapps``).  Send a request that will be serialised behind the
+  // server's processing queue so we don't return until that ``didOpen`` has
+  // been drained.  Two hovers — one to flush, one belt-and-braces —
+  // eliminate the residual race we saw on macOS.
   await vscode.commands.executeCommand(
     "vscode.executeHoverProvider",
     docUri,

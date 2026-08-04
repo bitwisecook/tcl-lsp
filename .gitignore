@@ -48,6 +48,10 @@ server/_version.py
 tooling/explorer/static/build_info.json
 uv.lock
 editors/vscode/uv.lock
+# Scratch fixtures the multi-root suite materialises at launch
+# (src/test/runMultiFolderTest.ts) — every test rewrites their contents.
+editors/vscode/testFixtureMultiFolder/proj-*/extra.tcl
+editors/vscode/testFixtureMultiFolder/proj-*/race.tcl
 .claude/settings.local.json
 .claude/worktrees/
 docs/screenshots/.shell-ready

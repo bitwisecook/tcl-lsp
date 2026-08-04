@@ -267,21 +267,22 @@ suite("Multi-folder workspace configuration (#230)", () => {
     assert.strictEqual(b, "off");
   });
 
-  test("folder A and folder B produce different diagnostics for {*}-expansion source (#407)", async () => {
-    // proj-a is tcl8.4 — ``{*}`` is NOT recognised as the word-expansion
-    // prefix, so ``cmd {*}$args`` lexes as a literal ``*$args`` word
-    // (no E001/E007 — the source is well-formed under 8.4 rules).
-    // proj-b is f5-irules — based on 8.4 syntax too, so it shares the
-    // no-expansion behaviour but flags many vanilla Tcl commands as
-    // unknown (iRules has a far smaller command surface).
-    // The interesting cross-folder diff: open identical ``my-helper``
-    // invocations — folder A accepts it as an unknown user command
-    // (no E002 in tcl8.4 either, but tcl8.4 *does* flag iRules-only
-    // commands).  Use ``when`` (iRules-only) which is a known command in
-    // proj-b but unknown in proj-a, yielding divergent E002 counts.
-    const source = `when CLIENT_ACCEPTED {\n    log local0. "hi"\n}\n`;
+  test("folder A and folder B produce different diagnostics for identical source (#407)", async () => {
+    // The source must carry **no** in-file dialect signal.  The server's
+    // resolution order is: explicit ``languageId`` > in-source detection
+    // (``# tcl-dialect:`` directive, shebang, ``package require Tcl``, content
+    // signatures) > per-folder override > session default (issue #805).  A
+    // body of ``when EVENT { … }`` handlers *is* an iRules content signature,
+    // so such a source resolves to ``f5-irules`` in **both** folders and proves
+    // nothing about the folder override.
+    //
+    // ``puts`` is the discriminator instead: a core Tcl command in every Tcl
+    // dialect, and absent from the (far smaller) iRules command surface.  So
+    // identical source is silent in proj-a (tcl8.4) and raises W123 in proj-b
+    // (f5-irules).
+    const source = `proc greet {who} {\n    puts "hi $who"\n}\ngreet world\n`;
 
-    async function diagsFor(folderName: string): Promise<vscode.Diagnostic[]> {
+    async function unknownPutsIn(folderName: string, expected: boolean): Promise<boolean> {
       const folder = vscode.workspace.workspaceFolders!.find((f) => f.name === folderName)!;
       const fileUri = vscode.Uri.file(path.join(folder.uri.fsPath, "foo.tcl"));
       const doc = await vscode.workspace.openTextDocument(fileUri);
@@ -294,40 +295,28 @@ suite("Multi-folder workspace configuration (#230)", () => {
           source,
         );
       });
-      // Wait for diagnostics to arrive; the server publishes them
-      // asynchronously after the didChange roundtrip.
-      for (let i = 0; i < 30; i++) {
-        const diags = vscode.languages.getDiagnostics(fileUri);
-        if (diags.length > 0) return diags;
+      // Poll for the *expected* state, not merely "some diagnostics exist" —
+      // this file carries the previous test's diagnostics until the server
+      // republishes, so a bare length check reads the stale set.
+      const has = () =>
+        vscode.languages
+          .getDiagnostics(fileUri)
+          .some((d) => d.code === "W123" && d.message.includes("puts"));
+      for (let i = 0; i < 30 && has() !== expected; i++) {
         await new Promise((r) => setTimeout(r, 200));
       }
-      return vscode.languages.getDiagnostics(fileUri);
+      return has();
     }
 
-    const diagsA = await diagsFor("proj-a");
-    const diagsB = await diagsFor("proj-b");
-
-    // ``when`` is unknown under tcl8.4 (proj-a) so we expect at least
-    // one E002 (Unknown command); it's a registered iRules command
-    // under f5-irules (proj-b) so there should be none for ``when``
-    // itself.  The exact diagnostic count is sensitive to many other
-    // checks, so just assert the presence/absence of E002 on the ``when``
-    // command name.
-    const whenE002InA = diagsA.some(
-      (d) => d.code === "E002" && d.message.toLowerCase().includes("when"),
-    );
-    const whenE002InB = diagsB.some(
-      (d) => d.code === "E002" && d.message.toLowerCase().includes("when"),
-    );
     assert.strictEqual(
-      whenE002InA,
-      true,
-      `folder A (tcl8.4) should flag 'when' as unknown.  Diags: ${JSON.stringify(diagsA.map((d) => [d.code, d.message]))}`,
-    );
-    assert.strictEqual(
-      whenE002InB,
+      await unknownPutsIn("proj-a", false),
       false,
-      `folder B (f5-irules) should accept 'when' as a known command.  Diags: ${JSON.stringify(diagsB.map((d) => [d.code, d.message]))}`,
+      "folder A (tcl8.4) knows 'puts' and must not flag it",
+    );
+    assert.strictEqual(
+      await unknownPutsIn("proj-b", true),
+      true,
+      "folder B (f5-irules) has no 'puts' and must flag it",
     );
   });
 
@@ -379,7 +368,10 @@ suite("Multi-folder workspace configuration (#230)", () => {
     // diagnostics in each folder.
     const source = `set greeting "“hello”"\n`;
 
-    async function w108DiagsFor(folderName: string): Promise<vscode.Diagnostic[]> {
+    async function w108DiagsFor(
+      folderName: string,
+      wantW108: boolean,
+    ): Promise<vscode.Diagnostic[]> {
       const folder = vscode.workspace.workspaceFolders!.find((f) => f.name === folderName)!;
       const fileUri = vscode.Uri.file(path.join(folder.uri.fsPath, "foo.tcl"));
       const doc = await vscode.workspace.openTextDocument(fileUri);
@@ -392,17 +384,19 @@ suite("Multi-folder workspace configuration (#230)", () => {
           source,
         );
       });
-      // Wait up to 6s for diagnostics to settle (server publishes async).
-      for (let i = 0; i < 30; i++) {
-        const diags = vscode.languages.getDiagnostics(fileUri);
-        if (diags.length > 0) return diags.filter((d) => d.code === "W108");
+      // Poll for the *expected* W108 state (up to 6s), not merely "some
+      // diagnostics exist": this file still carries the previous test's
+      // diagnostics until the server republishes, so a bare length check
+      // returns the stale set immediately.
+      const w108 = () => vscode.languages.getDiagnostics(fileUri).filter((d) => d.code === "W108");
+      for (let i = 0; i < 30 && w108().length > 0 !== wantW108; i++) {
         await new Promise((r) => setTimeout(r, 200));
       }
-      return vscode.languages.getDiagnostics(fileUri).filter((d) => d.code === "W108");
+      return w108();
     }
 
-    const w108A = await w108DiagsFor("proj-a");
-    const w108B = await w108DiagsFor("proj-b");
+    const w108A = await w108DiagsFor("proj-a", true);
+    const w108B = await w108DiagsFor("proj-b", false);
 
     // strict mode in folder A → at least one W108 for each smart quote.
     assert.ok(
@@ -426,8 +420,13 @@ suite("Multi-folder workspace configuration (#230)", () => {
     // FeatureConfig.
     const source = `folder-a-helper foo bar\n`;
 
-    async function w123DiagsFor(folderName: string): Promise<vscode.Diagnostic[]> {
+    async function w123DiagsFor(
+      folderName: string,
+      wantW123: boolean,
+    ): Promise<vscode.Diagnostic[]> {
       const folder = vscode.workspace.workspaceFolders!.find((f) => f.name === folderName)!;
+      // ``extra.tcl`` is materialised by ``runMultiFolderTest.ts`` alongside
+      // the folder settings; the edit below supplies its real content.
       const fileUri = vscode.Uri.file(path.join(folder.uri.fsPath, "extra.tcl"));
       const doc = await vscode.workspace.openTextDocument(fileUri);
       const editor = await vscode.window.showTextDocument(doc);
@@ -439,20 +438,18 @@ suite("Multi-folder workspace configuration (#230)", () => {
           source,
         );
       });
-      for (let i = 0; i < 30; i++) {
-        const all = vscode.languages.getDiagnostics(fileUri);
-        const w123 = all.filter((d) => d.code === "W123");
-        // Folder A may produce zero diagnostics at all, so we can't gate
-        // on .length>0 — wait for the document to be analysed by polling
-        // a fixed budget and returning whatever's there.
-        if (all.length > 0 || i >= 6) return w123;
+      // Poll for the expected state.  Folder A's answer is "none", which is
+      // also what an un-analysed document reports, so it drains the full
+      // budget before concluding — that is the price of asserting an absence.
+      const w123 = () => vscode.languages.getDiagnostics(fileUri).filter((d) => d.code === "W123");
+      for (let i = 0; i < 30 && w123().length > 0 !== wantW123; i++) {
         await new Promise((r) => setTimeout(r, 200));
       }
-      return vscode.languages.getDiagnostics(fileUri).filter((d) => d.code === "W123");
+      return w123();
     }
 
-    const w123A = await w123DiagsFor("proj-a");
-    const w123B = await w123DiagsFor("proj-b");
+    const w123A = await w123DiagsFor("proj-a", false);
+    const w123B = await w123DiagsFor("proj-b", true);
 
     assert.strictEqual(
       w123A.length,
@@ -505,7 +502,12 @@ suite("Multi-folder per-folder dialect change after open (#407)", () => {
     // is on f5-irules at this point.
     const folderB = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-b")!;
     const fileUri = vscode.Uri.file(path.join(folderB.uri.fsPath, "race.tcl"));
-    const source = 'if { [active_members http_pool] >= 2 } {\n    puts "ok"\n}\n';
+    // ``active_members`` is the only dialect-sensitive name here: an iRules
+    // command, disabled under tcl8.6.  Everything else (``if``, ``set``) is in
+    // both command surfaces, so the W002 count is a clean signal for "which
+    // dialect was this analysed under" — a body of ``puts`` would raise its own
+    // W002 under f5-irules and mask the answer.
+    const source = "if { [active_members http_pool] >= 2 } {\n    set flag 1\n}\n";
 
     // 1. Switch folder B off iRules and wait for the server to settle.
     //    ``active_members`` becomes a disallowed builtin under tcl8.6,
@@ -549,8 +551,12 @@ suite("Multi-folder per-folder dialect change after open (#407)", () => {
       );
     } finally {
       // Restore the fixture state so subsequent tests see the original
-      // .vscode/settings.json values.
-      await cfgB.update("dialect", undefined, vscode.ConfigurationTarget.WorkspaceFolder);
+      // .vscode/settings.json values.  Write the value back explicitly:
+      // ``update(…, undefined)`` *removes* the folder-scoped key, and the
+      // updates above have already overwritten the fixture file, so clearing it
+      // would leave proj-b inheriting the workspace default (tcl8.6) rather
+      // than restoring its ``f5-irules``.
+      await cfgB.update("dialect", "f5-irules", vscode.ConfigurationTarget.WorkspaceFolder);
       await waitForConfigSettled({ "proj-a": "tcl8.4", "proj-b": "f5-irules" });
     }
   });

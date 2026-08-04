@@ -454,6 +454,14 @@ struct Shared {
     /// The `tclLsp` configuration reply for `workspace/configuration`. Mutable
     /// so `apply_configuration` can change what the server re-pulls.
     tcllsp_config: Mutex<Value>,
+    /// Per-folder `tclLsp` replies, keyed by the `scopeUri` the server asks
+    /// with (trailing slash trimmed). This is what a real multi-root editor
+    /// does: the *unscoped* pull returns the workspace-merged settings, and a
+    /// scoped pull returns that folder's resolved settings — which is the only
+    /// way a folder-level `tclLsp.dialect` ever reaches the server. A scope with
+    /// no entry falls back to `tcllsp_config`, so single-root tests are
+    /// unaffected.
+    folder_configs: Mutex<HashMap<String, Value>>,
     /// Captured stderr text.
     stderr: Mutex<String>,
 }
@@ -587,6 +595,7 @@ impl Lsp {
             notify_cv: Condvar::new(),
             requests_cv: Condvar::new(),
             tcllsp_config: Mutex::new(config),
+            folder_configs: Mutex::new(HashMap::new()),
             stderr: Mutex::new(String::new()),
         });
 
@@ -659,6 +668,56 @@ impl Lsp {
         let mut lsp = Self::spawn(json!({ "features": { "linkedEditingRange": true } }));
         lsp.initialize_at(&format!("file://{}", root.to_string_lossy()));
         lsp
+    }
+
+    /// Spawn a **multi-root** server: `unscoped` is what the workspace-wide
+    /// `workspace/configuration` pull returns, and each `(root, folder_config)`
+    /// pair is what the *scoped* pull for that folder returns.
+    ///
+    /// This is the shape a real multi-root editor answers with — folder-level
+    /// settings are invisible to the unscoped pull — so it is the only way to
+    /// exercise per-folder resolution end to end.
+    pub fn multi_root(unscoped: Value, folders: &[(&std::path::Path, Value)]) -> Self {
+        let mut lsp = Self::spawn(unscoped);
+        {
+            let mut map = lsp.shared.folder_configs.lock().unwrap();
+            for (root, config) in folders {
+                map.insert(format!("file://{}", root.to_string_lossy()), config.clone());
+            }
+        }
+        let roots: Vec<Value> = folders
+            .iter()
+            .enumerate()
+            .map(|(i, (root, _))| {
+                json!({ "uri": format!("file://{}", root.to_string_lossy()), "name": format!("root{i}") })
+            })
+            .collect();
+        lsp.initialize_with_folders(&roots);
+        lsp
+    }
+
+    /// [`Lsp::initialize`] against an explicit `workspaceFolders` array.
+    pub fn initialize_with_folders(&mut self, folders: &[Value]) -> Value {
+        let root = folders
+            .first()
+            .and_then(|f| f.get("uri"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        let result = self.request_timeout(
+            "initialize",
+            json!({
+                "processId": std::process::id(),
+                "rootUri": root,
+                "workspaceFolders": folders,
+                "capabilities": {},
+                "clientInfo": { "name": "tcl-lsp-e2e", "version": "1.0" },
+            }),
+            REQUEST_TIMEOUT,
+        );
+        self.initialize_result = result.clone();
+        self.notify("initialized", json!({}));
+        result
     }
 
     /// The full `initialize` result.
@@ -1573,11 +1632,21 @@ fn auto_reply(msg: &Value, shared: &Arc<Shared>) {
             items
                 .iter()
                 .map(|item| {
-                    if item.get("section").and_then(Value::as_str) == Some("tclLsp") {
-                        shared.tcllsp_config.lock().unwrap().clone()
-                    } else {
-                        Value::Null
+                    if item.get("section").and_then(Value::as_str) != Some("tclLsp") {
+                        return Value::Null;
                     }
+                    let scoped = item
+                        .get("scopeUri")
+                        .and_then(Value::as_str)
+                        .and_then(|scope| {
+                            shared
+                                .folder_configs
+                                .lock()
+                                .unwrap()
+                                .get(scope.trim_end_matches('/'))
+                                .cloned()
+                        });
+                    scoped.unwrap_or_else(|| shared.tcllsp_config.lock().unwrap().clone())
                 })
                 .collect(),
         )
