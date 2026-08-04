@@ -1915,6 +1915,58 @@ impl std::fmt::Debug for CommandRegistry {
 
 #[cfg(test)]
 mod tests {
+    // -- unfilled_trailing_roles (issue #1190) ----------------------------
+    //
+    // The complement of `arg_indices_for_role`: what the *next* words would
+    // mean, which is the question a splice-a-trailing-argument quick fix asks.
+
+    #[test]
+    fn unfilled_trailing_roles_reports_the_optional_capture_variables() {
+        let reg = CommandRegistry::build_default();
+        // `catch {body}` leaves both `VarWrite` slots open.
+        assert_eq!(
+            reg.unfilled_trailing_roles("catch", &["{body}"]),
+            vec![(1, ArgRole::VarWrite), (2, ArgRole::VarWrite)]
+        );
+        // One supplied leaves one.
+        assert_eq!(
+            reg.unfilled_trailing_roles("catch", &["{body}", "res"]),
+            vec![(2, ArgRole::VarWrite)]
+        );
+        // Fully supplied leaves none.
+        assert!(
+            reg.unfilled_trailing_roles("catch", &["{body}", "res", "opts"])
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn unfilled_trailing_roles_stops_at_the_arity_ceiling() {
+        let reg = CommandRegistry::build_default();
+        // Every position past `catch`'s maximum of three is absent, however
+        // many are asked for.
+        let roles = reg.unfilled_trailing_roles("catch", &["{body}"]);
+        assert!(roles.iter().all(|(index, _)| *index < 3), "{roles:?}");
+    }
+
+    #[test]
+    fn unfilled_trailing_roles_is_empty_for_an_unknown_command() {
+        let reg = CommandRegistry::build_default();
+        assert!(
+            reg.unfilled_trailing_roles("no_such_command", &[])
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn unfilled_trailing_roles_stops_at_an_undeclared_position() {
+        let reg = CommandRegistry::build_default();
+        // `puts` declares no trailing role a caller could fill with a
+        // *known* meaning, so nothing is offered rather than an unbounded
+        // run of `Value` slots.
+        assert!(reg.unfilled_trailing_roles("puts", &["hello"]).is_empty());
+    }
+
     /// `SAFE_INTERP_HIDDEN` and `TRANSFERS_CONTROL` were the same bit.
     ///
     /// Both were spelled `1 << 61`, so the 65th trait silently aliased the

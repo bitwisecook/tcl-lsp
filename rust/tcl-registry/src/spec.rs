@@ -1953,3 +1953,52 @@ impl SubCommand {
             .map_or(&[], |(_, vs)| vs)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::registry::CommandRegistry;
+
+    // -- optional_trailing_arg_names (issue #1190) ------------------------
+    //
+    // A quick fix that appends a documented optional argument learns both how
+    // many words it may append and what to call them from the synopsis, so a
+    // dialect whose form documents fewer words gets a narrower offer.
+
+    #[test]
+    fn optional_trailing_placeholders_takes_the_trailing_run() {
+        assert_eq!(
+            optional_trailing_placeholders("catch script ?resultVarName? ?optionsVarName?"),
+            vec!["resultVarName", "optionsVarName"]
+        );
+        // A required word terminates the run — these are the words a caller
+        // may append *without* also having to supply something in between.
+        assert_eq!(
+            optional_trailing_placeholders("cmd ?a? required ?b?"),
+            vec!["b"]
+        );
+        // No optional tail at all.
+        assert!(optional_trailing_placeholders("puts string").is_empty());
+        // A variadic tail is not a fixed slot list.
+        assert!(optional_trailing_placeholders("cmd ?arg ...?").is_empty());
+        assert!(optional_trailing_placeholders("cmd ?...?").is_empty());
+    }
+
+    #[test]
+    fn optional_trailing_arg_names_narrows_with_the_dialect() {
+        let registry = CommandRegistry::build_default();
+        let spec = registry.get("catch").expect("catch is a registry command");
+        // Tcl 8.5 onward documents `catch script ?resultVarName? ?optionsVarName?`.
+        assert_eq!(
+            spec.optional_trailing_arg_names(DialectSet::TCL90),
+            vec!["resultVarName", "optionsVarName"]
+        );
+        // Tcl 8.4's `catch script ?varName?` has no options dictionary, so a
+        // consumer running under that dialect never offers a word the release
+        // has no argument slot for.
+        assert_eq!(
+            spec.optional_trailing_arg_names(DialectSet::TCL84),
+            vec!["varName"]
+        );
+    }
+}
