@@ -688,8 +688,12 @@ fn actions_catch_without_result_var_offers_capture_fixes() {
     //   set rc [catch {expr {1/0}} res]; list $rc $res -> 1 {divide by zero}
     //   (verified tclsh8.6 + tclsh9.0).
     // So `catch {expr {1/0}}` (no result var, at proc scope) is W302, and the
-    // provider offers the two synthetic capture quick-fixes that append
-    // ` result` / ` result opts` after the catch body.
+    // provider offers the two capture quick-fixes that append ` result` /
+    // ` result options` after the catch **body**.  The insertion anchor is the
+    // analyser's, computed from the argument tokens: the diagnostic itself
+    // spans only the `catch` keyword, so a provider reconstructing the point
+    // from the diagnostic's end writes the word before the body and turns the
+    // call into a catch of the script `result` (issue #1190).
     let src = "proc f {} {\n    catch {expr {1/0}}\n}\n";
     let analysis = analyse(src);
     // Sanity: the analyser actually flagged W302 here; otherwise this test
@@ -718,15 +722,26 @@ fn actions_catch_without_result_var_offers_capture_fixes() {
     assert!(
         actions
             .iter()
-            .any(|a| a.title == "Add catch result variable"),
+            .any(|a| a.title == "Add catch result variable(s)"),
         "missing ` result` variant; got {titles:?}",
     );
     assert!(
         actions
             .iter()
-            .any(|a| a.title == "Add catch result + options variables"),
-        "missing ` result opts` variant; got {titles:?}",
+            .any(|a| a.title == "Add catch result + options variable(s)"),
+        "missing ` result options` variant; got {titles:?}",
     );
+    // The anchor lands past the body's closing brace, so applying either
+    // action produces a well-formed `catch BODY result …`.
+    for action in actions.iter().filter(|a| a.title.contains("catch result")) {
+        let edit = &action.edits[0];
+        let line = src.lines().nth(edit.range.start_line as usize).unwrap();
+        assert_eq!(
+            &line[..edit.range.start_character as usize],
+            "    catch {expr {1/0}}",
+            "the insertion must sit after the body's closing brace: {edit:?}",
+        );
+    }
     // The fixes are quick-fixes and their edits are well-formed insertions.
     for a in actions.iter().filter(|a| a.title.contains("catch result")) {
         assert_eq!(a.kind, ActionKind::QuickFix);

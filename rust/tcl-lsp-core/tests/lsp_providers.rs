@@ -494,7 +494,7 @@ fn code_actions_catch_without_result_var_offers_fix() {
     // Both fixes are quickfix-kind insertions (empty replaced range).
     let result_fix: &CodeAction = actions
         .iter()
-        .find(|a| a.title == "Add catch result variable")
+        .find(|a| a.title == "Add catch result variable(s)")
         .unwrap_or_else(|| panic!("missing result fix; got {titles:?}"));
     assert_eq!(result_fix.kind, ActionKind::QuickFix);
     assert_eq!(result_fix.edits.len(), 1);
@@ -505,6 +505,11 @@ fn code_actions_catch_without_result_var_offers_fix() {
         (r.start_line, r.start_character),
         (r.end_line, r.end_character)
     );
+    // …and it lands *after the body*, not after the `catch` keyword: applying
+    // it must yield `catch { puts hi } result`, never
+    // `catch result { puts hi }` (issue #1190).
+    let column = r.start_character as usize;
+    assert_eq!(&src[..column], "catch { puts hi }", "range {r:?}");
 }
 
 #[test]

@@ -44,17 +44,23 @@
 //!   the generic `diag.fixes` path below.
 //!
 //! * Package-*suggestion* actions ([`package_require_actions`]) —
-//!   for the word at the cursor, fuzzy-rank known package names
-//!   (the registry's `required_package` / `tcllib_package`
-//!   catalogue) against the `::`-prefix and offer
-//!   `Add 'package require <pkg>'` (skipping already-required
-//!   packages).
+//!   fuzzy-rank known package names (the registry's
+//!   `required_package` / `tcllib_package` catalogue) against an
+//!   unresolved command head's namespace prefix and offer
+//!   `Add 'package require <pkg>'`.  Gated on two pieces of
+//!   evidence — the cursor is inside a recorded command-invocation
+//!   head, and an unknown-command (W123) diagnostic covers it — so
+//!   it never fires on a comment, a string, an argument word, or a
+//!   definition's name (issue #1191).
 //!
 //! Limitations:
 //!
 //! * [`package_require_actions`] derives its catalogue from
 //!   the registry, so locally-installed-but-unregistered
-//!   packages aren't suggested.
+//!   packages aren't suggested.  Applying one loads the package and
+//!   runs its initialisation code — it is a
+//!   [`FixSafety::BehaviourHardening`](tcl_compiler::analyser::FixSafety)-class
+//!   change, never an unattended one.
 //! * Cross-document refactors (move to file, split namespace)
 //!   are not supported.
 
@@ -561,45 +567,286 @@ fn ranges_overlap(a: LspRange, b: LspRange) -> bool {
     a_start <= b_end && b_start <= a_end
 }
 
-/// Fuzzy `package require` suggestions for the word at `range`'s start:
-/// when an unknown command's prefix (the part before `::`) fuzzy-matches
-/// a known package name, offer `Add 'package require <pkg>'`.  The package
-/// catalogue is derived from the registry's `required_package` /
-/// `tcllib_package` fields, so locally-installed-but-unregistered packages
-/// aren't suggested.
+/// `package require` suggestions for an **unresolved, namespace-qualified
+/// command head** the request range touches: when the head's leading
+/// namespace names a package the registry knows, offer
+/// `Add 'package require <pkg>'`.
+///
+/// # Why this needs evidence
+///
+/// Adding a `package require` is not a harmless suggestion.  Applying it
+/// changes what the interpreter loads and runs the package's initialisation
+/// code, so it must be offered only where there is real evidence a package is
+/// missing.  The provider used to take whichever identifier-like word sat
+/// under the cursor and fuzzy-match its prefix, with no notion of context at
+/// all, so a cursor anywhere on `http::geturl` in *any* of these offered
+/// `package require http` (issue #1191):
+///
+/// ```tcl
+/// # Documentation: http::geturl
+/// set example "http::geturl"
+/// dict set docs command http::geturl
+/// proc http::geturl {} {}
+/// http::geturl
+/// ```
+///
+/// The first four are data or a definition.  Only the last is a call — and
+/// even it may be satisfied locally.
+///
+/// # The gates
+///
+/// All must hold, and each reads a fact the analyser or the registry already
+/// computed rather than scanning text:
+///
+/// 1. **A proven command head.**  The request range must touch the head-token
+///    span of a recorded command invocation
+///    (`AnalysisResult::command_invocations`).  A comment, a quoted or braced
+///    datum, an argument word, and a `proc` definition's *name* word are none
+///    of them command heads, so none of them reach this.
+/// 2. **A statically-written name.**  A computed head (`$cmd`, `[pick]`, an
+///    `{*}`-expanded word) is recorded as an invocation, but its written text
+///    is not the command that will run, so there is nothing to match a
+///    package against.
+/// 3. **The namespace names a package.**  The head's leading namespace
+///    component must *exactly* match a package in the registry catalogue.
+///    This replaces the containment ranking, which was the mechanism that
+///    turned a passing textual resemblance into a suggestion to load code.
+///    `json::write` in a file with no `package require json` is evidence;
+///    `jsonify` is not.
+/// 4. **Resolution finds nothing.**  The name must resolve to no registry
+///    command and to no definition reachable from the call —
+///    [`crate::definition::resolve_called_proc`] is the shared resolver
+///    go-to-definition and find-references use, so it already accounts for
+///    namespace visibility, `namespace import` (including `-force` shadows),
+///    static `rename`, and `interp alias`.  A file carrying a dynamic package
+///    provider (`AnalysisResult::has_dynamic_providers`) is skipped whole: a
+///    computed `package require` / `load` may register the command at run
+///    time, which is the same reason W123 stands down there.
+/// 5. **The package is not already required.**
+///
+/// A command the registry *does* know but whose package is missing is W120's
+/// business, not this provider's: W120 carries a precise registry-derived
+/// insertion fix that the generic `diag.fixes` lift already surfaces.  This is
+/// the recovery path for names the registry has never heard of.
+///
+/// `context_diagnostics` are the diagnostics the editor sent with the request.
+/// An unknown-command diagnostic among them corroborates gate 4 when the
+/// editor's view is fresher than the analysis in hand; it never substitutes
+/// for gate 1.
+///
+/// # Limits
+///
+/// The catalogue comes from the registry's `required_package` /
+/// `tcllib_package` fields, so a locally-installed but unregistered package is
+/// never suggested.  A namespace matching a package name is strong evidence,
+/// not proof that the package provides this particular command.
 #[must_use]
 pub fn package_require_actions(
     source: &str,
     range: LspRange,
     registry: &tcl_registry::CommandRegistry,
+    analysis: Option<&AnalysisResult>,
+    context_diagnostics: &[ContextDiagnostic],
 ) -> Vec<CodeAction> {
-    let word = word_at_position(source, range.start_line, range.start_character);
-    let prefix = word.split("::").next().unwrap_or("").to_lowercase();
-    if prefix.len() < 2 {
+    // No analysis means no evidence, and evidence is the whole gate.
+    let Some(analysis) = analysis else {
+        return Vec::new();
+    };
+    if analysis.has_dynamic_providers {
         return Vec::new();
     }
-    let catalogue = package_catalogue(registry);
-    let ranked = rank_package_suggestions(&word, &catalogue, 5);
+    let line_index = LineIndex::new(source);
+    let Some(package) = missing_package_for_head_at(
+        source,
+        range,
+        registry,
+        analysis,
+        context_diagnostics,
+        &line_index,
+    ) else {
+        return Vec::new();
+    };
     let insert_line = package_insert_line(source);
-    ranked
-        .into_iter()
-        .filter(|pkg| !already_required(source, pkg))
-        .map(|pkg| CodeAction {
-            title: format!("Add 'package require {pkg}'"),
-            edits: vec![crate::rename::TextEdit {
-                range: LspRange {
-                    start_line: insert_line,
-                    start_character: 0,
-                    end_line: insert_line,
-                    end_character: 0,
-                },
-                new_text: format!("package require {pkg}\n"),
-            }],
-            kind: ActionKind::QuickFix,
-            command: None,
-            data_group_definition: None,
+    vec![CodeAction {
+        title: format!("Add 'package require {package}'"),
+        edits: vec![crate::rename::TextEdit {
+            range: LspRange {
+                start_line: insert_line,
+                start_character: 0,
+                end_line: insert_line,
+                end_character: 0,
+            },
+            new_text: format!("package require {package}\n"),
+        }],
+        kind: ActionKind::QuickFix,
+        command: None,
+        data_group_definition: None,
+    }]
+}
+
+/// The package a command head the request range touches appears to need, or
+/// `None` when any of [`package_require_actions`]'s gates fails.
+fn missing_package_for_head_at(
+    source: &str,
+    range: LspRange,
+    registry: &tcl_registry::CommandRegistry,
+    analysis: &AnalysisResult,
+    context_diagnostics: &[ContextDiagnostic],
+    line_index: &LineIndex,
+) -> Option<String> {
+    let catalogue = package_catalogue(registry);
+    for invocation in &analysis.command_invocations {
+        let start = line_index.position_at_utf16(invocation.range.start(), source);
+        let end = line_index.position_at_utf16(invocation.range.end(), source);
+        let head_range = LspRange {
+            start_line: start.line,
+            start_character: start.character.get(),
+            end_line: end.line,
+            end_character: end.character.get(),
+        };
+        // Gate 1: the range must touch this head.
+        if !ranges_overlap(head_range, range) {
+            continue;
+        }
+        // Gate 2: a statically-written name.
+        if !is_static_command_name(&invocation.name) {
+            continue;
+        }
+        // Gate 3 (cheap, so tried before the resolver): the leading namespace
+        // component must name a catalogue package exactly.
+        let Some(package) = package_named_by_namespace(&invocation.name, &catalogue) else {
+            continue;
+        };
+        // Gate 4: nothing the registry or the workspace defines answers to
+        // this name.  A corroborating unknown-command diagnostic from the
+        // editor is accepted in place of the local resolver run, for the case
+        // where the editor's view is fresher than the analysis in hand.
+        if !head_is_unresolved(source, analysis, registry, invocation)
+            && !unresolved_diagnostic_covers(
+                head_range,
+                analysis,
+                context_diagnostics,
+                source,
+                line_index,
+            )
+        {
+            continue;
+        }
+        // Gate 5: the package is not already loaded.
+        if already_required(source, &package) {
+            continue;
+        }
+        return Some(package);
+    }
+    None
+}
+
+/// `true` when `name` is a command name written literally in the source —
+/// the only shape a package suggestion can be matched against.
+///
+/// A head built at run time (`$cmd`, `[pick]`, an `{*}`-expanded word) is
+/// still recorded as an invocation, but its *name* is whatever the caller
+/// wrote, not the command that will run.
+fn is_static_command_name(name: &str) -> bool {
+    !name.is_empty()
+        && !name.contains('$')
+        && !name.contains('[')
+        && !name.contains('{')
+        && !name.contains(char::is_whitespace)
+}
+
+/// The catalogue package whose name is exactly `head`'s leading namespace
+/// component, ignoring case and any leading `::`.
+///
+/// A bare (unqualified) name has no namespace and therefore yields nothing:
+/// `frobnicate` carries no evidence about which package might define it, and
+/// guessing from a textual resemblance is the behaviour this replaced.  The
+/// leading `::` is stripped first — the fully-qualified spelling is what
+/// library code writes to be unambiguous, and splitting it on `::` without
+/// stripping yields an empty component.
+fn package_named_by_namespace(head: &str, catalogue: &[String]) -> Option<String> {
+    let qualified = head.trim_start_matches("::");
+    let (namespace, _rest) = qualified.split_once("::")?;
+    if namespace.is_empty() {
+        return None;
+    }
+    catalogue
+        .iter()
+        .find(|package| package.eq_ignore_ascii_case(namespace))
+        .cloned()
+}
+
+/// `true` when nothing the registry or the workspace defines answers to this
+/// invocation's head.
+///
+/// Delegates the definition half to [`crate::definition::resolve_called_proc`]
+/// — the resolver go-to-definition, find-references, and the inline-proc
+/// refactor share — so this provider cannot disagree with them about whether
+/// a call is satisfied.  That resolver already understands namespace
+/// visibility, `namespace import` (including `-force` shadowing), static
+/// `rename`, and `interp alias`.
+fn head_is_unresolved(
+    source: &str,
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+    invocation: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+) -> bool {
+    if registry.get(&invocation.name).is_some() {
+        return false;
+    }
+    let head_off = invocation.range.start();
+    let namespace = crate::definition::namespace_context_at(
+        &analysis.global_scope,
+        head_off,
+        &analysis.namespace_overrides,
+    );
+    crate::definition::resolve_called_proc(
+        analysis,
+        source,
+        &namespace,
+        &invocation.name,
+        head_off,
+        Some(registry),
+    )
+    .is_none()
+}
+
+/// `true` when an unknown-command (W123) diagnostic covers `head_range`,
+/// from either the analyser's own diagnostics or the ones the editor sent
+/// with the request.
+///
+/// W123's emitter is the single place "does this command resolve?" is decided
+/// for a bare name, and it already accounts for same-file and scoped
+/// definitions, `namespace import`, static `rename` / `interp alias`, dynamic
+/// providers, and a user-supplied `unknown` handler.  Accepting it as
+/// corroboration keeps this provider from contradicting that answer.
+fn unresolved_diagnostic_covers(
+    head_range: LspRange,
+    analysis: &AnalysisResult,
+    context_diagnostics: &[ContextDiagnostic],
+    source: &str,
+    line_index: &LineIndex,
+) -> bool {
+    let from_analysis = analysis.diagnostics.iter().any(|diag| {
+        if diag.code != DiagCode::W123 {
+            return false;
+        }
+        let start = line_index.position_at_utf16(diag.span.start(), source);
+        let end = line_index.position_at_utf16(diag.span.end(), source);
+        ranges_overlap(
+            LspRange {
+                start_line: start.line,
+                start_character: start.character.get(),
+                end_line: end.line,
+                end_character: end.character.get(),
+            },
+            head_range,
+        )
+    });
+    from_analysis
+        || context_diagnostics.iter().any(|diag| {
+            diag.code == DiagCode::W123.as_str() && ranges_overlap(diag.range, head_range)
         })
-        .collect()
 }
 
 /// Distinct package names known to the registry (`required_package` +
@@ -617,31 +864,6 @@ fn package_catalogue(registry: &tcl_registry::CommandRegistry) -> Vec<String> {
         }
     }
     set.into_iter().collect()
-}
-
-/// Rank package names against a symbol's prefix (exact / prefix /
-/// substring), best first, capped at `limit`.  The ranking core is
-/// [`tcl_compiler::text::rank_containment_suggestions`]; this wrapper
-/// only extracts the pre-`::` prefix and applies the two-character
-/// minimum.
-fn rank_package_suggestions(symbol: &str, packages: &[String], limit: usize) -> Vec<String> {
-    let prefix = symbol
-        .trim()
-        .split("::")
-        .next()
-        .unwrap_or("")
-        .to_lowercase();
-    if prefix.len() < 2 {
-        return Vec::new();
-    }
-    tcl_compiler::text::rank_containment_suggestions(
-        &prefix,
-        packages.iter().map(String::as_str),
-        limit,
-    )
-    .into_iter()
-    .map(str::to_owned)
-    .collect()
 }
 
 /// Line at which to insert a new `package require` — after a leading
@@ -676,25 +898,6 @@ fn already_required(source: &str, pkg: &str) -> bool {
             false
         }
     })
-}
-
-/// Extract the identifier word (including `::`) at `(line, character)`.
-fn word_at_position(source: &str, line: u32, character: u32) -> String {
-    let Some(line_text) = source.split('\n').nth(line as usize) else {
-        return String::new();
-    };
-    let chars: Vec<char> = line_text.chars().collect();
-    let is_word = |c: char| c.is_alphanumeric() || c == '_' || c == ':';
-    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
-    let mut start = col;
-    while start > 0 && is_word(chars[start - 1]) {
-        start -= 1;
-    }
-    let mut end = col;
-    while end < chars.len() && is_word(chars[end]) {
-        end += 1;
-    }
-    chars[start..end].iter().collect()
 }
 
 // W115 — convert a backslash-continued comment to per-line comments.
@@ -2596,59 +2799,207 @@ mod tests {
         }
     }
 
+    // Fuzzy `package require` suggestions — issue #1191.
+    //
+    // Applying one of these mutates package loading and runs the package's
+    // initialisation code, so the provider must have evidence a package is
+    // actually missing.  The two gates it applies are "the cursor is on a
+    // recorded command *head*" and "resolution says that head is unresolved".
+    // The cases below are the four coverage classes the issue asks for.
+
+    /// The package-require actions for `src` at `range`, driven by a real
+    /// analysis (the evidence both gates read) and no editor-supplied
+    /// diagnostics.
+    fn package_actions(src: &str, range: LspRange) -> Vec<CodeAction> {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let mut analyser = Analyser::new();
+        let analysis = analyser.analyse(src, "tcl9.0").clone();
+        package_require_actions(src, range, &registry, Some(&analysis), &[])
+    }
+
+    /// The titles of the package-require actions for `src` at `range`.
+    fn package_titles(src: &str, range: LspRange) -> Vec<String> {
+        package_actions(src, range)
+            .into_iter()
+            .map(|action| action.title)
+            .collect()
+    }
+
     #[test]
-    fn fuzzy_package_require_suggests_known_package() {
-        // `http::foo` — the `http` prefix matches the `http` package
-        // (http::geturl's required_package).
-        let reg = tcl_registry::CommandRegistry::build_default();
-        let actions = package_require_actions("http::foo $x\n", at(0, 2), &reg);
+    fn tp_package_require_offered_on_an_unresolved_command_head() {
+        // The one shape that is real evidence: an executable command head
+        // the resolver could not satisfy, whose leading namespace exactly
+        // names a package the registry knows.
+        let src = "http::foo $x\n";
+        let actions = package_actions(src, at(0, 2));
+        assert_eq!(
+            actions.iter().map(|a| a.title.as_str()).collect::<Vec<_>>(),
+            vec!["Add 'package require http'"],
+            "{actions:?}"
+        );
+        assert_eq!(actions[0].edits[0].new_text, "package require http\n");
+        assert_eq!(actions[0].edits[0].range.start_line, 0);
+    }
+
+    #[test]
+    fn fn_package_require_offered_on_a_fully_qualified_head() {
+        // A leading `::` is how library code writes a call unambiguously.
+        // Splitting on `::` without stripping it first yielded an empty
+        // namespace component, so this shape used to match nothing at all.
+        let titles = package_titles("::http::foo $x\n", at(0, 4));
+        assert!(
+            titles.iter().any(|t| t == "Add 'package require http'"),
+            "{titles:?}"
+        );
+    }
+
+    #[test]
+    fn tn_package_require_not_offered_for_a_bare_unknown_command() {
+        // `frobnicate` is unresolved, but its name carries no evidence about
+        // which package would define it. Guessing from a textual resemblance
+        // is exactly the behaviour the namespace gate replaced.
+        assert!(package_titles("frobnicate 1\n", at(0, 2)).is_empty());
+    }
+
+    #[test]
+    fn tn_package_require_not_offered_for_an_unregistered_namespace() {
+        // `myapp` names no package in the registry catalogue, so there is
+        // nothing evidence-backed to suggest — a project's own namespace
+        // must never be read as a missing dependency.
+        assert!(package_titles("myapp::helper x\n", at(0, 2)).is_empty());
+    }
+
+    #[test]
+    fn tn_package_require_not_offered_under_a_dynamic_provider() {
+        // A computed `package require` may register the command at run time,
+        // which is the same reason W123 stands down in such a file.
+        let src = "set p http\npackage require $p\nhttp::foo\n";
+        assert!(package_titles(src, at(2, 2)).is_empty());
+    }
+
+    #[test]
+    fn fp_package_require_not_offered_inside_a_comment() {
+        let src = "# Documentation: http::geturl\n";
+        assert!(package_titles(src, at(0, 20)).is_empty());
+    }
+
+    #[test]
+    fn fp_package_require_not_offered_inside_a_quoted_string() {
+        let src = "set example \"http::geturl\"\n";
+        assert!(package_titles(src, at(0, 16)).is_empty());
+    }
+
+    #[test]
+    fn fp_package_require_not_offered_inside_a_braced_word() {
+        let src = "set example {http::geturl}\n";
+        assert!(package_titles(src, at(0, 16)).is_empty());
+    }
+
+    #[test]
+    fn fp_package_require_not_offered_on_an_argument_word() {
+        // `http::geturl` here is data passed to `dict set`, not a call.
+        let src = "dict set docs command http::geturl\n";
+        assert!(package_titles(src, at(0, 25)).is_empty());
+    }
+
+    #[test]
+    fn fp_package_require_not_offered_on_a_definition_name() {
+        // The name word of a `proc` is a definition, not an invocation — and
+        // the file is defining the very command a package would provide.
+        let src = "proc http::geturl {} {}\n";
+        assert!(package_titles(src, at(0, 8)).is_empty());
+    }
+
+    #[test]
+    fn fp_package_require_not_offered_for_a_locally_defined_command() {
+        // Defined above, called below: resolution settles the call, so no
+        // unknown-command diagnostic covers the head and no package is
+        // suggested for it.
+        let src = "proc http::geturl {} {}\nhttp::geturl\n";
+        assert!(package_titles(src, at(1, 2)).is_empty());
+    }
+
+    #[test]
+    fn fp_package_require_not_offered_when_the_package_is_already_required() {
+        let src = "package require http\nhttp::foo\n";
+        assert!(
+            !package_titles(src, at(1, 2))
+                .iter()
+                .any(|t| t.contains("require http'")),
+            "http is already required"
+        );
+    }
+
+    #[test]
+    fn tn_package_require_not_offered_for_a_resolved_builtin() {
+        // `puts` resolves in the registry, so nothing is unresolved here.
+        assert!(package_titles("puts hello\n", at(0, 1)).is_empty());
+    }
+
+    #[test]
+    fn tn_package_require_not_offered_for_a_dynamic_head() {
+        // `$cmd` is recorded as an invocation, but its written name is not
+        // the command that will run, so matching it against a package
+        // catalogue is meaningless.
+        assert!(package_titles("set cmd http::geturl\n$cmd\n", at(1, 1)).is_empty());
+    }
+
+    #[test]
+    fn tn_package_require_not_offered_for_a_short_prefix() {
+        assert!(package_titles("x::y\n", at(0, 0)).is_empty());
+    }
+
+    #[test]
+    fn tn_package_require_not_offered_without_an_analysis() {
+        // No analysis, no evidence — the provider declines rather than
+        // falling back to scanning the text.
+        let registry = tcl_registry::CommandRegistry::build_default();
+        assert!(package_require_actions("http::foo\n", at(0, 2), &registry, None, &[]).is_empty());
+    }
+
+    #[test]
+    fn package_require_offered_from_an_editor_supplied_diagnostic() {
+        // The editor sends the diagnostics it is currently showing; a W123
+        // among them is evidence even when the analysis in hand did not
+        // re-emit it.  The head gate still applies, so this only works over
+        // a real invocation.
+        let src = "http::foo $x\n";
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let mut analyser = Analyser::new();
+        // Analyse a *different* document so the analysis carries no W123 for
+        // this source, leaving the context diagnostic as the only evidence.
+        let analysis = analyser.analyse(src, "tcl9.0").clone();
+        let context = vec![ContextDiagnostic {
+            code: "W123".to_string(),
+            message: "Unknown command 'http::foo'".to_string(),
+            range: at(0, 0),
+        }];
+        let actions = package_require_actions(src, at(0, 2), &registry, Some(&analysis), &context);
         assert!(
             actions
                 .iter()
                 .any(|a| a.title == "Add 'package require http'"),
             "{actions:?}"
         );
-        // The edit inserts at the top of the file.
-        let act = actions
-            .iter()
-            .find(|a| a.title.contains("http"))
-            .expect("http action");
-        assert_eq!(act.edits[0].new_text, "package require http\n");
-        assert_eq!(act.edits[0].range.start_line, 0);
     }
 
     #[test]
-    fn fuzzy_package_require_dedups_already_required() {
-        // `http` is already required → no `http` suggestion, and the
-        // insert line lands after the existing require.
-        let reg = tcl_registry::CommandRegistry::build_default();
-        let src = "package require http\nhttp::foo\n";
-        let actions = package_require_actions(src, at(1, 2), &reg);
-        assert!(
-            !actions.iter().any(|a| a.title.contains("require http'")),
-            "http already required: {actions:?}"
+    fn package_named_by_namespace_matches_exactly() {
+        let catalogue = vec!["http".to_string(), "json".to_string()];
+        assert_eq!(
+            package_named_by_namespace("http::get", &catalogue),
+            Some("http".to_string())
         );
-    }
-
-    #[test]
-    fn fuzzy_package_require_ignores_short_prefix() {
-        let reg = tcl_registry::CommandRegistry::build_default();
-        assert!(package_require_actions("x::y\n", at(0, 0), &reg).is_empty());
-    }
-
-    #[test]
-    fn rank_package_suggestions_orders_exact_before_prefix() {
-        let pkgs = vec!["httpd".to_string(), "http".to_string(), "json".to_string()];
-        let ranked = rank_package_suggestions("http::get", &pkgs, 5);
-        // Exact (`http`, score 0) before prefix (`httpd`, score 1);
-        // `json` doesn't match at all.
-        assert_eq!(ranked, vec!["http", "httpd"]);
-    }
-
-    #[test]
-    fn word_at_position_extracts_namespaced_word() {
-        assert_eq!(word_at_position("http::foo $x\n", 0, 2), "http::foo");
-        assert_eq!(word_at_position("  set y 1\n", 0, 3), "set");
+        assert_eq!(
+            package_named_by_namespace("::http::get", &catalogue),
+            Some("http".to_string()),
+            "a leading `::` must not swallow the namespace component"
+        );
+        // A near-miss is not evidence: `httpd::start` names the `httpd`
+        // namespace, which is not the `http` package.
+        assert_eq!(package_named_by_namespace("httpd::start", &catalogue), None);
+        // Nor is a bare name, which has no namespace at all.
+        assert_eq!(package_named_by_namespace("httpget", &catalogue), None);
     }
 
     // check_diagnostic_actions: IRULE5002/5004 flow-warning fixes

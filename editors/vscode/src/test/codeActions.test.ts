@@ -451,4 +451,60 @@ suite("Code Actions", () => {
     // The inserted comment must match the call's 4-space indentation.
     assert.strictEqual(changes[0].newText, "    # noqa: S100\n");
   });
+
+  // -- `package require` suggestions are evidence-backed (issue #1191) ------
+  //
+  // Applying one of these mutates package loading and runs the package's
+  // initialisation code, so the lightbulb must offer it only over a command
+  // head resolution could not satisfy — never over a comment, a string, or
+  // an argument word that merely names the same identifier.
+
+  const packageContextUri = getDocUri("packageSuggestionContext.tcl");
+
+  /** Titles of the quick fixes offered at `line`:`character`. */
+  async function quickFixTitlesAt(
+    uri: vscode.Uri,
+    line: number,
+    character: number,
+  ): Promise<string[]> {
+    const position = new vscode.Position(line, character);
+    const actions = (await vscode.commands.executeCommand(
+      "vscode.executeCodeActionProvider",
+      uri,
+      new vscode.Range(position, position),
+    )) as vscode.CodeAction[] | undefined;
+    return (actions ?? []).map((a) => a.title);
+  }
+
+  test("offers 'package require' on an unresolved command head", async () => {
+    await activate(packageContextUri);
+    await waitForDiagnostics(packageContextUri, { minCount: 0 });
+    const titles = (await pollUntil(
+      () => quickFixTitlesAt(packageContextUri, 11, 3),
+      (t) => (t as string[]).some((title) => title.startsWith("Add 'package require")),
+      { timeout: 10_000, label: "package require suggestion" },
+    )) as string[];
+    assert.ok(
+      titles.includes("Add 'package require http'"),
+      `expected the http suggestion on the call, got: ${JSON.stringify(titles)}`,
+    );
+  });
+
+  test("does not offer 'package require' on comments, strings, or argument words", async () => {
+    await activate(packageContextUri);
+    await waitForDiagnostics(packageContextUri, { minCount: 0 });
+    // The comment mention, the quoted datum, and the `dict set` value word.
+    const dataPositions: Array<[number, number]> = [
+      [8, 10],
+      [9, 16],
+      [10, 25],
+    ];
+    for (const [line, character] of dataPositions) {
+      const titles = await quickFixTitlesAt(packageContextUri, line, character);
+      assert.ok(
+        !titles.some((title) => title.startsWith("Add 'package require")),
+        `line ${line} is data, not a call site; got: ${JSON.stringify(titles)}`,
+      );
+    }
+  });
 });

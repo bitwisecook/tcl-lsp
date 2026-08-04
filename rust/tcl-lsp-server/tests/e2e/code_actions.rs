@@ -1147,6 +1147,91 @@ fn test_w120_no_insert_fix_when_require_present() {
     );
 }
 
+// The evidence-gated fuzzy package suggestion (issue #1191).
+//
+// This action changes what the interpreter loads and runs the package's
+// initialisation code, so the server must offer it only over a *command
+// head* that resolution could not satisfy. It used to fire on any
+// identifier-shaped word under the cursor, including one inside a comment or
+// a string.
+
+/// The quickfix titles the server offers at `position` in `source`, with the
+/// published diagnostics fed back as context — the exact flow an editor's
+/// lightbulb drives.
+fn quickfix_titles_at(source: &str, position: (u32, u32)) -> Vec<String> {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, source);
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range(position, position),
+        json!(diags),
+        &["quickfix"],
+    );
+    titles(&actions)
+}
+
+#[test]
+fn test_package_suggestion_offered_on_an_unresolved_command_head() {
+    // `http` names a registered package and `http::fetchall` resolves to
+    // nothing, so the suggestion is evidence-backed.
+    let offered = quickfix_titles_at("http::fetchall $url\n", (0, 3));
+    assert!(
+        offered.iter().any(|t| t == "Add 'package require http'"),
+        "{offered:?}"
+    );
+}
+
+#[test]
+fn test_package_suggestion_not_offered_inside_a_comment() {
+    let offered = quickfix_titles_at("# see http::fetchall for details\n", (0, 10));
+    assert!(
+        !offered
+            .iter()
+            .any(|t| t.starts_with("Add 'package require")),
+        "a comment is not a call site: {offered:?}"
+    );
+}
+
+#[test]
+fn test_package_suggestion_not_offered_inside_a_string() {
+    let offered = quickfix_titles_at("set example \"http::fetchall\"\n", (0, 16));
+    assert!(
+        !offered
+            .iter()
+            .any(|t| t.starts_with("Add 'package require")),
+        "quoted data is not a call site: {offered:?}"
+    );
+}
+
+#[test]
+fn test_package_suggestion_not_offered_on_an_argument_word() {
+    let offered = quickfix_titles_at("dict set docs command http::fetchall\n", (0, 25));
+    assert!(
+        !offered
+            .iter()
+            .any(|t| t.starts_with("Add 'package require")),
+        "an argument word is not a call site: {offered:?}"
+    );
+}
+
+#[test]
+fn test_package_suggestion_not_offered_on_a_local_definition() {
+    // The file defines the very command a package would provide, both at the
+    // `proc` name word and at the later call.
+    let source = "proc http::fetchall {url} {}\nhttp::fetchall http://x\n";
+    for position in [(0u32, 8u32), (1, 3)] {
+        let offered = quickfix_titles_at(source, position);
+        assert!(
+            !offered
+                .iter()
+                .any(|t| t.starts_with("Add 'package require")),
+            "locally defined at {position:?}: {offered:?}"
+        );
+    }
+}
+
 /// W123: the unknown-command did-you-mean suggestion carries a replacement
 /// fix covering exactly the misspelt head.
 #[test]

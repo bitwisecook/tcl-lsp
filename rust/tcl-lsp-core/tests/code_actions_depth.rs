@@ -1078,7 +1078,13 @@ fn out_of_range_positions_never_panic() {
     let _ = code_actions(src, cursor(0, 9999), Some(&analysis));
     // The package-suggestion and context entry points must also be panic-safe.
     let reg = tcl_registry::CommandRegistry::build_default();
-    let _ = tcl_lsp_core::code_actions::package_require_actions(src, cursor(999, 999), &reg);
+    let _ = tcl_lsp_core::code_actions::package_require_actions(
+        src,
+        cursor(999, 999),
+        &reg,
+        Some(&analysis),
+        &[],
+    );
     let _ = context_diagnostic_actions(
         src,
         &[ContextDiagnostic {

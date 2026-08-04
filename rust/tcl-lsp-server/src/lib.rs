@@ -13597,8 +13597,18 @@ impl LanguageServer for Backend {
         let line_ending = self.resolved_edit_line_ending(&uri, doc.raw()).await;
         let actions = tokio::task::spawn_blocking(move || {
             let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
+            // The fuzzy package-suggestion path needs both the analysis (to
+            // prove the cursor is on an unresolved *command head* rather than
+            // on a comment, a string, or a data word) and the request's own
+            // diagnostics (the editor may be showing a W123 this analysis has
+            // not re-emitted).  Passing neither is what let it fire anywhere
+            // an identifier-shaped word appeared — issue #1191.
             actions.extend(core_code_actions::package_require_actions(
-                &doc.text, range, registry,
+                &doc.text,
+                range,
+                registry,
+                Some(&analysis),
+                &context_diags,
             ));
             actions.extend(core_code_actions::context_diagnostic_actions(
                 &doc.text,
