@@ -172,6 +172,8 @@ fn e201_with_insert(
             span: Span::new(insert_off, insert_off),
             new_text: "]".to_string(),
             description: fix_desc.to_string(),
+            // E201: a close-bracket recovery heuristic.
+            safety: crate::irules_checks::FixSafety::RequiresReview,
         }],
     }
 }
@@ -450,6 +452,8 @@ fn detect_e202(
                         span: Span::new(insert_off, insert_off),
                         new_text: "\"".to_string(),
                         description: "Insert missing '\"' to close string".to_string(),
+                        // E202: a close-quote recovery heuristic.
+                        safety: crate::irules_checks::FixSafety::RequiresReview,
                     }],
                 };
             }
@@ -591,6 +595,8 @@ fn e203_brace_fix(
                     span: Span::new(insert_off, insert_off),
                     new_text: "}".to_string(),
                     description: "Insert missing '}' before command".to_string(),
+                    // E203: a close-brace recovery heuristic.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 });
             }
         }
@@ -801,6 +807,8 @@ fn make_e100(
             span: Span::new(off, off),
             new_text: "[".to_string(),
             description: "Insert missing '['".to_string(),
+            // E204: an open-bracket recovery heuristic.
+            safety: crate::irules_checks::FixSafety::RequiresReview,
         });
         off
     } else {
@@ -934,6 +942,9 @@ fn stray_brace_fix(tok: &Token, brace_off: u32, source: &str) -> Option<CodeFix>
         ),
         new_text: String::new(),
         description: "Remove extra '}'".to_string(),
+        // E205: deleting a stray `}` assumes it is the extra one rather
+        // than a body opener being unclosed earlier.
+        safety: crate::irules_checks::FixSafety::RequiresReview,
     })
 }
 

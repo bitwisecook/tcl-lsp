@@ -1372,6 +1372,62 @@ impl CommandRegistry {
         out
     }
 
+    /// The declared roles of the argument positions a call has **not**
+    /// filled — the optional trailing words a caller could still append.
+    ///
+    /// [`Self::arg_indices_for_role`] answers "what role does each supplied
+    /// argument play"; this answers the complementary question a
+    /// splice-a-trailing-word quick-fix needs: "what would the *next* words
+    /// mean if I added them".  Positions are returned in ascending order,
+    /// starting at `args.len()` and stopping at the spec's arity ceiling, and
+    /// only while the spec actually declares a role for the position — an
+    /// unlimited-arity command with no declared tail role yields nothing
+    /// rather than an unbounded run of `Value` slots.
+    ///
+    /// A subcommand-dispatching call resolves against the subcommand's own
+    /// role table (offset by the subcommand word), exactly as
+    /// [`Self::arg_indices_for_role`] does, so `chan gets`-shaped commands
+    /// answer for the right spec.  Dynamic
+    /// [`arg_role_resolver`](CommandSpec::arg_role_resolver) tables are
+    /// consulted with the supplied argument list, which is what a resolver
+    /// keyed on the *written* words can answer; positions the resolver does
+    /// not name are simply absent from the result.
+    #[must_use]
+    pub fn unfilled_trailing_roles(&self, name: &str, args: &[&str]) -> Vec<(usize, ArgRole)> {
+        let Some(spec) = self.get(name) else {
+            return Vec::new();
+        };
+        // Resolve against the subcommand when one dispatches, mirroring
+        // `arg_indices_for_role`: `sub_offset` is the number of leading words
+        // (the subcommand itself) the subcommand's own indices sit after.
+        let sub = (!spec.subcommands.is_empty())
+            .then(|| args.first().and_then(|word| spec.resolve_subcommand(word)))
+            .flatten();
+        let (static_roles, dynamic_roles, sub_offset) = match sub {
+            Some(sub) => (sub.arg_roles, sub.arg_role_resolver, 1usize),
+            None => (spec.arg_roles, spec.arg_role_resolver, 0usize),
+        };
+        let declared: Vec<(usize, ArgRole)> = match dynamic_roles {
+            Some(resolve) => resolve(args.get(sub_offset..).unwrap_or(&[]))
+                .into_iter()
+                .map(|(idx, role)| (idx as usize + sub_offset, role))
+                .collect(),
+            None => static_roles
+                .iter()
+                .map(|(idx, role)| (*idx as usize + sub_offset, *role))
+                .collect(),
+        };
+        let ceiling = usize::from(spec.arity.max);
+        (args.len()..ceiling)
+            .map_while(|position| {
+                declared
+                    .iter()
+                    .find(|(idx, _)| *idx == position)
+                    .map(|(_, role)| (position, *role))
+            })
+            .collect()
+    }
+
     /// [`Self::arg_indices_for_role`]`(name, args, `[`ArgRole::Body`]`)`,
     /// filtered to the indices whose [`BodyKind`] is
     /// [`Plain`](BodyKind::Plain) — a body that runs in the caller's own

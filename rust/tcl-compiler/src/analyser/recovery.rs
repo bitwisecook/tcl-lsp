@@ -366,6 +366,9 @@ impl Analyser {
                     span: insert_span,
                     new_text: " {".to_string(),
                     description: "Insert missing '{'".to_string(),
+                    // E101: the source does not parse; where the missing brace belongs
+                    // is a recovery heuristic, not a proof.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 }],
             });
         }
@@ -504,6 +507,8 @@ impl Analyser {
                     span: insert_span,
                     new_text: format!("{indent}}}\n"),
                     description: "Insert missing '}'".to_string(),
+                    // E103: as E101 — a brace-recovery heuristic.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 }],
             });
         }

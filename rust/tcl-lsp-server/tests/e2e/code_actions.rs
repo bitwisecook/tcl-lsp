@@ -218,23 +218,85 @@ fn test_w003_no_fix_when_operator_nested_in_larger_expression() {
     );
 }
 
+/// The W302 quick-fix actions the server offers for `source`.
+///
+/// The cursor sits on the `catch` keyword — where the diagnostic anchors and
+/// where an editor's lightbulb is invoked — which is precisely the position
+/// the broken anchor derived its (wrong) insertion point from.
+fn w302_actions(lsp: &mut Lsp, uri: &str, source: &str) -> Value {
+    let diags = lsp.open_ready(uri, source);
+    let w302 = with_code(&diags, "W302");
+    assert!(!w302.is_empty(), "expected a W302 diagnostic: {diags:?}");
+    code_actions_only(lsp, uri, range((0, 0), (0, 4)), json!(w302), &["quickfix"])
+}
+
 #[test]
-fn test_w302_adds_result_capture_actions() {
+fn test_w302_result_capture_action_applies_after_the_body() {
+    // Issue #1190: the actions used to insert the right text at the wrong
+    // place, producing `catch result {error oops}` — C Tcl then evaluates
+    // the script `result` (completion code 1, `invalid command name
+    // "result"`) and stores it in a variable named `error oops`.  Asserting
+    // the *applied document* is what catches that; the old assertions
+    // checked only the inserted string and that the range was zero-width,
+    // both of which the broken fix satisfied.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let diags = lsp.open_ready(&uri, "catch {error oops}\n");
-    let w302 = with_code(&diags, "W302");
-    assert!(!w302.is_empty());
-    let actions = code_actions_only(
-        &mut lsp,
-        &uri,
-        range((0, 0), (0, 4)),
-        json!(w302),
-        &["quickfix"],
+    let source = "catch {error oops}\n";
+    let actions = w302_actions(&mut lsp, &uri, source);
+    assert_fix_applies(
+        &actions,
+        source,
+        "Add catch result variable(s)",
+        "catch {error oops} result\n",
     );
-    let snippets = new_texts(&actions);
-    assert!(snippets.iter().any(|s| s == " result"));
-    assert!(snippets.iter().any(|s| s == " result opts"));
+    assert_fix_applies(
+        &actions,
+        source,
+        "Add catch result + options variable(s)",
+        "catch {error oops} result options\n",
+    );
+}
+
+#[test]
+fn test_w302_result_capture_action_applies_after_a_multiline_body() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let source = "catch {\n    error oops\n}\n";
+    let actions = w302_actions(&mut lsp, &uri, source);
+    assert_fix_applies(
+        &actions,
+        source,
+        "Add catch result variable(s)",
+        "catch {\n    error oops\n} result\n",
+    );
+}
+
+#[test]
+fn test_w302_result_capture_action_keeps_a_trailing_comment() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let source = "catch {error oops} ;# best effort\n";
+    let actions = w302_actions(&mut lsp, &uri, source);
+    assert_fix_applies(
+        &actions,
+        source,
+        "Add catch result variable(s)",
+        "catch {error oops} result ;# best effort\n",
+    );
+}
+
+#[test]
+fn test_w302_result_capture_action_does_not_overshoot_an_empty_body() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let source = "catch {}\n";
+    let actions = w302_actions(&mut lsp, &uri, source);
+    assert_fix_applies(
+        &actions,
+        source,
+        "Add catch result variable(s)",
+        "catch {} result\n",
+    );
 }
 
 #[test]

@@ -928,6 +928,29 @@ fn leading_option_word_count(options: &[OptionSpec], args: &[&str]) -> usize {
     i
 }
 
+/// The trailing run of `?placeholder?` words in a synopsis, `?` stripped.
+///
+/// A synopsis is a whitespace-separated word list whose optional arguments
+/// are wrapped in `?…?` (`catch script ?resultVarName? ?optionsVarName?`).
+/// Scanning from the right and stopping at the first word that is not so
+/// wrapped yields exactly the words a caller may append to a call that
+/// supplies every earlier word — the question a splice-a-trailing-argument
+/// quick-fix asks.  A variadic tail (`?arg ...?`, `?arg arg ...?`) is not a
+/// fixed slot list, so a placeholder containing whitespace or an ellipsis
+/// terminates the run rather than being offered as a name.
+fn optional_trailing_placeholders(synopsis: &'static str) -> Vec<&'static str> {
+    let mut names: Vec<&'static str> = synopsis
+        .split_whitespace()
+        .rev()
+        .map_while(|word| {
+            let inner = word.strip_prefix('?')?.strip_suffix('?')?;
+            (!inner.is_empty() && inner != "..." && !inner.contains("...")).then_some(inner)
+        })
+        .collect();
+    names.reverse();
+    names
+}
+
 impl CommandSpec {
     /// Default value for all fields — used with `..CommandSpec::DEFAULT`.
     pub const DEFAULT: Self = Self {
@@ -1046,6 +1069,41 @@ impl CommandSpec {
             .map(|f| f.synopsis)
             .chain(self.hover.iter().flat_map(|h| h.synopsis.iter().copied()))
             .find(|s| !s.is_empty())
+    }
+
+    /// The names of the optional trailing words the *dialect-applicable*
+    /// synopses document — the run of `?placeholder?` words at the end of a
+    /// [`Self::forms`] entry, with the `?` markers stripped.
+    ///
+    /// This is how a quick-fix that offers to *append* a documented optional
+    /// argument learns both how many words it may append and what to call
+    /// them, without the consumer knowing the command.  `catch script
+    /// ?resultVarName? ?optionsVarName?` yields
+    /// `["resultVarName", "optionsVarName"]`; the narrower Tcl 8.4 / iRules
+    /// form `catch script ?varName?` yields `["varName"]`, so a consumer
+    /// running under those dialects never offers the options-dictionary word
+    /// that release has no argument slot for.
+    ///
+    /// The widest applicable form wins, since a command may declare several
+    /// overlapping forms for one dialect and the widest documents every slot
+    /// the narrower ones do.  A form whose optional tail is interrupted by a
+    /// required word contributes only its trailing run: the words a caller
+    /// can append without also having to supply something in between.
+    ///
+    /// Returns an empty vector when the command declares no forms, none apply
+    /// to *dialect*, or the applicable ones end in a required word.
+    #[must_use]
+    pub fn optional_trailing_arg_names(&self, dialect: DialectSet) -> Vec<&'static str> {
+        self.forms
+            .iter()
+            .filter(|form| {
+                form.dialects
+                    .or(self.dialects)
+                    .is_none_or(|allowed| allowed.contains(dialect))
+            })
+            .map(|form| optional_trailing_placeholders(form.synopsis))
+            .max_by_key(Vec::len)
+            .unwrap_or_default()
     }
 
     /// Resolve a subcommand word to its [`SubCommand`], accepting a unique

@@ -118,6 +118,29 @@ pub fn word_closer_offset(sm: &SourceMap<'_>, tok: Token) -> Option<u32> {
     }
 }
 
+/// Byte offset immediately **after** *tok*'s last source byte — the point
+/// at which a further word can be appended to the command *tok* belongs to.
+///
+/// This is the anchor a quick-fix uses when it splices an extra trailing
+/// argument onto an invocation (`catch BODY` → `catch BODY result`).  It
+/// must be derived from the word's own geometry rather than from the
+/// command-head token: a body-bearing command's head span covers only the
+/// word `catch`, so anchoring there writes the new word *before* the body
+/// and silently re-assigns every argument position (issue #1190).
+///
+/// For a delimited word this is one byte past its closing `}` / `]` / `"`
+/// (via [`word_closer_offset`], so an empty `{}` / `[]` / `""` is not
+/// overshot).  For a bare word — and for an unterminated delimited word,
+/// where no closer exists to step over — the token span's exclusive end is
+/// already the append point.
+#[must_use]
+pub fn word_append_offset(sm: &SourceMap<'_>, tok: Token) -> u32 {
+    match word_closer_offset(sm, tok) {
+        Some(closer) => closer.saturating_add(1),
+        None => tok.span.end(),
+    }
+}
+
 /// Inclusive end [`SourcePosition`] covering *tok*'s closing delimiter.
 ///
 /// The position-returning sibling of [`word_closer_offset`], for callers
@@ -391,5 +414,79 @@ mod tests {
         let tok = first_word(src);
         let pos = word_end_position(&sm, tok);
         assert_eq!(pos, sm.range_positions(tok.span).1);
+    }
+
+    #[test]
+    fn append_offset_lands_past_a_braced_body() {
+        // The issue #1190 shape: `catch {error oops}` — a new trailing word
+        // belongs immediately after the body's `}`, at offset 18.
+        let src = "catch {error oops}";
+        let sm = SourceMap::new(src);
+        let body = nth_word(src, 1);
+        assert_eq!(body.kind, TokenType::Str);
+        let off = word_append_offset(&sm, body);
+        assert_eq!(off, u32::try_from(src.len()).unwrap());
+        assert_eq!(&src[..off as usize], "catch {error oops}");
+    }
+
+    #[test]
+    fn append_offset_lands_past_a_multiline_braced_body() {
+        let src = "catch {\n    error oops\n}";
+        let sm = SourceMap::new(src);
+        let body = nth_word(src, 1);
+        let off = word_append_offset(&sm, body);
+        assert_eq!(off, u32::try_from(src.len()).unwrap());
+    }
+
+    #[test]
+    fn append_offset_does_not_overshoot_an_empty_body() {
+        // `catch {}` — the empty brace's span already covers its closer, so
+        // a naive `span.end() + 1` would land one byte past the buffer.
+        let src = "catch {}";
+        let sm = SourceMap::new(src);
+        let body = nth_word(src, 1);
+        let off = word_append_offset(&sm, body);
+        assert_eq!(off, 8);
+        assert_eq!(off, u32::try_from(src.len()).unwrap());
+    }
+
+    #[test]
+    fn append_offset_after_a_bare_word() {
+        let src = "catch $body";
+        let sm = SourceMap::new(src);
+        let body = nth_word(src, 1);
+        let off = word_append_offset(&sm, body);
+        assert_eq!(off, u32::try_from(src.len()).unwrap());
+    }
+
+    #[test]
+    fn append_offset_after_a_quoted_word() {
+        let src = "catch \"error oops\"";
+        let sm = SourceMap::new(src);
+        let body = nth_word(src, 1);
+        let off = word_append_offset(&sm, body);
+        assert_eq!(off, u32::try_from(src.len()).unwrap());
+    }
+
+    #[test]
+    fn append_offset_after_a_command_substitution() {
+        let src = "catch [get body]";
+        let sm = SourceMap::new(src);
+        let body = nth_word(src, 1);
+        assert_eq!(body.kind, TokenType::Cmd);
+        let off = word_append_offset(&sm, body);
+        assert_eq!(off, u32::try_from(src.len()).unwrap());
+    }
+
+    #[test]
+    fn append_offset_of_an_unterminated_word_stays_in_bounds() {
+        let src = "catch {abc";
+        let sm = SourceMap::new(src);
+        let body = nth_word(src, 1);
+        let off = word_append_offset(&sm, body);
+        assert!(
+            off as usize <= src.len(),
+            "append point must stay in bounds"
+        );
     }
 }

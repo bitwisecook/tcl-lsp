@@ -26,10 +26,14 @@
 //!
 //! Provided actions:
 //!
-//! * Catch-result-variable actions — when the analyser emits
-//!   W302 (`catch` without result variable), the provider
-//!   offers two quick-fixes that splice a trailing ` result`
-//!   or ` result opts` after the body's closing brace.
+//! * Catch-result-variable actions — W302 (`catch` without result
+//!   variable) carries insert `CodeFix`es that splice a trailing
+//!   ` result` (or ` result options`) after the body's closing
+//!   delimiter; the provider lifts them via the generic `diag.fixes`
+//!   path.  The **anchor is the analyser's**, computed from the
+//!   invocation's argument tokens: this provider must not re-derive an
+//!   insertion point from the diagnostic's span, which covers only the
+//!   command head (issue #1190).
 //! * `unset -nocomplain` action — W213 (unset on possibly-undefined
 //!   variable) carries an `Add '-nocomplain' to unset` insert `CodeFix`
 //!   (the analyser knows the exact keyword span); the provider lifts it via
@@ -304,37 +308,17 @@ pub fn code_actions(
         if !ranges_overlap(diag_range, range) {
             continue;
         }
-        // Surface synthetic
-        // catch-result-variable actions for W302 diagnostics
-        // even when the analyser didn't attach a `CodeFix`.
-        // Two actions: append ` result` (capture the result)
-        // or ` result opts` (capture result + options).  The
-        // diagnostic's span end sits past the body's closing
-        // `}`, so the insertion point is exactly the diag-end
-        // position.
-        if diag.code == DiagCode::W302 {
-            let insertion = LspRange {
-                start_line: diag_end.line,
-                start_character: diag_end.character.get(),
-                end_line: diag_end.line,
-                end_character: diag_end.character.get(),
-            };
-            for (title, suffix) in [
-                ("Add catch result variable", " result"),
-                ("Add catch result + options variables", " result opts"),
-            ] {
-                actions.push(CodeAction {
-                    title: title.to_string(),
-                    edits: vec![crate::rename::TextEdit {
-                        range: insertion,
-                        new_text: suffix.to_string(),
-                    }],
-                    kind: ActionKind::QuickFix,
-                    command: None,
-                    data_group_definition: None,
-                });
-            }
-        }
+        // W302's catch-result-variable quick-fixes are carried on the
+        // diagnostic, like W213's and W120's below.  This provider used to
+        // synthesise them here from the diagnostic's *end* position, which is
+        // the end of the `catch` **word** — the diagnostic anchors at the
+        // command head, not at the body — so the inserted word landed before
+        // the body and turned `catch {error oops}` into
+        // `catch result {error oops}`, i.e. a catch of the script `result`
+        // storing its message in a variable named `error` (issue #1190).
+        // The analyser computes the anchor from the argument tokens instead,
+        // and `lift_fixes` below surfaces it unchanged.
+        //
         // W213's `Add '-nocomplain' to unset` quick-fix is carried on the
         // diagnostic itself (the analyser knows the exact `unset` keyword span
         // and narrows the diagnostic to the offending variable word), so it is
@@ -2233,6 +2217,7 @@ mod tests {
                 span: Span::new(0, 5),
                 new_text: "set var 0".to_string(),
                 description: "Initialise `var`".to_string(),
+                safety: tcl_compiler::analyser::FixSafety::RequiresReview,
             }],
         });
         let actions = code_actions("set x 1\n", whole_document_range("set x 1\n"), Some(&r));
@@ -2258,6 +2243,7 @@ mod tests {
                 span: Span::new(0, 5),
                 new_text: "fix".to_string(),
                 description: "Fix".to_string(),
+                safety: tcl_compiler::analyser::FixSafety::RequiresReview,
             }],
         });
         // Request range on line 99 — far away from the
@@ -2283,6 +2269,7 @@ mod tests {
                 span: Span::new(0, 5),
                 new_text: "x".to_string(),
                 description: String::new(), // No description.
+                safety: tcl_compiler::analyser::FixSafety::RequiresReview,
             }],
         });
         let actions = code_actions("set x 1\n", whole_document_range("set x 1\n"), Some(&r));
@@ -2326,11 +2313,13 @@ mod tests {
                     span: Span::new(0, 5),
                     new_text: "a".into(),
                     description: "A".into(),
+                    safety: tcl_compiler::analyser::FixSafety::RequiresReview,
                 },
                 CodeFix {
                     span: Span::new(0, 5),
                     new_text: "b".into(),
                     description: "B".into(),
+                    safety: tcl_compiler::analyser::FixSafety::RequiresReview,
                 },
             ],
         });
@@ -2453,15 +2442,37 @@ mod tests {
 
     // catch-result-variable actions
 
-    #[test]
-    fn w302_emits_catch_result_variable_actions() {
-        // The real analyser emits W302 for `catch {body}` with
-        // no result variable.  The provider should surface two
-        // synthetic actions appending ` result` / ` result opts`.
-        let src = "catch { puts hi }\n";
-        let mut a = Analyser::new();
-        let analysis = a.analyse(src, "tcl8.6").clone();
-        // Sanity-check the analyser actually emitted W302.
+    /// Apply a single-edit action's `TextEdit` to `src` and return the
+    /// rewritten document.
+    ///
+    /// Every catch-fix test below asserts the *applied document* rather than
+    /// the inserted string plus a zero-width range: the bug in issue #1190
+    /// inserted exactly the right text at exactly the wrong place, and the
+    /// old assertions (inserted text + "the range is zero-width") passed
+    /// throughout.
+    fn apply_single_edit(src: &str, action: &CodeAction) -> String {
+        assert_eq!(action.edits.len(), 1, "expected one edit: {action:?}");
+        let edit = &action.edits[0];
+        let line_index = LineIndex::new(src);
+        let start = line_index.offset_at_utf16(
+            edit.range.start_line,
+            Utf16Col::new(edit.range.start_character),
+            src,
+        ) as usize;
+        let end = line_index.offset_at_utf16(
+            edit.range.end_line,
+            Utf16Col::new(edit.range.end_character),
+            src,
+        ) as usize;
+        let mut out = src.to_string();
+        out.replace_range(start..end, &edit.new_text);
+        out
+    }
+
+    /// The quick-fix actions the provider offers for the W302 in `src`.
+    fn catch_result_actions(src: &str) -> Vec<CodeAction> {
+        let mut analyser = Analyser::new();
+        let analysis = analyser.analyse(src, "tcl9.0").clone();
         assert!(
             analysis
                 .diagnostics
@@ -2470,31 +2481,75 @@ mod tests {
             "expected W302 from {:?}",
             analysis.diagnostics,
         );
-        let actions = code_actions(src, whole_document_range(src), Some(&analysis));
-        let titles: Vec<&str> = actions.iter().map(|a| a.title.as_str()).collect();
-        assert!(titles.contains(&"Add catch result variable"), "{titles:?}");
-        assert!(
-            titles.contains(&"Add catch result + options variables"),
-            "{titles:?}",
+        code_actions(src, whole_document_range(src), Some(&analysis))
+            .into_iter()
+            .filter(|action| action.title.starts_with("Add catch"))
+            .collect()
+    }
+
+    #[test]
+    fn w302_result_action_applies_after_the_body() {
+        // The issue #1190 reproducer: the diagnostic anchors at the `catch`
+        // word, so a provider that reconstructed the insertion point from
+        // the diagnostic's end produced `catch result { puts hi }` — a catch
+        // of the script `result`.
+        let src = "catch { puts hi }\n";
+        let actions = catch_result_actions(src);
+        assert_eq!(actions.len(), 2, "{actions:?}");
+        assert_eq!(
+            apply_single_edit(src, &actions[0]),
+            "catch { puts hi } result\n"
         );
-        // Verify the insertion text shapes.
-        let result_act = actions
-            .iter()
-            .find(|a| a.title == "Add catch result variable")
-            .unwrap();
-        assert_eq!(result_act.edits[0].new_text, " result");
-        let opts_act = actions
-            .iter()
-            .find(|a| a.title == "Add catch result + options variables")
-            .unwrap();
-        assert_eq!(opts_act.edits[0].new_text, " result opts");
-        // Both insertions land at the same position (a zero-
-        // width range immediately after the body's closing `}`).
-        for act in [result_act, opts_act] {
-            let r = act.edits[0].range;
-            assert_eq!(r.start_line, r.end_line);
-            assert_eq!(r.start_character, r.end_character);
-        }
+    }
+
+    #[test]
+    fn w302_options_action_applies_after_the_body() {
+        let src = "catch { puts hi }\n";
+        let actions = catch_result_actions(src);
+        assert_eq!(
+            apply_single_edit(src, &actions[1]),
+            "catch { puts hi } result options\n"
+        );
+    }
+
+    #[test]
+    fn w302_action_applies_after_a_multiline_body() {
+        let src = "catch {\n    error oops\n}\n";
+        let actions = catch_result_actions(src);
+        assert_eq!(
+            apply_single_edit(src, &actions[0]),
+            "catch {\n    error oops\n} result\n"
+        );
+    }
+
+    #[test]
+    fn w302_action_applies_before_a_trailing_comment() {
+        let src = "catch {error oops} ;# best effort\n";
+        let actions = catch_result_actions(src);
+        assert_eq!(
+            apply_single_edit(src, &actions[0]),
+            "catch {error oops} result ;# best effort\n"
+        );
+    }
+
+    #[test]
+    fn w302_action_does_not_overshoot_an_empty_body() {
+        let src = "catch {}\n";
+        let actions = catch_result_actions(src);
+        assert_eq!(apply_single_edit(src, &actions[0]), "catch {} result\n");
+    }
+
+    #[test]
+    fn w302_action_applies_to_a_nested_catch_on_a_later_line() {
+        // A catch that is neither on line 0 nor at column 0 — the anchor is
+        // an absolute offset from the argument token, not a line-relative
+        // guess.
+        let src = "proc f {} {\n    catch {error oops}\n}\n";
+        let actions = catch_result_actions(src);
+        assert_eq!(
+            apply_single_edit(src, &actions[0]),
+            "proc f {} {\n    catch {error oops} result\n}\n"
+        );
     }
 
     // W120 package-require fix

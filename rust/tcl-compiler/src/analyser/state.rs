@@ -4044,6 +4044,171 @@ mod tests {
         assert_eq!(text, "catch", "W302 should span only the catch keyword");
     }
 
+    // -- W302 quick-fix insertion anchor (issue #1190)
+    //
+    // The diagnostic anchors at the `catch` keyword, so the fix must carry
+    // its **own** span: the point past the *body's* closing delimiter.  Each
+    // test applies the fix to the source and asserts the resulting text, so a
+    // wrong anchor cannot pass by matching only the inserted string.
+
+    /// Apply W302's `nth` fix to `src` and return the rewritten source.
+    fn apply_w302_fix(src: &str, nth: usize, dialect: &str) -> String {
+        let mut a = Analyser::new();
+        let r = a.analyse(src, dialect);
+        let w302: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W302)
+            .collect();
+        assert_eq!(w302.len(), 1, "expected one W302, got {:?}", r.diagnostics);
+        let fix = w302[0]
+            .fixes
+            .get(nth)
+            .unwrap_or_else(|| panic!("no fix {nth}: {:?}", w302[0].fixes));
+        let mut out = src.to_string();
+        out.replace_range(
+            fix.span.start() as usize..fix.span.end() as usize,
+            &fix.new_text,
+        );
+        out
+    }
+
+    #[test]
+    fn w302_result_fix_inserts_after_the_body() {
+        // The issue's reproducer.  Anchoring at the diagnostic's end would
+        // produce `catch result {error oops}`, which C Tcl reads as a catch
+        // of the script `result` — completion code 1, result
+        // `invalid command name "result"`.
+        assert_eq!(
+            apply_w302_fix("catch {error oops}\n", 0, "tcl9.0"),
+            "catch {error oops} result\n"
+        );
+    }
+
+    #[test]
+    fn w302_options_fix_inserts_after_the_body() {
+        assert_eq!(
+            apply_w302_fix("catch {error oops}\n", 1, "tcl9.0"),
+            "catch {error oops} result options\n"
+        );
+    }
+
+    #[test]
+    fn w302_fix_handles_a_multiline_body() {
+        let src = "catch {\n    error oops\n}\n";
+        assert_eq!(
+            apply_w302_fix(src, 0, "tcl9.0"),
+            "catch {\n    error oops\n} result\n"
+        );
+    }
+
+    #[test]
+    fn w302_fix_handles_a_trailing_comment() {
+        let src = "catch {error oops} ;# ignore\n";
+        assert_eq!(
+            apply_w302_fix(src, 0, "tcl9.0"),
+            "catch {error oops} result ;# ignore\n"
+        );
+    }
+
+    #[test]
+    fn w302_fix_handles_a_semicolon_separated_command() {
+        let src = "catch {error oops}; puts done\n";
+        assert_eq!(
+            apply_w302_fix(src, 0, "tcl9.0"),
+            "catch {error oops} result; puts done\n"
+        );
+    }
+
+    #[test]
+    fn w302_fix_handles_nested_substitutions_in_the_body() {
+        let src = "catch {puts [expr {1 + [foo $x]}]}\n";
+        assert_eq!(
+            apply_w302_fix(src, 0, "tcl9.0"),
+            "catch {puts [expr {1 + [foo $x]}]} result\n"
+        );
+    }
+
+    #[test]
+    fn w302_fix_does_not_overshoot_an_empty_body() {
+        // `catch {}`'s body span already covers its own closer, so a naive
+        // `span.end() + 1` anchor would insert one byte past the brace.
+        let src = "catch {}\n";
+        assert_eq!(apply_w302_fix(src, 0, "tcl9.0"), "catch {} result\n");
+    }
+
+    #[test]
+    fn w302_fix_handles_a_leading_qualified_head() {
+        // `::catch` resolves to the same registry spec (and the same
+        // `AnalyserHookId::Catch`), so it is diagnosed and fixed identically.
+        let src = "::catch {error oops}\n";
+        assert_eq!(
+            apply_w302_fix(src, 0, "tcl9.0"),
+            "::catch {error oops} result\n"
+        );
+    }
+
+    #[test]
+    fn w302_offers_only_the_result_variable_under_tcl84() {
+        // Tcl 8.4's `catch script ?varName?` has no options-dictionary
+        // argument, so the second fix must not be offered there — the count
+        // comes from the dialect-applicable synopsis, not from a constant.
+        let mut a = Analyser::new();
+        let r = a.analyse("catch {error oops}\n", "tcl8.4");
+        let w302: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W302)
+            .collect();
+        assert_eq!(w302.len(), 1, "got {:?}", r.diagnostics);
+        assert_eq!(
+            w302[0].fixes.len(),
+            1,
+            "8.4 documents one optional word: {:?}",
+            w302[0].fixes
+        );
+        assert_eq!(w302[0].fixes[0].new_text, " var");
+    }
+
+    #[test]
+    fn w302_fixes_are_never_bulk_applicable() {
+        // Capturing the result writes a new variable in the caller's frame,
+        // which a program already using that name observes — so the fix is
+        // hardening, not a semantics-preserving rewrite (issue #1195).
+        let mut a = Analyser::new();
+        let r = a.analyse("catch {error oops}\n", "tcl9.0");
+        let w302 = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::W302)
+            .expect("W302");
+        assert!(!w302.fixes.is_empty());
+        assert!(
+            w302.fixes.iter().all(|f| !f.safety.is_bulk_applicable()),
+            "got {:?}",
+            w302.fixes
+        );
+    }
+
+    #[test]
+    fn w302_carries_no_fix_for_a_malformed_catch() {
+        // An unterminated body never reaches a well-formed insertion point;
+        // whatever the recovery path emits, no W302 fix may point outside
+        // the buffer.
+        let mut a = Analyser::new();
+        let src = "catch {error oops\n";
+        let r = a.analyse(src, "tcl9.0");
+        for diag in r.diagnostics.iter().filter(|d| d.code == DiagCode::W302) {
+            for fix in &diag.fixes {
+                assert!(
+                    fix.span.end() as usize <= src.len(),
+                    "fix span {:?} outside the buffer",
+                    fix.span
+                );
+            }
+        }
+    }
+
     // -- W001 unknown-subcommand emitter
 
     #[test]
