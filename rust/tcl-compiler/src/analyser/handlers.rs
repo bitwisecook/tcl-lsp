@@ -621,10 +621,104 @@ impl Analyser {
                     self.set_interp_var_binding(&args[0], key, scope_path);
                 }
             }
+        } else if value_is_single_token
+            && value_token_kind == TokenType::Cmd
+            && let Some(folded) = self.try_fold_const_cmd_subst_rhs(&args[1], scope_path)
+        {
+            // `set VAR [cmd …]` whose substitution is a compile-time
+            // constant (issue #1132): the registry `const_fold` /
+            // frame-fact engine proves the value, so VAR enters the same
+            // constant-string lattice a literal RHS does — unblocking the
+            // `${ns}::setdef`-style navigation chain
+            // (`resolve_dynamic_command_head`) for the
+            // `set ns [namespace qualifiers ::tc::X]` shape.
+            self.set_const_string(&args[0], folded, value_token.span, scope_path);
+            self.clear_interp_var_binding(&args[0], scope_path);
         } else {
             self.clear_const_string(&args[0], scope_path);
             self.clear_interp_var_binding(&args[0], scope_path);
         }
+    }
+
+    /// Fold a `set` command's single-token `[cmd …]` RHS to its constant
+    /// value via the shared engine ([`crate::const_subst::ConstSubstCtx`]),
+    /// or `None` to abstain (issue #1132).
+    ///
+    /// Sound-by-construction gates, in evaluation order:
+    ///
+    /// 1. **Fold surface** — [`crate::const_subst::head_may_fold`]: the
+    ///    static head must carry a registry fold or frame-fact table. Also
+    ///    what keeps the trust oracle below lazy: no candidate, no cost.
+    /// 2. **Whole-module trust** — [`Self::whole_file_command_trust`]: a
+    ///    `rename` / `interp alias` / shadowing `proc` anywhere in the
+    ///    module (even later in the file, even buried in a body) unbinds
+    ///    the head from its builtin semantics, so the fold declines. The
+    ///    mid-walk `renamed_commands` map is deliberately NOT used — it
+    ///    only knows about mutations *before* this point.
+    /// 3. **Frame facts** — `[self class]` folds only inside an
+    ///    instance-side `TclOO` method of a statically-named class
+    ///    ([`super::types::Scope::oo_defining_class`]) whose class command
+    ///    binding is itself trusted; class-side frames (`classmethod`,
+    ///    `self method`), snit / itcl members, and init scripts abstain
+    ///    (`self class` raises there — tclsh 9.0.4).
+    /// 4. **Constant arguments** — `$var` words resolve only through the
+    ///    *dominating* constant lattice
+    ///    ([`Self::lookup_dominating_const_string`]), so a
+    ///    branch-conditional binding abstains.
+    fn try_fold_const_cmd_subst_rhs(
+        &mut self,
+        value_text: &str,
+        scope_path: &[usize],
+    ) -> Option<String> {
+        let registry = self.registry?;
+        let trimmed = value_text.trim();
+        let inner = trimmed
+            .strip_prefix('[')
+            .and_then(|s| s.strip_suffix(']'))
+            .unwrap_or(trimmed);
+        if !crate::const_subst::head_may_fold(registry, inner) {
+            return None;
+        }
+        let trust = self.whole_file_command_trust()?;
+        let defining_class = self.oo_defining_class_at(scope_path);
+        if let Some(class) = &defining_class
+            && !trust.trusts_proc_binding(class)
+        {
+            return None;
+        }
+        let dialect = &self.result.dialect;
+        let dialect = (!dialect.is_empty()).then_some(dialect.as_str());
+        let trusts = |name: &str| trust.trusts(name);
+        let lookup = |name: &str| {
+            self.lookup_dominating_const_string(name, scope_path)
+                .map(str::to_owned)
+        };
+        crate::const_subst::ConstSubstCtx {
+            registry,
+            dialect,
+            defining_class: defining_class.as_deref(),
+            trusts: &trusts,
+            lookup_var: &lookup,
+        }
+        .fold_cmd_subst(inner)
+    }
+
+    /// The defining class of the innermost enclosing **instance-side
+    /// `TclOO` method** scope, or `None` when the current frame is not one
+    /// (a proc, namespace, class-side member, snit / itcl member, or any
+    /// nested frame inside the method that opens a new Tcl frame). See
+    /// [`super::types::Scope::oo_defining_class`].
+    fn oo_defining_class_at(&self, scope_path: &[usize]) -> Option<String> {
+        let mut scope = &self.result.global_scope;
+        let mut found: Option<String> = None;
+        for &i in scope_path {
+            scope = scope.children.get(i)?;
+            // Every scope node in this tree (namespace, proc, method) is a
+            // frame change; only an instance-side method scope carries the
+            // fact, and any deeper frame resets it.
+            found.clone_from(&scope.oo_defining_class);
+        }
+        found
     }
 
     /// Handle a `global` declaration: a flat list of names; each gets

@@ -1456,22 +1456,25 @@ fn o117_strlen_zero_check() {
 
 #[test]
 fn o118_lindex_folding() {
-    // tclsh-verified each fold result.
+    // tclsh-verified each fold result.  Since issue #1134 the registry
+    // fold also enters the SCCP lattice, so the `$x` read downstream
+    // propagates too (`puts $x` → `puts a`) — semantically identical
+    // (tclsh: both print `a`), one hop further folded.
     assert_eq!(
         optimised("set x [lindex {a b c} 0]\nputs $x", TCL),
-        "set x a\nputs $x"
+        "set x a\nputs a"
     ); // tclsh: a
     assert_eq!(
         optimised("set x [lindex {a b c} 1]\nputs $x", TCL),
-        "set x b\nputs $x"
+        "set x b\nputs b"
     ); // tclsh: b
     assert_eq!(
         optimised("set x [lindex {x y z} end]\nputs $x", TCL),
-        "set x z\nputs $x"
+        "set x z\nputs z"
     ); // tclsh: z
     assert_eq!(
         optimised("set x [lindex {a b c d} end-1]\nputs $x", TCL),
-        "set x c\nputs $x"
+        "set x c\nputs c"
     ); // tclsh: c
 
     // Out-of-range index folds (to empty); Rust emits O118 (or SCCP O100/O109).
@@ -1495,7 +1498,10 @@ fn o118_lindex_folding() {
     // over-cautious no-op.
     assert_eq!(
         optimised("set x [lindex {{a b} c} 0]\nputs $x", TCL),
-        "set x {a b}\nputs $x" // tclsh: [lindex {{a b} c} 0] == "a b"
+        // tclsh: [lindex {{a b} c} 0] == "a b"; the lattice fold (#1134)
+        // then propagates the read as the brace-quoted single word, which
+        // prints identically (`puts {a b}` == `puts $x` == "a b").
+        "set x {a b}\nputs {a b}"
     );
 }
 

@@ -1324,6 +1324,92 @@ fn a_substituted_upvar_source_counts_as_a_caller_frame_alias() {
     }
 }
 
+// ===========================================================================
+// Issue #1134 — SCCP feeds registry const-fold results back into the value
+// lattice, so multi-statement fold chains close instead of stopping after
+// one hop.  Oracle for the headline chain (tclsh 9.0.4, run while
+// authoring): inside an instance method of `::ticklecharts::Gauge`,
+// `set base [self class]; set ns [namespace qualifiers $base]` leaves
+// `ns == ::ticklecharts` and `${ns}::setdef …` really dispatches there.
+// ===========================================================================
+
+#[test]
+fn sccp_closes_the_two_hop_self_class_chain_in_a_method() {
+    // TP — the exact residual from PR #1131: the O129 rewrite of
+    // `[self class]` used to be a *suggestion*, so `base` was never a
+    // lattice constant and the second hop never folded.  With the lattice
+    // fold (issue #1134) both hops fold and the `$ns` use propagates.
+    let src = "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        set base [self class]\n        set ns [namespace qualifiers $base]\n        puts $ns\n    }\n}\n";
+    let r = o100(src);
+    assert!(
+        r.contains(&"::ticklecharts".to_string()),
+        "the chained `$ns` must propagate as ::ticklecharts, got {r:?}",
+    );
+}
+
+#[test]
+fn sccp_closes_a_fold_chain_in_a_plain_proc() {
+    // TP — not method-specific (the issue notes the identical shape in
+    // procs): `[namespace qualifiers …]` folds into the lattice, so the
+    // `$ns` use downstream propagates (O100).
+    let src = "proc ::f {} {\n    set ns [namespace qualifiers ::tc::X]\n    puts $ns\n}\n";
+    let r = o100(src);
+    assert!(
+        r.contains(&"::tc".to_string()),
+        "the folded `$ns` must propagate, got {r:?}",
+    );
+    // TP — and a further hop through `expr` (the lattice's own expr fold
+    // picks the folded constant up at this statement's use version).
+    let src = "proc ::g {} {\n    set n [string totitle abc]\n    set m [string length $n]\n    puts $m\n}\n";
+    let r = o100(src);
+    assert!(
+        r.contains(&"3".to_string()),
+        "the second hop must see the folded first hop, got {r:?}",
+    );
+}
+
+#[test]
+fn sccp_lattice_fold_declines_on_an_untrusted_head() {
+    // FP guard — a module-level `rename namespace …` unbinds the head from
+    // its builtin semantics; neither hop may fold and `$ns` must not
+    // propagate a manufactured value.
+    let src = "rename namespace ns_orig\nproc ::f {} {\n    set ns [namespace qualifiers ::tc::X]\n    puts $ns\n}\n";
+    assert!(
+        o100(src).is_empty(),
+        "a rebound head must not enter the lattice, got {:?}",
+        o100(src),
+    );
+}
+
+#[test]
+fn sccp_lattice_fold_declines_on_a_branch_dependent_argument() {
+    // TN — `$q`'s versions disagree at the join, so the substitution's
+    // argument is not a lattice constant on the joined path and the fold
+    // abstains rather than picking a branch.
+    let src = "proc ::f {c} {\n    set q ::a::X\n    if {$c} { set q ::b::X }\n    set ns [namespace qualifiers $q]\n    puts $ns\n}\n";
+    let folded: Vec<String> = o100(src)
+        .into_iter()
+        .filter(|r| r == "::a" || r == "::b")
+        .collect();
+    assert!(
+        folded.is_empty(),
+        "a branch-dependent argument must not fold, got {folded:?}",
+    );
+}
+
+#[test]
+fn sccp_lattice_fold_stays_out_of_class_side_frames() {
+    // TN — `[self class]` in a `self method` raises (tclsh 9.0.4), so the
+    // chain must not fold there: `oo_frame_for` declines class-side
+    // methods and the lattice fold inherits that abstention.
+    let src = "oo::class create ::ticklecharts::Gauge {\n    self method m {} {\n        set base [self class]\n        set ns [namespace qualifiers $base]\n        puts $ns\n    }\n}\n";
+    assert!(
+        o100(src).is_empty(),
+        "a class-side frame must not fold the chain, got {:?}",
+        o100(src),
+    );
+}
+
 #[test]
 fn a_namespace_alias_is_not_a_caller_frame_alias() {
     // TN for the widening itself — the barrier must not swallow every module.
