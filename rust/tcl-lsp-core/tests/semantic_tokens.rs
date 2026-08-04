@@ -1613,3 +1613,87 @@ fn brace_quoted_variable_name_word_paints_as_a_variable() {
         "`puts`'s argument is data, not a variable name"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Issue #1138 — a script argument built with `list` highlights like the
+// command it provably is.
+// ---------------------------------------------------------------------------
+//
+// Tk's `library/tk.tcl:289` is `uplevel #0 [list upvar #0 ::tk::Priv.$disp
+// ::tk::Priv]`, and the very next line declares the same cell as `variable
+// ::tk::Priv`.  A 3-way comparison on tclsh 9.0.4 and 8.6.16 — direct `upvar
+// #0 g l`, braced `uplevel #0 {upvar #0 g l}`, and `uplevel #0 [list upvar #0
+// g l]` — shows the three are functionally identical; only the `[list …]`
+// form, the one Tk actually uses, was painted as a plain namespace word.
+
+/// The `declaration` modifier bit, resolved from the legend.
+fn declaration_bit() -> u32 {
+    let pos = legend_token_modifiers()
+        .iter()
+        .position(|&m| m == "declaration")
+        .expect("legend declares `declaration`");
+    1 << pos
+}
+
+#[test]
+fn tp_a_list_built_upvar_declares_its_local_like_the_literal_spelling() {
+    let src = "proc f {disp} {\n    \
+uplevel #0 [list upvar #0 ::tk::Priv.$disp ::tk::Priv]\n    \
+variable ::tk::Priv\n\
+}\n";
+    let toks = decode(src, "tcl8.6");
+    let built = toks
+        .iter()
+        .find(|t| t.line == 1 && tok_text(src, t) == "::tk::Priv")
+        .expect("the built `upvar`'s local name word is tokenised");
+    let literal = toks
+        .iter()
+        .find(|t| t.line == 2 && tok_text(src, t) == "::tk::Priv")
+        .expect("the `variable ::tk::Priv` word is tokenised");
+    assert_eq!(
+        (built.ttype.as_str(), built.mods & declaration_bit() != 0),
+        ("variable", true),
+        "the built `upvar`'s local is a variable declaration, not a namespace"
+    );
+    assert_eq!(
+        (built.ttype.as_str(), built.mods),
+        (literal.ttype.as_str(), literal.mods),
+        "the two spellings of the same declaration must agree"
+    );
+}
+
+#[test]
+fn fp_a_list_in_a_value_slot_is_still_inert_data() {
+    // `list` invokes nothing — `set x [list upvar 1 a b]` merely builds a
+    // four-element list.  tclsh 9.0.4 / 8.6.16: `set x [list upvar 1 a b];
+    // puts $x` prints `upvar 1 a b`, and no variable `b` is created
+    // (`info exists b` -> 0).  Painting `b` as a declaration would be a lie.
+    let src = "proc f {} {\n    set x [list upvar 1 a b]\n}\n";
+    let toks = decode(src, "tcl8.6");
+    let b = toks
+        .iter()
+        .find(|t| t.line == 1 && tok_text(src, t) == "b")
+        .expect("the `b` word is tokenised");
+    assert_ne!(
+        (b.ttype.as_str(), b.mods & declaration_bit() != 0),
+        ("variable", true),
+        "a value slot defers nothing, so nothing is declared: {b:?}"
+    );
+}
+
+#[test]
+fn tn_a_dynamic_list_head_keeps_todays_behaviour() {
+    // `[list $cb #0 a b]` names no statically known command, so nothing is
+    // retagged — the abstain-on-doubt direction.
+    let src = "proc f {cb} {\n    uplevel #0 [list $cb #0 a b]\n}\n";
+    let toks = decode(src, "tcl8.6");
+    let b = toks
+        .iter()
+        .find(|t| t.line == 1 && tok_text(src, t) == "b")
+        .expect("the `b` word is tokenised");
+    assert_ne!(
+        (b.ttype.as_str(), b.mods & declaration_bit() != 0),
+        ("variable", true),
+        "an unresolvable head must not produce a declaration: {b:?}"
+    );
+}

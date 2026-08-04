@@ -140,6 +140,13 @@ impl Analyser {
     /// invocations.
     pub(super) fn analyse_body(&mut self, body_text: &str, body_tok: Token, scope_path: &[usize]) {
         if body_tok.kind != TokenType::Str {
+            // A script argument *built* with `list` rather than written as a
+            // literal `{…}` block is not dynamic — `uplevel #0 [list upvar #0
+            // ::tk::Priv.$disp ::tk::Priv]` (Tk's own `library/tk.tcl`)
+            // evaluates exactly one deterministic command. Walk it, so its
+            // declarations and reads stop being invisible (issue #1138).
+            // Everything else keeps the opaque-barrier behaviour.
+            self.analyse_list_quoted_body(body_tok, body_text, scope_path);
             return;
         }
         self.body_depth += 1;
@@ -278,6 +285,56 @@ impl Analyser {
             cmd_idx += 1 + consumed;
         }
         self.body_depth -= 1;
+    }
+
+    /// Walk a script argument that was **built** with `list` instead of
+    /// written as a literal `{…}` block.
+    ///
+    /// The shape test is
+    /// [`crate::script_arg::list_quoted_script_command`] — the one predicate
+    /// for "is this `[…]` a statically known command?", shared with the LSP's
+    /// declaration highlighting so the two cannot disagree.  Only that shape
+    /// is walked; every other `[…]` body stays the opaque barrier it was.
+    ///
+    /// The resolved command is dispatched at `scope_path`, exactly as the
+    /// same command written literally would be, so `uplevel #0 [list upvar #0
+    /// A B]` declares `B` in the uplevel frame and `namespace eval NS [list
+    /// set v 1]` declares `v` in `NS`.  Its `$var` reads are recorded too;
+    /// they were already recorded once, in the *enclosing* scope, by the
+    /// command-substitution walk — correctly, since a `list` element is
+    /// substituted in the building frame before the script ever runs — and
+    /// `VarDef::push_reference` drops the repeat.
+    ///
+    /// Returns `true` when a command was walked.
+    fn analyse_list_quoted_body(
+        &mut self,
+        body_tok: Token,
+        body_text: &str,
+        scope_path: &[usize],
+    ) -> bool {
+        let Some(registry) = self.registry else {
+            return false;
+        };
+        let Some(cmd) =
+            crate::script_arg::list_quoted_script_command(registry, body_tok, body_text)
+        else {
+            return false;
+        };
+        self.body_depth += 1;
+        if MAX_BODY_DEPTH.exceeded(self.body_depth) {
+            self.body_depth -= 1;
+            return false;
+        }
+        self.process_command(
+            &cmd.texts,
+            &cmd.argv,
+            &cmd.single_token_word,
+            &[],
+            scope_path,
+        );
+        self.record_arg_var_reads(&cmd, scope_path);
+        self.body_depth -= 1;
+        true
     }
 
     /// Returns `true` when `cmd_name` is hidden in the enclosing safe

@@ -330,6 +330,19 @@ invocation falls outside bounds.  Each `SubCommand` has its own arity.
 | `COMMAND_PREFIX` | A callback command reference (`lsort -command cb`) whose first word is invoked at runtime with further arguments appended; recognises a literal bareword, a braced `{cmd extra}` multi-word prefix, and a `[list cmd extra]`-quoted prefix (gated on the `BUILDS_COMMAND_PREFIX` trait, below) -- distinct from `BODY` since the word is a reference, not code |
 | `LAMBDA_LITERAL` | A `{argList body ?namespace?}` anonymous-lambda literal (`apply`'s argument shape) -- a *list*, not a script directly; element 0 is a parameter list, element 1 is the body to recurse into |
 
+Two predicates on `ArgRole` itself answer the cross-cutting questions
+consumers must not each re-derive. Both are exhaustive `match`es, so a new
+role fails to compile until someone decides which side it falls on:
+
+| Predicate | True for | Asked by |
+|---|---|---|
+| `carries_script()` | `BODY`, `EXPR`, `LAMBDA_LITERAL` | every walker that recurses into executable Tcl — semantic tokens, the iRules object-reference walker, the inert-text data-brace proof |
+| `names_variable()` | `VAR_NAME`, `VAR_READ` | the analyser's reference recorder (a `VAR_READ` word is a use site of the named cell — `puts [set m]` and `info exists m` read `m` exactly as `$m` does), the dead-store suppressor's substitution scan (a **braced** word in such a role is a *literal* name, so a `$x` inside it belongs to that name and is not a read of `x`), and `tcl_compiler::var_refs::variable_name_role_words`, the one place that turns a segmented command into its variable-name words |
+
+`LOOP_VAR_LIST` is deliberately outside `names_variable()`: that word is a
+*list* of names, not one name, so a consumer must split it before it holds a
+variable name at all.
+
 `Traits.BUILDS_COMMAND_PREFIX` (set on `list` only, not `concat`) marks a
 command whose result, when its own first argument is a literal command name,
 is a valid command reference the remaining arguments append to -- the

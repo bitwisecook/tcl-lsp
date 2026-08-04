@@ -323,6 +323,23 @@ pub struct VarDef {
     pub link_target_span: Option<Span>,
 }
 
+impl VarDef {
+    /// Record `span` as a read site, ignoring a span already present.
+    ///
+    /// A byte span is one source location, so the same location can never be
+    /// two reads of the same cell: a repeat means two recorders saw the same
+    /// word.  That is expected now that the registry `VarRead` role records
+    /// name words generically (issue #1108) *and* a handful of commands still
+    /// record their own read through a dedicated handler (`set`'s one-argument
+    /// form).  Deduping at the sink keeps both recorders honest instead of
+    /// making one of them conditional on the other.
+    pub fn push_reference(&mut self, span: Span) {
+        if !self.references.contains(&span) {
+            self.references.push(span);
+        }
+    }
+}
+
 /// How a proc parameter is used inside the proc body.
 ///
 /// Drives optimisation, shimmer analysis, taint propagation, and

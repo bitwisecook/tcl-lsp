@@ -140,6 +140,7 @@ pub mod regex_source;
 pub mod rendered_properties;
 pub mod scan_predicate;
 pub mod sccp;
+pub mod script_arg;
 pub mod segmenter;
 pub mod shimmer;
 pub mod side_effects;

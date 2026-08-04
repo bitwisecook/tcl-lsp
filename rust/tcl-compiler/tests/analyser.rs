@@ -391,6 +391,258 @@ mod variable_analysis {
 }
 
 // ===========================================================================
+// Issue #1108 — a registry `VarRead`-role name word is a reference site.
+//
+// A variable is read by more than `$name`. Any command whose spec puts an
+// argument in `ArgRole::VarRead` reads the cell that word names, and tclsh
+// agrees (9.0.4 and 8.6.16, byte-identical):
+//
+//   proc f {} {set m 1; puts [set m]};        f   -> 1
+//   proc f {} {set m 1; puts [info exists m]}; f  -> 1
+//   proc f {} {set m 1; return [set m]};      f   -> 1
+//
+// Before the fix only `$m` and the *statement* form `set m` reached
+// `VarDef::references`, so Find References / document-highlight / the
+// minifier's rename pass under-reported every one of these sites.
+// ===========================================================================
+mod var_read_role_references {
+    use super::*;
+
+    /// The read spans recorded for `name` in the first proc scope, as the
+    /// source text each one covers.
+    fn read_texts(src: &str, name: &str) -> Vec<String> {
+        fn walk(
+            scope: &tcl_compiler::analyser::Scope,
+            name: &str,
+            src: &str,
+        ) -> Option<Vec<String>> {
+            if let Some(v) = scope.variables.get(name) {
+                return Some(
+                    v.references
+                        .iter()
+                        .map(|r| src[r.start() as usize..r.end() as usize].to_owned())
+                        .collect(),
+                );
+            }
+            scope.children.iter().find_map(|c| walk(c, name, src))
+        }
+        walk(&Analyser::new().analyse(src, D).global_scope, name, src).unwrap_or_default()
+    }
+
+    #[test]
+    fn tp_a_substituted_set_read_is_recorded() {
+        // FN before the fix: `refs` was empty.
+        assert_eq!(
+            read_texts("proc f {} {\n    set m 1\n    puts [set m]\n}\n", "m"),
+            vec!["m".to_owned()],
+            "`[set m]` is a read of `m`"
+        );
+    }
+
+    #[test]
+    fn tp_every_var_read_role_contributes_not_just_set() {
+        // Registry-driven, so the fix is not about `set`: `info exists` and
+        // `array get` declare `VarRead` positions too.
+        for (src, name) in [
+            ("proc f {} {\n    set m 1\n    info exists m\n}\n", "m"),
+            (
+                "proc f {} {\n    set m 1\n    puts [info exists m]\n}\n",
+                "m",
+            ),
+            (
+                "proc f {} {\n    array set a {k 1}\n    puts [array get a]\n}\n",
+                "a",
+            ),
+        ] {
+            assert_eq!(
+                read_texts(src, name),
+                vec![name.to_owned()],
+                "a `VarRead`-role word must be a reference site: {src:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn tn_the_write_form_records_no_read() {
+        // `set m 1` is a definition, not a read — the two-argument form has no
+        // `VarRead` role at all, so nothing new appears.
+        assert!(
+            read_texts("proc f {} {\n    set m 1\n}\n", "m").is_empty(),
+            "a plain write must not become its own reference"
+        );
+    }
+
+    #[test]
+    fn tn_a_computed_name_records_nothing() {
+        // `set $n` reads whatever *value* `n` holds; which cell that is cannot
+        // be known statically, so no read is attributed to `m`.
+        assert!(
+            read_texts(
+                "proc f {} {\n    set m 1\n    set n m\n    puts [set $n]\n}\n",
+                "m"
+            )
+            .is_empty(),
+            "a `$`-computed name must not be credited to a same-spelled cell"
+        );
+    }
+
+    #[test]
+    fn fp_the_statement_form_is_recorded_exactly_once() {
+        // `set m` is recorded by `set`'s own handler *and* by the generic
+        // role pass; the sink dedupes by span, so the site appears once. A
+        // duplicate would make hover's "N reference(s)" count read double.
+        assert_eq!(
+            read_texts("proc f {} {\n    set m 1\n    set m\n}\n", "m"),
+            vec!["m".to_owned()],
+            "one source location is one reference"
+        );
+    }
+
+    #[test]
+    fn tp_a_brace_quoted_name_word_reads_the_literal_cell() {
+        // Issue #1078's cell, read through the role path: `{$n}` names the
+        // variable *called* `$n`. tclsh 9.0.4 / 8.6.16: `set {$n} v; set {$n}`
+        // -> v, while `info exists n` -> 0.
+        let src = "proc f {} {\n    set {$n} 1\n    puts [set {$n}]\n}\n";
+        // The recorded span is the word token's, which follows the inner-end
+        // convention — the closing `}` sits one past its end, exactly as the
+        // `{$n}` *declaration*'s span does.
+        assert_eq!(
+            read_texts(src, "$n"),
+            vec!["{$n".to_owned()],
+            "the literal cell owns the read"
+        );
+        assert!(
+            read_texts(src, "n").is_empty(),
+            "the unrelated plain cell must own nothing"
+        );
+    }
+}
+
+// ===========================================================================
+// Issue #1138 — a script argument *built* with `list` is walked as the
+// command it provably is.
+//
+// tclsh 9.0.4 and 8.6.16 agree that the three spellings are functionally
+// identical:
+//
+//   proc f {} {upvar #0 g l; set l 1}
+//   proc f {} {uplevel #0 {upvar #0 g l}; …}
+//   proc f {} {uplevel #0 [list upvar #0 g l]; …}
+//
+// `list` packs its already-substituted arguments into exactly one command,
+// so the built form is not dynamic — yet every pass keyed on a literal
+// `{…}` body skipped it.
+// ===========================================================================
+mod list_quoted_script_arguments {
+    use super::*;
+
+    fn scope_named(
+        scope: &tcl_compiler::analyser::Scope,
+        kind: tcl_compiler::analyser::ScopeKind,
+    ) -> Option<&tcl_compiler::analyser::Scope> {
+        if scope.kind == kind {
+            return Some(scope);
+        }
+        scope.children.iter().find_map(|c| scope_named(c, kind))
+    }
+
+    #[test]
+    fn tp_a_list_built_uplevel_body_declares_in_the_uplevel_frame() {
+        use tcl_compiler::analyser::ScopeKind;
+        for src in [
+            "proc f {} {\n    uplevel 1 [list set inner 1]\n}\n",
+            // The braced control, which already worked — both must agree.
+            "proc f {} {\n    uplevel 1 {set inner 1}\n}\n",
+        ] {
+            let r = Analyser::new().analyse(src, D);
+            let up = scope_named(&r.global_scope, ScopeKind::Uplevel)
+                .unwrap_or_else(|| panic!("an uplevel frame scope must open for {src:?}"));
+            assert!(
+                up.variables.contains_key("inner"),
+                "`inner` belongs to the uplevel frame, not the proc: {src:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn tp_a_list_built_namespace_body_declares_in_the_namespace() {
+        let src = "namespace eval ::ns [list set v 1]\n";
+        let r = Analyser::new().analyse(src, D);
+        let ns = &r.global_scope.children[0];
+        assert!(
+            ns.variables.contains_key("v"),
+            "the built `set v 1` runs in `::ns`: {:?}",
+            ns.variables.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn tn_a_dynamic_build_stays_an_opaque_barrier() {
+        // `[list $cb inner 1]` names no statically known command, and
+        // `[$build …]` is not a list build at all — both keep today's
+        // behaviour rather than guessing.
+        use tcl_compiler::analyser::ScopeKind;
+        for src in [
+            "proc f {} {\n    uplevel 1 [list $cb inner 1]\n}\n",
+            "proc f {} {\n    uplevel 1 [$build inner]\n}\n",
+        ] {
+            let r = Analyser::new().analyse(src, D);
+            assert!(
+                scope_named(&r.global_scope, ScopeKind::Uplevel).is_none(),
+                "an unresolvable body must not be walked: {src:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn tp_a_substituted_read_in_a_built_body_belongs_to_the_building_frame() {
+        // `::tk::SourceLibFile`'s real shape. `$file` is the proc's own
+        // parameter, substituted in the proc frame *before* `namespace eval`
+        // enters `::` — so the read is the proc's, and the namespace scope
+        // must not claim those bytes (issue #1138 idx 102).
+        let src = "proc ::tk::SourceLibFile {file} {\n    \
+namespace eval :: [list source [file join $::tk_library $file.tcl]]\n\
+}\n";
+        let r = Analyser::new().analyse(src, D);
+        let proc_scope = &r.global_scope.children[0];
+        let file_var = &proc_scope.variables["file"];
+        assert_eq!(
+            file_var
+                .references
+                .iter()
+                .map(|s| &src[s.start() as usize..s.end() as usize])
+                .collect::<Vec<_>>(),
+            vec!["$file"],
+            "the parameter's read must be recorded"
+        );
+        let ns = proc_scope
+            .children
+            .iter()
+            .find(|c| c.kind == tcl_compiler::analyser::ScopeKind::Namespace)
+            .expect("the `namespace eval ::` scope exists");
+        assert!(
+            ns.body_span.is_none(),
+            "a `[…]` body is evaluated in the calling frame, so the namespace \
+scope must not own its bytes — owning them made the scope-chain lookup stop \
+there and answer nothing for `$file`"
+        );
+    }
+
+    #[test]
+    fn tn_a_braced_namespace_body_still_owns_its_bytes() {
+        // Control for the span above: a literal `{…}` body really does run in
+        // the namespace frame, so it keeps its `body_span`.
+        let src = "namespace eval ::ns {\n    variable v 1\n}\n";
+        let r = Analyser::new().analyse(src, D);
+        assert!(
+            r.global_scope.children[0].body_span.is_some(),
+            "a literal braced body is the namespace's own"
+        );
+    }
+}
+
+// ===========================================================================
 // Namespace scopes + qualified procs.
 // ===========================================================================
 mod namespace_analysis {

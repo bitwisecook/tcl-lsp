@@ -588,3 +588,59 @@ fn references_reach_a_my_dispatch_call_inside_a_switch_arm() {
         "the my bar call site inside the switch arm is missing: {lines:?}"
     );
 }
+
+/// Issue #1108: a registry `VarRead`-role name word is a use site.  A variable
+/// is read by more than `$name` — tclsh 9.0.4 / 8.6.16 both print `1` for
+/// `proc f {} {set m 1; puts [set m]; puts [info exists m]}; f`, so both bare
+/// `m` words really do read the cell.  Find References reported neither.
+#[test]
+fn references_reach_a_var_read_role_name_word() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc f {} {\n    set m 1\n    puts [set m]\n    puts [info exists m]\n}\n",
+    );
+    // Cursor on the `m` of `set m 1`.
+    let lines = start_lines(&lsp.references(&uri, 1, 8, true));
+    assert!(lines.contains(&1), "decl missing: {lines:?}");
+    assert!(lines.contains(&2), "`[set m]` read missing: {lines:?}");
+    assert!(
+        lines.contains(&3),
+        "`[info exists m]` read missing: {lines:?}"
+    );
+    // And the same set answers from a cursor on either read word.
+    for (line, col) in [(2u32, 14u32), (3, 22)] {
+        let from_read = start_lines(&lsp.references(&uri, line, col, true));
+        assert!(
+            from_read.contains(&1) && from_read.contains(&2) && from_read.contains(&3),
+            "the cursor on the read word at ({line},{col}) must answer the whole \
+             set: {from_read:?}"
+        );
+    }
+}
+
+/// Issue #1138 idx 102: `::tk::SourceLibFile`'s `$file` read lives inside a
+/// `[list …]`-built `namespace eval` body.  The `[…]` is evaluated in the
+/// proc's own frame before `namespace eval` enters `::`, so the read is an
+/// ordinary use of the parameter — but the namespace scope had claimed those
+/// bytes, and find-references answered nothing.
+#[test]
+fn references_reach_a_parameter_read_inside_a_list_built_namespace_body() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc ::tk::SourceLibFile {file} {\n    namespace eval :: [list source [file join $::tk_library $file.tcl]]\n}\n",
+    );
+    // Cursor on the `file` of `$file` (line 1, columns 61-64).
+    let lines = start_lines(&lsp.references(&uri, 1, 62, true));
+    assert!(
+        lines.contains(&0),
+        "the parameter decl is missing: {lines:?}"
+    );
+    assert!(
+        lines.contains(&1),
+        "the `$file` read inside the built body is missing: {lines:?}"
+    );
+}

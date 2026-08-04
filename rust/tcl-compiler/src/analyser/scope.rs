@@ -817,7 +817,7 @@ impl Analyser {
         // that aren't in the current scope, so liberal collection is
         // safe.
         if let Some(registry) = self.registry {
-            let mut extra: Vec<(String, tcl_lexer::Span)> = Vec::new();
+            let mut extra: Vec<VarReadSite> = Vec::new();
             let cmd_name = cmd.texts.first().map_or("", String::as_str);
             let post: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
             let expr_idx: std::collections::HashSet<usize> = registry
@@ -836,8 +836,13 @@ impl Analyser {
                     collect_expr_reads(&self.source, *arg, registry, &mut extra);
                 }
             }
-            for (name, span) in extra {
-                self.record_var_read(&name, span, scope_path);
+            // Registry `VarRead`-role name words of this command itself
+            // (`info exists m`, `array get m`) — a use site of `m` exactly as
+            // `$m` is, and one the `$`-token walk above cannot see because
+            // there is no `$` to see (issue #1108).
+            collect_name_role_reads(cmd, registry, &mut extra);
+            for site in extra {
+                self.record_var_read_braced(&site.name, site.span, scope_path, site.braced_literal);
             }
         }
     }
@@ -1561,7 +1566,7 @@ impl Analyser {
         if let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path)
             && let Some(var) = scope.variables.get_mut(&base_owned)
         {
-            var.references.push(read_span);
+            var.push_reference(read_span);
             if let Some(e) = element {
                 var.array_indices.insert(e);
             }
@@ -1571,7 +1576,7 @@ impl Analyser {
         // Cross-rule variables — fall back to global scope.
         if base_owned.starts_with("::") || base_owned.starts_with("static::") {
             if let Some(var) = self.result.global_scope.variables.get_mut(&base_owned) {
-                var.references.push(read_span);
+                var.push_reference(read_span);
                 if let Some(e) = element {
                     var.array_indices.insert(e);
                 }
@@ -1597,7 +1602,7 @@ impl Analyser {
             // caught by the local-scope branch above, so reaching here means
             // the namespace table genuinely lacks the name — exactly the C
             // fallback condition (8.6 `tclVar.c` `TclLookupSimpleVar`).
-            var.references.push(read_span);
+            var.push_reference(read_span);
             if let Some(e) = element {
                 var.array_indices.insert(e);
             }
@@ -2003,6 +2008,56 @@ pub(super) fn inner_of(source: &str, tok: Token) -> Option<(&str, u32)> {
     Some((&source[s..e], tok.span.start() + off))
 }
 
+/// One collected read site: the variable word as written, where it is, and
+/// whether its braces make the content a literal name (`[set {$n}]` reads the
+/// cell called `$n`, not `n` — issue #1078).
+pub(super) struct VarReadSite {
+    pub name: String,
+    pub span: Span,
+    pub braced_literal: bool,
+}
+
+impl VarReadSite {
+    /// A read written as an ordinary `$`-substitution or expression term,
+    /// whose text is already the bare name.
+    fn substituted(name: &str, span: Span) -> Self {
+        Self {
+            name: name.to_owned(),
+            span,
+            braced_literal: false,
+        }
+    }
+}
+
+/// Record the variable-name words of `cmd` that the registry marks as
+/// **reads** — the `m` of `info exists m` / `array get m` / `[set m]`, and
+/// the literal `$n` of `[set {$n}]`.
+///
+/// Registry-driven via [`crate::var_refs::variable_name_role_words`], so no
+/// command is named here: any spec declaring an [`ArgRole::VarRead`] position
+/// contributes its use sites to `VarDef::references`, which is what
+/// Find References / document-highlight / the minifier's rename pass consume.
+/// Write roles are excluded — a write is a *declaration* site, recorded by
+/// the declaring handler, not a reference.
+///
+/// [`ArgRole::VarRead`]: tcl_registry::ArgRole::VarRead
+fn collect_name_role_reads(
+    cmd: &crate::segmenter::SegmentedCommand,
+    registry: &tcl_registry::CommandRegistry,
+    out: &mut Vec<VarReadSite>,
+) {
+    for w in crate::var_refs::variable_name_role_words(cmd, registry) {
+        if w.role != tcl_registry::ArgRole::VarRead {
+            continue;
+        }
+        out.push(VarReadSite {
+            name: w.word,
+            span: w.span,
+            braced_literal: w.braced_literal,
+        });
+    }
+}
+
 /// Collect `$var` reads inside a command-substitution token,
 /// recursing into nested substitutions, expr arguments, and
 /// same-scope (plain) body arguments.  Structural-body arguments
@@ -2011,7 +2066,7 @@ fn collect_cmd_subst_reads(
     source: &str,
     cmd_tok: Token,
     registry: &tcl_registry::CommandRegistry,
-    out: &mut Vec<(String, Span)>,
+    out: &mut Vec<VarReadSite>,
 ) {
     let Some((inner, base)) = inner_of(source, cmd_tok) else {
         return;
@@ -2028,18 +2083,22 @@ fn collect_script_command_reads(
     source: &str,
     cmd: &crate::segmenter::SegmentedCommand,
     registry: &tcl_registry::CommandRegistry,
-    out: &mut Vec<(String, Span)>,
+    out: &mut Vec<VarReadSite>,
 ) {
     let head_span = cmd.argv.first().map(|t| t.span);
     for tok in &cmd.all_tokens {
         if tok.kind == tcl_lexer::TokenType::Var && Some(tok.span) != head_span {
             if let Some(name) = var_name_from_span(source, tok.span) {
-                out.push((name.to_owned(), tok.span));
+                out.push(VarReadSite::substituted(name, tok.span));
             }
         } else if tok.kind == tcl_lexer::TokenType::Cmd {
             collect_cmd_subst_reads(source, *tok, registry, out);
         }
     }
+    // The substituted command's own `VarRead`-role name words — `puts [set
+    // m]` and `puts [info exists m]` read `m`, which nothing else here sees
+    // (issue #1108).
+    collect_name_role_reads(cmd, registry, out);
     let cmd_name = cmd.texts.first().map_or("", String::as_str);
     let post: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
     let expr_idx: std::collections::HashSet<usize> = registry
@@ -2079,7 +2138,7 @@ fn collect_expr_reads(
     source: &str,
     expr_tok: Token,
     registry: &tcl_registry::CommandRegistry,
-    out: &mut Vec<(String, Span)>,
+    out: &mut Vec<VarReadSite>,
 ) {
     let Some((inner, base)) = inner_of(source, expr_tok) else {
         return;
@@ -2092,7 +2151,7 @@ fn collect_expr_reads(
         match tok.kind {
             tcl_lexer::TokenType::Var => {
                 if let Some(name) = var_name_from_span(source, abs) {
-                    out.push((name.to_owned(), abs));
+                    out.push(VarReadSite::substituted(name, abs));
                 }
             }
             tcl_lexer::TokenType::Cmd => {
