@@ -948,30 +948,31 @@ fn oo_frame_for(
 ///   Oracle (identical on tclsh 9.0.4 and 8.6.14): that helper, called from
 ///   `method m {} {set x 1; set src x; my helper $src; puts $x}`, prints `2`.
 ///
-/// * **A method that was redefined.**  The lowering keeps the *first* body and
-///   records only the name in [`crate::ir::Module::redefined_methods`], so a
-///   replacement body is invisible to every scan above — including the
-///   caller-frame query, which would be inspecting the wrong body.  An
-///   initially-empty helper later redefined as `{upvar 1 x y; set y 2}` is
-///   otherwise undetectable.  Oracle (9.0.4 and 8.6.14): prints `2`.
+/// * **A method that was redefined.**  The lowering keeps the *first* body in
+///   [`crate::ir::Module::methods`] and retains every **replacement** body in
+///   [`crate::ir::Module::redefined_methods`] (issue #1166), so the
+///   caller-frame query below scans them all — an initially-empty helper
+///   later redefined as `{upvar 1 x y; set y 2}` is caught by its retained
+///   replacement.  Oracle (9.0.4 and 8.6.14): prints `2`.  A redefinition
+///   whose every body is caller-frame-clean no longer bars anything — the
+///   union of bodies over-approximates whichever is live at dispatch time.
 ///
-///   Scoped to the whole module rather than to the redefined method's own
-///   class on purpose: `my` dispatches along the MRO, so a replaced method in
-///   a *superclass* is reachable from a subclass's body, and a per-class kill
-///   switch would miss exactly that.  Redefinition is rare, so the precision
-///   cost is small and the soundness argument does not depend on an MRO the
-///   optimiser does not compute here.
+/// * **An OO definition the lowering could not read.**  A dynamic member
+///   name / body ([`crate::ir::Module::oo_unanalysed_classes`]) or a dynamic
+///   class word ([`crate::ir::Module::has_dynamic_oo_definition`]) means some
+///   method body was never retained at all, so no scan covers it — widen.
 ///
 /// Flow-insensitive and whole-module for the same reason
 /// [`crate::command_binding::ModuleCommandMutations::trusts`] is: the dispatch
 /// order between methods is not statically known.
 fn method_dispatch_evidence_is_incomplete(cu: &CompilationUnit) -> bool {
-    if !cu.ir_module.redefined_methods.is_empty() {
+    if cu.ir_module.has_dynamic_oo_definition || !cu.ir_module.oo_unanalysed_classes.is_empty() {
         return true;
     }
     cu.ir_module
         .methods
         .values()
+        .chain(cu.ir_module.redefined_methods.values().flatten())
         .any(|m| crate::cfg_builder::upvar_info::reaches_caller_frame(&m.body, &m.params))
 }
 

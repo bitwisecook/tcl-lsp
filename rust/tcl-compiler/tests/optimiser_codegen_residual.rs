@@ -1264,9 +1264,11 @@ fn instance_vars_declared_in_a_later_definition_block_bar_propagation() {
 
 #[test]
 fn a_redefined_method_bars_propagation() {
-    // FP guard, finding 2.  The lowering keeps the *first* body and records
-    // only the name in `redefined_methods`, so the replacement — which reaches
-    // its caller's frame — is invisible to every body scan.  Oracle:
+    // FP guard, finding 2 — now answered from the RETAINED replacement
+    // body (issue #1166): the lowering keeps the *first* body in
+    // `methods` and every replacement in `redefined_methods`, so the
+    // caller-frame scan reads them all and this replacement — which
+    // reaches its caller's frame — still bars.  Oracle:
     //
     //   oo::class create D { method helper {} {}
     //                        method m {} {set x 1; my helper; puts $x} }
@@ -1275,18 +1277,52 @@ fn a_redefined_method_bars_propagation() {
     let src = "oo::class create D {\n    method helper {} {}\n    method m {} { set x 1\n        my helper\n        puts $x }\n}\noo::define D { method helper {} { upvar 1 x y\n    set y 2 } }\n";
     assert!(
         o100(src).is_empty(),
-        "a redefined method must bar propagation, got {:?}",
+        "a caller-frame-reaching replacement must bar propagation, got {:?}",
         o100(src),
     );
-    // Scoped to the whole module, not to the redefined method's own class:
-    // `my` dispatches along the MRO, so a replaced method in a *superclass* is
-    // reachable from a subclass body and a per-class switch would miss it.
+    // `my` dispatches along the MRO, so a replaced method in a *superclass*
+    // is reachable from a subclass body — it must bar the subclass too.
     let cross_class = "oo::class create B {\n    method helper {} {}\n}\noo::class create C {\n    superclass B\n    method m {} { set x 1\n        my helper\n        puts $x }\n}\noo::define B { method helper {} { upvar 1 x y\n    set y 2 } }\n";
     assert!(
         o100(cross_class).is_empty(),
         "a superclass redefinition must bar propagation too, got {:?}",
         o100(cross_class),
     );
+}
+
+#[test]
+fn a_benign_redefinition_no_longer_bars_propagation() {
+    // TP (issue #1166's precision win): every retained body of the
+    // redefined `helper` is caller-frame-clean, so method-local
+    // propagation stays on — the union of bodies over-approximates
+    // whichever is live at dispatch time, and none of them can touch
+    // `m`'s locals.  Oracle (tclsh 9.0.4): `[D create d1] m` prints `1`
+    // whichever helper body is live.
+    let src = "oo::class create D {\n    method helper {} { return a }\n    method m {} { set x 1\n        my helper\n        puts $x }\n}\noo::define D { method helper {} { return b } }\n";
+    let r = o100(src);
+    assert!(
+        r.contains(&"1".to_string()),
+        "a caller-frame-clean redefinition must not bar propagation, got {r:?}",
+    );
+}
+
+#[test]
+fn an_unreadable_oo_member_bars_propagation() {
+    // FP guard — a dynamic member BODY is a method whose code no scan can
+    // read: it may `upvar 1` into any dispatcher's frame, so the barrier
+    // must widen exactly as it does for a caller-frame-reaching body.
+    let src = "oo::class create D {\n    method helper {} $body\n    method m {} { set x 1\n        my helper\n        puts $x }\n}\n";
+    assert!(
+        o100(src).is_empty(),
+        "an unreadable member body must bar propagation, got {:?}",
+        o100(src),
+    );
+    // Same for a dynamic member NAME (any method may have been replaced),
+    // and for a dynamic class word on the definition itself.
+    let dyn_name = "oo::class create D {\n    method m {} { set x 1\n        my helper\n        puts $x }\n    method $n {} { upvar 1 x y\n        set y 2 }\n}\n";
+    assert!(o100(dyn_name).is_empty(), "got {:?}", o100(dyn_name));
+    let dyn_class = "oo::class create D {\n    method m {} { set x 1\n        my helper\n        puts $x }\n}\noo::define $cls { method helper {} { upvar 1 x y\n    set y 2 } }\n";
+    assert!(o100(dyn_class).is_empty(), "got {:?}", o100(dyn_class));
 }
 
 #[test]

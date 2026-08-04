@@ -583,28 +583,28 @@ fn build_method_summaries(
             local_pure: true,
             ..LocalFacts::default()
         };
-        let params: HashSet<String> = method.params.iter().cloned().collect();
-        let ctx = ScanCtx {
-            caller: mqname,
-            known: &method_known,
-            registry,
-            dialect,
-            params: &params,
-            // Method bodies are not call-graph nodes; no object-type map needed.
-            object_types: ObjectTypeMap::none().0,
-        };
-        scan_script(&method.body, ctx, &mut facts, 0);
-        // Fall-through exit is non-constant (O103); see `scan_proc`.
-        if !script_always_returns(&method.body, 0) {
-            facts.returns.push(ReturnKind::Other);
-        }
-
-        // Instance-variable writes mutate object state and survive the
-        // call — so a method that writes any in-scope instance var is
-        // impure even though the write looks like a plain local `set`.
+        // Scan the primary body, then — since the lowering retains them
+        // (issue #1166) — every replacement body of a redefined method,
+        // all into the SAME fact accumulators: the summary describes the
+        // union of every body a dispatch may run — pure only when all
+        // are, constant-return only when every body's exits agree on the
+        // one constant. This replaces the former abstain-on-redefinition
+        // kill switch with a strictly more precise, equally sound join.
         let mut written_ivars: HashSet<String> = HashSet::new();
-        if !method.instance_vars.is_empty() {
-            collect_instance_var_writes(&method.body, &method.instance_vars, &mut written_ivars, 0);
+        let replacements = ir_module
+            .redefined_methods
+            .get(mqname)
+            .map_or(&[][..], Vec::as_slice);
+        for body_def in std::iter::once(method).chain(replacements) {
+            scan_method_body_facts(
+                body_def,
+                mqname,
+                &method_known,
+                registry,
+                dialect,
+                &mut facts,
+                &mut written_ivars,
+            );
         }
 
         // `local_pure` is the authoritative local-impurity signal (the
@@ -622,10 +622,15 @@ fn build_method_summaries(
                 .direct_calls
                 .iter()
                 .all(|c| pure.get(c).copied().unwrap_or(false));
-        // A redefined method (later oo::define / duplicate body) is
-        // conservatively impure: the stored body may not be the one a
-        // given dispatch runs.
-        if ir_module.redefined_methods.contains(mqname) {
+        // A class with a member the lowering could not model (dynamic
+        // member name / body), or a module with a dynamic OO definition
+        // target, may have replaced ANY of its methods with an unknown
+        // body — force impure, since no retained-body scan covers what
+        // was never readable. Statically-retained redefinitions are
+        // covered by the replacement-body scan above instead.
+        if ir_module.has_dynamic_oo_definition
+            || ir_module.oo_unanalysed_classes.contains(&method.class_name)
+        {
             is_pure = false;
         }
 
@@ -680,6 +685,44 @@ fn build_method_summaries(
         );
     }
     out
+}
+
+/// Scan one method body's facts into the shared accumulators for
+/// [`build_method_summaries`]: the local-purity / call / effect scan, the
+/// fall-through return, and the instance-variable writes. Called once for
+/// the primary [`crate::ir::MethodDef`] and once per retained replacement
+/// body (issue #1166) so the summary joins over every body a dispatch may
+/// run.
+fn scan_method_body_facts(
+    body_def: &crate::ir::MethodDef,
+    mqname: &str,
+    method_known: &HashSet<String>,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<&str>,
+    facts: &mut LocalFacts,
+    written_ivars: &mut HashSet<String>,
+) {
+    let params: HashSet<String> = body_def.params.iter().cloned().collect();
+    let ctx = ScanCtx {
+        caller: mqname,
+        known: method_known,
+        registry,
+        dialect,
+        params: &params,
+        // Method bodies are not call-graph nodes; no object-type map needed.
+        object_types: ObjectTypeMap::none().0,
+    };
+    scan_script(&body_def.body, ctx, facts, 0);
+    // Fall-through exit is non-constant (O103); see `scan_proc`.
+    if !script_always_returns(&body_def.body, 0) {
+        facts.returns.push(ReturnKind::Other);
+    }
+    // Instance-variable writes mutate object state and survive the call —
+    // so a method that writes any in-scope instance var is impure even
+    // though the write looks like a plain local `set`.
+    if !body_def.instance_vars.is_empty() {
+        collect_instance_var_writes(&body_def.body, &body_def.instance_vars, written_ivars, 0);
+    }
 }
 
 /// Recursively collect the base names of instance-variable *writes* in
@@ -2818,7 +2861,10 @@ mod tests {
     }
 
     #[test]
-    fn redefined_method_is_forced_impure() {
+    fn redefined_method_joins_over_every_retained_body() {
+        // Issue #1166: the lowering retains replacement bodies, so the
+        // summary is the JOIN over every body a dispatch may run —
+        // pure when all bodies are pure, impure when any is.
         let ia = build(
             "oo::class create C {\n\
              \x20   method m {} { return 1 }\n\
@@ -2828,7 +2874,68 @@ mod tests {
              }",
         );
         let m = ia.methods.get("::C::m").expect("method summary");
-        assert!(!m.base.pure, "redefined method must stay conservative");
+        assert!(
+            m.base.pure,
+            "two pure bodies join to pure — abstention on the mere fact of \
+             redefinition is the imprecision issue #1166 removes"
+        );
+        // Disagreeing constants join to no-constant-return.
+        assert!(m.base.constant_return.is_none());
+
+        // FN-now-caught: an impure REPLACEMENT makes the join impure even
+        // though the first (retained-in-`methods`) body is pure.
+        let ia = build(
+            "oo::class create C {\n\
+             \x20   method m {} { return 1 }\n\
+             }\n\
+             oo::define C {\n\
+             \x20   method m {} { puts side-effect\n\
+             \x20       return 2 }\n\
+             }",
+        );
+        let m = ia.methods.get("::C::m").expect("method summary");
+        assert!(!m.base.pure, "an impure replacement body must join impure");
+
+        // Agreeing constants survive the join.
+        let ia = build(
+            "oo::class create C {\n\
+             \x20   method m {} { return 7 }\n\
+             }\n\
+             oo::define C {\n\
+             \x20   method m {} { return 7 }\n\
+             }",
+        );
+        let m = ia.methods.get("::C::m").expect("method summary");
+        assert!(m.base.pure);
+        assert!(matches!(
+            m.base.constant_return,
+            Some(ConstantReturn::Int(7))
+        ));
+    }
+
+    #[test]
+    fn unreadable_oo_definitions_force_methods_impure() {
+        // A dynamic member name may have redefined ANY method of the
+        // class with an unknown body — every method of the class joins
+        // impure.
+        let ia = build(
+            "oo::class create C {\n\
+             \x20   method m {} { return 1 }\n\
+             \x20   method $n {} { return 2 }\n\
+             }",
+        );
+        let m = ia.methods.get("::C::m").expect("method summary");
+        assert!(!m.base.pure, "unanalysable class member must widen");
+
+        // A dynamic class word may have touched any class — module-wide.
+        let ia = build(
+            "oo::class create C {\n\
+             \x20   method m {} { return 1 }\n\
+             }\n\
+             oo::define $cls { method m {} { puts hi } }",
+        );
+        let m = ia.methods.get("::C::m").expect("method summary");
+        assert!(!m.base.pure, "dynamic OO definition target must widen");
     }
 
     #[test]

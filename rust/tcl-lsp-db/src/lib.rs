@@ -2178,7 +2178,9 @@ pub fn function_optimisations<'db>(
         body_units: HashMap::new(),
         lambda_body_units: std::collections::BTreeSet::new(),
         redefined_procedures: redefined,
-        redefined_methods: HashSet::new(),
+        redefined_methods: HashMap::new(),
+        oo_unanalysed_classes: HashSet::new(),
+        has_dynamic_oo_definition: false,
         namespace_imports: Vec::new(),
         namespace_exports: Vec::new(),
         // Always empty/false here — the caller (`memoised_module_optimisations`)
@@ -2353,7 +2355,29 @@ fn solve_optimisations<'db>(
     // is usually tiny.  Run the passes on a top-level-only unit — `procedures`
     // empty so only the top-level is optimised, `interproc` retained so the
     // top-level's O103 calls resolve — producing absolute-span raw optimisations.
-    let top_unit = CompilationUnit {
+    let top_unit = top_level_only_unit(cu, redefined);
+    for mut opt in tcl_compiler::optimiser::optimise_unit_raw(&top_unit, registry, dialect_opt) {
+        if let Some(g) = opt.group {
+            opt.group = Some(group_base + g);
+        }
+        raw.push(opt);
+    }
+
+    tcl_compiler::optimiser::finalise_optimisations(&raw, cu, registry, dialect_opt)
+}
+
+/// The top-level-only [`CompilationUnit`] [`solve_optimisations`] runs the
+/// passes over: `procedures` empty so only the top-level is optimised,
+/// `interproc` / `caller_scope` retained so the top-level's O103 calls
+/// resolve against the same boundary / cross-file facts the whole-module
+/// build resolved. Trace facts are copied from the real module (the
+/// `has_trace_facts` fallback means this path only runs when there are
+/// none, but copy the real values rather than asserting that by omission).
+fn top_level_only_unit(
+    cu: &CompilationUnit,
+    redefined: &std::collections::HashSet<String>,
+) -> CompilationUnit {
+    CompilationUnit {
         source: cu.source.clone(),
         ir_module: tcl_compiler::ir::Module {
             source: cu.source.clone(),
@@ -2363,16 +2387,11 @@ fn solve_optimisations<'db>(
             body_units: HashMap::new(),
             lambda_body_units: std::collections::BTreeSet::new(),
             redefined_procedures: redefined.clone(),
-            redefined_methods: HashSet::new(),
+            redefined_methods: HashMap::new(),
+            oo_unanalysed_classes: HashSet::new(),
+            has_dynamic_oo_definition: false,
             namespace_imports: Vec::new(),
             namespace_exports: Vec::new(),
-            // Copied from the real whole-module facts (unlike the per-proc
-            // offset-0 unit above, this top-level-only unit is built
-            // straight from `cu`, so there is no salsa-caching reason to
-            // default these — and the `has_trace_facts` fallback above
-            // means this path only runs at all when the module has none,
-            // but copy the real values rather than asserting that by
-            // omission).
             traced_commands: cu.ir_module.traced_commands.clone(),
             has_dynamic_trace: cu.ir_module.has_dynamic_trace,
             traced_variables: cu.ir_module.traced_variables.clone(),
@@ -2388,19 +2407,8 @@ fn solve_optimisations<'db>(
         body_units: HashMap::new(),
         interproc: cu.interproc.clone(),
         connection_scope: None,
-        // Carried from the real unit: the top-level's own O103 folds must
-        // read the same boundary / cross-file facts the whole-module build
-        // resolved, not a fresh empty scope.
         caller_scope: cu.caller_scope.clone(),
-    };
-    for mut opt in tcl_compiler::optimiser::optimise_unit_raw(&top_unit, registry, dialect_opt) {
-        if let Some(g) = opt.group {
-            opt.group = Some(group_base + g);
-        }
-        raw.push(opt);
     }
-
-    tcl_compiler::optimiser::finalise_optimisations(&raw, cu, registry, dialect_opt)
 }
 
 /// Interned identity of the dialect-varying [`tcl_lexer::LexerConfig`] fields,

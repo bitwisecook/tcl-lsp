@@ -2362,6 +2362,14 @@ impl<'r> Lowerer<'r> {
                 method.instance_vars.extend(class_vars.iter().cloned());
             }
         }
+        // Retained replacement bodies (issue #1166) are scanned by the same
+        // consumers, so they need the same whole-class instance-variable
+        // union.
+        for method in self.module.redefined_methods.values_mut().flatten() {
+            if let Some(class_vars) = self.class_instance_vars.get(&method.class_name) {
+                method.instance_vars.extend(class_vars.iter().cloned());
+            }
+        }
     }
 
     /// Recursive walk for `oo::class` / `oo::define` definition
@@ -2486,8 +2494,12 @@ impl<'r> Lowerer<'r> {
             // oo::define
             _ => (texts[1].as_str(), texts[2].as_str()),
         };
-        // Dynamic class names can't be resolved statically.
+        // Dynamic class names can't be resolved statically — and the block
+        // may (re)define methods on ANY class, so whole-module OO evidence
+        // is incomplete (issue #1166: the propagation barrier and method
+        // purity must widen rather than trust the bodies they can see).
         if class_simple.contains('$') || class_simple.contains('[') {
+            self.module.has_dynamic_oo_definition = true;
             return;
         }
         let class_qname = qualify_proc_name(namespace, class_simple);
@@ -2529,11 +2541,14 @@ impl<'r> Lowerer<'r> {
                 _ => continue,
             };
             // Dynamic method names / non-static bodies are left
-            // un-lowered (the optimiser stays conservative for them).
-            if name.contains('$') || name.contains('[') {
-                continue;
-            }
-            if !seg_word_is_static_braced(seg, b_idx) {
+            // un-lowered — and recorded as an unanalysable member of the
+            // class (issue #1166): any method of the class may have been
+            // (re)defined with a body no scan can read, so per-class
+            // analysis must abstain for the whole class.
+            if name.contains('$') || name.contains('[') || !seg_word_is_static_braced(seg, b_idx) {
+                self.module
+                    .oo_unanalysed_classes
+                    .insert(class_qname.clone());
                 continue;
             }
             let params = if params_str.is_empty() {
@@ -2579,27 +2594,32 @@ impl<'r> Lowerer<'r> {
             }
 
             let method_qname = format!("{class_qname}::{name}");
+            let def = MethodDef {
+                class_name: class_qname.clone(),
+                method_name: name.to_string(),
+                params,
+                body: body_script,
+                kind: MethodKind::from_str_lossy(kind),
+                span: Some(seg.span),
+                instance_vars: method_ivars,
+            };
             // First definition wins for the stored body (matches proc
             // registration), but a redefinition (a later `oo::define`
             // or a duplicate in-body `method`) replaces the body at
             // runtime — we can't statically know which body a given
-            // dispatch runs, so flag it impure to keep O126 sound.
+            // dispatch runs, so RETAIN the replacement in definition
+            // order (issue #1166): analysis consumers scan every retained
+            // body (the union over-approximates whichever is live) rather
+            // than abstaining on the mere fact of redefinition.
             if self.module.methods.contains_key(&method_qname) {
-                self.module.redefined_methods.insert(method_qname);
+                self.module
+                    .redefined_methods
+                    .entry(method_qname)
+                    .or_default()
+                    .push(def);
                 continue;
             }
-            self.module.methods.insert(
-                method_qname,
-                MethodDef {
-                    class_name: class_qname.clone(),
-                    method_name: name.to_string(),
-                    params,
-                    body: body_script,
-                    kind: MethodKind::from_str_lossy(kind),
-                    span: Some(seg.span),
-                    instance_vars: method_ivars,
-                },
-            );
+            self.module.methods.insert(method_qname, def);
         }
     }
 }
@@ -3462,10 +3482,11 @@ mod tests {
     }
 
     #[test]
-    fn redefined_oo_method_is_flagged() {
+    fn redefined_oo_method_retains_the_replacement_body() {
         // A method redefined by a later `oo::define` keeps the first
-        // body but is recorded in `redefined_methods` so purity stays
-        // conservative.
+        // body in `methods`, and RETAINS the replacement in
+        // `redefined_methods` (issue #1166) so analysis consumers can
+        // scan every body a dispatch may run instead of abstaining.
         let src = "oo::class create C {\n\
                    \x20   method m {} { return 1 }\n\
                    }\n\
@@ -3474,11 +3495,39 @@ mod tests {
                    }\n";
         let m = lower_to_ir(src, &reg());
         assert!(m.methods.contains_key("::C::m"));
+        let retained = m
+            .redefined_methods
+            .get("::C::m")
+            .unwrap_or_else(|| panic!("redefined: {:?}", m.redefined_methods));
+        assert_eq!(retained.len(), 1, "one replacement body retained");
+        assert_eq!(retained[0].class_name, "::C");
         assert!(
-            m.redefined_methods.contains("::C::m"),
-            "redefined: {:?}",
-            m.redefined_methods
+            !retained[0].body.statements.is_empty(),
+            "the replacement body is lowered, not discarded"
         );
+        assert!(m.oo_unanalysed_classes.is_empty());
+        assert!(!m.has_dynamic_oo_definition);
+    }
+
+    #[test]
+    fn unreadable_oo_members_flag_the_class_or_module() {
+        // A dynamic member NAME may redefine any method of the class —
+        // the class is flagged unanalysable.
+        let m = lower_to_ir(
+            "oo::class create C {\n    method m {} { return 1 }\n    method $n {} { return 2 }\n}\n",
+            &reg(),
+        );
+        assert!(m.oo_unanalysed_classes.contains("::C"), "{m:?}");
+        // A dynamic member BODY is a method whose code no scan can read.
+        let m = lower_to_ir("oo::class create C {\n    method m {} $body\n}\n", &reg());
+        assert!(m.oo_unanalysed_classes.contains("::C"));
+        // A dynamic CLASS word may touch any class — module-wide flag.
+        let m = lower_to_ir("oo::define $cls { method m {} { return 1 } }\n", &reg());
+        assert!(m.has_dynamic_oo_definition);
+        // A fully-static module sets neither.
+        let m = lower_to_ir("oo::class create C { method m {} { return 1 } }\n", &reg());
+        assert!(m.oo_unanalysed_classes.is_empty());
+        assert!(!m.has_dynamic_oo_definition);
     }
 
     #[test]
