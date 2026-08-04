@@ -2481,6 +2481,42 @@ impl<'r> Lowerer<'r> {
     /// is the class command's
     /// full per-word text array; `body_content_offset` is the absolute
     /// source offset of the first byte inside the body's braces.
+    ///
+    /// Recognise one class-body member whose registry grammar marks every
+    /// argument as a class reference (`superclass A B`, `mixin M` —
+    /// [`tcl_registry::definer::MemberRefKind::Class`]) and record each
+    /// literal argument as a hierarchy relation of `class_qname` (issue
+    /// #1164); a dynamic argument widens
+    /// [`crate::ir::OoDefinitionEvidence::dynamic_class_relations`]
+    /// instead. Returns `true` when the member was consumed here.
+    fn record_class_relation_member(
+        &mut self,
+        definer_grammar: Option<&tcl_registry::definer::DefinitionBodyGrammar>,
+        seg: &SegmentedCommand,
+        class_qname: &str,
+    ) -> bool {
+        let head = seg.texts[0].as_str();
+        let Some(member) = definer_grammar.and_then(|g| g.member(head)) else {
+            return false;
+        };
+        if member.all_args_ref != Some(tcl_registry::definer::MemberRefKind::Class) {
+            return false;
+        }
+        for word in &seg.texts[1..] {
+            if word.contains('$') || word.contains('[') {
+                // Dynamic related-class word: this class's ancestry is
+                // unknown — hierarchy-scoped consumers must widen to
+                // whole-module.
+                self.module.oo_evidence.dynamic_class_relations = true;
+            } else {
+                self.module
+                    .class_relations
+                    .push((class_qname.to_owned(), word.clone()));
+            }
+        }
+        true
+    }
+
     fn extract_oo_methods(
         &mut self,
         form: &str,
@@ -2499,7 +2535,7 @@ impl<'r> Lowerer<'r> {
         // is incomplete (issue #1166: the propagation barrier and method
         // purity must widen rather than trust the bodies they can see).
         if class_simple.contains('$') || class_simple.contains('[') {
-            self.module.has_dynamic_oo_definition = true;
+            self.module.oo_evidence.dynamic_target = true;
             return;
         }
         let class_qname = qualify_proc_name(namespace, class_simple);
@@ -2519,11 +2555,19 @@ impl<'r> Lowerer<'r> {
                 .extend(class_ivars.iter().cloned());
         }
 
+        // The definer's registry grammar, for recognising class-reference
+        // members (`superclass A B`, `mixin M`) generically — a member whose
+        // spec marks every argument as a class reference declares a
+        // hierarchy relation, never matched by keyword here (issue #1164).
+        let definer_grammar = self.registry.get(form).and_then(|s| s.definition_body);
         for seg in &segments {
             if seg.is_partial || seg.texts.is_empty() {
                 continue;
             }
             let head = seg.texts[0].as_str();
+            if self.record_class_relation_member(definer_grammar, seg, &class_qname) {
+                continue;
+            }
             let (name, params_str, b_idx, kind): (&str, &str, usize, &str) = match head {
                 "method" if seg.texts.len() >= 4 => {
                     (seg.texts[1].as_str(), seg.texts[2].as_str(), 3, "method")
@@ -2576,22 +2620,7 @@ impl<'r> Lowerer<'r> {
             // method's own top-level `variable` declarations. A write
             // to any of these mutates object state (impure for O126).
             let mut method_ivars = class_ivars.clone();
-            for st in &body_script.statements {
-                if let Statement::Call {
-                    command,
-                    canonical_command,
-                    args,
-                    ..
-                } = st
-                    && canonical_matches(command, canonical_command.as_deref(), "variable")
-                {
-                    for nm in args {
-                        if is_instance_var_name(nm) {
-                            method_ivars.insert(normalise_var_name(nm).to_string());
-                        }
-                    }
-                }
-            }
+            collect_method_variable_decls(&body_script, &mut method_ivars);
 
             let method_qname = format!("{class_qname}::{name}");
             let def = MethodDef {
@@ -2620,6 +2649,27 @@ impl<'r> Lowerer<'r> {
                 continue;
             }
             self.module.methods.insert(method_qname, def);
+        }
+    }
+}
+
+/// Collect a method body's own top-level `variable` declarations into
+/// `ivars` (extracted from `extract_oo_methods`).
+fn collect_method_variable_decls(body_script: &Script, ivars: &mut HashSet<String>) {
+    for st in &body_script.statements {
+        if let Statement::Call {
+            command,
+            canonical_command,
+            args,
+            ..
+        } = st
+            && canonical_matches(command, canonical_command.as_deref(), "variable")
+        {
+            for nm in args {
+                if is_instance_var_name(nm) {
+                    ivars.insert(normalise_var_name(nm).to_string());
+                }
+            }
         }
     }
 }
@@ -3506,7 +3556,7 @@ mod tests {
             "the replacement body is lowered, not discarded"
         );
         assert!(m.oo_unanalysed_classes.is_empty());
-        assert!(!m.has_dynamic_oo_definition);
+        assert!(!m.oo_evidence.dynamic_target);
     }
 
     #[test]
@@ -3523,11 +3573,11 @@ mod tests {
         assert!(m.oo_unanalysed_classes.contains("::C"));
         // A dynamic CLASS word may touch any class — module-wide flag.
         let m = lower_to_ir("oo::define $cls { method m {} { return 1 } }\n", &reg());
-        assert!(m.has_dynamic_oo_definition);
+        assert!(m.oo_evidence.dynamic_target);
         // A fully-static module sets neither.
         let m = lower_to_ir("oo::class create C { method m {} { return 1 } }\n", &reg());
         assert!(m.oo_unanalysed_classes.is_empty());
-        assert!(!m.has_dynamic_oo_definition);
+        assert!(!m.oo_evidence.dynamic_target);
     }
 
     #[test]

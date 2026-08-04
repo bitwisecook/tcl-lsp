@@ -920,62 +920,6 @@ fn oo_frame_for(
     })
 }
 
-/// Whether the module supplies **incomplete evidence** about what a `my` /
-/// `next` / object dispatch out of a method body can do to that body's private
-/// locals — the whole-module gate on method-body variable propagation (issue
-/// #1097, hardened by the #1096/#1097 review's three findings).
-///
-/// A *proc* callee is modelled per call site: the CFG builder widens the
-/// caller's defs at every call to a name in
-/// [`crate::cfg_builder::detect_upvar_procs`]'s table, and method CFGs are
-/// built with that table threaded in.  A **method** reached through `my`,
-/// `next`, or an object dispatch is not in that table and cannot be, because
-/// the dispatch never names its target.  So the barrier has to be answered
-/// from whole-module evidence instead, and the governing rule is: *when the
-/// evidence is incomplete, widen to abstention.*  Two sources make it
-/// incomplete:
-///
-/// * **A method body that can reach its caller's frame.**
-///   [`reaches_caller_frame`](crate::cfg_builder::upvar_info::reaches_caller_frame)
-///   is the complete structural query — it counts an `upvar` alias whatever
-///   the dynamism of either side of the pair, an `uplevel` script running in
-///   the caller, and any level it cannot place.  It is deliberately *not*
-///   `var_observability`'s per-variable alias lattice: that route
-///   (`upvar_local_declaration_indices`) skips a pair when either side starts
-///   with `$`, so `method helper {src} {upvar 1 $src b; set b 2}` — which
-///   mutates its caller's variable on every call — read as "no caller-frame
-///   alias".  A dynamic name makes an alias *more* dangerous, never exempt.
-///   Oracle (identical on tclsh 9.0.4 and 8.6.14): that helper, called from
-///   `method m {} {set x 1; set src x; my helper $src; puts $x}`, prints `2`.
-///
-/// * **A method that was redefined.**  The lowering keeps the *first* body in
-///   [`crate::ir::Module::methods`] and retains every **replacement** body in
-///   [`crate::ir::Module::redefined_methods`] (issue #1166), so the
-///   caller-frame query below scans them all — an initially-empty helper
-///   later redefined as `{upvar 1 x y; set y 2}` is caught by its retained
-///   replacement.  Oracle (9.0.4 and 8.6.14): prints `2`.  A redefinition
-///   whose every body is caller-frame-clean no longer bars anything — the
-///   union of bodies over-approximates whichever is live at dispatch time.
-///
-/// * **An OO definition the lowering could not read.**  A dynamic member
-///   name / body ([`crate::ir::Module::oo_unanalysed_classes`]) or a dynamic
-///   class word ([`crate::ir::Module::has_dynamic_oo_definition`]) means some
-///   method body was never retained at all, so no scan covers it — widen.
-///
-/// Flow-insensitive and whole-module for the same reason
-/// [`crate::command_binding::ModuleCommandMutations::trusts`] is: the dispatch
-/// order between methods is not statically known.
-fn method_dispatch_evidence_is_incomplete(cu: &CompilationUnit) -> bool {
-    if cu.ir_module.has_dynamic_oo_definition || !cu.ir_module.oo_unanalysed_classes.is_empty() {
-        return true;
-    }
-    cu.ir_module
-        .methods
-        .values()
-        .chain(cu.ir_module.redefined_methods.values().flatten())
-        .any(|m| crate::cfg_builder::upvar_info::reaches_caller_frame(&m.body, &m.params))
-}
-
 /// The method-local constants a method body may propagate, or an empty map
 /// when it may propagate none (issue #1097).
 ///
@@ -1068,7 +1012,15 @@ fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     if ctx.registry.is_none() {
         return;
     }
-    let allow_locals = !method_dispatch_evidence_is_incomplete(cu);
+    // The PER-METHOD dispatch barrier (issue #1164): a method is barred
+    // only when its dispatches can actually reach a caller-frame-reaching
+    // (or unreadable) method — see `super::method_barrier`. The registry is
+    // present (checked above), so unwrap-by-default to an all-barred
+    // stance is unreachable; a bare context without one folds nothing
+    // anyway.
+    let barrier = ctx
+        .registry
+        .map(|registry| super::method_barrier::compute(cu, registry));
     // Sorted so the emitted rewrite order is deterministic across runs
     // (`ir_module.methods` is a `HashMap`).
     let mut qnames: Vec<&String> = cu.ir_module.methods.keys().collect();
@@ -1080,6 +1032,7 @@ fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let Some(frame) = oo_frame_for(method, &ctx.command_mutations) else {
             continue;
         };
+        let allow_locals = barrier.as_ref().is_some_and(|b| b.allows_locals(qname));
         let constants = oo_method_constants(ctx, cu, qname, &frame, allow_locals);
         walk_oo_script(ctx, &method.body, &frame, &constants, 0);
     }

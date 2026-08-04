@@ -628,7 +628,7 @@ fn build_method_summaries(
         // body — force impure, since no retained-body scan covers what
         // was never readable. Statically-retained redefinitions are
         // covered by the replacement-body scan above instead.
-        if ir_module.has_dynamic_oo_definition
+        if ir_module.oo_evidence.dynamic_target
             || ir_module.oo_unanalysed_classes.contains(&method.class_name)
         {
             is_pure = false;

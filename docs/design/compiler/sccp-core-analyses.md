@@ -34,6 +34,23 @@ SCCP walks the SSA graph and propagates:
 - Phi nodes: `phi(CONST("42"), CONST("99"))` → `OVERDEFINED`
 - Loop-carried values: always `OVERDEFINED` (value changes per iteration)
 
+**Registry builtin folds in the lattice** (issue #1134): when a caller
+supplies `BuiltinFoldInputs` (`sccp_with_builtin_folds`), an
+`IRAssignValue` whose RHS is a `[cmd args…]` command substitution is also
+evaluated through the shared constant-substitution engine
+(`rust/tcl-compiler/src/const_subst.rs`) — the registry `const_fold`
+callbacks plus, when the caller proved a `TclOO` method frame, the
+`[self class]` frame fact. The folded value re-enters the lattice at this
+statement's use versions, so multi-statement chains
+(`set base [self class]; set ns [namespace qualifiers $base]`) close under
+SCCP's ordinary monotone fixpoint; nested substitutions carry a structural
+depth cap. Only callers holding the whole-module command-mutation trust
+fact pass the inputs — the shared per-unit lattice (and its salsa memo,
+whose key cannot carry that fact) is built **without** them, and the
+optimiser propagation pass re-runs SCCP with them when a body contains a
+command-substitution assignment, overlaying the projection additively so
+single-hop results stay byte-identical.
+
 ### Escaping names
 
 A name that is not a private local of the frame is forced `OVERDEFINED`
@@ -73,11 +90,47 @@ method-local name, which no `my` / `next` / `[self …]` dispatch can reach.
 A *proc* callee is modelled per call site: the CFG builder widens the caller's
 defs at every call to a name in `cfg_builder::detect_upvar_procs`'s table. A
 **method** reached through `my`, `next`, or an object dispatch is not in that
-table and cannot be, because the dispatch never names its target. So
-`propagation.rs` answers the barrier from whole-module evidence
-(`method_dispatch_evidence_is_incomplete`), under one governing rule: **when
-the evidence is incomplete, the barrier widens to abstention** — no method
-body's locals are propagated anywhere in the module.
+table and cannot be, because the dispatch never names its target. So the
+barrier is answered from whole-module evidence, under one governing rule:
+**when the evidence is incomplete, the barrier widens to abstention.**
+
+Since issue #1164 the barrier is **per-method**
+(`rust/tcl-compiler/src/optimiser/method_barrier.rs`), keyed by actual
+reachability of the invalidating fact rather than a single module-wide
+switch:
+
+- A **bad** class is one defining a method — primary body, or any retained
+  replacement body (`Module::redefined_methods`, issue #1166) — that can
+  reach its caller's frame (`cfg_builder::upvar_info::reaches_caller_frame`),
+  or one the lowering flagged unreadable (`Module::oo_unanalysed_classes`:
+  a dynamic member name or member body).
+- Classes are grouped into **hierarchy components**: the connected
+  components of the `superclass` / `mixin` relations the lowering captures
+  (`Module::class_relations`, recognised generically through the definer
+  grammar's `MemberRefKind::Class`, with conservative tail matching when a
+  relation is written bare). Within a component, `my` / `next` dispatch can
+  land on any member class's method via the receiver's MRO; across
+  unrelated components it cannot — under the same closed-world convention
+  every other whole-module OO fact here uses.
+- Each method's dispatch surface is classified from its statements: a
+  registry head with the `TclOO` self-dispatch / next-chain traits targets
+  the method's own component; a head naming a module class (`D new`)
+  targets that class's component; a dynamic head (`$obj m`), an
+  unresolvable literal head (a runtime object command, a `link`ed
+  bareword), or a registry call handing a command prefix onward (`lsort
+  -command …`) may dispatch anywhere; a call to a module proc inherits the
+  proc's own dispatch surface transitively through the proc call graph.
+  Reachability then closes over components.
+
+A method is **barred** — its provably-local constants are not propagated —
+iff a bad class is reachable from its dispatch surface (or a dispatch is
+unbounded while any bad class exists). A method that never dispatches is
+never barred. One caller-frame-reaching `classvar`-style helper therefore
+disables propagation only for the classes that can actually reach it, not
+for every method in the module. Module-wide widening remains for evidence
+the lowering could not read at all: a dynamic OO definition target
+(`OoDefinitionEvidence::dynamic_target`) or a dynamic `superclass` word
+(`OoDefinitionEvidence::dynamic_class_relations`).
 
 Three evidence sources were found incomplete in review, each a would-be
 miscompile (the optimiser proposed folding `$x` to `1` where real Tcl prints
@@ -96,15 +149,15 @@ miscompile (the optimiser proposed folding `$x` to `1` where real Tcl prints
    the class. This fixes `elimination.rs`'s dead-store protection at the same
    time, which reads the same field.
 
-2. **A redefined method.** The lowering deliberately keeps the *first* body and
-   records only the name in `Module::redefined_methods`, so a replacement body
-   is invisible to every scan — including the caller-frame query below, which
-   would be inspecting the wrong body. An initially-empty helper later
-   redefined as `{upvar 1 x y; set y 2}` is otherwise undetectable. Any
-   non-empty `redefined_methods` therefore disables method-local propagation
-   module-wide. Not scoped to the redefined method's own class on purpose:
-   `my` dispatches along the MRO, so a replaced method in a *superclass* is
-   reachable from a subclass's body.
+2. **A redefined method.** The lowering keeps the *first* body in
+   `Module::methods` and, since issue #1166, retains every **replacement**
+   body in `Module::redefined_methods`, so the caller-frame query scans
+   them all. An initially-empty helper later redefined as
+   `{upvar 1 x y; set y 2}` is caught by its retained replacement; a
+   redefinition whose every body is caller-frame-clean no longer bars
+   anything (the union of bodies over-approximates whichever is live at
+   dispatch time). A replaced method in a *superclass* still bars a
+   subclass's methods — the two classes share a hierarchy component.
 
 3. **A caller-frame reach under a dynamic name.** The gate asks
    `cfg_builder::upvar_info::reaches_caller_frame`, the strictly structural
@@ -121,6 +174,13 @@ miscompile (the optimiser proposed folding `$x` to `1` where real Tcl prints
 Rule 3's inverse matters too: `global` / `variable` / `namespace upvar` reach a
 *namespace*, not the caller's locals, and must **not** trip the barrier — or
 every ordinary class body would disable propagation.
+
+Known evidence limits (pre-existing, shared by the old module-wide switch
+and the per-method barrier): the lowering models `oo::class` /
+`oo::define` *block* bodies only — an `oo::objdefine` per-object method,
+or the single-member `oo::define C method m {…} {…}` spelling, contributes
+no body to any of these scans, so a caller-frame reach hidden in one is
+invisible to both gates.
 
 ### Constant branch detection
 
