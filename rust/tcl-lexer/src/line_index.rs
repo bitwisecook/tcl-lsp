@@ -33,6 +33,54 @@
 //! [`Lexer`]: crate::lexer::Lexer
 
 use crate::tokens::{ByteCol, SourcePosition, Utf16Col, Utf16Position};
+use std::borrow::Cow;
+
+/// Rewrite every *lone* `\r` (a `\r` not immediately followed by `\n`) to `\n`,
+/// leaving CRLF pairs — and everything else — untouched.
+///
+/// This is the in-memory equivalent of what a real `tclsh` does to a script
+/// file before its parser ever sees it: `Tcl_OpenFileChannel` reads scripts
+/// with `-translation auto`, whose `TranslateInputEOL` turns every `\r` into
+/// `\n` (swallowing a following `\n`). A lone `\r` in a file on disk is
+/// therefore a genuine **command terminator** in Tcl, not the horizontal
+/// whitespace the lexer would otherwise make of it — treating it as whitespace
+/// invents `E003`/`W210` diagnostics and hides real ones.
+///
+/// Two properties make this safe to apply to *document* text on the way into
+/// analysis, and they are what let the `\n`-only [`LineIndex::new`] the lexer
+/// and CST share keep agreeing with the client:
+///
+/// * It is **byte-length preserving** — one `\r` byte becomes one `\n` byte —
+///   so every span, offset and UTF-16 column computed against the normalised
+///   text is equally valid against the raw text.
+/// * `LineIndex::new(normalise_lone_cr(t))` is byte-identical to
+///   `LineIndex::new_lsp(t)` for every `t`, so the lexer/CST line model and the
+///   LSP client's line model coincide once the text is normalised.
+///
+/// CRLF and LF documents contain no lone `\r` at all, so they come back
+/// borrowed and bit-identical; only an old-Mac / mixed document allocates.
+///
+/// This applies to **document text entering static analysis**, never to Tcl
+/// string values at run time — `eval`ing a string containing `\r` keeps Tcl's
+/// own semantics.
+#[must_use]
+pub fn normalise_lone_cr(source: &str) -> Cow<'_, str> {
+    if !LineIndex::contains_bare_cr(source) {
+        return Cow::Borrowed(source);
+    }
+    let bytes = source.as_bytes();
+    let mut out = String::with_capacity(source.len());
+    let mut last = 0usize;
+    for (i, &b) in bytes.iter().enumerate() {
+        if b == b'\r' && bytes.get(i + 1) != Some(&b'\n') {
+            out.push_str(&source[last..i]);
+            out.push('\n');
+            last = i + 1;
+        }
+    }
+    out.push_str(&source[last..]);
+    Cow::Owned(out)
+}
 
 /// Sorted index of line-start byte offsets for a source string.
 ///
@@ -772,6 +820,71 @@ mod tests {
                 idx.offset_at_utf16(p.line, p.character, src),
                 off,
                 "off {off}"
+            );
+        }
+    }
+
+    #[test]
+    fn normalise_lone_cr_leaves_lf_and_crlf_documents_untouched() {
+        for src in ["", "a\nb\n", "a\r\nb\r\n", "no breaks at all"] {
+            let out = normalise_lone_cr(src);
+            assert!(
+                matches!(out, Cow::Borrowed(_)),
+                "{src:?} should not allocate"
+            );
+            assert_eq!(out, src);
+        }
+    }
+
+    #[test]
+    fn normalise_lone_cr_rewrites_only_bare_cr() {
+        assert_eq!(normalise_lone_cr("a\rb"), "a\nb");
+        assert_eq!(normalise_lone_cr("a\r\nb\rc\nd"), "a\r\nb\nc\nd");
+        // A trailing bare `\r` is still a terminator.
+        assert_eq!(normalise_lone_cr("a\r"), "a\n");
+        // `\r\r\n`: the first `\r` is bare, the second pairs with the `\n`.
+        assert_eq!(normalise_lone_cr("a\r\r\nb"), "a\n\r\nb");
+    }
+
+    /// The property the whole LSP normalisation boundary rests on: the
+    /// `\n`-only lexer/CST index over the normalised text is byte-identical to
+    /// the LSP index over the raw text, and the rewrite never changes the byte
+    /// length. Fuzzed over a `\r`/`\n`-heavy alphabet.
+    #[test]
+    fn normalise_lone_cr_reconciles_the_two_line_models_under_fuzz() {
+        // `\r` twice so bare CRs and CRLF pairs both turn up often.
+        const ALPHABET: [char; 6] = ['\r', '\n', '\r', 'x', ' ', '#'];
+        let starts = |idx: &LineIndex| {
+            (0..u32::try_from(idx.line_count()).unwrap())
+                .map(|l| idx.line_start(l))
+                .collect::<Vec<_>>()
+        };
+        let mut rng = 0x2545_F491_4F6C_DD1D_u64;
+        let mut next = move || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
+        for case in 0..20_000 {
+            let len = usize::try_from(next() % 24).unwrap();
+            let raw: String = (0..len)
+                .map(|_| ALPHABET[usize::try_from(next() % 6).unwrap()])
+                .collect();
+            let normalised = normalise_lone_cr(&raw);
+            assert_eq!(
+                normalised.len(),
+                raw.len(),
+                "case {case}: length changed for {raw:?}"
+            );
+            assert!(
+                !LineIndex::contains_bare_cr(&normalised),
+                "case {case}: bare CR survived in {normalised:?}"
+            );
+            assert_eq!(
+                starts(&LineIndex::new(&normalised)),
+                starts(&LineIndex::new_lsp(&raw)),
+                "case {case}: line models disagree for {raw:?}"
             );
         }
     }

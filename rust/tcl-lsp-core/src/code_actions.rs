@@ -152,6 +152,36 @@ impl CodeAction {
     }
 }
 
+/// Rewrite every newline an action's inserted text carries onto `line_ending`.
+///
+/// The action builders compose their inserted text with plain `\n` — a
+/// docstring block, a `package require` line, a `# noqa` suppression, an
+/// extracted `set` assignment.  Applied verbatim to a CRLF (or old-Mac)
+/// document that silently mixes terminators into the file, so the server
+/// resolves the document's own line ending
+/// ([`crate::formatting::FormatterConfig::resolved_line_ending`]) and passes
+/// it here before the actions go on the wire.
+///
+/// Any terminator already present in the text — a `\r\n` or lone `\r` copied
+/// out of the source by a block-rewriting action — is folded to `\n` first, so
+/// the result is uniform rather than doubled.  A `"\n"` line ending is the
+/// no-op every LF document takes.
+pub fn retarget_newlines(actions: &mut [CodeAction], line_ending: &str) {
+    if line_ending == "\n" {
+        return;
+    }
+    for action in actions {
+        for edit in &mut action.edits {
+            if !edit.new_text.contains('\n') && !edit.new_text.contains('\r') {
+                continue;
+            }
+            edit.new_text = tcl_lexer::normalise_lone_cr(&edit.new_text)
+                .replace("\r\n", "\n")
+                .replace('\n', line_ending);
+        }
+    }
+}
+
 /// Lift every [`tcl_compiler::analyser::CodeFix`] carried by a
 /// diagnostic into a quick-fix [`CodeAction`] — one action per fix,
 /// with the fix's own `(span, new_text)` as a single-edit workspace
@@ -2779,6 +2809,68 @@ mod tests {
             }),
             "{actions:?}",
         );
+    }
+
+    #[test]
+    fn retarget_newlines_rewrites_inserted_text_onto_the_documents_eol() {
+        // The builders compose with `\n`; on a CRLF document every newline an
+        // action inserts must be `\r\n`, or a "Generate docstring" / "Extract
+        // into variable" quietly mixes terminators into the file.
+        let src = "proc  p {a  b} {\r\nputs $b\r\n}\r\n";
+        let analysis = analyse(src);
+        let range = LspRange {
+            start_line: 0,
+            start_character: 0,
+            end_line: 0,
+            end_character: 16,
+        };
+        let mut actions = code_actions(src, range, Some(&analysis));
+        assert!(
+            actions
+                .iter()
+                .any(|a| a.edits.iter().any(|e| e.new_text.contains('\n'))),
+            "fixture must produce at least one multi-line insertion: {actions:?}",
+        );
+        retarget_newlines(&mut actions, "\r\n");
+        for action in &actions {
+            for edit in &action.edits {
+                assert!(
+                    !edit.new_text.replace("\r\n", "").contains('\n'),
+                    "{}: bare LF survived in {:?}",
+                    action.title,
+                    edit.new_text,
+                );
+                assert!(
+                    !edit.new_text.replace("\r\n", "").contains('\r'),
+                    "{}: bare CR survived in {:?}",
+                    action.title,
+                    edit.new_text,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn retarget_newlines_is_a_no_op_for_lf() {
+        let mut actions = vec![CodeAction::new(
+            "t".to_owned(),
+            vec![crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: 0,
+                    start_character: 0,
+                    end_line: 0,
+                    end_character: 0,
+                },
+                new_text: "a\nb\n".to_owned(),
+            }],
+            ActionKind::QuickFix,
+            None,
+        )];
+        retarget_newlines(&mut actions, "\n");
+        assert_eq!(actions[0].edits[0].new_text, "a\nb\n");
+        // …and folds a mixed insertion onto a single terminator.
+        retarget_newlines(&mut actions, "\r");
+        assert_eq!(actions[0].edits[0].new_text, "a\rb\r");
     }
 
     #[test]

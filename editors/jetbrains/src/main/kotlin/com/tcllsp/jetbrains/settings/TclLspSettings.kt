@@ -94,7 +94,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var formattingBlankLinesBetweenProcs: Int = 1
     var formattingBlankLinesBetweenBlocks: Int = 1
     var formattingMaxConsecutiveBlankLines: Int = 2
-    var formattingLineEnding: String = "lf"
+    var formattingLineEnding: String = "auto"
     var formattingEnsureFinalNewline: Boolean = true
     var formattingDocstringStyle: String = "none"
     var formattingDocstringTagStyle: String = "doxygen"

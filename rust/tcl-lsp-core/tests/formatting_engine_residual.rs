@@ -786,3 +786,123 @@ fn range_formatting_brace_delta_ignores_string_braces_in_prefix() {
     // depth 0 → no leading indentation.
     assert_eq!(edits[0].new_text, "set y 2\n");
 }
+
+// Line endings: the `auto` default, and the whole-document / range edit
+// ranges that must be measured on the CLIENT's EOL model.
+//
+// The two data-loss cases below are the ones a live-server audit reproduced
+// against VS Code's own edit application (clamp each position to the client
+// line model, then splice). Both came from `formatting_with` building its
+// replace range with the `\n`-only `LineIndex::new`, which cannot see a lone
+// `\r` as a line break the way the client does.
+
+#[test]
+fn fmt_auto_line_ending_follows_the_document() {
+    // `auto` is the default: an LF file stays LF, a CRLF file stays CRLF, and
+    // an old-Mac file stays CR. Before this, the formatter rewrote every CRLF
+    // document to LF on the first Format Document — a silent whole-file
+    // change no one asked for.
+    assert_eq!(
+        fmt("proc f {} {\nset x 1\n}\n"),
+        "proc f {} {\n    set x 1\n}\n"
+    );
+    assert_eq!(
+        fmt("proc f {} {\r\nset x 1\r\n}\r\n"),
+        "proc f {} {\r\n    set x 1\r\n}\r\n",
+    );
+    assert_eq!(
+        fmt("proc f {} {\rset x 1\r}\r"),
+        "proc f {} {\r    set x 1\r}\r",
+    );
+    // A single line with no terminator has no evidence either way → LF.
+    assert_eq!(fmt("set  x 1"), "set x 1\n");
+}
+
+#[test]
+fn fmt_explicit_line_ending_still_overrides_auto() {
+    let cfg = FormatterConfig {
+        line_ending: "\n".to_owned(),
+        ..FormatterConfig::default()
+    };
+    assert_eq!(
+        fmt_with("set  x 1\r\nset  y 2\r\n", &cfg),
+        "set x 1\nset y 2\n"
+    );
+}
+
+#[test]
+fn formatting_edit_range_spans_a_lone_cr_document() {
+    // The client models `a\rb\r` as separate lines; the server must report the
+    // end of its whole-document replace range on the SAME model. With the
+    // `\n`-only index the end landed at 0:39 (one line, the whole file), so
+    // VS Code replaced only line 0 and left the original lines 1..5 behind —
+    // the file doubled.
+    let src = "proc  p {a  b} {\rif {$a} {\rputs $b\r}\r}\r";
+    let edits = formatting(src, reg());
+    assert_eq!(edits.len(), 1, "{edits:?}");
+    assert_eq!(edits[0].range.start_line, 0);
+    assert_eq!(edits[0].range.start_character, 0);
+    // 6 client lines (5 terminators + the empty tail), so the range ends at
+    // the start of line 5.
+    assert_eq!(edits[0].range.end_line, 5);
+    assert_eq!(edits[0].range.end_character, 0);
+    assert_eq!(
+        edits[0].new_text,
+        "proc p {a b} {\r    if {$a} {\r        puts $b\r    }\r}\r",
+    );
+}
+
+#[test]
+fn formatting_edit_range_spans_a_mixed_line_ending_document() {
+    // Mixed `\r\n` / `\n` / lone `\r`: the client counts 6 lines, the
+    // `\n`-only model counted 5, so the edit stopped one line short and the
+    // document's last `}` survived the replacement as a stray line.
+    let src = "proc  p {a  b} {\r\nif {$a} {\nputs $b\r}\n}\n";
+    let edits = formatting(src, reg());
+    assert_eq!(edits.len(), 1, "{edits:?}");
+    assert_eq!(edits[0].range.end_line, 5);
+    assert_eq!(edits[0].range.end_character, 0);
+}
+
+#[test]
+fn range_formatting_cuts_the_slice_on_the_client_line_model() {
+    // Line 2 of an old-Mac document is `puts $b`; on the `\n`-only model the
+    // whole file was line 0 and any range request re-formatted everything.
+    let src = "proc p {a b} {\rif {$a} {\rputs   $b\r}\r}\r";
+    let edits = range_formatting(
+        src,
+        LspRange {
+            start_line: 2,
+            start_character: 0,
+            end_line: 2,
+            end_character: 100,
+        },
+        &FormatterConfig::default(),
+        reg(),
+    );
+    assert_eq!(edits.len(), 1, "{edits:?}");
+    assert_eq!(edits[0].range.start_line, 2);
+    assert_eq!(edits[0].range.end_line, 3);
+    assert_eq!(edits[0].range.end_character, 0);
+    // Two braces deep, and re-emitted with the document's own `\r`.
+    assert_eq!(edits[0].new_text, "        puts $b\r");
+}
+
+#[test]
+fn range_formatting_reports_no_edit_for_an_already_formatted_crlf_slice() {
+    // The no-op check compares against the RAW bytes of the same span, so an
+    // already-normalised CRLF slice does not produce an edit that merely
+    // rewrites its own terminator.
+    let edits = range_formatting(
+        "set x 1\r\nset y 2\r\n",
+        LspRange {
+            start_line: 0,
+            start_character: 0,
+            end_line: 0,
+            end_character: 7,
+        },
+        &FormatterConfig::default(),
+        reg(),
+    );
+    assert!(edits.is_empty(), "{edits:?}");
+}

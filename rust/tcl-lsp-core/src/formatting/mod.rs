@@ -49,7 +49,10 @@ pub mod config;
 pub mod docstring;
 pub mod engine;
 
-pub use config::{DocstringStyle, DocstringTagStyle, FormatterConfig, IndentStyle};
+pub use config::{
+    DocstringStyle, DocstringTagStyle, FormatterConfig, IndentStyle, LINE_ENDING_AUTO,
+    detect_line_ending,
+};
 pub use docstring::{
     DocstringInfo, ParamDoc, generate_stub_for_proc, parse_docstring, render_comment_block,
     resolve_tag_style,
@@ -90,7 +93,13 @@ pub fn formatting_with(
     if formatted == source {
         return Vec::new();
     }
-    let line_index = LineIndex::new(source);
+    // The replace range is expressed in the **client's** coordinates, so it
+    // must be built on the client's EOL model (`\n`, `\r\n`, *and* a lone
+    // `\r`), not the lexer/CST `\n`-only one.  With `LineIndex::new` an
+    // old-Mac document reported an end position on line 0 and the client
+    // spliced the formatted text over only the first line, duplicating the
+    // rest of the file (and a mixed document lost its tail the same way).
+    let line_index = LineIndex::new_lsp(source);
     let end_pos = line_index.position_at_utf16(u32::try_from(source.len()).unwrap_or(0), source);
     vec![TextEdit {
         range: LspRange {
@@ -125,7 +134,14 @@ pub fn range_formatting(
     config: &FormatterConfig,
     registry: &CommandRegistry,
 ) -> Vec<TextEdit> {
-    let lines: Vec<&str> = source.split('\n').collect();
+    // `range` is in the client's coordinates, so the slice must be cut on the
+    // client's EOL model.  Normalising every lone `\r` to `\n` makes a plain
+    // `split('\n')` agree with it line-for-line (a CRLF still breaks at its
+    // `\n`, leaving the `\r` at the end of the line the engine trims), and the
+    // rewrite is byte-length preserving so offsets into `normalised` index the
+    // raw `source` unchanged.
+    let normalised = tcl_lexer::normalise_lone_cr(source);
+    let lines: Vec<&str> = normalised.split('\n').collect();
     if lines.is_empty() {
         return Vec::new();
     }
@@ -155,18 +171,27 @@ pub fn range_formatting(
     let slice_lines: Vec<&str> = lines[start_line as usize..slice_end].to_vec();
     let slice_text = slice_lines.join("\n");
     let depth = usize::try_from(prefix_depth).unwrap_or(0);
+    // The document's own line ending (or the configured one) — resolved
+    // against the whole document, not the slice, so a one-line selection in a
+    // CRLF file is not re-emitted with `\n`.
+    let line_ending = config.resolved_line_ending(source);
     let formatted_slice = finalise_slice(
         &engine::format_body(&slice_text, config, registry, depth),
         config,
+        line_ending,
     );
     // Skip no-op edits: compare the formatted slice against the slice
     // text *as it currently is in the document* (raw, untrimmed) plus
     // the trailing newline the replacement range carries.  Finalising
     // the original here would hide trailing-whitespace-only changes.
-    let original_with_nl = if slice_text.ends_with('\n') {
-        slice_text.clone()
+    // The comparison uses the *raw* bytes of the same span so an already
+    // formatted CRLF / old-Mac slice compares equal instead of producing a
+    // spurious edit that rewrites its own terminators.
+    let raw_slice = raw_span(source, &normalised, start_line, end_line, line_count);
+    let original_with_nl = if raw_slice.ends_with('\n') || raw_slice.ends_with('\r') {
+        raw_slice.to_owned()
     } else {
-        format!("{slice_text}\n")
+        format!("{raw_slice}{line_ending}")
     };
     if formatted_slice == original_with_nl {
         return Vec::new();
@@ -189,8 +214,9 @@ pub fn range_formatting(
         // to EOF.  Derive the end column via `LineIndex` (the same
         // position encoding the full-document path uses) so the
         // range is correct for non-ASCII text rather than counting
-        // raw `char`s.
-        let line_index = LineIndex::new(source);
+        // raw `char`s — on the client's EOL model, as the range is
+        // sent back to the client.
+        let line_index = LineIndex::new_lsp(source);
         let end_pos =
             line_index.position_at_utf16(u32::try_from(source.len()).unwrap_or(u32::MAX), source);
         LspRange {
@@ -206,13 +232,36 @@ pub fn range_formatting(
     }]
 }
 
+/// The raw bytes of the document span the formatted slice replaces.
+///
+/// `normalised` is `source` with every lone `\r` rewritten to `\n`, so it has
+/// the same length and the same byte offsets — the span is located on the
+/// normalised text (whose `\n`s match the client's line model) and then cut
+/// out of `source`.
+fn raw_span<'a>(
+    source: &'a str,
+    normalised: &str,
+    start_line: u32,
+    end_line: u32,
+    line_count: u32,
+) -> &'a str {
+    let index = LineIndex::new(normalised);
+    let start = index.line_start(start_line) as usize;
+    let end = if end_line + 1 < line_count {
+        index.line_start(end_line + 1) as usize
+    } else {
+        source.len()
+    };
+    source.get(start..end).unwrap_or(source)
+}
+
 /// Apply the engine's tail post-processing to a formatted slice:
 /// trailing-whitespace trimming, a single trailing newline (the
 /// range edit replaces through the start of the following line), and
-/// the configured line ending.  Mirrors the tail of
+/// the resolved `line_ending`.  Mirrors the tail of
 /// [`engine::format_tcl`] minus the document-level final-newline
 /// policy.
-fn finalise_slice(text: &str, config: &FormatterConfig) -> String {
+fn finalise_slice(text: &str, config: &FormatterConfig, line_ending: &str) -> String {
     let mut out = if config.trim_trailing_whitespace {
         // Brace/quote-aware trim so a multi-line string literal's interior is
         // preserved (RUST_ISSUE_037).
@@ -223,8 +272,8 @@ fn finalise_slice(text: &str, config: &FormatterConfig) -> String {
     if !out.ends_with('\n') {
         out.push('\n');
     }
-    if config.line_ending != "\n" {
-        out = out.replace('\n', &config.line_ending);
+    if line_ending != "\n" {
+        out = out.replace('\n', line_ending);
     }
     out
 }

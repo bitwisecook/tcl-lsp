@@ -3716,12 +3716,19 @@
           "tclLsp.formatting.lineEnding": {
             "scope": "language-overridable",
             "type": "string",
-            "default": "lf",
-            "markdownDescription": "Line ending style for formatted output.",
+            "default": "auto",
+            "markdownDescription": "Line ending style for formatted output, and for newlines inserted by code actions.",
             "enum": [
+              "auto",
               "lf",
               "crlf",
               "cr"
+            ],
+            "enumDescriptions": [
+              "Keep the line ending the file already uses.",
+              "Line feed (\\n).",
+              "Carriage return + line feed (\\r\\n).",
+              "Carriage return (\\r)."
             ],
             "order": 3
           },

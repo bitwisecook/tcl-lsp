@@ -136,7 +136,25 @@ use tower_lsp_server::{Client, LanguageServer};
 /// Document store value: source text + dialect string.
 #[derive(Debug, Clone)]
 struct DocumentState {
+    /// The document's text **as analysis sees it**.
+    ///
+    /// Inside [`Backend::documents`] this is byte-for-byte what the client
+    /// sent (the shadow buffer every incremental `didChange` splices into).
+    /// [`Backend::read_document`] hands out a copy whose lone `\r`s have been
+    /// rewritten to `\n` ([`tcl_lexer::normalise_lone_cr`]) and stashes the
+    /// client's bytes in `raw_text`, so every provider that re-lexes this
+    /// field sees the same script `tclsh` would (a channel opened with
+    /// `-translation auto` turns each `\r` into a command terminator before
+    /// the parser runs) and lands on the same lines as the client. The
+    /// rewrite is byte-length preserving, so spans and offsets are
+    /// interchangeable between the two.
     text: String,
+    /// The client's exact bytes, when they differ from `text` — i.e. only for
+    /// an old-Mac / mixed document handed out by [`Backend::read_document`].
+    /// Read it via [`DocumentState::raw`] for anything that must see the real
+    /// terminators: the W118 line-ending lint and the formatter (whose output
+    /// EOL and whose replace range are both computed from the real document).
+    raw_text: Option<String>,
     /// Persisted line-start index for `text`, built with the **LSP** EOL model
     /// ([`tcl_lexer::LineIndex::new_lsp`]) so the server's `(line, character)`
     /// coordinates match the client's (`\n`, `\r\n`, and lone `\r` all break a
@@ -172,6 +190,7 @@ impl DocumentState {
         let has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&text);
         Self {
             text,
+            raw_text: None,
             line_index,
             has_bare_cr,
             dialect,
@@ -186,6 +205,7 @@ impl DocumentState {
         let has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&text);
         Self {
             text,
+            raw_text: None,
             line_index,
             has_bare_cr,
             dialect,
@@ -199,6 +219,25 @@ impl DocumentState {
     /// form, so the existing constructors stay two-argument).
     fn with_language_id(mut self, language_id: String) -> Self {
         self.language_id = language_id;
+        self
+    }
+
+    /// The client's exact bytes — `text` unless this snapshot has been
+    /// normalised for analysis, in which case the originals are in `raw_text`.
+    fn raw(&self) -> &str {
+        self.raw_text.as_deref().unwrap_or(&self.text)
+    }
+
+    /// Rewrite `text` into its analysis form, keeping the client's bytes in
+    /// `raw_text`.  A no-op for the overwhelmingly common LF / CRLF document
+    /// (`has_bare_cr` is already known, so this costs one branch); only an
+    /// old-Mac / mixed buffer allocates.
+    fn normalised_for_analysis(mut self) -> Self {
+        if !self.has_bare_cr {
+            return self;
+        }
+        let normalised = tcl_lexer::normalise_lone_cr(&self.text).into_owned();
+        self.raw_text = Some(std::mem::replace(&mut self.text, normalised));
         self
     }
 
@@ -2136,6 +2175,15 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         file,
         config,
     } = job;
+    // `text` is the client's exact buffer; `analysis_text` is what the parser
+    // must see — a lone `\r` is a command terminator to `tclsh` (its script
+    // channel's `-translation auto` rewrites it before the parser runs), not
+    // the horizontal whitespace our lexer would make of it.  The two are the
+    // same string for every LF / CRLF document and are always the same length,
+    // so a span from one lifts unchanged against the other.  The *style* lints
+    // keep the raw buffer: W118 exists precisely to report the real
+    // terminators.
+    let analysis_text = tcl_lexer::normalise_lone_cr(&text);
 
     let delivery = DeliveryCtx {
         client: &client,
@@ -2153,7 +2201,8 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     }
 
     if let Some(settled) =
-        run_diagnostics_f5_dialect(&delivery, &disabled, &text, &dialect, &language_id).await
+        run_diagnostics_f5_dialect(&delivery, &disabled, &analysis_text, &dialect, &language_id)
+            .await
     {
         return settled;
     }
@@ -2163,7 +2212,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         uri,
         file,
         config,
-        text: &text,
+        text: &analysis_text,
         dialect: &dialect,
     };
     let lift_inputs = LiftInputs {
@@ -3635,6 +3684,12 @@ impl Backend {
     /// Lock order is always `db` → `db_files` → `db_tombstones` → `db_project`.
     async fn db_set_source(&self, uri: &Uri, text: String, dialect: String) {
         use salsa::Setter as _;
+        // Salsa's `SourceFile.text` is the analyser's input, so it stores the
+        // analysis form of the document (lone `\r` → `\n`) regardless of which
+        // path — `didOpen`/`didChange`, a folder scan, a watched-file change —
+        // produced it.  Doing it here rather than at each caller is what keeps
+        // the interactive and background-indexing paths from disagreeing.
+        let text = tcl_lexer::normalise_lone_cr(&text).into_owned();
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
         if let Some(&file) = files.get(uri) {
@@ -3734,6 +3789,9 @@ impl Backend {
         let mut tombstones = self.db_tombstones.lock().await;
         let mut membership_changed = false;
         for (uri, text, dialect) in entries {
+            // Same analysis-form invariant `db_set_source` enforces; the disk
+            // scanners already normalise, so this is a borrow in practice.
+            let text = tcl_lexer::normalise_lone_cr(text).into_owned();
             if let Some(&file) = files.get(uri) {
                 file.set_text(&mut *db).to(text.clone());
                 file.set_dialect(&mut *db).to(dialect.clone());
@@ -4290,7 +4348,12 @@ impl Backend {
         // still decide an ordinary Tcl buffer (issue #805). An empty `default`
         // is the "nothing detected" sentinel: it keeps that deferral intact.
         if language_id == "tcl" {
-            let detected = tcl_registry::dialects::detect_dialect(text, Some(uri.as_str()), "");
+            // The directive / shebang / version-guard tiers are line-oriented,
+            // so an old-Mac buffer must be normalised first or the whole file
+            // reads as line 0 and a `# tcl-lsp: dialect=…` header on line 2
+            // never registers.  A no-op for LF / CRLF text.
+            let text = tcl_lexer::normalise_lone_cr(text);
+            let detected = tcl_registry::dialects::detect_dialect(&text, Some(uri.as_str()), "");
             if !detected.is_empty() {
                 return detected.to_owned();
             }
@@ -4408,10 +4471,23 @@ impl Backend {
         self.edit_order.settled().await;
     }
 
+    /// A snapshot of `url`'s text, **normalised for analysis**: every lone
+    /// `\r` in the open buffer (or the on-disk fallback) is rewritten to `\n`
+    /// before the snapshot is handed out, with the client's own bytes kept in
+    /// [`DocumentState::raw`].
+    ///
+    /// This is the single choke point between the shadow buffer and every
+    /// feature provider, so the ~80 `LineIndex::new` sites in `tcl-lsp-core`
+    /// and the lexer's `\n`-only line model agree with the client's
+    /// `\n`/`\r\n`/lone-`\r` model without any of them changing — and so the
+    /// analysis matches what `tclsh` would parse from the same file, where the
+    /// `-translation auto` channel makes a lone `\r` a command terminator.
+    /// Only the formatter and the W118 line-ending lint read
+    /// [`DocumentState::raw`] instead.
     async fn read_document(&self, url: &Uri) -> Option<DocumentState> {
         self.edits_settled().await;
         if let Some(doc) = self.documents.lock().await.get(url).cloned() {
-            return Some(doc);
+            return Some(doc.normalised_for_analysis());
         }
         // On-disk fallback: files the folder scan indexed but the
         // editor hasn't opened aren't in the open-document map.
@@ -4429,7 +4505,7 @@ impl Backend {
             Some(d) => d,
             None => self.default_dialect.lock().await.clone(),
         };
-        Some(DocumentState::new(text, dialect))
+        Some(DocumentState::new(text, dialect).normalised_for_analysis())
     }
 
     /// Cross-file super/subtype targets for the type-hierarchy walk, resolved
@@ -4896,7 +4972,13 @@ impl Backend {
     ) -> Option<(Uri, String, String, AnalysisResult)> {
         tokio::task::spawn_blocking(move || {
             let path = uri.to_file_path()?;
-            let text = std::fs::read_to_string(&path).ok()?;
+            // Normalise on the way in, exactly as `read_document` does for the
+            // interactive path, so a disk-backed file's index entry, salsa
+            // input and diagnostics describe the same script the editor would
+            // see once the file is opened (issue: background and interactive
+            // paths must not disagree about where a lone `\r` breaks a line).
+            let text =
+                tcl_lexer::normalise_lone_cr(&std::fs::read_to_string(&path).ok()?).into_owned();
             let dialect =
                 Self::dialect_for_closed_sync(&uri, &text, &folder_dialects, &default_dialect);
             let analysis = Analyser::new().analyse(&text, &dialect);
@@ -6916,7 +6998,9 @@ impl Backend {
                     uri: current_uri.clone(),
                     text: current_source.to_owned(),
                     dialect: current_dialect.to_owned(),
-                    line_index: tcl_lexer::LineIndex::new(current_source),
+                    // The LSP EOL model, matching the `line_index` the sibling
+                    // branch takes straight off the stored `DocumentState`.
+                    line_index: tcl_lexer::LineIndex::new_lsp(current_source),
                 }
             } else {
                 let Ok(parsed) = Uri::from_str(&u) else {
@@ -8456,14 +8540,19 @@ impl Backend {
         let (disabled, na_mode) = self.analyser_config().await;
         let extra: HashSet<String> = self.extra_commands.lock().await.iter().cloned().collect();
         let dialect = doc.dialect.clone();
-        let mut source = doc.text.clone();
+        // The fixed-up buffer is handed back to the client verbatim, so it
+        // carries the document's real terminators; the analyser that locates
+        // the fixes still sees the normalised form.  The rewrite is
+        // byte-length preserving, so a fix span resolved against one applies
+        // unchanged to the other.
+        let mut source = doc.raw().to_owned();
         let value = tokio::task::spawn_blocking(move || {
             const SAFE: &[&str] = &["W100", "W105", "W108", "W110", "W201", "W304", "IRULE2001"];
             let mut applied: Vec<serde_json::Value> = Vec::new();
             for _ in 0..4 {
                 let mut analyser =
                     Self::configured_analyser(disabled.clone(), na_mode, extra.clone());
-                let analysis = analyser.analyse(&source, &dialect);
+                let analysis = analyser.analyse(&tcl_lexer::normalise_lone_cr(&source), &dialect);
                 // First fix per safe diagnostic, sorted by start offset.
                 let mut fixes: Vec<(u32, u32, String, String, String)> = Vec::new();
                 for d in &analysis.diagnostics {
@@ -9446,6 +9535,28 @@ impl Backend {
         }
     }
 
+    /// The line ending any server-composed edit for `uri` should insert: the
+    /// resolved `tclLsp.formatting.lineEnding`, whose `auto` default means
+    /// "whatever `source` already uses" ([`core_formatting::detect_line_ending`]).
+    ///
+    /// Pass the document's **raw** text ([`DocumentState::raw`]) — the sniff
+    /// has to see the real terminators, not their analysis form.
+    async fn resolved_edit_line_ending(&self, uri: &Uri, source: &str) -> String {
+        let configured = self
+            .resolved_formatting(uri)
+            .await
+            .get("lineEnding")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_ascii_lowercase);
+        match configured.as_deref() {
+            Some("crlf") => "\r\n".to_owned(),
+            Some("cr") => "\r".to_owned(),
+            Some("lf") => "\n".to_owned(),
+            // `auto` (the default) and anything unrecognised: follow the file.
+            _ => core_formatting::detect_line_ending(source).to_owned(),
+        }
+    }
+
     /// The resolved W111 source-style line length (`tclLsp.style.lineLength`)
     /// for `uri`: a folder override wins, else the process-global value.
     /// Distinct from [`Self::resolved_line_length`] (the formatter width).
@@ -9677,13 +9788,19 @@ impl Backend {
         }
         let (disabled, _non_ascii_mode, optimiser_enabled, opt_disabled) =
             self.resolved_analysis_settings(uri).await;
+        // `text` is the client's exact buffer and `analysis_text` its analysis
+        // form (lone `\r` → `\n`), exactly as `run_diagnostics_core` splits
+        // them on the push path: the parser sees the script `tclsh` would, the
+        // W118 line-ending lint sees the real terminators, and the two agree
+        // on every offset because the rewrite preserves byte length.
+        let analysis_text = tcl_lexer::normalise_lone_cr(&text).into_owned();
         // F5 dialect dispatch: BIG-IP config / iApp APL
         // presentation documents have model-level validators, not the Tcl
         // analyser — mirror the push path's dispatch so a pull-mode editor
         // receives the same BIGIP/IAPP diagnostics.
         if let Some(diags) = f5_dialect_diagnostics(
             uri,
-            &text,
+            &analysis_text,
             &dialect,
             language_id,
             &disabled,
@@ -9693,7 +9810,9 @@ impl Backend {
         {
             return diags;
         }
-        let analysis = self.analysis_for(uri, text.clone(), dialect.clone()).await;
+        let analysis = self
+            .analysis_for(uri, analysis_text.clone(), dialect.clone())
+            .await;
         let registry = self.registry_for_dialect(&dialect).await;
 
         // Cross-file: the project's proc arities, so the
@@ -9706,7 +9825,7 @@ impl Backend {
         let cross_file_on = self.cross_file_resolution_enabled(uri).await;
         let project_arities = self.project_arities_if(cross_file_on).await;
         let compiler_diags = self
-            .compiler_diagnostics_for(uri, &text, &dialect, registry)
+            .compiler_diagnostics_for(uri, &analysis_text, &dialect, registry)
             .await;
 
         // XC100-301 translatability lints — independent toggle, f5-irules only.
@@ -9726,57 +9845,23 @@ impl Backend {
             ),
             None => analysis.diagnostics.clone(),
         };
-        // #723: refine the single-file W120 against the workspace package
-        // database, mirroring the push path's `refine_and_lift_diagnostics`, so a
-        // workspace whose `pkgIndex.tcl`/`libraryPaths` prove a required package
-        // transitively provides the flagged package suppresses the false W120.
-        // #804: also inherit the requires of the project's entry files / the
-        // `source` ancestors of this document. Only computed when there is a
-        // W120 to refine, matching the push path — otherwise the workspace-index
-        // lock and `source`-graph walk are avoidable work.
-        let inherited_requires = if analyser_diags
-            .iter()
-            .any(|d| d.code == DiagCode::W120 || d.code == DiagCode::W123)
-        {
-            self.inherited_package_requires(uri).await
-        } else {
-            Vec::new()
-        };
-        let analyser_diags = refine_workspace_w120(
-            analyser_diags,
-            analysis.as_ref(),
-            &inherited_requires,
-            &self.package_resolver,
-            registry,
-        )
-        .await;
-        // #832: drop any W123 the package database can resolve (auto-loaded
-        // library command, or an available package's defined command), mirroring
-        // the push path so pull and push stay behaviour-identical.
-        let analyser_diags = refine_workspace_w123(
-            analyser_diags,
-            analysis.as_ref(),
-            &inherited_requires,
-            &self.package_resolver,
-            &dialect,
-        )
-        .await;
-        // idx 80: and any W123 the workspace index resolves, when
-        // `crossFileResolution` is on — again mirroring the push path.
-        let workspace_known_names = if cross_file_on {
-            Some(self.workspace_index.read().await.command_names())
-        } else {
-            None
-        };
-        let analyser_diags =
-            refine_workspace_index_w123(analyser_diags, workspace_known_names.as_deref());
+        let analyser_diags = self
+            .refine_pull_analyser_diagnostics(
+                uri,
+                analyser_diags,
+                &analysis,
+                &dialect,
+                registry,
+                cross_file_on,
+            )
+            .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
         let severity_overrides = self.resolved_severity_overrides(uri).await;
         tokio::task::spawn_blocking(move || {
-            let mut diagnostics = lift_analyser_diagnostics(&text, &analyser_diags);
+            let mut diagnostics = lift_analyser_diagnostics(&analysis_text, &analyser_diags);
             append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
             diagnostics.extend(lift_compiler_diagnostics(
-                &text,
+                &analysis_text,
                 &compiler_diags,
                 optimiser_enabled,
                 &opt_disabled,
@@ -9794,7 +9879,7 @@ impl Backend {
             // the push path).
             if xc_for_irules {
                 diagnostics.extend(lift_xc_diagnostics(
-                    &text,
+                    &analysis_text,
                     &disabled,
                     &analysis.suppressed_lines,
                 ));
@@ -9804,6 +9889,62 @@ impl Backend {
         })
         .await
         .unwrap_or_default()
+    }
+
+    /// Apply the workspace refinements the push path's
+    /// `refine_and_lift_diagnostics` applies, so a pulled report matches a
+    /// pushed one diagnostic for diagnostic:
+    ///
+    /// * **#723 / #804 W120** — a package the workspace's
+    ///   `pkgIndex.tcl` / `libraryPaths` prove is transitively provided, or
+    ///   that an entry file / `source` ancestor already required.
+    /// * **#832 W123** — a command the package database resolves (auto-loaded
+    ///   library command, or an available package's defined command).
+    /// * **idx 80 W123** — a command the workspace index resolves, when
+    ///   `crossFileResolution` is on.
+    ///
+    /// The inherited-requires walk and the workspace-index read are both
+    /// gated on there being something to refine, so a clean document pays
+    /// neither the lock nor the `source`-graph walk.
+    async fn refine_pull_analyser_diagnostics(
+        &self,
+        uri: &Uri,
+        analyser_diags: Vec<tcl_compiler::analyser::Diagnostic>,
+        analysis: &AnalysisResult,
+        dialect: &str,
+        registry: &CommandRegistry,
+        cross_file_on: bool,
+    ) -> Vec<tcl_compiler::analyser::Diagnostic> {
+        let inherited_requires = if analyser_diags
+            .iter()
+            .any(|d| d.code == DiagCode::W120 || d.code == DiagCode::W123)
+        {
+            self.inherited_package_requires(uri).await
+        } else {
+            Vec::new()
+        };
+        let analyser_diags = refine_workspace_w120(
+            analyser_diags,
+            analysis,
+            &inherited_requires,
+            &self.package_resolver,
+            registry,
+        )
+        .await;
+        let analyser_diags = refine_workspace_w123(
+            analyser_diags,
+            analysis,
+            &inherited_requires,
+            &self.package_resolver,
+            dialect,
+        )
+        .await;
+        let workspace_known_names = if cross_file_on {
+            Some(self.workspace_index.read().await.command_names())
+        } else {
+            None
+        };
+        refine_workspace_index_w123(analyser_diags, workspace_known_names.as_deref())
     }
 
     /// Compute and publish diagnostics synchronously (awaited).  Used by the
@@ -10335,7 +10476,9 @@ impl Backend {
                     if open.contains(&uri) {
                         return None;
                     }
-                    let text = std::fs::read_to_string(&path).ok()?;
+                    // Analysis form, matching `read_document` / `scan_disk_file`.
+                    let text = tcl_lexer::normalise_lone_cr(&std::fs::read_to_string(&path).ok()?)
+                        .into_owned();
                     let dialect = folder_dialect_for(&uri, &folder_dialects)
                         .unwrap_or_else(|| default_dialect.clone());
                     let mut analyser = Analyser::new();
@@ -11493,7 +11636,7 @@ impl LanguageServer for Backend {
         // Run on a worker so a formatter panic is contained as a JSON-RPC
         // error rather than unwinding the event loop, matching every sibling
         // handler.
-        let text = doc.text.clone();
+        let text = doc.raw().to_owned();
         let edits = tokio::task::spawn_blocking(move || {
             core_formatting::formatting_with(&text, &config, registry)
         })
@@ -12393,8 +12536,10 @@ impl LanguageServer for Backend {
         // warnings.
         let items = self
             .full_diagnostics_for(
+                // The raw buffer: `full_diagnostics_for` derives the analysis
+                // form itself, and W118 must see the real terminators.
                 &uri,
-                doc.text.clone(),
+                doc.raw().to_owned(),
                 doc.dialect.clone(),
                 &doc.language_id,
             )
@@ -13189,6 +13334,11 @@ impl LanguageServer for Backend {
         // the project's evidence a quick-fix could offer to delete a branch
         // the project proves reachable (issue #977).
         let evidence = self.cross_file_evidence_for(&uri).await;
+        // The action builders compose their inserted text with plain `\n`;
+        // this is the line ending it is retargeted onto below, so a docstring
+        // / `package require` / `# noqa` / extracted `set` inserted into a
+        // CRLF or old-Mac document keeps that document's terminators.
+        let line_ending = self.resolved_edit_line_ending(&uri, doc.raw()).await;
         let actions = tokio::task::spawn_blocking(move || {
             let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
             actions.extend(core_code_actions::package_require_actions(
@@ -13243,6 +13393,8 @@ impl LanguageServer for Backend {
         if actions.is_empty() {
             return Ok(None);
         }
+        let mut actions = actions;
+        core_code_actions::retarget_newlines(&mut actions, &line_ending);
         let lifted = lift_code_actions(actions, &uri, params.context.only.as_ref());
         if lifted.is_empty() {
             return Ok(None);
@@ -13297,8 +13449,11 @@ impl LanguageServer for Backend {
         let formatting = self.resolved_formatting(&params.text_document.uri).await;
         let config = formatter_config_from(&formatting, &params.options, &doc.dialect);
         // Pure-CPU formatting on a worker so a parser panic is contained as
-        // a JSON-RPC error.
-        let text = doc.text.clone();
+        // a JSON-RPC error.  The formatter is one of the two consumers that
+        // must see the document's *real* terminators (`lineEnding: auto`
+        // sniffs them, and the whole-document replace range is measured
+        // against them) — see `DocumentState::raw`.
+        let text = doc.raw().to_owned();
         let edits = tokio::task::spawn_blocking(move || {
             core_formatting::formatting_with(&text, &config, registry)
         })
@@ -13340,7 +13495,7 @@ impl LanguageServer for Backend {
         let config = formatter_config_from(&formatting, &params.options, &doc.dialect);
         // Pure-CPU formatting on a worker so a parser panic is contained as
         // a JSON-RPC error.
-        let text = doc.text.clone();
+        let text = doc.raw().to_owned();
         let edits = tokio::task::spawn_blocking(move || {
             core_formatting::range_formatting(&text, range, &config, registry)
         })
@@ -14292,6 +14447,9 @@ fn apply_formatting_object(
             "crlf" => "\r\n".to_owned(),
             "cr" => "\r".to_owned(),
             "lf" => "\n".to_owned(),
+            // `auto` (the default) is resolved against the document being
+            // formatted by `FormatterConfig::resolved_line_ending`; any other
+            // value is passed through as a literal terminator.
             other => other.to_owned(),
         };
     }
@@ -20225,6 +20383,136 @@ mod tests {
             )),
             "expected W211 in cached diagnostics, got {:?}",
             entry.diagnostics,
+        );
+    }
+
+    /// A lone `\r` is a command terminator in a file on disk — `tclsh` opens
+    /// scripts with `-translation auto`, which rewrites every `\r` to `\n`
+    /// before the parser runs.  Treating it as horizontal whitespace made
+    /// `set zz 1` part of the preceding comment, so `puts $zz` drew a bogus
+    /// W210 "read before it is set".
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn diagnostics_treat_a_lone_cr_as_a_command_terminator() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///oldmac.tcl").unwrap();
+        let src = "# note \rset zz 1\nputs $zz\n";
+        register(&backend, &uri, src).await;
+        backend
+            .db_set_source(&uri, src.to_owned(), "tcl8.6".to_owned())
+            .await;
+        backend
+            .publish_analyser_diagnostics(
+                uri.clone(),
+                src.to_owned(),
+                "tcl8.6".to_owned(),
+                0,
+                Some(1),
+            )
+            .await;
+        let cache = backend.pull_diag_cache.lock().await;
+        let entry = cache.get(&uri).expect("pull cache entry");
+        let codes: Vec<&str> = entry
+            .diagnostics
+            .iter()
+            .filter_map(|d| match &d.code {
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) => Some(c.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            !codes.contains(&"W210"),
+            "`set zz 1` is a command, so `zz` is set before it is read: {codes:?}",
+        );
+        // W118 still sees the document's real terminators.
+        assert!(codes.contains(&"W118"), "{codes:?}");
+    }
+
+    /// The style lints are line-oriented, so on an old-Mac document their line
+    /// numbers must follow the client's (and the analyser's) line model, not a
+    /// `\n`-only split that would collapse the file to one line.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn style_diagnostics_line_numbers_follow_the_client_model_on_a_cr_document() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///oldmac-style.tcl").unwrap();
+        let src = "set a 1\rset b 2   \rputs \"$a$b\"\r";
+        register(&backend, &uri, src).await;
+        backend
+            .publish_analyser_diagnostics(
+                uri.clone(),
+                src.to_owned(),
+                "tcl8.6".to_owned(),
+                0,
+                Some(1),
+            )
+            .await;
+        let cache = backend.pull_diag_cache.lock().await;
+        let entry = cache.get(&uri).expect("pull cache entry");
+        let w112 = entry
+            .diagnostics
+            .iter()
+            .find(|d| {
+                matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W112")
+            })
+            .expect("trailing whitespace on the second line");
+        assert_eq!(w112.range.start.line, 1, "{:?}", w112.range);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn read_document_hands_out_analysis_text_and_keeps_the_raw_bytes() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///oldmac-read.tcl").unwrap();
+        let src = "set a 1\rset b 2\r\nset c 3\n";
+        register(&backend, &uri, src).await;
+        let doc = backend.read_document(&uri).await.expect("open document");
+        // The provider-facing text has the lone `\r` rewritten…
+        assert_eq!(doc.text, "set a 1\nset b 2\r\nset c 3\n");
+        // …the formatter / W118 view keeps the client's exact bytes…
+        assert_eq!(doc.raw(), src);
+        // …the rewrite never changes the byte length, so spans are shared…
+        assert_eq!(doc.text.len(), doc.raw().len());
+        // …and the stored shadow buffer is untouched.
+        assert_eq!(
+            backend.documents.lock().await.get(&uri).expect("doc").text,
+            src,
+        );
+        // An LF document is handed out unchanged (and does not allocate).
+        let plain = Uri::from_str("file:///plain.tcl").unwrap();
+        register(&backend, &plain, "set a 1\n").await;
+        let doc = backend.read_document(&plain).await.expect("open document");
+        assert_eq!(doc.text, "set a 1\n");
+        assert!(doc.raw_text.is_none());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn resolved_edit_line_ending_defaults_to_the_documents_own() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///eol.tcl").unwrap();
+        // No `lineEnding` configured → `auto` → follow the file.
+        assert_eq!(
+            backend.resolved_edit_line_ending(&uri, "a\r\nb\r\n").await,
+            "\r\n"
+        );
+        assert_eq!(
+            backend.resolved_edit_line_ending(&uri, "a\rb\r").await,
+            "\r"
+        );
+        assert_eq!(
+            backend.resolved_edit_line_ending(&uri, "a\nb\n").await,
+            "\n"
+        );
+        assert_eq!(
+            backend.resolved_edit_line_ending(&uri, "no breaks").await,
+            "\n"
+        );
+        // An explicit setting still wins.
+        backend
+            .apply_global_config(&serde_json::json!({
+                "formatting": { "lineEnding": "lf" }
+            }))
+            .await;
+        assert_eq!(
+            backend.resolved_edit_line_ending(&uri, "a\r\nb\r\n").await,
+            "\n"
         );
     }
 

@@ -2852,7 +2852,7 @@ on the F5 iRules Style Guide):
 | `blankLinesBetweenProcs` | `1` | Blank lines separating proc definitions |
 | `blankLinesBetweenBlocks` | `1` | Blank lines between control flow blocks |
 | `maxConsecutiveBlankLines` | `2` | Maximum consecutive blank lines allowed |
-| `lineEnding` | `lf` | Line ending style (`lf`, `crlf`, `cr`) |
+| `lineEnding` | `auto` | Line ending style for formatted output and for newlines inserted by code actions (`auto` keeps the file's own; `lf`, `crlf`, `cr` force one) |
 | `ensureFinalNewline` | `true` | Ensure file ends with a newline |
 
 ### Shimmer detection settings

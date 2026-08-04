@@ -89,7 +89,7 @@ class TclLspSettingsPanel {
     private val fmtBlankProcs = JSpinner(SpinnerNumberModel(1, 0, 5, 1))
     private val fmtBlankBlocks = JSpinner(SpinnerNumberModel(1, 0, 5, 1))
     private val fmtMaxBlankLines = JSpinner(SpinnerNumberModel(2, 1, 10, 1))
-    private val fmtLineEnding = JComboBox(arrayOf("lf", "crlf", "cr"))
+    private val fmtLineEnding = JComboBox(arrayOf("auto", "lf", "crlf", "cr"))
     private val fmtFinalNewline = JBCheckBox("Ensure final newline")
     private val fmtDocstringStyle = JComboBox(arrayOf("preceding", "body", "none"))
     private val fmtDocstringTagStyle = JComboBox(arrayOf("doxygen", "plain", "none"))

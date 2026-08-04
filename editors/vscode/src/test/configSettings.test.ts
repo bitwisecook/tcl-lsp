@@ -456,8 +456,8 @@ suite("Configuration Settings", () => {
     assert.strictEqual(cfg().get<string>("formatting.braceStyle"), "k_and_r");
   });
 
-  test("formatting.lineEnding defaults to lf", () => {
-    assert.strictEqual(cfg().get<string>("formatting.lineEnding"), "lf");
+  test("formatting.lineEnding defaults to auto", () => {
+    assert.strictEqual(cfg().get<string>("formatting.lineEnding"), "auto");
   });
 
   test("formatting.docstringStyle defaults to none", () => {
