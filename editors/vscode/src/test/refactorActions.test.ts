@@ -147,4 +147,51 @@ suite("Refactor Actions (applied)", () => {
     await vscode.workspace.applyEdit(action.edit!);
     assert.strictEqual(editor.document.getText(), "expr {$a + $b}\n");
   });
+
+  // -- W302 catch-result capture (issue #1190) ------------------------------
+  //
+  // The cursor sits on the `catch` keyword — where the diagnostic anchors,
+  // and where VS Code's lightbulb is invoked. The inserted word must still
+  // land after the *body*. `catch result {error oops}` is a catch of the
+  // script `result`, which C Tcl 9 reports as `invalid command name
+  // "result"`, so asserting the applied document (not the inserted string)
+  // is what makes this test meaningful.
+
+  test("catch result quick fix appends after a single-line body", async () => {
+    const editor = await loadScratch("catch {error oops}\n");
+    const range = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+    const action = await findAction(range, "Add catch result variable");
+    assert.ok(action.edit, "catch-result action must carry an edit");
+    await vscode.workspace.applyEdit(action.edit!);
+    assert.strictEqual(editor.document.getText(), "catch {error oops} result\n");
+  });
+
+  test("catch result quick fix appends after a multi-line body", async () => {
+    const editor = await loadScratch("catch {\n    error oops\n}\n");
+    const range = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+    const action = await findAction(range, "Add catch result variable");
+    assert.ok(action.edit, "catch-result action must carry an edit");
+    await vscode.workspace.applyEdit(action.edit!);
+    assert.strictEqual(editor.document.getText(), "catch {\n    error oops\n} result\n");
+  });
+
+  test("catch result + options quick fix appends both words after the body", async () => {
+    const editor = await loadScratch("catch {error oops}\n");
+    const range = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+    const action = await findAction(range, "Add catch result + options");
+    assert.ok(action.edit, "catch-result+options action must carry an edit");
+    await vscode.workspace.applyEdit(action.edit!);
+    assert.strictEqual(editor.document.getText(), "catch {error oops} result options\n");
+  });
+
+  test("catch result quick fix does not overshoot an empty body", async () => {
+    // `catch {}`'s brace pair is a degenerate case whose token span already
+    // covers its own closer; a naive `end + 1` anchor writes past it.
+    const editor = await loadScratch("catch {}\n");
+    const range = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+    const action = await findAction(range, "Add catch result variable");
+    assert.ok(action.edit, "catch-result action must carry an edit");
+    await vscode.workspace.applyEdit(action.edit!);
+    assert.strictEqual(editor.document.getText(), "catch {} result\n");
+  });
 });
