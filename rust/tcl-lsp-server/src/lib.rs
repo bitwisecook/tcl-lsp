@@ -14504,6 +14504,14 @@ fn lift_code_actions(
             let data = a
                 .data_group_definition
                 .map(|def| serde_json::json!({ "data_group_definition": def }));
+            // A refactoring that found its subject but cannot preserve
+            // behaviour is surfaced *greyed out* with its reason, rather than
+            // silently omitted: LSP's `disabled.reason` is what the editor
+            // shows, and without it a user cannot tell "does not apply here"
+            // from "is broken" (issues #1199 / #1201).
+            let disabled = a
+                .disabled
+                .map(|reason| tower_lsp_server::ls_types::CodeActionDisabled { reason });
             CodeActionOrCommand::CodeAction(CodeAction {
                 title: a.title,
                 kind: Some(tower_lsp_server::ls_types::CodeActionKind::new(
@@ -14517,7 +14525,7 @@ fn lift_code_actions(
                 }),
                 command,
                 is_preferred: None,
-                disabled: None,
+                disabled,
                 data,
             })
         })

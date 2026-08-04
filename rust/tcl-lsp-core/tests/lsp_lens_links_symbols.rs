@@ -782,14 +782,17 @@ fn actions_extract_proc_on_selection_is_well_formed() {
         end_character: 0,
     };
     let actions = code_actions(src, sel, Some(&analysis));
+    // Select by *title*: extract-variable shares the `refactor.extract` kind,
+    // so a kind-only lookup picks whichever the provider happens to emit first.
     let extract = actions
         .iter()
-        .find(|a| a.kind == ActionKind::RefactorExtract)
+        .find(|a| a.title == "Extract selection into proc")
         .expect("an extract-proc refactor on a selection");
-    assert!(extract.title.contains("Extract"), "{:?}", extract.title);
+    assert_eq!(extract.kind, ActionKind::RefactorExtract);
+    assert!(extract.disabled.is_none(), "{extract:?}");
     assert!(edits_well_formed(extract), "malformed edits: {extract:?}");
-    // Two edits: insert the new proc at top-of-file, replace the selection
-    // with a call.
+    // Two edits: insert the new proc above the enclosing top-level command,
+    // and replace the selection with a call.
     assert_eq!(extract.edits.len(), 2, "{extract:?}");
     let proc_text = &extract.edits[0].new_text;
     assert!(
@@ -797,8 +800,12 @@ fn actions_extract_proc_on_selection_is_well_formed() {
         "first edit defines a proc: {proc_text:?}"
     );
     assert!(
-        proc_text.contains('x'),
-        "the referenced var `x` should become a parameter: {proc_text:?}",
+        proc_text.contains("{x}"),
+        "`x` is read but never written, so it is a value parameter: {proc_text:?}",
+    );
+    assert!(
+        !proc_text.contains("upvar"),
+        "nothing is written back, so no upvar plumbing is needed: {proc_text:?}",
     );
 }
 

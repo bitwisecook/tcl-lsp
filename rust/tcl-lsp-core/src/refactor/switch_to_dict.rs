@@ -103,6 +103,7 @@ pub fn switch_to_dict(
         }],
         kind: ActionKind::RefactorRewrite,
         data_group: None,
+        disabled: None,
     })
 }
 

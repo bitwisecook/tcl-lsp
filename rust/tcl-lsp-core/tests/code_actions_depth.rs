@@ -510,30 +510,37 @@ fn inline_single_command_proc_substitutes_args() {
 
 #[test]
 fn inline_declines_control_flow_body() {
-    // A proc whose body is a control-flow command (`return`) is NOT inlinable —
-    // the action declines. Negative control for the UNSAFE-keyword gate.
+    // A proc whose body is a control-flow command (`return`) is NOT inlinable:
+    // `return` acts on the call frame, so running it in the caller's frame
+    // would return from the *caller*.  The action is surfaced greyed out with
+    // that reason rather than silently omitted (issue #1199), so a user can
+    // tell "cannot be done here" from "is broken".
     let src = "proc f {} { return 1 }\nf\n";
     let analysis = analyse(src);
     let actions = code_actions(src, cursor(1, 0), Some(&analysis));
-    assert!(
-        find(&actions, "Inline proc").is_none(),
-        "control-flow body must not inline; got {:?}",
-        titles(&actions),
-    );
+    let inline = find(&actions, "Inline proc").expect("a refused inline action");
+    let reason = inline
+        .disabled
+        .as_deref()
+        .expect("a control-flow body must be refused, not applied");
+    assert!(reason.contains("call frame"), "{reason}");
+    assert!(inline.edits.is_empty(), "a refusal carries no edits");
 }
 
 #[test]
 fn inline_declines_multi_command_body() {
-    // A multi-command (multi-line) body is declined (the transform only inlines
-    // a single command).
+    // A multi-command body is refused with its reason: splicing several
+    // commands into one caller word changes how the caller parses.
     let src = "proc f {x} {\n    set y $x\n    puts $y\n}\nf 1\n";
     let analysis = analyse(src);
     let actions = code_actions(src, cursor(4, 0), Some(&analysis));
-    assert!(
-        find(&actions, "Inline proc").is_none(),
-        "multi-command body must not inline; got {:?}",
-        titles(&actions),
-    );
+    let inline = find(&actions, "Inline proc").expect("a refused inline action");
+    let reason = inline
+        .disabled
+        .as_deref()
+        .expect("a multi-command body must be refused, not applied");
+    assert!(reason.contains("commands"), "{reason}");
+    assert!(inline.edits.is_empty(), "a refusal carries no edits");
 }
 
 // FIXED: inline_proc_action no longer brace-truncates a body with a braced

@@ -137,14 +137,23 @@ pub struct CodeAction {
     /// lets tooling (MCP, AI, clipboard) consume the data-group
     /// definition without injecting comment blocks into the source.
     pub data_group_definition: Option<String>,
+    /// Why this action cannot be applied here, when it cannot.
+    ///
+    /// Lifted to LSP's `CodeAction.disabled.reason`, which the editor shows
+    /// on a greyed-out menu entry.  A refactoring that finds its subject but
+    /// cannot preserve behaviour reports *why* rather than disappearing: the
+    /// user otherwise cannot tell "does not apply here" from "is broken".
+    /// `edits` is empty whenever this is set.
+    pub disabled: Option<String>,
 }
 
 impl CodeAction {
-    /// Construct a `CodeAction` with no `data_group_definition`.
+    /// Construct an applicable `CodeAction` with no `data_group_definition`.
     ///
     /// The common path: every action except the extract-to-datagroup
-    /// refactor leaves the structured payload unset, so this keeps the
-    /// call sites free of a `data_group_definition: None` field.
+    /// refactor leaves the structured payload unset, and only a refusing
+    /// refactoring sets `disabled`, so this keeps the call sites free of
+    /// both fields.
     #[must_use]
     pub fn new(
         title: String,
@@ -158,6 +167,7 @@ impl CodeAction {
             kind,
             command,
             data_group_definition: None,
+            disabled: None,
         }
     }
 }
@@ -233,6 +243,7 @@ fn lift_fixes(
             kind: ActionKind::QuickFix,
             command: None,
             data_group_definition: None,
+            disabled: None,
         });
     }
 }
@@ -278,6 +289,7 @@ fn push_brace_expr_refactors(
             kind: ActionKind::RefactorRewrite,
             command: None,
             data_group_definition: None,
+            disabled: None,
         });
     }
 }
@@ -409,6 +421,7 @@ pub fn bigip_code_actions(source: &str, range: LspRange, uri: &str) -> Vec<CodeA
             string_args: vec![uri.to_string()],
         }),
         data_group_definition: None,
+        disabled: None,
     });
 
     // Partition rename — only on an `auth partition` stanza, and never
@@ -427,6 +440,7 @@ pub fn bigip_code_actions(source: &str, range: LspRange, uri: &str) -> Vec<CodeA
                     string_args: vec![uri.to_string(), partition_short.to_string()],
                 }),
                 data_group_definition: None,
+                disabled: None,
             });
         }
     }
@@ -551,6 +565,7 @@ fn build_shimmer_noqa_suppress_action(
         kind: ActionKind::QuickFix,
         command: None,
         data_group_definition: None,
+        disabled: None,
     })
 }
 
@@ -681,6 +696,7 @@ pub fn package_require_actions(
         kind: ActionKind::QuickFix,
         command: None,
         data_group_definition: None,
+        disabled: None,
     }]
 }
 
@@ -996,6 +1012,7 @@ fn continuation_comment_actions(
         kind: ActionKind::QuickFix,
         command: None,
         data_group_definition: None,
+        disabled: None,
     }]
 }
 
@@ -1053,6 +1070,7 @@ fn ip_conversion_actions(
         kind: ActionKind::Refactor,
         command: None,
         data_group_definition: None,
+        disabled: None,
     };
     if is_ipv4(&addr) {
         return vec![make(
@@ -1116,6 +1134,7 @@ fn expr_rewrite_actions(source: &str, range: LspRange, _line_index: &LineIndex) 
             kind: ActionKind::RefactorRewrite,
             command: None,
             data_group_definition: None,
+            disabled: None,
         });
     }
     if let Some(rewritten) = invert_comparison(&sel) {
@@ -1128,6 +1147,7 @@ fn expr_rewrite_actions(source: &str, range: LspRange, _line_index: &LineIndex) 
             kind: ActionKind::RefactorRewrite,
             command: None,
             data_group_definition: None,
+            disabled: None,
         });
     }
     out
@@ -1414,6 +1434,7 @@ fn docstring_actions(
             kind: ActionKind::Source,
             command: None,
             data_group_definition: None,
+            disabled: None,
         });
     }
     out
@@ -1434,8 +1455,6 @@ fn extract_inline_actions(
     let mut registry = tcl_registry::CommandRegistry::build_default();
     registry.load_dialect(tcl_dialect::DialectSet::IRULES);
     let mut out = Vec::new();
-    out.extend(extract_proc_action(source, range));
-    out.extend(inline_proc_action(source, range, analysis, &registry));
     out.extend(refactor_engine_actions(
         source, range, analysis, line_index, &registry,
     ));
@@ -1468,16 +1487,27 @@ fn refactor_engine_actions(
     let has_selection =
         range.start_line != range.end_line || range.start_character != range.end_character;
 
-    // Extract variable — requires a selection.
+    // Extract variable / extract proc — both require a selection.
     if has_selection {
         let end =
             line_index.offset_at_utf16(range.end_line, Utf16Col::new(range.end_character), source);
         if let Some(r) = refactor::extract_variable(source, cursor, end, "result", line_index) {
             out.push(refactoring_to_action(&r, source, line_index));
         }
+        if let Some(r) = refactor::extract_proc(source, (cursor, end), analysis, registry) {
+            // The generated proc name is a placeholder, so the applicable
+            // form carries a follow-up rename command; a refused one does
+            // not (there is nothing to rename).
+            let mut action = refactoring_to_action(&r, source, line_index);
+            action.command = refactor::extract_proc_rename_command(&r, source);
+            out.push(action);
+        }
     }
 
     if let Some(r) = refactor::inline_variable(source, cursor, analysis, registry, line_index) {
+        out.push(refactoring_to_action(&r, source, line_index));
+    }
+    if let Some(r) = refactor::inline_proc(source, cursor, analysis, registry) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
     if let Some(r) = refactor::if_to_switch(source, cursor, registry, line_index) {
@@ -1493,8 +1523,9 @@ fn refactor_engine_actions(
 }
 
 /// Lift a [`crate::refactor::Refactoring`] into a [`CodeAction`],
-/// converting its byte-offset edits to LSP coordinates and rendering the
-/// data-group definition (if any) into `data_group_definition`.
+/// converting its byte-offset edits to LSP coordinates, rendering the
+/// data-group definition (if any) into `data_group_definition`, and carrying
+/// a refusal reason through to the action's `disabled` field.
 fn refactoring_to_action(
     r: &crate::refactor::Refactoring,
     source: &str,
@@ -1510,353 +1541,8 @@ fn refactoring_to_action(
         kind: r.kind,
         command: None,
         data_group_definition: r.data_group.as_ref().map(crate::refactor::data_group_tcl),
+        disabled: r.disabled.clone(),
     }
-}
-
-/// Distinct `$var` / `${var}` names referenced in `text`, in first-seen order.
-fn referenced_vars(text: &str) -> Vec<String> {
-    let chars: Vec<char> = text.chars().collect();
-    let mut out: Vec<String> = Vec::new();
-    let mut i = 0;
-    while i < chars.len() {
-        if chars[i] == '$' {
-            let braced = chars.get(i + 1) == Some(&'{');
-            let mut j = i + 1 + usize::from(braced);
-            let start = j;
-            while j < chars.len()
-                && (chars[j].is_alphanumeric() || chars[j] == '_' || chars[j] == ':')
-            {
-                j += 1;
-            }
-            if j > start {
-                let name: String = chars[start..j].iter().collect();
-                if !out.contains(&name) {
-                    out.push(name);
-                }
-            }
-            i = j;
-        } else {
-            i += 1;
-        }
-    }
-    out
-}
-
-/// `refactor.extract` — extract the selected lines into a new proc and replace
-/// the selection with a call.
-fn extract_proc_action(source: &str, range: LspRange) -> Vec<CodeAction> {
-    // Need a non-empty selection.
-    if range.start_line == range.end_line && range.start_character >= range.end_character {
-        return Vec::new();
-    }
-    let lines: Vec<&str> = source.split('\n').collect();
-    // The selected line span — a selection ending at column 0 doesn't include
-    // its end line.
-    let last = if range.end_character == 0 {
-        range.end_line.saturating_sub(1)
-    } else {
-        range.end_line
-    };
-    let (s, e) = (range.start_line as usize, last as usize);
-    if s > e || e >= lines.len() {
-        return Vec::new();
-    }
-    let block: Vec<&str> = lines[s..=e].to_vec();
-    let body_text = block.join("\n");
-    if body_text.trim().is_empty() {
-        return Vec::new();
-    }
-    let params = referenced_vars(&body_text);
-    let name = "extracted_proc";
-    let body_indented = block
-        .iter()
-        .map(|l| format!("    {}", l.trim_end()))
-        .collect::<Vec<_>>()
-        .join("\n");
-    let proc_text = format!(
-        "proc {name} {{{}}} {{\n{body_indented}\n}}\n\n",
-        params.join(" ")
-    );
-    let call = if params.is_empty() {
-        name.to_string()
-    } else {
-        format!(
-            "{name} {}",
-            params
-                .iter()
-                .map(|p| format!("${p}"))
-                .collect::<Vec<_>>()
-                .join(" ")
-        )
-    };
-    // Replace the selected lines with the call.
-    let replace = LspRange {
-        start_line: range.start_line,
-        start_character: 0,
-        end_line: u32::try_from(e + 1).unwrap_or(range.end_line),
-        end_character: 0,
-    };
-    let name_start = u32::try_from("proc ".len()).unwrap_or(5);
-    vec![CodeAction {
-        title: "Extract selection into proc".to_string(),
-        edits: vec![
-            crate::rename::TextEdit {
-                range: LspRange {
-                    start_line: 0,
-                    start_character: 0,
-                    end_line: 0,
-                    end_character: 0,
-                },
-                new_text: proc_text,
-            },
-            crate::rename::TextEdit {
-                range: replace,
-                new_text: format!("{call}\n"),
-            },
-        ],
-        kind: ActionKind::RefactorExtract,
-        // Trigger a rename of the generated proc name (line 0).
-        command: Some(ActionCommand {
-            command: "tclLsp.renameSymbolAtPosition".to_string(),
-            args: vec![
-                0,
-                name_start,
-                name_start + u32::try_from(name.len()).unwrap_or(0),
-            ],
-            string_args: Vec::new(),
-        }),
-        data_group_definition: None,
-    }]
-}
-
-/// Split one Tcl command line into its words' raw source slices, respecting
-/// `{…}` / `"…"` grouping, `[…]` command-substitution nesting, and backslash
-/// escapes.  Unlike `str::split_whitespace`, a braced argument `{a b}` stays a
-/// single word rather than shredding into `{a` and `b}` (issue 179).
-fn split_tcl_words(line: &str) -> Vec<&str> {
-    let bytes = line.as_bytes();
-    let n = bytes.len();
-    let mut words = Vec::new();
-    let mut i = 0;
-    while i < n {
-        while i < n && matches!(bytes[i], b' ' | b'\t') {
-            i += 1;
-        }
-        if i >= n {
-            break;
-        }
-        let start = i;
-        let mut brace: i32 = 0;
-        let mut bracket: i32 = 0;
-        let mut in_quote = false;
-        while i < n {
-            match bytes[i] {
-                b'\\' if i + 1 < n => {
-                    // Skip the backslash and the *whole* escaped character. A
-                    // fixed `i += 2` would land mid-codepoint when the escaped
-                    // char is multi-byte (e.g. `\€`); step its full UTF-8 width
-                    // so `i` always stays on a char boundary.
-                    i += 1 + utf8_char_width(bytes[i + 1]);
-                    continue;
-                }
-                b'{' if !in_quote => brace += 1,
-                b'}' if !in_quote && brace > 0 => brace -= 1,
-                b'"' if brace == 0 && bracket == 0 => in_quote = !in_quote,
-                b'[' if !in_quote && brace == 0 => bracket += 1,
-                b']' if !in_quote && brace == 0 && bracket > 0 => bracket -= 1,
-                b' ' | b'\t' if brace == 0 && bracket == 0 && !in_quote => break,
-                _ => {}
-            }
-            i += 1;
-        }
-        // Every advance lands on a char boundary — whitespace and the grouping
-        // delimiters are ASCII, and the `\`-skip steps whole characters — so
-        // this slice is always valid; `i.min(n)` guards only the numeric bound.
-        words.push(&line[start..i.min(n)]);
-    }
-    words
-}
-
-/// UTF-8 encoded length (1–4 bytes) of the character whose leading byte is `b`.
-/// ASCII, continuation bytes, and invalid leading bytes all count as 1 — so a
-/// scan that starts mid-sequence still makes forward progress rather than
-/// stalling.
-fn utf8_char_width(b: u8) -> usize {
-    match b {
-        0xC0..=0xDF => 2,
-        0xE0..=0xEF => 3,
-        0xF0..=0xF7 => 4,
-        _ => 1,
-    }
-}
-
-/// End index (exclusive) of a bare `$name` variable name in `chars` starting at
-/// `start`, colon-run aware like C Tcl (`$a::b`, `$a:::b`), stopping at a lone
-/// `:`.  Shared shape with `hover::scan_var_name_end`.
-fn scan_var_name_end(chars: &[char], start: usize) -> usize {
-    let mut end = start;
-    while end < chars.len() {
-        let c = chars[end];
-        if c.is_alphanumeric() || c == '_' {
-            end += 1;
-        } else if c == ':' && chars.get(end + 1) == Some(&':') {
-            end += 2;
-            while chars.get(end) == Some(&':') {
-                end += 1;
-            }
-        } else {
-            break;
-        }
-    }
-    end
-}
-
-/// Substitute `$name` / `${name}` variable *references* in `body` from the
-/// `(name, replacement)` map, matching only *complete* names.  A naive
-/// `str::replace("$n", …)` would corrupt `$nn` (prefix sharing) or a `$name`
-/// embedded in a longer token; this scans references and replaces whole ones
-/// (issue 179).
-fn substitute_var_refs(body: &str, subs: &[(&str, &str)]) -> String {
-    let lookup = |name: &str| subs.iter().find(|(n, _)| *n == name).map(|(_, r)| *r);
-    let chars: Vec<char> = body.chars().collect();
-    let mut out = String::new();
-    let mut i = 0;
-    while i < chars.len() {
-        if chars[i] == '$' {
-            if chars.get(i + 1) == Some(&'{') {
-                // `${name}` — literal name up to the first `}`.
-                if let Some(rel) = chars[i + 2..].iter().position(|&c| c == '}') {
-                    let name: String = chars[i + 2..i + 2 + rel].iter().collect();
-                    if let Some(rep) = lookup(&name) {
-                        out.push_str(rep);
-                        i = i + 2 + rel + 1;
-                        continue;
-                    }
-                }
-            } else {
-                let end = scan_var_name_end(&chars, i + 1);
-                if end > i + 1 {
-                    let name: String = chars[i + 1..end].iter().collect();
-                    if let Some(rep) = lookup(&name) {
-                        out.push_str(rep);
-                        i = end;
-                        continue;
-                    }
-                }
-            }
-        }
-        out.push(chars[i]);
-        i += 1;
-    }
-    out
-}
-
-/// `refactor.inline` — inline a single-command proc at the call cursor.
-/// Declines branchy / control-flow bodies.
-fn inline_proc_action(
-    source: &str,
-    range: LspRange,
-    analysis: &AnalysisResult,
-    registry: &tcl_registry::CommandRegistry,
-) -> Vec<CodeAction> {
-    // Frame-sensitive commands (block terminators, control transfers, scope
-    // aliases, barriers — the registry's `is_frame_sensitive` union) whose
-    // bodies can't be safely inlined: moving them out of the proc frame
-    // changes what they return from, break out of, or bind against.
-    let unsafe_heads = registry.frame_sensitive_commands();
-    let line = source
-        .split('\n')
-        .nth(range.start_line as usize)
-        .unwrap_or("");
-    // Split the call into proper Tcl words, respecting `{…}` / `"…"` / `[…]`
-    // grouping — `split_whitespace` would shred a braced argument `{a b}` into
-    // `{a` and `b}` (issue 179).
-    let toks: Vec<&str> = split_tcl_words(line);
-    let Some(&head) = toks.first() else {
-        return Vec::new();
-    };
-    // Resolve the call head the way the navigation providers do — the
-    // caller's namespace candidates, the registry builtin gate, then the
-    // deterministic simple-name fallback — never a namespace-blind
-    // `p.name == head` first-`HashMap`-hit scan (the M1 drift class the
-    // `cargo xtask resolution-drift` lint flags).
-    let line_start: usize = source
-        .split_inclusive('\n')
-        .take(range.start_line as usize)
-        .map(str::len)
-        .sum();
-    let head_off = u32::try_from(line_start + line.find(head).unwrap_or(0)).unwrap_or(u32::MAX);
-    let ns = crate::definition::namespace_context_at(
-        &analysis.global_scope,
-        head_off,
-        &analysis.namespace_overrides,
-    );
-    let Some(proc_def) = crate::definition::resolve_called_proc(
-        analysis,
-        source,
-        &ns,
-        head,
-        head_off,
-        Some(registry),
-    ) else {
-        return Vec::new();
-    };
-    // Body text (strip the outer braces). `body_span` may exclude the proc's
-    // closing `}` (lexer inner-end convention), so strip a trailing `}` only
-    // when it is the unbalanced *outer* brace — a greedy `trim_end_matches('}')`
-    // would otherwise eat an inner sub-expression brace (`expr {$n * 2}`) and
-    // produce an unparseable inline edit (`expr {5 * 2`).
-    let bspan = proc_def.body_span;
-    let raw = source
-        .get(bspan.start() as usize..bspan.end() as usize)
-        .unwrap_or("")
-        .trim();
-    let inner = raw.strip_prefix('{').map_or(raw, str::trim_start);
-    let body_raw = if inner.matches('}').count() > inner.matches('{').count() {
-        let t = inner.trim_end();
-        t.strip_suffix('}').unwrap_or(t).trim()
-    } else {
-        inner.trim()
-    };
-    // Decline control-flow / multi-command bodies.
-    if body_raw.is_empty()
-        || body_raw.contains('\n')
-        || body_raw.contains(';')
-        || unsafe_heads.iter().any(|kw| {
-            body_raw == *kw
-                || body_raw.starts_with(&format!("{kw} "))
-                || body_raw.contains(&format!("[{kw} "))
-        })
-    {
-        return Vec::new();
-    }
-    // Map call args onto params, then substitute variable *references* — not
-    // by naive string replace, which would rewrite `$nn` when the param is `n`
-    // (prefix sharing) and mangle `$name` inside a longer token (issue 179).
-    let call_args: Vec<&str> = toks[1..].to_vec();
-    let subs: Vec<(&str, &str)> = proc_def
-        .params
-        .iter()
-        .enumerate()
-        .filter_map(|(i, p)| call_args.get(i).map(|arg| (p.name.as_str(), *arg)))
-        .collect();
-    let inlined = substitute_var_refs(body_raw, &subs);
-    // Replace the whole call line.
-    vec![CodeAction {
-        title: format!("Inline proc '{}'", proc_def.name),
-        edits: vec![crate::rename::TextEdit {
-            range: LspRange {
-                start_line: range.start_line,
-                start_character: 0,
-                end_line: range.start_line,
-                end_character: char_col_to_utf16_local(line, line.chars().count()),
-            },
-            new_text: inlined,
-        }],
-        kind: ActionKind::RefactorInline,
-        command: None,
-        data_group_definition: None,
-    }]
 }
 
 // iRules `# Profiles:` header source action.
@@ -1967,6 +1653,7 @@ pub fn profiles_action(
             kind: ActionKind::Source,
             command: None,
             data_group_definition: None,
+            disabled: None,
         });
     }
     Some(CodeAction {
@@ -1986,6 +1673,7 @@ pub fn profiles_action(
         kind: ActionKind::Source,
         command: None,
         data_group_definition: None,
+        disabled: None,
     })
 }
 
@@ -2138,6 +1826,7 @@ fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAct
                 kind: ActionKind::QuickFix,
                 command: None,
                 data_group_definition: None,
+                disabled: None,
             }
         })
         .collect()
@@ -2225,6 +1914,7 @@ fn t106_remove_redundant_encoder(line: &str, d: &ContextDiagnostic, var: &str) -
         kind: ActionKind::QuickFix,
         command: None,
         data_group_definition: None,
+        disabled: None,
     }]
 }
 
@@ -2253,6 +1943,7 @@ fn strip_crlf_before_output(line: &str, d: &ContextDiagnostic, var: &str) -> Vec
         kind: ActionKind::QuickFix,
         command: None,
         data_group_definition: None,
+        disabled: None,
     }]
 }
 
@@ -2288,6 +1979,7 @@ fn subst_nocommands_fix(line: &str, line_no: u32) -> Vec<CodeAction> {
         kind: ActionKind::QuickFix,
         command: None,
         data_group_definition: None,
+        disabled: None,
     }]
 }
 
@@ -2360,6 +2052,7 @@ fn taint_quickfix(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
         kind: ActionKind::QuickFix,
         command: None,
         data_group_definition: None,
+        disabled: None,
     }]
 }
 
@@ -2368,27 +2061,6 @@ mod tests {
     use super::*;
     use tcl_compiler::analyser::{Analyser, AnalysisResult, CodeFix, Diagnostic};
     use tcl_lexer::Span;
-
-    #[test]
-    fn split_tcl_words_survives_non_ascii_backslash_escape() {
-        // A `\`-escape before a multi-byte char must not leave the scanner mid
-        // codepoint and panic the `&line[start..i]` slice (Copilot review of
-        // #839). `\€` (euro = 3 bytes) is the canonical trigger.
-        for line in [
-            "set x \\\u{20ac}",     // escape then a 3-byte char at end of line
-            "puts \\\u{20ac} tail", // escaped multi-byte followed by another word
-            "a \\\u{1f600} b",      // 4-byte astral escaped char mid-line
-            "\\\u{e9}nd",           // escaped 2-byte char fused into a word
-        ] {
-            let words = split_tcl_words(line);
-            // Round-trip: the joined words (single-space) recover every word slice
-            // without ever slicing mid-char, and no word is empty.
-            assert!(!words.is_empty(), "no words for {line:?}");
-            for w in &words {
-                assert!(line.contains(w), "word {w:?} not a slice of {line:?}");
-            }
-        }
-    }
 
     fn whole_document_range(source: &str) -> LspRange {
         let line_count = source.lines().count().max(1);
@@ -2547,24 +2219,29 @@ mod tests {
         }
     }
 
-    fn inline_edit_text(src: &str, call_line: u32) -> String {
-        let mut a = Analyser::new();
-        let analysis = a.analyse(src, "tcl8.6").clone();
+    /// The inline-proc action's replacement text, or its refusal reason.
+    fn inline_outcome(src: &str, call_line: u32) -> Result<String, String> {
+        let mut analyser = Analyser::new();
+        let analysis = analyser.analyse(src, "tcl8.6").clone();
         let actions = code_actions(src, line_range(call_line), Some(&analysis));
-        let act = actions
+        let action = actions
             .iter()
             .find(|a| a.title.starts_with("Inline proc "))
             .unwrap_or_else(|| panic!("expected an inline action in {actions:?}"));
-        act.edits[0].new_text.clone()
+        match &action.disabled {
+            Some(reason) => Err(reason.clone()),
+            None => Ok(action.edits[0].new_text.clone()),
+        }
     }
 
     #[test]
-    fn tp_inline_preserves_braced_argument_as_one_word() {
-        // `f {a b}` — the braced argument is a single value; inlining `$p`
-        // must yield `puts {a b}`, not `puts {a` from a whitespace split
-        // (issue 179).
+    fn fp_inline_refuses_a_braced_argument_that_is_not_a_plain_word() {
+        // `f {a b}` passes the *value* `a b`, not the four characters
+        // `{a b}`.  Splicing the written word makes the body print the
+        // braces, so the transform declines and says why (issue #1199).
         let src = "proc f {p} { puts $p }\nf {a b}\n";
-        assert_eq!(inline_edit_text(src, 1), "puts {a b}");
+        let reason = inline_outcome(src, 1).unwrap_err();
+        assert!(reason.contains("plain word"), "{reason}");
     }
 
     #[test]
@@ -2572,15 +2249,15 @@ mod tests {
         // Param `n`; body reads `$nn` (a different variable) and `$n`. Only the
         // complete `$n` reference is replaced — `$nn` must survive intact,
         // where a naive `replace("$n", …)` would corrupt it (issue 179).
-        let src = "proc g {n} { set x $nn$n }\ng 5\n";
-        assert_eq!(inline_edit_text(src, 1), "set x $nn5");
+        let src = "proc g {n} { puts $nn$n }\ng 5\n";
+        assert_eq!(inline_outcome(src, 1).unwrap(), "puts $nn5");
     }
 
     #[test]
     fn tp_inline_substitutes_braced_var_reference() {
         // `${p}` is a complete reference and is substituted; `${pq}` is not.
-        let src = "proc h {p} { set x ${p}${pq} }\nh 9\n";
-        assert_eq!(inline_edit_text(src, 1), "set x 9${pq}");
+        let src = "proc h {p} { puts ${p}${pq} }\nh 9\n";
+        assert_eq!(inline_outcome(src, 1).unwrap(), "puts 9${pq}");
     }
 
     // W213 unset -nocomplain action

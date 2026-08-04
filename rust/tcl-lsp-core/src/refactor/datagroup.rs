@@ -566,6 +566,7 @@ fn build_result(
         }],
         kind: ActionKind::RefactorExtract,
         data_group: Some(data_group),
+        disabled: None,
     }
 }
 

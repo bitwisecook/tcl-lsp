@@ -68,6 +68,8 @@ combine them when more than one form helps:
 - [kcs-feature-refactorings.md](kcs-feature-refactorings.md)
   - [kcs-feature-refactor-extract-variable.md](kcs-feature-refactor-extract-variable.md)
   - [kcs-feature-refactor-inline-variable.md](kcs-feature-refactor-inline-variable.md)
+  - [kcs-feature-refactor-extract-proc.md](kcs-feature-refactor-extract-proc.md)
+  - [kcs-feature-refactor-inline-proc.md](kcs-feature-refactor-inline-proc.md)
   - [kcs-feature-refactor-if-to-switch.md](kcs-feature-refactor-if-to-switch.md)
   - [kcs-feature-refactor-switch-to-dict.md](kcs-feature-refactor-switch-to-dict.md)
   - [kcs-feature-refactor-brace-expr.md](kcs-feature-refactor-brace-expr.md)

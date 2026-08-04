@@ -158,6 +158,7 @@ pub fn extract_variable(
         edits,
         kind: ActionKind::RefactorExtract,
         data_group: None,
+        disabled: None,
     })
 }
 

@@ -148,6 +148,75 @@ suite("Refactor Actions (applied)", () => {
     assert.strictEqual(editor.document.getText(), "expr {$a + $b}\n");
   });
 
+  // -- Extract into proc (issue #1201) --------------------------------------
+
+  test("extract proc carries a caller-frame write through upvar", async () => {
+    // Original output is `1` then `after=1`. Passing `x` as a value parameter
+    // moved the write into a proc local and printed `after=0`; the extraction
+    // now takes the variable by name and re-binds it with `upvar 1`.
+    const editor = await loadScratch('set x 0\nset x 1\nputs $x\nputs "after=$x"\n');
+    const range = new vscode.Range(new vscode.Position(1, 0), new vscode.Position(3, 0));
+    const action = await findAction(range, "Extract selection into proc");
+    assert.ok(action.edit, "extract-proc action must carry an edit");
+    await vscode.workspace.applyEdit(action.edit!);
+    const text = editor.document.getText();
+    assert.ok(text.includes("upvar 1 $xName x"), `expected upvar plumbing; got:\n${text}`);
+    assert.ok(text.includes("extracted_proc x\n"), `call passes the name; got:\n${text}`);
+    assert.ok(text.includes('puts "after=$x"'), `tail must survive; got:\n${text}`);
+  });
+
+  test("extract proc leaves the file prologue above the new definition", async () => {
+    const editor = await loadScratch("package require Tcl\nset x 5\nputs $x\n");
+    const range = new vscode.Range(new vscode.Position(2, 0), new vscode.Position(3, 0));
+    const action = await findAction(range, "Extract selection into proc");
+    await vscode.workspace.applyEdit(action.edit!);
+    const text = editor.document.getText();
+    assert.ok(
+      text.indexOf("package require Tcl") < text.indexOf("proc extracted_proc"),
+      `the definition must not land above the prologue; got:\n${text}`,
+    );
+  });
+
+  test("extract proc refuses a selection containing return", async () => {
+    // A refused refactoring is offered *greyed out* with its reason, so the
+    // user can tell "cannot be done here" from "is broken".
+    await loadScratch("proc f {} {\n    set x 1\n    return $x\n}\n");
+    const range = new vscode.Range(new vscode.Position(2, 0), new vscode.Position(3, 0));
+    const action = await findAction(range, "Extract selection into proc");
+    assert.ok(action.disabled, "a return in the selection must be refused");
+    assert.ok(
+      action.disabled!.reason.includes("call frame"),
+      `reason should name the call frame; got: ${action.disabled!.reason}`,
+    );
+  });
+
+  // -- Inline proc binding (issue #1199) ------------------------------------
+
+  test("inline proc binds a declared default when the call omits the argument", async () => {
+    const editor = await loadScratch("proc greet {{name world}} { puts $name }\ngreet\n");
+    const range = new vscode.Range(new vscode.Position(1, 0), new vscode.Position(1, 0));
+    const action = await findAction(range, "Inline proc");
+    assert.ok(action.edit, "inline-proc action must carry an edit");
+    await vscode.workspace.applyEdit(action.edit!);
+    assert.strictEqual(
+      editor.document.getText(),
+      "proc greet {{name world}} { puts $name }\nputs world\n",
+    );
+  });
+
+  test("inline proc refuses a braced argument whose value is not a plain word", async () => {
+    // `greet {a b}` passes the value `a b`; splicing the written `{a b}` made
+    // the body print the braces.
+    await loadScratch('proc greet {name} { puts "hello $name" }\ngreet {a b}\n');
+    const range = new vscode.Range(new vscode.Position(1, 0), new vscode.Position(1, 0));
+    const action = await findAction(range, "Inline proc");
+    assert.ok(action.disabled, "a non-plain-word value must be refused");
+    assert.ok(
+      action.disabled!.reason.includes("plain word"),
+      `reason should explain the value; got: ${action.disabled!.reason}`,
+    );
+  });
+
   // -- W302 catch-result capture (issue #1190) ------------------------------
   //
   // The cursor sits on the `catch` keyword — where the diagnostic anchors,
