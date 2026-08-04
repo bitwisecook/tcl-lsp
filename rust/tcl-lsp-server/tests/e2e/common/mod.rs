@@ -1044,6 +1044,97 @@ impl Lsp {
         }
     }
 
+    /// Block until the server's `[timing] diagnostics master-off` marker for
+    /// `uri` is logged (searching entries at index `since` onward), then
+    /// return the diagnostics from the `publishDiagnostics` immediately
+    /// preceding it in the notification stream.
+    ///
+    /// This is the deterministic-barrier analogue of the VS Code extension
+    /// suite's `waitForMasterOffDiagnostics` + `getDiagnostics(docUri)`
+    /// (`editors/vscode/src/test/helper.ts`): the master switch
+    /// (`tclLsp.features.diagnostics = false`) publishes its empty set and
+    /// *then* logs this marker (`run_diagnostics_master_off` in
+    /// `tcl-lsp-server/src/lib.rs`), so the marker is proof the publish this
+    /// test cares about has already landed.
+    ///
+    /// Do **not** use [`Self::await_diagnostics_version`] for this: it
+    /// returns as soon as *any* `publishDiagnostics` for `uri`/`version`
+    /// matches, with no way to tell a publish computed under the old
+    /// (diagnostics-on) config from one computed under the new
+    /// (diagnostics-off) config apart — both carry the same document
+    /// version, because a config change never bumps it. A `didOpen`'s own
+    /// analysis can still have a later publish for that version in flight
+    /// (e.g. a converged/cross-file correction) when the config flips off;
+    /// if that stale publish lands in the buffer before the master-off one,
+    /// `await_diagnostics_version` returns the stale non-empty result
+    /// instead of waiting for the clear (issue #1135). Keying on the
+    /// marker — and reading only the publish that precedes it — closes that
+    /// window: this scans in one pass under the same lock used by the
+    /// condvar wait, so there is no gap between "the marker was observed"
+    /// and "the matching publish was read" for a later notification to land
+    /// in.
+    pub fn await_diagnostics_master_off(
+        &self,
+        uri: &str,
+        timeout: Duration,
+        since: usize,
+    ) -> Vec<Value> {
+        let needle_uri = format!("uri={uri}");
+        let deadline = Instant::now() + scaled_timeout(timeout);
+        let mut notes = self.shared.notifications.lock().unwrap();
+        loop {
+            let mut last_diags_before_marker: Option<Vec<Value>> = None;
+            for note in notes.iter().skip(since) {
+                match note.get("method").and_then(Value::as_str) {
+                    Some("textDocument/publishDiagnostics") => {
+                        let params = note.get("params").cloned().unwrap_or(Value::Null);
+                        if params.get("uri").and_then(Value::as_str) == Some(uri) {
+                            last_diags_before_marker = Some(
+                                params
+                                    .get("diagnostics")
+                                    .and_then(Value::as_array)
+                                    .cloned()
+                                    .unwrap_or_default(),
+                            );
+                        }
+                    }
+                    Some("window/logMessage") => {
+                        let msg = note
+                            .get("params")
+                            .and_then(|p| p.get("message"))
+                            .and_then(Value::as_str)
+                            .unwrap_or("");
+                        if msg.contains("diagnostics master-off") && msg.contains(&needle_uri) {
+                            return last_diags_before_marker.unwrap_or_else(|| {
+                                drop(notes);
+                                panic!(
+                                    "diagnostics master-off marker for {uri:?} logged with no \
+                                     preceding publishDiagnostics for it — the marker/publish \
+                                     ordering contract in `run_diagnostics_master_off` broke"
+                                )
+                            });
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                drop(notes);
+                panic!(
+                    "no diagnostics master-off marker for {uri:?} within {timeout:?}{}",
+                    latency_barrier_timeout_note()
+                );
+            }
+            let (guard, _) = self
+                .shared
+                .notify_cv
+                .wait_timeout(notes, remaining)
+                .unwrap();
+            notes = guard;
+        }
+    }
+
     /// Block until a `window/logMessage` whose text contains all `needles`
     /// (searching entries at index `since` onward). Returns the message text.
     pub fn await_log(&self, needles: &[&str], timeout: Duration, since: usize) -> String {

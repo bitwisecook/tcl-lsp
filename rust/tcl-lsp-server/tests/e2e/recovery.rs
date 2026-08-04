@@ -45,7 +45,7 @@
 //! language-internal unit/differential/fuzz suites.
 
 use crate::common::helpers::*;
-use crate::common::{Lsp, unique_uri};
+use crate::common::{Lsp, scaled_timeout, unique_uri};
 
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -817,7 +817,7 @@ fn package_required_library_command_recovers_the_tail() {
     // deterministic pull path until recovery reflects it or the deadline
     // (mirrors `autoload_library_command_not_unknown_issue_832`).
     let mut diags = lsp.pull_diagnostics(&uri);
-    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(15));
     while !diags.iter().any(|d| code_str(d) == "E001") && std::time::Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(100));
         diags = lsp.pull_diagnostics(&uri);
@@ -861,7 +861,7 @@ fn undefined_name_with_package_required_falls_back_honestly() {
         "package require mypkg\nset q {\n  aaa\nmypkg_helper 1; string\n",
     );
     let mut cdiags = lsp.pull_diagnostics(&control);
-    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(15));
     while !cdiags.iter().any(|d| code_str(d) == "E001") && std::time::Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(100));
         cdiags = lsp.pull_diagnostics(&control);
