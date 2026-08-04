@@ -243,6 +243,67 @@ snapshots is live at once (each warm clones its snapshot only after acquiring a
 permit), and each read is the cancellable per-item query, so a concurrent
 `set_text` unwinds them at a per-item boundary rather than waiting them out.
 
+### 9. Shared document snapshots (#1184)
+
+Every request handler works from a snapshot: `Backend::read_document` clones
+the `DocumentState` out of the store and drops the lock, so handlers can cross
+`.await` points and hand work to `spawn_blocking` without holding the mutex or
+serialising against each other. The snapshot was a **deep copy**: `text` was a
+`String` and `line_index` owned a `Box<[u32]>`, so each of the ~55
+`read_document` call sites copied the whole document plus four bytes per line,
+and many handlers then cloned `doc.text` *again* to move it into a worker.
+
+Both large fields are now shared handles — `text: Arc<str>`, and
+`LineIndex`'s backing store is an `Arc<[u32]>` — so a snapshot is two
+reference-count bumps. With `R` concurrent requests against a `B`-byte,
+`L`-line document, snapshot memory goes from `O(R × (B + 4L))` to
+`O(B + 4L + R)`. On the two corpus documents #1181 measures:
+
+| document | bytes | lines | old: copied per snapshot | new: copied per snapshot |
+|---|---:|---:|---:|---:|
+| `tcllib/modules/practcl/practcl.tcl` | 263,816 | 8,463 | ~291 KiB | nothing |
+| `tcllib/modules/fumagic/filetypes.tcl` | 1,320,164 | 85,040 | ~1.58 MiB | nothing |
+
+("Nothing" for the two large fields — two reference-count bumps. A snapshot
+still copies the short `dialect` and `language_id` strings, which are bounded by
+the dialect vocabulary rather than by document size.)
+
+A handler that snapshotted `filetypes.tcl` and then cloned `doc.text` for a
+worker transiently copied ~2.84 MiB; it now copies nothing. The two hottest
+consumers took the handle through rather than re-materialising a `String`:
+`analysis_for` (~30 call sites — and its common path is a cache hit that never
+reads the text at all) and `DiagJob`, the per-run diagnostics snapshot.
+
+**The ownership contract.** `DocumentState` is both the mutable owner of an
+open document and the immutable snapshot handed to readers, so sharing is only
+safe under three rules, all documented on the type:
+
+1. **Build-and-swap, never mutate in place.** `apply_content_change_indexed`
+   splices into a fresh buffer and `LineIndex::apply_edit` builds a fresh
+   `Vec`; each is then installed as a *new* handle. An outstanding snapshot
+   observes the revision it was taken at for its whole lifetime, which is what
+   lets an in-flight request finish against an older revision while the editor
+   keeps typing.
+2. **`text` and `line_index` are one snapshot, not two fields.** They are
+   installed together in the single place that replaces them, so no reader can
+   pair text from revision `N` with an index from revision `N-1` and resolve a
+   position against the wrong offsets.
+3. **Sharing is never mutable.** Nothing writes through an `Arc` a reader may
+   hold; the one component that legitimately rewrites a buffer (the fix-all
+   code action) takes its own owned copy.
+
+Closed on-disk files are unchanged: `read_document`'s disk fallback mints a
+fresh snapshot per read and does **not** install it in the open-document store,
+so a cross-file read cannot retain every file it ever touched.
+
+Pinned by `concurrent_snapshots_share_one_text_and_index_allocation` (32
+overlapping readers share one allocation),
+`an_edit_never_mutates_a_snapshot_an_in_flight_request_holds` (revision
+currency, text *and* index together),
+`reading_a_closed_on_disk_file_does_not_retain_it`, and, in `tcl-lexer`,
+`clone_shares_one_backing_allocation` /
+`apply_edit_leaves_outstanding_clones_on_the_old_revision`.
+
 ## Where the remaining cost is
 
 The ~1.3 s diagnostic latency on an 8.5k-line file is dominated by the
@@ -259,5 +320,8 @@ already resolved by the async-diagnostics work above.
 |---|---|
 | Python vs Rust table | historical — the dual-backend `bench_lsp_backends.py` harness was retired with Python; the table is preserved as the migration baseline |
 | analyser walk vs tail split; lattice costs | `cargo run --release -p tcl-compiler --example incr_experiments` |
+| per-edit tail split (analyser / checks / taint solve) | `cargo run --release -p tcl-lsp-db --example tail_profile` (`FILE=` picks the document) |
+| incremental-path fallback distribution | `cargo run --release -p tcl-compiler --example per_item_fallbacks` (`ROOT=` picks the corpus) |
+| document-snapshot sharing (#1184) | `cargo test -p tcl-lsp-server --lib -- concurrent_snapshots` and `cargo test -p tcl-lexer --lib line_index` |
 | heavy-edit interactive latency | edit + trivial-request timing via `.claude/skills/lsp-client` |
 | native lsp_e2e suite | `make test-rust` (runs `rust/tcl-lsp-server/tests/*_e2e.rs` via `cargo test`) |
