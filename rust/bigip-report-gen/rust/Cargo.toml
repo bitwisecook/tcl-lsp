@@ -50,6 +50,19 @@ tcl-registry = { path = "../../tcl-registry" }
 # the `rand`/getrandom salt path (only `encrypt` needs it), keeping the wasm
 # build entropy-free — a report only ever *decrypts*.
 tcl-f5mku = { path = "../../tcl-f5mku", default-features = false }
+# Default-credential verification (Security tab): deterministic, offline
+# verification of a stored password hash against a known candidate, with no
+# platform `crypt(3)` call (so native, wasm and any future backend agree).
+# `sha-crypt` (RustCrypto) covers the glibc `$5$`/`$6$` SHA-256/512-crypt
+# schemes used by modern BIG-IP local accounts; default features are
+# `alloc` + `password-hash` (no `getrandom` — verification needs no
+# randomness, keeping the wasm build entropy-free like `tcl-f5mku` above).
+sha-crypt = "0.6"
+# `$1$` MD5-crypt (older BIG-IP / Linux accounts) is implemented locally in
+# `crypt.rs` on top of the plain MD5 digest — the algorithm has no established
+# maintained pure-Rust crate, but is small, has no randomness, and is
+# unit-tested against real `crypt(3)` output.
+md-5 = "0.10"
 regex = "1"
 ipnet = "2"
 base64 = "0.22"

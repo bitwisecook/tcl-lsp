@@ -123,6 +123,7 @@ combine them when more than one form helps:
 - [kcs-feature-bigip-registry.md](kcs-feature-bigip-registry.md)
 - [kcs-feature-bigip-report-apm-tab.md](kcs-feature-bigip-report-apm-tab.md)
 - [kcs-feature-bigip-report-profile-defaults.md](kcs-feature-bigip-report-profile-defaults.md)
+- [kcs-feature-bigip-report-security-tab.md](kcs-feature-bigip-report-security-tab.md)
 - [kcs-feature-f5-cli.md](kcs-feature-f5-cli.md)
 - [kcs-feature-f5-secret-crypto.md](kcs-feature-f5-secret-crypto.md)
 - [kcs-feature-f5-query-renderers.md](kcs-feature-f5-query-renderers.md)
