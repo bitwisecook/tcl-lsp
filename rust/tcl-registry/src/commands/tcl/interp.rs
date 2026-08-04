@@ -536,7 +536,12 @@ pub fn spec() -> CommandSpec {
             | Traits::HAS_INTERP_EVAL
             | Traits::HAS_DESTRUCTIVE_OPS
             | Traits::LANGUAGE_KEYWORD
-            | Traits::DYNAMIC_EVAL_BODY,
+            | Traits::DYNAMIC_EVAL_BODY
+            // `interp alias` / `hide` / `expose` / `invokehidden` all take
+            // command identities as data (and an alias makes an external
+            // name reach a script-defined proc), so command names are
+            // observable wherever `interp` is used.
+            | Traits::REFLECTS_COMMAND_NAMES,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         hover: Some(HoverSnippet {

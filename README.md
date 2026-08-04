@@ -1767,10 +1767,18 @@ tcl validate src/ --json
 # Format source text
 tcl format script.tcl -o formatted.tcl
 
-# Minify source (strip comments, collapse whitespace, join commands)
+# Minify source (strip comments, collapse whitespace, join commands;
+# semantics-preserving — never renames symbols or adds variables)
 tcl minify script.tcl -o minified.tcl
 
-# Aggressive minify (optimise + static substring folding via SCCP + name compaction)
+# Compact minify (also renames proc-local variables; proc names and
+# global variables are renamed only with --isolated, since they are
+# observable public identities — see docs/kcs/features/kcs-feature-minifier.md)
+tcl minify --compact script.tcl -o minified.tcl --symbol-map map.txt
+
+# Aggressive minify (optimise + static substring folding via SCCP + name
+# compaction + alias preambles; NOT frame-transparent — it introduces
+# helper variables visible to `info vars` and traces)
 tcl minify --aggressive script.tcl -o minified.tcl --symbol-map map.txt
 
 # Symbol/graph/find-legacy analysis verbs

@@ -555,6 +555,16 @@ fn emit_dead_stores_and_unused(
         if call_by_name.contains(var) || call_by_name.contains(var_base) {
             continue;
         }
+        // Skip a caller-local a callee touches through an upvar alias whose
+        // caller-side name is spelled in the CALLEE (`upvar 1 callervar m;
+        // return $m`) or written through `uplevel` — the alias hands the
+        // callee both directions, so no store to it is provably dead
+        // (issue #1193's upvar differential: deleting `set callervar 5`
+        // before a `get` that upvar-reads it broke the program).
+        if fu.cfg.alias_observed_vars.contains(var) || fu.cfg.alias_observed_vars.contains(var_base)
+        {
+            continue;
+        }
         let any_other_live = fu
             .def_use
             .chains

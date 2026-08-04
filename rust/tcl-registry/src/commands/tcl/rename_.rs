@@ -90,7 +90,10 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
             | Traits::INSTALLS_NAMED_DEFINITION
-            | Traits::FIRE_AND_FORGET_TEARDOWN,
+            | Traits::FIRE_AND_FORGET_TEARDOWN
+            // Both arguments are command identities held as data; a program
+            // that renames commands observes their spelled names.
+            | Traits::REFLECTS_COMMAND_NAMES,
         arity: Arity::exact(2),
         arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Name)],
         return_type: Some(TclType::String),

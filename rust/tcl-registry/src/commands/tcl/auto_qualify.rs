@@ -54,7 +54,8 @@ pub fn spec() -> CommandSpec {
         // `global`/`variable` statement, no filesystem access, no read of
         // `auto_index`/`auto_path` — so its result depends solely on
         // `cmd` and `namespace` and it commits no side effect.
-        traits: Traits::OVERRIDABLE_LIBRARY_PROC | Traits::PURE,
+        // Computes qualified command names from a spelled name.
+        traits: Traits::OVERRIDABLE_LIBRARY_PROC | Traits::PURE | Traits::REFLECTS_COMMAND_NAMES,
         // `proc auto_qualify {cmd namespace}` in every shipped
         // `library/init.tcl` from 8.4 through 9.1, matching `library.n`'s
         // `auto_qualify command namespace` synopsis (unchanged across the

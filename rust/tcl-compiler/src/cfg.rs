@@ -226,6 +226,17 @@ pub struct Function {
     /// everything downstream of it) run per function with only the CFG in
     /// hand.  Cleared for any CFG built without an upvar context.
     pub caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier,
+    /// Caller-frame names some callee of this function may **touch through
+    /// an `upvar` alias or an `uplevel` write** (`get` running `upvar 1
+    /// callervar m` makes `callervar` here observable in both directions).
+    /// The call-site widening records such names as *defs* only; this set
+    /// carries the "may also be read" half, so the dead-store / unused
+    /// passes (O109 / O126) must not delete a store to any name in it —
+    /// recording a read on the call statement instead would fabricate
+    /// read-before-set uses (a false W210) for the pure out-param shape.
+    /// Populated by the CFG builder's `record_alias_observed`; empty for a
+    /// CFG built without an upvar context.
+    pub alias_observed_vars: std::collections::BTreeSet<String>,
     /// Block-name interner: names indexed by [`BlockId`]`.0`, in creation order.
     block_names: Vec<String>,
     /// Reverse interner index: block name → its [`BlockId`].
@@ -244,6 +255,7 @@ impl Function {
             exception_edges: Vec::new(),
             inline_eval_spans: Vec::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
+            alias_observed_vars: std::collections::BTreeSet::new(),
             block_names: Vec::new(),
             name_to_id: FxHashMap::default(),
         };

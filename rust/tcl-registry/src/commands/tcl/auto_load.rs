@@ -53,7 +53,9 @@ pub fn spec() -> CommandSpec {
             // Sources the auto-index-named file that defines `cmdName`
             // into this interpreter, so that file's script can call back
             // into whatever this one has defined.
-            | Traits::LOADS_EXTERNAL_UNIT,
+            | Traits::LOADS_EXTERNAL_UNIT
+            // Resolves `cmdName` through the auto-index by its spelled name.
+            | Traits::REFLECTS_COMMAND_NAMES,
         // `auto_load cmd ?namespace?`: library.n (8.4 through 9.1) only
         // documents `cmd`, but every shipped `library/init.tcl` defines
         // `proc auto_load {cmd {namespace {}}} …` — confirmed against the

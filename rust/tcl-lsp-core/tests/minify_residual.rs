@@ -106,18 +106,16 @@ fn agg(src: &str, isolated: bool) -> MinifyResult {
 #[test]
 fn symbol_map_format_emits_every_populated_section() {
     // Build a map touching every section so `format` walks all its branches
-    // (procs, per-scope variables, array members, command / argument / string
-    // aliases, static folds). This is a presentation contract, not a Tcl value.
+    // (procs, per-scope variables, command / argument / string aliases,
+    // static folds — the array-member section was removed with issue #1192:
+    // array keys are Tcl data and are never compacted). This is a
+    // presentation contract, not a Tcl value.
     let mut sm = SymbolMap::default();
     sm.procs.insert("greet".to_owned(), "a".to_owned());
     sm.variables
         .entry("::greet".to_owned())
         .or_default()
         .insert("message".to_owned(), "a".to_owned());
-    sm.array_members
-        .entry("config".to_owned())
-        .or_default()
-        .insert("database".to_owned(), "a".to_owned());
     sm.command_aliases
         .insert("HTTP::uri".to_owned(), "b".to_owned());
     sm.argument_aliases
@@ -130,7 +128,6 @@ fn symbol_map_format_emits_every_populated_section() {
     assert!(text.contains("# Procs"), "{text}");
     assert!(text.contains("a <- greet"), "{text}");
     assert!(text.contains("# Variables in ::greet"), "{text}");
-    assert!(text.contains("# Array members of config"), "{text}");
     assert!(text.contains("# Command aliases"), "{text}");
     assert!(text.contains("$b <- HTTP::uri"), "{text}");
     assert!(text.contains("# Argument aliases"), "{text}");
@@ -143,20 +140,16 @@ fn symbol_map_format_emits_every_populated_section() {
 }
 
 #[test]
-fn symbol_map_parse_round_trips_vars_and_array_members() {
-    // `parse` only reconstructs the procs / variables / array_members sections
-    // (the aliases are not parsed back). Round-trip those three through
-    // `format` -> `parse`.
+fn symbol_map_parse_round_trips_vars_and_procs() {
+    // `parse` only reconstructs the procs / variables sections (the aliases
+    // are not parsed back; the array-member section no longer exists —
+    // issue #1192). Round-trip through `format` -> `parse`.
     let mut sm = SymbolMap::default();
     sm.procs.insert("greet".to_owned(), "a".to_owned());
     sm.variables
         .entry("::greet".to_owned())
         .or_default()
         .insert("message".to_owned(), "b".to_owned());
-    sm.array_members
-        .entry("config".to_owned())
-        .or_default()
-        .insert("database".to_owned(), "c".to_owned());
 
     let parsed = SymbolMap::parse(&sm.format());
     assert_eq!(parsed.procs.get("greet").map(String::as_str), Some("a"));
@@ -167,14 +160,6 @@ fn symbol_map_parse_round_trips_vars_and_array_members() {
             .and_then(|m| m.get("message"))
             .map(String::as_str),
         Some("b"),
-    );
-    assert_eq!(
-        parsed
-            .array_members
-            .get("config")
-            .and_then(|m| m.get("database"))
-            .map(String::as_str),
-        Some("c"),
     );
 }
 
@@ -192,20 +177,16 @@ fn symbol_map_parse_ignores_alias_sections_and_blank_lines() {
 }
 
 #[test]
-fn symbol_map_reverse_covers_aliases_and_array_members() {
-    // `reverse` walks procs, variables (with a `scope:short` entry), array
-    // members, and all three alias maps. Confirm each contributes a reverse
-    // entry, and that procs win the bare-name tie (inserted first).
+fn symbol_map_reverse_covers_aliases() {
+    // `reverse` walks procs, variables (with a `scope:short` entry), and all
+    // three alias maps. Confirm each contributes a reverse entry, and that
+    // procs win the bare-name tie (inserted first).
     let mut sm = SymbolMap::default();
     sm.procs.insert("greet".to_owned(), "a".to_owned());
     sm.variables
         .entry("::greet".to_owned())
         .or_default()
         .insert("message".to_owned(), "z".to_owned());
-    sm.array_members
-        .entry("config".to_owned())
-        .or_default()
-        .insert("database".to_owned(), "m".to_owned());
     sm.command_aliases
         .insert("HTTP::uri".to_owned(), "p".to_owned());
     sm.argument_aliases
@@ -220,7 +201,6 @@ fn symbol_map_reverse_covers_aliases_and_array_members() {
         rev.get("::greet:z").map(String::as_str),
         Some("::greet:message"),
     );
-    assert_eq!(rev.get("m").map(String::as_str), Some("database"));
     assert_eq!(rev.get("p").map(String::as_str), Some("HTTP::uri"));
     assert_eq!(rev.get("q").map(String::as_str), Some("-flag"));
     assert_eq!(rev.get("r").map(String::as_str), Some("lit"));
