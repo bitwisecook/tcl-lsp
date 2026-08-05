@@ -80,6 +80,7 @@ pub mod profile_defaults;
 pub mod profile_queries;
 pub mod profiles;
 pub mod registry;
+pub mod repeated;
 pub mod scoped;
 pub mod side_effects;
 pub mod snapshot;
@@ -125,6 +126,7 @@ pub mod prelude {
     };
     pub use crate::patterns::{FormatType, PatternType};
     pub use crate::presentation::ArgPresentation;
+    pub use crate::repeated::RepeatedArgLayout;
     pub use crate::scoped::{ScopedCommand, ScopedCommandEnv};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
     pub use crate::spec::{
@@ -155,7 +157,10 @@ pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
 pub use presentation::ArgPresentation;
 pub use profile_queries::{ProfileQueries, VendorSurface};
-pub use registry::{CommandRegistry, MethodDispatchKind, ResolvedCall, ResolvedTerminator};
+pub use registry::{
+    CommandRegistry, FormatStringArg, MethodDispatchKind, ResolvedCall, ResolvedTerminator,
+};
+pub use repeated::RepeatedArgLayout;
 pub use spec::{
     BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord, ObjectClassSpec,
     OoContextFact, SubCommand, SubSubCommand, VersionedArgValue,

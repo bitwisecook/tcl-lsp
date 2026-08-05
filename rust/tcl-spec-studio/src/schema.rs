@@ -299,6 +299,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Formatter layout override per 0-based argument index; body arguments are block-expanded unless declared inline.",
     ),
     f(
+        "repeated_args",
+        "Repeated argument layouts",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "&[RepeatedArgLayout::strided(ArgRole::VarWrite, 0, 2)]",
+        },
+        "Roles that recur at a fixed stride over the argument tail (`global a b c`, `variable n v n v`).",
+    ),
+    f(
         "frame_effect",
         "Frame effect",
         ADVANCED,
@@ -988,6 +997,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         ARGS,
         FieldKind::PresentationMap,
         "Formatter layout override per index, counted after the subcommand word.",
+    ),
+    f(
+        "repeated_args",
+        "Repeated argument layouts",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "&[RepeatedArgLayout::strided(ArgRole::VarWrite, 1, 2)]",
+        },
+        "Roles that recur at a fixed stride over the tail, counted after the subcommand word.",
     ),
     f(
         "command_prefixes",

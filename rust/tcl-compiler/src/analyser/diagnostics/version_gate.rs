@@ -525,51 +525,65 @@ impl Analyser {
         self.profile.effective_tcl_version(tcl_floor)
     }
 
-    /// Buffer format/scan %-string DSL uses at a dispatch site — the
-    /// registry marks the %-string argument positions with
-    /// [`ArgRole::FormatString`] / [`ArgRole::ScanFormat`], so no command
+    /// Buffer format/scan %-string DSL uses at a dispatch site — the registry
+    /// locates the format-string words *and* names the mini-language each is
+    /// written in ([`CommandRegistry::format_string_args`]), so no command
     /// name is matched here.
+    ///
+    /// The family check is load-bearing, not decoration: `clock`'s field
+    /// string, `binary`'s cursor spec, and `regsub`'s backreference template
+    /// all sit at [`ArgRole::FormatString`] / [`ArgRole::ScanFormat`]
+    /// positions too, and none of them is a printf %-string. Running the
+    /// sprintf version gate over `clock format $t -format {%b}` would report
+    /// a Tcl 8.6 requirement for a conversion that has nothing to do with
+    /// `format`'s `%b`. Only [`FormatType::Sprintf`] words are gated here;
+    /// the other families have no version-gated conversion table modelled
+    /// yet, so they are deliberately left alone rather than guessed at.
     ///
     /// [`ArgRole::FormatString`]: tcl_registry::arg_role::ArgRole
     /// [`ArgRole::ScanFormat`]: tcl_registry::arg_role::ArgRole
+    /// [`CommandRegistry::format_string_args`]: tcl_registry::CommandRegistry::format_string_args
+    /// [`FormatType::Sprintf`]: tcl_registry::patterns::FormatType
     pub(in crate::analyser) fn record_dsl_format_sites(
         &mut self,
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
     ) {
-        use tcl_registry::arg_role::ArgRole;
+        use tcl_registry::patterns::FormatType;
         let Some(registry) = self.registry else {
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        for (role, is_scan) in [(ArgRole::FormatString, false), (ArgRole::ScanFormat, true)] {
-            for idx in registry.arg_indices_for_role(cmd_name, &arg_strs, role) {
-                let (Some(fmt), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) else {
-                    continue;
-                };
-                // A dynamic token's text is not the literal %-string.
-                if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
-                    continue;
+        for found in registry.format_string_args(cmd_name, &arg_strs) {
+            if found.kind != FormatType::Sprintf {
+                continue;
+            }
+            let (Some(fmt), Some(tok)) = (args.get(found.index), arg_tokens.get(found.index))
+            else {
+                continue;
+            };
+            // A dynamic token's text is not the literal %-string.
+            if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
+                continue;
+            }
+            if found.scan {
+                for (_, feature, min) in tcl_syntax::scan::version_gated_uses(fmt) {
+                    self.dsl_gate_sites.push(DslGateSite {
+                        span: tok.span,
+                        code: DiagCode::W138,
+                        what: format!("`scan` conversion {feature} in '{cmd_name}'"),
+                        min,
+                    });
                 }
-                if is_scan {
-                    for (_, feature, min) in tcl_syntax::scan::version_gated_uses(fmt) {
-                        self.dsl_gate_sites.push(DslGateSite {
-                            span: tok.span,
-                            code: DiagCode::W138,
-                            what: format!("`scan` conversion {feature} in '{cmd_name}'"),
-                            min,
-                        });
-                    }
-                } else {
-                    for use_ in tcl_syntax::format::version_gated_uses(fmt) {
-                        self.dsl_gate_sites.push(DslGateSite {
-                            span: tok.span,
-                            code: DiagCode::W138,
-                            what: format!("`format` conversion {} in '{cmd_name}'", use_.feature),
-                            min: use_.min,
-                        });
-                    }
+            } else {
+                for use_ in tcl_syntax::format::version_gated_uses(fmt) {
+                    self.dsl_gate_sites.push(DslGateSite {
+                        span: tok.span,
+                        code: DiagCode::W138,
+                        what: format!("`format` conversion {} in '{cmd_name}'", use_.feature),
+                        min: use_.min,
+                    });
                 }
             }
         }

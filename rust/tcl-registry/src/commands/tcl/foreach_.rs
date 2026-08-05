@@ -46,6 +46,16 @@ fn foreach_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 }
 
 /// Command spec for `foreach`.
+/// `?varlist list?...` repeats before the trailing body: the variable specs
+/// sit at every other argument from 0, and the body — the last word — is
+/// excluded.  The role resolver marks that body; this declares the repeating
+/// head so no consumer has to re-derive the stride from the command's name
+/// (issue #1185).
+static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout {
+    exclude_trailing: 1,
+    ..RepeatedArgLayout::strided(ArgRole::LoopVarList, 0, 2)
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "foreach",
@@ -64,6 +74,7 @@ pub fn spec() -> CommandSpec {
         // "wrong # args").
         arity: Arity::stepped(3, Arity::UNLIMITED, 2),
         arg_role_resolver: Some(foreach_arg_roles),
+        repeated_args: REPEATED,
         // Index 0 here is a fixed key, not a real source-position argument
         // index: the CFG builder lowers a `foreach` header to a synthetic
         // `Statement::Call` whose `args` are *only* the list arguments (one

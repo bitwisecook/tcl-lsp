@@ -196,6 +196,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Build a binary string from Tcl values, laid out by a cursor-driven format specification.",
         synopsis: "binary format formatString ?arg ...?",
         pure: true,
+        // The cursor-driven field string: index 0 after the subcommand word,
+        // family `Binary` (#1185).
+        arg_roles: &[(0, ArgRole::FormatString)],
+        format_string_type: Some(FormatType::Binary),
         // S110 binary source: the return type marks the result a byte array —
         // tclsh 8.6.14-verified (`tcl::unsupported::representation
         // [binary format c* {1 2}]` → bytearray). Not stamped `Rebinarifies`:
@@ -261,6 +265,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ),
         ],
         arg_role_resolver: Some(binary_scan_arg_roles),
+        format_string_type: Some(FormatType::Binary),
         ..SubCommand::DEFAULT
     },
 ];
@@ -272,8 +277,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
 /// false-fire W210 on the unmodelled tail.  Mirrors the plain `scan`
 /// command's own resolver (`scan_arg_roles` in `scan_.rs`).
 fn binary_scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    (2..args.len())
-        .filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite)))
+    // Index 1 (after the `scan` subcommand word) is the field string itself;
+    // marking it `ScanFormat` is what lets the LSP locate it without naming
+    // `binary` (#1185).
+    std::iter::once((1u8, ArgRole::ScanFormat))
+        .chain((2..args.len()).filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite))))
         .collect()
 }
 

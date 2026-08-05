@@ -419,6 +419,10 @@ fn subcommand_identity(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) 
         presentation_map(sub.arg_presentation),
     );
     d.insert(
+        "repeated_args".into(),
+        lost.expr("repeated_args", !sub.repeated_args.is_empty()),
+    );
+    d.insert(
         "arg_role_resolver".into(),
         lost.expr("arg_role_resolver", sub.arg_role_resolver.is_some()),
     );
@@ -622,6 +626,10 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "arg_presentation".into(),
         presentation_map(spec.arg_presentation),
+    );
+    d.insert(
+        "repeated_args".into(),
+        lost.expr("repeated_args", !spec.repeated_args.is_empty()),
     );
     d.insert(
         "arg_role_resolver".into(),

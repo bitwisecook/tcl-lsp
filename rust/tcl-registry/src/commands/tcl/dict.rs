@@ -437,6 +437,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Map dictionary keys to variables, execute body, write back.",
         synopsis: "dict update dictionaryVariable key varName ?...? body",
         arg_role_resolver: Some(dict_last_arg_body),
+        // `dictionaryVariable key varName ?key varName ...? body` — each
+        // `varName` is a local the body sees, at every other index from 2
+        // (after the subcommand word), with the trailing body excluded
+        // (issue #1185).
+        repeated_args: &[RepeatedArgLayout {
+            exclude_trailing: 1,
+            ..RepeatedArgLayout::strided(ArgRole::VarWrite, 2, 2)
+        }],
         arg_types: &[(
             0,
             ArgTypeHint {

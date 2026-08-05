@@ -46,6 +46,16 @@ fn lmap_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 }
 
 /// Command spec for `lmap`.
+/// `?varlist list?...` repeats before the trailing body: the variable specs
+/// sit at every other argument from 0, and the body — the last word — is
+/// excluded.  The role resolver marks that body; this declares the repeating
+/// head so no consumer has to re-derive the stride from the command's name
+/// (issue #1185).
+static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout {
+    exclude_trailing: 1,
+    ..RepeatedArgLayout::strided(ArgRole::LoopVarList, 0, 2)
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lmap",
@@ -86,6 +96,7 @@ pub fn spec() -> CommandSpec {
         // `at_least(3)`, which missed the odd/even parity `foreach` enforces.
         arity: Arity::stepped(3, Arity::UNLIMITED, 2),
         arg_role_resolver: Some(lmap_arg_roles),
+        repeated_args: REPEATED,
         // See `foreach`'s identical comment — index 0 is a fixed key read by
         // `shimmer::use_site::foreach_header_expected_type`, not a real
         // source-position argument index.

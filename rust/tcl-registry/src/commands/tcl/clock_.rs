@@ -35,7 +35,15 @@ const FORMS: &[FormSpec] = &[FormSpec {
 static FORMAT_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-format",
-        value: OptionValue::value("format"),
+        // The value is the `clock` field string, not a generic value: the
+        // `ArgRole::FormatString` role is what lets the LSP find it without
+        // naming `clock` (issue #1185); the *family* comes from the
+        // subcommand's `format_string_type`.
+        value: OptionValue::Takes(OptionArg {
+            role: ArgRole::FormatString,
+            hint: "format",
+            ..OptionArg::DEFAULT
+        }),
         detail: "strftime-style output format string (default \"%a %b %d %H:%M:%S %Z %Y\").",
         dialects: None,
         aliases: &[],
@@ -85,7 +93,13 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-format",
-        value: OptionValue::value("format"),
+        // As for `clock format` — the role locates the field string, the
+        // subcommand's `format_string_type` names its family.
+        value: OptionValue::Takes(OptionArg {
+            role: ArgRole::ScanFormat,
+            hint: "format",
+            ..OptionArg::DEFAULT
+        }),
         detail: "Explicit input format string for strict parsing; omitting it falls back to the deprecated free-form scanner.",
         dialects: Some(DialectSet::TCL85_PLUS),
         aliases: &[],
@@ -274,6 +288,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Format a time value.",
         synopsis: "clock format timeVal ?-option value ...?",
         options: FORMAT_OPTIONS,
+        // Populates the previously-dead `format_string_type` field: the
+        // family of this call's format string. Paired with the
+        // `FormatString` / `ScanFormat` argument role that locates the
+        // word, it is the whole registry answer the LSP needs (#1185).
+        format_string_type: Some(FormatType::Clock),
         pure: true,
         return_type: Some(TclType::String),
         ..SubCommand::DEFAULT
@@ -321,6 +340,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock scan inputString ?-option value ...?",
         return_type: Some(TclType::Int),
         options: SCAN_OPTIONS,
+        // Populates the previously-dead `format_string_type` field: the
+        // family of this call's format string. Paired with the
+        // `FormatString` / `ScanFormat` argument role that locates the
+        // word, it is the whole registry answer the LSP needs (#1185).
+        format_string_type: Some(FormatType::Clock),
         ..SubCommand::DEFAULT
     },
     SubCommand {

@@ -129,19 +129,20 @@ pub fn inlay_hints(
     let line_index = LineIndex::new(source);
     let mut out = Vec::new();
 
-    if type_hints {
-        if let Some(registry) = registry {
-            collect_type_hints(
-                source,
-                dialect,
-                analysis,
-                registry,
-                range,
-                &line_index,
-                &mut out,
-            );
-        }
-        collect_format_string_hints(source, dialect, range, &line_index, &mut out);
+    if type_hints && let Some(registry) = registry {
+        collect_type_hints(
+            source,
+            dialect,
+            analysis,
+            registry,
+            range,
+            &line_index,
+            &mut out,
+        );
+        // Format-string specifier labels are registry-driven too (which
+        // words carry a conversion string, and in which mini-language), so
+        // they need the registry the same way the type hints do.
+        collect_format_string_hints(source, dialect, registry, range, &line_index, &mut out);
     }
 
     if parameter_hints {
@@ -494,55 +495,30 @@ fn regsub_short(c: char) -> Option<&'static str> {
     })
 }
 
-/// Which format family a command's argument carries, plus the argv index
-/// of the format word.
-enum FormatArg {
-    Sprintf(usize),
-    Clock(usize),
-    Binary(usize),
-    Regsub(usize),
-}
-
-/// Resolve the argv index (and family) of the format/spec word a command
-/// carries, if any.
-fn format_arg(seg: &tcl_compiler::segmenter::SegmentedCommand) -> Option<FormatArg> {
-    let texts = &seg.texts;
-    let head = texts.first()?.as_str();
-    match head {
-        "format" if texts.len() >= 2 => Some(FormatArg::Sprintf(1)),
-        "scan" if texts.len() >= 3 => Some(FormatArg::Sprintf(2)),
-        "binary" if texts.len() >= 3 => match texts[1].as_str() {
-            "format" => Some(FormatArg::Binary(2)),
-            "scan" if texts.len() >= 4 => Some(FormatArg::Binary(3)),
-            _ => None,
-        },
-        "clock" if texts.len() >= 3 && matches!(texts[1].as_str(), "format" | "scan") => {
-            // The format string is the value of the `-format` option.
-            let i = (2..texts.len()).find(|&i| texts[i] == "-format")?;
-            (i + 1 < texts.len()).then(|| FormatArg::Clock(i + 1))
-        }
-        "regsub" if texts.len() >= 4 => {
-            // `regsub ?switches? exp string subSpec ?varName?` — skip option
-            // switches to find the pattern, then the subspec sits two words
-            // past it. /
-            // `regexp_pattern_index` for the no-registry common case.
-            let mut i = 1;
-            while i < texts.len() && texts[i].starts_with('-') && texts[i] != "--" {
-                if texts[i] == "-start" && i + 1 < texts.len() {
-                    i += 2;
-                } else {
-                    i += 1;
-                }
-            }
-            if i < texts.len() && texts[i] == "--" {
-                i += 1;
-            }
-            // `i` now indexes the pattern; the subSpec is two words later.
-            let subspec = i + 2;
-            (subspec < texts.len()).then_some(FormatArg::Regsub(subspec))
-        }
-        _ => None,
-    }
+/// The format-string words of one segmented command, as `(argv index,
+/// family)` pairs, resolved entirely from the registry.
+///
+/// This used to be a second, independent copy of the format-family dispatch
+/// the semantic-token walk carried — `match head { "format" => …, "scan" =>
+/// …, "binary" => …, "clock" => …, "regsub" => … }`, each re-deriving its own
+/// argument layout, and neither firing for the explicitly global spellings
+/// C Tcl resolves to the same commands (issue #1185). Both now read one
+/// registry answer, so they cannot drift.
+fn format_args(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+) -> Vec<(usize, tcl_registry::FormatType)> {
+    let Some(head) = seg.texts.first() else {
+        return Vec::new();
+    };
+    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
+    registry
+        .format_string_args(head, &arg_texts)
+        .into_iter()
+        // `+ 1` converts a post-head argument index into an `argv` index
+        // (`argv[0]` is the command word).
+        .map(|f| (f.index + 1, f.kind))
+        .collect()
 }
 
 /// Byte range of a format word's *content* — the token span with one
@@ -590,6 +566,7 @@ fn push_format_hint(
 fn collect_format_string_hints(
     source: &str,
     dialect: &str,
+    registry: &CommandRegistry,
     range: LspRange,
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
@@ -600,69 +577,69 @@ fn collect_format_string_hints(
         tcl_lexer::LexerConfig::for_dialect(dialect),
     );
     for seg in &segments {
-        let Some(found) = format_arg(seg) else {
-            continue;
-        };
-        let idx = match found {
-            FormatArg::Sprintf(i)
-            | FormatArg::Clock(i)
-            | FormatArg::Binary(i)
-            | FormatArg::Regsub(i) => i,
-        };
-        let Some(tok) = seg.argv.get(idx) else {
-            continue;
-        };
-        let Some((cstart, cend)) = format_content_range(source, tok.span) else {
-            continue;
-        };
-        let content = &source[cstart..cend];
-        match found {
-            FormatArg::Sprintf(_) => {
-                for m in SPRINTF_RE.captures_iter(content) {
-                    let whole = m.get(0).expect("group 0");
-                    let type_char = m
-                        .get(6)
-                        .and_then(|g| g.as_str().chars().next())
-                        .unwrap_or('%');
-                    if let Some(label) = sprintf_short(type_char) {
-                        push_format_hint(
-                            label,
-                            cstart + whole.end(),
-                            range,
-                            source,
-                            line_index,
-                            out,
-                        );
+        for (idx, kind) in format_args(seg, registry) {
+            let Some(tok) = seg.argv.get(idx) else {
+                continue;
+            };
+            let Some((cstart, cend)) = format_content_range(source, tok.span) else {
+                continue;
+            };
+            let content = &source[cstart..cend];
+            match kind {
+                tcl_registry::FormatType::Sprintf => {
+                    for m in SPRINTF_RE.captures_iter(content) {
+                        let whole = m.get(0).expect("group 0");
+                        let type_char = m
+                            .get(6)
+                            .and_then(|g| g.as_str().chars().next())
+                            .unwrap_or('%');
+                        if let Some(label) = sprintf_short(type_char) {
+                            push_format_hint(
+                                label,
+                                cstart + whole.end(),
+                                range,
+                                source,
+                                line_index,
+                                out,
+                            );
+                        }
                     }
                 }
-            }
-            FormatArg::Clock(_) => {
-                for m in CLOCK_RE.find_iter(content) {
-                    let letter = m.as_str().chars().last().unwrap_or('%');
-                    if let Some(label) = clock_short(letter) {
-                        push_format_hint(label, cstart + m.end(), range, source, line_index, out);
+                tcl_registry::FormatType::Clock => {
+                    for m in CLOCK_RE.find_iter(content) {
+                        let letter = m.as_str().chars().last().unwrap_or('%');
+                        if let Some(label) = clock_short(letter) {
+                            push_format_hint(
+                                label,
+                                cstart + m.end(),
+                                range,
+                                source,
+                                line_index,
+                                out,
+                            );
+                        }
                     }
                 }
-            }
-            FormatArg::Binary(_) => {
-                collect_binary_hints(content, cstart, range, source, line_index, out);
-            }
-            FormatArg::Regsub(_) => {
-                for m in REGSUB_RE.captures_iter(content) {
-                    let whole = m.get(0).expect("group 0");
-                    let ch = m
-                        .get(1)
-                        .and_then(|g| g.as_str().chars().next())
-                        .unwrap_or(' ');
-                    if let Some(label) = regsub_short(ch) {
-                        push_format_hint(
-                            label,
-                            cstart + whole.end(),
-                            range,
-                            source,
-                            line_index,
-                            out,
-                        );
+                tcl_registry::FormatType::Binary => {
+                    collect_binary_hints(content, cstart, range, source, line_index, out);
+                }
+                tcl_registry::FormatType::Regsub => {
+                    for m in REGSUB_RE.captures_iter(content) {
+                        let whole = m.get(0).expect("group 0");
+                        let ch = m
+                            .get(1)
+                            .and_then(|g| g.as_str().chars().next())
+                            .unwrap_or(' ');
+                        if let Some(label) = regsub_short(ch) {
+                            push_format_hint(
+                                label,
+                                cstart + whole.end(),
+                                range,
+                                source,
+                                line_index,
+                                out,
+                            );
+                        }
                     }
                 }
             }

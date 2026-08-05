@@ -78,6 +78,10 @@ const FORMS: &[FormSpec] = &[
 /// `variable` with `global`). Tcl 9.0's variable.html differs from 8.6's
 /// only in NAME-line capitalisation and doc-anchor formatting; Tcl 9.1's is
 /// byte-for-byte identical to 9.0's.
+/// `variable name ?value name value ...?` — the *name* sits at every even
+/// argument; the interleaved values are ordinary data (issue #1185).
+static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::strided(ArgRole::VarWrite, 0, 2)];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "variable",
@@ -115,6 +119,7 @@ pub fn spec() -> CommandSpec {
         // case; see FORMS above for the version-split synopsis text.
         arity: Arity::any(),
         arg_roles: &[(0, ArgRole::VarWrite)],
+        repeated_args: REPEATED,
         assigns_variable_at: Some(0),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

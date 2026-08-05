@@ -55,6 +55,10 @@ const FORMS: &[FormSpec] = &[
 ];
 
 /// Command spec for `global`.
+/// `global name ?name ...?` declares *every* argument, not just the first:
+/// the unbounded tail a fixed index table cannot express (issue #1185).
+static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::every(ArgRole::VarWrite, 0)];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "global",
@@ -84,6 +88,7 @@ pub fn spec() -> CommandSpec {
         // synopsis text.
         arity: Arity::any(),
         arg_roles: &[(0, ArgRole::VarWrite)],
+        repeated_args: REPEATED,
         assigns_variable_at: Some(0),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

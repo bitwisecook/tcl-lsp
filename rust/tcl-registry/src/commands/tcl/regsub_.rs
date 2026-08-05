@@ -39,6 +39,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// with no dialect/version gating of its own.
 fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let mut i = 0;
+    let mut has_command = false;
     while i < args.len() {
         let a = args[i];
         if a == "--" {
@@ -46,6 +47,7 @@ fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
             break;
         }
         if a.starts_with('-') {
+            has_command |= a == "-command";
             i += 1;
             if a == "-start" && i < args.len() {
                 i += 1;
@@ -55,12 +57,27 @@ fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
         break;
     }
     // exp (i), string (i+1), subSpec (i+2), varName (i+3).
-    let var_idx = i + 3;
-    (var_idx < args.len())
-        .then(|| u8::try_from(var_idx).ok().map(|v| (v, ArgRole::VarWrite)))
-        .flatten()
-        .into_iter()
-        .collect()
+    let mut roles: Vec<(u8, ArgRole)> = Vec::new();
+    let push = |roles: &mut Vec<(u8, ArgRole)>, idx: usize, role: ArgRole| {
+        if idx < args.len()
+            && let Ok(idx) = u8::try_from(idx)
+        {
+            roles.push((idx, role));
+        }
+    };
+    // The regular expression itself — the leading-option shift means a static
+    // slot cannot place it, which is why the LSP used to re-scan the options
+    // itself (issue #1185).
+    push(&mut roles, i, ArgRole::Pattern);
+    // The replacement template, whose `\&` / `\N` backreferences are the
+    // `FormatType::Regsub` mini-language.  With `-command` the same position
+    // is a callback prefix instead (handled by `regsub_command_prefixes`), so
+    // it carries no template role then.
+    if !has_command {
+        push(&mut roles, i + 2, ArgRole::FormatString);
+    }
+    push(&mut roles, i + 3, ArgRole::VarWrite);
+    roles
 }
 
 /// `regsub -command ?switches? exp string cmdPrefix ?varName?` (Tcl 9.0+, TIP
@@ -239,6 +256,9 @@ pub fn spec() -> CommandSpec {
         // pattern validation.
         pattern_type: Some(PatternType::Regex),
         arg_role_resolver: Some(regsub_arg_roles),
+        // The `subSpec` replacement template's own mini-language; the
+        // `ArgRole::FormatString` the resolver puts on that word locates it.
+        format_string_type: Some(FormatType::Regsub),
         command_prefix_resolver: Some(regsub_command_prefixes),
         forms: FORMS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::RegexPatternCapture),
