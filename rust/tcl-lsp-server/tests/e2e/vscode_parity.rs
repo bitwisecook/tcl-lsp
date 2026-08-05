@@ -343,7 +343,14 @@ fn test_optimiser_toggle_suppresses_o_codes() {
     assert!(codes(&base).iter().any(|c| c.starts_with('O')));
     lsp.clear_notifications();
     lsp.apply_configuration(json!({ "optimiser": { "enabled": false } }));
-    let diags = lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(15));
+    // Await convergence, not the first version-1 republish: the coalesced
+    // config reload (#1213) may reschedule once on the inline settings before
+    // the pulled config lands, so an early republish can still carry the old
+    // profile's O-codes. The toggle is proven by the *latest* publish going
+    // O-free within the window; a broken toggle times out here instead.
+    let diags = lsp.await_diagnostics_settled(&uri, Duration::from_secs(15), |diags| {
+        !codes(diags).iter().any(|c| c.starts_with('O'))
+    });
     assert!(!codes(&diags).iter().any(|c| c.starts_with('O')));
 }
 
