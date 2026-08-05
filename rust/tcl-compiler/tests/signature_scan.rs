@@ -53,6 +53,59 @@ fn top_level_proc() {
     assert_eq!(param_names, ["name"]);
 }
 
+/// Issue #1107 — a **computed** parameter-list word records no formals and
+/// marks them unknown, so a cross-file arity consumer abstains instead of
+/// demanding the one bogus argument `"[makeargs]"` used to look like.
+///
+/// tclsh 9.0.4 / 8.6.16: with `proc makeargs {} {return {a b}}`,
+/// `proc p [makeargs] {…}` then `info args p` → `a b`, and `p 1 2` runs.
+#[test]
+fn computed_parameter_list_is_unknown_not_none() {
+    for (src, qname) in [
+        (
+            "proc makeargs {} { return {a b} }\nproc p [makeargs] { return 1 }",
+            "::p",
+        ),
+        ("set params {x y}\nproc q $params { return 1 }", "::q"),
+        ("proc r ${dyn} { return 1 }", "::r"),
+    ] {
+        let r = run(src);
+        let pd = r.procs.get(qname).expect("proc recorded");
+        assert!(
+            pd.params_computed,
+            "{qname} in {src:?} should be computed, params: {:?}",
+            pd.params
+        );
+        assert!(
+            pd.params.is_empty(),
+            "no formals may be invented: {:?}",
+            pd.params
+        );
+        let arity = pd.arity();
+        assert_eq!(arity.min, 0, "{qname}");
+        assert!(arity.is_unlimited(), "{qname} must abstain on arity");
+    }
+}
+
+/// TP / FP control for #1107 — every *literal* spelling still models its
+/// formals and still produces a real arity, including the substitution-free
+/// quoted list the position classifier used to call computed.
+#[test]
+fn literal_parameter_lists_still_record_formals() {
+    for (src, qname, names) in [
+        ("proc s {a b} {}", "::s", vec!["a", "b"]),
+        ("proc t args {}", "::t", vec!["args"]),
+        ("proc r \"m n\" {}", "::r", vec!["m", "n"]),
+        ("proc u {} {}", "::u", vec![]),
+    ] {
+        let r = run(src);
+        let pd = r.procs.get(qname).expect("proc recorded");
+        assert!(!pd.params_computed, "{src:?} is a literal list");
+        let got: Vec<&str> = pd.params.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(got, names, "{src:?}");
+    }
+}
+
 #[test]
 fn proc_in_namespace_eval() {
     let r = run("namespace eval math { proc add {a b} { return [+ $a $b] } }");

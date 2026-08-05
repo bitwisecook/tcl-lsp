@@ -1400,13 +1400,14 @@ impl Analyser {
         // tclsh 9.0.4 / 8.6.16 contradict (`proc makeargs {} {return {a b}}`;
         // `proc p [makeargs] {…}`; `info args p` → `a b`; `p 1 2` runs).
         //
-        // Literal ⟺ the word is a *single* `Str` (brace-quoted) or `Esc`
-        // (bareword / substitution-free quoted) token: any `$` / `[` splits
-        // the word into several tokens (or lexes it as `Var` / `Cmd`), which
-        // is exactly the "computed" case.  `proc r "m n" {…}` stays literal —
-        // tclsh really does declare `m` and `n` for it.
-        let params_computed = !(arg_single.get(1).copied().unwrap_or(true)
-            && matches!(arg_tokens[1].kind, TokenType::Str | TokenType::Esc));
+        // The literalness rule itself lives in
+        // `signature_scan::params::param_word_is_literal` — the one predicate
+        // this tier, the signature-scan tier, and the LSP's cursor classifier
+        // all share (issue #1107).
+        let params_computed = !crate::signature_scan::params::param_word_is_literal(
+            arg_tokens[1].kind,
+            arg_single.get(1).copied().unwrap_or(true),
+        );
         let params = if params_computed {
             Vec::new()
         } else {

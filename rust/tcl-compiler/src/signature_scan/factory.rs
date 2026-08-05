@@ -157,7 +157,12 @@ pub(super) fn resolve_factory_defs(ctx: &mut ScanCtx) {
             SignatureProc {
                 name: simple,
                 qualified_name: emitted_q,
+                // A factory-emitted proc's formals come from the factory's own
+                // run-time arguments, so they are *unknown*, not *none* — an
+                // arity consumer must abstain rather than demand zero
+                // arguments (issue #1107).
                 params: Vec::new(),
+                params_computed: true,
                 name_range: cand.name_tok.span,
                 body_range: cand.body_tok.span,
             },
@@ -325,6 +330,7 @@ mod tests {
                     has_default: false,
                     default_value: None,
                 }],
+                params_computed: false,
                 name_range: Span::new(99, 102),
                 body_range: Span::new(110, 120),
             },

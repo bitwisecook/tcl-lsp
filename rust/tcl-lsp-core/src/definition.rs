@@ -2040,24 +2040,16 @@ fn param_word_position(
     let Some(word) = source.get(word_start..word_end) else {
         return ParamListPosition::Outside;
     };
-    if param_word_is_literal(word) {
+    // The literalness rule is shared with the analyser and the signature-scan
+    // tier (issue #1107) so the three cannot disagree about a word. The local
+    // character scan this replaced called the substitution-free quoted list
+    // `proc r "m n" {…}` computed, while the analyser — correctly, per the
+    // oracle (`info args r` → `m n`) — treated it as literal.
+    if tcl_compiler::signature_scan::params::param_word_text_is_literal(word) {
         ParamListPosition::LiteralData
     } else {
         ParamListPosition::Computed
     }
-}
-
-/// Whether a parameter-list word is a literal — data Tcl passes through
-/// without substitution.
-///
-/// A braced word suppresses substitution outright.  A bare word substitutes,
-/// so it only counts as literal when it contains no substitution syntax at
-/// all; a quoted word never counts (its `$` / `[` are live).
-fn param_word_is_literal(word: &str) -> bool {
-    if word.starts_with('{') {
-        return true;
-    }
-    !word.contains(['$', '[', '"', '\\'])
 }
 
 /// Collect every variable name visible at `byte_offset` — the union

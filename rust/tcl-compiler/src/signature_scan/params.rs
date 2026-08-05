@@ -25,10 +25,76 @@
 //! name and whose remainder is the optional default (`a`, `{name default}`, and
 //! the escaped forms such as `a\ b` — which Tcl reads as name `a` default `b`).
 
+use std::borrow::Cow;
+
 use tcl_lexer::backslash_subst;
 use tcl_syntax::list::{find_element, split_list};
 
 use super::types::ParamDef;
+
+/// Whether a routine's parameter-list **word** is *literal* — data Tcl passes
+/// through untouched — rather than **computed** from a run-time value.
+///
+/// This is the one predicate every tier shares (issue #1107): the analyser,
+/// the signature scanner, and the LSP's cursor classifier all decide
+/// "literal parameter list?" here, so they cannot drift apart about what a
+/// quoted or braced word means.
+///
+/// Literal ⟺ the word is a *single* [`TokenType::Str`] (brace-quoted) or
+/// [`TokenType::Esc`] (bareword, or a quoted word with no substitutions)
+/// token. Any `$` or `[` either lexes the word as [`TokenType::Var`] /
+/// [`TokenType::Cmd`] or splits it into several tokens, which is exactly the
+/// computed case.
+///
+/// Verified on tclsh 9.0.4 and 8.6.16:
+///
+/// ```tcl
+/// proc makeargs {} { return {a b} }
+/// proc p [makeargs] { … }   ;# computed — info args p → a b
+/// set params {x y}
+/// proc q $params { … }      ;# computed
+/// proc r "m n" { … }        ;# LITERAL — info args r → m n
+/// proc s {a {b 1}} { … }    ;# literal
+/// ```
+///
+/// `proc r "m n" {…}` is the case the position classifier used to get wrong:
+/// a substitution-free quoted word really does declare `m` and `n`.
+#[must_use]
+pub fn param_word_is_literal(kind: tcl_lexer::TokenType, single_token_word: bool) -> bool {
+    single_token_word && matches!(kind, tcl_lexer::TokenType::Str | tcl_lexer::TokenType::Esc)
+}
+
+/// [`param_word_is_literal`] decided from the parameter-list word's **raw
+/// source text**, for a consumer that holds source rather than a segmented
+/// command (the LSP's cursor-position classifier).
+///
+/// Rather than re-deriving the rule with a character scan — which is how the
+/// position classifier came to call the substitution-free quoted list
+/// `proc r "m n" {…}` computed, contradicting both the oracle and the
+/// analyser — this lexes `word` and applies the *same* token test. A word
+/// that does not lex at all (a stray delimiter mid-edit) is treated as
+/// computed: nothing about it can be trusted as a declaration.
+#[must_use]
+pub fn param_word_text_is_literal(word: &str) -> bool {
+    let Ok(tokens) = tcl_lexer::Lexer::new(word).tokenise_all() else {
+        return false;
+    };
+    let mut words = tokens.iter().filter(|t| {
+        !matches!(
+            t.kind,
+            tcl_lexer::TokenType::Sep
+                | tcl_lexer::TokenType::Eol
+                | tcl_lexer::TokenType::Eof
+                | tcl_lexer::TokenType::Comment
+        )
+    });
+    let Some(first) = words.next() else {
+        // An empty (or whitespace-only) word is the empty parameter list —
+        // literal, and declares nothing.
+        return true;
+    };
+    words.next().is_none() && param_word_is_literal(first.kind, true)
+}
 
 /// Parse a Tcl proc argument list string into [`ParamDef`] records.
 ///
@@ -161,55 +227,15 @@ fn parse_param_list_lenient(param_str: &str) -> Vec<ParamDef> {
 /// Collapse Tcl backslash-newline line continuations to a single space.
 ///
 /// A parameter list is a braced word, and Tcl collapses `\<newline>` (including
-/// `\<CR><LF>` and `\<CR>`) to one space at the command-parse level — before the
-/// value is ever list-parsed, and regardless of any surrounding braces. Every
-/// other backslash escape (`\}`, `\ `, …) is left intact for the list grammar
-/// to interpret, so the following byte is copied through verbatim.
-fn collapse_line_continuations(s: &str) -> String {
-    let bytes = s.as_bytes();
-    let n = bytes.len();
-    let mut out = String::with_capacity(n);
-    let mut i = 0;
-    while i < n {
-        if bytes[i] == b'\\' && i + 1 < n {
-            match bytes[i + 1] {
-                b'\r' if i + 2 < n && bytes[i + 2] == b'\n' => {
-                    out.push(' ');
-                    i += 3;
-                }
-                b'\n' | b'\r' => {
-                    out.push(' ');
-                    i += 2;
-                }
-                // Any other escape: copy the backslash through untouched and
-                // let the next iteration copy the escaped character (which may
-                // be multi-byte UTF-8) so the list grammar can handle it.
-                _ => {
-                    out.push('\\');
-                    i += 1;
-                }
-            }
-        } else {
-            // ASCII fast path plus correct handling of multi-byte UTF-8: copy
-            // the whole char starting at `i`.
-            let ch_len = utf8_char_len(bytes[i]);
-            let end = (i + ch_len).min(n);
-            out.push_str(&s[i..end]);
-            i = end;
-        }
-    }
-    out
-}
-
-/// Byte length of the UTF-8 character whose leading byte is `b`.
-#[inline]
-fn utf8_char_len(b: u8) -> usize {
-    match b {
-        0x00..=0x7f => 1,
-        0xc0..=0xdf => 2,
-        0xe0..=0xef => 3,
-        _ => 4,
-    }
+/// `\<CR><LF>` and `\<CR>`) — plus any spaces and tabs after the newline — to
+/// one space at the command-parse level, before the value is ever list-parsed
+/// and regardless of any surrounding braces. Every other backslash escape
+/// (`\}`, `\ `, …) is left intact for the list grammar to interpret.
+///
+/// That is exactly the shared brace-word pre-pass, so this delegates rather
+/// than carrying a second copy of the rule.
+fn collapse_line_continuations(s: &str) -> Cow<'_, str> {
+    tcl_syntax::backslash::collapse_brace_continuations_str(s)
 }
 
 /// Source spans of each parameter *name*, in declaration order, within the
@@ -416,6 +442,69 @@ fn split_first_whitespace(s: &str) -> Option<(&str, &str)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Issue #1107 — the two views of the literalness rule (from a lexed
+    /// token, and from raw source text) must agree on every shape, or the
+    /// analyser and the LSP's cursor classifier drift apart again.
+    #[test]
+    fn literalness_views_agree_and_match_the_oracle() {
+        // (word, literal?) — verified on tclsh 9.0.4 / 8.6.16.
+        let cases: &[(&str, bool)] = &[
+            // TP — literal lists.
+            ("{a b}", true),
+            ("{a {b 1} args}", true),
+            ("{}", true),
+            ("args", true),
+            (r#""m n""#, true), // `info args r` → `m n`
+            (r#""""#, true),
+            // TN — computed lists.
+            ("[makeargs]", false),
+            ("$params", false),
+            ("${params}", false),
+            (r#""$a $b""#, false),
+            ("a$b", false),
+            ("[a][b]", false),
+        ];
+        for &(word, expect_literal) in cases {
+            assert_eq!(
+                param_word_text_is_literal(word),
+                expect_literal,
+                "text view disagrees for {word:?}"
+            );
+            // The token view, fed the word as the real lexer sees it.
+            let tokens: Vec<tcl_lexer::Token> = tcl_lexer::Lexer::new(word)
+                .tokenise_all()
+                .expect("lexes")
+                .into_iter()
+                .filter(|t| {
+                    !matches!(
+                        t.kind,
+                        tcl_lexer::TokenType::Sep
+                            | tcl_lexer::TokenType::Eol
+                            | tcl_lexer::TokenType::Eof
+                    )
+                })
+                .collect();
+            let token_view = match tokens.as_slice() {
+                [] => true,
+                [only] => param_word_is_literal(only.kind, true),
+                _ => false,
+            };
+            assert_eq!(
+                token_view, expect_literal,
+                "token view disagrees for {word:?} (tokens {tokens:?})"
+            );
+        }
+    }
+
+    /// FP guard — a bare word containing a `"` that is *not* at word start is
+    /// ordinary literal text in Tcl (the quote is only special as the first
+    /// character of a word), so it must stay literal. The character scan this
+    /// replaced rejected any word containing a `"`.
+    #[test]
+    fn literalness_bare_word_with_interior_quote_is_literal() {
+        assert!(param_word_text_is_literal("a\"b"));
+    }
 
     #[test]
     fn empty_input_yields_no_params() {

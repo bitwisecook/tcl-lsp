@@ -637,7 +637,19 @@ fn w123_command(message: &str) -> Option<&str> {
 /// defaulted one raises the minimum past the defaulted ones, since a
 /// caller cannot supply a later position without also supplying every
 /// position before it).
-fn proc_arity(params: &[tcl_compiler::signature_scan::types::ParamDef]) -> (usize, usize) {
+/// A **computed** parameter list (`proc p [makeargs] {…}`, `proc q $params
+/// {…}`) declares an unknown number of formals, so this abstains with the
+/// fully-open `0..MAX` rather than reading the empty recorded list as "takes
+/// no arguments" — which drew a false cross-file `E003` on code both
+/// interpreters run (issue #1107). Same abstention rule as the same-file
+/// [`tcl_compiler::analyser::ProcDef::arity`].
+fn proc_arity(
+    params: &[tcl_compiler::signature_scan::types::ParamDef],
+    params_computed: bool,
+) -> (usize, usize) {
+    if params_computed {
+        return (0, usize::MAX);
+    }
     let arity = tcl_compiler::signature_scan::arity::arity_of(params);
     let max = if arity.is_unlimited() {
         usize::MAX
@@ -686,7 +698,7 @@ pub fn project_command_arities(
             {
                 let entry = acc.entry(tail.to_owned()).or_default();
                 if sig.id.kind == ItemKind::Proc {
-                    entry.0.push(proc_arity(&sig.params));
+                    entry.0.push(proc_arity(&sig.params, sig.params_computed));
                 } else {
                     entry.1 = true;
                 }
@@ -5631,6 +5643,66 @@ mod tests {
             arity_code("none 1\n"),
             e003(),
             "1 arg to a 0-param proc → too many"
+        );
+    }
+
+    /// Issue #1107 — a proc whose parameter-list word is **computed** has
+    /// unknown formals, so the *cross-file* arity check must abstain. Before
+    /// the fix the analyser correctly recorded no formals but `ItemSig` did
+    /// not carry the "unknown, not none" flag, so the cross-file table read
+    /// the empty list as "takes no arguments" and every call drew a false
+    /// `E003` — on code both tclsh 9.0.4 and 8.6.16 run
+    /// (`proc makeargs {} {return {a b}}`; `proc p [makeargs] {…}`;
+    /// `info args p` → `a b`; `p 1 2` → runs).
+    #[test]
+    fn cross_file_arity_abstains_for_computed_parameter_lists() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+        );
+        let b = SourceFile::new(
+            &db,
+            "proc makeargs {} { return {a b} }\n\
+             proc computed [makeargs] { return 1 }\n\
+             set params {x y}\n\
+             proc dollar $params { return 1 }\n\
+             proc literal {a b} { return 1 }\n"
+                .to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+        let arity_code = |src: &str| -> Option<String> {
+            let a = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned(), None);
+            let proj = Project::new(&db, vec![a, b]);
+            project_diagnostics(&db, a, cfg, proj)
+                .iter()
+                .find(|d| d.code == DiagCode::E002 || d.code == DiagCode::E003)
+                .map(|d| d.code.to_string())
+        };
+        // FP guards — every call count is acceptable for an unknown signature.
+        for call in [
+            "computed\n",
+            "computed 1\n",
+            "computed 1 2\n",
+            "dollar 1 2\n",
+        ] {
+            assert_eq!(
+                arity_code(call),
+                None,
+                "computed parameter list must abstain, not draw an arity error for {call:?}"
+            );
+        }
+        // TP control — a literal list in the same file still checks arity.
+        assert_eq!(arity_code("literal 1 2\n"), None, "2 args → ok");
+        assert_eq!(
+            arity_code("literal 1 2 3\n"),
+            Some("E003".to_owned()),
+            "a literal list is still checked"
         );
     }
 

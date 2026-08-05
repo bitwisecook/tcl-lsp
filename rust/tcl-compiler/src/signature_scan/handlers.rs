@@ -155,7 +155,21 @@ pub(super) fn emit_class(
 ///
 /// Body recursion (`scan_factory_candidates`) is **not** wired in:
 /// the proc is recorded, but its body is not walked.
-pub(super) fn handle_proc(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCtx) {
+///
+/// A **computed** parameter-list word (`proc p [makeargs] {…}`,
+/// `proc q $params {…}`) records no parameters and sets
+/// [`SignatureProc::params_computed`], so the cross-file arity check abstains
+/// instead of demanding the one bogus argument the unresolved word used to
+/// look like (issue #1107). The literalness rule is the shared
+/// [`super::params::param_word_is_literal`], so this tier and the analyser
+/// tier cannot disagree.
+pub(super) fn handle_proc(
+    texts: &[String],
+    argv: &[Token],
+    single_token_word: &[bool],
+    ns_prefix: &str,
+    ctx: &mut ScanCtx,
+) {
     if texts.len() < 4 {
         return;
     }
@@ -164,7 +178,15 @@ pub(super) fn handle_proc(texts: &[String], argv: &[Token], ns_prefix: &str, ctx
     let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
     let name_range = argv[1].span;
     let body_range = argv[3].span;
-    let params = parse_param_list(&texts[2]);
+    let params_computed = !super::params::param_word_is_literal(
+        argv[2].kind,
+        single_token_word.get(2).copied().unwrap_or(true),
+    );
+    let params = if params_computed {
+        Vec::new()
+    } else {
+        parse_param_list(&texts[2])
+    };
     let param_names: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
     ctx.result.procs.insert(
         qualified.clone(),
@@ -172,6 +194,7 @@ pub(super) fn handle_proc(texts: &[String], argv: &[Token], ns_prefix: &str, ctx
             name: simple,
             qualified_name: qualified.clone(),
             params,
+            params_computed,
             name_range,
             body_range,
         },
@@ -232,6 +255,9 @@ pub(super) fn handle_opt_proc(
             name: simple,
             qualified_name: qualified.clone(),
             params,
+            // The `opt` runtime always installs a plain literal `args`
+            // catch-all, so the recorded formals are known, not computed.
+            params_computed: false,
             name_range,
             body_range,
         },
@@ -753,7 +779,7 @@ mod tests {
         ];
         let argv = vec![token(0, 4), token(5, 9), token(10, 12), str_token(13, 35)];
         let mut ctx = ScanCtx::default();
-        handle_proc(&texts, &argv, "", &mut ctx);
+        handle_proc(&texts, &argv, &[true; 4], "", &mut ctx);
         assert_eq!(ctx.candidates.len(), 1);
     }
 
@@ -769,7 +795,7 @@ mod tests {
         // skipped.
         let argv = vec![token(0, 4), token(5, 9), token(10, 12), token(13, 23)];
         let mut ctx = ScanCtx::default();
-        handle_proc(&texts, &argv, "", &mut ctx);
+        handle_proc(&texts, &argv, &[true; 4], "", &mut ctx);
         assert!(ctx.candidates.is_empty());
     }
 
@@ -829,7 +855,7 @@ mod tests {
     fn handle_proc_records_bare_proc() {
         let (texts, argv) = proc_inputs("foo");
         let mut ctx = ScanCtx::default();
-        handle_proc(&texts, &argv, "", &mut ctx);
+        handle_proc(&texts, &argv, &[true; 4], "", &mut ctx);
         let proc = ctx.result.procs.get("::foo").expect("inserted");
         assert_eq!(proc.name, "foo");
         assert_eq!(proc.qualified_name, "::foo");
@@ -847,7 +873,7 @@ mod tests {
     fn handle_proc_under_namespace_indexes_qualified() {
         let (texts, argv) = proc_inputs("bar");
         let mut ctx = ScanCtx::default();
-        handle_proc(&texts, &argv, "ns::deep", &mut ctx);
+        handle_proc(&texts, &argv, &[true; 4], "ns::deep", &mut ctx);
         let proc = ctx.result.procs.get("::ns::deep::bar").expect("inserted");
         assert_eq!(proc.name, "bar");
         assert_eq!(ctx.proc_bodies[0].ns_prefix, "ns::deep");
@@ -857,7 +883,7 @@ mod tests {
     fn handle_proc_with_absolute_name_records_at_global() {
         let (texts, argv) = proc_inputs("::top::baz");
         let mut ctx = ScanCtx::default();
-        handle_proc(&texts, &argv, "outer", &mut ctx);
+        handle_proc(&texts, &argv, &[true; 4], "outer", &mut ctx);
         let proc = ctx.result.procs.get("::top::baz").expect("inserted");
         assert_eq!(proc.name, "baz");
         assert_eq!(proc.qualified_name, "::top::baz");
@@ -870,7 +896,7 @@ mod tests {
         let texts = vec!["proc".to_string(), "name".to_string()];
         let argv = vec![token(0, 4), token(5, 9)];
         let mut ctx = ScanCtx::default();
-        handle_proc(&texts, &argv, "", &mut ctx);
+        handle_proc(&texts, &argv, &[true; 4], "", &mut ctx);
         assert!(ctx.result.procs.is_empty());
         assert!(ctx.proc_bodies.is_empty());
     }

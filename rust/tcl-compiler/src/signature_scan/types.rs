@@ -57,11 +57,44 @@ pub struct SignatureProc {
     /// Fully-qualified proc name with leading `::`.
     pub qualified_name: String,
     /// Parsed parameter list.
+    ///
+    /// Empty *and* [`Self::params_computed`] set means "unknown", not "none"
+    /// — see that field.
     pub params: Vec<ParamDef>,
+    /// The parameter-list word was **computed**, so the proc's formals are
+    /// unmodelled (issue #1107, the signature-scan twin of
+    /// [`crate::analyser::ProcDef::params_computed`]).
+    ///
+    /// `proc p [makeargs] {…}` / `proc q $params {…}` build the formal list at
+    /// definition time from a run-time value. Reading the unresolved word as a
+    /// one-parameter literal recorded a parameter literally named
+    /// `"[makeargs]"` and told the **cross-file** arity check the proc takes
+    /// exactly one argument — a false `E003` on code both interpreters run
+    /// (`proc makeargs {} {return {a b}}`; `proc p [makeargs] {…}`;
+    /// `info args p` → `a b`; `p 1 2` runs). Consumers must ask
+    /// [`Self::arity`] rather than computing an arity from `params`.
+    pub params_computed: bool,
     /// Source span of the name argument.
     pub name_range: Span,
     /// Source span of the body argument.
     pub body_range: Span,
+}
+
+impl SignatureProc {
+    /// The proc's declared argument arity — or the **abstaining**
+    /// `0..unlimited` when its parameter list was computed
+    /// ([`Self::params_computed`]).
+    ///
+    /// The signature-scan twin of [`crate::analyser::ProcDef::arity`]; both
+    /// tiers abstain identically so a cross-file arity check cannot be
+    /// stricter than the same-file one.
+    #[must_use]
+    pub fn arity(&self) -> tcl_registry::Arity {
+        if self.params_computed {
+            return tcl_registry::Arity::new(0, tcl_registry::Arity::UNLIMITED);
+        }
+        super::arity::arity_of(&self.params)
+    }
 }
 
 /// A class definition recorded by the signature scanner.

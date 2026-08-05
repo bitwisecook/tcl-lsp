@@ -110,7 +110,18 @@ pub struct ItemSig {
     /// class qualified name for methods.
     pub namespace: String,
     /// Declared parameters (procs / methods; empty otherwise).
+    ///
+    /// Empty *and* [`Self::params_computed`] set means "unknown", not "none".
     pub params: Vec<ParamDef>,
+    /// The declaration's parameter-list word was **computed**, so its formals
+    /// are unmodelled ([`crate::analyser::ProcDef::params_computed`]).
+    ///
+    /// Carried on the signature — not just on the analyser record — because
+    /// the *cross-file* arity table is built from `ItemSig` alone. Without it,
+    /// `proc p [makeargs] {…}` reached the cross-file check as a proc with an
+    /// empty parameter list, i.e. "takes no arguments", and every call to it
+    /// from another file drew a false `E003` (issue #1107).
+    pub params_computed: bool,
     /// Source span of the name token (`Span::new(0, 0)` when the analyser
     /// record carries no name span — e.g. aliases / ensembles).
     pub name_span: Span,
@@ -203,6 +214,7 @@ impl ItemTree {
                     id: ItemId::new(ItemKind::Proc, qualified.clone()),
                     namespace: enclosing_namespace(qualified),
                     params: proc.params.clone(),
+                    params_computed: proc.params_computed,
                     name_span: proc.name_span,
                 },
                 body_span: Some(proc.body_span),
@@ -215,6 +227,7 @@ impl ItemTree {
                     id: ItemId::new(ItemKind::Class, qualified.clone()),
                     namespace: enclosing_namespace(qualified),
                     params: Vec::new(),
+                    params_computed: false,
                     name_span: class.name_span,
                 },
                 body_span: Some(class.body_span),
@@ -226,6 +239,7 @@ impl ItemTree {
                             id: ItemId::new(ItemKind::Method, key),
                             namespace: qualified.clone(),
                             params,
+                            params_computed: false,
                             name_span,
                         },
                         body_span: Some(body_span),
@@ -242,6 +256,7 @@ impl ItemTree {
                     id: ItemId::new(ItemKind::Alias, qualified.clone()),
                     namespace: enclosing_namespace(qualified),
                     params: Vec::new(),
+                    params_computed: false,
                     name_span: Span::new(0, 0),
                 },
                 body_span: None,
@@ -254,6 +269,7 @@ impl ItemTree {
                     id: ItemId::new(ItemKind::Ensemble, ns.clone()),
                     namespace: ns.clone(),
                     params: Vec::new(),
+                    params_computed: false,
                     name_span: Span::new(0, 0),
                 },
                 body_span: None,
@@ -268,6 +284,7 @@ impl ItemTree {
                     id: ItemId::new(ItemKind::Namespace, ns.clone()),
                     namespace: enclosing_namespace(ns),
                     params: Vec::new(),
+                    params_computed: false,
                     name_span: Span::new(0, 0),
                 },
                 body_span: None,

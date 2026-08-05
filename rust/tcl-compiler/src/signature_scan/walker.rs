@@ -153,7 +153,7 @@ pub(super) fn scan(
             _ => {
                 // Definer commands (the class systems, `proc`) dispatch on
                 // registry data, never a hardcoded name list.
-                if !dispatch_definer(head, texts, argv, ns_prefix, ctx) {
+                if !dispatch_definer(head, texts, argv, &cmd.single_token_word, ns_prefix, ctx) {
                     handlers::maybe_handle_import_wrapper(
                         head,
                         texts,
@@ -185,6 +185,7 @@ fn dispatch_definer(
     head: &str,
     texts: &[String],
     argv: &[Token],
+    single_token_word: &[bool],
     ns_prefix: &str,
     ctx: &mut ScanCtx,
 ) -> bool {
@@ -231,7 +232,7 @@ fn dispatch_definer(
         return true;
     }
     if spec.traits.contains(Traits::DEFINES_PROCEDURE) {
-        handlers::handle_proc(texts, argv, ns_prefix, ctx);
+        handlers::handle_proc(texts, argv, single_token_word, ns_prefix, ctx);
         return true;
     }
     false
