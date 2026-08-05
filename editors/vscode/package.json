@@ -5308,7 +5308,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**W315:** Class definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to, or renames onto a name already taken, which aborts the whole definition so no class is created.",
+            "markdownDescription": "**W315:** Class or object definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to (for `oo::objdefine`, on the object's own table), or renames onto a name already taken, which aborts the whole definition.",
             "order": 47
           },
           "tclLsp.diagnosticSeverity.W315": {
@@ -5329,7 +5329,7 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **W315:** Class definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to, or renames onto a name already taken, which aborts the whole definition so no class is created.",
+            "markdownDescription": "Display severity for **W315:** Class or object definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to (for `oo::objdefine`, on the object's own table), or renames onto a name already taken, which aborts the whole definition.",
             "order": 47
           }
         }

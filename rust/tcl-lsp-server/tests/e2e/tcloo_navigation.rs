@@ -902,6 +902,100 @@ fn tn_declaring_document_instance_dispatch_survives_a_class_side_flip() {
     );
 }
 
+// Issue #1170 — per-object member state reaches dispatch resolution.
+
+/// TP: `oo::objdefine $o { unexport m }` masks a class-provided member for
+/// this object's external dispatch — oracle (tclsh 9.0.4 / 8.6.14):
+///
+/// ```tcl
+/// oo::class create C { method m {} { return 1 } } ; set o [C new]
+/// oo::objdefine $o { unexport m } ; $o m
+/// ;# -> unknown method "m": must be destroy or n
+/// ```
+///
+/// so `$o m` must resolve to nothing (and hover must decline), while a
+/// sibling instance keeps the class dispatch.
+#[test]
+fn tp_per_object_unexport_masks_the_objects_own_dispatch() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create C {\n",
+            "    method m {} { return 1 }\n",
+            "}\n",
+            "set o [C new]\n",
+            "set p [C new]\n",
+            "oo::objdefine $o { unexport m }\n",
+            "$o m\n",
+            "$p m\n",
+        ),
+    );
+    assert!(
+        locations(&lsp.definition(&uri, 6, 3)).is_empty(),
+        "a per-object unexport must mask `$o m`",
+    );
+    assert!(
+        hover_text(&lsp.hover(&uri, 6, 3)).is_empty(),
+        "hover must not describe a per-object-masked member",
+    );
+    // TN (CRITICAL FP guard): the sibling object is untouched.
+    assert!(
+        !locations(&lsp.definition(&uri, 7, 3)).is_empty(),
+        "a sibling instance keeps the class dispatch",
+    );
+}
+
+/// TP: `oo::objdefine $o { export M }` revives a member the `TclOO` name rule
+/// left unexported — `$o M` dispatches (tclsh 9.0.4 / 8.6.14) and must
+/// resolve to the class's declaration.
+#[test]
+fn tp_per_object_export_revives_an_unexported_member() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create C {\n",
+            "    method M {} { return 1 }\n",
+            "}\n",
+            "set o [C new]\n",
+            "oo::objdefine $o { export M }\n",
+            "$o M\n",
+        ),
+    );
+    let def = lsp.definition(&uri, 5, 3);
+    assert_eq!(
+        start_lines(&def),
+        [1].into_iter().collect(),
+        "a per-object export must revive the member's dispatch: {def:?}"
+    );
+}
+
+/// TN: an unexported per-object member (`method M` under the name rule)
+/// masks the name for external dispatch even though the same class exports
+/// an `m`-style sibling — `$o M` is `unknown method` in real Tcl.
+#[test]
+fn tn_an_unexported_per_object_member_does_not_navigate_externally() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create C {\n",
+            "}\n",
+            "set o [C new]\n",
+            "oo::objdefine $o { method Hidden {} { return 1 } }\n",
+            "$o Hidden\n",
+        ),
+    );
+    assert!(
+        locations(&lsp.definition(&uri, 4, 4)).is_empty(),
+        "an unexported per-object member must not resolve for `$o Hidden`",
+    );
+}
+
 // Issue #1121 — the renamed destination is a navigable member.
 
 /// TP: `renamemethod old new` makes `new` a real member carrying `old`'s body

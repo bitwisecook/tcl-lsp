@@ -4514,6 +4514,51 @@ fn objdefine_per_object_variable_read_publishes_no_w210() {
     );
 }
 
+// Issue #1170 — W315 covers `oo::objdefine` bodies, judged against the
+// binding's cross-block per-object member state.
+
+/// TP: a per-object retraction of a member nothing declares per-object
+/// aborts the object definition in real Tcl (`method ghost does not exist`,
+/// 9.0.4 / 8.6.14 — a per-object retraction never reaches a class member),
+/// and the report reaches the client.
+#[test]
+fn objdefine_retraction_of_undeclared_member_publishes_w315() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create C { method ghost {} { return g } }\n\
+         set k [C new]\n\
+         oo::objdefine $k { deletemethod ghost }\n",
+    );
+    assert!(
+        has_code(&diags, "W315"),
+        "objdefine retract-of-undeclared must publish W315: {:?}",
+        codes(&diags)
+    );
+}
+
+/// TN (CRITICAL FP guard): the cross-block shape that kept W315 out of
+/// `oo::objdefine` — a second block retracting what the first declared is
+/// legal, and the seeded walk must stay silent.
+#[test]
+fn objdefine_cross_block_retraction_publishes_no_w315() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create C {}\n\
+         set k [C new]\n\
+         oo::objdefine $k { method im {} { return i } }\n\
+         oo::objdefine $k { deletemethod im }\n",
+    );
+    assert!(
+        !has_code(&diags, "W315"),
+        "retracting a member an earlier block declared is legal: {:?}",
+        codes(&diags)
+    );
+}
+
 /// TP + FP guard in one: a snit method body is analysed (unbound read
 /// flags) while the injected implicits (`self`/`type`/`options`) and the
 /// declared type variable stay clean.

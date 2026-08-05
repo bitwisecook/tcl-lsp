@@ -120,7 +120,7 @@ struct DefinerCall {
     per_object: bool,
 }
 
-impl<'r> Lowerer<'r> {
+impl Lowerer<'_> {
     /// Classify one command as a statically-extractable definer call, from
     /// its registry spec (see [`DefinerCall`]).  `None` when the command is
     /// not a definer, uses a non-`create` metaclass form, or does not carry
@@ -2767,17 +2767,16 @@ impl<'r> Lowerer<'r> {
         }
         let b_idx = base + body_rel;
         let name_owned: String;
-        let name: &str = match member.indices_for(ArgRole::Name).next() {
-            Some(rel) => match seg.texts.get(base + rel) {
-                Some(n) => n.as_str(),
-                None => return,
-            },
+        let name: &str = if let Some(rel) = member.indices_for(ArgRole::Name).next() {
+            let Some(n) = seg.texts.get(base + rel) else {
+                return;
+            };
+            n.as_str()
+        } else {
             // Nameless members: the synthetic id is the keyword, matching
             // the established `<constructor>` / `<destructor>` scheme.
-            None => {
-                name_owned = format!("<{kw}>");
-                &name_owned
-            }
+            name_owned = format!("<{kw}>");
+            &name_owned
         };
         // Dynamic method names / non-static bodies are left un-lowered —
         // and recorded as an unanalysable member of the class (issue
@@ -2871,6 +2870,7 @@ impl<'r> Lowerer<'r> {
 
 /// One body-bearing member call ready to lift — bundles the walk context so
 /// [`Lowerer::extract_one_member`] stays under the argument limit.
+#[derive(Clone, Copy)]
 struct MemberExtraction<'a, 'b> {
     call: &'a DefinerCall,
     seg: &'a SegmentedCommand,
@@ -2900,14 +2900,13 @@ struct MemberExtraction<'a, 'b> {
 fn member_method_kind(kw: &str, wrapped_in_self: bool) -> Option<&'static str> {
     Some(match kw {
         "method" if wrapped_in_self => "classmethod",
-        "method" => "method",
         // snit's `typemethod` / `typeconstructor` dispatch on the type
         // command with no instance in frame — the class-method shape.
         "classmethod" | "typemethod" | "typeconstructor" => "classmethod",
         // A snit / itcl class-scoped `proc` opens a fresh frame like a
         // method (with no instance state auto-bound; the over-approximated
         // instance-var set only widens abstention, never a false claim).
-        "proc" => "method",
+        "method" | "proc" => "method",
         "constructor" => "constructor",
         "destructor" => "destructor",
         _ => return None,
@@ -3961,10 +3960,10 @@ mod tests {
                    }\n";
         let m = lower_to_ir(src, &reg());
         assert_eq!(
-            m.methods
-                .get("::W::make")
-                .map(|d| d.kind)
-                .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>())),
+            m.methods.get("::W::make").map_or_else(
+                || panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()),
+                |d| d.kind
+            ),
             MethodKind::ClassMethod
         );
         assert_eq!(m.methods["::W::direct"].kind, MethodKind::ClassMethod);

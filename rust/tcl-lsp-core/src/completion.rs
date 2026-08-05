@@ -420,7 +420,14 @@ fn context_aware_completions(
         )
     {
         let bucket = crate::definition::receiver_method_bucket(analysis, &recv, is_dollar);
-        if let Some(items) = method_completions(analysis, registry, class_q, bucket, partial) {
+        // Per-object member state layers over the class chain in real
+        // dispatch order (issue #1170): per-object members offered first,
+        // an unexport masks, a later export revives.
+        let object_state =
+            crate::definition::object_member_state_at(analysis, source, &recv, line, character);
+        if let Some(items) =
+            method_completions(analysis, registry, class_q, bucket, partial, object_state)
+        {
             return Some(items);
         }
     }
@@ -1262,8 +1269,9 @@ fn method_completions(
     class_q: &str,
     bucket: crate::definition::MethodBucket,
     partial: &str,
+    object_state: Option<&tcl_compiler::analyser::ObjectMemberState>,
 ) -> Option<Vec<CompletionItem>> {
-    let all = method_items(analysis, Some(registry), class_q, bucket)?;
+    let all = method_items(analysis, Some(registry), class_q, bucket, object_state)?;
     let FilteredCandidates {
         candidates: items,
         fuzzy,
@@ -1296,6 +1304,7 @@ fn method_items(
     registry: Option<&CommandRegistry>,
     class_q: &str,
     bucket: crate::definition::MethodBucket,
+    object_state: Option<&tcl_compiler::analyser::ObjectMemberState>,
 ) -> Option<Vec<CompletionItem>> {
     use crate::definition::MethodBucket;
     if !analysis.all_classes.contains_key(class_q) {
@@ -1309,6 +1318,14 @@ fn method_items(
         .unwrap_or_else(|| vec![class_q.to_string()]);
     let mut seen: FxHashSet<String> = FxHashSet::default();
     let mut items: Vec<CompletionItem> = Vec::new();
+    // Per-object members first — `TclOO` layers an `oo::objdefine`d method
+    // ahead of the class chain, so the receiver's own members claim their
+    // names before any class provider (issue #1170).
+    if bucket == MethodBucket::Instance
+        && let Some(st) = object_state
+    {
+        layer_per_object_members(st, &mut seen, &mut items);
+    }
     for cls in &mro {
         let Some(cd) = analysis.all_classes.get(cls) else {
             continue;
@@ -1321,9 +1338,26 @@ fn method_items(
                 .filter(|(_, m)| cls.as_str() == class_q || !m.is_self_method)
                 .collect(),
         };
+        // Per-object visibility flips override the declared state for this
+        // receiver: an `oo::objdefine … export` revives an unexported class
+        // member, an `… unexport` masks an exported one (issue #1170).
+        let flipped = |name: &str, declared_public: bool| {
+            object_state.map_or(declared_public, |st| {
+                if bucket != MethodBucket::Instance {
+                    return declared_public;
+                }
+                if st.exports.contains(name) {
+                    true
+                } else if st.unexports.contains(name) {
+                    false
+                } else {
+                    declared_public
+                }
+            })
+        };
         let mut methods: Vec<(&String, &str)> = bucketed
             .into_iter()
-            .filter(|(_, m)| m.visibility == "public")
+            .filter(|(n, m)| flipped(n, m.visibility == "public"))
             .map(|(n, _)| (n, cls.as_str()))
             .collect();
         methods.sort_by(|a, b| a.0.cmp(b.0));
@@ -1358,6 +1392,44 @@ fn method_items(
     }
     items.sort_by(|a, b| a.label.cmp(&b.label));
     Some(items)
+}
+
+/// The per-object leg of [`method_items`] (issue #1170): offer the
+/// receiver's own externally dispatchable `oo::objdefine`d members ahead of
+/// the class chain, and claim the names of its *unexported* per-object
+/// members so they cannot resurface from the class walk — an unexported
+/// per-object member masks the class-provided name for external dispatch
+/// (`$o m` → `unknown method`, tclsh 9.0.4 / 8.6.14).
+fn layer_per_object_members(
+    st: &tcl_compiler::analyser::ObjectMemberState,
+    seen: &mut FxHashSet<String>,
+    items: &mut Vec<CompletionItem>,
+) {
+    let mut per_object: Vec<&String> = st
+        .methods
+        .iter()
+        .filter(|(_, m)| m.visibility == "public")
+        .map(|(n, _)| n)
+        .collect();
+    per_object.sort();
+    for name in per_object {
+        if !seen.insert(name.clone()) {
+            continue;
+        }
+        items.push(CompletionItem {
+            label: name.clone(),
+            insert_text: name.clone(),
+            kind: CompletionKind::Function,
+            detail: Some("method — per-object (oo::objdefine)".to_string()),
+            ..CompletionItem::default()
+        });
+    }
+    seen.extend(
+        st.methods
+            .iter()
+            .filter(|(_, m)| m.visibility != "public")
+            .map(|(n, _)| n.clone()),
+    );
 }
 
 /// Every instance method/subcommand item for a *registry*-modelled class:
@@ -2131,7 +2203,9 @@ fn fuzzy_command_fallback(
         )
     {
         let bucket = crate::definition::receiver_method_bucket(analysis, &recv, is_dollar);
-        if let Some(methods) = method_items(analysis, registry, class_q, bucket) {
+        let object_state =
+            crate::definition::object_member_state_at(analysis, source, &recv, line, character);
+        if let Some(methods) = method_items(analysis, registry, class_q, bucket, object_state) {
             universe.extend(methods);
         }
     }
@@ -2316,6 +2390,65 @@ mod tests {
             items.iter().any(|i| i.label == "onlyclass"),
             "an instance-side unexport must not hide a class-side method: {:?}",
             items.iter().map(|i| &i.label).collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_layers_per_object_members_and_flips() {
+        // Issue #1170 — per-object member state reaches completion: a
+        // `oo::objdefine`d method is offered ahead of the class chain, a
+        // per-object `unexport` masks a class-provided member (oracle:
+        // `$d bark` → `unknown method "bark"`, tclsh 9.0.4 / 8.6.14), and a
+        // per-object `export` revives one the name rule left unexported.
+        let src = "oo::class create Dog {\n    method bark {} {}\n    method Fetch {} {}\n}\n\
+                   set d [Dog new]\n\
+                   oo::objdefine $d {\n    method roll {} {}\n    unexport bark\n    export Fetch\n}\n\
+                   $d \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$d ` on line 10.
+        let items = completions(src, 10, 3, &analysis, Some(&registry), None, "tcl9.0");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"roll"),
+            "the per-object member must be offered: {labels:?}",
+        );
+        assert!(
+            !labels.contains(&"bark"),
+            "a per-object unexport masks the class member: {labels:?}",
+        );
+        assert!(
+            labels.contains(&"Fetch"),
+            "a per-object export revives an unexported class member: {labels:?}",
+        );
+        let roll = items.iter().find(|i| i.label == "roll").unwrap();
+        assert!(
+            roll.detail.as_deref().unwrap_or("").contains("per-object"),
+            "{:?}",
+            roll.detail
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_leaves_sibling_objects_untouched() {
+        // TN (CRITICAL FP guard) for #1170's layering: another instance of
+        // the same class carries none of the first object's per-object state.
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\n\
+                   set d [Dog new]\n\
+                   set e [Dog new]\n\
+                   oo::objdefine $d {\n    method roll {} {}\n    unexport bark\n}\n\
+                   $e \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 9, 3, &analysis, Some(&registry), None, "tcl9.0");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"bark"),
+            "the sibling's class member survives: {labels:?}",
+        );
+        assert!(
+            !labels.contains(&"roll"),
+            "another object's per-object member must not be offered: {labels:?}",
         );
     }
 

@@ -80,6 +80,23 @@ pub(super) struct PendingInstanceClassSite {
     pub target_name: String,
 }
 
+/// One W315 candidate from an `oo::objdefine` walk (issue #1170), held
+/// until the whole document is walked so
+/// [`Analyser::flush_objdefine_abort_diagnostics`] can consult
+/// document-wide facts before deciding it is real.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct ObjdefineAbortCandidate {
+    /// The definition-aborting word, as the seeded walk recorded it.
+    pub abort: super::types::DefinitionAbort,
+    /// The receiver key the block was recorded under (variable simple name
+    /// or resolved object name).
+    pub receiver: String,
+    /// The binding's accumulated table held conditional evidence when this
+    /// block was walked — absence/presence judgements against it are not
+    /// order-provable, so the emission abstains.
+    pub prior_state_conditional: bool,
+}
+
 /// The recorded state of one child interpreter (issue #945 faults 7–8):
 /// safe flag plus the explicit hide / expose deltas layered over the
 /// registry's [`tcl_registry::Traits::SAFE_INTERP_HIDDEN`] base set.
@@ -521,6 +538,20 @@ pub struct Analyser {
     /// Vars where ``oo::objdefine`` was applied — the per-instance
     /// method table may extend the class definition.
     pub objdefined_vars: HashSet<String>,
+    /// Per-object member-state binding index (issue #1170): `(receiver key,
+    /// innermost proc/method frame extent)` → position in
+    /// `result.object_member_state[key]`.  The frame extent is the walk-time
+    /// spelling of the binding identity consumers re-derive from
+    /// [`super::types::ObjectMemberState::anchor_offset`].
+    pub(super) objdefine_bindings: HashMap<(String, Option<(u32, u32)>), usize>,
+    /// W315 candidates from `oo::objdefine` walks, held until the whole
+    /// document is walked so the emission gates can consult document-wide
+    /// facts (per-object declarations under *any* key, receiver creations).
+    pub(super) objdefine_abort_candidates: Vec<ObjdefineAbortCandidate>,
+    /// `true` when any `oo::objdefine` receiver in the document did not
+    /// resolve statically — an unknown object may be any object, so the
+    /// per-object W315 abstains file-wide.
+    pub(super) objdefine_unresolved_receiver: bool,
     /// The **interpreter-domain map** (issue #945 faults 7–8): every
     /// child interpreter this document creates with a literal path,
     /// keyed by the whitespace-normalised path list, carrying its safe
@@ -1044,6 +1075,9 @@ impl Analyser {
             ensemble_command_maps: HashMap::new(),
             ensemble_record_offsets: HashMap::new(),
             objdefined_vars: HashSet::new(),
+            objdefine_bindings: HashMap::new(),
+            objdefine_abort_candidates: Vec::new(),
+            objdefine_unresolved_receiver: false,
             interpreters: HashMap::new(),
             dynamic_interp_ops: false,
             interp_epochs: HashMap::new(),
@@ -1970,6 +2004,7 @@ impl Analyser {
         self.emit_missing_package_require_diagnostics(diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
+        self.flush_objdefine_abort_diagnostics();
         self.emit_lexer_warning_diagnostics();
         self.emit_w116_w117_stub_shadows();
         self.flush_widget_dispatch_diagnostics(diag_registry);
@@ -2120,6 +2155,9 @@ impl Analyser {
     pub(super) fn clear_run_state(&mut self) {
         self.registry = None;
         self.command_trust = None;
+        self.objdefine_bindings.clear();
+        self.objdefine_abort_candidates.clear();
+        self.objdefine_unresolved_receiver = false;
         self.seed_namespace_key = None;
         self.seed_scope_path.clear();
         self.recovery_known_commands.clear();

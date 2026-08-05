@@ -4798,6 +4798,14 @@ impl Analyser {
             .filter(|name| {
                 !name.is_empty() && *name != obj_name && !crate::naming::is_dynamic_word(name)
             });
+        // A receiver that resolves to no static name (`$objs($i)`, `[pick]`)
+        // may define members on *any* object, so the per-object W315 gates
+        // abstain file-wide (issue #1170).
+        if (obj_name.is_empty() || crate::naming::is_dynamic_word(&obj_name))
+            && resolved_obj.is_none()
+        {
+            self.objdefine_unresolved_receiver = true;
+        }
 
         // `oo::objdefine $obj` with no definition script — the object variable
         // is recorded above; there is nothing more to walk.
@@ -4820,6 +4828,31 @@ impl Analyser {
             qualified_name: synthetic,
             ..Default::default()
         };
+
+        // The receiver keys this block records under, and the binding the
+        // block belongs to (issue #1170): the innermost proc/method frame is
+        // the walk-time spelling of the binding identity consumers re-derive
+        // from `ObjectMemberState::anchor_offset`.
+        let keys: Vec<String> = [
+            Some(obj_name.clone()).filter(|k| !k.is_empty()),
+            resolved_obj.clone(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        let frame = self.innermost_frame_extent(scope_path);
+        let objdefine_offset = arg_tokens.first().map_or(0, |t| t.span.start());
+        // Seed the holder with the binding's accumulated per-object table, so
+        // this block's retractions and renames run against the state the
+        // interpreter would hold — a second block retracting what the first
+        // declared removes it silently instead of recording a false abort,
+        // which is exactly the hazard that kept W315 out of `oo::objdefine`.
+        let (seed, prior_state_conditional) = keys
+            .first()
+            .and_then(|k| self.objdefine_binding_state(k, frame))
+            .map(|st| (st.methods.clone(), st.conditional))
+            .unwrap_or_default();
+        object_class.methods = seed;
 
         // Body-form vs inline-form is the same registry-grammar test as
         // `oo::define`: `args[1]` being a known member keyword means the
@@ -4861,41 +4894,207 @@ impl Analyser {
             );
         }
 
-        // No **W315** here, deliberately. `oo::objdefine` really does abort the
-        // same way (`oo::objdefine $o { deletemethod m }` naming a
-        // class-provided `m` errors `method m does not exist` on 9.0.4 and
-        // 8.6.14 alike — a per-object retraction reaches only the object's
-        // *own* table, never an inherited member), but this holder is built
-        // fresh for every `oo::objdefine` block and each block's members are
-        // handed off below rather than accumulated back into it. A second block
-        // retracting what the first declared would therefore see an empty table
-        // and report a member that plainly exists. The aborts are dropped with
-        // the holder; per-object retraction diagnostics need the per-object
-        // member state to have somewhere to live first — the same missing home
-        // that keeps per-object *visibility* out (issue #1119 item 3).
-        //
-        // Record the per-object method declarations so `$obj m` navigation
-        // resolves the per-object override ahead of a same-named class method.
-        // Accumulate across multiple `oo::objdefine` blocks on the same object.
-        // Each record carries the objdefine site's receiver offset, so
-        // consumers key it by the receiver's *binding identity* — never by
-        // the textual tail alone (issue #945 fault 5).
-        if !object_class.methods.is_empty() {
-            let objdefine_offset = arg_tokens.first().map_or(0, |t| t.span.start());
+        // **W315** candidates (issue #1170). `oo::objdefine` aborts the same
+        // way a class definition does (`oo::objdefine $o { deletemethod m }`
+        // naming a class-provided `m` errors `method m does not exist` on
+        // 9.0.4 and 8.6.14 alike — a per-object retraction reaches only the
+        // object's *own* table, never an inherited member).  The seeded walk
+        // above judged this block against the binding's accumulated table, so
+        // its aborts carry cross-block state; whether each one is *emittable*
+        // needs document-wide facts (per-object declarations under any key,
+        // receiver creations), so they are held for
+        // `flush_objdefine_abort_diagnostics` rather than reported here.
+        for abort in std::mem::take(&mut object_class.definition_aborts) {
+            self.objdefine_abort_candidates
+                .push(super::state::ObjdefineAbortCandidate {
+                    abort,
+                    receiver: keys.first().cloned().unwrap_or_default(),
+                    prior_state_conditional,
+                });
+        }
+
+        self.fold_objdefine_block(&keys, frame, objdefine_offset, &object_class);
+
+        true
+    }
+
+    /// Record one walked `oo::objdefine` block's member declarations and fold
+    /// it into each receiver key's durable [`super::types::ObjectMemberState`]
+    /// — the home per-object visibility never had (issue #1119 item 3 /
+    /// #1170).
+    ///
+    /// Declarations feed `object_methods` so `$obj m` navigation resolves the
+    /// per-object override ahead of a same-named class method, keyed by the
+    /// objdefine site's receiver offset — the receiver's *binding identity*,
+    /// never the textual tail alone (issue #945 fault 5).  The diff runs per
+    /// key against *that key's* own accumulated state: members another block
+    /// already recorded for the key are carry-over, not new declarations,
+    /// while a `foreach` re-dispatch's per-element key (empty state) still
+    /// gains the block's members.  The fold then stores the block's effective
+    /// table plus the explicit export/unexport flips, which may name
+    /// *class*-provided members the object masks or revives.
+    fn fold_objdefine_block(
+        &mut self,
+        keys: &[String],
+        frame: Option<(u32, u32)>,
+        objdefine_offset: u32,
+        object_class: &super::types::ClassDef,
+    ) {
+        let block_conditional = self.conditional_depth > 0;
+        for key in keys {
+            let key_seed = self
+                .objdefine_binding_state(key, frame)
+                .map(|st| st.methods.clone())
+                .unwrap_or_default();
+            let mut new_methods: Vec<super::types::MethodDef> = object_class
+                .methods
+                .values()
+                .filter(|m| key_seed.get(&m.name) != Some(*m))
+                .cloned()
+                .collect();
             // Source-ordered, so the recorded sequence is the same on every
             // run (and the same under each key) rather than the hash map's
             // iteration order.
-            let mut methods: Vec<super::types::MethodDef> =
-                object_class.methods.into_values().collect();
-            methods.sort_by_key(|def| def.name_span.start());
-            for key in [Some(obj_name), resolved_obj].into_iter().flatten() {
-                if !key.is_empty() {
-                    self.record_object_methods(key, &methods, objdefine_offset);
+            new_methods.sort_by_key(|def| def.name_span.start());
+            if !new_methods.is_empty() {
+                self.record_object_methods(key.clone(), &new_methods, objdefine_offset);
+            }
+            let state = self.objdefine_binding_state_mut(key, frame, objdefine_offset);
+            state.methods.clone_from(&object_class.methods);
+            for name in &object_class.exports {
+                state.exports.insert(name.clone());
+                state.unexports.remove(name);
+            }
+            for name in &object_class.unexports {
+                state.unexports.insert(name.clone());
+                state.exports.remove(name);
+            }
+            state.conditional |= block_conditional;
+        }
+    }
+
+    /// The accumulated [`super::types::ObjectMemberState`] for `key`'s
+    /// binding in `frame`, if any `oo::objdefine` block was walked for it.
+    fn objdefine_binding_state(
+        &self,
+        key: &str,
+        frame: Option<(u32, u32)>,
+    ) -> Option<&super::types::ObjectMemberState> {
+        let idx = *self.objdefine_bindings.get(&(key.to_owned(), frame))?;
+        self.result.object_member_state.get(key)?.get(idx)
+    }
+
+    /// [`Self::objdefine_binding_state`], creating the binding's entry on
+    /// first use with `anchor` as its binding-identity anchor.
+    fn objdefine_binding_state_mut(
+        &mut self,
+        key: &str,
+        frame: Option<(u32, u32)>,
+        anchor: u32,
+    ) -> &mut super::types::ObjectMemberState {
+        let states = self
+            .result
+            .object_member_state
+            .entry(key.to_owned())
+            .or_default();
+        let idx = *self
+            .objdefine_bindings
+            .entry((key.to_owned(), frame))
+            .or_insert_with(|| {
+                states.push(super::types::ObjectMemberState {
+                    anchor_offset: anchor,
+                    ..Default::default()
+                });
+                states.len() - 1
+            });
+        &mut states[idx]
+    }
+
+    /// The byte extent of the innermost proc / method body scope along
+    /// `scope_path` — the walk-time spelling of the binding identity the
+    /// LSP side re-derives from a record's anchor offset (the innermost
+    /// `Proc`/`Method` frame, or `None` at the top level).
+    fn innermost_frame_extent(&self, scope_path: &[usize]) -> Option<(u32, u32)> {
+        let mut scope = &self.result.global_scope;
+        let mut extent = None;
+        for &idx in scope_path {
+            let Some(child) = scope.children.get(idx) else {
+                break;
+            };
+            if matches!(
+                child.kind,
+                super::types::ScopeKind::Proc | super::types::ScopeKind::Method
+            ) && let Some(span) = child.body_span
+            {
+                extent = Some((span.start(), span.end()));
+            }
+            scope = child;
+        }
+        extent
+    }
+
+    /// **W315**, `oo::objdefine` flavour (issue #1170): report each
+    /// definition-aborting word the seeded per-object walks recorded, once
+    /// the whole document is walked and the gates below can be judged.
+    ///
+    /// A per-object table is never complete the way a fresh class body's is —
+    /// members can arrive through an aliased handle, `[self]`, or another
+    /// file — so every reading here demands *positive, document-wide*
+    /// evidence and abstains otherwise:
+    ///
+    /// * an unresolved `oo::objdefine` receiver anywhere abstains file-wide
+    ///   (an unknown object may be any object);
+    /// * a `MissingMember` retraction is reported only when the name is
+    ///   declared per-object **nowhere** in the document (any key — an alias
+    ///   may have declared it) *and* the receiver's construction is in view
+    ///   (`instance_classes` / `created_instance_commands`), the per-object
+    ///   analogue of the `via_define` completeness gate;
+    /// * a `DestinationExists` rename relies on presence evidence, which a
+    ///   conditional contributing block makes unprovable;
+    /// * a `RenameToItself` is an error against any table state — tclsh
+    ///   9.0.4 / 8.6.14: present → `cannot rename method to itself`, absent
+    ///   → `method … does not exist` — so only the file-wide receiver gate
+    ///   applies.
+    pub(super) fn flush_objdefine_abort_diagnostics(&mut self) {
+        let candidates = std::mem::take(&mut self.objdefine_abort_candidates);
+        if candidates.is_empty() || self.objdefine_unresolved_receiver {
+            return;
+        }
+        let declared_anywhere: std::collections::HashSet<&str> = self
+            .result
+            .object_methods
+            .values()
+            .flatten()
+            .map(|m| m.def.name.as_str())
+            .collect();
+        let mut diagnostics = Vec::new();
+        for cand in &candidates {
+            let emit = match cand.abort.kind {
+                super::types::DefinitionAbortKind::RenameToItself => true,
+                super::types::DefinitionAbortKind::DestinationExists => {
+                    !cand.prior_state_conditional
                 }
+                super::types::DefinitionAbortKind::MissingMember => {
+                    !cand.prior_state_conditional
+                        && !declared_anywhere.contains(cand.abort.member.as_str())
+                        && (self.result.instance_classes.contains_key(&cand.receiver)
+                            || self
+                                .result
+                                .created_instance_commands
+                                .contains(&cand.receiver))
+                }
+            };
+            if emit {
+                diagnostics.push(super::types::Diagnostic {
+                    code: DiagCode::W315,
+                    span: cand.abort.span,
+                    message: cand.abort.object_message(),
+                    severity: super::types::Severity::Warning,
+                    fixes: Vec::new(),
+                });
             }
         }
-
-        true
+        self.result.diagnostics.extend(diagnostics);
     }
 
     /// Handle ``package require`` (and ``package provide``) —

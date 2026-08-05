@@ -541,12 +541,27 @@ fn instance_method_definition(
     character: u32,
 ) -> Option<Vec<LspRange>> {
     let (inst, method, is_dollar) = instance_method_at_cursor(source, line, character)?;
+    // The folded per-object member state for this receiver binding, when
+    // `oo::objdefine` gave it one (issue #1170) — carries the per-object
+    // visibility flips the throwaway walk used to drop.
+    let object_state = object_member_state_at(analysis, source, &inst, line, character);
     // A per-object method (`oo::objdefine $obj { method m … }`) is layered
     // ahead of the object's class methods, so resolve it first — `$obj m`
     // must reach the per-object override, not a same-named class method.
     // Binding-identity keyed (issue #945 fault 5): the lookup honours the
     // receiver's scope, not just its textual tail.
     if let Some(span) = lookup_object_method(analysis, source, &inst, &method, line, character) {
+        // An unexported per-object member masks the name for an external
+        // dispatch outright — oracle, tclsh 9.0.4 / 8.6.14: after
+        // `oo::objdefine $o { method M {} {…} }` (name-rule unexported) or
+        // `… { method m {} {…}; unexport m }`, `$o M` / `$o m` answer
+        // `unknown method`, the class chain notwithstanding (issue #1170).
+        if let Some(st) = object_state
+            && let Some(md) = st.methods.get(&method)
+            && md.visibility != "public"
+        {
+            return Some(Vec::new());
+        }
         return Some(vec![span_to_range(source, line_index, span)]);
     }
     // `my m` — an internal call: dispatch starts at the *enclosing*
@@ -568,13 +583,38 @@ fn instance_method_definition(
     let cursor = byte_offset_at(line_index, source, line, character);
     let class_q = receiver_instance_class_at(analysis, &inst, is_dollar, cursor)?;
     let bucket = receiver_method_bucket(analysis, &inst, is_dollar);
+    let class_q = class_q.clone();
+    // Per-object visibility flips on a *class*-provided member (issue
+    // #1170): `oo::objdefine $o { unexport m }` masks the member for this
+    // object's external dispatch even though the class exports it (`$o m` →
+    // `unknown method`, tclsh 9.0.4 / 8.6.14), and `… { export m }` revives
+    // an unexported one — the dispatch then enters the first implementation
+    // regardless of the class-side export state, which is what an internal
+    // walk resolves.
+    if bucket == MethodBucket::Instance
+        && let Some(st) = object_state
+    {
+        if st.unexports.contains(&method) {
+            return Some(Vec::new());
+        }
+        if st.exports.contains(&method) {
+            return Some(method_dispatch_definition(
+                analysis,
+                source,
+                line_index,
+                &class_q,
+                &method,
+                false,
+                MethodBucket::Instance,
+            ));
+        }
+    }
     // External `$obj m` / `CLASS m`: the C-faithful dispatch entry — the
     // first exported implementation on the receiver's linearisation
     // (mixins before the class, subclasses before bases; issue #945
     // faults 4 + 6).  A resolved receiver is a definitive answer either
     // way: an unexported/undefined method yields *nothing* rather than
     // falling through to a same-named proc.
-    let class_q = class_q.clone();
     let dispatch = method_dispatch_definition(
         analysis, source, line_index, &class_q, &method, true, bucket,
     );
@@ -689,6 +729,69 @@ fn lookup_object_method(
         [only] => Some(only.def.name_span),
         _ => None,
     }
+}
+
+/// The folded per-object member state for the receiver binding at the call
+/// site (issue #1170): the [`tcl_compiler::analyser::ObjectMemberState`]
+/// whose anchor resolves to the same variable binding as the call — the
+/// same binding-identity rule [`lookup_object_method`] applies.  `None`
+/// when no `oo::objdefine` touched the receiver, or when the binding is
+/// ambiguous (several same-scope states — abstain rather than guess).
+pub(crate) fn object_member_state_at<'a>(
+    analysis: &'a AnalysisResult,
+    source: &str,
+    receiver: &str,
+    line: u32,
+    character: u32,
+) -> Option<&'a tcl_compiler::analyser::ObjectMemberState> {
+    let states = analysis.object_member_state.get(receiver)?;
+    let line_index = LineIndex::new(source);
+    let call_offset = byte_offset_at(&line_index, source, line, character);
+    let call_scope = variable_scope_extent(analysis, receiver, call_offset);
+    let matched: Vec<&tcl_compiler::analyser::ObjectMemberState> = states
+        .iter()
+        .filter(|st| variable_scope_extent(analysis, receiver, st.anchor_offset) == call_scope)
+        .collect();
+    match matched.as_slice() {
+        [only] => Some(only),
+        _ => None,
+    }
+}
+
+/// Whether the cursor sits on an **external** instance-method call whose
+/// receiver's per-object member state masks the method name (issue #1170):
+/// an `oo::objdefine` unexport of the name, or an unexported per-object
+/// member — either makes `$obj m` answer `unknown method` (tclsh 9.0.4 /
+/// 8.6.14) regardless of what the class chain provides.
+///
+/// The in-document provider already answers a masked call with a definitive
+/// empty result, but an empty result is indistinguishable from "no local
+/// answer" at the server boundary, so the cross-file method tier would
+/// resolve the class's own member right past it — this predicate is the
+/// gate that tier (and the in-document hover) consults.  `false` for `my`
+/// dispatches (internal — the mask is about external visibility) and
+/// whenever the binding has no state or an ambiguous one.
+#[must_use]
+pub fn object_masks_external_dispatch(
+    analysis: &AnalysisResult,
+    source: &str,
+    line: u32,
+    character: u32,
+) -> bool {
+    let Some((inst, method, _is_dollar)) = instance_method_at_cursor(source, line, character)
+    else {
+        return false;
+    };
+    if is_self_dispatch_keyword(&inst) {
+        return false;
+    }
+    let Some(st) = object_member_state_at(analysis, source, &inst, line, character) else {
+        return false;
+    };
+    if let Some(md) = st.methods.get(&method) {
+        return md.visibility != "public";
+    }
+    st.unexports.contains(&method)
 }
 
 /// The extent (byte range) of the innermost proc / method body scope that

@@ -5680,6 +5680,21 @@ impl Backend {
                 })
                 .collect());
         }
+        // A per-object visibility mask (`oo::objdefine $o { unexport m }`, or
+        // an unexported per-object member) makes `$obj m` answer `unknown
+        // method` regardless of the class chain (issue #1170).  The
+        // in-document provider answers such a call with a *definitive* empty
+        // result, which is indistinguishable from "no local answer" here —
+        // without this gate the cross-file method tier below would resolve
+        // the class's own member right past the mask.
+        if core_definition::object_masks_external_dispatch(
+            &analysis,
+            &doc.text,
+            pos.line,
+            pos.character,
+        ) {
+            return Ok(Vec::new());
+        }
         // Cross-file TclOO method definition: a `$obj method` / `my method`
         // call (or a method-name cursor in a class body) whose defining class
         // lives in another file — e.g. an inherited method declared in the

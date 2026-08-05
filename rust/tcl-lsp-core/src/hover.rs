@@ -623,40 +623,13 @@ pub fn hover_with_profile(
 
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
 
-    // `$obj method` dispatch — when the cursor sits on the
-    // method-name token of an instance-method call and the
-    // instance's class is known, render the method summary.
-    // Checked before the proc lookup so a method call wins over
-    // a same-named proc.
-    if let Some((inst, method, is_dollar)) =
-        crate::definition::instance_method_at_cursor(source, line, character)
-        && let Some(class_q) =
-            crate::definition::receiver_instance_class_at(analysis, &inst, is_dollar, cursor_offset)
-        && let Some(text) = obj_method_hover_text(analysis, class_q, &method, true, registry)
+    // `$obj m` / `my m` method-dispatch hover, including the per-object
+    // visibility mask (issue #1170) — `Break(None)` is a definitive
+    // no-hover.
+    if let std::ops::ControlFlow::Break(answer) =
+        method_dispatch_hover(source, line, character, cursor_offset, analysis, registry)
     {
-        return Some(Hover::markdown(text));
-    }
-
-    // `my method` internal dispatch — mirrors
-    // `crate::definition::instance_method_definition`'s own `inst == "my"`
-    // branch: unlike `$obj method`, `my`'s receiver isn't an instance
-    // *variable* (`receiver_instance_class` above only resolves those), it
-    // means "the class whose body lexically encloses this call", found via
-    // `enclosing_class_at`. Without this, a definite, single-target `my
-    // methodName` call had no hover at all — go-to-definition and
-    // find-references already resolved it (issue #923 idx 76: the
-    // finding's own headline hypothesis, an ambiguous `switch`-dispatched
-    // `[$obj GetType]` guess, is REFUTED — the LSP correctly abstains
-    // there — but tracing it uncovered this genuinely CONFIRMED gap on the
-    // exact same class, reproducing identically whether or not the class
-    // is split across a separate `oo::define` block).
-    if let Some((inst, method, _)) =
-        crate::definition::instance_method_at_cursor(source, line, character)
-        && crate::definition::is_self_dispatch_keyword(&inst)
-        && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor_offset)
-        && let Some(text) = obj_method_hover_text(analysis, class_q, &method, false, registry)
-    {
-        return Some(Hover::markdown(text));
+        return answer;
     }
 
     // `<ensemble> <subcommand>` hover (issue #923 idx 106) — see
@@ -3356,6 +3329,68 @@ fn class_member_hover_text(
 /// `definition.rs` already does: a `$obj m` / `CLASS m` call sees exported
 /// implementations only, while an internal `my m` also reaches unexported
 /// ones.
+/// The `$obj method` / `my method` dispatch arms of the hover walk, plus
+/// the per-object visibility mask that precedes them.
+///
+/// Three-valued so the caller's tier order survives the extraction:
+/// `Break(Some(_))` is a rendered method hover, `Break(None)` is a
+/// **definitive no-hover** — a per-object mask (`oo::objdefine $o {
+/// unexport m }`, or an unexported per-object member) makes `$obj m` answer
+/// `unknown method` regardless of the class chain (issue #1170), never a
+/// fall-through to a same-named proc or command — and `Continue(())` means
+/// the cursor is not a method-dispatch site at all, so the remaining hover
+/// tiers run.
+fn method_dispatch_hover(
+    source: &str,
+    line: u32,
+    character: u32,
+    cursor_offset: u32,
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+) -> std::ops::ControlFlow<Option<Hover>> {
+    use std::ops::ControlFlow;
+    if crate::definition::object_masks_external_dispatch(analysis, source, line, character) {
+        return ControlFlow::Break(None);
+    }
+
+    // `$obj method` dispatch — when the cursor sits on the
+    // method-name token of an instance-method call and the
+    // instance's class is known, render the method summary.
+    // Checked before the proc lookup so a method call wins over
+    // a same-named proc.
+    if let Some((inst, method, is_dollar)) =
+        crate::definition::instance_method_at_cursor(source, line, character)
+        && let Some(class_q) =
+            crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
+        && let Some(text) = obj_method_hover_text(analysis, class_q, &method, true, registry)
+    {
+        return ControlFlow::Break(Some(Hover::markdown(text)));
+    }
+
+    // `my method` internal dispatch — mirrors
+    // `crate::definition::instance_method_definition`'s own `inst == "my"`
+    // branch: unlike `$obj method`, `my`'s receiver isn't an instance
+    // *variable* (`receiver_instance_class` above only resolves those), it
+    // means "the class whose body lexically encloses this call", found via
+    // `enclosing_class_at`. Without this, a definite, single-target `my
+    // methodName` call had no hover at all — go-to-definition and
+    // find-references already resolved it (issue #923 idx 76: the
+    // finding's own headline hypothesis, an ambiguous `switch`-dispatched
+    // `[$obj GetType]` guess, is REFUTED — the LSP correctly abstains
+    // there — but tracing it uncovered this genuinely CONFIRMED gap on the
+    // exact same class, reproducing identically whether or not the class
+    // is split across a separate `oo::define` block).
+    if let Some((inst, method, _)) =
+        crate::definition::instance_method_at_cursor(source, line, character)
+        && crate::definition::is_self_dispatch_keyword(&inst)
+        && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor_offset)
+        && let Some(text) = obj_method_hover_text(analysis, class_q, &method, false, registry)
+    {
+        return ControlFlow::Break(Some(Hover::markdown(text)));
+    }
+    ControlFlow::Continue(())
+}
+
 fn obj_method_hover_text(
     analysis: &AnalysisResult,
     class_q: &str,

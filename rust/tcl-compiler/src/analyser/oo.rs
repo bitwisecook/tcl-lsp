@@ -4301,21 +4301,16 @@ mod tests {
     }
 
     #[test]
-    fn per_object_visibility_is_still_unmodelled() {
-        // Documented residual, issue #1119 item 3 (unchanged by this change).
-        // `oo::objdefine $o { unexport m }` really works — oracle, 9.0.4 and
-        // 8.6.14 alike:
+    fn per_object_visibility_lands_in_object_member_state() {
+        // Issue #1119 item 3, closed by #1170. `oo::objdefine $o { unexport
+        // m }` really works — oracle, 9.0.4 and 8.6.14 alike:
         //   oo::class create ::C { method m {} {…} } ; set o [::C new]
         //   oo::objdefine $o { unexport m } ; $o m
         //   ;# -> unknown method "m": must be destroy or n
-        // but it routes into the deliberately-unregistered throwaway `ClassDef`
-        // the `oo::objdefine` handler builds, which never reaches
-        // `all_classes` — so there is nowhere for per-object export state to
-        // live and no consumer that could read it. The sided sets added here
-        // are class state, and giving the *object* one is a separate piece of
-        // machinery (the same missing home that keeps per-object retraction
-        // diagnostics out). This pins that the walk stays harmless: it neither
-        // panics nor leaks the flip onto the class.
+        // The flip now lands in the receiver binding's `ObjectMemberState`
+        // — the durable per-object home — while the class itself stays
+        // untouched (the leak guard from #1119 still holds), and the
+        // throwaway holder still never reaches `all_classes`.
         let mut a = Analyser::new();
         let r = a.analyse(
             "oo::class create ::C { method m {} { return m } }\n\
@@ -4327,6 +4322,56 @@ mod tests {
         assert_eq!(c.methods["m"].visibility, "public");
         assert!(c.unexports.is_empty(), "{:?}", c.unexports);
         assert!(!r.all_classes.contains_key("::@objdefine@::o"));
+        let states = r
+            .object_member_state
+            .get("o")
+            .expect("the receiver binding has member state");
+        assert_eq!(states.len(), 1, "{states:?}");
+        assert!(states[0].unexports.contains("m"), "{states:?}");
+        assert!(states[0].exports.is_empty(), "{states:?}");
+    }
+
+    #[test]
+    fn per_object_export_and_unexport_are_last_writer_exclusive() {
+        // The per-object pair keeps the same last-writer-exclusive contract
+        // as the class-side pairs: a later `export m` cancels the earlier
+        // flip, across blocks of the same binding.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { method m {} { return m } }\n\
+             set o [::C new]\n\
+             oo::objdefine $o { unexport m }\n\
+             oo::objdefine $o { export m }",
+            "tcl9.0",
+        );
+        let states = r.object_member_state.get("o").expect("state recorded");
+        assert_eq!(states.len(), 1, "one binding: {states:?}");
+        assert!(states[0].exports.contains("m"), "{states:?}");
+        assert!(!states[0].unexports.contains("m"), "{states:?}");
+    }
+
+    #[test]
+    fn per_object_cross_block_retraction_folds_and_stays_silent() {
+        // The cross-block hazard that kept W315 out of `oo::objdefine`
+        // (issue #1170): a second block retracting what the first declared
+        // is legal (tclsh 9.0.4 / 8.6.14 both accept it), so the seeded walk
+        // must remove the member silently — no W315 — and the folded state
+        // must drop it.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C {}\n\
+             set o [::C new]\n\
+             oo::objdefine $o { method im {} { return i } }\n\
+             oo::objdefine $o { deletemethod im }",
+            "tcl9.0",
+        );
+        assert!(w315_messages(&r).is_empty(), "{:?}", r.diagnostics);
+        let states = r.object_member_state.get("o").expect("state recorded");
+        assert_eq!(states.len(), 1, "{states:?}");
+        assert!(
+            states[0].methods.is_empty(),
+            "the retraction must fold: {states:?}"
+        );
     }
 
     #[test]
@@ -4414,6 +4459,121 @@ mod tests {
             // The member the word could not reach survives on its own side.
             assert!(r.all_classes["::C"].methods.contains_key("im"), "{body}");
         }
+    }
+
+    // W315 for `oo::objdefine` bodies (issue #1170) — possible at all only
+    // because the per-object walk is seeded with the binding's cross-block
+    // state; every reading demands positive, document-wide evidence.
+
+    #[test]
+    fn w315_fires_for_a_per_object_retraction_of_a_never_declared_member() {
+        // TP. A per-object retraction reaches only the object's *own* table,
+        // never a class member: `oo::objdefine $o { deletemethod ghost }`
+        // errors `method ghost does not exist` on 9.0.4 and 8.6.14 alike —
+        // even when the class provides `ghost`.  The receiver's construction
+        // is in view and nothing in the document declares `ghost`
+        // per-object, so the report is evidence-backed.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { method ghost {} { return g } }\n\
+             set o [::C new]\n\
+             oo::objdefine $o { deletemethod ghost }",
+            "tcl9.0",
+        );
+        assert_eq!(
+            w315_messages(&r),
+            vec!["this object definition cannot run: method \"ghost\" does not exist".to_string()],
+        );
+    }
+
+    #[test]
+    fn w315_fires_for_a_per_object_rename_onto_an_existing_member() {
+        // TP, cross-block: the destination's presence comes from an earlier
+        // block of the same binding — exactly the state the unseeded walk
+        // could not carry.  Oracle: `renamemethod a b` with both per-object
+        // -> `method called "b" already exists` (9.0.4 / 8.6.14).
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C {}\n\
+             set o [::C new]\n\
+             oo::objdefine $o { method a {} { return a }\n method b {} { return b } }\n\
+             oo::objdefine $o { renamemethod a b }",
+            "tcl9.0",
+        );
+        assert_eq!(
+            w315_messages(&r),
+            vec![
+                "this object definition cannot run: method called \"b\" already exists".to_string()
+            ],
+        );
+    }
+
+    #[test]
+    fn w315_fires_for_a_per_object_rename_to_itself() {
+        // TP. `renamemethod x x` errors against *any* table state (present:
+        // `cannot rename method to itself`; absent: `method "x" does not
+        // exist`), so this one needs no completeness gate at all.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::objdefine $o { method x {} { return x }\n renamemethod x x }",
+            "tcl9.0",
+        );
+        assert_eq!(
+            w315_messages(&r),
+            vec!["this object definition cannot run: cannot rename method to itself".to_string()],
+        );
+    }
+
+    #[test]
+    fn per_object_w315_abstains_without_the_receivers_construction_in_view() {
+        // TN (CRITICAL FP guard). A document that only *extends* an object it
+        // never constructs is the per-object analogue of a `via_define` stub:
+        // another file may have declared the member per-object, so the
+        // retraction is the normal cross-file shape, not an error.
+        let mut a = Analyser::new();
+        let r = a.analyse("oo::objdefine $o { deletemethod ghost }", "tcl9.0");
+        assert!(!has_w315(&r), "{:?}", w315_messages(&r));
+    }
+
+    #[test]
+    fn per_object_w315_abstains_when_any_key_declares_the_member() {
+        // TN (CRITICAL FP guard, the alias shape). The handle flowed through
+        // a second spelling that declared the member per-object — tclsh:
+        //   set p [::C new]; oo::objdefine $p { method ghost {} {} }
+        //   set o $p; oo::objdefine $o { deletemethod ghost }   ;# succeeds
+        // The keys are different bindings to the analyser, so the only sound
+        // reading is "declared per-object somewhere in this document ⇒ the
+        // retraction may be legal".
+        // `o`'s own construction *is* in view, so the completeness gate
+        // passes and only the declared-anywhere reading keeps this silent.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C {}\n\
+             set p [::C new]\n\
+             oo::objdefine $p { method ghost {} { return g } }\n\
+             set o [::C new]\n\
+             set o $p\n\
+             oo::objdefine $o { deletemethod ghost }",
+            "tcl9.0",
+        );
+        assert!(!has_w315(&r), "{:?}", w315_messages(&r));
+    }
+
+    #[test]
+    fn per_object_w315_abstains_when_any_receiver_is_unresolved() {
+        // TN (CRITICAL FP guard). An `oo::objdefine` whose receiver resolves
+        // to nothing statically may define members on *any* object —
+        // including the one another site retracts from — so the whole
+        // document abstains.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C {}\n\
+             set o [::C new]\n\
+             oo::objdefine [pick] { method ghost {} { return g } }\n\
+             oo::objdefine $o { deletemethod ghost }",
+            "tcl9.0",
+        );
+        assert!(!has_w315(&r), "{:?}", w315_messages(&r));
     }
 
     #[test]
