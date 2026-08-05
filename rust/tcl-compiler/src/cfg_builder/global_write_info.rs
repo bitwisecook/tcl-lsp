@@ -57,18 +57,28 @@ use crate::naming::normalise_var_name;
 use crate::var_observability::{State, stmt_gen};
 
 /// Per-proc summary: the outer-scope (global/namespace) variable names a
-/// proc's body writes while aliased via `global` / `variable` / `upvar #0`.
+/// proc's body writes while aliased via `global` / `variable` / `upvar #0`,
+/// or through a script it runs **at the global frame** (`uplevel #0 …`,
+/// issue #1198).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct GlobalWriteInfo {
     /// Literal outer-scope names this proc's body writes.
     pub names: BTreeSet<String>,
+    /// The proc runs a script at the **global frame** that this analysis
+    /// cannot read — `uplevel #0 $body`, `uplevel #0 [list set $v 1]` with
+    /// an unresolvable target, or a global-frame script whose write target
+    /// is not a plain literal.  Any global/namespace name may be written
+    /// *or read* there, so a call site must widen to an opaque barrier
+    /// instead of trusting [`Self::names`] (issue #1198 — before this,
+    /// O102 forwarded a stale global constant straight across the call).
+    pub opaque_global_frame: bool,
 }
 
 impl GlobalWriteInfo {
     /// True when the proc's body writes no outer-scope name.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.names.is_empty()
+        self.names.is_empty() && !self.opaque_global_frame
     }
 }
 
@@ -152,6 +162,13 @@ pub fn detect_global_write_procs(module: &Module) -> HashMap<String, GlobalWrite
                         changed = true;
                     }
                 }
+                // An opaque global-frame script is transitive the same way
+                // the names are: a caller of `setter` clobbers whatever
+                // `setter`'s `uplevel #0 $body` clobbers (issue #1198).
+                if source_summary.opaque_global_frame && !target_summary.opaque_global_frame {
+                    target_summary.opaque_global_frame = true;
+                    changed = true;
+                }
             }
         }
     }
@@ -185,9 +202,153 @@ fn own_body_global_writes(
     let mut renamed_aliases: HashMap<String, String> = HashMap::new();
     accumulate_state(body, &mut state, &mut renamed_aliases, registry);
 
-    let mut names = BTreeSet::new();
-    collect_write_targets(body, &state, &renamed_aliases, &mut names);
-    GlobalWriteInfo { names }
+    let mut info = GlobalWriteInfo::default();
+    collect_write_targets(body, &state, &renamed_aliases, &mut info.names);
+    collect_global_frame_effects(body, registry, &mut info);
+    info
+}
+
+/// Pass 3 (issue #1198): the writes a proc performs by running a script **at
+/// the global frame** — `uplevel #0 {…}` (lowered to [`Statement::UpFrame`]
+/// with `absolute` set and shift `0`) and `uplevel #0 [list CMD …]` /
+/// `uplevel #0 $body` (still a plain call/barrier statement).  These need no
+/// `global`/`variable` declaration at all, so the flag-state passes above
+/// cannot see them — before this pass, `proc setter {} {uplevel #0 {set x
+/// 99}}` summarised as writing nothing and O102 forwarded the caller's stale
+/// `x` straight across `setter` (tclsh 9.0.3/9.0.4: prints `99`, the
+/// optimised program printed `5`).
+///
+/// A literal write target goes into [`GlobalWriteInfo::names`]; anything
+/// unreadable (a dynamic script, an unresolvable constructed target, a
+/// non-literal name) widens [`GlobalWriteInfo::opaque_global_frame`], which
+/// the call site turns into an opaque barrier.  Frame targeting mirrors
+/// [`super::upvar_info`]'s table exactly: only the **global** frame lands
+/// here — caller-relative levels are the caller-frame summary's business,
+/// and `uplevel 0` stays in the callee's own frame.
+fn collect_global_frame_effects(
+    script: &Script,
+    registry: &tcl_registry::CommandRegistry,
+    info: &mut GlobalWriteInfo,
+) {
+    use tcl_registry::frame_effect::{FrameArgLayout, FrameLevel};
+
+    for stmt in &script.statements {
+        match stmt {
+            Statement::UpFrame {
+                absolute: true,
+                frame_shift: 0,
+                body,
+                ..
+            } => {
+                for name in crate::ir_helpers::defs_from_ir_script(body) {
+                    record_global_frame_write(&name, info);
+                }
+                // A dynamic write target (`set $n 1`) contributes **no**
+                // def at all — `ssa::defs_of` drops it — so it must widen
+                // here explicitly or the write would go unrecorded.
+                if script_has_dynamic_write_target(body) {
+                    info.opaque_global_frame = true;
+                }
+            }
+            Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
+                let Some(spec) = registry.frame_effect(command) else {
+                    continue;
+                };
+                if spec.layout != FrameArgLayout::ScriptInSelectedFrame {
+                    continue;
+                }
+                let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+                let (level, rest) = spec.resolve(&refs);
+                if level != FrameLevel::Absolute(0) {
+                    continue;
+                }
+                // `uplevel` concat-joins the remaining words into one script;
+                // a single constructed-list word is the readable case, same
+                // as the caller-frame summary's rule.
+                if let [single] = rest
+                    && record_constructed_global_body(single, registry, info)
+                {
+                    continue;
+                }
+                info.opaque_global_frame = true;
+            }
+            _ => {}
+        }
+        for body in nested_bodies(stmt) {
+            collect_global_frame_effects(body, registry, info);
+        }
+    }
+}
+
+/// Whether any statement in `script` (recursively) assigns through a
+/// **dynamic** write target (`set $n 1`, `set ${tok}(k) 1`) — a write
+/// [`crate::ssa::defs_of`] cannot name and therefore silently drops, which
+/// a frame-effect summary must widen on instead.  Shared with
+/// [`super::upvar_info`]'s inlined-`uplevel`-body scan, which has the
+/// identical blind spot one frame nearer.
+pub(super) fn script_has_dynamic_write_target(script: &Script) -> bool {
+    script.statements.iter().any(|stmt| {
+        let own = match stmt {
+            Statement::AssignConst {
+                name, name_braced, ..
+            }
+            | Statement::AssignExpr {
+                name, name_braced, ..
+            }
+            | Statement::AssignValue {
+                name, name_braced, ..
+            }
+            | Statement::Incr {
+                name, name_braced, ..
+            } => crate::ssa::is_dynamic_write_target(name, *name_braced),
+            _ => false,
+        };
+        own || nested_bodies(stmt)
+            .into_iter()
+            .any(script_has_dynamic_write_target)
+    })
+}
+
+/// Record one global-frame write target: a plain literal name is
+/// enumerable, anything else widens.
+fn record_global_frame_write(name: &str, info: &mut GlobalWriteInfo) {
+    let name = normalise_var_name(name);
+    if !name.is_empty() && !name.contains(['$', '[', '{', '"', ' ']) {
+        info.names.insert(name.to_owned());
+    } else {
+        info.opaque_global_frame = true;
+    }
+}
+
+/// Read a `uplevel #0 [list CMD ARG…]` body word, recording the global names
+/// the constructed command writes.  Returns `false` when the word is not a
+/// readable constructed list, so the caller widens.  The list grammar is
+/// [`super::upvar_info::constructed_script_words`] — shared with the
+/// caller-frame summary so the two cannot drift.
+fn record_constructed_global_body(
+    word: &str,
+    registry: &tcl_registry::CommandRegistry,
+    info: &mut GlobalWriteInfo,
+) -> bool {
+    let Some(constructed) = super::upvar_info::constructed_script_words(word, registry) else {
+        return false;
+    };
+    let Some((command, cargs)) = constructed.split_first() else {
+        return false;
+    };
+    if registry.get(command).is_none() {
+        // A user proc run at the global frame: its own frame effects land
+        // there under names this per-proc walk cannot resolve — widen.
+        return false;
+    }
+    let arg_refs: Vec<&str> = cargs.iter().map(String::as_str).collect();
+    for idx in registry.arg_indices_for_role(command, &arg_refs, tcl_registry::ArgRole::VarWrite) {
+        let Some(target) = arg_refs.get(idx) else {
+            continue;
+        };
+        record_global_frame_write(target, info);
+    }
+    true
 }
 
 fn accumulate_state(
@@ -498,6 +659,69 @@ mod tests {
         let info = detect_global_write_procs(&m);
         assert!(info.get("::a").unwrap().names.contains("x"));
         assert!(info.get("::b").unwrap().names.contains("x"));
+    }
+
+    #[test]
+    fn uplevel_hash_zero_literal_body_records_global_writes() {
+        // Issue #1198 — `uplevel #0 {set x 99}` needs no `global`
+        // declaration at all (tclsh 9.0.3/9.0.4: the caller-visible `x`
+        // really is 99 afterwards).
+        let m = module("proc ::setter {} { uplevel #0 { set x 99 } }");
+        let info = detect_global_write_procs(&m);
+        assert!(info.get("::setter").unwrap().names.contains("x"));
+        assert!(!info.get("::setter").unwrap().opaque_global_frame);
+    }
+
+    #[test]
+    fn uplevel_hash_zero_constructed_list_records_global_writes() {
+        // `uplevel #0 [list set k 77]` — tclsh 9.0.4: the global `k` is 77.
+        let m = module("proc ::s3 {} { uplevel #0 [list set k 77] }");
+        let info = detect_global_write_procs(&m);
+        assert!(info.get("::s3").unwrap().names.contains("k"));
+        assert!(!info.get("::s3").unwrap().opaque_global_frame);
+    }
+
+    #[test]
+    fn uplevel_hash_zero_dynamic_script_is_opaque() {
+        // `uplevel #0 $body` — any global may be written or read.
+        let m = module("proc ::s2 {body} { uplevel #0 $body }");
+        let info = detect_global_write_procs(&m);
+        assert!(info.get("::s2").unwrap().opaque_global_frame);
+        assert!(!info.get("::s2").unwrap().is_empty());
+    }
+
+    #[test]
+    fn uplevel_hash_zero_opaqueness_is_transitive() {
+        let m = module("proc ::s2 {body} { uplevel #0 $body }\nproc ::outer {body} { s2 $body }");
+        let info = detect_global_write_procs(&m);
+        assert!(info.get("::outer").unwrap().opaque_global_frame);
+    }
+
+    #[test]
+    fn uplevel_hash_zero_non_writing_script_stays_empty() {
+        // TN — a global-frame script that writes nothing (`uplevel #0
+        // [list puts hi]`) contributes neither names nor opaqueness.
+        let m = module("proc ::shout {} { uplevel #0 [list puts hi] }");
+        let info = detect_global_write_procs(&m);
+        assert!(info.get("::shout").unwrap().is_empty());
+    }
+
+    #[test]
+    fn uplevel_caller_frame_is_not_a_global_write() {
+        // TN — `uplevel 1 {set n 1}` writes the *caller's* frame, which is
+        // `upvar_info`'s business, not this summary's.
+        let m = module("proc ::p {} { uplevel 1 { set n 1 } }");
+        let info = detect_global_write_procs(&m);
+        assert!(info.get("::p").unwrap().is_empty());
+    }
+
+    #[test]
+    fn uplevel_hash_zero_dynamic_write_target_in_literal_body_is_opaque() {
+        // `uplevel #0 {set $n 1}` — the body is readable but the written
+        // name is not.
+        let m = module("proc ::p {n} { uplevel #0 \"set $n 1\" }");
+        let info = detect_global_write_procs(&m);
+        assert!(info.get("::p").unwrap().opaque_global_frame);
     }
 
     #[test]

@@ -73,15 +73,28 @@
 //! build0           ;# → 0 — `upvar 0` aliased p0's OWN local, nothing here
 //! ```
 //!
-//! # What it deliberately does not answer
+//! # Literal caller-frame targets (issue #1139)
 //!
 //! A callee that binds a **literal** caller-side name (`upvar 1 name name`,
-//! issue #923 audit idx 22/98) spells that name nowhere at the call site, so
-//! there is no argument word to key on and no span to navigate to.  Resolving
-//! it needs a per-proc *literal caller-frame target* fact on
-//! [`ProcDef`](tcl_compiler::analyser::ProcDef) — the summary's
-//! `literal_targets` bucket — which the analyser does not yet record.  Those
-//! reads keep the abstaining answer above rather than a wrong one.
+//! issue #923 audit idx 22) spells that name nowhere at the call site, so
+//! there is no argument word to key on.  The analyser records those names
+//! per proc on
+//! [`ProcDef::caller_frame_literals`](tcl_compiler::analyser::ProcDef::caller_frame_literals),
+//! and [`caller_frame_bindings`] answers for them with the *call-head word*
+//! as the binding span — the point where the variable comes to exist in
+//! this frame.  A fully-qualified target (`upvar ::tk::FocusGrab($i) data`,
+//! idx 98) is not a caller-frame variable at all: it names one fixed global
+//! cell, which the analyser's `handle_upvar_command` now defines and links
+//! directly.
+//!
+//! # What it deliberately does not answer
+//!
+//! A callee reached through `my` / `next` / object dispatch is a method the
+//! call never names statically, so its literal targets cannot be resolved
+//! here yet — those reads keep the abstaining answer rather than a wrong
+//! one (the compiler-side dispatch widening of issue #1177 keeps the
+//! diagnostics honest in the meantime; per-callee method resolution
+//! composes with issue #1164's MRO work).
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::analyser::types::ProcArgTrait;
@@ -121,11 +134,17 @@ pub(crate) fn substituted_var_read_at(
 pub(crate) struct CallerFrameBinding {
     /// Qualified name of the callee whose `upvar` creates the variable.
     pub callee: String,
-    /// The callee parameter whose *value* names the variable.
-    pub param: String,
+    /// The callee parameter whose *value* names the variable — or `None`
+    /// when the callee spells the name **literally in its own body**
+    /// (`upvar 1 name name`, issue #923 audit idx 22 / issue #1139), so no
+    /// call-site word carries it at all.
+    pub param: Option<String>,
     /// Span of the call-site word that names it — `dataset` in
     /// `gridlayoutHasDataSetObj dataset`.  This is both the creating write
-    /// (go-to-definition's target) and a reference to the variable.
+    /// (go-to-definition's target) and a reference to the variable.  For a
+    /// literal-target binding ([`Self::param`] `None`) there is no such
+    /// word, so this is the call's command-head word — the point where the
+    /// variable comes to exist in this frame.
     pub arg_span: Span,
     /// Span of the call's command-head word.
     pub call_span: Span,
@@ -210,10 +229,9 @@ fn is_plain_var_name(word: &str) -> bool {
 /// a caller-frame variable — the cheap pre-filter for
 /// [`caller_frame_bindings`]'s source scan.
 fn document_has_call_by_name_proc(analysis: &AnalysisResult) -> bool {
-    analysis
-        .all_procs
-        .values()
-        .any(|proc_def| !proc_def.caller_frame_params.is_empty())
+    analysis.all_procs.values().any(|proc_def| {
+        !proc_def.caller_frame_params.is_empty() || !proc_def.caller_frame_literals.is_empty()
+    })
 }
 
 /// Every call in the frame enclosing `cursor_off` that binds `name` in that
@@ -340,8 +358,23 @@ fn bindings_from_call(
     ) else {
         return;
     };
-    if proc_def.caller_frame_params.is_empty() {
+    if proc_def.caller_frame_params.is_empty() && proc_def.caller_frame_literals.is_empty() {
         return;
+    }
+    // A literal caller-frame target (`upvar 1 name name`, issue #1139): the
+    // callee spells the name in its own body, so the *call itself* is the
+    // binding — no argument word to key on.  The command-head word stands in
+    // as the binding span: it is the point where the variable comes to exist
+    // in this frame (tclsh 9.0.4 / 8.6.14: `proc np {} {upvar name name;
+    // set name W1}` then `np; puts $name` prints `W1`).
+    if let Some(written) = proc_def.caller_frame_literals.get(ctx.name) {
+        out.push(CallerFrameBinding {
+            callee: proc_def.qualified_name.clone(),
+            param: None,
+            arg_span: head.span,
+            call_span: head.span,
+            read_only: !written,
+        });
     }
     for (i, param) in proc_def.params.iter().enumerate() {
         let (Some(arg_tok), Some(arg_text)) = (cmd.argv.get(i + 1), cmd.texts.get(i + 1)) else {
@@ -372,7 +405,7 @@ fn bindings_from_call(
         }
         out.push(CallerFrameBinding {
             callee: proc_def.qualified_name.clone(),
-            param: param.name.clone(),
+            param: Some(param.name.clone()),
             arg_span: arg_tok.span,
             call_span: head.span,
             read_only: !writes,
@@ -502,6 +535,11 @@ fn substituted_read_spans(
 /// The bareword half of the idiom — `gridlayoutHasDataSetObj dataset` — is a
 /// creating write, so hover, go-to-definition, and find-references must all
 /// answer for it exactly as they do for the `$dataset` reads it feeds.
+///
+/// A **literal-target** binding is deliberately excluded: its `arg_span` is
+/// the call's command-head word, and a bare cursor on the command name must
+/// keep resolving as the *command* (definition/references of the proc), not
+/// silently become a variable.
 #[must_use]
 pub(crate) fn binding_at_offset(
     analysis: &AnalysisResult,
@@ -513,6 +551,7 @@ pub(crate) fn binding_at_offset(
 ) -> Option<CallerFrameBinding> {
     caller_frame_bindings(analysis, source, dialect, registry, cursor_off, word)
         .into_iter()
+        .filter(|b| b.param.is_some())
         .find(|b| cursor_off >= b.arg_span.start() && cursor_off <= b.arg_span.end())
 }
 
@@ -574,7 +613,7 @@ oo::class create chart {
         let bindings =
             caller_frame_bindings(&analysis, IDX58, "tcl9.0", Some(reg()), read, "dataset");
         assert_eq!(bindings.len(), 1, "one binding call site: {bindings:?}");
-        assert_eq!(bindings[0].param, "dts");
+        assert_eq!(bindings[0].param.as_deref(), Some("dts"));
         assert!(!bindings[0].read_only);
         assert_eq!(
             &IDX58[bindings[0].arg_span.as_range()],
@@ -805,6 +844,88 @@ oo::class create chart {
         }
     }
 
+    /// The literal-target shape of issue #923 audit idx 22 / issue #1139,
+    /// proc form: the callee spells the caller-frame name in its **own**
+    /// body (`upvar name name`), so no call-site word carries it.
+    ///
+    /// tclsh 9.0.4: `proc NameProcess {arguments object} {upvar name name;
+    /// set name W1}` then `proc build {} {NameProcess x obj; return $name}`
+    /// — `build` returns `W1`.
+    const IDX22: &str = "\
+proc NameProcess {arguments object} {
+    upvar name name
+    set name W1
+}
+proc build {} {
+    NameProcess x obj
+    set out $name
+}
+";
+
+    #[test]
+    fn a_literal_upvar_target_binds_at_the_call_head() {
+        let analysis = analyse(IDX22);
+        let read = offset_of(IDX22, "$name") + 1;
+        let bindings = caller_frame_bindings(&analysis, IDX22, "tcl9.0", Some(reg()), read, "name");
+        assert_eq!(bindings.len(), 1, "one binding call site: {bindings:?}");
+        assert_eq!(bindings[0].param, None, "no call-site word carries it");
+        assert!(!bindings[0].read_only, "the alias is written through");
+        assert_eq!(
+            &IDX22[bindings[0].arg_span.as_range()],
+            "NameProcess",
+            "the binding span is the call-head word"
+        );
+    }
+
+    /// TN — the literal fact is level-gated exactly like the param fact:
+    /// only `upvar 1` (or the omitted level) binds this frame.
+    #[test]
+    fn a_literal_target_at_a_non_caller_level_binds_nothing() {
+        for level in ["0", "#0", "2", "$lvl"] {
+            let src = format!(
+                "proc np {{}} {{ upvar {level} name name; set name 1 }}\n\
+                 proc build {{}} {{ np\n puts $name }}\n"
+            );
+            let analysis = analyse(&src);
+            let read = offset_of(&src, "$name") + 1;
+            let bindings =
+                caller_frame_bindings(&analysis, &src, "tcl9.0", Some(reg()), read, "name");
+            assert!(
+                bindings.is_empty(),
+                "`upvar {level}` does not bind the caller's frame: {bindings:?}"
+            );
+        }
+    }
+
+    /// TN — a `::`-qualified target names a fixed global/namespace cell,
+    /// not a caller-frame variable; the analyser's `otherVar` link owns it
+    /// (issue #923 idx 98).
+    #[test]
+    fn a_qualified_literal_target_is_not_a_caller_frame_binding() {
+        let src = "proc np {} { upvar 1 ::tk::FocusGrab(x) data; set data 1 }\n\
+                   proc build {} { np\n puts $FocusGrab }\n";
+        let analysis = analyse(src);
+        let read = offset_of(src, "$FocusGrab") + 1;
+        assert!(
+            caller_frame_bindings(&analysis, src, "tcl9.0", Some(reg()), read, "FocusGrab")
+                .is_empty()
+        );
+    }
+
+    /// A callee that only *reads* through the literal alias references the
+    /// variable without creating it (tclsh 9.0.4: `proc peekname {} {upvar
+    /// name name; return [info exists name]}` creates nothing).
+    #[test]
+    fn a_read_only_literal_target_is_a_reference_not_a_creation() {
+        let src = "proc peekname {} { upvar name name; return [string length $name] }\n\
+                   proc build {} { set name N0\n peekname }\n";
+        let analysis = analyse(src);
+        let call = offset_of(src, "peekname }");
+        let bindings = caller_frame_bindings(&analysis, src, "tcl9.0", Some(reg()), call, "name");
+        assert_eq!(bindings.len(), 1, "{bindings:?}");
+        assert!(bindings[0].read_only, "{bindings:?}");
+    }
+
     /// The parity helper itself, over the pinned table.
     #[test]
     fn dollar_escape_parity_matches_c_tcl() {
@@ -837,6 +958,68 @@ oo::class create chart {
 #[cfg(test)]
 mod caller_frame_navigation_tests {
     use tcl_compiler::analyser::Analyser;
+
+    /// Issue #923 audit idx 98, re-measured for issue #1139: `upvar
+    /// ::tk::FocusGrab($index) data` names a fixed, fully-qualified global
+    /// cell (level-independent — tclsh-verified in the audit), so the array
+    /// must hover, define, and cross-reference from both the `upvar`
+    /// `otherVar` word and a sibling proc's `$::tk::FocusGrab($index)`
+    /// read.  Before the cell gained a `VarDef` at the `otherVar` word,
+    /// every one of these anchors answered nothing (a silent miss).
+    ///
+    /// The four references are: the `otherVar` word, the `info exists`
+    /// argument, the `$` read, and the `unset` argument.  A *bareword*
+    /// cursor on the `info exists` argument still abstains — barewords in
+    /// variable-role argument positions are a separate anchor kind — but
+    /// the occurrence itself is in the reference set.
+    #[test]
+    fn a_fully_qualified_upvar_target_navigates_from_word_and_read() {
+        let src = "\
+proc SetFocusGrab {grab focus} {
+    set index \"$grab,$focus\"
+    upvar ::tk::FocusGrab($index) data
+    lappend data one
+}
+proc RestoreFocusGrab {grab focus} {
+    set index \"$grab,$focus\"
+    if {[info exists ::tk::FocusGrab($index)]} {
+        set data2 $::tk::FocusGrab($index)
+        unset ::tk::FocusGrab($index)
+    }
+}
+";
+        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
+        for (label, needle, extra) in [
+            ("upvar-othervar", "upvar ::tk::FocusGrab", 8usize),
+            ("read", "$::tk::FocusGrab($index)", 3usize),
+        ] {
+            let off = src.find(needle).unwrap() + extra;
+            let line = u32::try_from(src[..off].matches('\n').count()).unwrap();
+            let line_start = src[..off].rfind('\n').map_or(0, |i| i + 1);
+            let col = u32::try_from(off - line_start).unwrap();
+            let hover = crate::hover::hover(
+                src,
+                line,
+                col,
+                &analysis,
+                Some(tcl_registry::registry_for_dialect("tcl9.0")),
+            )
+            .unwrap_or_else(|| panic!("{label}: expected a hover"));
+            assert!(
+                hover.value.contains("::tk::FocusGrab"),
+                "{label}: the card must name the cell: {}",
+                hover.value
+            );
+            let defs = crate::definition::definition(src, line, col, &analysis);
+            assert_eq!(defs.len(), 1, "{label}: one definition: {defs:?}");
+            let refs = crate::references::references(src, "tcl9.0", line, col, &analysis, true);
+            assert_eq!(
+                refs.len(),
+                4,
+                "{label}: otherVar word + info exists + read + unset: {refs:?}"
+            );
+        }
+    }
 
     /// The idx-58 shape: `$dataset` is created by the callee's `upvar`, and a
     /// sibling `TclOO` **method** happens to share the name.
@@ -1049,6 +1232,124 @@ proc caller {} {
         assert!(
             without.iter().any(|r| r.start_line == peek_line),
             "the read-only call site must be retained: {without:?}"
+        );
+    }
+
+    /// Issue #1139 (idx 22's literal-target residual), provider level: a
+    /// callee that binds `upvar name name` creates `name` in this frame,
+    /// with no call-site word to point at — hover / go-to-definition /
+    /// find-references must answer from the call itself instead of the
+    /// former silent miss.
+    #[test]
+    fn navigation_resolves_a_literal_upvar_target_to_the_creating_call() {
+        let src = "\
+proc NameProcess {arguments object} {
+    upvar name name
+    set name W1
+}
+proc build {} {
+    NameProcess x obj
+    set out $name
+}
+";
+        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
+        let line = u32::try_from(
+            src.lines()
+                .position(|l| l.contains("set out $name"))
+                .unwrap(),
+        )
+        .unwrap();
+        let col = u32::try_from(
+            src.lines()
+                .nth(line as usize)
+                .unwrap()
+                .find("$name")
+                .unwrap()
+                + 2,
+        )
+        .unwrap();
+        let hover = crate::hover::hover(
+            src,
+            line,
+            col,
+            &analysis,
+            Some(tcl_registry::registry_for_dialect("tcl9.0")),
+        )
+        .expect("caller-frame hover for a literal target");
+        assert!(
+            hover.value.contains("Caller-frame variable"),
+            "expected a caller-frame card: {}",
+            hover.value
+        );
+        assert!(
+            hover.value.contains("NameProcess"),
+            "the card must name the creating callee: {}",
+            hover.value
+        );
+        let locs = crate::definition::definition(src, line, col, &analysis);
+        assert_eq!(locs.len(), 1, "one definition: {locs:?}");
+        let call_line = u32::try_from(
+            src.lines()
+                .position(|l| l.contains("NameProcess x obj"))
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            locs[0].start_line, call_line,
+            "definition must reach the creating call: {locs:?}"
+        );
+        let refs = crate::references::references(src, "tcl9.0", line, col, &analysis, true);
+        assert!(
+            refs.iter().any(|r| r.start_line == call_line),
+            "the creating call is part of the reference set: {refs:?}"
+        );
+        assert!(
+            refs.iter().any(|r| r.start_line == line),
+            "the read is part of the reference set: {refs:?}"
+        );
+    }
+
+    /// A bare cursor on the callee's command word keeps resolving as the
+    /// **command**, never as the variable its literal `upvar` creates.
+    #[test]
+    fn the_call_head_word_still_navigates_as_a_command() {
+        let src = "\
+proc NameProcess {arguments object} {
+    upvar name name
+    set name W1
+}
+proc build {} {
+    NameProcess x obj
+    set out $name
+}
+";
+        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
+        let call_line = u32::try_from(
+            src.lines()
+                .position(|l| l.contains("NameProcess x obj"))
+                .unwrap(),
+        )
+        .unwrap();
+        let col = u32::try_from(
+            src.lines()
+                .nth(call_line as usize)
+                .unwrap()
+                .find("NameProcess")
+                .unwrap()
+                + 2,
+        )
+        .unwrap();
+        let locs = crate::definition::definition(src, call_line, col, &analysis);
+        assert_eq!(locs.len(), 1, "one definition: {locs:?}");
+        let def_line = u32::try_from(
+            src.lines()
+                .position(|l| l.contains("proc NameProcess"))
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            locs[0].start_line, def_line,
+            "the command word must reach the proc definition: {locs:?}"
         );
     }
 

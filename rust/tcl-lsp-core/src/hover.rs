@@ -2962,12 +2962,24 @@ fn caller_frame_hover_text(
     } else {
         "created in this frame by"
     };
-    format!(
-        "**Caller-frame variable** `{name}`\n\n\
-         {verb} `{}`, through its `{}` parameter's `upvar`.\n\n\
-         The name is passed at the call site, so this frame never assigns it directly.",
-        binding.callee, binding.param
-    )
+    match &binding.param {
+        Some(param) => format!(
+            "**Caller-frame variable** `{name}`\n\n\
+             {verb} `{}`, through its `{param}` parameter's `upvar`.\n\n\
+             The name is passed at the call site, so this frame never assigns it directly.",
+            binding.callee
+        ),
+        // A literal target (`upvar 1 name name`, issue #1139): the callee
+        // spells the name in its own body, so nothing at the call site
+        // carries it.
+        None => format!(
+            "**Caller-frame variable** `{name}`\n\n\
+             {verb} `{}`, whose own `upvar` names it literally.\n\n\
+             The name is spelled in the callee's body, so neither this frame \
+             nor the call site ever writes it directly.",
+            binding.callee
+        ),
+    }
 }
 
 fn var_hover_text(var_def: &VarDef, type_info: Option<&str>, taint_info: Option<&str>) -> String {

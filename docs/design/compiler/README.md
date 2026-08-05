@@ -102,6 +102,10 @@ User-facing compiler troubleshooting and how-tos live in
   on WASM locals vs spill to the runtime frame.
 - [interprocedural-analysis.md](interprocedural-analysis.md) —
   ProcSummary construction.
+- [frame-effect-summaries.md](frame-effect-summaries.md) — the per-proc
+  caller-frame (`upvar`/`uplevel`) and global-frame (`uplevel #0`)
+  effect summaries, their named/opaque/empty lattice, the method-dispatch
+  widening, and the conservative limits.
 - [interprocedural-call-site-seeding.md](interprocedural-call-site-seeding.md)
   — how a procedure parameter is bound to a caller-uniform literal, which
   indirect calls (`$cmd args`, callback prefixes, `eval $script`) count as

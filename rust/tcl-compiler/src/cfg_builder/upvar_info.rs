@@ -131,14 +131,17 @@ pub struct UpvarInfo {
     /// [`Self::caller_side_defs`] under-approximates and the call site must
     /// widen to an opaque caller-frame clobber instead of trusting it.
     pub has_unresolvable_caller_target: bool,
-    /// Literal caller-frame names the proc writes through an `uplevel`
-    /// script that runs in the caller's frame — `uplevel 1 {set n 1}` and
-    /// `uplevel 1 [list set n 1]`.  Unlike `upvar`, no local alias is
-    /// created, so these have no key to hang off.
+    /// Literal caller-frame names the proc may write with **no nameable
+    /// local alias** to key on: an `uplevel` script that runs in the
+    /// caller's frame (`uplevel 1 {set n 1}`, `uplevel 1 [list set n 1]`),
+    /// and an `upvar` pair whose *local* side is dynamic (`upvar 1 n $dst`
+    /// — the alias still targets exactly the caller's `n`, whatever local
+    /// name it lands under; issue #1165).
     pub uplevel_literal_writes: BTreeSet<String>,
     /// Parameter names whose **value** names a caller-frame variable the
-    /// proc writes through an `uplevel` script — `uplevel 1 [list set
-    /// $varName …]`.  Resolved at the call site against the actual argument
+    /// proc may write without a nameable local alias — `uplevel 1 [list set
+    /// $varName …]`, and `upvar 1 $varName $dst` with a dynamic local side
+    /// (issue #1165).  Resolved at the call site against the actual argument
     /// passed for that parameter, exactly like [`Self::param_targets`].
     pub uplevel_param_writes: BTreeSet<String>,
     /// `uplevel <caller frame> [list CMD ARG…]` sites whose `CMD` is not a
@@ -163,13 +166,16 @@ pub struct UpvarInfo {
     /// wholly-dynamic pair records its source word verbatim.
     ///
     /// Deliberately *not* part of [`Self::is_empty`]'s summary contract, and
-    /// no caller-side resolver reads it: the maps above answer "which
-    /// caller-frame name does my local `x` alias?", and a dynamic local side
-    /// gives that question no key to hang off (the caller-side path widens
-    /// through `crate::dynamic_names` instead).  It exists for the strictly
+    /// no caller-side resolver reads it: it exists for the strictly
     /// structural question [`reaches_caller_frame`] asks — "can this body
     /// reach its caller's frame at all?" — where an alias nobody can name
-    /// counts every bit as much as a nameable one.
+    /// counts every bit as much as a nameable one.  The *caller-side effect*
+    /// of such a pair is carried separately (issue #1165): a literal source
+    /// goes into [`Self::uplevel_literal_writes`], a `$param` source into
+    /// [`Self::uplevel_param_writes`], and anything else widens through
+    /// [`Self::has_unresolvable_caller_target`] — all of which `is_empty`
+    /// covers, so `detect_upvar_procs` registers the proc and its call
+    /// sites widen.
     pub unnameable_local_aliases: BTreeSet<String>,
 }
 
@@ -354,16 +360,12 @@ fn resolve_frame_args(spec: FrameEffectSpec, args: &[String]) -> (FrameLevel, &[
 ///
 /// The strictly structural counterpart to [`collect_upvar_targets`], which
 /// answers the richer question "*which* caller-frame names, through which
-/// local?" and therefore drops what it cannot name.  Two shapes are dropped
-/// there and must not be dropped here:
-///
-/// * `upvar 1 $src b` — a dynamic **source**.  When `src` is a parameter this
-///   lands in `param_targets`; otherwise it sets
-///   `has_unresolvable_caller_target`.  Both are already visible through
-///   [`UpvarInfo::is_empty`].
-/// * `upvar 1 x $dst` — a dynamic **local**, which the summary skips outright
-///   because it has no key to file the alias under.  That is the gap
-///   [`UpvarInfo::unnameable_local_aliases`] closes.
+/// local?".  Since issue #1165 every alias pair contributes to a bucket
+/// [`UpvarInfo::is_empty`] covers — a dynamic **source** lands in
+/// `param_targets` or sets `has_unresolvable_caller_target`, and a dynamic
+/// **local** (`upvar 1 x $dst`) files its caller-side name in the keyless
+/// write buckets (or widens).  [`UpvarInfo::unnameable_local_aliases`] is
+/// kept as the purely structural record of the dynamic-local pairs.
 ///
 /// A dynamic name makes an alias *more* dangerous, never exempt, so this
 /// deliberately reads the whole summary rather than any one bucket.
@@ -376,6 +378,39 @@ fn resolve_frame_args(spec: FrameEffectSpec, args: &[String]) -> (FrameLevel, &[
 pub fn reaches_caller_frame(body: &Script, params: &[String]) -> bool {
     let info = collect_upvar_targets(body, params);
     !info.is_empty() || !info.unnameable_local_aliases.is_empty()
+}
+
+/// The synthetic frame-effect entries that widen every `TclOO` self-dispatch
+/// site (`my …`, `next` / `nextto`) in a **method-body** CFG, used for
+/// exactly the methods the per-method dispatch barrier bars
+/// (`crate::optimiser::method_barrier` — a dispatch surface that meets a
+/// caller-frame-reaching or unanalysable class; issues #1177, #1164).
+///
+/// Each entry maps a dispatch keyword to a summary with
+/// [`UpvarInfo::has_unresolvable_caller_target`] set — the call site then
+/// widens with an opaque barrier, exactly like a call to a proc whose
+/// `upvar` target is unresolvable: the defs-based diagnostics (W210, the
+/// I230 existence fold) abstain instead of treating the dispatch as a
+/// no-op.  The keywords come from the registry's method-dispatch traits
+/// ([`tcl_registry::Traits::TCLOO_SELF_DISPATCH`] /
+/// [`tcl_registry::Traits::TCLOO_NEXT_CHAIN`]), never from spelled names;
+/// `self` ([`tcl_registry::Traits::TCLOO_INTROSPECTION`]) dispatches
+/// nothing and is deliberately excluded.
+#[must_use]
+pub fn oo_dispatch_widening_entries(registry: &CommandRegistry) -> Vec<(String, UpvarInfo)> {
+    let widened = UpvarInfo {
+        has_unresolvable_caller_target: true,
+        ..UpvarInfo::default()
+    };
+    let mut names: Vec<&str> =
+        registry.commands_with_trait(tcl_registry::Traits::TCLOO_SELF_DISPATCH);
+    names.extend(registry.commands_with_trait(tcl_registry::Traits::TCLOO_NEXT_CHAIN));
+    names.sort_unstable();
+    names.dedup();
+    names
+        .into_iter()
+        .map(|name| (name.to_owned(), widened.clone()))
+        .collect()
 }
 
 /// Collect the per-proc frame-effect summary from a proc body.
@@ -442,7 +477,7 @@ fn walk_stmt(
             ..
         } => {
             if !*absolute && *frame_shift == 1 {
-                record_upframe_body(&body.statements, info);
+                record_upframe_body(body, info);
             }
         }
         Statement::If {
@@ -522,27 +557,51 @@ fn record_upvar_call(
     while i + 1 < rest.len() {
         let (src, dst) = (rest[i].as_str(), rest[i + 1].as_str());
         i += 2;
-        if !is_literal_name(dst) {
-            // Dynamic destination — can't classify.  Caller-side
-            // analysis falls back to the dynamic-barrier path.  The alias
-            // is still real, so record the structural fact for
-            // [`reaches_caller_frame`]; the resolvable buckets, and
-            // therefore every existing consumer, are untouched.
+        let dst_is_literal = is_literal_name(dst);
+        if !dst_is_literal {
+            // Dynamic destination (`upvar 1 x $dst`) — there is no local
+            // key to file the alias under, so the per-local maps cannot
+            // carry it.  The alias is still real: record the structural
+            // fact for [`reaches_caller_frame`], and classify the CALLER
+            // side below so call sites still widen the right caller name
+            // (issue #1165 — before this, such a proc read as summary-empty
+            // and `p x` left the caller's `x` foldable to a stale constant;
+            // tclsh 9.0.4 / 8.6.16: `proc p {dst} {upvar 1 x $dst; set $dst
+            // 2}; proc c {} {set x 1; p x; puts $x}` prints 2).
             info.unnameable_local_aliases.insert(src.to_string());
-            continue;
         }
         if is_literal_name(src) {
-            // `upvar 1 caller_x x` — literal source.
-            info.literal_targets
-                .insert(dst.to_string(), src.to_string());
+            if dst_is_literal {
+                // `upvar 1 caller_x x` — literal source, literal local.
+                info.literal_targets
+                    .insert(dst.to_string(), src.to_string());
+            } else {
+                // `upvar 1 caller_x $dst` — the caller-side name is still
+                // exactly `caller_x`; only the local key is unknowable, so
+                // it lands in the keyless bucket.
+                info.uplevel_literal_writes.insert(src.to_string());
+            }
         } else if let Some(param) = is_dollar_param_ref(src) {
             // `upvar 1 $param x` — substitution-driven, gated on
             // the param existing on the proc.
             if param == "args" {
-                info.args_tail_upvar.push(dst.to_string());
+                if dst_is_literal {
+                    info.args_tail_upvar.push(dst.to_string());
+                } else {
+                    // `upvar 1 $args $dst` — no positional local to pair
+                    // the tail against; widen.
+                    info.has_unresolvable_caller_target = true;
+                }
             } else if params.iter().any(|p| p == param) {
-                info.param_targets
-                    .insert(dst.to_string(), param.to_string());
+                if dst_is_literal {
+                    info.param_targets
+                        .insert(dst.to_string(), param.to_string());
+                } else {
+                    // `upvar 1 $param $dst` — the caller-side name is the
+                    // parameter's value, resolvable at the call site; only
+                    // the local key is missing.
+                    info.uplevel_param_writes.insert(param.to_string());
+                }
             } else {
                 // `$foo` where `foo` isn't a param — the caller-side name
                 // depends on runtime state; the callee can clobber any
@@ -553,7 +612,7 @@ fn record_upvar_call(
             }
         } else {
             // Fully dynamic source (`upvar 1 [pick] x`, `upvar 1 a($i) x`,
-            // …) — same widening as above.
+            // …) — same widening as above, whatever the local side.
             info.has_unresolvable_caller_target = true;
         }
     }
@@ -607,16 +666,51 @@ fn record_uplevel_call(
 /// A body statement whose target is *not* a plain literal name means the
 /// body writes somewhere this summary cannot name, so widen — the same
 /// direction the constructed-list path takes.
-fn record_upframe_body(stmts: &[Statement], info: &mut UpvarInfo) {
-    for stmt in stmts {
-        for name in crate::ssa::defs_of(stmt) {
-            if is_literal_name(&name) {
-                info.uplevel_literal_writes.insert(name);
-            } else {
-                info.caller_frame_opaque_writes = true;
-            }
+fn record_upframe_body(body: &Script, info: &mut UpvarInfo) {
+    for name in crate::ir_helpers::defs_from_ir_script(body) {
+        if is_literal_name(&name) {
+            info.uplevel_literal_writes.insert(name);
+        } else {
+            info.caller_frame_opaque_writes = true;
         }
     }
+    // A dynamic write target (`uplevel 1 {set $n 1}`) contributes NO def
+    // at all — `ssa::defs_of` drops it — so it must widen here explicitly
+    // or the caller-frame write would go unrecorded (tclsh 9.0.4 /
+    // 8.6.16: the caller's variable named by the value of its own `n`
+    // really is written).
+    if super::global_write_info::script_has_dynamic_write_target(body) {
+        info.caller_frame_opaque_writes = true;
+    }
+}
+
+/// The constructed words of a `[list CMD ARG…]` script body word —
+/// `Some(words)` (command first) when *word* is a single `[builder …]`
+/// substitution whose builder the registry marks
+/// [`ReturnElements::ListOfArgs`](tcl_registry::ReturnElements) `{ from: 0 }`
+/// and whose constructed command word is a plain literal; `None` otherwise,
+/// so the caller widens.  Shared by the caller-frame summary here and the
+/// global-frame summary in [`super::global_write_info`] (`uplevel #0 [list
+/// set g …]`, issue #1198) so the two read the same list grammar.
+pub(super) fn constructed_script_words(
+    word: &str,
+    registry: &CommandRegistry,
+) -> Option<Vec<String>> {
+    let inner = word.strip_prefix('[').and_then(|w| w.strip_suffix(']'))?;
+    let words = super::words_from_text(inner);
+    let (builder, constructed) = words.split_first()?;
+    if !registry.get(builder).is_some_and(|spec| {
+        matches!(
+            spec.return_elements,
+            Some(tcl_registry::ReturnElements::ListOfArgs { from: 0 })
+        )
+    }) {
+        return None;
+    }
+    if !constructed.first().is_some_and(|c| is_literal_name(c)) {
+        return None;
+    }
+    Some(constructed.to_vec())
 }
 
 /// Read a `[list CMD ARG…]` body word, recording the caller-frame names the
@@ -632,27 +726,12 @@ fn record_constructed_body(
     registry: &CommandRegistry,
     info: &mut UpvarInfo,
 ) -> bool {
-    let Some(inner) = word.strip_prefix('[').and_then(|w| w.strip_suffix(']')) else {
+    let Some(constructed) = constructed_script_words(word, registry) else {
         return false;
     };
-    let words = super::words_from_text(inner);
-    let Some((builder, constructed)) = words.split_first() else {
-        return false;
-    };
-    if !registry.get(builder).is_some_and(|spec| {
-        matches!(
-            spec.return_elements,
-            Some(tcl_registry::ReturnElements::ListOfArgs { from: 0 })
-        )
-    }) {
-        return false;
-    }
     let Some((command, cargs)) = constructed.split_first() else {
         return false;
     };
-    if !is_literal_name(command) {
-        return false;
-    }
     let arg_refs: Vec<&str> = cargs.iter().map(String::as_str).collect();
     if registry.get(command).is_some() {
         // A registry command: its own `VarWrite` roles say which words name
@@ -684,7 +763,7 @@ fn record_constructed_body(
     // reaches *this* proc's caller, one frame further out than a plain call
     // would (issue #1019), but only the module-wide pass can resolve it.
     info.uplevel_forwarded_calls
-        .push((command.clone(), constructed[1..].to_vec()));
+        .push((command.clone(), cargs.to_vec()));
     true
 }
 
@@ -988,11 +1067,54 @@ mod tests {
     }
 
     #[test]
-    fn dynamic_destination_skipped() {
+    fn dynamic_destination_with_literal_source_still_names_the_caller_var() {
+        // Issue #1165 — `upvar 1 x $dst` aliases exactly the caller's `x`;
+        // only the local key is dynamic.  The summary must not read as
+        // empty (tclsh 9.0.4 / 8.6.16: `proc p {dst} {upvar 1 x $dst; set
+        // $dst 2}; proc c {} {set x 1; p x; puts $x}` prints 2, so a call
+        // site that kept `x = 1` foldable would miscompile).
         let body = lower("upvar 1 caller_x $local");
         let info = collect_upvar_targets(&body, &[]);
-        // Destination `$local` is dynamic — can't classify.
-        assert!(info.is_empty());
+        assert!(!info.is_empty(), "got {info:?}");
+        assert!(
+            info.uplevel_literal_writes.contains("caller_x"),
+            "got {info:?}"
+        );
+        assert!(!info.has_unresolvable_caller_target, "got {info:?}");
+        // The structural record survives for `reaches_caller_frame`.
+        assert!(info.unnameable_local_aliases.contains("caller_x"));
+        // And the call-site resolver surfaces the caller-side name.
+        assert_eq!(info.caller_side_defs(&[], &[]), vec!["caller_x"]);
+    }
+
+    #[test]
+    fn dynamic_destination_with_param_source_resolves_at_the_call_site() {
+        // Issue #1165 — `upvar 1 $name $dst`: the caller-side name is the
+        // value passed for `name`, exactly like `param_targets`.
+        let body = lower("upvar 1 $name $local");
+        let info = collect_upvar_targets(&body, &["name".to_string()]);
+        assert!(info.uplevel_param_writes.contains("name"), "got {info:?}");
+        assert!(!info.has_unresolvable_caller_target, "got {info:?}");
+        let defs = info.caller_side_defs(&["target".to_string()], &["name".to_string()]);
+        assert_eq!(defs, vec!["target"]);
+    }
+
+    #[test]
+    fn dynamic_destination_with_dynamic_source_widens() {
+        // Issue #1165 — both sides dynamic: the callee can clobber any
+        // caller variable, so the summary must widen, not stay empty.
+        for src in [
+            "upvar 1 [pick] $local",
+            "upvar 1 $notparam $local",
+            "upvar 1 $args $local",
+        ] {
+            let body = lower(src);
+            let info = collect_upvar_targets(&body, &["args".to_string()]);
+            assert!(
+                info.has_unresolvable_caller_target,
+                "{src} must widen; got {info:?}"
+            );
+        }
     }
 
     #[test]

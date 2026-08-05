@@ -674,6 +674,15 @@ fn update_entry(
 /// convergence *and* an injected memo's correctness at once — a stale memo entry
 /// trips the same assertion a missed call-graph edge would.
 ///
+/// Append `val` to `map[key]`, deduplicated — the caller-edge insert for the
+/// reverse call graph in [`converge_summaries_with`].
+fn push_unique_edge<'a>(map: &mut HashMap<&'a str, Vec<&'a str>>, key: &'a str, val: &'a str) {
+    let entry = map.entry(key).or_default();
+    if !entry.contains(&val) {
+        entry.push(val);
+    }
+}
+
 /// `registry` and `dialect` feed only the debug-only round-robin guard below, so
 /// in a release build (where `debug_assertions` is off and the guard is compiled
 /// out) they are genuinely unused.
@@ -702,16 +711,10 @@ pub fn converge_summaries_with(
     // `callers[Q]` = procedures that directly call `Q`; when `Q`'s summary changes
     // its callers are re-queued. Without a call graph, re-queue everything.
     let callers: Option<HashMap<&str, Vec<&str>>> = interproc.map(|ia| {
-        fn add<'a>(map: &mut HashMap<&'a str, Vec<&'a str>>, callee: &'a str, from: &'a str) {
-            let entry = map.entry(callee).or_default();
-            if !entry.contains(&from) {
-                entry.push(from);
-            }
-        }
         let mut map: HashMap<&str, Vec<&str>> = HashMap::new();
         for (caller, summary) in &ia.procedures {
             for callee in &summary.direct_calls {
-                add(&mut map, callee.as_str(), caller.as_str());
+                push_unique_edge(&mut map, callee.as_str(), caller.as_str());
             }
         }
         for qname in &proc_names {
@@ -722,7 +725,7 @@ pub fn converge_summaries_with(
                 // `resolved_callees` returns owned names; the map borrows from
                 // `known`'s keys, which outlive it and hold the same strings.
                 if let Some(interned) = known.get(&callee) {
-                    add(&mut map, interned.as_str(), qname.as_str());
+                    push_unique_edge(&mut map, interned.as_str(), qname.as_str());
                 }
             }
         }

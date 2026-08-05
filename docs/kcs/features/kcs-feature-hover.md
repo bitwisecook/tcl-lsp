@@ -139,9 +139,17 @@ caller's frame. `upvar 0` aliases the callee's own local, `upvar #0` a global,
 and `upvar 2` the caller's caller — none of them creates anything where you
 are reading, so hover stays silent for those.
 
-Two further limits are deliberate. A callee that binds a *literal* caller-side
-name (`upvar 1 options options`) spells nothing at the call site, so there is
-no word to attribute the variable to and hover stays silent. And a `$`-led
+A callee that binds a *literal* caller-side name (`upvar 1 options options`)
+spells nothing at the call site, so the card names the callee itself and says
+the name is spelled in the callee's body; Go to Definition then reaches the
+call, which is where the variable comes to exist in this frame. A
+fully-qualified target (`upvar ::tk::FocusGrab($idx) data`) is not a
+caller-frame variable at all — it names one fixed global cell, which hover,
+Go to Definition, and Find References answer directly from the `upvar` word.
+
+Two limits are deliberate. A callee reached through `my`, `next`, or an
+object dispatch is a method the call never names statically, so its literal
+targets are not resolved yet and hover stays silent for them. And a `$`-led
 read that nothing binds shows **nothing at all** rather than falling back to a
 command or method of the same name: Tcl keeps variable names and command names
 in separate tables, so `$dataset` can never mean a method called `dataset`.

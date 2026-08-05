@@ -340,99 +340,42 @@ impl CfgBuilder {
     /// ([`Self::init_written_names`]) can ask what a statement writes without
     /// recording the statement twice.
     fn upvar_invalidated(&self, mut stmt: Statement) -> Vec<Statement> {
-        // 0. A callee whose `upvar` caller-side name is unresolvable
-        //    (`upvar 1 $computed x`) can write ANY caller variable — no
-        //    per-name def list is sound, so widen the call site with an
-        //    opaque barrier after the call (SCCP/propagation widen every
-        //    tracked value at a `Statement::Barrier`), instead of trusting
-        //    the under-approximate `caller_side_defs`.
-        if let Statement::Call { command, span, .. } = &stmt
-            && self
-                .upvar_procs
-                .get(command.as_str())
-                .is_some_and(|info| info.has_unresolvable_caller_target)
-        {
-            let barrier = Statement::Barrier {
-                span: *span,
-                reason: format!("{command} upvar-aliases a dynamic caller variable"),
-                command: command.clone(),
-                canonical_command: None,
-                args: Vec::new(),
-                tokens: None,
-            };
+        // 0. A callee whose caller-frame effect cannot be enumerated per
+        //    name widens the call site with an opaque barrier after the
+        //    call (SCCP/propagation widen every tracked value at a
+        //    `Statement::Barrier`), instead of trusting the
+        //    under-approximate `caller_side_defs` / `names`.
+        if let Some(barrier) = self.opaque_call_barrier(&stmt) {
             return vec![stmt, barrier];
         }
 
-        // 1. Direct-call extras: command is a known upvar proc / a proc that
-        //    writes outer-scope names.  Extras are merged as DEFS only; the
-        //    "the callee may also *read* the aliased cell" half is recorded
-        //    on [`crate::cfg::Function::alias_observed_vars`] by
-        //    [`Self::record_alias_observed`] (a read here would fabricate
-        //    read-before-set uses — a false W210 — for the pure out-param
-        //    shape).
-        let direct_extras: Vec<String> = match &stmt {
-            Statement::Call { command, args, .. } => {
-                let mut extras = self
-                    .upvar_procs
-                    .get(command.as_str())
-                    .map(|info| {
-                        let params: &[String] = self
-                            .proc_params
-                            .get(command.as_str())
-                            .map_or(&[][..], Vec::as_slice);
-                        info.caller_side_defs(args, params)
-                    })
-                    .unwrap_or_default();
-                if let Some(info) = self.global_write_procs.get(command.as_str()) {
-                    for name in &info.names {
-                        if !extras.contains(name) {
-                            extras.push(name.clone());
-                        }
-                    }
-                }
-                extras
-            }
-            _ => Vec::new(),
-        };
+        // 1. Direct-call extras: command is a known upvar proc / a proc
+        //    that writes outer-scope names.
+        let direct_extras = self.direct_call_extras(&stmt);
 
         // 2. Embedded-substitution extras: walk text for
         //    `[upvar_proc arg]` / `[global_write_proc arg]` substitutions.
-        let texts: Vec<&str> = match &stmt {
-            Statement::AssignValue { value, .. } if value.contains('[') => vec![value.as_str()],
-            Statement::Call { args, .. } => args
-                .iter()
-                .filter(|a| a.contains('['))
-                .map(String::as_str)
-                .collect(),
-            _ => Vec::new(),
-        };
-        let mut embedded_extras: Vec<String> = Vec::new();
-        for text in texts {
-            for d in self.upvar_defs_from_text(text) {
-                if !embedded_extras.contains(&d) {
-                    embedded_extras.push(d);
-                }
-            }
-            for d in self.global_write_defs_from_text(text) {
-                if !embedded_extras.contains(&d) {
-                    embedded_extras.push(d);
-                }
-            }
-            // A var-mutating builtin inside a command substitution
-            // (`set y [append x b]`, `[incr x]`, `[lset l …]`) writes its target
-            // variable as a side effect; record it so copy / constant
-            // propagation (O100) does not propagate a stale value past the
-            // mutation (FP-OPT-06).
-            for d in Self::builtin_write_defs_from_text(text) {
-                if !embedded_extras.contains(&d) {
-                    embedded_extras.push(d);
-                }
-            }
-        }
+        let (embedded_extras, embedded_opaque_global) = self.embedded_subst_extras(&stmt);
 
-        if direct_extras.is_empty() && embedded_extras.is_empty() {
+        if direct_extras.is_empty() && embedded_extras.is_empty() && !embedded_opaque_global {
             return vec![stmt];
         }
+
+        // 2b. An embedded call to a proc that runs an unreadable script at
+        //     the global frame (`set y [setter]` where `setter` does
+        //     `uplevel #0 $body`, issue #1198): no def list can enumerate
+        //     what it clobbers, so prepend an opaque barrier — the same
+        //     program-order position the synthetic `<upvar-invalidate>`
+        //     uses, so the host statement's own reads already see the
+        //     widened state.
+        let opaque_barrier = embedded_opaque_global.then(|| Statement::Barrier {
+            span: stmt.span(),
+            reason: "embedded call runs an unreadable script at the global frame".to_owned(),
+            command: "<global-frame-script>".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            tokens: None,
+        });
 
         // 3. Merge into the host statement when it's a Call.
         if let Statement::Call { defs, .. } = &mut stmt {
@@ -446,15 +389,22 @@ impl CfgBuilder {
                     defs.push(d);
                 }
             }
-            return vec![stmt];
+            return match opaque_barrier {
+                Some(barrier) => vec![barrier, stmt],
+                None => vec![stmt],
+            };
         }
 
         // 4. Non-Call host (e.g. AssignValue) with embedded extras —
         //    emit a synthetic `<upvar-invalidate>` Call before the
         //    host so the affected vars are invalidated in
         //    program order.
+        let mut out = Vec::new();
+        if let Some(barrier) = opaque_barrier {
+            out.push(barrier);
+        }
         if !embedded_extras.is_empty() {
-            let synthetic = Statement::Call {
+            out.push(Statement::Call {
                 span: stmt.span(),
                 command: "<upvar-invalidate>".to_string(),
                 canonical_command: None,
@@ -465,11 +415,121 @@ impl CfgBuilder {
                 safe_on_uninit: false,
                 tokens: None,
                 foreach_groups: None,
-            };
-            return vec![synthetic, stmt];
+            });
         }
+        out.push(stmt);
+        out
+    }
 
-        vec![stmt]
+    /// The opaque widening barrier for a direct call whose callee's
+    /// caller-frame effect has no sound per-name def list: a callee whose
+    /// `upvar` caller-side name is unresolvable (`upvar 1 $computed x`) can
+    /// write ANY caller variable, and a callee that runs an unreadable
+    /// script at the global frame (`uplevel #0 $body`, issue #1198) can
+    /// write or read ANY global/namespace name.
+    fn opaque_call_barrier(&self, stmt: &Statement) -> Option<Statement> {
+        let Statement::Call { command, span, .. } = stmt else {
+            return None;
+        };
+        let unresolvable_upvar = self
+            .upvar_procs
+            .get(command.as_str())
+            .is_some_and(|info| info.has_unresolvable_caller_target);
+        let opaque_global = self
+            .global_write_procs
+            .get(command.as_str())
+            .is_some_and(|info| info.opaque_global_frame);
+        if !unresolvable_upvar && !opaque_global {
+            return None;
+        }
+        let reason = if unresolvable_upvar {
+            format!("{command} upvar-aliases a dynamic caller variable")
+        } else {
+            format!("{command} runs an unreadable script at the global frame")
+        };
+        Some(Statement::Barrier {
+            span: *span,
+            reason,
+            command: command.clone(),
+            canonical_command: None,
+            args: Vec::new(),
+            tokens: None,
+        })
+    }
+
+    /// The direct-call half of [`Self::upvar_invalidated`]: the caller-side
+    /// names a known upvar proc / global-writing proc defines at this call.
+    /// Extras are merged as DEFS only; the "the callee may also *read* the
+    /// aliased cell" half is recorded on
+    /// [`crate::cfg::Function::alias_observed_vars`] by
+    /// [`Self::record_alias_observed`] (a read here would fabricate
+    /// read-before-set uses — a false W210 — for the pure out-param shape).
+    fn direct_call_extras(&self, stmt: &Statement) -> Vec<String> {
+        let Statement::Call { command, args, .. } = stmt else {
+            return Vec::new();
+        };
+        let mut extras = self
+            .upvar_procs
+            .get(command.as_str())
+            .map(|info| {
+                let params: &[String] = self
+                    .proc_params
+                    .get(command.as_str())
+                    .map_or(&[][..], Vec::as_slice);
+                info.caller_side_defs(args, params)
+            })
+            .unwrap_or_default();
+        if let Some(info) = self.global_write_procs.get(command.as_str()) {
+            for name in &info.names {
+                if !extras.contains(name) {
+                    extras.push(name.clone());
+                }
+            }
+        }
+        extras
+    }
+
+    /// The embedded-substitution half of [`Self::upvar_invalidated`]: the
+    /// caller-side defs contributed by `[…]` substitutions in the
+    /// statement's argument words (or an assignment's value), plus whether
+    /// any embedded callee runs an unreadable script at the global frame.
+    fn embedded_subst_extras(&self, stmt: &Statement) -> (Vec<String>, bool) {
+        let texts: Vec<&str> = match stmt {
+            Statement::AssignValue { value, .. } if value.contains('[') => vec![value.as_str()],
+            Statement::Call { args, .. } => args
+                .iter()
+                .filter(|a| a.contains('['))
+                .map(String::as_str)
+                .collect(),
+            _ => Vec::new(),
+        };
+        let mut embedded_extras: Vec<String> = Vec::new();
+        let mut embedded_opaque_global = false;
+        for text in texts {
+            for d in self.upvar_defs_from_text(text) {
+                if !embedded_extras.contains(&d) {
+                    embedded_extras.push(d);
+                }
+            }
+            let (global_defs, opaque) = self.global_write_defs_from_text(text);
+            embedded_opaque_global |= opaque;
+            for d in global_defs {
+                if !embedded_extras.contains(&d) {
+                    embedded_extras.push(d);
+                }
+            }
+            // A var-mutating builtin inside a command substitution
+            // (`set y [append x b]`, `[incr x]`, `[lset l …]`) writes its
+            // target variable as a side effect; record it so copy / constant
+            // propagation (O100) does not propagate a stale value past the
+            // mutation (FP-OPT-06).
+            for d in Self::builtin_write_defs_from_text(text) {
+                if !embedded_extras.contains(&d) {
+                    embedded_extras.push(d);
+                }
+            }
+        }
+        (embedded_extras, embedded_opaque_global)
     }
 
     /// Every command word a statement invokes: its own head, plus the head
@@ -598,15 +658,27 @@ impl CfgBuilder {
     /// [`Self::upvar_defs_from_text`], for the same soundness reason: a
     /// global write reached via `set y [mutate]` is just as real as one
     /// reached via a bare `mutate` statement.
-    fn global_write_defs_from_text(&self, text: &str) -> Vec<String> {
-        self.global_write_defs_from_text_bounded(text, 0)
+    ///
+    /// The second return is `true` when any embedded callee's summary
+    /// carries [`GlobalWriteInfo::opaque_global_frame`] (`uplevel #0 $body`,
+    /// issue #1198) — no def list can enumerate that, so the caller must
+    /// widen with an opaque barrier.
+    fn global_write_defs_from_text(&self, text: &str) -> (Vec<String>, bool) {
+        let mut opaque = false;
+        let defs = self.global_write_defs_from_text_bounded(text, 0, &mut opaque);
+        (defs, opaque)
     }
 
     /// [`Self::global_write_defs_from_text`], recursing into a nested
     /// `[...]` the same way [`Self::upvar_defs_from_text_bounded`] does
     /// (issue #923 idx 122) — see its doc for the wrapping-command shape
     /// this recovers.
-    fn global_write_defs_from_text_bounded(&self, text: &str, depth: u32) -> Vec<String> {
+    fn global_write_defs_from_text_bounded(
+        &self,
+        text: &str,
+        depth: u32,
+        opaque: &mut bool,
+    ) -> Vec<String> {
         use tcl_lexer::{Lexer, SourceMap, TokenType};
 
         if self.global_write_procs.is_empty()
@@ -632,6 +704,7 @@ impl CfgBuilder {
             if let Some(cmd) = words.first()
                 && let Some(info) = self.global_write_procs.get(cmd.as_str())
             {
+                *opaque |= info.opaque_global_frame;
                 for name in &info.names {
                     if !defs.contains(name) {
                         defs.push(name.clone());
@@ -641,7 +714,7 @@ impl CfgBuilder {
             // See `upvar_defs_from_text_bounded`'s identical step: `inner`
             // still carries any bracket nested inside it, so recurse on
             // the raw text rather than the (bracket-stripped) word list.
-            for d in self.global_write_defs_from_text_bounded(inner, depth + 1) {
+            for d in self.global_write_defs_from_text_bounded(inner, depth + 1, opaque) {
                 if !defs.contains(&d) {
                     defs.push(d);
                 }
@@ -665,12 +738,17 @@ impl CfgBuilder {
     /// though the condition's own command substitution (including the
     /// upvar write) completes before the body ever runs
     /// (tclsh9.0/8.6-verified).
-    fn condition_out_vars(&self, condition: &ExprNode) -> Vec<String> {
+    /// The second return is `true` when a condition-embedded callee runs an
+    /// unreadable script at the global frame (issue #1198): the caller must
+    /// then push an opaque barrier alongside the `<cond>` defs, because no
+    /// def list can enumerate what the condition's evaluation clobbers.
+    fn condition_out_vars(&self, condition: &ExprNode) -> (Vec<String>, bool) {
         // The CFG builder carries no registry handle (see the module note at
         // `registry_derived_cfg_classes`); the write-role answer is core Tcl in
         // every dialect, so the cached default registry is the right source.
         let registry = tcl_registry::cache::registry_for_dialect("tcl8.6");
         let mut out = crate::ir_helpers::condition_command_out_vars(condition, registry);
+        let mut opaque = false;
         let mut cmds = Vec::new();
         crate::ir_helpers::collect_expr_commands(condition, &mut cmds);
         for cmd_text in &cmds {
@@ -679,13 +757,47 @@ impl CfgBuilder {
                     out.push(d);
                 }
             }
-            for d in self.global_write_defs_from_text(cmd_text) {
+            let (global_defs, cmd_opaque) = self.global_write_defs_from_text(cmd_text);
+            opaque |= cmd_opaque;
+            for d in global_defs {
                 if !out.contains(&d) {
                     out.push(d);
                 }
             }
         }
-        out
+        (out, opaque)
+    }
+
+    /// Push the `<cond>` synthetic call (and, when the condition's embedded
+    /// callees demand it, an opaque barrier) for a condition that contains
+    /// command substitutions — the shared tail of `lower_if`, `lower_while`,
+    /// and the frozen-loop barrier.
+    fn push_condition_effects(&mut self, condition: &ExprNode, span: Span, block: &str) {
+        let (cond_defs, opaque) = self.condition_out_vars(condition);
+        if !cond_defs.is_empty() {
+            self.block_mut(block).statements.push(Statement::Call {
+                span,
+                command: "<cond>".into(),
+                canonical_command: None,
+                args: Vec::new(),
+                defs: cond_defs,
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+                foreach_groups: None,
+            });
+        }
+        if opaque {
+            self.block_mut(block).statements.push(Statement::Barrier {
+                span,
+                reason: "condition runs an unreadable script at the global frame".into(),
+                command: "<global-frame-script>".into(),
+                canonical_command: None,
+                args: Vec::new(),
+                tokens: None,
+            });
+        }
     }
 
     /// Scan *text* for `[command_substitution]` tokens whose head is a builtin
@@ -974,21 +1086,7 @@ impl CfgBuilder {
         span: Span,
         current: &str,
     ) {
-        let cond_defs = self.condition_out_vars(condition);
-        if !cond_defs.is_empty() {
-            self.block_mut(current).statements.push(Statement::Call {
-                span,
-                command: "<cond>".into(),
-                canonical_command: None,
-                args: Vec::new(),
-                defs: cond_defs,
-                reads: Vec::new(),
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: None,
-                foreach_groups: None,
-            });
-        }
+        self.push_condition_effects(condition, span, current);
         self.block_mut(current).statements.push(Statement::Barrier {
             span,
             reason: format!("frozen {command} (cmd-subst condition)"),

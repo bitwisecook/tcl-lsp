@@ -78,18 +78,17 @@ use std::collections::{HashMap, HashSet};
 
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
-use crate::compilation_unit::CompilationUnit;
-use crate::ir::{Script, Statement};
+use crate::ir::{Module as IrModule, Script, Statement};
 
 /// The computed barrier: which methods may propagate their private locals.
-pub(super) struct MethodDispatchBarrier {
+pub(crate) struct MethodDispatchBarrier {
     bar_all: bool,
     barred: HashSet<String>,
 }
 
 impl MethodDispatchBarrier {
     /// Whether `method_qname`'s provably-local variables may propagate.
-    pub(super) fn allows_locals(&self, method_qname: &str) -> bool {
+    pub(crate) fn allows_locals(&self, method_qname: &str) -> bool {
         !self.bar_all && !self.barred.contains(method_qname)
     }
 
@@ -131,8 +130,7 @@ impl DispatchFacts {
 }
 
 /// Compute the per-method barrier for `cu` — see the module doc.
-pub(super) fn compute(cu: &CompilationUnit, registry: &CommandRegistry) -> MethodDispatchBarrier {
-    let ir = &cu.ir_module;
+pub(crate) fn compute(ir: &IrModule, registry: &CommandRegistry) -> MethodDispatchBarrier {
     if ir.oo_evidence.dynamic_target || ir.oo_evidence.dynamic_class_relations {
         return MethodDispatchBarrier::bar_all();
     }
@@ -174,9 +172,9 @@ pub(super) fn compute(cu: &CompilationUnit, registry: &CommandRegistry) -> Metho
         .collect();
 
     // Per-proc dispatch facts, closed over the proc call graph.
-    let proc_facts = proc_dispatch_facts(cu, registry, &comp_of);
-    let method_facts = method_dispatch_facts(cu, registry, &comp_of, &proc_facts);
-    let comp_out = component_dispatch_closure(cu, &comp_of, &method_facts);
+    let proc_facts = proc_dispatch_facts(ir, registry, &comp_of);
+    let method_facts = method_dispatch_facts(ir, registry, &comp_of, &proc_facts);
+    let comp_out = component_dispatch_closure(ir, &comp_of, &method_facts);
 
     // Bar each method whose reachable dispatch surface meets a bad class.
     let mut barred: HashSet<String> = HashSet::new();
@@ -202,12 +200,11 @@ pub(super) fn compute(cu: &CompilationUnit, registry: &CommandRegistry) -> Metho
 /// Direct dispatch facts per method, including every retained replacement
 /// body (the live body is one of them, so the union is the sound answer).
 fn method_dispatch_facts<'a>(
-    cu: &'a CompilationUnit,
+    ir: &'a IrModule,
     registry: &CommandRegistry,
     comp_of: &HashMap<String, usize>,
     proc_facts: &HashMap<&str, DispatchFacts>,
 ) -> HashMap<&'a str, DispatchFacts> {
-    let ir = &cu.ir_module;
     let mut method_facts: HashMap<&str, DispatchFacts> = HashMap::new();
     for (qname, m) in &ir.methods {
         let own_comp = comp_of.get(m.class_name.as_str()).copied();
@@ -240,11 +237,10 @@ fn method_dispatch_facts<'a>(
 /// Component-level dispatch closure: dispatching into a component also
 /// reaches everything its methods dispatch to.
 fn component_dispatch_closure(
-    cu: &CompilationUnit,
+    ir: &IrModule,
     comp_of: &HashMap<String, usize>,
     method_facts: &HashMap<&str, DispatchFacts>,
 ) -> Vec<DispatchFacts> {
-    let ir = &cu.ir_module;
     let comp_count = comp_of.values().copied().max().map_or(0, |m| m + 1);
     let mut comp_out: Vec<DispatchFacts> = vec![DispatchFacts::default(); comp_count];
     for (qname, m) in &ir.methods {
@@ -336,11 +332,10 @@ fn uf_find(parent: &mut [usize], i: usize) -> usize {
 /// (a proc that calls a proc that dispatches `$obj m` dispatches it too,
 /// on behalf of whoever called it).
 fn proc_dispatch_facts<'a>(
-    cu: &'a CompilationUnit,
+    ir: &'a IrModule,
     registry: &CommandRegistry,
     comp_of: &HashMap<String, usize>,
 ) -> HashMap<&'a str, DispatchFacts> {
-    let ir = &cu.ir_module;
     // Direct facts + direct proc callees per proc.
     let mut facts: HashMap<&str, DispatchFacts> = HashMap::new();
     let mut callees: HashMap<&str, HashSet<String>> = HashMap::new();

@@ -192,6 +192,7 @@ mod tests {
             doc: String::new(),
             param_traits: std::collections::HashMap::new(),
             caller_frame_params: std::collections::HashSet::new(),
+            caller_frame_literals: std::collections::HashMap::new(),
         }
     }
 

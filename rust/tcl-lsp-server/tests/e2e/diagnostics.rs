@@ -1962,6 +1962,79 @@ fn bang_equals_string_condition_folds() {
     }
 }
 
+// Issue #1177: a method callee reached via `my` is invisible to the
+// caller's upvar context, so its `upvar 1 $refvar ref` caller-frame
+// definition read as a no-op and `[info exists ref]` in the calling method
+// folded always false. Oracle (tclsh 9.0.4 / 8.6.14): after `my Reference?
+// $lookup ref` returns true the guard is 1; on a miss, 0 — live code, so
+// the fold must abstain.
+
+#[test]
+fn info_exists_after_my_dispatch_to_an_upvar_sibling_does_not_fire_i230() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create Formatter {\n    method Reference? {lookup refvar} {\n        upvar 1 $refvar ref\n        if {$lookup eq \"x\"} { set ref 1; return 1 }\n        return 0\n    }\n    method ResolvableReference? {lookup} {\n        my Reference? $lookup ref\n        if {[info exists ref]} { puts hi }\n    }\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "I230"),
+        "an upvar-defined local across a `my` dispatch must not fold: {:?}",
+        codes(&diags)
+    );
+}
+
+/// TN control for the dispatch widening: with no caller-frame-reaching
+/// method anywhere in the module, a never-set non-instance local still
+/// folds always false after a `my` call (tclsh 9.0.4 / 8.6.14:
+/// `[info exists zzz]` is 0).
+#[test]
+fn info_exists_still_fires_i230_when_no_method_reaches_the_caller_frame() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create C {\n    method Helper {} { return 1 }\n    method m {} {\n        my Helper\n        if {[info exists zzz]} { puts hi }\n    }\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        has_code(&diags, "I230"),
+        "with complete dispatch evidence the fold must survive: {:?}",
+        codes(&diags)
+    );
+}
+
+// Issue #1198: O102 forwarded a stale global across a called proc's
+// `uplevel #0` write. `setter`'s `uplevel #0 {set x 99}` needs no `global`
+// declaration, so the interprocedural summary missed the global-frame
+// write and the optimiser rewrote `puts $x` to `puts 5` where tclsh
+// 9.0.3/9.0.4 prints 99. O102 is `constant_folding` category, outside the
+// default `readability` profile — opt into `standard` so it can surface.
+
+#[test]
+fn o102_does_not_forward_a_global_across_a_callees_uplevel_hash_zero_write() {
+    let mut lsp = Lsp::with_config(serde_json::json!({ "optimiser": { "profile": "standard" } }));
+    let uri = unique_uri("tcl");
+    let src = "proc setter {} {\n    uplevel #0 {\n        set x 99\n    }\n}\nset x 5\nsetter\nputs $x\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "O102"),
+        "the callee's `uplevel #0` write makes the forward unsound: {:?}",
+        codes(&diags)
+    );
+}
+
+/// TN control for the global-frame effect summary: a callee whose
+/// `uplevel #0` script writes no variable has no global effect, so the
+/// caller's constant still forwards (tclsh 9.0.4: prints `hi` then `5`).
+#[test]
+fn o102_still_fires_when_the_callees_uplevel_hash_zero_writes_nothing() {
+    let mut lsp = Lsp::with_config(serde_json::json!({ "optimiser": { "profile": "standard" } }));
+    let uri = unique_uri("tcl");
+    let src = "proc shout {} {\n    uplevel #0 [list puts hi]\n}\nset x 5\nshout\nputs $x\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        has_code(&diags, "O102"),
+        "a non-writing global-frame script must not block forwarding: {:?}",
+        codes(&diags)
+    );
+}
+
 // -- TestI230InterproceduralCallSiteSeedingE2E ---------------------------
 // Issue #969: "Condition '$count & 1' is always false" fired on a genuinely
 // alternating parity check. Root cause: the interprocedural param-constant
