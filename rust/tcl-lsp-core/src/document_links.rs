@@ -28,9 +28,16 @@
 //! * `package require <pkg>` resolution — needs a package
 //!   index (Tcl's `auto_path` / pkgIndex.tcl scan) — is not
 //!   done.
-//! * Variable-interpolated paths (`source [file join $dir
-//!   init.tcl]`) — require resolving the variable's value —
-//!   are not done.
+//! * Computed paths are resolved through the **source graph's own**
+//!   path evaluator
+//!   ([`tcl_compiler::auto_path_eval::evaluate_auto_path_expr`]) — the
+//!   `[file dirname [info script]]` / `[file join …]` idioms — plus a
+//!   single-`set` copy propagation for the `source [file join $dir …]`
+//!   shape.  Anything outside that subset produces **no link at all**:
+//!   a `source` argument whose reconstructed text still carries `$` or
+//!   `[` is never treated as a literal path (issue #1140 idx 41 — doing
+//!   so percent-encoded the raw Tcl text into a syntactically valid but
+//!   semantically bogus `file://` URI).
 //! * Workspace-folder enumeration that lets a `source` link
 //!   resolve across multiple roots is not done; the single
 //!   `workspace_root` parameter is sufficient for the
@@ -68,6 +75,27 @@ pub struct DocumentLink {
     pub tooltip: Option<String>,
 }
 
+/// Everything a link needs to turn a `source` argument into a filesystem
+/// path: where relative paths anchor, what `~` expands to, and what the
+/// document's own `[info script]` would answer.
+///
+/// A struct rather than three more positional parameters so adding the next
+/// contextual fact doesn't change every call site (and doesn't trip
+/// `clippy::too_many_arguments`).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LinkContext<'a> {
+    /// Directory relative paths resolve against — typically the document's
+    /// own enclosing directory.  `None` leaves relative paths unresolvable,
+    /// so only absolute ones produce links.
+    pub workspace_root: Option<&'a str>,
+    /// `$HOME`, for `~/…` expansion.  `None` leaves `~` paths unresolved.
+    pub home: Option<&'a str>,
+    /// The document's own filesystem path — what `[info script]` answers
+    /// while it is being sourced.  `None` makes every `[info script]`-based
+    /// computed path abstain rather than guess.
+    pub script_path: Option<&'a str>,
+}
+
 /// Compute document links for a document.
 ///
 /// `workspace_root`, when `Some`, is the directory used to
@@ -99,8 +127,37 @@ pub fn document_links_with_home(
     workspace_root: Option<&str>,
     home: Option<&str>,
 ) -> Vec<DocumentLink> {
+    document_links_in_context(
+        source,
+        dialect,
+        &LinkContext {
+            workspace_root,
+            home,
+            script_path: None,
+        },
+    )
+}
+
+/// The full-context entry point — the one the server calls, since only it
+/// knows the document's own filesystem path (needed to evaluate the
+/// `[file dirname [info script]]` idiom).
+#[must_use]
+pub fn document_links_in_context(
+    source: &str,
+    dialect: &str,
+    ctx: &LinkContext<'_>,
+) -> Vec<DocumentLink> {
+    let LinkContext {
+        workspace_root,
+        home,
+        script_path,
+    } = *ctx;
     let line_index = LineIndex::new(source);
     let mut links = Vec::new();
+    // Constant single-assignment `set` map for the `set dir [file dirname
+    // [info script]] … source [file join $dir x.tcl]` idiom (issue #1140
+    // idx 41), built once per request.
+    let constants = constant_path_vars(source, dialect, script_path);
 
     for seg in segment_commands_with_offset_and_config(
         source,
@@ -170,18 +227,13 @@ pub fn document_links_with_home(
         // to the literal-path resolver below so tilde
         // expansion / `workspace_root` anchoring stays
         // consistent.
-        let path_owned = if let Some(joined) = literal_file_join(path.as_str()) {
-            joined
-        } else {
-            // Skip non-literal paths (variable substitution /
-            // command substitution / multi-token).  The
-            // `single_token_word[idx]` is `false` for those.
-            if let Some(&single) = seg.single_token_word.get(idx)
-                && !single
-            {
-                continue;
-            }
-            path.clone()
+        let Some(path_owned) = resolve_source_argument(
+            path.as_str(),
+            seg.single_token_word.get(idx).copied(),
+            script_path,
+            &constants,
+        ) else {
+            continue;
         };
         let Some(target) = resolve_path(&path_owned, workspace_root, home) else {
             continue;
@@ -206,6 +258,144 @@ pub fn document_links_with_home(
     }
 
     links
+}
+
+/// Whether `text` still carries an unevaluated substitution — a `$`
+/// variable reference or a `[` command substitution.
+///
+/// The abstention test at the heart of issue #1140 idx 41: such a word is
+/// **not** a path, however syntactically valid a URI percent-encoding it
+/// would produce.  `single_token_word` cannot answer this — it only
+/// distinguishes "one token" from "several concatenated tokens" within a
+/// word, and a whole-word `[file join …]` or a bare `$var` is exactly one
+/// token, so the old fall-through treated both as literals.
+fn carries_substitution(text: &str) -> bool {
+    text.contains('$') || text.contains('[')
+}
+
+/// The path a `source` argument denotes, or `None` when it cannot be
+/// resolved and the provider must emit no link.
+///
+/// Three tiers, strongest first:
+///
+/// 1. A plain literal — no `$`, no `[`, and a single word.
+/// 2. The literal `[file join a b c]` shorthand ([`literal_file_join`]).
+/// 3. The **source graph's own** path evaluator
+///    ([`tcl_compiler::auto_path_eval::evaluate_auto_path_expr`], the same
+///    one `resolve_source_edge` uses for the M9 namespace-rehoming source
+///    graph), after substituting any single-assignment `set` constants the
+///    document establishes — which is what carries the corpus idiom
+///    `set dir [file dirname [info script]]; source [file join $dir x.tcl]`.
+///
+/// Anything else abstains.  A multi-token word (`$dir/x.tcl` spliced from
+/// several tokens) abstains too, for the same reason.
+fn resolve_source_argument(
+    path: &str,
+    single_token_word: Option<bool>,
+    script_path: Option<&str>,
+    constants: &std::collections::HashMap<String, String>,
+) -> Option<String> {
+    if !carries_substitution(path) {
+        // Genuinely literal — but still only when the word is one token, so
+        // a spliced multi-token word never masquerades as a path.
+        if single_token_word == Some(false) {
+            return None;
+        }
+        return Some(path.to_owned());
+    }
+    if let Some(joined) = literal_file_join(path) {
+        return Some(joined);
+    }
+    let substituted = substitute_constants(path, constants);
+    tcl_compiler::auto_path_eval::evaluate_auto_path_expr(&substituted, script_path)
+}
+
+/// Replace every `$name` / `${name}` occurrence in `text` whose name is in
+/// `constants`, leaving unknown ones in place (so the evaluator abstains on
+/// them, as it must).
+fn substitute_constants(text: &str, constants: &std::collections::HashMap<String, String>) -> String {
+    if constants.is_empty() || !text.contains('$') {
+        return text.to_owned();
+    }
+    let bytes = text.as_bytes();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i] != b'$' {
+            let ch_len = text[i..].chars().next().map_or(1, char::len_utf8);
+            out.push_str(&text[i..i + ch_len]);
+            i += ch_len;
+            continue;
+        }
+        let (name, next) = if bytes.get(i + 1) == Some(&b'{') {
+            match text[i + 2..].find('}') {
+                Some(rel) => (&text[i + 2..i + 2 + rel], i + 2 + rel + 1),
+                None => (&text[i + 1..i + 1], i + 1),
+            }
+        } else {
+            let mut j = i + 1;
+            while j < bytes.len() && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_') {
+                j += 1;
+            }
+            (&text[i + 1..j], j)
+        };
+        match constants.get(name) {
+            Some(value) if !name.is_empty() => {
+                out.push_str(value);
+                i = next;
+            }
+            _ => {
+                out.push('$');
+                i += 1;
+            }
+        }
+    }
+    out
+}
+
+/// Path-valued variables the document assigns **exactly once** at its top
+/// level, mapped to their evaluated values.
+///
+/// Deliberately narrow: a name written by more than one `set` is dropped
+/// entirely rather than guessed at (last-write-wins would be wrong for a
+/// `source` between the two), and only values the shared path evaluator can
+/// fold are kept, so nothing here can invent a target.  `set` is located by
+/// the segmenter's own words, and its value word must itself be resolvable —
+/// a literal or a `[file …]` expression.
+fn constant_path_vars(
+    source: &str,
+    dialect: &str,
+    script_path: Option<&str>,
+) -> std::collections::HashMap<String, String> {
+    use std::collections::HashMap;
+    let mut seen: HashMap<String, Option<String>> = HashMap::new();
+    for seg in segment_commands_with_offset_and_config(
+        source,
+        0,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    ) {
+        if seg.texts.len() != 3 || seg.texts[0] != "set" {
+            continue;
+        }
+        let name = seg.texts[1].clone();
+        if name.contains('$') || name.contains('[') || name.contains("::") {
+            continue;
+        }
+        let raw = seg.texts[2].as_str();
+        let value = if carries_substitution(raw) {
+            tcl_compiler::auto_path_eval::evaluate_auto_path_expr(raw, script_path)
+        } else {
+            Some(raw.to_owned())
+        };
+        // A second assignment to the same name poisons it: which value a
+        // later `source` sees is a flow question this provider does not ask.
+        seen.entry(name)
+            .and_modify(|slot| *slot = None)
+            .or_insert(value);
+    }
+    seen.into_iter()
+        .filter_map(|(name, value)| value.map(|v| (name, v)))
+        .collect()
 }
 
 /// Try to interpret `arg` as a literal `[file join …]`
