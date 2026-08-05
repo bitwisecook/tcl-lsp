@@ -31,8 +31,101 @@
 
 use std::collections::{BTreeSet, HashMap, VecDeque};
 
-use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
+use tcl_lexer::{Lexer, SourceMap, Span, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
+
+use crate::segmenter::SegmentedCommand;
+
+/// One argument word whose registry role **is** a variable name
+/// ([`ArgRole::names_variable`]) — the cell it denotes, where it is written,
+/// and how it is spelled.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NameRoleWord {
+    /// The word's text as written, delimiters already stripped by the
+    /// segmenter — `m`, `arr(k)`, or, for a brace-quoted word, its content
+    /// verbatim (`[set {$n}]` gives `$n`).  Raw so a consumer that needs the
+    /// array element (`crate::naming::split_array_name_braced`) still has it;
+    /// [`Self::base_name`] is the canonical cell name.
+    pub word: String,
+    /// The word's own source span, i.e. what a reference / highlight /
+    /// rename provider points at.
+    pub span: Span,
+    /// The word is a single brace-quoted token, so Tcl substitutes nothing
+    /// inside it and its content is the name verbatim (issue #1078).
+    pub braced_literal: bool,
+    /// Which naming role the registry gave the word.
+    pub role: ArgRole,
+    /// Index into the command's own `texts` / `argv` (0 is the command name,
+    /// so this is always ≥ 1).
+    pub word_index: usize,
+}
+
+impl NameRoleWord {
+    /// The canonical cell name — [`Self::word`] with any array-element
+    /// suffix dropped, honouring `braced_literal`.
+    #[must_use]
+    pub fn base_name(&self) -> &str {
+        crate::naming::normalise_var_name_braced(&self.word, self.braced_literal)
+    }
+}
+
+/// Every argument of `cmd` whose registry role names a variable, in argument
+/// order.
+///
+/// **The** answer to "which words of this command are variable names?", so
+/// the analyser's reference recorder, the dead-store suppressor's
+/// substitution scan, and the LSP's cursor resolver cannot disagree about a
+/// command they were never taught by name. Roles come from
+/// [`CommandRegistry::arg_indices_for_role`], so any spec that declares a
+/// `VarRead` / `VarWrite` position contributes — `set` (one-argument read
+/// form), `info exists`, `array get`, `unset`, `incr`, a dialect command, or
+/// one added tomorrow.
+///
+/// A **computed** name (`set $n`, `incr [pick]`) is skipped: its cell is not
+/// statically known, and the `$n` inside it is already an ordinary read the
+/// token scan sees. A brace-quoted word is *not* computed — braces suppress
+/// substitution, so `{$n}` is the literal name `$n`.
+#[must_use]
+pub fn variable_name_role_words(
+    cmd: &SegmentedCommand,
+    registry: &CommandRegistry,
+) -> Vec<NameRoleWord> {
+    if cmd.texts.is_empty() {
+        return Vec::new();
+    }
+    let head = cmd.name();
+    let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
+    let mut out: Vec<NameRoleWord> = Vec::new();
+    for &role in ArgRole::ALL {
+        if !role.names_variable() {
+            continue;
+        }
+        for idx in registry.arg_indices_for_role(head, &args, role) {
+            let word = idx + 1;
+            let (Some(tok), Some(text)) = (cmd.argv.get(word), cmd.texts.get(word)) else {
+                continue;
+            };
+            let braced_literal =
+                tok.kind == TokenType::Str && cmd.single_token_word.get(word) == Some(&true);
+            if !braced_literal && crate::naming::is_dynamic_word(text) {
+                continue;
+            }
+            if crate::naming::normalise_var_name_braced(text, braced_literal).is_empty() {
+                continue;
+            }
+            out.push(NameRoleWord {
+                word: text.clone(),
+                span: tok.span,
+                braced_literal,
+                role,
+                word_index: word,
+            });
+        }
+    }
+    out.sort_by_key(|w| w.span.start());
+    out.dedup_by(|a, b| a.span == b.span);
+    out
+}
 
 /// Options controlling what a [`VarReferenceScanner`] looks for.
 #[allow(clippy::struct_excessive_bools)] // option flags, not a state machine
