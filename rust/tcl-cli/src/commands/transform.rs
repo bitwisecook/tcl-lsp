@@ -29,7 +29,7 @@ use tcl_cli_support::{
 };
 use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle, formatting_with};
 use tcl_lsp_core::minify::{
-    SymbolMap, minify_tcl, minify_tcl_aggressive, minify_tcl_compact, remap_line_references,
+    SymbolMap, minify_tcl, minify_tcl_aggressive_with, minify_tcl_compact, remap_line_references,
     unminify_error,
 };
 
@@ -170,15 +170,60 @@ pub fn run_opt(
     Ok(0)
 }
 
+/// Which minification tier `tcl minify` runs.
+///
+/// `--aggressive` wins over `--compact` when both are given, matching the
+/// long-standing flag precedence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MinifyTier {
+    /// Whitespace and comments only.
+    Default,
+    /// `--compact`: also compact proc-local names.
+    Compact,
+    /// `--aggressive`: optimiser rewrites, compaction, aliasing, and
+    /// keyword abbreviations.
+    Aggressive,
+}
+
+impl MinifyTier {
+    /// The tier the `--compact` / `--aggressive` flags select.
+    #[must_use]
+    pub const fn from_flags(compact: bool, aggressive: bool) -> Self {
+        if aggressive {
+            Self::Aggressive
+        } else if compact {
+            Self::Compact
+        } else {
+            Self::Default
+        }
+    }
+}
+
+/// Per-run minification switches, grouped so the entry point does not take a
+/// row of positional booleans.
+#[derive(Debug, Clone, Copy)]
+pub struct MinifyOptions {
+    /// Which tier to run.
+    pub tier: MinifyTier,
+    /// Emit unique-prefix keyword abbreviations (the inverse of
+    /// `--no-abbreviations`). Only consulted for the aggressive tier.
+    pub abbreviations: bool,
+    /// The script is self-contained (`--isolated`).
+    pub isolated: bool,
+}
+
 /// `tcl minify` — strip comments, collapse whitespace, join commands.
 pub fn run_minify(
     input: &InputArgs,
-    compact: bool,
     symbol_map: Option<&Path>,
-    aggressive: bool,
-    isolated: bool,
+    options: MinifyOptions,
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
+    let MinifyOptions {
+        tier,
+        abbreviations,
+        isolated,
+    } = options;
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
@@ -187,14 +232,17 @@ pub fn run_minify(
     let target = OutputTarget::from_arg(input.output.as_deref());
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
 
-    let (rendered, map) = if aggressive {
-        let result = minify_tcl_aggressive(&source, &dialect, isolated, registry);
-        (result.source, Some(result.symbol_map))
-    } else if compact {
-        let (minified, sm) = minify_tcl_compact(&source, &dialect, isolated, registry);
-        (minified, Some(sm))
-    } else {
-        (minify_tcl(&source, &dialect, registry), None)
+    let (rendered, map) = match tier {
+        MinifyTier::Aggressive => {
+            let result =
+                minify_tcl_aggressive_with(&source, &dialect, isolated, registry, abbreviations);
+            (result.source, Some(result.symbol_map))
+        }
+        MinifyTier::Compact => {
+            let (minified, sm) = minify_tcl_compact(&source, &dialect, isolated, registry);
+            (minified, Some(sm))
+        }
+        MinifyTier::Default => (minify_tcl(&source, &dialect, registry), None),
     };
 
     write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, &dialect)?;

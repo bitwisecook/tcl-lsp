@@ -414,6 +414,11 @@ pub enum Command {
         /// observable via `info vars` and variable traces.
         #[arg(long)]
         aggressive: bool,
+        /// Do not emit unique-prefix keyword abbreviations (`string le` for
+        /// `string length`, `-noc` for `-nocase`). Abbreviated output is
+        /// correct but harder to eyeball-diff. Only affects --aggressive.
+        #[arg(long = "no-abbreviations")]
+        no_abbreviations: bool,
         /// Assert the script is self-contained (no external callers or
         /// reflection over it) — also compact procedure names and
         /// global-scope variables.
