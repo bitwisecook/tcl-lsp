@@ -588,23 +588,42 @@ word as one argument; no re-parsing)"
             tok.kind,
             tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
         ) {
-            // …unless the `$var` provably holds a compile-time literal path, in
-            // which case it is a known file — the same as `source ./lib.tcl`,
-            // which is silent — so flagging it is a false positive.
-            if self.resolve_var_token_literal(tok).is_some() {
+            // Whole-file `$var` literal resolution — deferred to the tail on
+            // the per-item path, exactly as in `emit_w103_open_pipeline`.
+            if self.capture_global_reads.is_some() {
+                self.pending_var_literal_checks
+                    .push((DiagCode::W300, cmd_name.to_string(), tok));
                 return;
             }
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W300,
-                span: tok.span,
-                message: format!(
-                    "{cmd_name} with a dynamic path (variable or command substitution) \
-executes arbitrary Tcl code. Ensure the path is not influenced by untrusted input."
-                ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+            self.emit_w300_dynamic_path(cmd_name, tok);
         }
+    }
+
+    /// The `$var` / `[cmd]` half of [`Self::emit_w300_source_variable`]'s
+    /// classification, split out so the per-item tail can run it once the
+    /// whole file is in `self.source` (see
+    /// [`super::super::state::Analyser::pending_var_literal_checks`]).
+    pub(in crate::analyser) fn emit_w300_dynamic_path(
+        &mut self,
+        cmd_name: &str,
+        tok: tcl_lexer::Token,
+    ) {
+        // …unless the `$var` provably holds a compile-time literal path, in
+        // which case it is a known file — the same as `source ./lib.tcl`,
+        // which is silent — so flagging it is a false positive.
+        if self.resolve_var_token_literal(tok).is_some() {
+            return;
+        }
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::W300,
+            span: tok.span,
+            message: format!(
+                "{cmd_name} with a dynamic path (variable or command substitution) \
+executes arbitrary Tcl code. Ensure the path is not influenced by untrusted input."
+            ),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
     }
 
     /// **W309.** Emit "eval/uplevel with `[subst]` — double
@@ -951,41 +970,63 @@ Ensure the command is not influenced by untrusted input."
             tok.kind,
             tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
         ) {
-            // A `$var` proven to hold a compile-time literal is treated exactly
-            // like that literal written inline: a `|`-prefixed literal is the
-            // pipeline Hint (a known command, not untrusted), any other literal
-            // is a benign filename (silent). Only a genuine literal suppresses
-            // the Warning — a parameter, a dynamic value, or a `[cmd]`-computed
-            // argument stays a Warning (it may resolve to a `|`-pipeline).
-            if let Some(literal) = self.resolve_var_token_literal(tok) {
-                if literal.starts_with('|') {
-                    self.result.diagnostics.push(super::types::Diagnostic {
-                        code: DiagCode::W103,
-                        span: tok.span,
-                        message: format!(
-                            "{cmd_name} with a pipeline (\"|\") executes an external command. \
-Ensure the command is not influenced by untrusted input."
-                        ),
-                        severity: Severity::Hint,
-                        fixes: Vec::new(),
-                    });
-                }
+            // The classification below resolves `$var` against the whole
+            // file's most recent literal `set` — a whole-file fact an
+            // isolated proc body cannot answer (its `self.source` is only
+            // the body), so the per-item path defers it to the tail, like
+            // `pending_w304`.  See `Analyser::pending_var_literal_checks`.
+            if self.capture_global_reads.is_some() {
+                self.pending_var_literal_checks
+                    .push((DiagCode::W103, cmd_name.to_string(), tok));
                 return;
             }
-            // A `$var` or `[cmd]`-computed first argument is equally dynamic —
-            // either may resolve to a `|`-prefixed pipeline.
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W103,
-                span: tok.span,
-                message: format!(
-                    "{cmd_name} with a dynamic argument (variable or command substitution): \
+            self.emit_w103_dynamic_first_arg(cmd_name, tok);
+        }
+    }
+
+    /// The `$var` / `[cmd]` half of [`Self::emit_w103_open_pipeline`]'s
+    /// classification, split out so the per-item tail can run it once the
+    /// whole file is in `self.source` (see
+    /// [`super::super::state::Analyser::pending_var_literal_checks`]).
+    pub(in crate::analyser) fn emit_w103_dynamic_first_arg(
+        &mut self,
+        cmd_name: &str,
+        tok: tcl_lexer::Token,
+    ) {
+        // A `$var` proven to hold a compile-time literal is treated exactly
+        // like that literal written inline: a `|`-prefixed literal is the
+        // pipeline Hint (a known command, not untrusted), any other literal
+        // is a benign filename (silent). Only a genuine literal suppresses
+        // the Warning — a parameter, a dynamic value, or a `[cmd]`-computed
+        // argument stays a Warning (it may resolve to a `|`-pipeline).
+        if let Some(literal) = self.resolve_var_token_literal(tok) {
+            if literal.starts_with('|') {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: DiagCode::W103,
+                    span: tok.span,
+                    message: format!(
+                        "{cmd_name} with a pipeline (\"|\") executes an external command. \
+Ensure the command is not influenced by untrusted input."
+                    ),
+                    severity: Severity::Hint,
+                    fixes: Vec::new(),
+                });
+            }
+            return;
+        }
+        // A `$var` or `[cmd]`-computed first argument is equally dynamic —
+        // either may resolve to a `|`-prefixed pipeline.
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::W103,
+            span: tok.span,
+            message: format!(
+                "{cmd_name} with a dynamic argument (variable or command substitution): \
 if the value starts with \"|\", it will execute a command pipeline. Validate input \
 or use explicit I/O commands."
-                ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
-        }
+            ),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
     }
 
     /// **W303.** Emit "regexp vulnerable to catastrophic backtracking

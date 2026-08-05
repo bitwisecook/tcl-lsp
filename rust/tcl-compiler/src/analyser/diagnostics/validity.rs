@@ -2602,6 +2602,25 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         }
     }
 
+    /// Emit the per-item path's deferred W103 / W300 dynamic-argument
+    /// diagnostics, resolving each `$var` against the **full-file**
+    /// most-recent-literal-`set` scan (impossible inside an isolated body —
+    /// see [`super::super::state::Analyser::pending_var_literal_checks`]).
+    /// The token spans are absolute by the time the tail runs (the graft
+    /// rebased them), so the result is identical to the inline whole-file
+    /// emission.  No-op on the `analyse` path (the queue is only fed under
+    /// `capture_global_reads`).
+    pub(in crate::analyser) fn flush_var_literal_checks(&mut self) {
+        let pending = std::mem::take(&mut self.pending_var_literal_checks);
+        for (code, cmd_name, tok) in pending {
+            match code {
+                DiagCode::W103 => self.emit_w103_dynamic_first_arg(&cmd_name, tok),
+                DiagCode::W300 => self.emit_w300_dynamic_path(&cmd_name, tok),
+                other => unreachable!("unexpected pending var-literal code {other:?}"),
+            }
+        }
+    }
+
     /// **W116 / W117.** Stub command / expression definition shadows a
     /// built-in.  Post-walk check.  W116 fires when a `# tcl-lsp:
     /// stub` command name (with leading `::` stripped) collides with a

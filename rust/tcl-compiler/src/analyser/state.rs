@@ -30,6 +30,11 @@ use tcl_lexer::Span;
 
 use super::types::AnalysisResult;
 
+/// One captured instance-creation site on the per-item path: the raw
+/// `(command, args, creation namespace, site offset)` handed back to
+/// [`Analyser::record_instance_creation`] by the post-graft replay.
+pub(super) type PendingInstanceCreation = (String, Vec<String>, String, u32);
+
 /// One `$cmd`-head dispatch site (M7), pending settlement against the
 /// compiler's flow-sensitive value model once the CFG/SSA
 /// `CompilationUnit` is built (issue #945 faults 1–2: the value and its
@@ -495,6 +500,14 @@ pub struct Analyser {
     /// Namespaces where ``namespace ensemble create`` was seen —
     /// their tail names become valid commands.
     pub ensemble_namespaces: HashSet<String>,
+    /// Source offset of the **latest** `namespace ensemble` list token that
+    /// (re)filed each [`super::types::AnalysisResult::ensemble_subcommand_targets`]
+    /// key.  Analyser-side book-keeping for the per-item path only: the
+    /// snapshot attached to a deferred body includes an ensemble exactly
+    /// when its recording precedes the body in source order — the same
+    /// visibility the whole-file DFS gives a body walked at its definition
+    /// point.  Never merged into the result.
+    pub(super) ensemble_record_offsets: HashMap<String, u32>,
     /// `namespace ensemble create|configure ... -map {sub target ...}`
     /// subcommand-to-target maps, keyed by the ensemble's own qualified
     /// command name (`-command NAME`, or the enclosing namespace's own
@@ -718,18 +731,47 @@ pub struct Analyser {
     /// of recursing into it immediately.  Set only for the shell pass; the
     /// per-body passes run with it `false` so nested defs walk in place.
     pub defer_proc_bodies: bool,
-    /// When `true`, [`Self::define_var`] skips the W215 unreachable-name check.
-    /// Set only while the per-item path re-binds a deferred body's *parameters*
-    /// / instance variables into its isolated scope — a structural rebind so
-    /// body references resolve. The shell walk (`handle_proc`) already emitted
-    /// W215 for those declarations, byte-identically to the full `analyse`
-    /// path, so the isolated rebind must stay diagnostic-free or the per-item
-    /// result gains a spurious duplicate (the synthetic rebind token would also
-    /// flip the `braced` reachability heuristic). See `analyse_proc_body_isolated`.
-    pub(super) suppress_w215: bool,
+    /// When `true`, [`Self::define_var`] runs in **structural rebind** mode:
+    /// it skips the W215 unreachable-name check *and* the
+    /// `record_qualified_var_ref` occurrence record.  Set only while the
+    /// per-item path re-binds a deferred body's *parameters* / instance
+    /// variables into its isolated scope — a structural rebind so body
+    /// references resolve. The shell walk (`handle_proc`) already emitted
+    /// W215 and recorded the qualified occurrence for those declarations,
+    /// byte-identically to the full `analyse` path, so the isolated rebind
+    /// must stay record-free or the per-item result gains a spurious
+    /// duplicate — a W215 (the synthetic rebind token would also flip the
+    /// `braced` reachability heuristic), or a phantom zero-width
+    /// `QualifiedVarRef` for a `::`-qualified parameter name (caught by the
+    /// `per_item_matches_analyse_under_edits` fuzzer).
+    /// See `analyse_proc_body_isolated`.
+    pub(super) structural_rebind: bool,
     /// Bodies deferred by the shell walk (see [`Self::defer_proc_bodies`]),
     /// each analysed in a second pass that fills its already-created scope.
     pub(super) deferred_bodies: Vec<super::per_item::DeferredBody>,
+    /// Deferred W103 / W300 dynamic-argument sites from an **isolated
+    /// proc-body** pass (`(code, command name, argument token)`).  Their
+    /// `$var` classification resolves the variable against the most recent
+    /// literal `set` in the *whole file*
+    /// ([`super::diagnostics::validity::last_literal_set_value_for_var`]
+    /// scans `self.source`) — an isolated body's `self.source` is only the
+    /// body, so resolving there both misses enclosing-scope sets *and* sees
+    /// body-local sets the whole-file truncated-prefix scan cannot segment
+    /// (they sit inside an unclosed `proc`).  Captured on the per-item path
+    /// only and flushed by [`Self::flush_var_literal_checks`] in the tail,
+    /// where `self.source` is the full file — the same split
+    /// [`Self::pending_w304`] uses for the identical reason.
+    pub(super) pending_var_literal_checks: Vec<(DiagCode, String, tcl_lexer::Token)>,
+    /// Every offset-keyed synthetic identity this run minted
+    /// ([`Self::mint_synthetic_offset_name`]): `@dynns@<off>` /
+    /// `@dynclass@<off>` / `@autoname@<off>`.  An isolated proc-body
+    /// analysis mints these from **body-relative** offsets (keeping the
+    /// memoised fragment offset-invariant), and this set is what lets the
+    /// per-item graft rebase exactly those names — and no look-alike literal
+    /// from the source — to the absolute offsets the whole-file walk mints
+    /// (see [`tcl_syntax::naming::rebase_synthetic_offset_names`]).  Unused
+    /// on the whole-file path beyond the insert itself.
+    pub(super) minted_synthetic_names: std::collections::HashSet<String>,
     /// Pre-built compilation unit for the CFG/SSA diagnostic tail.  When
     /// `Some`, [`Self::emit_cfg_ssa_diagnostics`] consumes it instead of
     /// rebuilding the whole-file unit — the seam the incremental per-item
@@ -797,13 +839,23 @@ pub struct Analyser {
     /// `false`; production paths are unaffected.
     pub probe_skip_enclosing_fallback: bool,
     /// Deferred `TclOO` instance-creation candidates (`set v [Cls new]` /
-    /// `Cls create v`) captured by an isolated proc body, which has an *empty*
-    /// `all_classes` and so can't resolve the (sibling) class.  Each is the raw
-    /// `(command, args, creation namespace)`; [`Self::graft_proc_body`] replays
-    /// `record_instance_creation` against the shell's full `all_classes` so the
-    /// `instance_classes` map matches a whole-file walk.  `None` on the whole-file
-    /// path (instances resolve inline).
-    pub(super) pending_instances: Option<Vec<(String, Vec<String>, String)>>,
+    /// `Cls create v`) captured on the per-item path — by an isolated proc
+    /// body (whose `all_classes` is empty, so the sibling class can't
+    /// resolve there) *and* by the shell pass (whose `all_classes` lacks
+    /// every deferred body's classes).  Each is the raw `(command, args,
+    /// creation namespace, site offset)`;
+    /// [`Self::replay_deferred_instances`] replays them all post-graft, in
+    /// source order, resolving each against only the classes whose
+    /// definition precedes the site — the class universe the whole-file
+    /// DFS had at that walk point.  `None` on the whole-file path
+    /// (instances resolve inline).
+    pub(super) pending_instances: Option<Vec<PendingInstanceCreation>>,
+    /// Post-graft instance-creation replay queue for
+    /// [`Self::replay_deferred_instances`]: `(site offset, from a method
+    /// body, command, args, creation namespace)` — the shell's captures
+    /// plus every grafted body's (already rebased to absolute offsets),
+    /// merged so the replay can run in one global source-order pass.
+    pub(super) deferred_instance_replays: Vec<(u32, bool, String, Vec<String>, String)>,
     /// **Experimental probe flag.**  When `true`, the per-item path does *not*
     /// take the duplicate-definition fallback, to measure the residual
     /// divergence the duplicate fast-path must still close.  Defaults to `false`.
@@ -980,6 +1032,7 @@ impl Analyser {
             cmd_command_sites: Vec::new(),
             ensemble_namespaces: HashSet::new(),
             ensemble_command_maps: HashMap::new(),
+            ensemble_record_offsets: HashMap::new(),
             objdefined_vars: HashSet::new(),
             interpreters: HashMap::new(),
             dynamic_interp_ops: false,
@@ -1004,14 +1057,17 @@ impl Analyser {
             structure_only: false,
             workspace_classes: std::collections::HashSet::new(),
             defer_proc_bodies: false,
-            suppress_w215: false,
+            structural_rebind: false,
             deferred_bodies: Vec::new(),
+            minted_synthetic_names: std::collections::HashSet::new(),
             cu_override: None,
             capture_global_reads: None,
             pending_disabled_commands: Vec::new(),
             pending_w143: Vec::new(),
             pending_w304: Vec::new(),
+            pending_var_literal_checks: Vec::new(),
             pending_instances: None,
+            deferred_instance_replays: Vec::new(),
             probe_skip_enclosing_fallback: false,
             probe_skip_duplicate_fallback: false,
             took_fast_path: false,
@@ -1897,6 +1953,7 @@ impl Analyser {
         self.flush_disabled_command_diagnostics();
         self.flush_w143_diagnostics();
         self.flush_w304_diagnostics();
+        self.flush_var_literal_checks();
         self.flush_arity_diagnostics();
         self.flush_ctor_arity_diagnostics();
         self.flush_next_arity_diagnostics();
@@ -1962,6 +2019,32 @@ impl Analyser {
         self.result
             .regex_patterns
             .sort_by_key(|r| (r.range.start(), r.range.end()));
+        // `proc_declaration_sites` / `class_body_spans` are consumed purely
+        // positionally (cursor-containment `find`s; `enclosing_class_at`'s
+        // narrowest-span tie-break), so source order is canonical for them
+        // too — the whole-file DFS interleaves nested declaration sites where
+        // the per-item shell+graft appends them per body.
+        self.result.proc_declaration_sites.sort_by(|a, b| {
+            a.1.start()
+                .cmp(&b.1.start())
+                .then(a.1.end().cmp(&b.1.end()))
+                .then_with(|| a.0.cmp(&b.0))
+        });
+        self.result.class_body_spans.sort_by(|a, b| {
+            a.1.start()
+                .cmp(&b.1.start())
+                .then(a.1.end().cmp(&b.1.end()))
+                .then_with(|| a.0.cmp(&b.0))
+        });
+        // `scoped_command_regions` is resolved purely by position
+        // (containing-region lookups), so source order is canonical here too.
+        self.result.scoped_command_regions.sort_by(|a, b| {
+            a.span
+                .start()
+                .cmp(&b.span.start())
+                .then(a.span.end().cmp(&b.span.end()))
+                .then_with(|| a.env.name.cmp(b.env.name))
+        });
         // `unresolved_command_sites` is a set of call sites consumed
         // order-independently (the cross-file arity resolver collects tail names +
         // per-site ranges); sort by `(span, name)` so the whole-file DFS and the
@@ -2010,12 +2093,29 @@ impl Analyser {
         Some(trust)
     }
 
+    /// Mint (and record) one offset-keyed synthetic identity —
+    /// `@dynns@<off>` / `@dynclass@<off>` / `@autoname@<off>`.  All minting
+    /// goes through here so [`Self::minted_synthetic_names`] can never miss
+    /// a name the per-item graft later needs to rebase.
+    pub(super) fn mint_synthetic_offset_name(&mut self, marker: &str, offset: u32) -> String {
+        debug_assert!(
+            crate::naming::SYNTHETIC_OFFSET_MARKERS.contains(&marker),
+            "unknown synthetic marker {marker:?}"
+        );
+        let name = format!("{marker}{offset}");
+        self.minted_synthetic_names.insert(name.clone());
+        name
+    }
+
     pub(super) fn clear_run_state(&mut self) {
         self.registry = None;
         self.command_trust = None;
         self.seed_namespace_key = None;
         self.seed_scope_path.clear();
         self.recovery_known_commands.clear();
+        self.minted_synthetic_names.clear();
+        self.pending_instances = None;
+        self.deferred_instance_replays.clear();
         self.line_offsets = None;
         self.cached_line_index = tcl_lexer::LineIndex::new("");
         self.cached_line_index_source_len = 0;

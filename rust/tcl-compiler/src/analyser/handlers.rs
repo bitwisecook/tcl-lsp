@@ -607,10 +607,12 @@ impl Analyser {
                     // `@dynns@<offset>` pattern — so two unrelated `set
                     // VAR [interp create -safe]` call sites never collide
                     // just because they wrote the same variable name.
-                    let key = path.map_or_else(
-                        || format!("@autoname@{}", value_token.span.start()),
-                        |p| self.qualified_interp_key(p),
-                    );
+                    let key = match path {
+                        Some(p) => self.qualified_interp_key(p),
+                        None => {
+                            self.mint_synthetic_offset_name("@autoname@", value_token.span.start())
+                        }
+                    };
                     self.interpreters.insert(
                         key.clone(),
                         super::state::InterpState {
@@ -1608,6 +1610,7 @@ impl Analyser {
                 // Attached later by `fill_deferred_bodies` for bodies with a
                 // fold candidate (issue #1132).
                 command_trust: None,
+                ensemble_targets: Vec::new(),
                 oo_defining_class: None,
                 safe_interp_ctx,
             });
@@ -1776,6 +1779,7 @@ impl Analyser {
                     // Attached later by `fill_deferred_bodies` for bodies
                     // with a fold candidate (issue #1132).
                     command_trust: None,
+                    ensemble_targets: Vec::new(),
                     oo_defining_class: None,
                     safe_interp_ctx,
                 });
@@ -2129,6 +2133,7 @@ impl Analyser {
                 // Attached later by `fill_deferred_bodies` for bodies with a
                 // fold candidate (issue #1132).
                 command_trust: None,
+                ensemble_targets: Vec::new(),
                 oo_defining_class: None,
                 safe_interp_ctx,
             });
@@ -2240,10 +2245,10 @@ impl Analyser {
         // handling a few hooks below, which is conservatively isolated the
         // same way rather than merged by raw text.
         let scope_name = if crate::naming::is_dynamic_word(&ns_name) {
-            arg_tokens.get(1).map_or_else(
-                || ns_name.clone(),
-                |tok| format!("@dynns@{}", tok.span.start()),
-            )
+            match arg_tokens.get(1) {
+                Some(tok) => self.mint_synthetic_offset_name("@dynns@", tok.span.start()),
+                None => ns_name.clone(),
+            }
         } else {
             ns_name
         };
@@ -3326,6 +3331,8 @@ impl Analyser {
                     .entry(key.to_owned())
                     .or_default()
                     .insert(sub.clone(), resolved.clone());
+                self.ensemble_record_offsets
+                    .insert(key.to_owned(), tok.span.start());
             }
             self.push_command_reference(head, head_span, resolved, None);
         }
@@ -3355,6 +3362,8 @@ impl Analyser {
                     .entry(key.to_owned())
                     .or_default()
                     .insert(elem.clone(), resolved.clone());
+                self.ensemble_record_offsets
+                    .insert(key.to_owned(), tok.span.start());
             }
             self.push_command_reference(elem, span, resolved, None);
         }
@@ -5441,12 +5450,14 @@ impl Analyser {
         // name, so it can never collide with a literal class of the same
         // written text). Mirrors `namespace eval`'s identical dynamic-target
         // handling a few hundred lines above.
-        let dyn_key = crate::naming::is_dynamic_word(raw_class_name).then(|| {
-            arg_tokens.first().map_or_else(
-                || raw_class_name.clone(),
-                |tok| format!("@dynclass@{}", tok.span.start()),
-            )
-        });
+        let dyn_key = if crate::naming::is_dynamic_word(raw_class_name) {
+            Some(match arg_tokens.first() {
+                Some(tok) => self.mint_synthetic_offset_name("@dynclass@", tok.span.start()),
+                None => raw_class_name.clone(),
+            })
+        } else {
+            None
+        };
         let qualified = qualify(ns_for_qualify, dyn_key.as_deref().unwrap_or(raw_class_name));
 
         // Distinguish body-form from inline-form by inspecting

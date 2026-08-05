@@ -851,6 +851,7 @@ impl Analyser {
                 // Attached later by `fill_deferred_bodies` for bodies with a
                 // fold candidate (issue #1132).
                 command_trust: None,
+                ensemble_targets: Vec::new(),
                 oo_defining_class,
                 safe_interp_ctx,
             });

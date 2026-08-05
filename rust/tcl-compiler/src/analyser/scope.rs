@@ -1725,7 +1725,13 @@ impl Analyser {
         }
         let base_owned = base_name.to_string();
         let span = definition_span.unwrap_or(tok.span);
-        self.record_qualified_var_ref(base_name, span, scope_path);
+        // A structural rebind (the per-item isolated pass re-binding params /
+        // instance vars) records no occurrence: the shell walk already did,
+        // and the rebind's placeholder token would add a phantom zero-width
+        // ref for a `::`-qualified parameter name.
+        if !self.structural_rebind {
+            self.record_qualified_var_ref(base_name, span, scope_path);
+        }
         // A `set arr(idx) …` definition records the element index on the array.
         let element = crate::naming::split_array_name_braced(name, braced_literal)
             .1
@@ -1738,7 +1744,7 @@ impl Analyser {
         // Done with a short immutable borrow before the mutable scope handle.
         let is_first_def = scope_at(&self.result.global_scope, &path)
             .is_some_and(|s| !s.variables.contains_key(base_name));
-        if is_first_def && !self.suppress_w215 {
+        if is_first_def && !self.structural_rebind {
             self.emit_w215_unreachable_name(base_name, element.as_deref(), tok, span, &path);
         }
         let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) else {
