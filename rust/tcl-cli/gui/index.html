@@ -86,6 +86,19 @@ body {
   outline: none;
 }
 .toolbar select:focus { border-color: var(--accent); }
+.compile-btn {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+}
+.compile-btn:hover { border-color: var(--accent); color: var(--accent); }
+.compile-btn:focus-visible { border-color: var(--accent); }
 .toolbar .status-msg {
   font-size: 11px;
   color: var(--yellow);
@@ -930,6 +943,7 @@ textarea#source::selection { background: rgba(137, 180, 250, 0.3); }
     <select id="dialect">
       <option value="tcl8.6" selected>Tcl 8.6</option>
     </select>
+    <button id="compileBtn" class="compile-btn" type="button" title="Recompile the current source">Compile</button>
     <div class="spinner" id="spinner"></div>
     <span class="status-msg" id="statusMsg">Loading compiler...</span>
     <div class="stats" id="stats"></div>
@@ -1051,20 +1065,37 @@ worker.onmessage = function(e) {
       $('#statusMsg').style.display = 'none';
       $('#emptyState').textContent = 'Enter Tcl code and press ' + shortcutKey + '+Enter';
       setStatus('synced');
-      // Auto-compile if there's content
+      // The dialect list needs no compile, so fill the dropdown as soon as
+      // the module loads rather than leaving the hard-coded tcl8.6 fallback
+      // up until a first result lands.
+      populateDialectOptions(msg.meta && msg.meta.dialects);
+      // Auto-compile if there's content.
       if (pendingCompile || textarea.value.trim()) {
         pendingCompile = false;
         compile();
       }
       break;
     case 'result':
-      data = msg.data;
-      compiledSource = lastSource;
-      compiledDialect = lastDialect;
-      populateDialectOptions(data && data.meta && data.meta.dialects);
-      renderAll();
-      $('#spinner').style.display = 'none';
-      updateStatusLight();
+      try {
+        data = msg.data;
+        compiledSource = lastSource;
+        compiledDialect = lastDialect;
+        populateDialectOptions(data && data.meta && data.meta.dialects);
+        const failures = renderAll();
+        if (failures && failures.length) {
+          $('#statusMsg').style.display = '';
+          $('#statusMsg').textContent = failures.length + ' pane'
+            + (failures.length === 1 ? '' : 's') + ' failed to render: '
+            + failures.map(f => f.name).join(', ');
+        } else {
+          $('#statusMsg').style.display = 'none';
+        }
+      } finally {
+        // The spinner must stop whatever the renderers did — a stuck
+        // throbber is indistinguishable from a hung compile (issue #1183).
+        $('#spinner').style.display = 'none';
+        updateStatusLight();
+      }
       break;
     case 'error':
       showError(msg.error, msg.traceback);
@@ -1072,6 +1103,14 @@ worker.onmessage = function(e) {
       setStatus('dirty');
       break;
   }
+};
+
+// A worker that dies (WASM OOM, an uncaught init failure) never answers, so
+// clear the spinner and say so rather than throbbing forever.
+worker.onerror = function(err) {
+  showError('Compiler worker failed: ' + (err && err.message ? err.message : String(err)));
+  $('#spinner').style.display = 'none';
+  setStatus('dirty');
 };
 
 // Editor
@@ -1112,8 +1151,7 @@ textarea.addEventListener('keydown', e => {
   }
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
-    lastSource = '';          // force recompile even if source unchanged
-    compile();
+    forceCompile();           // recompile even if source unchanged
   }
 });
 
@@ -1135,9 +1173,14 @@ updateIrulesTabVisibility();
 
 $('#dialect').addEventListener('change', () => {
   updateIrulesTabVisibility();
-  lastSource = '';  // force recompile
-  compile();
+  forceCompile();
 });
+
+// Explicit re-compile — the debounce and the "source unchanged" guard both
+// make it easy to end up looking at a stale result (e.g. after switching
+// dialect while the module was still loading), so give the user a button
+// that always recompiles what is in the editor (issue #1183).
+$('#compileBtn').addEventListener('click', () => forceCompile());
 
 // Tabs
 $('#tabBar').addEventListener('click', e => {
@@ -1206,17 +1249,29 @@ function compile() {
   const dialect = $('#dialect').value;
   if (!source.trim()) return;
   if (source === lastSource && dialect === lastDialect) return;
-  lastSource = source;
-  lastDialect = dialect;
 
   if (!workerReady) {
+    // Remember that work is owed, but do NOT record this as the compiled
+    // source: the `ready` handler calls compile() again, and a poisoned
+    // lastSource made that call short-circuit, so anything typed while the
+    // WASM module was still loading was never compiled at all.
     pendingCompile = true;
     return;
   }
 
+  lastSource = source;
+  lastDialect = dialect;
   $('#spinner').style.display = 'block';
   setStatus('compiling');
   worker.postMessage({ type: 'compile', source, dialect });
+}
+
+// Force a compile even when the source and dialect are unchanged.
+function forceCompile() {
+  lastSource = '';
+  lastDialect = '';
+  clearTimeout(compileTimer);
+  compile();
 }
 
 function updateStatusLight() {
@@ -1230,34 +1285,42 @@ function updateStatusLight() {
 }
 
 // Consumer hooks: renderAll / updateBadges
+//
+// Every step runs in isolation (see runRenderSteps in explorer-core.js): a
+// renderer that throws reports the failure in its own pane and the rest of
+// the tabs still render.  renderAll never throws, so the caller's spinner
+// and status light always settle.
 function renderAll() {
-  updateIrulesTabVisibility();
-  renderStats();
-  renderIR();
-  renderCst();
-  renderSegments();
-  renderStructuralIndex();
-  renderSourceMap();
-  renderCfgPre();
-  renderCfgPost();
-  renderLoops();
-  renderInterproc();
-  renderTypes();
-  renderIntervals();
-  renderBounds();
-  renderRendered();
-  renderDataFlow();
-  renderOpt();
-  renderOptimiserPasses();
-  renderGvn();
-  renderShimmer();
-  renderTaint();
-  renderIrulesFlow();
-  renderEventOrder();
-  renderCallouts();
-  renderAsm();
-  renderWasm();
-  updateBadges();
+  const steps = [
+    { name: 'tab visibility', run: updateIrulesTabVisibility },
+    { name: 'Stats', pane: null, run: renderStats },
+    { name: 'IR', pane: '#pane-ir', run: renderIR },
+    { name: 'CST', pane: '#pane-cst', run: renderCst },
+    { name: 'Segments', pane: '#pane-segments', run: renderSegments },
+    { name: 'Structural Index', pane: '#pane-structural-index', run: renderStructuralIndex },
+    { name: 'Source Map', pane: '#pane-source-map', run: renderSourceMap },
+    { name: 'CFG', pane: '#pane-cfg-pre', run: renderCfgPre },
+    { name: 'SSA+Analysis', pane: '#pane-cfg-post', run: renderCfgPost },
+    { name: 'Loops', pane: '#pane-loops', run: renderLoops },
+    { name: 'Interproc', pane: '#pane-interproc', run: renderInterproc },
+    { name: 'Types', pane: '#pane-types', run: renderTypes },
+    { name: 'Intervals', pane: '#pane-intervals', run: renderIntervals },
+    { name: 'Bounds', pane: '#pane-bounds', run: renderBounds },
+    { name: 'Rendered', pane: '#pane-rendered', run: renderRendered },
+    { name: 'Data Flow', pane: '#pane-dataflow', run: renderDataFlow },
+    { name: 'Optimisations', pane: '#pane-opt', run: renderOpt },
+    { name: 'Optimiser Passes', pane: '#pane-optimiser-passes', run: renderOptimiserPasses },
+    { name: 'GVN', pane: '#pane-gvn', run: renderGvn },
+    { name: 'Shimmer', pane: '#pane-shimmer', run: renderShimmer },
+    { name: 'Taint', pane: '#pane-taint', run: renderTaint },
+    { name: 'iRules Flow', pane: '#pane-irules-flow', run: renderIrulesFlow },
+    { name: 'Event Order', pane: '#pane-event-order', run: renderEventOrder },
+    { name: 'Callouts', pane: '#pane-callouts', run: renderCallouts },
+    { name: 'Tcl ASM', pane: '#pane-asm', run: renderAsm },
+    { name: 'WASM', pane: '#pane-wasm', run: renderWasm },
+    { name: 'badges', run: updateBadges },
+  ];
+  return runRenderSteps(steps);
 }
 
 function updateBadges() {

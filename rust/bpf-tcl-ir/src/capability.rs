@@ -23,12 +23,11 @@
 //! body (after `use`/field/loop expansion), so a template or profile field
 //! cannot smuggle a forbidden operation past the policy.
 //!
-//! The policy governs the *capability-bearing* verbs — packet access
-//! (`load8`/`load16`/`load32`/`pktlen`) and map access (`map_get`/`map_set`) —
-//! plus the verdicts (`accept`/`drop`/`pass`/`tx`). Everything else (`setint`
-//! and friends, `setbuf`, the `map` declaration, and `if`) is structural and
-//! always permitted, including the `setbuf __pkt ctx` the field expansion
-//! injects.
+//! Which verbs the policy governs is **registry data**: every BPF-Tcl command
+//! spec carries a typed [`BpfOpSpec`](tcl_registry::bpf_op::BpfOpSpec) whose
+//! effect classification says whether the verb is *gated* (touches the packet
+//! or a map — `BpfEffects::is_gated`) or a *verdict*
+//! (`BpfEffects::is_verdict`). This module never names a command:
 //!
 //! - `deny X …` forbids each `X` wherever it appears (default-allow otherwise),
 //!   and may name a verdict (a profile that inspects but never drops).
@@ -37,21 +36,20 @@
 //! - A verb in both `allow` and `deny` is denied (deny wins).
 
 use tcl_compiler::{Script, Statement};
+use tcl_registry::registry::CommandRegistry;
 
 use crate::diag::{BpfDiag, BpfError};
 
-/// The gated verbs an `allow` list restricts (packet + map access).
-const GATED: &[&str] = &["load8", "load16", "load32", "pktlen", "map_get", "map_set"];
-/// The verdicts — always permitted unless explicitly `deny`d.
-const VERDICTS: &[&str] = &["accept", "drop", "pass", "tx"];
-
-fn is_gated(cmd: &str) -> bool {
-    GATED.contains(&cmd)
+/// Whether `cmd`'s registry descriptor marks it gated (packet/map access).
+fn is_gated(cmd: &str, registry: &CommandRegistry) -> bool {
+    registry.bpf_op(cmd).is_some_and(|op| op.effects.is_gated())
 }
 
 /// Is `cmd` something `allow`/`deny` may name (a gated verb or a verdict)?
-fn is_governable(cmd: &str) -> bool {
-    is_gated(cmd) || VERDICTS.contains(&cmd)
+fn is_governable(cmd: &str, registry: &CommandRegistry) -> bool {
+    registry
+        .bpf_op(cmd)
+        .is_some_and(|op| op.effects.is_gated() || op.effects.is_verdict())
 }
 
 /// A capability policy collected from a file's top-level `allow`/`deny` decls.
@@ -65,14 +63,15 @@ pub struct CapabilityPolicy {
 }
 
 impl CapabilityPolicy {
-    /// Does this policy permit `cmd`?
+    /// Does this policy permit `cmd`? `gated` is the verb's registry effect
+    /// classification (see [`is_gated`]).
     #[must_use]
-    pub fn permits(&self, cmd: &str) -> bool {
+    pub fn permits(&self, cmd: &str, gated: bool) -> bool {
         if self.deny.iter().any(|d| d == cmd) {
             return false;
         }
         if let Some(allow) = &self.allow
-            && is_gated(cmd)
+            && gated
         {
             return allow.iter().any(|a| a == cmd);
         }
@@ -91,7 +90,10 @@ impl CapabilityPolicy {
 ///
 /// # Errors
 /// A bad arity, or a verb that is not capability-governable (likely a typo).
-pub fn collect_policy(top_level: &Script) -> Result<CapabilityPolicy, BpfError> {
+pub fn collect_policy(
+    top_level: &Script,
+    registry: &CommandRegistry,
+) -> Result<CapabilityPolicy, BpfError> {
     let mut policy = CapabilityPolicy::default();
     for stmt in &top_level.statements {
         let Statement::Call {
@@ -118,14 +120,14 @@ pub fn collect_policy(top_level: &Script) -> Result<CapabilityPolicy, BpfError> 
             ));
         }
         for verb in args {
-            if !is_governable(verb) {
+            if !is_governable(verb, registry) {
                 return Err(BpfError::new(
                     BpfDiag::CapabilityDenied,
                     *span,
                     format!(
                         "`{verb}` is not a capability-governable command \
                          (governable: {})",
-                        governable_list()
+                        governable_list(registry)
                     ),
                 ));
             }
@@ -139,9 +141,14 @@ pub fn collect_policy(top_level: &Script) -> Result<CapabilityPolicy, BpfError> 
     Ok(policy)
 }
 
-fn governable_list() -> String {
-    let mut all: Vec<&str> = GATED.iter().chain(VERDICTS.iter()).copied().collect();
+/// Every governable verb name, from the registry descriptors (sorted).
+fn governable_list(registry: &CommandRegistry) -> String {
+    let mut all: Vec<&str> = registry
+        .command_names()
+        .filter(|name| is_governable(name, registry))
+        .collect();
     all.sort_unstable();
+    all.dedup();
     all.join(", ")
 }
 
@@ -150,14 +157,22 @@ fn governable_list() -> String {
 ///
 /// # Errors
 /// [`BpfDiag::CapabilityDenied`] at the offending command's span.
-pub fn check_policy(script: &Script, policy: &CapabilityPolicy) -> Result<(), BpfError> {
+pub fn check_policy(
+    script: &Script,
+    policy: &CapabilityPolicy,
+    registry: &CommandRegistry,
+) -> Result<(), BpfError> {
     if policy.is_unrestricted() {
         return Ok(());
     }
-    check_script(script, policy)
+    check_script(script, policy, registry)
 }
 
-fn check_script(script: &Script, policy: &CapabilityPolicy) -> Result<(), BpfError> {
+fn check_script(
+    script: &Script,
+    policy: &CapabilityPolicy,
+    registry: &CommandRegistry,
+) -> Result<(), BpfError> {
     for stmt in &script.statements {
         match stmt {
             Statement::Call {
@@ -167,7 +182,7 @@ fn check_script(script: &Script, policy: &CapabilityPolicy) -> Result<(), BpfErr
                 ..
             } => {
                 let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
-                if !policy.permits(cmd) {
+                if !policy.permits(cmd, is_gated(cmd, registry)) {
                     return Err(BpfError::new(
                         BpfDiag::CapabilityDenied,
                         *span,
@@ -179,10 +194,10 @@ fn check_script(script: &Script, policy: &CapabilityPolicy) -> Result<(), BpfErr
                 clauses, else_body, ..
             } => {
                 for c in clauses {
-                    check_script(&c.body, policy)?;
+                    check_script(&c.body, policy, registry)?;
                 }
                 if let Some(b) = else_body {
-                    check_script(b, policy)?;
+                    check_script(b, policy, registry)?;
                 }
             }
             _ => {}

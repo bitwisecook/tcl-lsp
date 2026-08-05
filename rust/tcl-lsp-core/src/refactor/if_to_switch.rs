@@ -261,6 +261,7 @@ pub fn if_to_switch(
         }],
         kind: ActionKind::RefactorRewrite,
         data_group: None,
+        disabled: None,
     })
 }
 

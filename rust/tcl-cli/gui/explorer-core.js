@@ -34,7 +34,9 @@
 //   setupOptItemDiffScroll(pane)     — wires opt-item click to scroll diff
 //   renderShimmer()                  — renders the shimmer pane
 //   renderIrulesFlow()               — renders the iRules flow pane
-//   renderAll()                      — calls all render functions
+//   renderAll()                      — calls all render functions (drive it
+//                                      through runRenderSteps so one broken
+//                                      pane cannot abort the rest)
 //   updateBadges()                   — updates tab badge counts
 
 // Utility
@@ -52,6 +54,41 @@ function setStatus(state) {
 function showError(msg, tb) {
   var pane = $('#pane-ir');
   pane.innerHTML = '<div class="error-box">' + esc(msg) + (tb ? '\n\n' + esc(tb) : '') + '</div>';
+}
+
+// Run a render pipeline so one broken renderer cannot take the whole GUI
+// down with it.
+//
+// ``steps`` is a list of ``{name, pane, run}``: ``run`` is the renderer,
+// ``pane`` the optional selector of the pane it owns.  A throwing step gets
+// its error reported *in its own pane* (so a tab shows why it is empty
+// instead of just being empty), the remaining steps still run, and the
+// caller always gets control back — before this existed, a `TypeError` in
+// the WASM renderer skipped every later step *and* the caller's
+// `spinner.style.display = 'none'`, so the throbber span forever
+// (issues #1182 / #1183).
+//
+// Returns the list of ``{name, error}`` failures (empty on success).
+function runRenderSteps(steps) {
+  var failures = [];
+  for (var i = 0; i < steps.length; i++) {
+    var step = steps[i];
+    try {
+      step.run();
+    } catch (err) {
+      failures.push({ name: step.name, error: err });
+      if (typeof console !== 'undefined' && console.error) {
+        console.error('explorer: ' + step.name + ' failed to render', err);
+      }
+      var pane = step.pane ? $(step.pane) : null;
+      if (pane) {
+        pane.innerHTML = '<div class="error-box">' + esc(step.name + ' failed to render: '
+          + (err && err.message ? err.message : String(err)))
+          + (err && err.stack ? '\n\n' + esc(err.stack) : '') + '</div>';
+      }
+    }
+  }
+  return failures;
 }
 
 // Hover highlighting helpers
@@ -1265,12 +1302,20 @@ function renderAsmInstruction(ins, entry) {
        + '</span></div>';
 }
 
+// The synthetic ``(module)`` entry.  Every list it reads is optional: a
+// producer that predates a contract field (or one that legitimately has no
+// data segments) must not take the whole pane down with it — a single
+// missing array used to throw mid-render, leaving the WASM tab blank and
+// the compile spinner stuck (issues #1182 / #1183).
 function renderWasmModuleHeader(entry) {
+  var imports = entry.imports || [];
+  var types = entry.types || [];
+  var dataSegments = entry.dataSegments || [];
   var html = '<div class="wasm-module">';
-  html += '<div class="wasm-func-header">(module) <span class="wasm-comment">' + entry.imports.length + ' imports, ' + entry.types.length + ' types, ' + entry.dataSegments.length + ' data segments</span></div>';
-  if (entry.imports.length) {
-    html += '<details class="wasm-module-details"><summary>imports (' + entry.imports.length + ')</summary>';
-    for (var imp of entry.imports) {
+  html += '<div class="wasm-func-header">(module) <span class="wasm-comment">' + imports.length + ' imports, ' + types.length + ' types, ' + dataSegments.length + ' data segments</span></div>';
+  if (imports.length) {
+    html += '<details class="wasm-module-details"><summary>imports (' + imports.length + ')</summary>';
+    for (var imp of imports) {
       html += '<div class="wasm-import-entry">';
       html += '<span class="wasm-idx">' + imp.funcIdx + '</span>';
       html += '<span class="wasm-mnemonic">import</span> ';
@@ -1280,9 +1325,25 @@ function renderWasmModuleHeader(entry) {
     }
     html += '</details>';
   }
-  if (entry.dataSegments.length) {
-    html += '<details class="wasm-module-details"><summary>data segments (' + entry.dataSegments.length + ')</summary>';
-    for (var seg of entry.dataSegments) {
+  if (types.length) {
+    html += '<details class="wasm-module-details"><summary>types (' + types.length + ')</summary>';
+    for (var i = 0; i < types.length; i++) {
+      var t = types[i];
+      var params = (t.params || []).map(function(p) { return '(param ' + esc(p) + ')'; }).join(' ');
+      var results = (t.results || []).map(function(r) { return '(result ' + esc(r) + ')'; }).join(' ');
+      var sig = [params, results].filter(Boolean).join(' ');
+      html += '<div class="wasm-import-entry">'
+            + '<span class="wasm-idx">' + (t.index !== undefined ? t.index : i) + '</span>'
+            + '<span class="wasm-mnemonic">type</span> '
+            + '<span class="wasm-operand">$t' + (t.index !== undefined ? t.index : i) + '</span> '
+            + '<span class="wasm-comment">; (func' + (sig ? ' ' + sig : '') + ')</span>'
+            + '</div>';
+    }
+    html += '</details>';
+  }
+  if (dataSegments.length) {
+    html += '<details class="wasm-module-details"><summary>data segments (' + dataSegments.length + ')</summary>';
+    for (var seg of dataSegments) {
       html += '<div class="wasm-import-entry"><span class="wasm-idx">' + seg.offset + '</span><span class="wasm-comment">; ' + seg.size + ' bytes</span></div>';
     }
     html += '</details>';

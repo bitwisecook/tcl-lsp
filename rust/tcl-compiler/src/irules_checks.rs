@@ -109,6 +109,76 @@ fn supports_normalized_flag(registry: &CommandRegistry, cmd: &str) -> bool {
         .is_some_and(|spec| spec.options.iter().any(|opt| opt.name == "-normalized"))
 }
 
+/// How much a [`CodeFix`] changes the behaviour of the program it rewrites.
+///
+/// A fix's *description* says what it does; this says what it costs.  The
+/// distinction matters because "Fix All Safe Issues" applies fixes
+/// unattended, in bulk, without the author reading each one: only a fix
+/// that is **provably** semantics-preserving for the instance it was built
+/// from belongs there.  A whitelist of diagnostic *codes* cannot express
+/// that, because the same code can produce an equivalent rewrite in one
+/// place and a behaviour-changing one in another (issue #1195).
+///
+/// The classification is per **fix instance**, not per code.  An emitter
+/// that can prove equivalence for some inputs and not others must classify
+/// each fix it builds on its own evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+pub enum FixSafety {
+    /// The rewrite is provably equivalent for this instance: every input
+    /// produces the same completion code, result, output, and side effects
+    /// before and after.  Whitespace and delimiter repairs, and rewrites
+    /// whose operands the emitter has proven inert, live here.
+    ///
+    /// **This is the only class "Fix All Safe Issues" applies.**
+    SemanticsEquivalent,
+    /// The rewrite deliberately removes a hazard, and in doing so can change
+    /// what the program does.  Bracing an `expr` operand (W100) removes
+    /// Tcl's second round of substitution — the point of the fix, and the
+    /// reason a program relying on that substitution changes behaviour.
+    /// Offered as its own named action with an explanation; never applied
+    /// unattended.
+    BehaviourHardening,
+    /// The rewrite changes only the spelling a human reads — comment
+    /// layout, a suppression directive, an alternative documented form with
+    /// identical semantics that is nonetheless a matter of taste.  Safe to
+    /// apply, but not a *correctness* fix, so bulk application is a style
+    /// decision the author makes rather than one the server makes for them.
+    StyleOnly,
+    /// Equivalence is not established: the fix is a suggestion whose
+    /// correctness depends on context the emitter could not check (inferred
+    /// types, run-time values, traces, aliases, a rename the analyser cannot
+    /// see).  The author must read it.  This is the **default** so a new
+    /// emitter that has not thought about safety cannot silently opt its
+    /// fixes into unattended bulk application.
+    #[default]
+    RequiresReview,
+}
+
+impl FixSafety {
+    /// Whether a fix in this class may be applied unattended, in bulk, by
+    /// "Fix All Safe Issues".
+    ///
+    /// The single place that decision is encoded — the server asks the fix,
+    /// rather than keeping a second list of diagnostic codes that drifts
+    /// from what the emitters actually prove.
+    #[must_use]
+    pub const fn is_bulk_applicable(self) -> bool {
+        matches!(self, Self::SemanticsEquivalent)
+    }
+
+    /// A short label for the class, for diagnostics, tooling, and the
+    /// `applied` list the fix-all command reports.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SemanticsEquivalent => "semantics-equivalent",
+            Self::BehaviourHardening => "behaviour-hardening",
+            Self::StyleOnly => "style-only",
+            Self::RequiresReview => "requires-review",
+        }
+    }
+}
+
 /// A suggested code-action fix — maps to an LSP `TextEdit`.
 ///
 /// `span` is the **fix range** the edit applies to, *independent* of the
@@ -117,6 +187,12 @@ fn supports_normalized_flag(registry: &CommandRegistry, cmd: &str) -> bool {
 /// rewrites.  This is the lower-level twin of the analyser's `CodeFix`, which
 /// re-exports this type (see `analyser::types`); it lives here because the
 /// iRules-flow / compiler-checks layer is below the analyser.
+///
+/// `safety` records how much the rewrite changes behaviour — see
+/// [`FixSafety`].  Prefer the classified constructors
+/// ([`CodeFix::equivalent`], [`CodeFix::hardening`], [`CodeFix::style`],
+/// [`CodeFix::review`]) over a struct literal: they make the classification
+/// an explicit decision at every emit site.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CodeFix {
     /// Source span the `new_text` replaces (zero-width for an insertion).
@@ -125,6 +201,63 @@ pub struct CodeFix {
     pub new_text: String,
     /// Human-readable description (`"Add 'event disable all' + 'return'"`).
     pub description: String,
+    /// How much this rewrite changes the program's behaviour.
+    pub safety: FixSafety,
+}
+
+impl CodeFix {
+    /// A fix the emitter has proven equivalent for this instance — the only
+    /// class "Fix All Safe Issues" applies.  See
+    /// [`FixSafety::SemanticsEquivalent`].
+    #[must_use]
+    pub fn equivalent(
+        span: Span,
+        new_text: impl Into<String>,
+        description: impl Into<String>,
+    ) -> Self {
+        Self::classified(span, new_text, description, FixSafety::SemanticsEquivalent)
+    }
+
+    /// A fix that removes a hazard and may change behaviour in doing so.
+    /// See [`FixSafety::BehaviourHardening`].
+    #[must_use]
+    pub fn hardening(
+        span: Span,
+        new_text: impl Into<String>,
+        description: impl Into<String>,
+    ) -> Self {
+        Self::classified(span, new_text, description, FixSafety::BehaviourHardening)
+    }
+
+    /// A fix that changes only the spelling a human reads.  See
+    /// [`FixSafety::StyleOnly`].
+    #[must_use]
+    pub fn style(span: Span, new_text: impl Into<String>, description: impl Into<String>) -> Self {
+        Self::classified(span, new_text, description, FixSafety::StyleOnly)
+    }
+
+    /// A suggestion whose correctness the emitter could not establish.  See
+    /// [`FixSafety::RequiresReview`].
+    #[must_use]
+    pub fn review(span: Span, new_text: impl Into<String>, description: impl Into<String>) -> Self {
+        Self::classified(span, new_text, description, FixSafety::RequiresReview)
+    }
+
+    /// Shared constructor behind the four classified builders.
+    #[must_use]
+    pub fn classified(
+        span: Span,
+        new_text: impl Into<String>,
+        description: impl Into<String>,
+        safety: FixSafety,
+    ) -> Self {
+        Self {
+            span,
+            new_text: new_text.into(),
+            description: description.into(),
+            safety,
+        }
+    }
 }
 
 /// An IRULE3102 / iRules-check diagnostic emitted by
@@ -426,6 +559,9 @@ pub fn find_unguarded_drop_warnings(
                         span: Span::new(span.end(), span.end()),
                         new_text: "\n    event disable all\n    return".to_owned(),
                         description: "Add 'event disable all' + 'return'".to_owned(),
+                        // IRULE5002: adding `event disable all` + `return` stops later
+                        // iRules and priorities running — the fix, and a control-flow change.
+                        safety: crate::irules_checks::FixSafety::BehaviourHardening,
                     }],
                 });
             }
@@ -443,6 +579,9 @@ pub fn find_unguarded_drop_warnings(
                         span: Span::new(span.end(), span.end()),
                         new_text: "\n    return".to_owned(),
                         description: "Add 'return' after DNS::return".to_owned(),
+                        // IRULE5004: adding `return` stops iRule processing after
+                        // `DNS::return` — a control-flow change.
+                        safety: crate::irules_checks::FixSafety::BehaviourHardening,
                     }],
                 });
             }

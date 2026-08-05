@@ -26,9 +26,13 @@
 //!
 //! Transforms:
 //!
+//! * [`extract_proc`] — move a run of commands into a new proc and call
+//!   it, carrying caller-frame writes through with `upvar`.
 //! * [`extract_variable`] — replace a selected expression with a named
 //!   `set` assignment.
 //! * [`inline_variable`] — inline a single-use `set` variable.
+//! * [`inline_proc`] — replace a call with the proc's body, with its
+//!   parameters bound to the call's argument *values*.
 //! * [`if_to_switch`] — convert an `if`/`elseif` equality chain to a
 //!   `switch`.
 //! * [`switch_to_dict`] — convert a constant-mapping `switch` to a
@@ -48,8 +52,10 @@
 
 mod brace_expr;
 mod datagroup;
+mod extract_proc;
 mod extract_variable;
 mod if_to_switch;
+mod inline_proc;
 mod inline_variable;
 mod switch_to_dict;
 
@@ -58,8 +64,10 @@ pub use datagroup::{
     DataGroupDefinition, data_group_tcl, extract_to_datagroup, extract_to_datagroup_from_if,
     extract_to_datagroup_from_switch,
 };
+pub use extract_proc::{extract_proc, extract_proc_rename_command};
 pub use extract_variable::extract_variable;
 pub use if_to_switch::if_to_switch;
+pub use inline_proc::inline_proc;
 pub use inline_variable::inline_variable;
 pub use switch_to_dict::switch_to_dict;
 
@@ -114,23 +122,39 @@ impl RefactorEdit {
 pub struct Refactoring {
     /// Title shown in the editor.
     pub title: String,
-    /// Edits, in byte-offset space.
+    /// Edits, in byte-offset space.  Empty when [`Self::disabled`] is set —
+    /// a refused refactoring has nothing to apply.
     pub edits: Vec<RefactorEdit>,
     /// LSP code-action kind dotted string (`refactor.extract`, …).
     pub kind: crate::code_actions::ActionKind,
     /// Generated data-group definition, when this is an
     /// extract-to-datagroup result.
     pub data_group: Option<DataGroupDefinition>,
+    /// Why this refactoring cannot be applied here, when it cannot.
+    ///
+    /// A transform that finds its subject but *cannot preserve behaviour* says
+    /// so rather than vanishing: the reason is surfaced as the code action's
+    /// LSP `disabled.reason`, so the editor greys the entry out and explains
+    /// itself.  Silently offering nothing leaves a user unable to tell "this
+    /// refactoring does not apply here" from "this refactoring is broken".
+    pub disabled: Option<String>,
 }
 
 impl Refactoring {
     /// Apply the edits to `source` bottom-to-top, returning the
     /// rewritten text.  Edits are sorted by descending start offset so
     /// an earlier edit never shifts a later one's coordinates.
+    ///
+    /// The sort key is `(start, end)`, not `start` alone: an insertion and a
+    /// replacement can legitimately share a start offset — extract-proc puts
+    /// the new definition at the line the selection begins on and replaces
+    /// that selection with a call — and ordering by start alone leaves which
+    /// of the two lands first up to the sort's stability, interleaving the two
+    /// texts.  Applying the wider edit first is the only order that composes.
     #[must_use]
     pub fn apply(&self, source: &str) -> String {
         let mut sorted: Vec<&RefactorEdit> = self.edits.iter().collect();
-        sorted.sort_by_key(|e| std::cmp::Reverse(e.start));
+        sorted.sort_by_key(|e| std::cmp::Reverse((e.start, e.end)));
         let mut result = source.to_owned();
         for edit in sorted {
             let start = (edit.start as usize).min(result.len());
@@ -524,6 +548,7 @@ mod tests {
             ],
             kind: crate::code_actions::ActionKind::RefactorRewrite,
             data_group: None,
+            disabled: None,
         };
         assert_eq!(r.apply("set x 42"), "let x 99");
     }

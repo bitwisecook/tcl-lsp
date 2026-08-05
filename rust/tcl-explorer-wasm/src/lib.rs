@@ -36,6 +36,19 @@ pub fn start() {
     console_error_panic_hook::set_once();
 }
 
+/// The explorer's `meta` block (dialect list, view-tab table, severity
+/// vocabulary) as JSON, without compiling anything.
+///
+/// The GUI needs the dialect list to populate its dropdown *before* the
+/// first compile — otherwise the dropdown shows only the hard-coded
+/// `tcl8.6` fallback until a compile happens to land (issue #1183).
+#[wasm_bindgen]
+#[must_use]
+pub fn meta() -> String {
+    serde_json::to_string(&tcl_explorer::serialise_meta())
+        .unwrap_or_else(|e| format!(r#"{{"error":"serialise failed: {e}"}}"#))
+}
+
 /// Compile `source` for `dialect` and return the explorer contract JSON.
 ///
 /// On a serialisation failure it returns a JSON `{"error": ...}` object

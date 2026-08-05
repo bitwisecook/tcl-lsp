@@ -22,7 +22,7 @@
 //! advertises no pull provider, so these assert on the `publishDiagnostics` the
 //! server pushes after analysis, keyed by version.
 
-use crate::common::{Lsp, unique_uri};
+use crate::common::{Lsp, scaled_timeout, unique_uri};
 
 use serde_json::Value;
 use std::collections::BTreeSet;
@@ -2589,7 +2589,7 @@ fn autoload_library_command_not_unknown_issue_832() {
     // The package database is (re)built asynchronously at startup; poll the
     // deterministic pull path until it is live (W123 clears) or the deadline.
     let mut diags = lsp.pull_diagnostics(&uri);
-    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(15));
     while has_code(&diags, "W123") && std::time::Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(100));
         diags = lsp.pull_diagnostics(&uri);
@@ -2654,7 +2654,7 @@ fn autoload_library_command_go_to_definition_m8() {
 
     // The package database loads asynchronously at startup; poll (via the W123
     // clearing on the pull path) until it is live, then go-to-definition.
-    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(15));
     let mut diags = lsp.pull_diagnostics(&uri);
     while has_code(&diags, "W123") && std::time::Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(100));
@@ -2756,7 +2756,7 @@ fn guarded_pkg_child_diagnostics(dialect: &str, libdir: &std::path::Path) -> Vec
     // path is deterministic once it is live.  Poll until the answer stops
     // changing rather than assuming either outcome.
     let mut diags = lsp.pull_diagnostics(&child);
-    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(15));
     while std::time::Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(100));
         let next = lsp.pull_diagnostics(&child);
@@ -2889,7 +2889,7 @@ fn autoload_library_command_references_and_rename_m8() {
 
     // The package database loads asynchronously at startup; poll (via the W123
     // clearing on the pull path) until it is live.
-    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(15));
     let mut diags = lsp.pull_diagnostics(&uri);
     while has_code(&diags, "W123") && std::time::Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(100));
@@ -3880,7 +3880,7 @@ fn consumer_rename_resolves_through_a_real_workspace_folder_m8() {
 
     // The folder scan runs asynchronously; poll the rename until the library
     // edit appears (or the deadline), exactly like the editor test.
-    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(15));
     let mut lib_lines: Vec<i64> = Vec::new();
     while std::time::Instant::now() < deadline && lib_lines.is_empty() {
         let resp = lsp.request(

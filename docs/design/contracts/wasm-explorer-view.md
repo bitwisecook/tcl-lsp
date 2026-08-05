@@ -4,30 +4,45 @@
 
 The compiler explorer renders the output of `wasm_codegen_module` as a
 per-instruction interactive disassembly.  The JSON shape that
-`tooling/cli/serialise.py` produces and
+[`rust/tcl-explorer`](../../../rust/tcl-explorer) produces and
 that [`rust/tcl-cli/gui/explorer-core.js`](../../../rust/tcl-cli/gui/explorer-core.js)
-consumes is fixed by this contract.  Both the standalone web panel
-(`tooling/explorer/static/index.html`) and the VS Code webview
-(`editors/vscode/src/compilerExplorerHtml.ts`) read the same shape.
+consumes is fixed by this contract.  Both the standalone web GUI
+([`rust/tcl-cli/gui/index.html`](../../../rust/tcl-cli/gui/index.html), served
+by `tcl explore --serve` and published to GitHub Pages) and the VS Code webview
+([`editors/vscode/src/compilerExplorerHtml.ts`](../../../editors/vscode/src/compilerExplorerHtml.ts))
+read the same shape.
 
 ## Producer
 
-- `compiler/codegen/wasm/_ir.py`
-  — `WasmModule.to_explorer_json()` returns a list of function entries
-  (plus a synthetic module header).  Each instruction carries a decoded
-  target (`call` → function name, `br` / `br_if` → matching structural
-  open/close), a source range, an indent level, and an explorer label.
-- `tooling/cli/serialise.py` —
-  `_serialise_wasm` calls `to_explorer_json()`, attaches a WAT text
-  snippet per entry for legacy consumers, and returns the list as
+- [`rust/tcl-explorer/src/wasm_explorer.rs`](../../../rust/tcl-explorer/src/wasm_explorer.rs)
+  — `wasm_to_explorer_json(&WasmModule, &LineIndex, source)` returns a list
+  of function entries (plus a synthetic module header).  Each instruction
+  carries a decoded target (`call` → function name, `br` / `br_if` → matching
+  structural open/close), a source range, an indent level, and an explorer
+  label.
+- [`rust/tcl-explorer/src/serialise.rs`](../../../rust/tcl-explorer/src/serialise.rs)
+  — `serialise_wasm` calls it, attaches the full WAT `text` on the module
+  header for the TUI / legacy consumers, and returns the list as
   `data.wasm` / `data.wasmOptimised`.
+- [`rust/tcl-explorer-wasm`](../../../rust/tcl-explorer-wasm) — the
+  `wasm-bindgen` facade the browser worker calls (`compile`, plus `meta` for
+  the dialect list, which needs no compile).
 
 ## Module header entry
 
 The first entry in each list is always the synthetic module header.
 `instrCount` is fixed at 0 so tab badge totals (summed over entries)
 don't double-count body instructions; the real total is available as
-`totalInstrCount`.
+`totalInstrCount`, and `functionCount` is the number of defined functions
+(i.e. the entry count minus this header).
+
+`types` is the module's type section as the binary/WAT serialiser emits it —
+import signatures first (interned when the import is registered), then any
+further defined-function signature.  Producers must compute it with
+`WasmModule::type_section()` rather than reading the private `types` field:
+defined-function signatures are only interned when the module is actually
+serialised, so a not-yet-emitted module under-reports otherwise.
+Every `imports[].typeIdx` indexes into this list.
 
 ```jsonc
 {
@@ -40,6 +55,7 @@ don't double-count body instructions; the real total is available as
   "sourceRange": null,
   "instrCount": 0,
   "totalInstrCount": 32,
+  "functionCount": 4,
   "instructions": [],
   "imports": [
     {"module": "tcl", "name": "tcl_obj_get_int", "typeIdx": 0, "funcIdx": 0}
@@ -146,6 +162,45 @@ hint on every `br` / `br_if` that lands on its matching close.
 The shape above is additive.  Consumers that don't understand a new
 field must ignore it; producers must never repurpose an existing field
 name with a different type.  When fields change meaning, rename them.
+
+## Consumer resilience
+
+Producer and consumer ship in the same binary but are versioned by hand, and
+a published GUI can outlive the payload it was built against (GitHub Pages
+serves a cached `explorer-core.js`).  Two rules keep a mismatch survivable —
+both were learned from issues #1182 / #1183, where a module header that had
+lost its `types` array made `renderWasmModuleHeader` throw, blanked the WASM
+tab, and left the compile spinner throbbing forever:
+
+1. **Renderers treat every list as optional.**  Read `entry.foo || []`, never
+   `entry.foo.length`.  A field the producer has not caught up with must
+   degrade to "0 of those", not to a `TypeError`.
+2. **Rendering is isolated per pane.**  Both consumers drive their render
+   pipeline through `runRenderSteps` (in `explorer-core.js`): a step that
+   throws reports the error inside its own pane, the remaining panes still
+   render, and `renderAll` itself never throws — so the caller's spinner and
+   status light always settle, whatever a renderer did.
+
+Limitation: this makes a contract drift *visible and non-fatal*, not
+harmless.  A pane fed a payload missing data it genuinely needs will render
+that data as absent (or show the error in place of its content); only the
+producer-side tests
+(`rust/tcl-explorer/src/wasm_explorer.rs::module_header_carries_every_contract_field`)
+assert the payload is complete.
+
+## Tests
+
+- `rust/tcl-explorer/src/wasm_explorer.rs` (unit) — the module header carries
+  every contract field, and `types` covers imports plus defined functions.
+- `rust/tcl-compiler/src/codegen/wasm/ir.rs` (unit) — `type_section()`
+  predicts the type table `to_bytes` emits.
+- `rust/tcl-cli/tests/explorer_gui.rs` (integration) — drives the shipped GUI
+  in headless Chromium against a real payload and asserts the WASM tab
+  renders, the spinner stops, and no pane errors.  Skips with a printed
+  reason when node/Playwright are unavailable; set `TCL_EXPLORER_GUI_TEST=1`
+  to make a missing toolchain a failure instead.
+- `editors/vscode/src/test/compilerExplorerWebview.test.ts` — the generated
+  webview HTML keeps the isolation wiring and the optional-list guards.
 
 ## Related
 

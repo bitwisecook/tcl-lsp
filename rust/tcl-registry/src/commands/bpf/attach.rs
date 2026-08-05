@@ -22,10 +22,12 @@
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
+    const OP: BpfOpSpec = BpfOpSpec::framework(BpfDeclKind::Attach);
     CommandSpec {
         name: "attach",
         dialects: Some(DialectSet::BPF),
         arity: Arity::exact(2),
+        bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }
 }

@@ -474,6 +474,15 @@ pub struct CommandSpec {
     /// Lowering hook ID (index into compiler's dispatch table).
     pub lowering_hook: Option<LoweringHookId>,
 
+    /// Typed BPF-Tcl lowering descriptor — `Some` on every command of the
+    /// BPF dialect, describing the core operation or framework declaration
+    /// the command stands for (scalar width, packet-load width, map role,
+    /// verdict family + compatible program types, effect classification).
+    /// The BPF-Tcl front-end (`bpf-tcl-ir`) and its capability policy
+    /// dispatch on this descriptor, never on the command name — see
+    /// [`crate::bpf_op`].  `None` for every non-BPF command.
+    pub bpf_op: Option<&'static crate::bpf_op::BpfOpSpec>,
+
     /// `TclVM` bytecode codegen hook ID — picks the per-command
     /// emitter inside `tcl_compiler::codegen::emitter::bytecoded`
     /// (the path that matches C Tcl 9's bytecode output).
@@ -928,6 +937,29 @@ fn leading_option_word_count(options: &[OptionSpec], args: &[&str]) -> usize {
     i
 }
 
+/// The trailing run of `?placeholder?` words in a synopsis, `?` stripped.
+///
+/// A synopsis is a whitespace-separated word list whose optional arguments
+/// are wrapped in `?…?` (`catch script ?resultVarName? ?optionsVarName?`).
+/// Scanning from the right and stopping at the first word that is not so
+/// wrapped yields exactly the words a caller may append to a call that
+/// supplies every earlier word — the question a splice-a-trailing-argument
+/// quick-fix asks.  A variadic tail (`?arg ...?`, `?arg arg ...?`) is not a
+/// fixed slot list, so a placeholder containing whitespace or an ellipsis
+/// terminates the run rather than being offered as a name.
+fn optional_trailing_placeholders(synopsis: &'static str) -> Vec<&'static str> {
+    let mut names: Vec<&'static str> = synopsis
+        .split_whitespace()
+        .rev()
+        .map_while(|word| {
+            let inner = word.strip_prefix('?')?.strip_suffix('?')?;
+            (!inner.is_empty() && inner != "..." && !inner.contains("...")).then_some(inner)
+        })
+        .collect();
+    names.reverse();
+    names
+}
+
 impl CommandSpec {
     /// Default value for all fields — used with `..CommandSpec::DEFAULT`.
     pub const DEFAULT: Self = Self {
@@ -957,6 +989,7 @@ impl CommandSpec {
         const_fold: None,
         const_fold_versioned: None,
         lowering_hook: None,
+        bpf_op: None,
         codegen_hook: None,
         inline_codegen_hook: None,
         wasm_codegen_hook: None,
@@ -1046,6 +1079,41 @@ impl CommandSpec {
             .map(|f| f.synopsis)
             .chain(self.hover.iter().flat_map(|h| h.synopsis.iter().copied()))
             .find(|s| !s.is_empty())
+    }
+
+    /// The names of the optional trailing words the *dialect-applicable*
+    /// synopses document — the run of `?placeholder?` words at the end of a
+    /// [`Self::forms`] entry, with the `?` markers stripped.
+    ///
+    /// This is how a quick-fix that offers to *append* a documented optional
+    /// argument learns both how many words it may append and what to call
+    /// them, without the consumer knowing the command.  `catch script
+    /// ?resultVarName? ?optionsVarName?` yields
+    /// `["resultVarName", "optionsVarName"]`; the narrower Tcl 8.4 / iRules
+    /// form `catch script ?varName?` yields `["varName"]`, so a consumer
+    /// running under those dialects never offers the options-dictionary word
+    /// that release has no argument slot for.
+    ///
+    /// The widest applicable form wins, since a command may declare several
+    /// overlapping forms for one dialect and the widest documents every slot
+    /// the narrower ones do.  A form whose optional tail is interrupted by a
+    /// required word contributes only its trailing run: the words a caller
+    /// can append without also having to supply something in between.
+    ///
+    /// Returns an empty vector when the command declares no forms, none apply
+    /// to *dialect*, or the applicable ones end in a required word.
+    #[must_use]
+    pub fn optional_trailing_arg_names(&self, dialect: DialectSet) -> Vec<&'static str> {
+        self.forms
+            .iter()
+            .filter(|form| {
+                form.dialects
+                    .or(self.dialects)
+                    .is_none_or(|allowed| allowed.contains(dialect))
+            })
+            .map(|form| optional_trailing_placeholders(form.synopsis))
+            .max_by_key(Vec::len)
+            .unwrap_or_default()
     }
 
     /// Resolve a subcommand word to its [`SubCommand`], accepting a unique
@@ -1893,5 +1961,54 @@ impl SubCommand {
             .iter()
             .find(|(i, _)| *i == index)
             .map_or(&[], |(_, vs)| vs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::registry::CommandRegistry;
+
+    // -- optional_trailing_arg_names (issue #1190) ------------------------
+    //
+    // A quick fix that appends a documented optional argument learns both how
+    // many words it may append and what to call them from the synopsis, so a
+    // dialect whose form documents fewer words gets a narrower offer.
+
+    #[test]
+    fn optional_trailing_placeholders_takes_the_trailing_run() {
+        assert_eq!(
+            optional_trailing_placeholders("catch script ?resultVarName? ?optionsVarName?"),
+            vec!["resultVarName", "optionsVarName"]
+        );
+        // A required word terminates the run — these are the words a caller
+        // may append *without* also having to supply something in between.
+        assert_eq!(
+            optional_trailing_placeholders("cmd ?a? required ?b?"),
+            vec!["b"]
+        );
+        // No optional tail at all.
+        assert!(optional_trailing_placeholders("puts string").is_empty());
+        // A variadic tail is not a fixed slot list.
+        assert!(optional_trailing_placeholders("cmd ?arg ...?").is_empty());
+        assert!(optional_trailing_placeholders("cmd ?...?").is_empty());
+    }
+
+    #[test]
+    fn optional_trailing_arg_names_narrows_with_the_dialect() {
+        let registry = CommandRegistry::build_default();
+        let spec = registry.get("catch").expect("catch is a registry command");
+        // Tcl 8.5 onward documents `catch script ?resultVarName? ?optionsVarName?`.
+        assert_eq!(
+            spec.optional_trailing_arg_names(DialectSet::TCL90),
+            vec!["resultVarName", "optionsVarName"]
+        );
+        // Tcl 8.4's `catch script ?varName?` has no options dictionary, so a
+        // consumer running under that dialect never offers a word the release
+        // has no argument slot for.
+        assert_eq!(
+            spec.optional_trailing_arg_names(DialectSet::TCL84),
+            vec!["varName"]
+        );
     }
 }

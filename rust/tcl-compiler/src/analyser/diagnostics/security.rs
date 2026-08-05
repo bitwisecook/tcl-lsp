@@ -128,8 +128,18 @@ impl Analyser {
     /// to suppress that case.  The diagnostic anchors at just the
     /// ``catch`` command token — the narrowest span that identifies
     /// the issue.
+    ///
+    /// The attached quick-fixes carry their **own** span, which is *not*
+    /// the diagnostic's: they insert at the point past the last supplied
+    /// argument's closing delimiter, computed by
+    /// [`Self::trailing_arg_fixes`] from the argument tokens.  A consumer
+    /// that instead reconstructed an insertion point from the diagnostic's
+    /// end would write the new word between `catch` and its body and
+    /// silently shift every argument one position along — the corruption
+    /// issue #1190 reports.
     pub(in crate::analyser) fn emit_w302_catch_no_result_var(
         &mut self,
+        cmd_name: &str,
         args: &[String],
         cmd_tok: tcl_lexer::Token,
         arg_tokens: &[tcl_lexer::Token],
@@ -160,6 +170,7 @@ impl Analyser {
         {
             return;
         }
+        let fixes = self.trailing_arg_fixes(cmd_name, args, arg_tokens, "Add catch");
         let span = cmd_tok.span;
         self.result.diagnostics.push(super::types::Diagnostic {
             code: DiagCode::W302,
@@ -168,8 +179,93 @@ impl Analyser {
 Consider capturing the result: catch {\u{2026}} result"
                 .to_string(),
             severity: Severity::Hint,
-            fixes: Vec::new(),
+            fixes,
         });
+    }
+
+    /// Build the "append the omitted optional result variable(s)" quick-fixes
+    /// for an invocation that left declared trailing
+    /// [`ArgRole::VarWrite`] slots unfilled.
+    ///
+    /// Every part of this is registry data, so it holds for any command with
+    /// the shape, not for `catch` alone:
+    ///
+    /// * **How many words may be appended, and what they are called** comes
+    ///   from [`tcl_registry::CommandRegistry::unfilled_trailing_roles`] (the
+    ///   declared roles beyond the supplied arguments) intersected with
+    ///   [`tcl_registry::CommandSpec::optional_trailing_arg_names`] (the
+    ///   dialect-applicable synopsis placeholders).  Under a dialect whose
+    ///   form documents fewer optional words — Tcl 8.4 and iRules give
+    ///   `catch` a result variable but no options dictionary — only the
+    ///   narrower fix is offered.
+    /// * **Where the words go** is the append point past the *last supplied
+    ///   argument*, from [`tcl_lexer::word_append_offset`], so a braced,
+    ///   multi-line, quoted, empty, or bracketed body all anchor correctly.
+    ///
+    /// One fix per prefix of the run, so a caller sees "append the result
+    /// variable" and "append the result and options variables" as separate
+    /// offers.  Each is a zero-width insertion, and each is classified
+    /// [`FixSafety::BehaviourHardening`]: capturing the result stops errors
+    /// being swallowed, but it also *writes a new variable in the caller's
+    /// frame*, which a program that already uses that name would observe.
+    fn trailing_arg_fixes(
+        &self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        title_prefix: &str,
+    ) -> Vec<super::types::CodeFix> {
+        let Some(registry) = self.registry else {
+            return Vec::new();
+        };
+        let Some(spec) = registry.get(cmd_name) else {
+            return Vec::new();
+        };
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        // The declared roles of the words a caller could still append …
+        let unfilled = registry.unfilled_trailing_roles(cmd_name, &arg_strs);
+        // … restricted to the leading run that writes variables: a slot
+        // taking a value rather than a variable name is not a place to
+        // splice a capture variable.
+        let writable = unfilled
+            .iter()
+            .take_while(|(_, role)| *role == ArgRole::VarWrite)
+            .count();
+        // … and to the optional words this dialect's synopsis documents.
+        let documented = spec.optional_trailing_arg_names(self.profile.availability_mask);
+        let offered = writable.min(documented.len());
+        if offered == 0 {
+            return Vec::new();
+        }
+        let Some(&last) = arg_tokens.last() else {
+            return Vec::new();
+        };
+        let source_map = Self::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
+        let insert_at = tcl_lexer::word_append_offset(&source_map, last);
+        // Defensive: an insertion point outside the buffer (a truncated or
+        // otherwise malformed document) is not a usable edit.
+        if insert_at as usize > self.source.len() {
+            return Vec::new();
+        }
+        let span = tcl_lexer::Span::new(insert_at, insert_at);
+        (1..=offered)
+            .map(|count| {
+                let names: Vec<String> = documented[..count]
+                    .iter()
+                    .map(|placeholder| variable_name_for_placeholder(placeholder))
+                    .collect();
+                super::types::CodeFix {
+                    span,
+                    new_text: format!(" {}", names.join(" ")),
+                    description: format!("{title_prefix} {} variable(s)", names.join(" + ")),
+                    safety: super::types::FixSafety::BehaviourHardening,
+                }
+            })
+            .collect()
     }
 
     /// **W101.** Emit "eval with string concatenation" warning
@@ -304,6 +400,10 @@ Prefer direct invocation or {{*}}$cmdList to preserve argument boundaries."
             description: "Rewrite to `eval [list …]` (passes each substituted \
 word as one argument; no re-parsing)"
                 .to_string(),
+            // W101: `eval [list …]` deliberately stops the substituted words
+            // being re-parsed as script — the injection fix, and a change for a
+            // caller that meant them to be.
+            safety: crate::irules_checks::FixSafety::BehaviourHardening,
         }]
     }
 
@@ -1380,6 +1480,30 @@ pub(super) fn has_redos_shape(pattern: &str) -> bool {
     false
 }
 
+/// Turn a synopsis placeholder into the variable name a quick-fix inserts.
+///
+/// Synopsis placeholders name a *role*, in Tcl manual-page style: the word
+/// documented as `resultVarName` is the variable that receives the result.
+/// Spliced into source verbatim it reads as documentation rather than code,
+/// so the trailing `VarName` / `Name` marker is dropped and the leading
+/// letter lower-cased — `resultVarName` becomes `result`,
+/// `optionsVarName` becomes `options`, and a placeholder carrying no such
+/// marker (`varName` alone, once `Name` is dropped, is `var`) keeps its
+/// remaining spelling.  A placeholder that would reduce to nothing keeps
+/// its original text so the fix always inserts a usable identifier.
+fn variable_name_for_placeholder(placeholder: &str) -> String {
+    let stem = placeholder
+        .strip_suffix("VarName")
+        .or_else(|| placeholder.strip_suffix("Name"))
+        .filter(|stem| !stem.is_empty())
+        .unwrap_or(placeholder);
+    let mut chars = stem.chars();
+    match chars.next() {
+        Some(first) => first.to_lowercase().chain(chars).collect(),
+        None => placeholder.to_string(),
+    }
+}
+
 /// True when the body of a `catch` matches the documented
 /// "fire-and-forget" idiom: a single command whose head is a teardown
 /// builtin (`close $h`, `unset var`, `rename foo ""`) or a teardown
@@ -1635,6 +1759,8 @@ fn w127_suggestion_fix(
         span,
         new_text: (*best).to_string(),
         description: format!("Replace with '{best}'"),
+        // W127: an edit-distance guess at the intended value.
+        safety: crate::irules_checks::FixSafety::RequiresReview,
     }]
 }
 

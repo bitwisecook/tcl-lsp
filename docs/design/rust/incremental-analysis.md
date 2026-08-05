@@ -187,10 +187,11 @@ variants, ordered by where the guard sits in the pass:
 | --- | --- |
 | `IncompleteScript` | unbalanced braces/quotes — the transient mid-typing state |
 | `StubDirective` | an inline `tcl-lsp: stub` overlay |
-| `TkActive` | Tk checks accumulate whole-file widget/geometry state |
+| `TkActive` | Tk checks accumulate whole-file widget/geometry state — the `tk` dialect at entry, or a walk-recorded `package require Tk` (#1188) |
 | `GhostRecovery` | ghost-token error recovery engaged |
 | `PartialCommand` | an unterminated command survived segmentation |
 | `ErrorDiagnostic` | an `E…` code — `analyse` ran recovery machinery |
+| `OversizedBody` | a deferred body exceeds `OVERSIZED_BODY_BYTES` — the isolated-body path is a pessimisation there (#1188) |
 | `DuplicateMethod` | one method qualified name defined twice |
 | `EnclosingContext` | a body links a qualified sub-namespace variable, or `namespace import`/`export`s from inside a body |
 | `DuplicateProcInBody` | a body defines an already-defined proc |
@@ -212,14 +213,14 @@ and `EnclosingContext` (11.1%). Note that `IncompleteScript` never fires on
 documents at rest but fires constantly *while typing*, so the live rate is worse
 than this at-rest figure.
 
-Two findings from that sweep are open, and both argue against widening the fast
-path before the cost model is understood:
+Two findings from that sweep drove the #1188 work below, and they had to be
+resolved *together* — fixing either alone makes things worse:
 
-- **`TkActive` is ~78% false positives.** The guard is three *independent*
+- **`TkActive` was ~78% false positives.** The guard was three *independent*
   substring tests (`package`, `require`, `Tk`, anywhere, comments included). 64
-  documents trip it, 14 genuinely `package require Tk`, and the other 50 emit no
-  Tk diagnostic at all — so tightening it to an adjacent `package require Tk` is
-  behaviour-preserving on this corpus.
+  documents tripped it, 14 genuinely `package require Tk`, and the other 50
+  emitted no Tk diagnostic at all — so tightening it to a real `package require
+  Tk` is behaviour-preserving on this corpus.
 - **…but tightening it exposes a scaling cliff.** On `fumagic/filetypes.tcl`
   (85k generated lines, one 71k-line body) the incremental path costs 139,010 ms
   against 5,312 ms for the plain whole-file walk — 26x slower, per keystroke.
@@ -227,6 +228,94 @@ path before the cost model is understood:
   standalone script takes 36,634 ms against 5,312 ms for the whole document
   containing it, so isolated analysis of a large body is ~7x more expensive than
   the identical content analysed in place.
+
+### Resolving both: registry-driven Tk activation + an oversized-body guard (#1188)
+
+**The gate is no longer a substring scan.** Tk activation has exactly two
+inputs, and they are now both taken from where the truth actually lives:
+
+- the `tk` dialect — decidable at entry, so a `wish` document short-circuits
+  before any work; and
+- a `package require Tk` — a *whole-file* fact, recorded during the walk by the
+  registry's `AnalyserHookId::PackageRequire` hook, which is the very fact
+  `flush_tk_geometry_diagnostics` gates the TK diagnostics on. The two therefore
+  cannot disagree, and a `-exact` flag, a version constraint, line
+  continuations, and `package require` inside a `namespace eval`, an `if`, or a
+  proc body all fall out of the ordinary command walk rather than needing a
+  bespoke scanner.
+
+Because the second input is only known after the walk, `analyse_per_item_with`
+checks it twice — once after the shell pass (which catches the top-level
+`package require Tk` of essentially every real Tk script, before the body pass
+is paid for) and once after the body pass (which makes it complete, since
+`graft_proc_body` merges the requires a body contributed). A genuinely-Tk
+document therefore pays one discarded per-item pass; that is the price of never
+paying a whole-file re-analysis, on every keystroke, for a document that merely
+*mentions* the word `Tk`.
+
+What remains a substring test is `tk_checks_could_apply`, and only as a
+performance precheck for the per-command accumulation: a sound *necessary*
+condition (`dialect == "tk" || source.contains("Tk")`) that can over-approximate
+freely, because everything the walk buffers is discarded unless the exact
+activation fact holds. The per-item path pins it to `false` outright — it
+accumulates no Tk state at all, since a Tk document's result is thrown away for
+a full re-analysis anyway.
+
+**Documented conservative limits.** A dynamic package name (`package require
+$p`) is recorded verbatim and so never matches; a `package` reached after a
+`rename`, or hidden in a safe interpreter, is not a resolvable `package
+require`. Both leave the checks off — matching the whole-file walk exactly, so
+per-item and full analysis still agree byte for byte. Separately,
+`::package require Tk` does **not** activate, because `resolve_analyser_hook_call`
+deliberately refuses a `::`-qualified spelling of a bareword global command
+(pinned by issue #923). That is a pre-existing false negative of the whole-file
+walk — `analyse` emits no TK diagnostic there either — not something this gate
+introduced; lifting the `::`-bareword guard would fix it, but it widens hook
+dispatch for *every* stamped command and belongs to its own change.
+
+**The cliff is guarded by body size, not by Tk.** `fill_deferred_bodies` hands
+off with `OversizedBody` when any deferred body exceeds `OVERSIZED_BODY_BYTES`
+(256 KiB), checked before any body is analysed so an oversized document pays
+only the shell pass that discovered it. 256 KiB is far above any hand-written
+procedure (~6,000 lines of ordinary Tcl); it exists to catch *generated*
+single-body files, which are the only place bodies that size occur and the only
+place the isolated-body path is a dramatic pessimisation. The guard is **per
+body, not per document**: a large file made of many ordinary procs is exactly
+the case per-body memoisation pays off for and stays on the fast path.
+
+Two of tcllib 2.0's 882 documents exceed it, both generated:
+`fumagic/filetypes.tcl` (one ~1.2 MB body) and the `i.map` variant of
+`textutil/wcswidth.tcl` (34,856 lines in three procedures, two of them ~2.2 MB).
+`wcswidth.tcl` did previously take the fast path, and its cold cost is roughly
+unchanged (999 ms for the whole-file walk, 1,153 ms through the guard) — but a
+*warm* edit there would have re-analysed a 2.2 MB body in isolation, half the
+document at the ~7x isolated-body penalty, so removing it from the incremental
+path is the right call for the case the path exists to serve.
+
+**Measured, tcllib 2.0 (882 documents, 460,103 lines, `tcl8.6`):**
+
+| guard | before: files / lines / ms | after: files / lines / ms |
+|---|---|---|
+| `tk-active` | 33 / 127,247 / 4,908 | 9 / 4,160 / 343 |
+| `oversized-body` | — | 2 / 119,897 / 5,135 |
+| `error-diagnostic` | 35 / 27,116 / 2,614 | 41 / 43,424 / 4,621 |
+| `enclosing-context` | 41 / 38,226 / 1,941 | 45 / 48,495 / 2,814 |
+
+`tk-active` drops from 27.7% of corpus lines to 0.9%: 24 of the 33 documents it
+claimed were false positives, `filetypes.tcl` and `practcl.tcl` among them.
+Neither reports `tk-active` any more — `filetypes.tcl` is caught by the
+oversized-body guard instead (`analyse` 3,427 ms vs 3,219 ms through the guard,
+so the guard costs nothing over the plain walk), and `practcl.tcl` turns out to
+trip `error-diagnostic`, which the Tk false positive had been masking.
+
+That masking is the honest cost of the change: a document whose *real* gate sits
+after the walk now pays a per-item pass before reaching it, where the entry-time
+Tk guess used to short-circuit. On `practcl.tcl` that is 883 ms against 345 ms
+for the whole-file walk. The corpus total moves 21,413 ms → 25,790 ms for the
+same reason. This is not a regression the Tk fix introduced so much as one it
+*revealed* — `error-diagnostic` and `enclosing-context` firing only after the
+full decomposition is a pre-existing property of those guards, and hoisting them
+is the natural follow-up.
 
 More broadly, the decomposition alone is close to break-even — over 210 sampled
 fast-path documents `analyse_per_item` is *slower* than `analyse` on 23% of

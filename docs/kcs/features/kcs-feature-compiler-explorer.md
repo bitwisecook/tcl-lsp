@@ -22,6 +22,9 @@ VS Code, JetBrains, tcl-lsp CLI
 
 - **VS Code**: Open a Tcl file and run `Tcl: Open in Tcl Compiler Explorer` from the command palette or press Ctrl+Alt+E. The panel shows bytecode disassembly side-by-side with the source, and updates live as you edit.
 - **JetBrains**: Right-click a Tcl/iRule file in the editor or project view and choose `Open In Tcl Compiler Explorer`, or open the `Tcl Compiler Explorer` tool window. The panel tracks the active editor and recompiles when you open or switch to a different Tcl file.
+- **Standalone GUI** (`tcl explore --serve`, or the published web build): type in the editor pane and it recompiles automatically after a short pause. Press Ctrl+Enter (⌘+Enter on macOS) or click **Compile** in the toolbar to recompile immediately — useful after switching dialect, or to re-run a compile whose source has not changed. The dialect dropdown is filled as soon as the WebAssembly module finishes loading, before any compile has run.
+
+If a single output tab cannot render a result, that tab shows the reason and the rest of the panel still renders — a broken pane no longer blanks the panel or leaves the compile throbber spinning.
 
 ## Operational context
 

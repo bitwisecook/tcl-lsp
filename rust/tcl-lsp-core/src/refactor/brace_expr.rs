@@ -75,6 +75,7 @@ pub fn brace_expr(source: &str, cursor: u32, registry: &CommandRegistry) -> Opti
         }],
         kind: ActionKind::RefactorRewrite,
         data_group: None,
+        disabled: None,
     })
 }
 

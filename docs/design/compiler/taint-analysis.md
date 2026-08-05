@@ -74,12 +74,79 @@ Some commands transform taint colours:
 
 ### Interprocedural taint propagation
 
-`_solve_interprocedural_taints()` extends taint tracking across procedure
+`solve_interprocedural_taints` extends taint tracking across procedure
 boundaries using `ProcTaintSummary` objects:
 1. Analyse each procedure in isolation.
 2. For each call site, propagate caller taints into callee parameters.
 3. Propagate callee return taint back to the caller's result variable.
 4. Iterate until fixpoint.
+
+#### What a summary costs, and why (#1187)
+
+A summary is a **transfer function**, not a single value: a clean base return
+taint, plus — for each parameter — one return taint per colour basis, so a
+caller can ask "what comes back if I pass a value tainted *this* way?".  There
+are 15 bases, so inferring a summary the direct way is `1 + 15P` complete
+dataflow solves over the procedure's control-flow graph, for `P` parameters.
+That is the dominant cost of the whole pass: about 80% of `run_all_checks` on
+tcllib's `practcl.tcl`.
+
+Two prunes cut it down.  Both are **proofs that a solve would return a value
+already in hand**, not approximations, so summaries stay bit-identical — which
+is what lets the debug fixpoint guard and the `compiler_check` corpus
+differential keep validating the inference unchanged:
+
+- **Constant return** — `collect_return_taint` reads the taint map only through
+  `var_taint`, reachable only from `word_taint`'s three substitution branches, and
+  all three require the return word to contain a `$` or a `[`.  A procedure whose
+  executable returns are all value-less or all substitution-free therefore
+  returns `clean` whatever the map holds, so the whole summary is the clean one:
+  **0** solves instead of `1 + 15P`.  This is the common case in real Tcl — a
+  procedure that returns nothing, a literal, or a braced constant.
+- **Unread parameter** — `seed_entry_taints` skips a name that is not interned in
+  the SSA, so seeding a parameter the body never reads leaves the initial taint
+  map bit-identical to the clean base run's.  The scenario *is* `return_base`:
+  **0** solves instead of 15, per such parameter.
+
+What remains is `1 + 15 × (parameters actually read, in a procedure whose return
+value is substitution-bearing)`.  Collapsing that last `15×` needs a different
+representation — one multi-colour symbolic traversal carrying a
+per-`(parameter, basis)` dependency bitset — which changes what the solver
+computes rather than skipping work it can prove redundant, and is not attempted.
+
+Measured with `cargo run --release -p tcl-lsp-db --example tail_profile` on
+tcllib's `practcl.tcl` (8,463 lines, 116 functions), same machine, same binary:
+
+| phase | before | after |
+|---|---:|---:|
+| `solve_interprocedural_taints` (whole unit) | 211.5 ms | 143.4 ms |
+| `run_all_checks` | 260.1 ms | 155.9 ms |
+
+The taint solve keeps its place as the dominant phase (about 92% of
+`run_all_checks`); it is simply a third cheaper, and the checks tail as a whole
+drops 40%.
+
+#### Convergence
+
+`converge_summaries_with` drives the summary fixpoint from a dirty set: a
+procedure is re-inferred only when one of its callees' summaries moved.  The
+reverse call graph comes from two sources unioned — the declared
+`InterproceduralAnalysis::direct_calls`, plus `resolved_callees`, which scans the
+very CFG statements the inference resolves calls from and so supplies the edges
+`direct_calls` drops for a callee reached through a command substitution
+(`symbolNodeOf` in `set n [$t get [symbolNodeOf …] …]`, a self-call inside
+`[expr {[fib …]}]`).
+
+A missed edge is still not a wrong answer: the worklist is followed by an
+unconditional round-robin completion sweep that re-queues any procedure whose
+summary still moves, and the lattice is monotone over a finite domain, so the
+true least fixpoint is always reached.  **The sweep is deliberately retained.**
+Removing it would require *proving* the dependency graph complete, and neither
+source is: `direct_calls` misses nested substitutions, and `resolved_callees`
+scans CFG statements rather than the raw words `word_taint` recurses into.  An
+under-converged fixpoint is a taint **false negative** — a silently missed
+security diagnostic — which is a much worse failure than one extra `O(F)` sweep,
+now that the prunes above have made each inference cheap.
 
 ### Worked example — `HTTP::header value Host` → `HTTP::respond`
 

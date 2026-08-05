@@ -31,7 +31,9 @@ use std::process::ExitCode;
 use bpf_tcl_codegen::ebpf::{
     EbpfObject, TargetAbi, disasm, emit_program, emit_program_for_target, write_object,
 };
-use bpf_tcl_ir::{BpfError, BpfProgramDecl, ProgType, compile_module};
+use bpf_tcl_ir::{
+    BpfError, BpfModule, BpfProgramDecl, DeploymentPlan, ProgType, compile_module, event_chains,
+};
 use tcl_lexer::SourceMap;
 
 /// CLI entry point.
@@ -45,6 +47,7 @@ pub fn run(args: impl Iterator<Item = String>) -> ExitCode {
         Some("check") => cmd_check(&rest),
         Some("compile") => cmd_compile(&rest),
         Some("run") => cmd_run(&rest),
+        Some("plan") => cmd_plan(&rest),
         Some("help" | "-h" | "--help") => {
             usage();
             ExitCode::SUCCESS
@@ -65,8 +68,9 @@ fn usage() {
     eprintln!(
         "usage:\n  \
          bpf-tcl check   <file.bpftcl>\n  \
-         bpf-tcl compile <file.bpftcl> [--target rbpf|kernel-xdp] [--emit asm|hex|raw|elf] [--program N] [-o OUT]\n  \
-         bpf-tcl run     <file.bpftcl> --packet <HEX> [--program N] [--repeat N]"
+         bpf-tcl compile <file.bpftcl> [--target rbpf|kernel-xdp|kernel-socket] [--emit asm|hex|raw|elf] [--program N] [-o OUT]\n  \
+         bpf-tcl run     <file.bpftcl> --packet <HEX> [--program N] [--repeat N]\n  \
+         bpf-tcl plan    <file.bpftcl> [--name NAME]   (loader dry-run: programs, pins, attach targets, kernel features)"
     );
 }
 
@@ -106,14 +110,47 @@ fn cmd_check(args: &[String]) -> ExitCode {
                     .attach
                     .as_ref()
                     .map_or_else(String::new, |a| format!(", attach {} {}", a.kind, a.target));
+                // Show slot reuse when the liveness allocator saved any: N
+                // physical slots reused from M computed values.
+                let reuse = if d.program.raw_slot_count > d.program.num_slots {
+                    format!(" (reused from {})", d.program.raw_slot_count)
+                } else {
+                    String::new()
+                };
                 println!(
-                    "  when {} (priority {}, {} slots, {} blocks{attach})",
+                    "  when {} (priority {}, {} slots{reuse}, {} bytes stack, {} blocks{attach})",
                     d.event,
                     d.priority,
                     d.program.num_slots,
+                    d.program.num_slots * 8,
                     d.program.blocks.len()
                 );
+                if !d.program.maps.is_empty() {
+                    for m in &d.program.maps {
+                        println!(
+                            "    map {} ({} key={}B val={}B max={} {:?})",
+                            m.name,
+                            m.kind.as_str(),
+                            m.key_size,
+                            m.value_size,
+                            m.max_entries,
+                            m.concurrency
+                        );
+                    }
+                }
+                // The resolved event contract (registry-described schema).
+                if let Some(spec) = bpf_tcl_ir::event::event_spec(&d.event) {
+                    println!(
+                        "    event contract: ctx={} caps=[{}] default={} output={} kernel={}",
+                        spec.context.struct_name,
+                        spec.capability_names().join(","),
+                        spec.default_verdict.verb(),
+                        spec.output_label(),
+                        spec.kernel_summary(),
+                    );
+                }
             }
+            print_composition(&m);
             ExitCode::SUCCESS
         }
         Err(e) => {
@@ -121,6 +158,109 @@ fn cmd_check(args: &[String]) -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// Print the resolved handler-composition chains: per event, the handlers in
+/// ascending-priority (run-first) order.
+fn print_composition(module: &BpfModule) {
+    let chains = event_chains(module);
+    let has_multi = chains.iter().any(|c| c.len() > 1);
+    if !has_multi {
+        return;
+    }
+    println!("composition:");
+    for chain in chains {
+        if chain.len() < 2 {
+            continue;
+        }
+        let order = chain
+            .priorities
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" -> ");
+        println!(
+            "  {} chain ({} handlers, priority {order}; lower runs first, terminal verdict stops)",
+            chain.event,
+            chain.len()
+        );
+    }
+}
+
+fn cmd_plan(args: &[String]) -> ExitCode {
+    let mut path: Option<String> = None;
+    let mut name = "bpftcl".to_string();
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            "--name" => {
+                let Some(value) = it.next() else {
+                    eprintln!("plan: --name expects a deployment name");
+                    return ExitCode::FAILURE;
+                };
+                name.clone_from(value);
+            }
+            other => {
+                if path.is_none() {
+                    path = Some(other.to_string());
+                } else {
+                    eprintln!("plan: unexpected argument `{other}`");
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+    }
+    let Some(path) = path else {
+        eprintln!("plan: missing <file.bpftcl>");
+        return ExitCode::FAILURE;
+    };
+    let src = match read_source(&path) {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    let module = match compile_module(&src) {
+        Ok(m) => m,
+        Err(e) => {
+            print_error(&path, &src, &e);
+            return ExitCode::FAILURE;
+        }
+    };
+    let plan = DeploymentPlan::from_module(&name, &module);
+    println!(
+        "deployment `{}` (dry-run; no kernel state is touched)",
+        plan.name
+    );
+    println!("{} program(s):", plan.programs.len());
+    for (i, prog) in plan.programs.iter().enumerate() {
+        let attach = prog
+            .attach
+            .as_ref()
+            .map_or_else(|| "none".to_owned(), |a| format!("{} {}", a.kind, a.target));
+        let kernel = bpf_tcl_ir::event::event_spec(&prog.event)
+            .map_or_else(String::new, |s| format!(", kernel {}", s.kernel_summary()));
+        println!(
+            "  #{i} {} (priority {}, {:?}), attach {attach}{kernel}",
+            prog.event, prog.priority, prog.prog_type
+        );
+        println!("     pin: {}", prog.pin);
+        let maps = &module.programs[i].program.maps;
+        for map in maps {
+            println!(
+                "     map {} ({} key={}B val={}B max={})",
+                map.name,
+                map.kind.as_str(),
+                map.key_size,
+                map.value_size,
+                map.max_entries
+            );
+        }
+    }
+    println!(
+        "next: `load` (verifier-load, no attach) → `test-run` → `attach` (create links/pins) \
+         → `status` → `detach`. These require a privileged loader on a live kernel; the lifecycle \
+         state machine is modelled and tested in `bpf-tcl-ir::loader`."
+    );
+    ExitCode::SUCCESS
 }
 
 fn cmd_compile(args: &[String]) -> ExitCode {
@@ -142,8 +282,11 @@ fn cmd_compile(args: &[String]) -> ExitCode {
                 target_abi = match value.as_str() {
                     "rbpf" => TargetAbi::RbpfFixedMbuff,
                     "kernel-xdp" => TargetAbi::KernelXdp,
+                    "kernel-socket" | "kernel-socket-filter" => TargetAbi::KernelSocketFilter,
                     other => {
-                        eprintln!("compile: unknown --target `{other}` (want rbpf|kernel-xdp)");
+                        eprintln!(
+                            "compile: unknown --target `{other}` (want rbpf|kernel-xdp|kernel-socket)"
+                        );
                         return ExitCode::FAILURE;
                     }
                 };

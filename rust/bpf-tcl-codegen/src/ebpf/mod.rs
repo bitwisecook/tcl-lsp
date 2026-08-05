@@ -19,12 +19,15 @@
 //! Direct eBPF bytecode backend: BPF-IR → eBPF instructions, encoded by our own
 //! 64-bit instruction model (no assembler, no LLVM in the compile path).
 
+pub mod btf;
 pub mod disasm;
 pub mod elf;
 pub mod emit;
 pub mod insn;
+pub mod verifier;
 
 pub use disasm::disasm;
 pub use elf::{ElfError, write_object};
-pub use emit::{EbpfObject, TargetAbi, emit_program, emit_program_for_target};
+pub use emit::{EbpfObject, MapReloc, TargetAbi, emit_program, emit_program_for_target};
 pub use insn::Insn;
+pub use verifier::{VerifyError, verify};

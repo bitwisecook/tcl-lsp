@@ -1,10 +1,14 @@
 # BPF-Tcl userspace demos
 
-These demos exercise both backend targets that exist today. The default `rbpf`
+These demos exercise the backend targets that exist today. The default `rbpf`
 target executes real eBPF instructions over synthetic packet bytes in a
-userspace virtual machine. The explicit `kernel-xdp` target supports a small,
-map-free, verdict-only XDP subset that the Linux kernel can verifier-load and
-test-run.
+userspace virtual machine. The explicit `kernel-xdp` (`struct xdp_md`) and
+`kernel-socket` (`struct __sk_buff`) targets emit Linux-loadable objects with
+real context access, verifier-safe packet bounds proofs, and BTF-defined maps
+with relocations (issue #1203). The map-free verdict-only XDP demo below is
+verifier-loaded and test-run end to end; the packet-access and map objects are
+validated structurally here and load on a real kernel behind the `#[ignore]`d
+`rust/bpf-tcl/tests/kernel_load.rs` gate.
 
 The clean-room instructions and full script were validated on Ubuntu 26.04
 with Rust 1.97.0, GNU `readelf`, and LLVM 21.
@@ -90,8 +94,13 @@ The script builds `bpf-tcl`, then demonstrates:
 5. emitted eBPF assembly; and
 6. a map-free `EM_BPF` ELF object inspected with `readelf` when available.
 
-The XDP marker example uses an 8-bit field at byte zero, avoiding the current
-native-endian limitation for multi-byte network fields.
+Multi-byte packet fields are read in the declared byte order. Built-in and
+user profile fields default to network order (big-endian), matching real
+Ethernet/IP/TCP/UDP headers, so a `tcp_dport` comparison works against a
+realistic packet on a little-endian host. A `load8`/`load16`/`load32` verb or a
+`field` declaration may override the order with a trailing `be`, `le`, or
+`native` word; `native` is a compatibility mode for synthetic host-order test
+packets only.
 
 ## Run one example
 
@@ -151,6 +160,43 @@ not mounted, mount it once with:
 
 ```sh
 sudo mount -t bpf bpf /sys/fs/bpf
+```
+
+## Handler composition and the loader plan (issue #1204)
+
+Multiple `when EVENT priority N { … }` handlers for one event compose into an
+ordered chain. Lower priority numbers run first; the first handler that returns a
+terminal verdict (`accept`/`drop`/`pass`/`tx`) decides, and a handler continues
+to the next only by ending a path with the explicit non-terminal `next` outcome.
+If every handler yields `next`, the event's default verdict applies. Two handlers
+of one event that share a priority are rejected as an ambiguous composition.
+
+```sh
+target/debug/bpf-tcl check samples/bpf-tcl/compose-deny-audit.bpftcl
+```
+
+`check` prints the resolved event contract per handler (context struct, permitted
+capabilities, default verdict, output kind, kernel requirements) and, for a
+multi-handler event, the composition chain in run order.
+
+`plan` is the loader dry-run. It shows each program's type, priority, deployment
+target, ownership-labelled pin path, maps, and kernel requirements — without
+touching any kernel state:
+
+```sh
+target/debug/bpf-tcl plan samples/bpf-tcl/compose-deny-audit.bpftcl --name demo
+```
+
+The rest of the loader/link lifecycle (`load` → `test-run` → `attach` →
+`status` → `detach`, with atomic rollback and resource ownership) is modelled and
+unit-tested deterministically in `bpf-tcl-ir::loader` over a `ModelKernel`. Real
+`bpf()`-syscall attachment needs a live kernel plus `CAP_BPF` / `CAP_NET_ADMIN`
+(root in practice) and is exercised only by the `#[ignore]`d privileged tests in
+`rust/bpf-tcl/tests/kernel_attach.rs`, which run inside a disposable network
+namespace torn down unconditionally so nothing leaks onto the host:
+
+```sh
+sudo -E cargo test -p bpf-tcl --test kernel_attach -- --ignored --nocapture
 ```
 
 ## Compile a `.bpftcl` file

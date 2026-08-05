@@ -42,6 +42,7 @@
 
 mod apm;
 mod certs;
+mod crypt;
 pub mod enrich;
 mod forensics;
 mod graph;
@@ -52,6 +53,7 @@ mod model;
 mod query;
 mod render;
 mod secrets;
+mod security;
 mod services;
 
 pub use tcl_lexer::highlight_tcl;

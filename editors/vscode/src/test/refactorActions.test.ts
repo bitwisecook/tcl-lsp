@@ -44,6 +44,15 @@ suite("Refactor Actions (applied)", () => {
     return editor;
   }
 
+  async function actionTitles(range: vscode.Range): Promise<string[]> {
+    const actions = (await vscode.commands.executeCommand(
+      "vscode.executeCodeActionProvider",
+      docUri,
+      range,
+    )) as vscode.CodeAction[];
+    return (actions || []).map((a) => a.title);
+  }
+
   async function findAction(range: vscode.Range, titleNeedle: string): Promise<vscode.CodeAction> {
     const found = await pollUntil(
       async () => {
@@ -146,5 +155,138 @@ suite("Refactor Actions (applied)", () => {
     assert.ok(action.edit, "brace-expr action must carry an edit");
     await vscode.workspace.applyEdit(action.edit!);
     assert.strictEqual(editor.document.getText(), "expr {$a + $b}\n");
+  });
+
+  // -- Extract into proc (issue #1201) --------------------------------------
+
+  test("extract proc carries a caller-frame write through upvar", async () => {
+    // Original output is `1` then `after=1`. Passing `x` as a value parameter
+    // moved the write into a proc local and printed `after=0`; the extraction
+    // now takes the variable by name and re-binds it with `upvar 1`.
+    const editor = await loadScratch('set x 0\nset x 1\nputs $x\nputs "after=$x"\n');
+    const range = new vscode.Range(new vscode.Position(1, 0), new vscode.Position(3, 0));
+    const action = await findAction(range, "Extract selection into proc");
+    assert.ok(action.edit, "extract-proc action must carry an edit");
+    await vscode.workspace.applyEdit(action.edit!);
+    const text = editor.document.getText();
+    assert.ok(text.includes("upvar 1 $xName x"), `expected upvar plumbing; got:\n${text}`);
+    assert.ok(text.includes("extracted_proc x\n"), `call passes the name; got:\n${text}`);
+    assert.ok(text.includes('puts "after=$x"'), `tail must survive; got:\n${text}`);
+  });
+
+  test("extract proc leaves the file prologue above the new definition", async () => {
+    const editor = await loadScratch("package require Tcl\nset x 5\nputs $x\n");
+    const range = new vscode.Range(new vscode.Position(2, 0), new vscode.Position(3, 0));
+    const action = await findAction(range, "Extract selection into proc");
+    await vscode.workspace.applyEdit(action.edit!);
+    const text = editor.document.getText();
+    assert.ok(
+      text.indexOf("package require Tcl") < text.indexOf("proc extracted_proc"),
+      `the definition must not land above the prologue; got:\n${text}`,
+    );
+  });
+
+  test("extract proc refuses a selection containing return", async () => {
+    // A refused refactoring is delivered greyed out with its reason over LSP
+    // (`disabled.reason`), pinned end-to-end by lsp_e2e's
+    // `test_extract_proc_refuses_a_selection_containing_return`.  VS Code's
+    // `executeCodeActionProvider` surfaces only the *valid* (non-disabled)
+    // action set, so what this harness can observe is the refusal's flip
+    // side: the sibling extract-variable action is offered for the same
+    // selection while no applicable extract-proc action is.
+    await loadScratch("proc f {} {\n    set x 1\n    return $x\n}\n");
+    const range = new vscode.Range(new vscode.Position(2, 0), new vscode.Position(3, 0));
+    await pollUntil(
+      () => actionTitles(range),
+      (ts) => ts.some((t) => t.includes("Extract into variable")),
+      { timeout: 10_000, label: "extract-variable anchor" },
+    );
+    const titles = await actionTitles(range);
+    assert.ok(
+      !titles.some((t) => t.includes("Extract selection into proc")),
+      `a selection containing return must not offer an applicable extract-proc; got: ${titles}`,
+    );
+  });
+
+  // -- Inline proc binding (issue #1199) ------------------------------------
+
+  test("inline proc binds a declared default when the call omits the argument", async () => {
+    const editor = await loadScratch("proc greet {{name world}} { puts $name }\ngreet\n");
+    const range = new vscode.Range(new vscode.Position(1, 0), new vscode.Position(1, 0));
+    const action = await findAction(range, "Inline proc");
+    assert.ok(action.edit, "inline-proc action must carry an edit");
+    await vscode.workspace.applyEdit(action.edit!);
+    assert.strictEqual(
+      editor.document.getText(),
+      "proc greet {{name world}} { puts $name }\nputs world\n",
+    );
+  });
+
+  test("inline proc refuses a braced argument whose value is not a plain word", async () => {
+    // `greet {a b}` passes the value `a b`; splicing the written `{a b}` made
+    // the body print the braces.  The refusal itself (greyed out, reason
+    // naming the plain-word rule) is pinned by lsp_e2e — this harness only
+    // sees VS Code's valid-action set, so the observable contract is: the
+    // plain-word call site offers Inline proc, the braced one does not.
+    await loadScratch('proc greet {name} { puts "hello $name" }\ngreet world\ngreet {a b}\n');
+    const good = new vscode.Range(new vscode.Position(1, 0), new vscode.Position(1, 0));
+    await pollUntil(
+      () => actionTitles(good),
+      (ts) => ts.some((t) => t.includes("Inline proc")),
+      { timeout: 10_000, label: "inline-proc anchor" },
+    );
+    const bad = new vscode.Range(new vscode.Position(2, 0), new vscode.Position(2, 0));
+    const titles = await actionTitles(bad);
+    assert.ok(
+      !titles.some((t) => t.includes("Inline proc")),
+      `a non-plain-word argument must not offer an applicable inline; got: ${titles}`,
+    );
+  });
+
+  // -- W302 catch-result capture (issue #1190) ------------------------------
+  //
+  // The cursor sits on the `catch` keyword — where the diagnostic anchors,
+  // and where VS Code's lightbulb is invoked. The inserted word must still
+  // land after the *body*. `catch result {error oops}` is a catch of the
+  // script `result`, which C Tcl 9 reports as `invalid command name
+  // "result"`, so asserting the applied document (not the inserted string)
+  // is what makes this test meaningful.
+
+  test("catch result quick fix appends after a single-line body", async () => {
+    const editor = await loadScratch("catch {error oops}\n");
+    const range = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+    const action = await findAction(range, "Add catch result variable");
+    assert.ok(action.edit, "catch-result action must carry an edit");
+    await vscode.workspace.applyEdit(action.edit!);
+    assert.strictEqual(editor.document.getText(), "catch {error oops} result\n");
+  });
+
+  test("catch result quick fix appends after a multi-line body", async () => {
+    const editor = await loadScratch("catch {\n    error oops\n}\n");
+    const range = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+    const action = await findAction(range, "Add catch result variable");
+    assert.ok(action.edit, "catch-result action must carry an edit");
+    await vscode.workspace.applyEdit(action.edit!);
+    assert.strictEqual(editor.document.getText(), "catch {\n    error oops\n} result\n");
+  });
+
+  test("catch result + options quick fix appends both words after the body", async () => {
+    const editor = await loadScratch("catch {error oops}\n");
+    const range = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+    const action = await findAction(range, "Add catch result + options");
+    assert.ok(action.edit, "catch-result+options action must carry an edit");
+    await vscode.workspace.applyEdit(action.edit!);
+    assert.strictEqual(editor.document.getText(), "catch {error oops} result options\n");
+  });
+
+  test("catch result quick fix does not overshoot an empty body", async () => {
+    // `catch {}`'s brace pair is a degenerate case whose token span already
+    // covers its own closer; a naive `end + 1` anchor writes past it.
+    const editor = await loadScratch("catch {}\n");
+    const range = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+    const action = await findAction(range, "Add catch result variable");
+    assert.ok(action.edit, "catch-result action must carry an edit");
+    await vscode.workspace.applyEdit(action.edit!);
+    assert.strictEqual(editor.document.getText(), "catch {} result\n");
   });
 });

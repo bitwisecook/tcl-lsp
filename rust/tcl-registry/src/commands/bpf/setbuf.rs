@@ -20,11 +20,13 @@
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
+    const OP: BpfOpSpec = BpfOpSpec::structural(BpfOpKind::BindPacket);
     CommandSpec {
         name: "setbuf",
         dialects: Some(DialectSet::BPF),
         // `setbuf NAME ctx` or `setbuf NAME = ctx`.
         arity: Arity::new(2, 3),
+        bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }
 }

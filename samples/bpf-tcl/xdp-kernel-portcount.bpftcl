@@ -1,0 +1,26 @@
+# A kernel-loadable XDP filter with a BTF-defined map and a bounds-checked
+# packet read. Compile it for the kernel with:
+#
+#   bpf-tcl compile samples/bpf-tcl/xdp-kernel-portcount.bpftcl \
+#       --target kernel-xdp --emit elf --program 0 -o /tmp/portcount.o
+#
+# The emitted object carries a `.maps` section, a `.BTF` description of the
+# array map, and `R_BPF_64_64` relocations for the map-fd loads, so libbpf can
+# create the map and patch its file descriptor. The 16-bit TCP destination-port
+# read at offset 36 is emitted with a dominating `data_end` bounds proof, so the
+# kernel verifier accepts it; a short packet takes XDP_PASS.
+when XDP {
+    map dropped array 4 8 1
+
+    setbuf p ctx
+    load16 dport p 36 be
+
+    if {$dport == 22} {
+        setint k 0
+        map_get n dropped {$k}
+        setint n1 {$n + 1}
+        map_set dropped {$k} {$n1}
+        drop
+    }
+    pass
+}

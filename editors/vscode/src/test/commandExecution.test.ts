@@ -96,6 +96,44 @@ suite("LSP Command Execution", () => {
     );
   });
 
+  // -- minifyDocument semantic guarantees (issues #1192-#1194, #1197) ----------
+
+  test("minifyDocument preserves switch # arms, proc names, and array keys", async function () {
+    this.timeout(30_000);
+    const semUri = getDocUri("minifySemantics.tcl");
+    await activate(semUri);
+    // Default tier: `#` inside a braced switch case list is a PATTERN (the
+    // list grammar), never a comment — the arm must survive (issue #1197) —
+    // and no `set alias {…}` preamble may be injected (issue #1194).
+    const def = (await execLspCommand(
+      "tcl-lsp.minifyDocument",
+      semUri.toString(),
+      false,
+      false,
+      false,
+    )) as { source: string } | null;
+    assert.ok(def, "default minify should return a result");
+    assert.ok(def.source.includes("# {puts matched}"), `switch # arm dropped: ${def.source}`);
+    assert.ok(def.source.includes("puts [set a]"), `name-taking read altered: ${def.source}`);
+    assert.ok(!def.source.includes("subst"), `default tier must not alias: ${def.source}`);
+    // Compact tier (non-isolated): proc names are public command identities
+    // (issue #1193) and array member keys are Tcl data (issue #1192) — both
+    // must survive verbatim.
+    const compact = (await execLspCommand(
+      "tcl-lsp.minifyDocument",
+      semUri.toString(),
+      true,
+      false,
+      false,
+    )) as { source: string } | null;
+    assert.ok(compact, "compact minify should return a result");
+    assert.ok(
+      compact.source.includes("proc longprocedure"),
+      `proc name renamed: ${compact.source}`,
+    );
+    assert.ok(compact.source.includes("arr(longmember)"), `array key renamed: ${compact.source}`);
+  });
+
   // -- optimiseDocument -------------------------------------------------------
 
   test("tcl-lsp.optimiseDocument returns optimisations list", async () => {
@@ -303,6 +341,47 @@ suite("LSP Command Execution", () => {
     assert.ok(result, "fixAllSafeIssues should return a result");
     assert.ok(typeof result.source === "string", "result should have source");
     assert.ok(Array.isArray(result.applied), "result should have applied array");
+  });
+
+  test("tcl-lsp.fixAllSafeIssues applies only semantics-equivalent fixes", async () => {
+    // Issue #1195. Every fix the bulk pass applies must report itself as
+    // `semantics-equivalent`; the behaviour-changing ones (W100 over a
+    // substituted operand, W110's `==` → `eq`) stay behind their own named
+    // code actions. Asserting the class each applied fix reports is what
+    // stops the command's *name* being the only guarantee.
+    const uri = docUri.toString();
+    const result = (await execLspCommand("tcl-lsp.fixAllSafeIssues", uri)) as {
+      source: string;
+      applied: Array<{ code: string; description: string; safety: string }>;
+    } | null;
+    assert.ok(result, "fixAllSafeIssues should return a result");
+    for (const entry of result.applied) {
+      assert.strictEqual(
+        entry.safety,
+        "semantics-equivalent",
+        `bulk pass applied a non-equivalent fix: ${JSON.stringify(entry)}`,
+      );
+    }
+  });
+
+  test("tcl-lsp.fixAllSafeIssues leaves a double-substituting expr untouched", async () => {
+    // Under C Tcl 9 this program prints `5`: `$a` substitutes to the string
+    // `$x`, and `expr` substitutes that to 3. W100's brace fix turns it into
+    // an error, so the unattended pass must return the source unchanged.
+    const uri = getDocUri("fixAllDoubleSubstitution.tcl").toString();
+    const result = (await execLspCommand("tcl-lsp.fixAllSafeIssues", uri)) as {
+      source: string;
+      applied: Array<{ code: string }>;
+    } | null;
+    assert.ok(result, "fixAllSafeIssues should return a result");
+    assert.ok(
+      result.source.includes("expr $a + $b"),
+      `the substituted expr must survive; got:\n${result.source}`,
+    );
+    assert.ok(
+      !result.applied.some((entry) => entry.code === "W100"),
+      `W100 must not be bulk-applied here: ${JSON.stringify(result.applied)}`,
+    );
   });
 
   // -- exportConfig -----------------------------------------------------------

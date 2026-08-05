@@ -16,14 +16,20 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `load16` — load a 16-bit value from the packet (`load16 DST SRC OFFSET`).
+//! `load16` — load a 16-bit value from the packet (`load16 DST SRC OFFSET ?be|le|native?`).
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
+    const OP: BpfOpSpec = BpfOpSpec::gated(
+        BpfOpKind::PacketLoad { width_bits: 16 },
+        BpfEffects::PKT_READ,
+    );
     CommandSpec {
         name: "load16",
         dialects: Some(DialectSet::BPF),
-        arity: Arity::exact(3),
+        // DST SRC OFFSET ?be|le|native?
+        arity: Arity::new(3, 4),
+        bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }
 }

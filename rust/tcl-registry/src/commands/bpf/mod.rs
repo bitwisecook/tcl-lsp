@@ -40,10 +40,12 @@ mod setbuf;
 // Layer 2 — maps.
 mod map;
 mod map_get;
+mod map_has;
 mod map_set;
 // Layer 2 — verdicts.
 mod accept;
 mod drop;
+mod next;
 mod pass;
 mod tx;
 // Control flow.
@@ -78,9 +80,11 @@ pub fn bpf_command_specs() -> Vec<CommandSpec> {
         pktlen::spec(),
         map::spec(),
         map_get::spec(),
+        map_has::spec(),
         map_set::spec(),
         accept::spec(),
         drop::spec(),
+        next::spec(),
         pass::spec(),
         tx::spec(),
         loop_::spec(),
@@ -103,16 +107,30 @@ mod tests {
     #[test]
     fn all_bpf_commands_present_and_tagged() {
         let specs = bpf_command_specs();
-        assert_eq!(specs.len(), 24);
+        assert_eq!(specs.len(), 26);
         let names: Vec<&str> = specs.iter().map(|s| s.name).collect();
         for n in [
             "setint", "seti32", "setu32", "setbuf", "load8", "load16", "load32", "pktlen", "map",
-            "map_get", "map_set", "accept", "drop", "pass", "tx", "loop", "when", "profile",
-            "field", "template", "use", "allow", "deny", "attach",
+            "map_get", "map_has", "map_set", "accept", "drop", "next", "pass", "tx", "loop",
+            "when", "profile", "field", "template", "use", "allow", "deny", "attach",
         ] {
             assert!(names.contains(&n), "missing `{n}`");
         }
         assert!(specs.iter().all(|s| s.dialects == Some(DialectSet::BPF)));
+    }
+
+    #[test]
+    fn every_bpf_command_carries_a_typed_lowering_descriptor() {
+        // Issue #1202: the registry is the source of truth for BPF lowering —
+        // a BPF-dialect spec without a `bpf_op` descriptor cannot be lowered
+        // and must never exist.
+        for spec in bpf_command_specs() {
+            assert!(
+                spec.bpf_op.is_some(),
+                "BPF command `{}` has no bpf_op descriptor",
+                spec.name
+            );
+        }
     }
 
     #[test]

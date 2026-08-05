@@ -432,6 +432,14 @@ pub const TRAITS: &[Variant] = &[
     v("TARGETS_VARIABLE_BY_NAME", "targets a variable by name"),
     v("FRAME_HASH_BUILTIN", "a frame-hash builtin"),
     v(
+        "REFLECTS_COMMAND_NAMES",
+        "can observe procedure names as data",
+    ),
+    v(
+        "ALIASES_CALLER_FRAME",
+        "aliases variables out of a runtime-chosen caller frame",
+    ),
+    v(
         "OVERRIDABLE_LIBRARY_PROC",
         "a library proc a script may override",
     ),

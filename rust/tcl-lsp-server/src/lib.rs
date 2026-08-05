@@ -134,27 +134,63 @@ use tower_lsp_server::ls_types::{
 use tower_lsp_server::{Client, LanguageServer};
 
 /// Document store value: source text + dialect string.
+///
+/// # Snapshot ownership and revision currency (issue #1184)
+///
+/// This type is both the **mutable owner** of an open document (under
+/// `Backend::documents`' mutex) and the **immutable snapshot** every request
+/// handler works from ([`Backend::read_document`] clones one out and drops the
+/// lock). Those two roles are what make the sharing rules below load-bearing:
+///
+/// * The large fields — `text` and the `line_index` built from it — are shared
+///   handles, so a clone is two reference-count bumps rather than a copy of the
+///   document and its index. With `R` concurrent requests against a `B`-byte,
+///   `L`-line document that is `O(B + 4L + R)` live bytes instead of
+///   `O(R × (B + 4L))`.
+/// * Every mutation is **build-and-swap**, never in place. A snapshot therefore
+///   observes the revision it was taken at, for its whole lifetime, and an
+///   in-flight request can safely finish against an older revision while the
+///   editor keeps typing.
+/// * `text` and `line_index` are **one snapshot**, not two fields: they must be
+///   installed together, so no reader can ever pair text from revision `N` with
+///   an index from revision `N-1` and resolve a position against the wrong
+///   offsets. [`apply_content_change_indexed`] is the single place that
+///   replaces them, and it replaces both.
+///
+/// Cloning is otherwise unchanged: `dialect` and `language_id` are short
+/// strings, and the rest is `Copy`.
 #[derive(Debug, Clone)]
 struct DocumentState {
-    /// The document's text **as analysis sees it**.
+    /// The document's text **as analysis sees it**, behind an [`Arc`] so a
+    /// snapshot handed to a request handler ([`Backend::read_document`]) is a
+    /// reference-count bump rather than a copy of the whole buffer (issue
+    /// #1184).
     ///
     /// Inside [`Backend::documents`] this is byte-for-byte what the client
     /// sent (the shadow buffer every incremental `didChange` splices into).
-    /// [`Backend::read_document`] hands out a copy whose lone `\r`s have been
-    /// rewritten to `\n` ([`tcl_lexer::normalise_lone_cr`]) and stashes the
-    /// client's bytes in `raw_text`, so every provider that re-lexes this
+    /// [`Backend::read_document`] hands out a snapshot whose lone `\r`s have
+    /// been rewritten to `\n` ([`tcl_lexer::normalise_lone_cr`]) and stashes
+    /// the client's bytes in `raw_text`, so every provider that re-lexes this
     /// field sees the same script `tclsh` would (a channel opened with
     /// `-translation auto` turns each `\r` into a command terminator before
     /// the parser runs) and lands on the same lines as the client. The
     /// rewrite is byte-length preserving, so spans and offsets are
     /// interchangeable between the two.
-    text: String,
+    ///
+    /// Mutated by build-and-swap, never in place: [`apply_content_change_indexed`]
+    /// splices into an owned `String` and installs a **new** `Arc`, so a
+    /// snapshot taken before the edit keeps the exact bytes it was given.
+    /// That, and not a lock, is what lets an in-flight request finish against
+    /// the revision it started on while the editor keeps typing — and it is
+    /// why `text` and `line_index` must only ever be replaced together (see
+    /// the type-level invariant on [`DocumentState`]).
+    text: Arc<str>,
     /// The client's exact bytes, when they differ from `text` — i.e. only for
     /// an old-Mac / mixed document handed out by [`Backend::read_document`].
     /// Read it via [`DocumentState::raw`] for anything that must see the real
     /// terminators: the W118 line-ending lint and the formatter (whose output
     /// EOL and whose replace range are both computed from the real document).
-    raw_text: Option<String>,
+    raw_text: Option<Arc<str>>,
     /// Persisted line-start index for `text`, built with the **LSP** EOL model
     /// ([`tcl_lexer::LineIndex::new_lsp`]) so the server's `(line, character)`
     /// coordinates match the client's (`\n`, `\r\n`, and lone `\r` all break a
@@ -200,7 +236,7 @@ impl DocumentState {
         let line_index = tcl_lexer::LineIndex::new_lsp(&text);
         let has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&text);
         Self {
-            text,
+            text: text.into(),
             raw_text: None,
             line_index,
             has_bare_cr,
@@ -216,7 +252,7 @@ impl DocumentState {
         let line_index = tcl_lexer::LineIndex::new_lsp(&text);
         let has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&text);
         Self {
-            text,
+            text: text.into(),
             raw_text: None,
             line_index,
             has_bare_cr,
@@ -249,7 +285,7 @@ impl DocumentState {
         if !self.has_bare_cr {
             return self;
         }
-        let normalised = tcl_lexer::normalise_lone_cr(&self.text).into_owned();
+        let normalised: Arc<str> = tcl_lexer::normalise_lone_cr(&self.text).into_owned().into();
         self.raw_text = Some(std::mem::replace(&mut self.text, normalised));
         self
     }
@@ -377,6 +413,39 @@ const SEMANTIC_TOKENS_REFRESH_DEBOUNCE: std::time::Duration = std::time::Duratio
 /// workspace walk touches.
 const CLOSED_DIAG_BADGE_CAP: usize = 512;
 
+/// How many re-analyse-and-apply rounds `tcl-lsp.fixAllSafeIssues` runs.
+///
+/// Each round applies a batch of non-overlapping fixes and re-analyses, so a
+/// fix a previous edit unblocked (or a diagnostic a previous edit revealed)
+/// is picked up next time round.  The loop also stops early as soon as a
+/// round changes nothing, so this is the guard against a pathological
+/// oscillation — two fixes that keep undoing each other — not the normal
+/// exit.
+const FIX_ALL_MAX_PASSES: usize = 4;
+
+/// One fix selected for a `tcl-lsp.fixAllSafeIssues` pass.
+///
+/// A named struct rather than the tuple the selection used to build: the
+/// tuple's five same-typed fields were positional, and the apply loop indexed
+/// them (`f.0`, `f.2`) at the point where getting one wrong silently rewrites
+/// the wrong bytes.
+struct BulkFix {
+    /// Inclusive start byte offset of the replaced range.
+    start: u32,
+    /// Exclusive end byte offset of the replaced range.
+    end: u32,
+    /// Replacement text.
+    new_text: String,
+    /// The diagnostic code the fix came from, for the `applied` report.
+    code: String,
+    /// The fix's own description, for the `applied` report.
+    description: String,
+    /// The fix's safety class, for the `applied` report — always the
+    /// semantics-equivalent one here, reported so a caller can see *why* the
+    /// fix qualified rather than having to trust the command's name.
+    safety: &'static str,
+}
+
 /// What "still the current state" means for a diagnostics run at publish time,
 /// and therefore what the currency guard re-checks under the `documents` lock
 /// before delivering (`RUST_ISSUE_098`).
@@ -405,7 +474,10 @@ enum DiagCurrency {
 /// is somehow absent, in which case the run falls back to a direct `analyse`.
 #[derive(Clone)]
 struct DiagJob {
-    text: String,
+    /// The document snapshot's shared text handle — a reference-count bump, not
+    /// a copy of the buffer, so scheduling a diagnostics run for a large file
+    /// costs nothing in memory (issue #1184).
+    text: Arc<str>,
     dialect: String,
     /// The document's editor `language_id`, carried so the diagnostics worker
     /// can dispatch F5 dialect documents (iApp APL presentations are detected
@@ -3637,7 +3709,9 @@ fn class_set_fingerprint(classes: &std::collections::HashSet<String>) -> u64 {
 /// lift its spans to LSP ranges.
 struct ConsumerDoc {
     uri: Uri,
-    text: String,
+    /// Shares the document snapshot's text handle rather than copying the
+    /// buffer per candidate document (issue #1184).
+    text: Arc<str>,
     dialect: String,
     line_index: tcl_lexer::LineIndex,
 }
@@ -3722,14 +3796,20 @@ impl Backend {
     /// Create or update the salsa `SourceFile` input for `uri`.  Called by
     /// `did_open` / `did_change` so the query graph always reads current text.
     /// Lock order is always `db` → `db_files` → `db_tombstones` → `db_project`.
-    async fn db_set_source(&self, uri: &Uri, text: String, dialect: String) {
+    ///
+    /// Borrows the text rather than taking it by value: callers on the edit
+    /// path hold the document snapshot's shared `Arc<str>` and must not have to
+    /// own a separate copy of it.  The salsa `SourceFile::text` input is a
+    /// `String`, so exactly one copy is made here — the same single copy the
+    /// caller used to make before handing it over (issue #1184).
+    async fn db_set_source(&self, uri: &Uri, text: &str, dialect: String) {
         use salsa::Setter as _;
         // Salsa's `SourceFile.text` is the analyser's input, so it stores the
         // analysis form of the document (lone `\r` → `\n`) regardless of which
         // path — `didOpen`/`didChange`, a folder scan, a watched-file change —
         // produced it.  Doing it here rather than at each caller is what keeps
         // the interactive and background-indexing paths from disagreeing.
-        let text = tcl_lexer::normalise_lone_cr(&text).into_owned();
+        let text = tcl_lexer::normalise_lone_cr(text).into_owned();
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
         if let Some(&file) = files.get(uri) {
@@ -3931,7 +4011,7 @@ impl Backend {
         // Snapshot `(uri, language_id, current dialect)` first — the async
         // `dialect_for_open` calls lock `folder_dialects` / `default_dialect`,
         // so they must not run while the `documents` lock is held.
-        let snapshot: Vec<(Uri, String, String, String)> = {
+        let snapshot: Vec<(Uri, String, String, Arc<str>)> = {
             let docs = self.documents.lock().await;
             docs.iter()
                 .map(|(uri, doc)| {
@@ -3960,7 +4040,7 @@ impl Backend {
                 };
                 doc.dialect.clone_from(&new_dialect);
                 let text = doc.text.clone();
-                self.db_set_source(&uri, text, new_dialect.clone()).await;
+                self.db_set_source(&uri, &text, new_dialect.clone()).await;
                 self.workspace_index
                     .write()
                     .await
@@ -4184,10 +4264,17 @@ impl Backend {
     /// cache first; computes a fresh analysis when no entry
     /// exists.  Returns a shared `Arc` the caller can move into
     /// a `spawn_blocking` worker (providers deref it via `&`).
+    ///
+    /// `text` is the document snapshot's shared handle, not a copy: the
+    /// overwhelmingly common path is a cache hit, which never reads it at all,
+    /// and the cache-miss path moves the handle into the blocking worker and
+    /// analyses through a deref.  Taking `Arc<str>` is what keeps the ~30
+    /// `analysis_for` call sites from each copying the whole document per
+    /// request (issue #1184).
     async fn analysis_for(
         &self,
         uri: &Uri,
-        text: String,
+        text: Arc<str>,
         dialect: String,
     ) -> Arc<tcl_compiler::analyser::AnalysisResult> {
         if let Some(cached) = self.cached_analysis(uri).await {
@@ -5181,7 +5268,7 @@ impl Backend {
         // workspace_index lock) to preserve the global lock order.
         match &scanned {
             Some((_, text, dialect, _)) => {
-                self.db_set_source(uri, text.clone(), dialect.clone()).await;
+                self.db_set_source(uri, text, dialect.clone()).await;
             }
             // No readable on-disk copy (untitled / deleted) — drop it from the
             // project so a stale definition can't keep resolving cross-file.
@@ -5243,7 +5330,9 @@ impl Backend {
         let inputs = self.diag_inputs(uri, &dialect).await;
         let config = inputs.closed_file_config(uri).await;
         let job = DiagJob {
-            text,
+            // A closed file's text comes from the salsa input, not from an open
+            // snapshot, so this is where its shared handle is minted.
+            text: Arc::from(text),
             dialect,
             // A closed file carries no editor `language_id`; F5 model dialects are
             // routed by the resolved `dialect` + basename resolved above.
@@ -7071,7 +7160,7 @@ impl Backend {
             let doc = if u == current_uri.as_str() {
                 ConsumerDoc {
                     uri: current_uri.clone(),
-                    text: current_source.to_owned(),
+                    text: Arc::from(current_source),
                     dialect: current_dialect.to_owned(),
                     // The LSP EOL model, matching the `line_index` the sibling
                     // branch takes straight off the stored `DocumentState`.
@@ -8175,7 +8264,7 @@ impl Backend {
         // incoming-call results even though they are indexed for
         // every other cross-document feature.
         let mut open_uris: HashSet<Uri> = HashSet::new();
-        let mut docs: Vec<(Uri, String, String)> = {
+        let mut docs: Vec<(Uri, Arc<str>, String)> = {
             let store = self.documents.lock().await;
             store
                 .iter()
@@ -8596,9 +8685,34 @@ impl Backend {
         Some(serde_json::json!({ "events": events }))
     }
 
-    /// Handle `tcl-lsp.fixAllSafeIssues`: apply every non-overlapping safe
-    /// diagnostic fix iteratively until the source stabilises (a whitelist of
-    /// safe fix codes, applied over multiple passes).
+    /// Handle `tcl-lsp.fixAllSafeIssues`: apply every non-overlapping
+    /// **provably semantics-preserving** diagnostic fix, iteratively, until
+    /// the source stabilises.
+    ///
+    /// "Safe" is a property of the individual fix, read from the
+    /// [`FixSafety`](tcl_compiler::analyser::FixSafety) the emitter attached
+    /// to it — not of the diagnostic's code.  The command used to carry its
+    /// own whitelist of codes (`W100`, `W110`, …), which promised a guarantee
+    /// the implementation never established: the same code emits an
+    /// equivalent rewrite for one call and a behaviour-changing one for the
+    /// next.  Under C Tcl 9.0.3:
+    ///
+    /// ```tcl
+    /// set a {$x}; set x 3; set b 2
+    /// puts [expr $a + $b]          ;# 5 — W100's brace fix makes this an error
+    /// puts [expr {"1" == "01"}]    ;# 1 — W110's `eq` rewrite makes this 0
+    /// ```
+    ///
+    /// Both are valuable fixes — they are offered as their own named code
+    /// actions — but neither belongs in an unattended bulk pass (#1195).
+    ///
+    /// Per pass: re-analyse (so a fix whose proof depended on text an earlier
+    /// pass rewrote is re-derived rather than re-used), take each
+    /// diagnostic's first bulk-applicable fix, drop any whose span overlaps
+    /// one already chosen, and apply the rest from the end of the buffer
+    /// backwards so earlier offsets stay valid.  A diagnostic whose code the
+    /// user disabled is not analysed in the first place, so its fixes cannot
+    /// be applied here either.
     async fn fix_all_safe_issues_command(
         &self,
         args: &[serde_json::Value],
@@ -8615,61 +8729,42 @@ impl Backend {
         let (disabled, na_mode) = self.analyser_config().await;
         let extra: HashSet<String> = self.extra_commands.lock().await.iter().cloned().collect();
         let dialect = doc.dialect.clone();
-        // The fixed-up buffer is handed back to the client verbatim, so it
+        // The one place that legitimately owns a copy: fix-all *rewrites* the
+        // source in a loop, so it needs a mutable buffer of its own rather than
+        // a share of the immutable snapshot.  It copies from `raw()` because
+        // the fixed-up buffer is handed back to the client verbatim, so it
         // carries the document's real terminators; the analyser that locates
         // the fixes still sees the normalised form.  The rewrite is
         // byte-length preserving, so a fix span resolved against one applies
         // unchanged to the other.
         let mut source = doc.raw().to_owned();
         let value = tokio::task::spawn_blocking(move || {
-            const SAFE: &[&str] = &["W100", "W105", "W108", "W110", "W201", "W304", "IRULE2001"];
             let mut applied: Vec<serde_json::Value> = Vec::new();
-            for _ in 0..4 {
+            for _ in 0..FIX_ALL_MAX_PASSES {
                 let mut analyser =
                     Self::configured_analyser(disabled.clone(), na_mode, extra.clone());
                 let analysis = analyser.analyse(&tcl_lexer::normalise_lone_cr(&source), &dialect);
-                // First fix per safe diagnostic, sorted by start offset.
-                let mut fixes: Vec<(u32, u32, String, String, String)> = Vec::new();
-                for d in &analysis.diagnostics {
-                    if !SAFE.contains(&d.code.as_str()) {
-                        continue;
-                    }
-                    if let Some(f) = d.fixes.first() {
-                        fixes.push((
-                            f.span.start(),
-                            f.span.end(),
-                            f.new_text.clone(),
-                            d.code.to_string(),
-                            f.description.clone(),
-                        ));
-                    }
-                }
-                fixes.sort_by_key(|f| f.0);
-                // Keep non-overlapping fixes in order.
-                let mut chosen: Vec<(u32, u32, String, String, String)> = Vec::new();
-                let mut last_end = 0u32;
-                for f in fixes {
-                    if f.0 >= last_end {
-                        last_end = f.1;
-                        chosen.push(f);
-                    }
-                }
+                let chosen = Self::bulk_applicable_fixes(&analysis);
                 if chosen.is_empty() {
                     break;
                 }
                 // Apply from the end so earlier byte offsets stay valid.
                 let mut new_source = source.clone();
-                for f in chosen.iter().rev() {
-                    let (s, e) = (f.0 as usize, f.1 as usize);
-                    if s <= e && e <= new_source.len() {
-                        new_source.replace_range(s..e, &f.2);
+                for fix in chosen.iter().rev() {
+                    let (start, end) = (fix.start as usize, fix.end as usize);
+                    if start <= end && end <= new_source.len() {
+                        new_source.replace_range(start..end, &fix.new_text);
                     }
                 }
                 if new_source == source {
                     break;
                 }
-                for f in &chosen {
-                    applied.push(serde_json::json!({ "code": f.3, "description": f.4 }));
+                for fix in &chosen {
+                    applied.push(serde_json::json!({
+                        "code": fix.code,
+                        "description": fix.description,
+                        "safety": fix.safety,
+                    }));
                 }
                 source = new_source;
             }
@@ -8682,6 +8777,54 @@ impl Backend {
             data: None,
         })?;
         Ok(Some(value))
+    }
+
+    /// The fixes one "Fix All Safe Issues" pass may apply to `analysis`:
+    /// every diagnostic's first [`FixSafety::is_bulk_applicable`] fix, in
+    /// ascending start order, with overlapping fixes dropped.
+    ///
+    /// Three filters, in order:
+    ///
+    /// 1. **Provably equivalent only.** A fix is taken only when its emitter
+    ///    classified *that instance* as semantics-preserving.  A diagnostic
+    ///    whose only fixes are behaviour-changing contributes nothing — its
+    ///    fixes stay available as individually-named code actions.
+    /// 2. **Non-empty edit.** A zero-width fix inserting nothing cannot make
+    ///    progress and would keep the pass loop spinning.
+    /// 3. **Non-overlapping.** Two fixes whose spans touch cannot both be
+    ///    applied against the same coordinate space; the earlier-starting one
+    ///    wins and the other is left for the next pass, where it is
+    ///    re-derived from the rewritten source (so a fix whose proof the
+    ///    first edit invalidated is simply not re-offered).
+    fn bulk_applicable_fixes(analysis: &tcl_compiler::analyser::AnalysisResult) -> Vec<BulkFix> {
+        let mut candidates: Vec<BulkFix> = analysis
+            .diagnostics
+            .iter()
+            .filter_map(|diag| {
+                let fix = diag
+                    .fixes
+                    .iter()
+                    .find(|fix| fix.safety.is_bulk_applicable())?;
+                (fix.span.end() > fix.span.start() || !fix.new_text.is_empty()).then(|| BulkFix {
+                    start: fix.span.start(),
+                    end: fix.span.end(),
+                    new_text: fix.new_text.clone(),
+                    code: diag.code.to_string(),
+                    description: fix.description.clone(),
+                    safety: fix.safety.as_str(),
+                })
+            })
+            .collect();
+        candidates.sort_by_key(|fix| (fix.start, fix.end));
+        let mut chosen: Vec<BulkFix> = Vec::new();
+        let mut last_end = 0u32;
+        for fix in candidates {
+            if fix.start >= last_end {
+                last_end = fix.end.max(fix.start);
+                chosen.push(fix);
+            }
+        }
+        chosen
     }
 
     /// Handle `tcl-lsp.getEffectiveConfig`: the resolved per-document config —
@@ -9907,7 +10050,7 @@ impl Backend {
     async fn full_diagnostics_for(
         &self,
         uri: &Uri,
-        text: String,
+        text: Arc<str>,
         dialect: String,
         language_id: &str,
     ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
@@ -9923,7 +10066,12 @@ impl Backend {
         // them on the push path: the parser sees the script `tclsh` would, the
         // W118 line-ending lint sees the real terminators, and the two agree
         // on every offset because the rewrite preserves byte length.
-        let analysis_text = tcl_lexer::normalise_lone_cr(&text).into_owned();
+        // In the overwhelmingly common no-bare-CR case the analysis form *is*
+        // the client buffer, so reuse its `Arc` rather than copying (#1184).
+        let analysis_text: Arc<str> = match tcl_lexer::normalise_lone_cr(&text) {
+            std::borrow::Cow::Borrowed(_) => text.clone(),
+            std::borrow::Cow::Owned(s) => s.into(),
+        };
         // F5 dialect dispatch: BIG-IP config / iApp APL
         // presentation documents have model-level validators, not the Tcl
         // analyser — mirror the push path's dispatch so a pull-mode editor
@@ -11211,7 +11359,7 @@ impl LanguageServer for Backend {
                 DocumentState::with_version(params.text_document.text, dialect, version)
                     .with_language_id(params.text_document.language_id.clone()),
             );
-            self.db_set_source(&uri, text.clone(), dialect_for_diags.clone())
+            self.db_set_source(&uri, &text, dialect_for_diags.clone())
                 .await;
             self.workspace_index
                 .write()
@@ -11264,7 +11412,11 @@ impl LanguageServer for Backend {
             let Some(entry) = docs.get_mut(&uri) else {
                 return;
             };
-            let mut text = std::mem::take(&mut entry.text);
+            // Build-and-swap, not mutate-in-place: each splice produces a fresh
+            // buffer and the shared handle is replaced wholesale at the end, so
+            // any snapshot already handed to an in-flight request keeps the
+            // exact revision it was taken at (issue #1184).
+            let mut text: Arc<str> = Arc::clone(&entry.text);
             // Patch the persisted `LineIndex` alongside each splice instead of
             // rebuilding it per edit / per position lookup.
             // Take it out, patch through the edit sequence, put it back.
@@ -11288,9 +11440,13 @@ impl LanguageServer for Backend {
                     &change.text,
                     &mut index,
                     &mut has_bare_cr,
-                );
+                )
+                .into();
             }
-            entry.text = text.clone();
+            // `text` and `line_index` are installed together — the snapshot
+            // invariant on `DocumentState`: no reader may ever pair text from
+            // this revision with an index from the previous one.
+            entry.text = Arc::clone(&text);
             entry.line_index = index;
             entry.has_bare_cr = has_bare_cr;
             entry.bump_revision(change_version);
@@ -11314,7 +11470,7 @@ impl LanguageServer for Backend {
             // the workspace already carries between publishes, and strictly less
             // misleading than the alternative (a mid-keystroke window where the
             // file contributes no procs, classes or call sites at all).
-            self.db_set_source(&uri, text, dialect.clone()).await;
+            self.db_set_source(&uri, &text, dialect.clone()).await;
             drop(docs);
             (dialect, language_id, dialect_hint_may_have_changed)
         };
@@ -11367,7 +11523,7 @@ impl LanguageServer for Backend {
                     // As above (#1149): the reschedule below republishes, and
                     // the publish re-indexes the document under its own
                     // currency check.
-                    self.db_set_source(&uri, text, new_dialect.clone()).await;
+                    self.db_set_source(&uri, &text, new_dialect.clone()).await;
                 }
                 self.reschedule_diagnostics(uri, new_dialect).await;
             }
@@ -12711,7 +12867,7 @@ impl LanguageServer for Backend {
                 // The raw buffer: `full_diagnostics_for` derives the analysis
                 // form itself, and W118 must see the real terminators.
                 &uri,
-                doc.raw().to_owned(),
+                doc.raw_text.clone().unwrap_or_else(|| doc.text.clone()),
                 doc.dialect.clone(),
                 &doc.language_id,
             )
@@ -12951,7 +13107,7 @@ impl LanguageServer for Backend {
         // as a JSON-RPC error.  The text goes in behind an `Arc` so the
         // convergence continuation below shares this buffer instead of taking a
         // second full-document copy (#1147).
-        let text: Arc<str> = Arc::from(doc.text.as_str());
+        let text: Arc<str> = Arc::clone(&doc.text);
         let dialect = doc.dialect.clone();
         let serve_text = Arc::clone(&text);
         let serve_dialect = dialect.clone();
@@ -13513,8 +13669,18 @@ impl LanguageServer for Backend {
         let line_ending = self.resolved_edit_line_ending(&uri, doc.raw()).await;
         let actions = tokio::task::spawn_blocking(move || {
             let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
+            // The fuzzy package-suggestion path needs both the analysis (to
+            // prove the cursor is on an unresolved *command head* rather than
+            // on a comment, a string, or a data word) and the request's own
+            // diagnostics (the editor may be showing a W123 this analysis has
+            // not re-emitted).  Passing neither is what let it fire anywhere
+            // an identifier-shaped word appeared — issue #1191.
             actions.extend(core_code_actions::package_require_actions(
-                &doc.text, range, registry,
+                &doc.text,
+                range,
+                registry,
+                Some(&analysis),
+                &context_diags,
             ));
             actions.extend(core_code_actions::context_diagnostic_actions(
                 &doc.text,
@@ -14410,6 +14576,14 @@ fn lift_code_actions(
             let data = a
                 .data_group_definition
                 .map(|def| serde_json::json!({ "data_group_definition": def }));
+            // A refactoring that found its subject but cannot preserve
+            // behaviour is surfaced *greyed out* with its reason, rather than
+            // silently omitted: LSP's `disabled.reason` is what the editor
+            // shows, and without it a user cannot tell "does not apply here"
+            // from "is broken" (issues #1199 / #1201).
+            let disabled = a
+                .disabled
+                .map(|reason| tower_lsp_server::ls_types::CodeActionDisabled { reason });
             CodeActionOrCommand::CodeAction(CodeAction {
                 title: a.title,
                 kind: Some(tower_lsp_server::ls_types::CodeActionKind::new(
@@ -14423,7 +14597,7 @@ fn lift_code_actions(
                 }),
                 command,
                 is_preferred: None,
-                disabled: None,
+                disabled,
                 data,
             })
         })
@@ -17116,6 +17290,7 @@ mod tests {
                 span: tcl_lexer::Span::new(0, 0),
                 new_text: format!("package require {pkg}\n"),
                 description: format!("Add 'package require {pkg}'"),
+                safety: tcl_compiler::analyser::FixSafety::BehaviourHardening,
             }],
         }
     }
@@ -17658,7 +17833,7 @@ mod tests {
         register(&backend, &uri, src).await;
 
         let off = backend
-            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             !off.iter().any(|d| matches!(
@@ -17672,7 +17847,7 @@ mod tests {
             .apply_global_config(&serde_json::json!({ "diagnostics": { "W242": true } }))
             .await;
         let on = backend
-            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             on.iter().any(|d| matches!(
@@ -19247,7 +19422,7 @@ mod tests {
         let src =
             "ltm rule /Common/r {\n  when HTTP_REQUEST {\n    pool /Common/no_such_pool\n  }\n}\n";
         let diags = backend
-            .full_diagnostics_for(&uri, src.to_owned(), "f5-bigip".to_owned(), "tcl-bigip")
+            .full_diagnostics_for(&uri, Arc::from(src), "f5-bigip".to_owned(), "tcl-bigip")
             .await;
         let codes = diag_codes(&diags);
         assert!(
@@ -19290,7 +19465,7 @@ mod tests {
         // Default-off: no XC codes surface.
         let backend = test_backend();
         let off = backend
-            .full_diagnostics_for(&uri, src.to_owned(), "f5-irules".to_owned(), "tcl-irule")
+            .full_diagnostics_for(&uri, Arc::from(src), "f5-irules".to_owned(), "tcl-irule")
             .await;
         assert!(
             !diag_codes(&off).iter().any(|c| c.starts_with("XC")),
@@ -19305,7 +19480,7 @@ mod tests {
                 .unwrap(),
         );
         let on = backend
-            .full_diagnostics_for(&uri, src.to_owned(), "f5-irules".to_owned(), "tcl-irule")
+            .full_diagnostics_for(&uri, Arc::from(src), "f5-irules".to_owned(), "tcl-irule")
             .await;
         assert!(
             diag_codes(&on).iter().any(|c| c == "XC100"),
@@ -19328,11 +19503,7 @@ mod tests {
         let b = Uri::from_str("file:///b.tcl").unwrap();
         // Track B (defines `proc helper`) so the `Project` input includes it.
         backend
-            .db_set_source(
-                &b,
-                "proc helper {x y} { return $x }\n".to_owned(),
-                "tcl8.6".to_owned(),
-            )
+            .db_set_source(&b, "proc helper {x y} { return $x }\n", "tcl8.6".to_owned())
             .await;
         // The `Project` input is now maintained with B.
         assert!(
@@ -19343,7 +19514,7 @@ mod tests {
 
         // crossFileResolution OFF: `helper` is unresolved in A → W123 present.
         let off = backend
-            .full_diagnostics_for(&a, a_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&a, Arc::from(a_src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             diag_codes(&off).iter().any(|c| c == "W123"),
@@ -19358,7 +19529,7 @@ mod tests {
                 .unwrap(),
         );
         let on = backend
-            .full_diagnostics_for(&a, a_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&a, Arc::from(a_src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             !diag_codes(&on).iter().any(|c| c == "W123"),
@@ -19393,7 +19564,7 @@ mod tests {
 
         // Toggle OFF: the single-document pass sees neither name.
         let off = backend
-            .full_diagnostics_for(&vector, vector_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&vector, Arc::from(vector_src), "tcl8.6".to_owned(), "tcl")
             .await;
         let off_names: Vec<&str> = off
             .iter()
@@ -19413,7 +19584,7 @@ mod tests {
                 .unwrap(),
         );
         let on = backend
-            .full_diagnostics_for(&vector, vector_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&vector, Arc::from(vector_src), "tcl8.6".to_owned(), "tcl")
             .await;
         let on_names: Vec<&str> = on
             .iter()
@@ -19451,7 +19622,7 @@ mod tests {
         let baseline = backend
             .full_diagnostics_for(
                 &outside,
-                src.to_owned(),
+                Arc::from(src),
                 "f5-irules".to_owned(),
                 "tcl-irule",
             )
@@ -19475,7 +19646,7 @@ mod tests {
 
         // POSITIVE: a doc *inside* the folder no longer reports IRULE4002.
         let suppressed = backend
-            .full_diagnostics_for(&inside, src.to_owned(), "f5-irules".to_owned(), "tcl-irule")
+            .full_diagnostics_for(&inside, Arc::from(src), "f5-irules".to_owned(), "tcl-irule")
             .await;
         assert!(
             !diag_codes(&suppressed).iter().any(|c| c == "IRULE4002"),
@@ -19489,7 +19660,7 @@ mod tests {
         let still_fires = backend
             .full_diagnostics_for(
                 &outside,
-                src.to_owned(),
+                Arc::from(src),
                 "f5-irules".to_owned(),
                 "tcl-irule",
             )
@@ -19536,7 +19707,7 @@ mod tests {
             *backend.package_resolver.write().await = resolver;
         }
         let unrefined = backend
-            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             diag_codes(&unrefined).iter().any(|c| c == "W120"),
@@ -19571,7 +19742,7 @@ mod tests {
             *backend.package_resolver.write().await = resolver;
         }
         let refined = backend
-            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             !diag_codes(&refined).iter().any(|c| c == "W120"),
@@ -19620,7 +19791,7 @@ mod tests {
         // default (off).
         let ok_src = "Rbc_ActiveLegend .g\nRbc_ZoomStack .g\n";
         let diags = backend
-            .full_diagnostics_for(&uri, ok_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&uri, Arc::from(ok_src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             !diag_codes(&diags).iter().any(|c| c == "W123"),
@@ -19631,7 +19802,7 @@ mod tests {
         // TP control: a typo the index does not declare stays flagged.
         let typo_src = "Rbc_ActveLegend .g\n";
         let typo = backend
-            .full_diagnostics_for(&uri, typo_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&uri, Arc::from(typo_src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             diag_codes(&typo).iter().any(|c| c == "W123"),
@@ -19643,7 +19814,7 @@ mod tests {
         // fires — suppression is driven by the database, not a name allowlist.
         *backend.package_resolver.write().await = PackageResolver::new();
         let empty = backend
-            .full_diagnostics_for(&uri, ok_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&uri, Arc::from(ok_src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             diag_codes(&empty).iter().any(|c| c == "W123"),
@@ -19683,7 +19854,7 @@ mod tests {
         // Control (FN would be a bug here): without an entry file requiring mylib,
         // the module inherits nothing, so `draw_widget` is genuinely unknown ⇒ W123.
         let unrefined = backend
-            .full_diagnostics_for(&util, util_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&util, Arc::from(util_src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             diag_codes(&unrefined).iter().any(|c| c == "W123"),
@@ -19709,7 +19880,7 @@ mod tests {
         // TN: the inherited `mylib` require makes `draw_widget` resolvable via the
         // package's implementation source ⇒ the W123 is refined away.
         let refined = backend
-            .full_diagnostics_for(&util, util_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&util, Arc::from(util_src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             !diag_codes(&refined).iter().any(|c| c == "W123"),
@@ -19747,7 +19918,7 @@ mod tests {
         // Control: with the entry file NOT indexed, util inherits nothing, so
         // the single-file W120 stands.
         let unrefined = backend
-            .full_diagnostics_for(&util, util_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&util, Arc::from(util_src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             diag_codes(&unrefined).iter().any(|c| c == "W120"),
@@ -19768,7 +19939,7 @@ mod tests {
                 .add_document(app.as_str(), &analysis);
         }
         let refined = backend
-            .full_diagnostics_for(&util, util_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&util, Arc::from(util_src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             !diag_codes(&refined).iter().any(|c| c == "W120"),
@@ -19820,7 +19991,7 @@ mod tests {
         }
         let other_src = "http::register foo 80 bar\n";
         let refined = backend
-            .full_diagnostics_for(&other, other_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&other, Arc::from(other_src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             !diag_codes(&refined).iter().any(|c| c == "W120"),
@@ -20585,9 +20756,7 @@ mod tests {
         // `y` is set but never read → W211.
         let src = "proc foo {} { set y 1 }\n";
         register(&backend, &uri, src).await;
-        backend
-            .db_set_source(&uri, src.to_owned(), "tcl8.6".to_owned())
-            .await;
+        backend.db_set_source(&uri, src, "tcl8.6".to_owned()).await;
         backend
             .publish_analyser_diagnostics(
                 uri.clone(),
@@ -20621,9 +20790,7 @@ mod tests {
         let uri = Uri::from_str("file:///oldmac.tcl").unwrap();
         let src = "# note \rset zz 1\nputs $zz\n";
         register(&backend, &uri, src).await;
-        backend
-            .db_set_source(&uri, src.to_owned(), "tcl8.6".to_owned())
-            .await;
+        backend.db_set_source(&uri, src, "tcl8.6".to_owned()).await;
         backend
             .publish_analyser_diagnostics(
                 uri.clone(),
@@ -20689,21 +20856,21 @@ mod tests {
         register(&backend, &uri, src).await;
         let doc = backend.read_document(&uri).await.expect("open document");
         // The provider-facing text has the lone `\r` rewritten…
-        assert_eq!(doc.text, "set a 1\nset b 2\r\nset c 3\n");
+        assert_eq!(&*doc.text, "set a 1\nset b 2\r\nset c 3\n");
         // …the formatter / W118 view keeps the client's exact bytes…
         assert_eq!(doc.raw(), src);
         // …the rewrite never changes the byte length, so spans are shared…
         assert_eq!(doc.text.len(), doc.raw().len());
         // …and the stored shadow buffer is untouched.
         assert_eq!(
-            backend.documents.lock().await.get(&uri).expect("doc").text,
+            &*backend.documents.lock().await.get(&uri).expect("doc").text,
             src,
         );
         // An LF document is handed out unchanged (and does not allocate).
         let plain = Uri::from_str("file:///plain.tcl").unwrap();
         register(&backend, &plain, "set a 1\n").await;
         let doc = backend.read_document(&plain).await.expect("open document");
-        assert_eq!(doc.text, "set a 1\n");
+        assert_eq!(&*doc.text, "set a 1\n");
         assert!(doc.raw_text.is_none());
     }
 
@@ -20783,7 +20950,7 @@ mod tests {
             .await;
         let docs = backend.documents.lock().await;
         let doc = docs.get(&uri).expect("did_open should store the document");
-        assert_eq!(doc.text, "set x 1\n");
+        assert_eq!(&*doc.text, "set x 1\n");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -20815,7 +20982,7 @@ mod tests {
             })
             .await;
         assert_eq!(
-            backend.documents.lock().await.get(&uri).expect("doc").text,
+            &*backend.documents.lock().await.get(&uri).expect("doc").text,
             "set y 2\n",
         );
     }
@@ -20954,9 +21121,7 @@ mod tests {
         }));
         let uri = Uri::from_file_path(&on_disk).unwrap();
         register(&backend, &uri, src).await;
-        backend
-            .db_set_source(&uri, src.to_owned(), "tcl8.6".to_owned())
-            .await;
+        backend.db_set_source(&uri, src, "tcl8.6".to_owned()).await;
 
         backend
             .did_close(DidCloseTextDocumentParams {
@@ -21138,11 +21303,7 @@ mod tests {
         let uri = Uri::from_file_path(&on_disk).unwrap();
         register(&backend, &uri, "proc foo {} { set y 1 }\n").await;
         backend
-            .db_set_source(
-                &uri,
-                "proc foo {} { set y 1 }\n".to_owned(),
-                "tcl8.6".to_owned(),
-            )
+            .db_set_source(&uri, "proc foo {} { set y 1 }\n", "tcl8.6".to_owned())
             .await;
 
         backend
@@ -21185,11 +21346,7 @@ mod tests {
         // must come from disk.
         register(&backend, &uri, "proc foo {} { return 1 }\n").await;
         backend
-            .db_set_source(
-                &uri,
-                "proc foo {} { return 1 }\n".to_owned(),
-                "tcl8.6".to_owned(),
-            )
+            .db_set_source(&uri, "proc foo {} { return 1 }\n", "tcl8.6".to_owned())
             .await;
 
         backend
@@ -21225,7 +21382,7 @@ mod tests {
         let uri = Uri::from_file_path(&on_disk).unwrap();
         register(&backend, &uri, clean).await;
         backend
-            .db_set_source(&uri, clean.to_owned(), "tcl8.6".to_owned())
+            .db_set_source(&uri, clean, "tcl8.6".to_owned())
             .await;
 
         backend
@@ -21258,11 +21415,7 @@ mod tests {
         let uri = Uri::from_file_path(&on_disk).unwrap();
         register(&backend, &uri, "proc foo {} { set y 1 }\n").await;
         backend
-            .db_set_source(
-                &uri,
-                "proc foo {} { set y 1 }\n".to_owned(),
-                "tcl8.6".to_owned(),
-            )
+            .db_set_source(&uri, "proc foo {} { set y 1 }\n", "tcl8.6".to_owned())
             .await;
         backend.pull_diag_cache.lock().await.insert(
             uri.clone(),
@@ -21301,11 +21454,7 @@ mod tests {
         let uri = Uri::from_file_path(&on_disk).unwrap();
         register(&backend, &uri, "proc foo {} { set y 1 }\n").await;
         backend
-            .db_set_source(
-                &uri,
-                "proc foo {} { set y 1 }\n".to_owned(),
-                "tcl8.6".to_owned(),
-            )
+            .db_set_source(&uri, "proc foo {} { set y 1 }\n", "tcl8.6".to_owned())
             .await;
         // A sentinel cache entry standing in for the open buffer's own published
         // set. The closed publish must leave it untouched (the doc is open).
@@ -21546,11 +21695,7 @@ mod tests {
         let uri = Uri::from_file_path(&on_disk).unwrap();
         // Prime the on-disk salsa source + a non-empty badge, as a prior close would.
         backend
-            .db_set_source(
-                &uri,
-                "proc foo {} { set y 1 }\n".to_owned(),
-                "tcl8.6".to_owned(),
-            )
+            .db_set_source(&uri, "proc foo {} { set y 1 }\n", "tcl8.6".to_owned())
             .await;
         backend.pull_diag_cache.lock().await.insert(
             uri.clone(),
@@ -21595,7 +21740,7 @@ mod tests {
         let backend = test_backend();
         let uri = Uri::from_file_path(&on_disk).unwrap();
         backend
-            .db_set_source(&uri, "set x 1\n".to_owned(), "tcl8.6".to_owned())
+            .db_set_source(&uri, "set x 1\n", "tcl8.6".to_owned())
             .await;
         backend.pull_diag_cache.lock().await.insert(
             uri.clone(),
@@ -21640,11 +21785,7 @@ mod tests {
         let backend = test_backend();
         let uri = Uri::from_file_path(&on_disk).unwrap();
         backend
-            .db_set_source(
-                &uri,
-                "proc foo {} { set y 1 }\n".to_owned(),
-                "tcl8.6".to_owned(),
-            )
+            .db_set_source(&uri, "proc foo {} { set y 1 }\n", "tcl8.6".to_owned())
             .await;
         backend.pull_diag_cache.lock().await.insert(
             uri.clone(),
@@ -21705,7 +21846,7 @@ mod tests {
             (&deleted_uri, "proc deleted_proc {} {}\n"),
         ] {
             backend
-                .db_set_source(uri, (*old_src).to_owned(), "tcl8.6".to_owned())
+                .db_set_source(uri, old_src, "tcl8.6".to_owned())
                 .await;
             let mut analyser = Analyser::new();
             let analysis = analyser.analyse(old_src, "tcl8.6").clone();
@@ -21789,7 +21930,7 @@ mod tests {
         let backend = test_backend();
         let uri = Uri::from_str("file:///retired.tcl").unwrap();
         backend
-            .db_set_source(&uri, "proc foo {} {}\n".to_owned(), "tcl8.6".to_owned())
+            .db_set_source(&uri, "proc foo {} {}\n", "tcl8.6".to_owned())
             .await;
         let first = *backend
             .db_files
@@ -21823,7 +21964,7 @@ mod tests {
         }
 
         backend
-            .db_set_source(&uri, "proc bar {} {}\n".to_owned(), "tcl8.6".to_owned())
+            .db_set_source(&uri, "proc bar {} {}\n", "tcl8.6".to_owned())
             .await;
         let second = *backend
             .db_files
@@ -21869,12 +22010,12 @@ mod tests {
         backend
             .db_set_source(
                 &lib,
-                "proc helper {mode} { return $mode }\n".to_owned(),
+                "proc helper {mode} { return $mode }\n",
                 "tcl8.6".to_owned(),
             )
             .await;
         backend
-            .db_set_source(&main, "helper dev\n".to_owned(), "tcl8.6".to_owned())
+            .db_set_source(&main, "helper dev\n", "tcl8.6".to_owned())
             .await;
         let handles = EvidenceHandles {
             db: Arc::clone(&backend.db),
@@ -21919,7 +22060,7 @@ mod tests {
         let backend = test_backend();
         let uri = Uri::from_file_path(&on_disk).unwrap();
         backend
-            .db_set_source(&uri, "proc foo {} {}\n".to_owned(), "tcl8.6".to_owned())
+            .db_set_source(&uri, "proc foo {} {}\n", "tcl8.6".to_owned())
             .await;
         let before = *backend
             .db_files
@@ -22273,7 +22414,7 @@ mod tests {
         let uri = Uri::from_str("file:///pull.tcl").unwrap();
         let src = "if {1} { set x 1 } else { set y 2 }\n";
         let full = backend
-            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
             .await;
         let analyser_only = {
             let mut a = Analyser::new();
@@ -23014,7 +23155,7 @@ mod tests {
         {
             let mut docs = backend.documents.lock().await;
             let doc = docs.get_mut(&uri).unwrap();
-            doc.text = "set x 2\n".to_owned();
+            doc.text = Arc::from("set x 2\n");
             doc.bump_revision(1);
         }
 
@@ -23126,7 +23267,7 @@ mod tests {
         // The current document is at revision 2; its analysis lives in the
         // query database (set via the SourceFile input) and the workspace index.
         backend
-            .db_set_source(&uri, current_src.to_owned(), "tcl8.6".to_owned())
+            .db_set_source(&uri, current_src, "tcl8.6".to_owned())
             .await;
         {
             let mut doc =
@@ -23334,20 +23475,12 @@ mod tests {
             DocumentState::new("proc open_proc {} {}\n".to_owned(), "tcl8.6".to_owned()),
         );
         backend
-            .db_set_source(
-                &open_uri,
-                "proc open_proc {} {}\n".to_owned(),
-                "tcl8.6".to_owned(),
-            )
+            .db_set_source(&open_uri, "proc open_proc {} {}\n", "tcl8.6".to_owned())
             .await;
         // Never opened, but present in `db_files` — exactly the state a
         // workspace scan leaves an unopened file in after #1151.
         backend
-            .db_set_source(
-                &closed_uri,
-                "proc closed_proc {} {}\n".to_owned(),
-                "tcl8.6".to_owned(),
-            )
+            .db_set_source(&closed_uri, "proc closed_proc {} {}\n", "tcl8.6".to_owned())
             .await;
 
         Backend::warm_open_documents(
@@ -23543,7 +23676,7 @@ mod tests {
         let ok = backend
             .full_diagnostics_for(
                 &a,
-                "helper foo bar\n".to_owned(),
+                Arc::from("helper foo bar\n"),
                 "tcl8.6".to_owned(),
                 "tcl",
             )
@@ -23557,7 +23690,7 @@ mod tests {
         // Wrong arity (3 args to the 2-param proc) → E003 (too many) from the
         // disk-backed proc's arity signature.
         let bad = backend
-            .full_diagnostics_for(&a, "helper a b c\n".to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&a, Arc::from("helper a b c\n"), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             diag_codes(&bad).iter().any(|c| c == "E003"),
@@ -23592,7 +23725,7 @@ mod tests {
         let present = backend
             .full_diagnostics_for(
                 &a,
-                "helper foo bar\n".to_owned(),
+                Arc::from("helper foo bar\n"),
                 "tcl8.6".to_owned(),
                 "tcl",
             )
@@ -23610,7 +23743,7 @@ mod tests {
         let gone = backend
             .full_diagnostics_for(
                 &a,
-                "helper foo bar\n".to_owned(),
+                Arc::from("helper foo bar\n"),
                 "tcl8.6".to_owned(),
                 "tcl",
             )
@@ -23640,15 +23773,11 @@ mod tests {
         let a = Uri::from_str("file:///caller.tcl").unwrap();
         let b = Uri::from_str("file:///lib.tcl").unwrap();
         backend
-            .db_set_source(
-                &b,
-                "proc helper {x y} { return $x }\n".to_owned(),
-                "tcl8.6".to_owned(),
-            )
+            .db_set_source(&b, "proc helper {x y} { return $x }\n", "tcl8.6".to_owned())
             .await;
         // 3 args to a 2-param cross-file proc → E003, even with W123 disabled.
         let diags = backend
-            .full_diagnostics_for(&a, "helper a b c\n".to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&a, Arc::from("helper a b c\n"), "tcl8.6".to_owned(), "tcl")
             .await;
         let codes = diag_codes(&diags);
         assert!(
@@ -24301,7 +24430,9 @@ mod tests {
             serde_json::Value::String(uri.to_string()),
             serde_json::Value::Bool(true), // compact
             serde_json::Value::Bool(false),
-            serde_json::Value::Bool(false),
+            // isolated — proc names are public command identities, renamed
+            // only under the closed-world assertion (issue #1193).
+            serde_json::Value::Bool(true),
         ];
         let result = backend
             .minify_document_command(&args)
@@ -24377,6 +24508,151 @@ mod tests {
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].uri, uri);
         assert_eq!(locs[0].range.start.line, 0);
+    }
+
+    // Document-snapshot sharing and revision currency (issue #1184).
+    //
+    // `read_document` hands every in-flight request its own `DocumentState`.
+    // Those snapshots must (a) share one allocation of the document text and
+    // line index rather than copying both per request, and (b) stay pinned to
+    // the revision they were taken at, so a request that overlaps an edit
+    // finishes against coherent text *and* index instead of a mixture.
+
+    /// A synthetic document whose text and line index are both far larger than
+    /// a pointer, so "the snapshot shared them" is a meaningful claim rather
+    /// than a coincidence of small allocations. Deliberately not corpus-sized:
+    /// `register` analyses it, and the property under test is pointer
+    /// identity, which does not get truer with more lines.
+    fn large_document_source() -> String {
+        use std::fmt::Write as _;
+        (0..300).fold(String::new(), |mut acc, i| {
+            let _ = writeln!(acc, "proc p{i} {{a b}} {{ return [expr {{$a + $b}}] }}");
+            acc
+        })
+    }
+
+    /// **TP** — concurrent reads of one open document share its storage.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_snapshots_share_one_text_and_index_allocation() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///shared.tcl").unwrap();
+        let source = large_document_source();
+        register(&backend, &uri, &source).await;
+
+        // 32 overlapping readers, the concurrency the issue asks for.
+        let mut tasks = Vec::new();
+        for _ in 0..32 {
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            tasks.push(tokio::spawn(async move {
+                backend.read_document(&uri).await.expect("open document")
+            }));
+        }
+        let mut snapshots = Vec::new();
+        for t in tasks {
+            snapshots.push(t.await.expect("reader task panicked"));
+        }
+
+        let owner = {
+            let docs = backend.documents.lock().await;
+            docs.get(&uri).expect("open document").clone()
+        };
+        for (i, snap) in snapshots.iter().enumerate() {
+            assert!(
+                Arc::ptr_eq(&owner.text, &snap.text),
+                "snapshot {i} copied the document text instead of sharing it"
+            );
+            assert!(
+                owner.line_index.shares_storage_with(&snap.line_index),
+                "snapshot {i} copied the line index instead of sharing it"
+            );
+        }
+        // One allocation, held by: the store, `owner`, and the 32 snapshots.
+        assert_eq!(Arc::strong_count(&owner.text), 34);
+        // …and every snapshot really does describe the whole document, so the
+        // sharing assertions above are not passing on an empty buffer.
+        assert_eq!(&*snapshots[0].text, source.as_str());
+    }
+
+    /// **FP** — editing while an older snapshot is alive must not mix
+    /// revisions: the in-flight reader keeps text *and* index from the
+    /// revision it was given, and they stay consistent with each other.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn an_edit_never_mutates_a_snapshot_an_in_flight_request_holds() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///revisions.tcl").unwrap();
+        register(&backend, &uri, "set alpha 1\nset beta 2\n").await;
+
+        let before = backend.read_document(&uri).await.expect("open document");
+        let before_revision = before.revision;
+
+        backend
+            .did_change(DidChangeTextDocumentParams {
+                text_document: tower_lsp_server::ls_types::VersionedTextDocumentIdentifier {
+                    uri: uri.clone(),
+                    version: 2,
+                },
+                content_changes: vec![tower_lsp_server::ls_types::TextDocumentContentChangeEvent {
+                    range: Some(Range {
+                        start: pos(0, 0),
+                        end: pos(0, 0),
+                    }),
+                    range_length: None,
+                    text: "# a new leading comment line\n".to_owned(),
+                }],
+            })
+            .await;
+
+        // The old snapshot is untouched…
+        assert_eq!(&*before.text, "set alpha 1\nset beta 2\n");
+        assert_eq!(before.revision, before_revision);
+        // …and its index still describes *its own* text: line 1 starts at the
+        // `set beta` of the pre-edit buffer. A snapshot that had picked up the
+        // post-edit index would resolve line 1 to the wrong byte offset, which
+        // is precisely the corruption the one-snapshot invariant rules out.
+        let line1 = before.line_index.line_start(1) as usize;
+        assert_eq!(&before.text[line1..], "set beta 2\n");
+
+        // The live document did advance, on both fields together.
+        let after = backend.read_document(&uri).await.expect("open document");
+        assert!(after.text.starts_with("# a new leading comment line\n"));
+        assert!(after.revision > before_revision);
+        let after_line1 = after.line_index.line_start(1) as usize;
+        assert_eq!(&after.text[after_line1..], "set alpha 1\nset beta 2\n");
+        assert!(!Arc::ptr_eq(&before.text, &after.text));
+    }
+
+    /// **TN** — reading a closed on-disk file yields a snapshot but must not
+    /// install it in the open-document store, so a one-off cross-file read
+    /// cannot retain every file it ever touched.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn reading_a_closed_on_disk_file_does_not_retain_it() {
+        let dir = std::env::temp_dir().join(format!(
+            "tcl-lsp-1184-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("ondisk.tcl");
+        std::fs::write(&path, "proc onDisk {} { return 1 }\n").expect("write fixture");
+
+        let backend = test_backend();
+        let uri = Uri::from_str(&format!("file://{}", path.display())).expect("uri");
+
+        assert!(backend.documents.lock().await.is_empty());
+        let snap = backend.read_document(&uri).await.expect("disk fallback");
+        assert_eq!(&*snap.text, "proc onDisk {} { return 1 }\n");
+        assert!(
+            backend.documents.lock().await.is_empty(),
+            "a disk read must not become a permanent open-document entry"
+        );
+        // Reading again is a fresh read, not a retained snapshot.
+        let again = backend.read_document(&uri).await.expect("disk fallback");
+        assert!(!Arc::ptr_eq(&snap.text, &again.text));
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     /// Register a document in the store and the workspace index.
@@ -27056,9 +27332,7 @@ mod tests {
         let backend = test_backend();
         let uri = Uri::from_str("file:///indexed.tcl").unwrap();
         let src = "set my_re \".*abc\"\nregexp $my_re $s\n";
-        backend
-            .db_set_source(&uri, src.to_owned(), "tcl9.0".to_owned())
-            .await;
+        backend.db_set_source(&uri, src, "tcl9.0".to_owned()).await;
         backend.documents.lock().await.insert(
             uri.clone(),
             DocumentState::new(src.to_owned(), "tcl9.0".to_owned()),
@@ -27698,7 +27972,7 @@ mod tests {
         register(&backend, &uri, src).await;
 
         let on = backend
-            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             !on.is_empty(),
@@ -27711,7 +27985,7 @@ mod tests {
                 .unwrap(),
         );
         let off = backend
-            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             off.is_empty(),
@@ -27730,7 +28004,7 @@ mod tests {
         register(&backend, &uri, src).await;
 
         let on = backend
-            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
             .await;
         let codes = |ds: &[tower_lsp_server::ls_types::Diagnostic]| -> Vec<String> {
             ds.iter()
@@ -27755,7 +28029,7 @@ mod tests {
             .apply_global_config(&serde_json::json!({ "optimiser": { "enabled": false } }))
             .await;
         let off = backend
-            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
             .await;
         let off_codes = codes(&off);
         assert!(
@@ -27779,7 +28053,7 @@ mod tests {
 
         // Default (120): no W111.
         let none = backend
-            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             !none
@@ -27794,7 +28068,7 @@ mod tests {
             .await;
         assert_eq!(*backend.style_line_length.lock().await, 8);
         let some = backend
-            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             some.iter()
@@ -27888,9 +28162,7 @@ mod tests {
         // on disk — so drop the live document `register` seeded and stand the
         // rest of the old URI's per-URI state up as a real session would have.
         backend.documents.lock().await.remove(&old);
-        backend
-            .db_set_source(&old, src.to_owned(), "tcl8.6".to_owned())
-            .await;
+        backend.db_set_source(&old, src, "tcl8.6".to_owned()).await;
         let old_file = *backend
             .db_files
             .lock()

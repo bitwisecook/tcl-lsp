@@ -773,6 +773,10 @@ impl Analyser {
                     span: fix_span,
                     new_text: static_name.clone(),
                     description: format!("Replace '{var_name}' with '{static_name}'"),
+                    // IRULE6001: `static::` variables have per-TMM storage and a
+                    // different lifetime from a global — the CMP fix, and a change of
+                    // where the value lives.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 }],
             });
             return;
@@ -801,6 +805,8 @@ impl Analyser {
                     span: fix_span,
                     new_text: static_name.clone(),
                     description: format!("Replace '{bare}' with '{static_name}'"),
+                    // IRULE6001: as above.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 }],
             });
         }

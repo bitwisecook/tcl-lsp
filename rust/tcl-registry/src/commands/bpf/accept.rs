@@ -20,10 +20,13 @@
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
+    const OP: BpfOpSpec =
+        BpfOpSpec::verdict(BpfVerdictKind::Accept, BpfProgTypeSet::SocketFilterOnly);
     CommandSpec {
         name: "accept",
         dialects: Some(DialectSet::BPF),
         arity: Arity::new(0, 1),
+        bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }
 }

@@ -27,10 +27,18 @@ context/all/completion/code-lens touching more than one file's worth of
 state — workspace variables, package tiers, sibling-file completions,
 workspace-wide lens counts) wait out the server's background workspace scan
 first via `LspClient.wait_for_workspace_scan()` (bounded by --scan-timeout,
-default 15s) rather than racing it — see issue #1094 and that method's
+default 30s — measured/tuned per issue #1111) rather than racing it — see
+issue #1094 and that method's
 docstring for the exact server-side signal it waits on. Single-file
 subcommands (semantic-tokens, hover, format, ...) are unaffected and
 don't wait.
+
+Pass `--also-open FILE` (repeatable) to open one or more companion files
+before the main <file> argument — the first-class "open two files and
+assert" helper (issue #1111) for a cross-file check (a definition/reference
+in <file> resolving into FILE, a sibling-file completion, a workspace-wide
+lens count). Companion files are opened *after* the workspace-scan wait
+above and *before* <file>, so whichever subcommand you run sees them.
 
 Usage:
     python3 lsp_client.py semantic-tokens <file.tcl>
@@ -181,6 +189,14 @@ COMPLETION_KIND = {
 # (completion enumerates sibling-file procedures; lenses count
 # workspace-wide references), so they wait too — before `didOpen` via
 # `main()`, which is also sufficient for their per-request reads.
+#
+# Verified live (issue #1111) against a real `tcl-lsp-server` build (this
+# reasoning previously rested on code inspection only — no binary was
+# buildable in the sandbox that filed the issue): `--also-open` + `definition`
+# resolving a companion file's symbol on the *first* request of 20/20 freshly
+# spawned server processes, with no `--scan-timeout` override, confirms
+# waiting before `didOpen` sidesteps the race the comment above describes
+# rather than merely happening not to trigger it.
 CROSS_FILE_COMMANDS = {
     "definition",
     "references",
@@ -447,7 +463,7 @@ class LspClient:
                 messages.append(params.get("message", ""))
         return messages
 
-    def wait_for_workspace_scan(self, timeout: float = 15.0) -> str:
+    def wait_for_workspace_scan(self, timeout: float = 30.0) -> str:
         """Block until the server's initial background workspace scan completes.
 
         Cross-file navigation (`textDocument/definition`,
@@ -1671,12 +1687,36 @@ examples:
     parser.add_argument(
         "--scan-timeout",
         type=float,
-        default=15.0,
+        default=30.0,
         help=(
             "Seconds to wait for the background workspace scan to complete "
             "before cross-file subcommands (definition, references, "
             "diagnostics, code-actions, context, all) proceed. See "
-            "issue #1094. Default: 15.0."
+            "issue #1094. Default: 30.0 — tuned against a measured "
+            "worst-case scan (issue #1111): a workspace at "
+            "WORKSPACE_SCAN_FILE_CAP (2000 files) took ~12.3s unloaded / "
+            "~15.2s under 4-way CPU contention on a 4-core box in a *debug* "
+            "build (a `--release` build did the same scan in ~1.9s), so the "
+            "old 15.0s default left under 20% headroom over the unloaded "
+            "debug-build worst case and none at all once loaded. 30.0 keeps "
+            "roughly 2x headroom over the worst measured case and matches "
+            "the Rust e2e harness's own `DEFAULT_TIMEOUT`."
+        ),
+    )
+    parser.add_argument(
+        "--also-open",
+        action="append",
+        default=[],
+        metavar="FILE",
+        help=(
+            "Open an additional file (textDocument/didOpen) before <file> — "
+            "the first-class multi-file helper for asserting cross-file "
+            "behavior (e.g. a definition/reference in <file> that resolves "
+            "into FILE, or a sibling-file completion). Repeatable. Opened "
+            "after the workspace-scan wait (for a cross-file subcommand) and "
+            "before <file>, in the order given, so the request the "
+            "subcommand issues against <file> already sees every one of "
+            "them. See issue #1111."
         ),
     )
 
@@ -1865,6 +1905,18 @@ examples:
             # scan (issue #1094).
             if args.command in CROSS_FILE_COMMANDS:
                 client.wait_for_workspace_scan(timeout=args.scan_timeout)
+
+            # `--also-open FILE` (repeatable): the multi-file helper (issue
+            # #1111) — open every companion file *before* the main one, in
+            # the order given, after the scan wait above so a cross-file
+            # subcommand's request against `args.file` already sees them.
+            # Each open gets the same post-didOpen settle main() gives the
+            # primary file below, so a companion file's own diagnostics
+            # publish (which can itself touch workspace state a sibling-file
+            # completion/definition reads) has landed before we proceed.
+            for companion in args.also_open:
+                open_document(client, companion)
+                time.sleep(0.3)
 
             uri, content = open_document(client, args.file)
 

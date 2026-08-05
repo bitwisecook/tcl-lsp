@@ -54,6 +54,20 @@ use tcl_lexer::Token;
 use super::state::Analyser;
 use super::types::AnalysisResult;
 
+/// Largest proc / method body (in bytes of body text) the per-item
+/// decomposition will take on.  Above this the document falls back to a whole-
+/// file [`Analyser::analyse`] with [`PerItemFallback::OversizedBody`].
+///
+/// 256 KiB is deliberately far above any hand-written procedure — roughly
+/// 6,000 lines of ordinary Tcl — so no real code base loses the incremental
+/// path; it exists to catch *generated* single-body files, which are the only
+/// place bodies this size occur and the only place the isolated-body path is a
+/// dramatic pessimisation (see the call site in [`Analyser::fill_deferred_bodies`]).
+/// Two of tcllib 2.0's 882 documents are above it, and both are generated:
+/// `fumagic/filetypes.tcl` (one ~1.2 MB body) and the `i.map` variant of
+/// `textutil/wcswidth.tcl` (two ~2.2 MB bodies).
+const OVERSIZED_BODY_BYTES: usize = 256 * 1024;
+
 /// Why [`Analyser::analyse_per_item_with`] abandoned the incremental path and
 /// paid for a full whole-file walk.
 ///
@@ -72,6 +86,16 @@ pub enum PerItemFallback {
     StubDirective,
     /// Tk checks are live, and their whole-file state (created widgets,
     /// per-parent geometry) is not visible to an isolated body.
+    ///
+    /// Fires in two places, because Tk activation has two inputs of very
+    /// different cost (issue #1188): the `tk` dialect is known at entry and
+    /// short-circuits before any work, whereas a `package require Tk` is a
+    /// whole-file fact only the walk can establish, so it is checked *after*
+    /// the shell + body passes have filled `result.package_requires` via the
+    /// registry's `PackageRequire` hook.  The late check pays one wasted
+    /// per-item pass on a genuinely-Tk document — the price of never paying a
+    /// whole-file re-analysis, on every keystroke, for a document that merely
+    /// *mentions* the word `Tk`.
     TkActive,
     /// Ghost-token error recovery engaged.
     GhostRecovery,
@@ -80,6 +104,9 @@ pub enum PerItemFallback {
     /// An `E…` diagnostic was emitted — `analyse` would have run recovery
     /// machinery the per-item walk only partially reproduces.
     ErrorDiagnostic,
+    /// A deferred body is too large for the isolated-body decomposition to be
+    /// worth taking ([`OVERSIZED_BODY_BYTES`]).
+    OversizedBody,
     /// The same method qualified name is defined more than once.
     DuplicateMethod,
     /// A body declares a link to a qualified sub-namespace variable, or
@@ -105,6 +132,7 @@ impl PerItemFallback {
             Self::GhostRecovery => "ghost-recovery",
             Self::PartialCommand => "partial-command",
             Self::ErrorDiagnostic => "error-diagnostic",
+            Self::OversizedBody => "oversized-body",
             Self::DuplicateMethod => "duplicate-method",
             Self::EnclosingContext => "enclosing-context",
             Self::DuplicateProcInBody => "duplicate-proc-in-body",
@@ -250,6 +278,9 @@ impl Analyser {
         // also falls back to full analysis rather than diverge (a parent
         // created outside a proc would otherwise look missing inside it, and a
         // `pack`/`grid` conflict spanning a proc body would never flush).
+        // Only the *dialect* half of Tk activation is decidable here; the
+        // `package require Tk` half is a whole-file fact established by the
+        // walk, and is checked after the body pass below (issue #1188).
         //
         // Evaluated one gate at a time (rather than as one `||` chain) so the
         // telemetry can name which fired — these are checked in cheapest-first
@@ -257,7 +288,7 @@ impl Analyser {
         let entry_gate = if tcl_lexer::script_is_complete(source) {
             if source.contains("tcl-lsp: stub") {
                 Some(PerItemFallback::StubDirective)
-            } else if super::tk_checks::tk_possibly_active(source, dialect) {
+            } else if dialect == "tk" {
                 Some(PerItemFallback::TkActive)
             } else {
                 None
@@ -305,11 +336,30 @@ impl Analyser {
             self.body_scope_stack.pop();
         }
 
+        // Tk activation, first opportunity (issue #1188).  A `package require
+        // Tk` sits at the top level of essentially every real Tk script, and
+        // the shell pass has just walked the whole top level — including
+        // `namespace eval` and control-flow bodies — so checking here hands off
+        // before the body pass is paid for.  Repeated after the body pass,
+        // which is what makes the check *complete*; this one only makes the
+        // common case cheap.
+        if let Some(tk) = self.tk_activation_fallback(source, dialect) {
+            return tk;
+        }
+
         // --- pass 2: fill each deferred body ---
         // Returns `Err(fallback_result)` for the patterns the isolated-body
         // decomposition can't reproduce byte-for-byte.
         if let Err(fallback) = self.fill_deferred_bodies(source, dialect, body_fn) {
             return *fallback;
+        }
+
+        // Tk activation, completed.  `result.package_requires` is now the whole
+        // document's: `graft_proc_body` merged the requires each proc/method
+        // body contributed, so a `package require Tk` buried inside a body is
+        // caught here even though the shell pass could not see it.
+        if let Some(tk) = self.tk_activation_fallback(source, dialect) {
+            return tk;
         }
 
         // --- tail (cross-item passes; canonicalises order) ---
@@ -334,6 +384,32 @@ impl Analyser {
         result
     }
 
+    /// Hand off to a full [`Analyser::analyse`] if the walk so far has proved
+    /// the document is Tk — otherwise `None`, and the per-item path continues.
+    ///
+    /// The **exact** activation fact (issue #1188), read from
+    /// `result.package_requires`, which the registry's `PackageRequire` hook
+    /// populated during the walk — the very fact
+    /// [`Analyser::flush_tk_geometry_diagnostics`] gates the TK diagnostics on,
+    /// so the two can never disagree.  Tk's `TK100x` checks accumulate whole-file
+    /// state (created widgets, per-parent geometry) that an isolated proc body
+    /// cannot see, so a Tk document must be analysed whole.
+    ///
+    /// This replaced a pre-walk conjunction of three independent substring
+    /// searches (`package`, `require`, `Tk` — anywhere, in any order, comments
+    /// and generated data included).  That guess was ~78% false positives and
+    /// forced a whole-file re-analysis on every keystroke for a quarter of the
+    /// tcllib corpus's source lines.  Paying one discarded per-item pass on a
+    /// *genuinely* Tk document is the trade; the `tk` dialect, the other half
+    /// of activation, still short-circuits at entry for no cost at all.
+    fn tk_activation_fallback(&mut self, source: &str, dialect: &str) -> Option<AnalysisResult> {
+        if !self.has_tk_require() {
+            return None;
+        }
+        self.per_item_fallback = Some(PerItemFallback::TkActive);
+        Some(self.fresh_full_analyse(source, dialect))
+    }
+
     /// Per-item setup, mirroring `analyse`: record source/dialect, apply file +
     /// `noqa` suppressions, build the stub overlay, stash a dialect-aware
     /// registry + line offsets, and segment the source with recovery.  Returns
@@ -350,6 +426,17 @@ impl Analyser {
         self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
+        self.tk_dialect = dialect == "tk";
+        // The per-item path deliberately accumulates **no** Tk state, unlike
+        // `analyse` / `analyse_chunked` / `analyse_commands`.  Everything the
+        // accumulation feeds is discarded unless Tk turns out to be active, and
+        // when it is active this walk's whole result is thrown away for a full
+        // re-analysis (see `analyse_per_item_with`) — so buffering here would
+        // only be wasted work, and leaving a stale `true` behind on a reused
+        // `Analyser` would let one document's widgets leak into the next one's
+        // flush.  Pinned explicitly rather than left to the constructor for
+        // exactly that reason.
+        self.tk_accumulation_enabled = false;
         let file_codes = super::utils::parse_file_suppression(source);
         for code in &file_codes {
             self.disabled_diagnostics.insert(code.clone());
@@ -418,6 +505,24 @@ impl Analyser {
         body_fn: &mut dyn FnMut(&DeferredBody) -> BodyFragment,
     ) -> Result<(), Box<AnalysisResult>> {
         let deferred = std::mem::take(&mut self.deferred_bodies);
+        // Scaling guard (issue #1188).  Analysing a body in isolation costs
+        // markedly more than analysing the identical content in place, and the
+        // gap widens with body size, so a single enormous body turns the
+        // incremental path into a large *pessimisation* — on tcllib's generated
+        // `fumagic/filetypes.tcl` (one ~1.2 MB body) the decomposition measured
+        // 26x the whole-file walk, per keystroke.  Nor could the memoisation
+        // above it repay that: re-analysing "one body" there *is* re-analysing
+        // the file.  Such a document should not take the path at all.
+        //
+        // Checked before any `body_fn` call, so an oversized body costs only
+        // the shell pass that discovered it.
+        let oversized_body = deferred
+            .iter()
+            .any(|db| db.body_text.len() > OVERSIZED_BODY_BYTES);
+        if oversized_body {
+            self.per_item_fallback = Some(PerItemFallback::OversizedBody);
+            return Err(Box::new(self.fresh_full_analyse(source, dialect)));
+        }
         // A **method** defined more than once (same qualified name) still forces a
         // fallback: method bodies fill their scope in place, so a genuine
         // duplicate would accumulate rather than last-definition-win.  (Distinct
@@ -1812,6 +1917,206 @@ mod tests {
         let want = Analyser::new().analyse(src, "tcl8.6");
         let got = Analyser::new().analyse_per_item(src, "tcl8.6");
         assert_eq!(got, want, "per_item != analyse for:\n{src}");
+    }
+
+    /// Which gate (if any) `analyse_per_item` tripped for `src`.
+    fn gate(src: &str, dialect: &str) -> Option<PerItemFallback> {
+        let mut a = Analyser::new();
+        let _ = a.analyse_per_item(src, dialect);
+        a.per_item_fallback
+    }
+
+    /// Assert that `src` reaches the incremental fast path — i.e. no gate
+    /// fired.  Also asserts byte-identity with the whole-file walk, so a
+    /// widened gate can never buy speed with a wrong answer.
+    fn fast_path(src: &str) {
+        assert_eq!(gate(src, "tcl8.6"), None, "expected fast path for:\n{src}");
+        eq(src);
+    }
+
+    /// Assert that `src` hands off to a full walk with `reason`, and that the
+    /// handed-off result still matches the whole-file walk exactly.
+    fn falls_back(src: &str, dialect: &str, reason: PerItemFallback) {
+        assert_eq!(gate(src, dialect), Some(reason), "gate for:\n{src}");
+        let want = Analyser::new().analyse(src, dialect);
+        let got = Analyser::new().analyse_per_item(src, dialect);
+        assert_eq!(got, want, "per_item != analyse for:\n{src}");
+    }
+
+    // Tk activation gate (issue #1188).  The gate decides whether a document
+    // abandons per-body memoisation for a whole-file walk on *every keystroke*,
+    // so both directions matter: a false positive is a large, permanent
+    // latency cost, and a false negative would silently drop TK diagnostics.
+
+    #[test]
+    fn tk_gate_tp_package_require_tk_hands_off() {
+        // True positive: the plain form.
+        falls_back(
+            "package require Tk\nframe .top\n",
+            "tcl8.6",
+            PerItemFallback::TkActive,
+        );
+    }
+
+    #[test]
+    fn tk_gate_tp_exact_versioned_and_continued_forms() {
+        // Still true positives: the `-exact` flag, a version constraint, and a
+        // backslash line continuation splitting the words. None of these is
+        // special-cased here — they all fall out of the ordinary
+        // registry-driven `package require` walk, which is the point of
+        // resolving activation from command facts rather than from a byte
+        // pattern. (A byte pattern would have to enumerate them.)
+        for src in [
+            "package require -exact Tk 8.6\nframe .top\n",
+            "package require Tk 8.6\nframe .top\n",
+            "package \\\n  require \\\n  Tk\nframe .top\n",
+        ] {
+            falls_back(src, "tcl8.6", PerItemFallback::TkActive);
+        }
+    }
+
+    #[test]
+    fn tk_gate_documented_limit_qualified_package_head_does_not_activate() {
+        // `::package require Tk` is the same command as `package require Tk`
+        // in real Tcl, but the analyser's hook dispatch deliberately refuses a
+        // `::`-qualified spelling of a *bareword* global command
+        // (`resolve_analyser_hook_call`, pinned by issue #923), so no
+        // `package_requires` entry is recorded and Tk never activates.
+        //
+        // This is a pre-existing limit of the whole-file walk, not something
+        // the #1188 gate introduced: `analyse` emits no TK diagnostic for this
+        // source either, so per-item and full analysis still agree byte for
+        // byte — the only change is that the document no longer pays a full
+        // re-analysis to reach the same answer. Lifting the `::`-bareword
+        // guard would fix a real false negative here, but it widens hook
+        // dispatch for *every* stamped command, so it belongs to its own
+        // change with its own differential run.
+        fast_path("::package require Tk\nframe .top.x\n");
+    }
+
+    #[test]
+    fn tk_gate_tp_tk_dialect_short_circuits_at_entry() {
+        // The `tk` dialect is decidable before any work, so it must hand off
+        // without paying a per-item pass first.
+        falls_back("frame .top\n", "tk", PerItemFallback::TkActive);
+    }
+
+    #[test]
+    fn tk_gate_tp_require_inside_a_body_is_still_caught() {
+        // A `package require Tk` the *shell* pass cannot see: only the merged
+        // body fragments reveal it, which is why the gate is checked again
+        // after the body pass.
+        falls_back(
+            "proc setup {} { package require Tk }\nsetup\nframe .top\n",
+            "tcl8.6",
+            PerItemFallback::TkActive,
+        );
+        // …and one inside a `namespace eval`, which the shell pass *does* walk.
+        falls_back(
+            "namespace eval ::ui { package require Tk }\nframe .top\n",
+            "tcl8.6",
+            PerItemFallback::TkActive,
+        );
+    }
+
+    #[test]
+    fn tk_gate_fp_three_words_scattered_across_unrelated_commands() {
+        // The exact shape that made this gate ~78% false positives: the words
+        // `package`, `require`, and `Tk` all occur, none of them as a
+        // `package require Tk` invocation.
+        fast_path(
+            "package require Tcl 8.6\n\
+             set doc \"Tcl/Tk script text executable\"\n\
+             proc render {x} { return $x }\n",
+        );
+    }
+
+    #[test]
+    fn tk_gate_fp_comments_strings_and_regexes_mentioning_tk() {
+        fast_path("# package require Tk\nproc p {} { set x 1 }\n");
+        fast_path("set s \"package require Tk\"\nproc p {} { set x 1 }\n");
+        fast_path("regexp {package require Tk} $line\nproc p {} { set x 1 }\n");
+    }
+
+    #[test]
+    fn tk_gate_fp_package_provide_tk_and_require_tcl() {
+        // `package provide Tk` declares this file *is* (part of) Tk; it does
+        // not load Tk into this interpreter, so it must not activate. Nor may
+        // `package require Tcl`, whatever else the file mentions.
+        fast_path("package provide Tk 8.6\nproc p {} { set x 1 }\n");
+        fast_path("package require Tcl 8.6\n# Tk not required here\n");
+        // `package present Tk` is a query, not a load.
+        fast_path("if {[catch {package present Tk}]} { set headless 1 }\n");
+    }
+
+    #[test]
+    fn tk_gate_tn_dynamic_package_name_does_not_activate() {
+        // The documented conservative limit: a computed package name is
+        // recorded verbatim, so it cannot match `Tk` and the checks stay off —
+        // exactly as on the whole-file path, which `eq` pins.
+        fast_path("set p Tk\npackage require $p\nproc q {} { set x 1 }\n");
+        fast_path("package require [pkgName]\n# Tk\n");
+    }
+
+    #[test]
+    fn tk_gate_tn_renamed_package_command_does_not_activate() {
+        // `package` renamed away, then a call through the new name: not a
+        // resolvable `package require`, so no activation — and, again, the
+        // per-item result still matches the whole-file walk exactly.
+        fast_path("rename package pkg\npkg require Tk\nproc q {} { set x 1 }\n");
+    }
+
+    #[test]
+    fn tk_gate_fn_conditional_require_still_activates() {
+        // A conditional load is still a load as far as the checks are
+        // concerned (the whole-file walk records it too), so the gate must not
+        // miss it.
+        falls_back(
+            "if {$gui} { package require Tk }\nframe .top\n",
+            "tcl8.6",
+            PerItemFallback::TkActive,
+        );
+    }
+
+    // Oversized-body guard (issue #1188).  Tightening the Tk gate exposed a
+    // known scaling cliff: analysing a body in isolation costs far more than
+    // analysing the same content in place, so a generated single-body document
+    // must not be handed to the decomposition just because it is now Tk-clean.
+
+    #[test]
+    fn oversized_body_hands_off_to_the_whole_file_walk() {
+        let huge = "    set x 1\n".repeat(OVERSIZED_BODY_BYTES / 10 + 16);
+        let src = format!("proc generated {{}} {{\n{huge}}}\n");
+        assert!(
+            src.len() > OVERSIZED_BODY_BYTES,
+            "fixture must be oversized"
+        );
+        falls_back(&src, "tcl8.6", PerItemFallback::OversizedBody);
+    }
+
+    #[test]
+    fn ordinary_large_body_stays_on_the_fast_path() {
+        // Well under the threshold: a big hand-written proc keeps its
+        // memoisation. The guard exists for generated files, not large ones.
+        let body = "    set x 1\n".repeat(1000);
+        let src = format!("proc big {{}} {{\n{body}}}\nproc other {{}} {{ set y 2 }}\n");
+        assert!(src.len() < OVERSIZED_BODY_BYTES, "fixture must be ordinary");
+        fast_path(&src);
+    }
+
+    #[test]
+    fn many_small_bodies_totalling_over_the_threshold_stay_fast() {
+        // The guard is per body, not per document: a document made of many
+        // ordinary procs is exactly the case per-body memoisation pays off
+        // for, however large the file gets.
+        use std::fmt::Write as _;
+        let body = "    set x 1\n".repeat(80);
+        let mut src = String::new();
+        for i in 0..400 {
+            let _ = write!(src, "proc p{i} {{}} {{\n{body}}}\n");
+        }
+        assert!(src.len() > OVERSIZED_BODY_BYTES, "fixture must be large");
+        fast_path(&src);
     }
 
     #[test]
