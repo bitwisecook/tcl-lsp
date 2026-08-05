@@ -1009,6 +1009,91 @@ pub fn is_dynamic_word(word: &str) -> bool {
     word.contains('$') || word.contains('[')
 }
 
+/// The offset-keyed synthetic identity markers the analyser mints for
+/// constructs whose real name is a run-time fact: a dynamic
+/// `namespace eval $ns { … }` scope (`@dynns@<offset>`), a dynamic
+/// `oo::define $cls …` target (`@dynclass@<offset>`), and a path-less
+/// `interp create` (`@autoname@<offset>`).  The `<offset>` is the minting
+/// token's **absolute byte offset**, so two lexically unrelated occurrences
+/// never collide and the identity is deterministic for a given source text.
+///
+/// Kept in one place so [`rebase_synthetic_offset_names`] and every minting
+/// site agree on the exact marker spellings.
+pub const SYNTHETIC_OFFSET_MARKERS: [&str; 3] = ["@dynns@", "@dynclass@", "@autoname@"];
+
+/// Shift the `<offset>` of every embedded `@dynns@N` / `@dynclass@N` /
+/// `@autoname@N` marker in `s` by `delta`, but only for tokens `is_minted`
+/// recognises — the exact names one isolated analysis pass actually minted.
+///
+/// This is the string half of the per-item span rebase: an isolated
+/// proc-body analysis mints these names from **body-relative** offsets (so
+/// the memoised fragment stays offset-invariant), and the graft rebases them
+/// to the absolute offsets a whole-file walk would have minted.  The
+/// `is_minted` gate keeps a *literal* source name that happens to be spelled
+/// like a marker (`proc @dynns@5 {} {}` is legal Tcl) untouched unless it
+/// textually collides with a genuinely minted name — the same ambiguity the
+/// minting scheme itself already accepts.
+///
+/// Returns `None` when nothing was rewritten (the overwhelming common case),
+/// so callers can skip the reallocation.
+///
+/// ```
+/// use tcl_syntax::naming::rebase_synthetic_offset_names;
+/// let minted = |t: &str| t == "@dynns@55";
+/// assert_eq!(
+///     rebase_synthetic_offset_names("::hook::@dynns@55::x", 5340, minted).as_deref(),
+///     Some("::hook::@dynns@5395::x"),
+/// );
+/// // `@dynns@550` is a different token — the digit run is matched whole.
+/// assert_eq!(rebase_synthetic_offset_names("::@dynns@550::x", 5340, minted), None);
+/// ```
+#[must_use]
+pub fn rebase_synthetic_offset_names<F: Fn(&str) -> bool>(
+    s: &str,
+    delta: u32,
+    is_minted: F,
+) -> Option<String> {
+    let bytes = s.as_bytes();
+    let mut out: Option<String> = None;
+    // Bytes of `s` already copied into `out` (only meaningful once `out` is).
+    let mut copied = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i] != b'@' {
+            i += 1;
+            continue;
+        }
+        let Some(marker) = SYNTHETIC_OFFSET_MARKERS
+            .iter()
+            .find(|m| s[i..].starts_with(**m))
+        else {
+            i += 1;
+            continue;
+        };
+        let digits_start = i + marker.len();
+        let digits_len = bytes[digits_start..]
+            .iter()
+            .take_while(|b| b.is_ascii_digit())
+            .count();
+        let digits_end = digits_start + digits_len;
+        // The whole digit run is the offset, so `@dynns@5` can never be
+        // misread out of `@dynns@52`.
+        if let Ok(n) = s[digits_start..digits_end].parse::<u32>()
+            && is_minted(&s[i..digits_end])
+        {
+            let dst = out.get_or_insert_with(|| String::with_capacity(s.len() + 8));
+            dst.push_str(&s[copied..i]);
+            dst.push_str(marker);
+            dst.push_str(&n.saturating_add(delta).to_string());
+            copied = digits_end;
+        }
+        i = digits_end.max(i + 1);
+    }
+    let mut dst = out?;
+    dst.push_str(&s[copied..]);
+    Some(dst)
+}
+
 /// Shared command-resolution conformance vectors.
 ///
 /// One table of `(namespace, namespace path, defined commands, call,

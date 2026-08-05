@@ -169,6 +169,20 @@ pub struct DeferredBody {
     /// appearing (or disappearing) anywhere in the file re-keys exactly the
     /// bodies whose folds it could affect.
     pub command_trust: Option<std::sync::Arc<crate::command_binding::CommandTrustSnapshot>>,
+    /// The ensemble `subcommand → resolved target` maps visible to this body
+    /// — the entries of
+    /// [`super::types::AnalysisResult::ensemble_subcommand_targets`] whose
+    /// `namespace ensemble` command **precedes this body** in source order
+    /// (matching the whole-file DFS, which walks the body at its definition
+    /// point), filtered to ensembles whose tail name occurs in the body text
+    /// (so an unrelated ensemble edit re-keys no body) and canonically
+    /// sorted (outer by ensemble, inner by subcommand) so it can key
+    /// `tcl-lsp-db`'s `ItemBodyKey`.  Attached by
+    /// [`Analyser::fill_deferred_bodies`]; empty at construction.  The
+    /// isolated pass seeds its own result map from this, so an
+    /// `<ensemble> <sub> …` call inside the body records the same
+    /// existence-probed subcommand invocation the whole-file walk does.
+    pub ensemble_targets: Vec<(String, Vec<(String, String)>)>,
     /// Mirrors [`super::types::Scope::oo_defining_class`] for the isolated
     /// rebuild: the fully-qualified defining class when this is an
     /// instance-side `TclOO` method body of a statically-named class,
@@ -277,6 +291,13 @@ impl Analyser {
         // `analyse`, so the per-item path resolves file-scoped directives
         // identically (gated by the corpus `per_item == analyse` test).
         let file_env_pushed = self.seed_file_scope_env(source);
+        // Capture the shell's own user-class instance creations too: a
+        // top-level `Cls create x` may name a class defined inside a
+        // deferred body (invisible to the shell walk), so all creations —
+        // shell and body alike — replay post-graft in source order under
+        // the definition-precedes-site gate
+        // ([`Self::replay_deferred_instances`]).
+        self.pending_instances = Some(Vec::new());
         self.defer_proc_bodies = true;
         self.walk_commands_top_level(&commands, false);
         self.defer_proc_bodies = false;
@@ -408,10 +429,15 @@ impl Analyser {
                 .iter()
                 .any(|db| db.is_method && !seen.insert(db.scope_name.as_str()))
         };
+        // Checked for proc *and* method bodies alike: a `variable ns::v`
+        // (or in-body `namespace import`/`export`) inside a method body
+        // leaks into whole-file state exactly as it does from a proc body
+        // (caught by the `per_item_matches_analyse_under_edits` fuzzer).
         let enclosing_fallback = !self.probe_skip_enclosing_fallback
-            && deferred
-                .iter()
-                .any(|db| !db.is_method && body_needs_enclosing_context(&db.body_text));
+            && deferred.iter().any(|db| {
+                body_needs_enclosing_context(&db.body_text)
+                    || body_sources_dynamic_path(&db.body_text)
+            });
         if duplicate_method || enclosing_fallback {
             self.per_item_fallback = Some(if duplicate_method {
                 PerItemFallback::DuplicateMethod
@@ -441,6 +467,36 @@ impl Analyser {
                     }
                     db.command_trust.clone_from(&trust);
                 }
+            }
+        }
+        // Attach the ensemble subcommand→target maps each body can see —
+        // the entries whose `namespace ensemble` recording precedes the
+        // body in source order (whole-file DFS visibility), filtered to
+        // ensembles whose tail name occurs in the body text so an
+        // unrelated ensemble edit re-keys no body. Canonically sorted so
+        // the snapshot can key `tcl-lsp-db`'s `ItemBodyKey`.
+        if !self.result.ensemble_subcommand_targets.is_empty() {
+            let mut all: Vec<(&String, &std::collections::HashMap<String, String>)> =
+                self.result.ensemble_subcommand_targets.iter().collect();
+            all.sort_by_key(|(k, _)| *k);
+            for db in &mut deferred {
+                let body_start = db.body_tok.span.start();
+                let visible: Vec<(String, Vec<(String, String)>)> = all
+                    .iter()
+                    .filter(|(k, _)| {
+                        self.ensemble_record_offsets
+                            .get(*k)
+                            .is_some_and(|&off| off < body_start)
+                            && db.body_text.contains(crate::naming::key_tail(k))
+                    })
+                    .map(|(k, subs)| {
+                        let mut inner: Vec<(String, String)> =
+                            subs.iter().map(|(s, t)| (s.clone(), t.clone())).collect();
+                        inner.sort();
+                        ((*k).clone(), inner)
+                    })
+                    .collect();
+                db.ensemble_targets = visible;
             }
         }
         let deferred = deferred;
@@ -487,26 +543,72 @@ impl Analyser {
                 self.per_item_fallback = Some(PerItemFallback::ClassFactsCollide);
                 return Err(Box::new(self.fresh_full_analyse(source, dialect)));
             }
-            // Object-instance tracking (W308) resolves the class at the walk
-            // point.  A proc body's creations are captured and replayed by the
-            // graft against the shell's full `all_classes` (source order →
-            // last-assignment-wins matches the whole-file walk).  A *method* body
-            // would resolve against the whole file's classes rather than analyse's
-            // DFS prefix, so its instance tracking can't be replayed faithfully —
-            // snapshot when it captured a candidate (a real `Cls new` *or* a
-            // benign `dict create`) and fall back only if the replay actually
-            // recorded an instance.
-            let inst_snapshot = (db.is_method && !frag.instances.is_empty())
-                .then(|| self.result.instance_classes.clone());
             self.graft_proc_body(db, frag, &shell_var_keys);
-            if let Some(before) = inst_snapshot
-                && self.result.instance_classes != before
-            {
-                self.per_item_fallback = Some(PerItemFallback::MethodInstanceReplay);
-                return Err(Box::new(self.fresh_full_analyse(source, dialect)));
-            }
+        }
+        // Object-instance tracking (W308) resolves the class at the walk
+        // point.  Every captured creation — the shell's and each body's —
+        // replays here in source order against only the classes whose
+        // definition precedes the site, reproducing the whole-file DFS's
+        // progressive `all_classes` view.  A *method* body's TclOO instance
+        // tracking still can't be replayed faithfully (object-namespace
+        // resolution), so a method-origin replay that actually records an
+        // instance forces the fallback, as before.
+        if let Some(fallback) = self.replay_deferred_instances() {
+            self.per_item_fallback = Some(fallback);
+            return Err(Box::new(self.fresh_full_analyse(source, dialect)));
         }
         Ok(())
+    }
+
+    /// Replay every captured instance-creation site (shell pass + grafted
+    /// bodies, already merged into
+    /// [`super::state::Analyser::deferred_instance_replays`] plus the
+    /// shell's own `pending_instances`) in source order, hiding from each
+    /// replay the classes whose definition does **not** precede the site —
+    /// the exact progressive class universe the whole-file DFS resolves
+    /// against.  Returns the fallback reason when a method-origin replay
+    /// records an instance (see `fill_deferred_bodies`).
+    fn replay_deferred_instances(&mut self) -> Option<PerItemFallback> {
+        let mut sites = std::mem::take(&mut self.deferred_instance_replays);
+        if let Some(shell) = self.pending_instances.take() {
+            sites.extend(
+                shell
+                    .into_iter()
+                    .map(|(cmd, args, ns, off)| (off, false, cmd, args, ns)),
+            );
+        }
+        // Source order = the whole-file walk's recording order
+        // (last-assignment-wins therefore matches).  Offsets are command-head
+        // positions, unique per site, so the order is total.
+        sites.sort_by_key(|s| s.0);
+        for (off, from_method, cmd, args, ns) in sites {
+            // Hide not-yet-defined classes: the DFS at this site had walked
+            // exactly the defining commands positioned before it.
+            let hidden: Vec<String> = self
+                .result
+                .all_classes
+                .iter()
+                .filter(|(_, c)| c.name_span.start() >= off)
+                .map(|(k, _)| k.clone())
+                .collect();
+            let mut stash = Vec::with_capacity(hidden.len());
+            for k in hidden {
+                if let Some(v) = self.result.all_classes.remove(&k) {
+                    stash.push((k, v));
+                }
+            }
+            let before = from_method.then(|| self.result.instance_classes.clone());
+            self.record_instance_creation(&cmd, &args, &ns, off);
+            for (k, v) in stash {
+                self.result.all_classes.insert(k, v);
+            }
+            if let Some(before) = before
+                && self.result.instance_classes != before
+            {
+                return Some(PerItemFallback::MethodInstanceReplay);
+            }
+        }
+        None
     }
 
     /// Graft an isolated (offset-0) proc body's facts into `self` (the shell):
@@ -538,14 +640,30 @@ impl Analyser {
             .map_or(0, |lo| super::state::line_at_offset(lo, delta as usize));
         rebase_fragment(&mut frag, delta, line_delta);
 
+        let proc_scope = std::mem::replace(
+            &mut frag.proc_scope,
+            super::types::Scope::new(super::types::ScopeKind::Global, ""),
+        );
         if let Some(ps) = super::scope::scope_at_mut(&mut self.result.global_scope, &db.scope_path)
         {
-            merge_scope_vars(&mut ps.variables, frag.proc_scope.variables);
-            ps.procs = frag.proc_scope.procs;
-            ps.classes = frag.proc_scope.classes;
-            ps.children = frag.proc_scope.children;
+            merge_scope_vars(&mut ps.variables, proc_scope.variables);
+            ps.procs = proc_scope.procs;
+            ps.classes = proc_scope.classes;
+            ps.children = proc_scope.children;
         }
-        let r = frag.result;
+        let r = std::mem::take(&mut frag.result);
+        self.merge_fragment_result(r, shell_var_keys);
+        self.graft_fragment_pending(db, frag, delta);
+    }
+
+    /// The [`Self::graft_proc_body`] half that merges a rebased fragment's
+    /// `AnalysisResult` collections into the shell's.  Split out only to
+    /// keep each function within the line budget.
+    fn merge_fragment_result(
+        &mut self,
+        r: AnalysisResult,
+        shell_var_keys: &std::collections::HashSet<String>,
+    ) {
         self.result.all_procs.extend(r.all_procs);
         // Per qualified name, not a flat `extend`: a body that redefines a
         // proc it defines itself carries its own displaced definitions, and a
@@ -624,6 +742,19 @@ impl Analyser {
         self.result
             .namespace_overrides
             .extend(r.namespace_overrides);
+        self.result
+            .scoped_command_regions
+            .extend(r.scoped_command_regions);
+        // Per-environment union — the outer key is the scoped env's name,
+        // and a flat extend would replace one grafted body's whole
+        // sibling-name set instead of merging into it.
+        for (env, names) in r.scoped_sibling_defs {
+            self.result
+                .scoped_sibling_defs
+                .entry(env)
+                .or_default()
+                .extend(names);
+        }
         self.result.has_dynamic_providers |= r.has_dynamic_providers;
         if self.result.unknown_proc_info.is_none() {
             self.result.unknown_proc_info = r.unknown_proc_info;
@@ -635,6 +766,14 @@ impl Analyser {
                 .or_default()
                 .extend(codes);
         }
+    }
+
+    /// The [`Self::graft_proc_body`] half that re-queues the fragment's own
+    /// pending state (deferred diagnostics, arity / dispatch sites, the
+    /// analyser-side alias tables) onto the shell and replays the captured
+    /// qualified reads.  Split out only to keep each function within the
+    /// line budget.
+    fn graft_fragment_pending(&mut self, db: &DeferredBody, frag: BodyFragment, delta: u32) {
         self.ensemble_namespaces.extend(frag.ensembles);
         self.pending_arity.extend(frag.pending_arity);
         self.pending_user_call_arity
@@ -643,6 +782,17 @@ impl Analyser {
         self.pending_next_arity.extend(frag.pending_next_arity);
         self.var_command_sites.extend(frag.var_sites);
         self.cmd_command_sites.extend(frag.cmd_sites);
+        self.widget_dispatch_sites.extend(frag.widget_sites);
+        self.command_aliases.extend(frag.walk_aliases);
+        self.renamed_commands.extend(frag.walk_renames);
+        self.alias_offsets.extend(frag.walk_alias_offsets);
+        self.rename_offsets.extend(frag.walk_rename_offsets);
+        self.deleted_commands.extend(frag.walk_deleted);
+        self.pending_const_dispatches.extend(frag.const_dispatches);
+        self.pending_instance_class_sites
+            .extend(frag.instance_class_sites);
+        self.pending_var_literal_checks
+            .extend(frag.var_literal_checks);
         // Replay the body's qualified global reads against the shell's real
         // global scope (rebased to the body's position): a `$::g` read lands as
         // a reference on the enclosing `::g` exactly as a whole-file walk would.
@@ -675,12 +825,14 @@ impl Analyser {
             self.pending_w304
                 .push((tok, label, fixes, shift(diag_span, delta)));
         }
-        // Replay captured instance creations against the shell's full
-        // `all_classes` (in body/source order, so last-assignment-wins matches
-        // the whole-file walk).  `instance_classes` carries no spans, so no
-        // rebasing is needed.
-        for (cmd, args, creation_ns) in frag.instances {
-            self.record_instance_creation(&cmd, &args, &creation_ns);
+        // Queue captured instance creations (offsets already rebased to
+        // absolute) for the global post-graft replay
+        // ([`Self::replay_deferred_instances`]), tagged with whether they
+        // came from a method body (whose replay recording an instance still
+        // forces the fallback).
+        for (cmd, args, creation_ns, off) in frag.instances {
+            self.deferred_instance_replays
+                .push((off, db.is_method, cmd, args, creation_ns));
         }
     }
 
@@ -721,6 +873,13 @@ impl Analyser {
     /// [`Self::graft_proc_body`], whose doc comment covers the
     /// visibility-ordering rule (`body_start` gates out a definition that
     /// only appears *after* this body in source order).
+    /// The reference is pushed onto the enclosing cell **directly** rather
+    /// than through [`Self::record_var_read`]: the isolated body pass already
+    /// recorded the occurrence's [`super::types::QualifiedVarRef`] (merged by
+    /// the graft), so going through the full read path would record it a
+    /// second time — a duplicate the whole-file walk never produces (its
+    /// adjacent-duplicate collapse cannot catch the replay's non-adjacent
+    /// twin).
     fn replay_body_global_reads(
         &mut self,
         global_reads: Vec<(String, tcl_lexer::Span)>,
@@ -729,14 +888,18 @@ impl Analyser {
     ) {
         for (name, span) in global_reads {
             let base = crate::naming::normalise_var_name(&name);
-            let visible = self
-                .result
-                .global_scope
-                .variables
-                .get(base)
-                .is_some_and(|v| v.definition_span.start() < body_start);
-            if visible {
-                self.record_var_read(&name, shift(span, delta), &[]);
+            // `name` preserves any `arr(idx)` element the read carried.
+            let element = crate::naming::split_array_name(&name)
+                .1
+                .filter(|e| !e.is_empty())
+                .map(ToString::to_string);
+            if let Some(var) = self.result.global_scope.variables.get_mut(base)
+                && var.definition_span.start() < body_start
+            {
+                var.push_reference(shift(span, delta));
+                if let Some(e) = element {
+                    var.array_indices.insert(e);
+                }
             }
         }
     }
@@ -783,10 +946,53 @@ pub struct BodyFragment {
         Vec<super::types::CodeFix>,
         tcl_lexer::Span,
     )>,
-    /// Captured `TclOO` instance-creation candidates (`(command, args, creation
-    /// namespace)`); the graft replays them against the shell's full
-    /// `all_classes`.
-    instances: Vec<(String, Vec<String>, String)>,
+    /// Captured `TclOO` instance-creation candidates (`(command, args,
+    /// creation namespace, site offset)`); the graft queues them (offset
+    /// rebased) for the global source-ordered replay
+    /// (`Analyser::replay_deferred_instances`).
+    instances: Vec<(String, Vec<String>, String, u32)>,
+    /// The isolated pass's **analyser-side** alias / rename / deletion
+    /// tables (`Analyser::command_aliases` / `renamed_commands` /
+    /// `alias_offsets` / `rename_offsets` / `deleted_commands`) — parallel
+    /// to, and consumed separately from, the `AnalysisResult` copies the
+    /// graft already merges.  The tail's W123 resolution reads these
+    /// analyser-side maps (`live_tail_names`, `fact_live_*`), and the
+    /// whole-file walk populates them from *inside proc bodies* too (an
+    /// `interp alias` in one body suppresses W123 on a call in a sibling
+    /// body), so the per-item graft must merge them the same way.
+    walk_aliases: std::collections::HashMap<String, (String, Vec<String>)>,
+    walk_renames: std::collections::HashMap<String, String>,
+    walk_alias_offsets: std::collections::HashMap<String, u32>,
+    walk_rename_offsets: std::collections::HashMap<String, u32>,
+    walk_deleted: std::collections::HashMap<String, u32>,
+    /// `$cmd`-head dispatch sites (M7) pending settlement in the CFG/SSA
+    /// phase — the settlement runs on the shell against the whole-file
+    /// compilation unit, so an isolated body's sites are re-queued there
+    /// (spans rebased) exactly like `var_sites` / `cmd_sites`.
+    const_dispatches: Vec<super::state::ConstDispatchSite>,
+    /// `$class`-headed instance-creation sites (issue #923 idx 121), same
+    /// settle-late discipline as `const_dispatches`.
+    instance_class_sites: Vec<super::state::PendingInstanceClassSite>,
+    /// Buffered widget/instance dispatch sites (`.w sub …` / `$w sub …`)
+    /// whose head no registry command resolved — whole-file state
+    /// (`instance_classes` is only complete post-graft), so like every
+    /// other deferred check they are re-queued on the shell and flushed by
+    /// the tail's `flush_widget_dispatch_diagnostics`.
+    widget_sites: Vec<super::diagnostics::widget_command::WidgetDispatchSite>,
+    /// Deferred W103 / W300 dynamic-argument sites — their `$var`
+    /// classification needs the whole-file most-recent-literal-`set`
+    /// resolution (see
+    /// [`super::state::Analyser::pending_var_literal_checks`]).
+    var_literal_checks: Vec<(tcl_core_types::DiagCode, String, Token)>,
+    /// Every offset-keyed synthetic identity the isolated pass minted
+    /// (`@dynns@<off>` / `@dynclass@<off>` / `@autoname@<off>`), with
+    /// **body-relative** offsets — the whole fragment is body-relative, so
+    /// the memo stays offset-invariant.  [`rebase_fragment`] uses this set
+    /// to shift exactly these names (wherever they are embedded — scope
+    /// names, map keys, qualified names, resolution candidates) to the
+    /// absolute offsets the whole-file walk mints, and never a look-alike
+    /// literal from the source.
+    minted_synthetics: std::collections::HashSet<String>,
 }
 
 /// Analyse one `proc` **or method** body as an isolated unit at **offset 0** — a
@@ -832,6 +1038,18 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     // Capture qualified (`::`/`static::`) reads that miss the (empty) enclosing
     // global scope, so the graft can replay them on the shell's real globals.
     a.capture_global_reads = Some(Vec::new());
+    // Seed the ensemble subcommand→target maps visible to this body (the
+    // shell attached exactly the whole-file-DFS-visible, body-relevant
+    // slice — see `DeferredBody::ensemble_targets`), so an
+    // `<ensemble> <sub> …` call inside the body records the same
+    // existence-probed subcommand invocation the whole-file walk does.
+    for (ensemble, subs) in &db.ensemble_targets {
+        a.result
+            .ensemble_subcommand_targets
+            .entry(ensemble.clone())
+            .or_default()
+            .extend(subs.iter().cloned());
+    }
     // Capture object-instance creations: the isolated body's `all_classes` is
     // empty, so the class can't be resolved here — the graft replays them.
     a.pending_instances = Some(Vec::new());
@@ -873,7 +1091,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     // `braced` reachability heuristic — so suppress W215 across the rebind to
     // avoid a spurious duplicate. The body walk below re-enables it so genuine
     // in-body declarations are still checked.
-    a.suppress_w215 = true;
+    a.structural_rebind = true;
     for p in &db.params {
         a.define_var(&p.name, dummy, &proc_path, false, Some(placeholder));
     }
@@ -890,7 +1108,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         // `placeholder` here is discarded for this shell-owned key.
         a.define_var(base, dummy, &proc_path, false, Some(placeholder));
     }
-    a.suppress_w215 = false;
+    a.structural_rebind = false;
     // Restore the enclosing safe-interpreter visibility context (issue #1001
     // follow-up) so a hidden call inside this body — reached only via
     // incremental analysis's isolated second pass — still hits
@@ -924,6 +1142,16 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         private_ns_calls: a.pending_w143,
         w304: a.pending_w304,
         instances: a.pending_instances.unwrap_or_default(),
+        walk_aliases: a.command_aliases,
+        walk_renames: a.renamed_commands,
+        walk_alias_offsets: a.alias_offsets,
+        walk_rename_offsets: a.rename_offsets,
+        walk_deleted: a.deleted_commands,
+        const_dispatches: a.pending_const_dispatches,
+        instance_class_sites: a.pending_instance_class_sites,
+        widget_sites: a.widget_dispatch_sites,
+        var_literal_checks: a.pending_var_literal_checks,
+        minted_synthetics: a.minted_synthetic_names,
     }
 }
 
@@ -1064,6 +1292,7 @@ fn rebase_scope(s: &mut super::types::Scope, d: u32) {
 /// (`d` bytes; suppressed-line keys by `line_delta` lines).  E2 (offset-shift
 /// invariance) guarantees this reproduces an in-place walk exactly.
 fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
+    rebase_fragment_synthetic_names(frag, d);
     rebase_scope(&mut frag.proc_scope, d);
     let r = &mut frag.result;
     for p in r.all_procs.values_mut() {
@@ -1135,6 +1364,9 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     for (span, _) in &mut r.namespace_overrides {
         *span = shift(*span, d);
     }
+    for region in &mut r.scoped_command_regions {
+        region.span = shift(region.span, d);
+    }
     if !r.suppressed_lines.is_empty() {
         let old = std::mem::take(&mut r.suppressed_lines);
         for (line, codes) in old {
@@ -1143,6 +1375,254 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
         }
     }
     rebase_fragment_pending(frag, d);
+}
+
+/// The string half of the fragment rebase: shift the `<offset>` of every
+/// synthetic identity the isolated pass minted (`@dynns@<off>` /
+/// `@dynclass@<off>` / `@autoname@<off>`, all body-relative) to the absolute
+/// offset the whole-file walk mints for the same construct — wherever the
+/// name is embedded: scope names, map keys, qualified names,
+/// `resolution_candidates`, alias targets, call-site namespaces.
+///
+/// Gated on [`BodyFragment::minted_synthetics`] so only names this pass
+/// actually minted are rewritten; a literal source name that merely looks
+/// like a marker survives untouched (see
+/// [`crate::naming::rebase_synthetic_offset_names`]).  Diagnostic *messages*
+/// are deliberately not rewritten: no emitter interpolates a synthetic
+/// identity into its message text (the corpus differential gate would catch
+/// one that started to).
+fn rebase_fragment_synthetic_names(frag: &mut BodyFragment, d: u32) {
+    if frag.minted_synthetics.is_empty() {
+        return;
+    }
+    let minted = std::mem::take(&mut frag.minted_synthetics);
+    let fix = |s: &mut String| {
+        if let Some(new) =
+            crate::naming::rebase_synthetic_offset_names(s, d, |t| minted.contains(t))
+        {
+            *s = new;
+        }
+    };
+    rebase_scope_names(&mut frag.proc_scope, &fix);
+    rebase_result_names(&mut frag.result, &fix);
+    rebase_pending_names(frag, &fix);
+    // Publish the rebased spellings back, so the set can never leak a stale
+    // body-relative name to a later consumer.
+    frag.minted_synthetics = minted
+        .iter()
+        .map(|n| {
+            crate::naming::rebase_synthetic_offset_names(n, d, |t| minted.contains(t))
+                .unwrap_or_else(|| n.clone())
+        })
+        .collect();
+}
+
+/// Re-key a `String`-keyed map through `fix` (map keys can embed synthetic
+/// names — `"::tool::@dynclass@656"`, `"@dynns@1191::state"`).
+fn fix_string_keys<V>(map: &mut std::collections::HashMap<String, V>, fix: &impl Fn(&mut String)) {
+    if map.is_empty() {
+        return;
+    }
+    let entries: Vec<(String, V)> = map.drain().collect();
+    for (mut k, v) in entries {
+        fix(&mut k);
+        map.insert(k, v);
+    }
+}
+
+/// Re-map a `String` set through `fix`.
+fn fix_string_set(set: &mut std::collections::HashSet<String>, fix: &impl Fn(&mut String)) {
+    if set.is_empty() {
+        return;
+    }
+    *set = set
+        .drain()
+        .map(|mut s| {
+            fix(&mut s);
+            s
+        })
+        .collect();
+}
+
+fn fix_proc_names(p: &mut super::types::ProcDef, fix: &impl Fn(&mut String)) {
+    fix(&mut p.name);
+    fix(&mut p.qualified_name);
+}
+
+fn fix_class_names(c: &mut super::types::ClassDef, fix: &impl Fn(&mut String)) {
+    fix(&mut c.name);
+    fix(&mut c.qualified_name);
+    fix(&mut c.metaclass);
+    for s in &mut c.superclasses {
+        fix(s);
+    }
+    for m in &mut c.mixins {
+        fix(m);
+    }
+}
+
+fn fix_var_names(v: &mut super::types::VarDef, fix: &impl Fn(&mut String)) {
+    fix(&mut v.name);
+    if let Some(lt) = &mut v.link_target {
+        fix(lt);
+    }
+}
+
+/// [`rebase_fragment_synthetic_names`] over the fragment's scope tree.
+fn rebase_scope_names(s: &mut super::types::Scope, fix: &impl Fn(&mut String)) {
+    fix(&mut s.name);
+    fix_string_keys(&mut s.variables, fix);
+    for v in s.variables.values_mut() {
+        fix_var_names(v, fix);
+    }
+    fix_string_keys(&mut s.procs, fix);
+    for p in s.procs.values_mut() {
+        fix_proc_names(p, fix);
+    }
+    fix_string_keys(&mut s.classes, fix);
+    for c in s.classes.values_mut() {
+        fix_class_names(c, fix);
+    }
+    for sym in &mut s.defined_symbols {
+        fix(&mut sym.name);
+        fix(&mut sym.qualified_name);
+    }
+    if let Some(cls) = &mut s.oo_defining_class {
+        fix(cls);
+    }
+    for ch in &mut s.children {
+        rebase_scope_names(ch, fix);
+    }
+}
+
+/// [`rebase_fragment_synthetic_names`] over the fragment's `AnalysisResult`
+/// fields the graft merges into the shell.
+fn rebase_result_names(r: &mut AnalysisResult, fix: &impl Fn(&mut String)) {
+    fix_string_keys(&mut r.all_procs, fix);
+    for p in r.all_procs.values_mut() {
+        fix_proc_names(p, fix);
+    }
+    fix_string_keys(&mut r.superseded_procs, fix);
+    for defs in r.superseded_procs.values_mut() {
+        for p in defs.iter_mut() {
+            fix_proc_names(p, fix);
+        }
+    }
+    fix_string_keys(&mut r.all_classes, fix);
+    for c in r.all_classes.values_mut() {
+        fix_class_names(c, fix);
+    }
+    fix_string_keys(&mut r.all_variables, fix);
+    for v in r.all_variables.values_mut() {
+        fix_var_names(v, fix);
+    }
+    for (name, _) in &mut r.proc_declaration_sites {
+        fix(name);
+    }
+    for (name, _) in &mut r.class_body_spans {
+        fix(name);
+    }
+    for sym in &mut r.all_defined_symbols {
+        fix(&mut sym.name);
+        fix(&mut sym.qualified_name);
+    }
+    for inv in &mut r.command_invocations {
+        if let Some(q) = &mut inv.resolved_qualified_name {
+            fix(q);
+        }
+        for cand in &mut inv.resolution_candidates {
+            fix(cand);
+        }
+    }
+    fix_string_keys(&mut r.command_aliases, fix);
+    for a in r.command_aliases.values_mut() {
+        fix(&mut a.qualified_name);
+        fix(&mut a.target);
+    }
+    fix_string_keys(&mut r.alias_offsets, fix);
+    fix_string_keys(&mut r.renamed_commands, fix);
+    for target in r.renamed_commands.values_mut() {
+        fix(target);
+    }
+    fix_string_keys(&mut r.rename_offsets, fix);
+    fix_string_keys(&mut r.ensemble_subcommand_targets, fix);
+    for subs in r.ensemble_subcommand_targets.values_mut() {
+        for target in subs.values_mut() {
+            fix(target);
+        }
+    }
+    for imp in &mut r.namespace_imports {
+        fix(&mut imp.ns);
+        fix(&mut imp.pattern);
+    }
+    for exp in &mut r.namespace_exports {
+        fix(&mut exp.ns);
+        fix(&mut exp.pattern);
+    }
+    for (_, ns) in &mut r.namespace_overrides {
+        fix(ns);
+    }
+    for qref in &mut r.qualified_var_refs {
+        fix(&mut qref.qualified_name);
+    }
+    for nref in &mut r.namespace_refs {
+        fix(&mut nref.qualified_name);
+    }
+    fix_string_keys(&mut r.instance_classes, fix);
+    for cls in r.instance_classes.values_mut() {
+        fix(cls);
+    }
+    fix_string_set(&mut r.created_instance_commands, fix);
+    fix_string_set(&mut r.ambiguous_instance_names, fix);
+    fix_string_keys(&mut r.object_methods, fix);
+}
+
+/// [`rebase_fragment_synthetic_names`] over the fragment's pending state —
+/// the call-site namespaces and qualified targets the tail resolves against
+/// the merged (absolute-named) maps.
+fn rebase_pending_names(frag: &mut BodyFragment, fix: &impl Fn(&mut String)) {
+    fix_string_set(&mut frag.ensembles, fix);
+    for (_, ns, _, _) in &mut frag.pending_arity {
+        fix(ns);
+    }
+    for (_, ns, _, _) in &mut frag.disabled_commands {
+        fix(ns);
+    }
+    for (_, ns, _, _) in &mut frag.private_ns_calls {
+        fix(ns);
+    }
+    for cand in &mut frag.pending_user_call_arity {
+        fix(&mut cand.cmd_name);
+        fix(&mut cand.ns);
+    }
+    for cand in &mut frag.pending_ctor_arity {
+        fix(&mut cand.class_name);
+        fix(&mut cand.ns);
+    }
+    for cand in &mut frag.pending_next_arity {
+        fix(&mut cand.class_qualified);
+        if let Some(t) = &mut cand.target_class {
+            fix(t);
+        }
+        fix(&mut cand.ns);
+    }
+    for (_, _, creation_ns, _) in &mut frag.instances {
+        fix(creation_ns);
+    }
+    for site in &mut frag.const_dispatches {
+        fix(&mut site.ns);
+    }
+    fix_string_keys(&mut frag.walk_aliases, fix);
+    for (target, _) in frag.walk_aliases.values_mut() {
+        fix(target);
+    }
+    fix_string_keys(&mut frag.walk_renames, fix);
+    for target in frag.walk_renames.values_mut() {
+        fix(target);
+    }
+    fix_string_keys(&mut frag.walk_alias_offsets, fix);
+    fix_string_keys(&mut frag.walk_rename_offsets, fix);
+    fix_string_keys(&mut frag.walk_deleted, fix);
 }
 
 /// The [`rebase_fragment`] half that shifts the fragment's own *pending*
@@ -1175,6 +1655,31 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     }
     for s in &mut frag.cmd_sites {
         s.cmd_span = shift(s.cmd_span, d);
+    }
+    for s in &mut frag.widget_sites {
+        s.subcommand_span = shift(s.subcommand_span, d);
+        s.cmd_span = shift(s.cmd_span, d);
+    }
+    for s in &mut frag.const_dispatches {
+        s.span = shift(s.span, d);
+    }
+    for s in &mut frag.instance_class_sites {
+        s.span = shift(s.span, d);
+    }
+    for (_, _, tok) in &mut frag.var_literal_checks {
+        tok.span = shift(tok.span, d);
+    }
+    for (_, _, _, off) in &mut frag.instances {
+        *off += d;
+    }
+    for off in frag.walk_alias_offsets.values_mut() {
+        *off += d;
+    }
+    for off in frag.walk_rename_offsets.values_mut() {
+        *off += d;
+    }
+    for off in frag.walk_deleted.values_mut() {
+        *off += d;
     }
 }
 
@@ -1240,6 +1745,28 @@ pub(crate) fn reconstruct_proc_scope(
 /// Line-scoped so it doesn't trip on a plain `variable x` whose body merely also
 /// mentions a `::`-qualified name elsewhere (which would needlessly defeat the
 /// fast path on large files like `practcl.tcl`).
+/// Does the body `source` a `$var` path?  `handle_source_command` resolves
+/// such a path through the walk-time constant-string lattice, whose scope
+/// chain reaches the *enclosing* scopes on the whole-file walk (`set p
+/// "e.tcl"` at top level, `source $p` inside a proc — issue #923 idx 46's
+/// corpus idiom).  An isolated body has no enclosing chain, so the resolved
+/// `source_targets` entry (`raw_path` / `is_literal`) would diverge; fall
+/// back to a full rebuild instead.  A path word containing `[` stays
+/// conservatively dynamic on **both** walks (`resolve_dynamic_word` rejects
+/// command substitution outright), so only a `$`-bearing, bracket-free word
+/// forces the fallback.  Checked for proc *and* method bodies alike.
+fn body_sources_dynamic_path(body_text: &str) -> bool {
+    for line in body_text.lines() {
+        let mut words = line.split_whitespace();
+        while let Some(w) = words.next() {
+            if w == "source" && words.clone().any(|a| a.contains('$') && !a.contains('[')) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 fn body_needs_enclosing_context(body_text: &str) -> bool {
     for line in body_text.lines() {
         let mut words = line.split_whitespace();
@@ -1520,6 +2047,149 @@ mod tests {
         // Lazy-init: the inner `proc p` redefines the outer; nested-redefinition
         // detection forces a fallback so the result matches a whole-file walk.
         eq("proc p {a} { proc p {a} { return $a }\n p $a }\n");
+    }
+
+    // Issue #1123 — offset-carrying synthetic identities must be
+    // rebase-stable: the isolated body pass mints them from body-relative
+    // offsets (keeping the memo offset-invariant) and the graft rebases
+    // them to the absolute offsets the whole-file walk mints.  Each shape
+    // below diverged before the fix (`@dynns@`/`@dynclass@`/`@autoname@`
+    // keys and every string embedding them).
+
+    #[test]
+    fn dynamic_namespace_eval_in_body_rebases_dynns_identity() {
+        // `namespace eval $n` inside a proc body: the synthetic scope name,
+        // its `all_variables` keys, and the procs defined under it must all
+        // carry the whole-file offset.
+        eq(
+            "proc mk {n} {\n    namespace eval $n {\n        variable state\n        proc go {} { return 1 }\n    }\n}\n",
+        );
+        // Two occurrences writing the same variable name stay distinct.
+        eq(
+            "proc a {n} { namespace eval $n { variable x } }\nproc b {n} { namespace eval $n { variable x } }\n",
+        );
+    }
+
+    #[test]
+    fn dynamic_oo_define_in_body_rebases_dynclass_identity() {
+        eq("proc ext {cls} {\n    oo::define $cls method poke {} { return 1 }\n}\n");
+    }
+
+    #[test]
+    fn pathless_interp_create_in_body_rebases_autoname_identity() {
+        // `set VAR [interp create -safe]` with no path mints
+        // `@autoname@<offset>`, which then appears inside
+        // `@interp@@autoname@…`-qualified keys (procs defined via the
+        // handle) and `resolution_candidates` strings.
+        eq(
+            "proc spawn {} {\n    set i [interp create -safe]\n    interp eval $i { proc inner {} { return 1 } }\n}\n",
+        );
+    }
+
+    #[test]
+    fn literal_name_spelled_like_marker_is_not_rebased() {
+        // A source-literal proc named like a minted marker must survive
+        // untouched (the minted-set gate) — and stay byte-identical.
+        eq("proc @dynns@5 {} { return 1 }\nproc user {} { @dynns@5 }\n");
+    }
+
+    // Issue #1123 — instance-creation visibility must follow the
+    // whole-file DFS: a creation site resolves against exactly the classes
+    // whose definition precedes it in source order, whether the site or the
+    // class definition sits at top level or inside a body.
+
+    #[test]
+    fn instance_creation_before_class_definition_stays_unresolved() {
+        // The class is defined *after* the proc: the whole-file walk has no
+        // `Dog` when it walks the body, so no instance may be recorded
+        // (tcllib `halfpipe.tcl` / `fifo2.tcl` shape).
+        eq("proc make {} { set d [Dog new] }\noo::class create Dog {}\n");
+    }
+
+    #[test]
+    fn top_level_creation_sees_class_defined_in_earlier_body() {
+        // The class is defined inside an earlier proc body; the top-level
+        // creation site resolves it in a whole-file walk (the body was
+        // walked at the proc's definition point) — the shell pass alone
+        // cannot see it, so the per-item path replays post-graft
+        // (tcllib `oodialect.tcl` shape).
+        eq("proc def {} { oo::class create ::K {} }\n::K create inst\ninst poke\n");
+    }
+
+    // Issue #1123 — whole-file-fact diagnostics reached from inside a body.
+
+    #[test]
+    fn w103_dynamic_open_in_body_matches() {
+        // TP parity: the variable is set only inside the body — the
+        // whole-file truncated-prefix scan cannot segment it (unclosed
+        // `proc`), so both paths must classify the `$var` as dynamic
+        // (tcl 8.4 `ldAout.tcl` shape).
+        eq("proc p {} {\n    set c {|nm -g}\n    set f [open $c r]\n    close $f\n}\n");
+        // FP parity: a top-level literal `set` resolves for a body use on
+        // the whole-file path — the deferred per-item classification must
+        // reach the same (pipeline Hint) answer.
+        eq("set c {|nm -g}\nproc p {} { set f [open $c r]; close $f }\n");
+        // TN parity: a benign literal filename stays silent on both paths.
+        eq("set c ./data.txt\nproc p {} { set f [open $c r]; close $f }\n");
+    }
+
+    #[test]
+    fn w300_dynamic_source_in_body_matches() {
+        eq("proc p {} { set s lib.tcl; source $s }\n");
+        eq("set s lib.tcl\nproc p {} { source $s }\n");
+    }
+
+    #[test]
+    fn widget_dispatch_sites_inside_bodies_match() {
+        // Registry object-factory instance + dispatch, both inside a body,
+        // and an instance created at top level dispatched inside a body —
+        // the W001 unknown-subcommand check needs the buffered sites from
+        // the isolated pass (tcllib `bench_wtext.tcl` / `graphops.tcl`
+        // shape).
+        eq("proc go {} {\n    struct::graph g\n    g bogus_subcommand 1\n}\n");
+        eq("struct::graph g\nproc go {} { g bogus_subcommand 1 }\n");
+    }
+
+    #[test]
+    fn ensemble_subcommand_call_inside_body_matches() {
+        // The ensemble map is declared at top level; a body's
+        // `<ensemble> <sub> …` call must record the same existence-probed
+        // subcommand invocation the whole-file walk does (tcl `tm.tcl`
+        // shape).
+        eq(
+            "namespace eval ::tm {\n    proc add {p} { return $p }\n}\nnamespace ensemble create -command ::tm::path -map {add ::tm::add}\nproc use {} { ::tm::path add x }\n",
+        );
+    }
+
+    #[test]
+    fn in_body_interp_alias_feeds_w123_of_sibling_body() {
+        // The whole-file walk records an `interp alias` buried in one proc
+        // body, and that suppresses W123 (or feeds its "did you mean…?")
+        // for a call in a sibling body (tcllib `list.test.tcl` shape).
+        eq(
+            "proc setup {} { interp alias {} shorten {} ::string range }\nproc use {} { shorten abcdef 0 2 }\n",
+        );
+    }
+
+    #[test]
+    fn const_dispatch_sites_inside_bodies_match() {
+        // `$fn` dispatch whose contributors are branch constants — settled
+        // in the CFG/SSA phase on the whole-file unit, so the isolated
+        // body's pending sites must be re-queued (tcllib `otp.tcl` /
+        // `cfront.tcl` shape).
+        eq(
+            "proc f {} { return 1 }\nproc dispatch {k} {\n    switch -exact -- $k {\n        a { set fn ::f }\n        b { set fn ::f }\n    }\n    $fn\n}\n",
+        );
+    }
+
+    #[test]
+    fn qualified_param_name_records_one_occurrence_not_two() {
+        // A parameter literally named with a `::` qualifier (degenerate but
+        // legal): the shell walk records its qualified occurrence once; the
+        // isolated pass's structural rebind must not add a second, phantom
+        // zero-width one (caught by the edit fuzzer on `util_flow.tcl`).
+        eq("proc f {a ns::v} { set a 1 }\n");
+        eq("oo::class create K { method m {x ns::v} { set x 1 } }\n");
     }
 
     #[test]

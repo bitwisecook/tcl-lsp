@@ -134,6 +134,44 @@ fn per_item_matches_analyse_over_corpus() {
     );
 }
 
+/// CI-runnable slice of the byte-identity gate (issue #1123): the corpus
+/// gates in this file are `#[ignore]`d (they need the fetched `tmp/` trees),
+/// which let the contract rot unnoticed for months.  This one walks the
+/// repo's **own** `samples/**/*.tcl` — checked in, deterministic, always
+/// present — so every ordinary `cargo test` run re-proves `analyse_per_item
+/// == analyse` over real files, not just the unit fixtures.
+#[test]
+fn per_item_matches_analyse_over_repo_samples() {
+    let dialect = "tcl8.6";
+    let mut files = Vec::new();
+    gather(&repo_root().join("samples"), &mut files, 500);
+    files.sort();
+    assert!(
+        files.len() >= 50,
+        "expected the checked-in samples corpus; found {} files",
+        files.len()
+    );
+    let mut mismatches = Vec::new();
+    for path in &files {
+        let Ok(src) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        let want = Analyser::new().analyse(&src, dialect);
+        let got = Analyser::new().analyse_per_item(&src, dialect);
+        if got != want {
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            mismatches.push(describe_analysis_divergence(&name, &got, &want));
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "analyse_per_item != analyse in {} / {} sample files:\n{}",
+        mismatches.len(),
+        files.len(),
+        mismatches.join("\n")
+    );
+}
+
 // Tiny deterministic xorshift PRNG so failures reproduce from the seed.
 struct Rng(u64);
 impl Rng {

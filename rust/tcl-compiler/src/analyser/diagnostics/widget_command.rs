@@ -71,7 +71,7 @@ fn is_universal_widget_subcommand(word: &str) -> bool {
 /// One buffered `.w <subcommand> …` / `$w <subcommand> …` dispatch site
 /// whose head the ordinary registry-command resolution could not resolve —
 /// recorded so it can be re-checked once `instance_classes` is complete.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WidgetDispatchSite {
     /// The receiver text as written: a bareword widget path (`.t`, no
     /// leading `$`) or a `$var` reference (`w`, `$`/`${}` already

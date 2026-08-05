@@ -1029,15 +1029,31 @@ pub struct ItemBodyKey<'db> {
         Arc<tcl_compiler::command_binding::CommandTrustSnapshot>,
         Option<String>,
     )>,
-    /// Snapshot of the enclosing safe-interpreter visibility context (issue
-    /// #1001 follow-up) — mirrors [`tcl_compiler::analyser::per_item::DeferredBody::safe_interp_ctx`]
-    /// exactly (same flattened, sorted-`Vec` shape, for the same reason: a
-    /// live `HashSet`-based `SafeInterpCtx` isn't `Hash` and can't key an
-    /// interned salsa struct). Part of the cache key so a proc/apply body
-    /// that moves in or out of a tracked safe interpreter between edits gets
-    /// re-analysed rather than serving a stale cached `W129` verdict.
+    /// The body's enclosing-environment snapshot, two halves in one field
+    /// (salsa interns the field tuple, whose `Hash` impl caps at 12
+    /// elements):
+    ///
+    /// - `.0` — the ensemble `subcommand → target` maps visible to this
+    ///   body, mirroring
+    ///   [`tcl_compiler::analyser::per_item::DeferredBody::ensemble_targets`]
+    ///   (already canonically sorted and filtered to ensembles the body
+    ///   mentions, so an unrelated ensemble edit re-keys no body). Part of
+    ///   the key so an `<ensemble> <sub> …` call inside the body
+    ///   re-analyses when the mapping it resolves through changes.
+    /// - `.1` — the enclosing safe-interpreter visibility context (issue
+    ///   #1001 follow-up), mirroring
+    ///   [`tcl_compiler::analyser::per_item::DeferredBody::safe_interp_ctx`]
+    ///   exactly (same flattened, sorted-`Vec` shape, for the same reason:
+    ///   a live `HashSet`-based `SafeInterpCtx` isn't `Hash` and can't key
+    ///   an interned salsa struct). Part of the cache key so a proc/apply
+    ///   body that moves in or out of a tracked safe interpreter between
+    ///   edits gets re-analysed rather than serving a stale cached `W129`
+    ///   verdict.
     #[returns(ref)]
-    pub safe_interp_ctx: Option<(bool, Vec<String>, Vec<String>)>,
+    pub body_env: (
+        Vec<(String, Vec<(String, String)>)>,
+        Option<(bool, Vec<String>, Vec<String>)>,
+    ),
     #[returns(ref)]
     pub dialect: String,
     #[returns(ref)]
@@ -1070,7 +1086,8 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
         class_variables: key.class_variables(db).clone(),
         command_trust,
         oo_defining_class,
-        safe_interp_ctx: key.safe_interp_ctx(db).clone(),
+        ensemble_targets: key.body_env(db).0.clone(),
+        safe_interp_ctx: key.body_env(db).1.clone(),
     };
     let disabled: HashSet<String> = key.disabled(db).iter().cloned().collect();
     let overlay = tcl_compiler::analyser::types::build_stub_overlay(&[]);
@@ -2551,7 +2568,7 @@ pub fn file_analysis_incremental(
             body.command_trust
                 .clone()
                 .map(|trust| (trust, body.oo_defining_class.clone())),
-            body.safe_interp_ctx.clone(),
+            (body.ensemble_targets.clone(), body.safe_interp_ctx.clone()),
             dialect.clone(),
             disabled_vec.clone(),
             non_ascii,
@@ -3035,7 +3052,7 @@ mod tests {
                 false,
                 Vec::new(),
                 None,
-                None,
+                (Vec::new(), None),
                 "tcl8.6".to_owned(),
                 Vec::new(),
                 NonAsciiMode::Default,
@@ -3058,7 +3075,7 @@ mod tests {
             false,
             Vec::new(),
             None,
-            None,
+            (Vec::new(), None),
             "tcl8.6".to_owned(),
             Vec::new(),
             NonAsciiMode::Default,

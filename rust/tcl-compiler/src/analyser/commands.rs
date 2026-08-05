@@ -805,7 +805,7 @@ impl Analyser {
             // ``$v method`` / ``inst method`` call sites to the
             // object's class.
             let creation_ns = self.command_resolution_namespace(scope_path);
-            self.record_instance_creation(cmd_name, args, &creation_ns);
+            self.record_instance_creation(cmd_name, args, &creation_ns, cmd_tok.span.start());
 
             // When the constructor's class head is a `$var` reference
             // instead of a literal bareword, defer to the flow-sensitive
@@ -3119,11 +3119,21 @@ impl Analyser {
     /// excluded because `oo::class` isn't a user class).
     /// Best-effort and not flow-sensitive: the last assignment
     /// to a given name wins.
+    ///
+    /// `site_offset` is the creation site's own source offset (the command
+    /// head token).  The whole-file walk resolves against `all_classes` *as
+    /// populated so far*, which is exactly "classes whose defining command
+    /// precedes this site" — the per-item path captures the site (both in
+    /// the shell pass and in isolated bodies) and replays it after the
+    /// graft under an explicit `definition offset < site_offset` gate, so
+    /// both paths see the identical class universe
+    /// ([`Analyser::replay_deferred_instances`]).
     pub(crate) fn record_instance_creation(
         &mut self,
         cmd_name: &str,
         args: &[String],
         creation_ns: &str,
+        site_offset: u32,
     ) {
         // Registry `defines_command_at` — a spec-declared argument whose
         // literal value becomes a callable command name (`coroutine NAME cmd
@@ -3151,7 +3161,12 @@ impl Analyser {
             let shape_b = args.len() >= 2 && args[0] == "create";
             // A registry factory already bound above needs no user-class replay.
             if (shape_a || shape_b) && !bound_registry_factory {
-                pending.push((cmd_name.to_owned(), args.to_vec(), creation_ns.to_owned()));
+                pending.push((
+                    cmd_name.to_owned(),
+                    args.to_vec(),
+                    creation_ns.to_owned(),
+                    site_offset,
+                ));
             }
             return;
         }
