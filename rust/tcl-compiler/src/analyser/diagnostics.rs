@@ -550,13 +550,16 @@ impl Analyser {
             // existing cross-function-global mechanism above
             // (`globals_written` / `cross_event_imports`), just
             // object-instance-scoped instead of interpreter-global-scoped.
-            let known_bound: HashSet<String> = method_ir.map_or_else(HashSet::new, |m| {
-                m.instance_vars
-                    .iter()
-                    .chain(m.params.iter())
-                    .cloned()
-                    .collect()
-            });
+            //
+            // The set is read off the unit's own `method_facts` — the one
+            // carrier `build_for_method` fills — rather than rebuilt from
+            // the IR here, so this family and the existence fold (I230 /
+            // O100 / O101) cannot source the same fact from different maps
+            // (issue #1174; that divergence shape was issue #1129).
+            let known_bound: HashSet<String> = fu.method_facts.as_deref().map_or_else(
+                HashSet::new,
+                crate::compilation_unit::MethodBodyFacts::known_bound_at_entry,
+            );
             let mut cross_event_vars = known_bound.clone();
             cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
                 &fu.cfg,

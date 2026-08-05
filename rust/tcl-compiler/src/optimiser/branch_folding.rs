@@ -477,6 +477,7 @@ mod tests {
             dynamic_names: crate::dynamic_names::DynamicNameBarrier::default(),
             complexity_guarded: false,
             base_offset: 0,
+            method_facts: None,
         }
     }
 
