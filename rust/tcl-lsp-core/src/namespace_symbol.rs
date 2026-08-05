@@ -1018,16 +1018,17 @@ mod tests {
     }
 
     #[test]
-    fn tn_a_braced_path_word_that_looks_dynamic_is_still_skipped() {
-        // TN / documented limit — braces suppress substitution, so tclsh
-        // reads `$ns` here as a *literal* namespace name.  The handler's
-        // whole-word dynamic gate predates the element split and skips the
-        // command outright; recording nothing is a miss, never a wrong span.
-        let src = "namespace path {$ns ::a}\n";
+    fn tp_a_braced_path_word_that_looks_dynamic_is_still_split() {
+        // TP — braces suppress substitution, so tclsh reads `$ns` here as a
+        // *literal* namespace name (verified on 8.6.14).  The whole-word
+        // dynamic gate used to read the de-braced text and skip the command
+        // outright (issue #1245); it now consults the token kind, so the
+        // elements are recorded at their own spans.
+        let src = "namespace eval ::a {}\nnamespace path {$ns ::a}\n";
         let analysis = analyse(src);
         assert!(
-            analysis.namespace_refs.is_empty(),
-            "{:?}",
+            !namespace_reference_spans(&analysis, "::a").is_empty(),
+            "a braced path word's literal elements are recorded: {:?}",
             analysis.namespace_refs,
         );
     }
