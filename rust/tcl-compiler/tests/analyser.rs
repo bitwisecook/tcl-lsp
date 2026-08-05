@@ -5395,3 +5395,202 @@ mod leading_bom {
         );
     }
 }
+
+// ===========================================================================
+// A TclOO member body's implicit `namespace path` — issue #1137 idx 51.
+//
+// tclsh 8.6.16 and 9.0.4, inside `oo::class create C { method m {} { … } }`:
+//     namespace current -> ::oo::ObjN        namespace path -> ::oo::Helpers
+// so a bare word is looked up in the object namespace, then `::oo::Helpers`,
+// then global. The documented "TclOO Tricks" idiom installs helpers directly
+// (`proc ::oo::Helpers::callback {…} {…}`) and calls them bare from method
+// bodies — which is what nico-robert/ticklecharts does, with the helper in
+// `utils.tcl` and the calls in `esnap.tcl`.
+//
+// The candidate list is where that path belongs: `resolve_workspace_symbols`
+// (the one cross-file resolver) walks it, so recording it once here fixes
+// definition, references, rename, call hierarchy, and W123 together, across
+// files, instead of each consumer growing its own lenient fallback.
+// ===========================================================================
+mod oo_helpers_namespace_path {
+    use super::Analyser;
+
+    fn candidates_for(src: &str, dialect: &str, name: &str) -> Vec<String> {
+        Analyser::new()
+            .analyse(src, dialect)
+            .command_invocations
+            .iter()
+            .find(|inv| inv.name == name)
+            .map(|inv| inv.resolution_candidates.clone())
+            .unwrap_or_default()
+    }
+
+    fn resolution_of(src: &str, dialect: &str, name: &str) -> Option<String> {
+        Analyser::new()
+            .analyse(src, dialect)
+            .command_invocations
+            .iter()
+            .find(|inv| inv.name == name)
+            .and_then(|inv| inv.resolved_qualified_name.clone())
+    }
+
+    #[test]
+    fn tp_a_method_body_call_carries_the_helpers_candidate_first() {
+        // TP — `::oo::Helpers::callback` must be a candidate, and must rank
+        // ahead of the global one: with both defined, real Tcl reaches the
+        // helper.
+        let src = "oo::class create C {\n    method Go {} {\n        callback Read\n    }\n}\n";
+        assert_eq!(
+            candidates_for(src, "tcl9.0", "callback"),
+            ["::oo::Helpers::callback", "::callback"],
+        );
+    }
+
+    #[test]
+    fn tp_the_same_holds_for_a_constructor_body() {
+        let src = "oo::class create C {\n    constructor {} {\n        callback Read\n    }\n}\n";
+        assert_eq!(
+            candidates_for(src, "tcl9.0", "callback"),
+            ["::oo::Helpers::callback", "::callback"],
+        );
+    }
+
+    #[test]
+    fn tp_a_helper_declared_in_the_same_file_settles_the_call_onto_it() {
+        // TP — with the helper present the call settles on it, not on a
+        // phantom `::callback`.
+        let src = "proc ::oo::Helpers::callback {m args} { return $m }\noo::class create C {\n    method Go {} {\n        callback Read\n    }\n}\n";
+        assert_eq!(
+            resolution_of(src, "tcl9.0", "callback").as_deref(),
+            Some("::oo::Helpers::callback"),
+        );
+    }
+
+    #[test]
+    fn fp_a_top_level_call_gets_no_helpers_candidate() {
+        // FP guard — `::oo::Helpers` is on a *method body's* namespace path
+        // only. tclsh raises `invalid command name` for a bare `callback`
+        // at the top level, so the candidate must not appear there.
+        let src = "proc ::oo::Helpers::callback {m args} { return $m }\ncallback Read\n";
+        assert_eq!(candidates_for(src, "tcl9.0", "callback"), ["::callback"]);
+    }
+
+    #[test]
+    fn fp_an_apply_lambda_inside_a_method_loses_the_path() {
+        // FP guard — `apply` runs its body in the global namespace, so the
+        // object context (and its path) is gone. tclsh 9.0.4 raises
+        // `invalid command name "link"` for exactly this shape.
+        let src = "oo::class create C {\n    method Go {} {\n        apply {{} { callback Read }}\n    }\n}\n";
+        assert_eq!(candidates_for(src, "tcl9.0", "callback"), ["::callback"]);
+    }
+
+    #[test]
+    fn tn_a_snit_method_body_gets_no_helpers_candidate() {
+        // TN — snit member bodies run in the type namespace with no
+        // injected path; only the TclOO grammar declares one.
+        let src = "snit::type T {\n    method Go {} {\n        callback Read\n    }\n}\n";
+        let cands = candidates_for(src, "tcl9.0", "callback");
+        assert!(
+            !cands.iter().any(|c| c.starts_with("::oo::Helpers")),
+            "snit gets no TclOO helper path: {cands:?}",
+        );
+    }
+
+    #[test]
+    fn tn_an_ordinary_builtin_still_settles_globally_from_a_method_body() {
+        // TN — the extra candidate must not divert an ordinary call: `puts`
+        // has no `::oo::Helpers` member, so it still reaches `::puts`.
+        let src = "oo::class create C {\n    method Go {} {\n        puts hi\n    }\n}\n";
+        assert_eq!(
+            resolution_of(src, "tcl9.0", "puts").as_deref(),
+            Some("::puts"),
+        );
+    }
+}
+
+// ===========================================================================
+// A constant-dominated computed `namespace eval` target — issue #1113 item 3.
+//
+// `set ns ::app; namespace eval $ns { … }` creates `::app` on every run, so
+// the block's procs really do home to `::app::…`.  The word is settled by the
+// same identity-resolution helper the command head (idx 44), `source`,
+// `rename`, and `oo::define`'s target already use, so its dominance rule —
+// a branch-conditional binding proves nothing — applies here unchanged.
+// Anything it cannot settle keeps the per-site `@dynns@` domain.
+// ===========================================================================
+mod const_dominated_namespace_eval {
+    use super::Analyser;
+
+    fn proc_names(src: &str) -> Vec<String> {
+        let mut names: Vec<String> = Analyser::new()
+            .analyse(src, "tcl9.0")
+            .all_procs
+            .keys()
+            .cloned()
+            .collect();
+        names.sort();
+        names
+    }
+
+    fn scope_names(src: &str) -> Vec<String> {
+        Analyser::new()
+            .analyse(src, "tcl9.0")
+            .global_scope
+            .children
+            .iter()
+            .map(|c| c.name.clone())
+            .collect()
+    }
+
+    #[test]
+    fn tp_a_constant_target_homes_the_blocks_procs_to_the_real_namespace() {
+        let src = "set ns ::app\nnamespace eval $ns {\n    proc go {} { return 1 }\n}\n";
+        assert_eq!(proc_names(src), ["::app::go"]);
+        assert_eq!(scope_names(src), ["::app"]);
+    }
+
+    #[test]
+    fn tp_the_word_is_recorded_as_a_declaring_occurrence() {
+        // Navigation's half: the `$ns` word is where `::app` is created, so
+        // it is the answer a `namespace children ::app` elsewhere jumps to.
+        let src = "set ns ::app\nnamespace eval $ns { proc go {} { return 1 } }\n";
+        let r = Analyser::new().analyse(src, "tcl9.0").clone();
+        let decls: Vec<&str> = r
+            .namespace_refs
+            .iter()
+            .filter(|n| n.declares && n.qualified_name == "::app")
+            .map(|n| &src[n.span.start() as usize..n.span.end() as usize])
+            .collect();
+        assert_eq!(decls, ["$ns"], "{:?}", r.namespace_refs);
+    }
+
+    #[test]
+    fn fp_a_branch_conditional_binding_keeps_the_synthetic_domain() {
+        // FP guard — the dominance rule.  Which namespace this creates is a
+        // run-time question, so claiming either would be a wrong answer.
+        let src = "set ns ::a\nif {$c} { set ns ::b }\nnamespace eval $ns {\n    proc go {} { return 1 }\n}\n";
+        assert!(
+            proc_names(src).iter().all(|n| n.contains("@dynns@")),
+            "{:?}",
+            proc_names(src),
+        );
+    }
+
+    #[test]
+    fn tn_a_parameter_target_keeps_the_synthetic_domain() {
+        // TN — the irc.tcl per-connection idiom the synthetic domain exists
+        // for: nothing constant reaches `$n`, so each occurrence stays its
+        // own scope.
+        let src =
+            "proc mk {n} {\n    namespace eval $n {\n        proc go {} { return 1 }\n    }\n}\n";
+        let names = proc_names(src);
+        assert!(names.iter().any(|n| n.contains("@dynns@")), "{names:?}");
+    }
+
+    #[test]
+    fn tn_a_literal_target_is_unchanged() {
+        let src = "namespace eval ::app {\n    proc go {} { return 1 }\n}\n";
+        assert_eq!(proc_names(src), ["::app::go"]);
+        assert_eq!(scope_names(src), ["::app"]);
+    }
+}

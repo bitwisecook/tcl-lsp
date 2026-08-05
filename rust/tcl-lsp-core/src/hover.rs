@@ -317,6 +317,15 @@ fn math_function_hover(
 /// namespace first (consulting `analysis.namespace_overrides` ahead of the
 /// ordinary lexical walk, issue #923 idx 116), then the global namespace.
 /// Extracted from [`hover_with_profile`] to keep it within the line budget.
+/// Gated on the cursor's word actually occupying the enclosing command's
+/// head position (issue #1137 idx 50): hover shared `definition()`'s
+/// text-scan fallback, so an ordinary *argument* that happened to share a
+/// proc's name rendered that proc's documentation. See
+/// [`crate::definition::offset_is_command_head`].
+///
+/// An already-resolved **indirect** head (a constant `${ns}::cmd` / `$cmd`,
+/// issue #1133) is answered from the analyser's own resolution, since the
+/// span carries no written command name for the bareword lookup to use.
 fn proc_hover_at(
     analysis: &AnalysisResult,
     source: &str,
@@ -324,6 +333,20 @@ fn proc_hover_at(
     word: &str,
     registry: Option<&CommandRegistry>,
 ) -> Option<Hover> {
+    // A proc's own declaration name (`proc greet …`) is an argument of
+    // `proc`, so the head gate below would refuse it; it is answered here,
+    // mirroring how `definition()` consults `proc_declaration_sites` before
+    // its own call resolution.
+    if let Some(proc_def) = crate::definition::proc_declaration_at(analysis, cursor_offset) {
+        return Some(Hover::markdown(proc_hover_text(proc_def)));
+    }
+    if let Some(proc_def) = crate::definition::resolved_indirect_head_proc(analysis, cursor_offset)
+    {
+        return Some(Hover::markdown(proc_hover_text(proc_def)));
+    }
+    if !crate::definition::offset_is_command_head(analysis, cursor_offset) {
+        return None;
+    }
     let namespace = crate::definition::namespace_context_at(
         &analysis.global_scope,
         cursor_offset,
@@ -5201,5 +5224,47 @@ mod tests {
         // Line 1 — cursor on the `greet foo` call site (col 0).
         let call = hover(src, 1, 0, &analysis, None).expect("hover on call site");
         assert_eq!(decl.value, call.value, "decl and call site must agree");
+    }
+
+    // Hover shares `definition()`'s command-resolution seam, so it shares
+    // both of its fixes — issue #1137 idx 50 (the command-position gate)
+    // and issue #1133 (the resolved-indirect-head preference).
+
+    #[test]
+    fn fp_argument_word_sharing_a_procs_name_does_not_hover_that_proc() {
+        // FP guard — issue #1137 idx 50: `dump` is `anotherproc`'s first
+        // argument, never a command, so rendering `proc ::dump`'s signature
+        // there was a wrong answer.
+        let src = "proc anotherproc {a b} { return $a }\nproc dump {x} { return $x }\nproc caller {} {\n    return [anotherproc dump 5]\n}\n";
+        let analysis = analyse(src);
+        let h = hover(src, 3, 24, &analysis, None);
+        assert!(
+            h.is_none_or(|hv| !hv.value.contains("proc ::dump")),
+            "an argument word must not hover as a command"
+        );
+    }
+
+    #[test]
+    fn tp_the_command_head_beside_that_argument_still_hovers() {
+        // TP — the gate must not cost the real head its hover.
+        let src = "proc anotherproc {a b} { return $a }\nproc dump {x} { return $x }\nproc caller {} {\n    return [anotherproc dump 5]\n}\n";
+        let analysis = analyse(src);
+        let h = hover(src, 3, 12, &analysis, None).expect("hover on the call head");
+        assert!(h.value.contains("proc ::anotherproc"), "{}", h.value);
+    }
+
+    #[test]
+    fn tp_resolved_indirect_head_hovers_the_command_it_reaches() {
+        // TP — issue #1133, hover's half: the `${ns}::setdef` head carries
+        // no written command name, so only the analyser's own resolution
+        // can answer, and it must not lose to a same-named decoy.
+        let src = "namespace eval ::tc { proc setdef {a} { return $a } }\nnamespace eval ::other { proc setdef {b c} { return $b } }\nset ns ::tc\n${ns}::setdef\n";
+        let analysis = analyse(src);
+        let h = hover(src, 3, 7, &analysis, None).expect("hover on the indirect head");
+        assert!(
+            h.value.contains("::tc::setdef"),
+            "must describe ::tc::setdef, not the ::other decoy: {}",
+            h.value
+        );
     }
 }

@@ -243,6 +243,14 @@ pub fn definition(
     {
         return vec![span_to_range(source, &line_index, *span)];
     }
+    // An **already-resolved indirect head** the analyser settled — a
+    // `${ns}::setdef` whose `$ns` is a constant, a constant `$cmd` dispatch —
+    // is asked before every name-based path below: the span does not carry
+    // the written command name, so the bareword lookup can only ever answer
+    // with a coincidentally same-named decoy (issue #1133).
+    if let Some(span) = resolved_indirect_head_target(analysis, cursor_offset) {
+        return vec![span_to_range(source, &line_index, span)];
+    }
     // Otherwise it is a CALL — resolve namespace-aware, following C Tcl's
     // command resolution (`Tcl_FindCommand`, `tclNamesp.c`): the caller's
     // namespace first, then the global namespace; an absolute `::`-prefixed
@@ -284,14 +292,20 @@ pub fn definition(
     if let Some(span) = itcl_class_proc_declaration(analysis, &namespace, &word) {
         return vec![span_to_range(source, &line_index, span)];
     }
-    if let Some(proc_def) = resolve_called_proc(
-        analysis,
-        source,
-        &namespace,
-        &word,
-        cursor_offset,
-        Some(tcl_registry::registry_for_dialect(&analysis.dialect)),
-    ) {
+    // …and only when the cursor's word really is the enclosing command's
+    // head. Without this the pure text scan let an ordinary *argument*
+    // resolve as a command name (issue #1137 idx 50) — see
+    // [`offset_is_command_head`] for the gate and its one documented limit.
+    if offset_is_command_head(analysis, cursor_offset)
+        && let Some(proc_def) = resolve_called_proc(
+            analysis,
+            source,
+            &namespace,
+            &word,
+            cursor_offset,
+            Some(tcl_registry::registry_for_dialect(&analysis.dialect)),
+        )
+    {
         // A proc redefined later in the document is two definitions sharing
         // one name; the call reaches whichever was in effect where it is
         // written, not unconditionally the last (issue #923 idx 45).
@@ -454,8 +468,18 @@ fn position_definition(
     if let Some(cell) =
         crate::namespace_symbol::namespace_cell_at_offset(source, analysis, cursor_off)
     {
+        let mut spans = crate::namespace_symbol::namespace_declaration_spans(analysis, &cell);
+        if spans.is_empty() {
+            // Nothing declares it outright, but a deeper block may create it
+            // as a parent (`namespace eval ::p::q::r {}` really creates
+            // `::p::q`).  The answer is that word's covering prefix — the
+            // sub-range spelling exactly this namespace — never the whole
+            // word, which names a different one (issue #1113 item 1).
+            spans =
+                crate::namespace_symbol::namespace_implicit_parent_spans(source, analysis, &cell);
+        }
         return Some(
-            crate::namespace_symbol::namespace_declaration_spans(analysis, &cell)
+            spans
                 .into_iter()
                 .map(|span| span_to_range(source, line_index, span))
                 .collect(),
@@ -1496,6 +1520,145 @@ pub(crate) fn ensemble_subcommand_target<'a>(
         .find_map(|cand| analysis.ensemble_subcommand_targets.get(&cand))
         .and_then(|subs| subs.get(sub))
         .map(String::as_str)
+}
+
+/// The proc whose **own declaration name token** covers `cursor_off`.
+///
+/// The `greet` of `proc greet {…} {…}` is an *argument* of `proc`, never a
+/// command head, so a provider gated on head position
+/// ([`offset_is_command_head`]) must answer it here instead. Declaration
+/// sites are consulted after `all_procs` so a declaration a later same-named
+/// `proc` displaced still resolves — to whichever definition currently wins
+/// the name, the same rule `resolve_proc_target_at` applies (issue #923
+/// idx 31 / idx 45).
+#[must_use]
+pub(crate) fn proc_declaration_at(
+    analysis: &AnalysisResult,
+    cursor_off: u32,
+) -> Option<&tcl_compiler::analyser::ProcDef> {
+    let covers = |span: tcl_lexer::Span| span.start() <= cursor_off && cursor_off < span.end();
+    if let Some(proc_def) = analysis.all_procs.values().find(|p| covers(p.name_span)) {
+        return Some(proc_def);
+    }
+    let (qualified, _) = analysis
+        .proc_declaration_sites
+        .iter()
+        .find(|(_, span)| covers(*span))?;
+    analysis.all_procs.get(qualified)
+}
+
+/// The command invocation the analyser recorded whose **head token** covers
+/// `cursor_off`, if any.
+///
+/// The one place definition / hover ask "is this position a command head at
+/// all, and what did the resolution machinery decide it names?".  Recorded
+/// invocations are the analyser's own answer: an entry exists exactly because
+/// the analyser walked that word *as a command name*, in a region it proved
+/// was live script — so it is a far stronger statement than the pure text
+/// word-boundary scan ([`crate::hover::find_word_span_at_position`]) the
+/// bareword fallbacks otherwise run on.
+#[must_use]
+pub(crate) fn invocation_head_at(
+    analysis: &AnalysisResult,
+    cursor_off: u32,
+) -> Option<&tcl_compiler::signature_scan::types::SignatureCommandInvocation> {
+    analysis
+        .command_invocations
+        .iter()
+        .filter(|inv| inv.range.start() <= cursor_off && cursor_off < inv.range.end())
+        .min_by_key(|inv| inv.range.end() - inv.range.start())
+}
+
+/// Whether the word at `cursor_off` occupies its enclosing command's **head**
+/// position — i.e. whether resolving it as a command name can be right at all.
+///
+/// Issue #1137 idx 50: `definition()` / `hover()` used to hand whatever word
+/// the text scan returned straight to [`resolve_called_proc`], so an ordinary
+/// *argument* that happened to share a proc's name resolved onto that proc —
+/// a wrong answer, not an abstention (`return [$types(callback:$tag) jsondump
+/// $huddle_object]` resolved the ensemble subcommand `jsondump` onto the very
+/// proc containing the call, and the reduced control `anotherproc dump`
+/// reproduces it with no indirection at all).
+///
+/// The gate is the analyser's recorded invocation set, not a second text
+/// scan, so it agrees with find-references / rename / call-hierarchy by
+/// construction — those already key off the same records.
+///
+/// **Deliberate limit.** A word inside a *braced argument of an unregistered
+/// command* (`mycustom { helper }`) is not recorded, because nothing proves
+/// that brace holds script rather than data, so the gate reads it as "not a
+/// command head" and the provider abstains.  That is the honest answer: the
+/// call may never happen.  Registry-known script arguments (`if`, `foreach`,
+/// `switch` arms, `try`, `catch`, `eval`, `uplevel`, `namespace eval`,
+/// `apply` bodies, `oo::define` member bodies, command-prefix callbacks such
+/// as `lsort -command cb`, and `{*}`-expanded constant heads) *are* recorded
+/// and keep resolving.
+#[must_use]
+pub(crate) fn offset_is_command_head(analysis: &AnalysisResult, cursor_off: u32) -> bool {
+    invocation_head_at(analysis, cursor_off).is_some()
+}
+
+/// The declaration span an **already-resolved indirect** command head at
+/// `cursor_off` reaches, or `None` when no such head covers the cursor.
+///
+/// Issue #1133: the analyser resolves `set ns ::tc; ${ns}::setdef` to
+/// `::tc::setdef` and records it as a `command_invocations` entry with
+/// `indirect: true`, but `definition()` never consulted the entry and fell
+/// through to the bareword lookup, which answered an unrelated same-named
+/// `::other::setdef`.  The span does not carry the written command name, so
+/// there is nothing for a text scan to resolve — the recorded resolution is
+/// the only correct answer, and it must win.  The same record settles a
+/// constant `$cmd` head (`set cmd greet; $cmd`), which the text scan can
+/// likewise never resolve.
+///
+/// Abstains — rather than blocking the ordinary fallback — whenever the
+/// indirect entry is *unresolved* (`resolved_qualified_name` is `None`, or it
+/// names nothing this document declares): an unknown indirection is no reason
+/// to withhold an answer the bareword path can still give.
+fn resolved_indirect_head_target(
+    analysis: &AnalysisResult,
+    cursor_off: u32,
+) -> Option<tcl_lexer::Span> {
+    if let Some(proc_def) = resolved_indirect_head_proc(analysis, cursor_off) {
+        return Some(proc_def.name_span);
+    }
+    let resolved = resolved_indirect_head_name(analysis, cursor_off)?;
+    analysis
+        .all_classes
+        .get(resolved)
+        .map(|class_def| class_def.name_span)
+}
+
+/// The qualified name an already-resolved indirect head at `cursor_off`
+/// settled on — the shared first half of [`resolved_indirect_head_target`]
+/// and [`resolved_indirect_head_proc`].
+fn resolved_indirect_head_name(analysis: &AnalysisResult, cursor_off: u32) -> Option<&str> {
+    analysis
+        .command_invocations
+        .iter()
+        .filter(|inv| {
+            inv.indirect && inv.range.start() <= cursor_off && cursor_off < inv.range.end()
+        })
+        .min_by_key(|inv| inv.range.end() - inv.range.start())?
+        .resolved_qualified_name
+        .as_deref()
+}
+
+/// The `ProcDef` an already-resolved indirect head at `cursor_off` reaches —
+/// the hover-side twin of [`resolved_indirect_head_target`] (issue #1133), so
+/// hover and go-to-definition answer the same indirection from one record.
+#[must_use]
+pub(crate) fn resolved_indirect_head_proc(
+    analysis: &AnalysisResult,
+    cursor_off: u32,
+) -> Option<&tcl_compiler::analyser::ProcDef> {
+    let resolved = resolved_indirect_head_name(analysis, cursor_off)?;
+    let proc_def = analysis.all_procs.get(resolved)?;
+    Some(
+        analysis
+            .proc_def_in_effect_at(&proc_def.qualified_name, cursor_off)
+            .unwrap_or(proc_def),
+    )
 }
 
 /// Compute the byte offset of a 0-based LSP `(line, character)`
@@ -6128,5 +6291,145 @@ mod tests {
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 0, "{locs:?}");
         assert_eq!(locs[0].start_character, 15, "{locs:?}");
+    }
+
+    // Command-position gate + resolved-indirect-head preference —
+    // issues #1137 idx 50 and #1133. Both land on the same seam: the
+    // "otherwise it is a CALL" fallback, which used to hand whatever word
+    // the text scan returned straight to `resolve_called_proc`.
+
+    #[test]
+    fn fp_argument_word_sharing_a_procs_name_is_not_resolved_as_a_command() {
+        // FP guard — issue #1137 idx 50, the reduced control with zero
+        // indirection. `dump` is the *first argument* of `anotherproc`, not
+        // a command; tclsh never looks it up as one, so answering with the
+        // same-named proc is a wrong answer, not a miss. Must abstain.
+        let src = "proc anotherproc {a b} { return $a }\nproc dump {x} { return $x }\nproc caller {} {\n    return [anotherproc dump 5]\n}\n";
+        let analysis = analyse(src);
+        // Line 3: `    return [anotherproc dump 5]` — cursor on `dump`.
+        let locs = definition(src, 3, 24, &analysis);
+        assert!(
+            locs.is_empty(),
+            "an argument word must not resolve as a command: {locs:?}"
+        );
+    }
+
+    #[test]
+    fn tp_the_head_beside_that_argument_still_resolves() {
+        // TP — the very same call's real head must keep resolving, so the
+        // gate above narrows nothing it should not.
+        let src = "proc anotherproc {a b} { return $a }\nproc dump {x} { return $x }\nproc caller {} {\n    return [anotherproc dump 5]\n}\n";
+        let analysis = analyse(src);
+        // Line 3, col 12 — inside `anotherproc`.
+        let locs = definition(src, 3, 12, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 0, "{locs:?}");
+    }
+
+    #[test]
+    fn tn_a_command_head_in_every_registry_known_script_argument_still_resolves() {
+        // TN — the gate reads the analyser's recorded invocations, which
+        // cover every registry-declared script argument. A call written in
+        // an `if` body, a `switch` arm, a `foreach` body, and a command
+        // -prefix callback must all still resolve.
+        let src = "proc helper {} {}\nif {1} {\n    helper\n}\nswitch x {\n    a { helper }\n}\nforeach i {1} {\n    helper\n}\nlsort -command helper {1 2}\n";
+        let analysis = analyse(src);
+        for (line, col) in [(2, 4), (5, 8), (8, 4), (10, 15)] {
+            let locs = definition(src, line, col, &analysis);
+            assert_eq!(locs.len(), 1, "line {line} col {col}: {locs:?}");
+            assert_eq!(locs[0].start_line, 0, "line {line} col {col}: {locs:?}");
+        }
+    }
+
+    #[test]
+    fn tp_resolved_indirect_head_wins_over_a_same_named_decoy() {
+        // TP — issue #1133. The analyser settles `set ns ::tc;
+        // ${ns}::setdef` to `::tc::setdef` and records it as an `indirect`
+        // invocation. Before this fix `definition()` ignored the record and
+        // fell through to the bareword lookup, which answered the unrelated
+        // `::other::setdef`.
+        let src = "namespace eval ::tc { proc setdef {} { return 1 } }\nnamespace eval ::other { proc setdef {} { return 2 } }\nset ns ::tc\n${ns}::setdef\n";
+        let analysis = analyse(src);
+        // Line 3, col 7 — inside the `${ns}::setdef` head word.
+        let locs = definition(src, 3, 7, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 0,
+            "must reach ::tc::setdef (line 0), not the ::other decoy (line 1): {locs:?}"
+        );
+    }
+
+    #[test]
+    fn tn_a_bare_dollar_cmd_head_still_answers_the_variable_it_reads() {
+        // TN / documented limit — a whole-word `$cmd` head *is* a variable
+        // read, and the position tier answers that first (it is asked long
+        // before any command resolution). The indirect-head preference
+        // therefore covers the spellings whose word is not itself a bare
+        // variable reference — `${ns}::setdef`, a dispatch-table literal —
+        // and deliberately leaves the plain `$cmd` cursor on its variable.
+        let src = "proc greet {} { return hi }\nset cmd greet\n$cmd\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 2, 1, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "a `$cmd` cursor answers the variable declaration: {locs:?}"
+        );
+    }
+
+    #[test]
+    fn fn_unresolved_indirect_head_does_not_block_the_bareword_fallback() {
+        // FP guard for the preference itself — an indirect head the
+        // analyser could NOT settle must not suppress an answer the
+        // ordinary path can still give. Here the neighbouring plain call
+        // still resolves.
+        let src = "proc greet {} { return hi }\nset cmd $env(WHATEVER)\n$cmd\ngreet\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 3, 0, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 0, "{locs:?}");
+    }
+
+    #[test]
+    fn tn_a_proc_declaration_name_still_resolves_to_itself() {
+        // TN — a declaration's own name token is an *argument* of `proc`,
+        // so the head gate would refuse it; the declaration-site check runs
+        // first and must keep answering.
+        let src = "proc greet {name} { puts $name }\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 0, 6, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 0, "{locs:?}");
+    }
+
+    #[test]
+    fn tp_definition_on_an_implicit_parent_namespace_answers_the_covering_prefix() {
+        // Issue #1113 item 1 — `namespace eval ::p::q::r {}` really creates
+        // `::p::q` (tclsh 8.6.16 / 9.0.4: `namespace exists ::p::q` is 1),
+        // but the name is written nowhere on its own.  The answer is the
+        // prefix of the deeper word that spells exactly it.
+        let src = "namespace eval ::p::q::r {}\nnamespace children ::p::q\n";
+        let analysis = analyse(src);
+        // Line 1, col 20 — inside the `::p::q` reference.
+        let locs = definition(src, 1, 20, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 0, "{locs:?}");
+        assert_eq!(locs[0].start_character, 15, "{locs:?}");
+        assert_eq!(
+            locs[0].end_character, 21,
+            "the answer must stop at `::p::q`, not cover `::p::q::r`: {locs:?}",
+        );
+    }
+
+    #[test]
+    fn tn_a_declared_namespace_still_answers_its_own_block() {
+        // TN — the implicit fallback only runs when nothing declares the
+        // namespace outright.
+        let src =
+            "namespace eval ::p::q {}\nnamespace eval ::p::q::r {}\nnamespace children ::p::q\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 2, 20, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 0, "{locs:?}");
     }
 }

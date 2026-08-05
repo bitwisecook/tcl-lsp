@@ -1137,7 +1137,9 @@ impl Analyser {
             Hook::OoDefine => {
                 self.handle_oo_define_command(cmd_name, args, arg_tokens, arg_single, scope_path)
             }
-            Hook::NamespaceEval => self.handle_namespace_eval_command(args, arg_tokens, scope_path),
+            Hook::NamespaceEval => {
+                self.handle_namespace_eval_command(args, arg_tokens, arg_single, scope_path)
+            }
             // uplevel #0 { body } — opens a global-frame child scope so
             // the body's locals don't leak into the enclosing proc's
             // variable set.  Only the `#0` form is consumed; other
@@ -1255,7 +1257,7 @@ impl Analyser {
                 false
             }
             Hook::NamespacePath => {
-                self.handle_namespace_path_command(args, scope_path);
+                self.handle_namespace_path_command(args, arg_tokens, scope_path);
                 false
             }
             Hook::NamespaceUnknown => {

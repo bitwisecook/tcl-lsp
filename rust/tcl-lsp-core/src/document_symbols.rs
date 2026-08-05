@@ -195,7 +195,98 @@ pub fn document_symbols_from_analysis(
         return Vec::new();
     }
     let line_index = LineIndex::new(source);
-    scope_symbols(source, &analysis.global_scope, &line_index, 0)
+    let mut rehomed: Vec<(String, DocumentSymbol)> = Vec::new();
+    let mut ctx = SymbolCtx {
+        rehomed: &mut rehomed,
+    };
+    let mut symbols = scope_symbols(
+        source,
+        &analysis.global_scope,
+        &line_index,
+        ScopePos {
+            depth: 0,
+            namespace: "::",
+        },
+        &mut ctx,
+    );
+    // A proc written with a qualified name outside any `namespace eval` block
+    // (`proc pix::svg::parse {…} {…}` at file top level) really lands in the
+    // namespace its own name spells — tclsh, and this LSP's own hover /
+    // definition / references, all agree on `::pix::svg::parse`. The outline
+    // used to place it lexically, contradicting the very same response's
+    // `Namespace pix > svg` tree (issue #1140 idx 67). Home each one under
+    // the namespace node its qualified name names; a namespace this document
+    // never opens has no node, so the symbol stays where it was written.
+    for (home, symbol) in rehomed {
+        if let Some(unplaced) = place_under_namespace(&mut symbols, "::", &home, symbol) {
+            symbols.push(unplaced);
+        }
+    }
+    symbols
+}
+
+/// Enclosing namespace of a fully-qualified name (`"::ns::foo"` → `"::ns"`,
+/// `"::foo"` → `"::"`) — the same pure-string rule
+/// `ItemTree::from_analysis` uses, so the outline and the item tree agree
+/// about where a definition lives.
+fn enclosing_namespace(qualified: &str) -> String {
+    match qualified.rsplit_once("::") {
+        Some((prefix, _)) if !prefix.is_empty() => prefix.to_string(),
+        _ => "::".to_string(),
+    }
+}
+
+/// Join a namespace prefix with a child namespace name as written, honouring
+/// the absolute-reset rule (`namespace eval ::a { namespace eval ::b {…} }`
+/// creates `::b`, not `::a::b`).
+fn join_namespace(prefix: &str, name: &str) -> String {
+    if name.starts_with("::") {
+        name.to_string()
+    } else if prefix == "::" {
+        format!("::{name}")
+    } else {
+        format!("{prefix}::{name}")
+    }
+}
+
+/// Insert `symbol` under the namespace node named `home`, descending
+/// `symbols` (whose own qualified prefix is `prefix`).  Returns `Some(symbol)`
+/// unchanged when no such namespace node exists.
+fn place_under_namespace(
+    symbols: &mut [DocumentSymbol],
+    prefix: &str,
+    home: &str,
+    symbol: DocumentSymbol,
+) -> Option<DocumentSymbol> {
+    let mut carried = symbol;
+    for node in symbols.iter_mut() {
+        if node.kind != SymbolKind::Namespace {
+            continue;
+        }
+        let qualified = join_namespace(prefix, &node.name);
+        if qualified == home {
+            node.children.push(carried);
+            return None;
+        }
+        carried = place_under_namespace(&mut node.children, &qualified, home, carried)?;
+    }
+    Some(carried)
+}
+
+/// Per-walk state [`scope_symbols`] threads through the scope tree.
+struct SymbolCtx<'a> {
+    /// Procs whose semantic home namespace differs from the scope they were
+    /// lexically written in, paired with that home (issue #1140 idx 67).
+    rehomed: &'a mut Vec<(String, DocumentSymbol)>,
+}
+
+/// Where in the scope tree [`scope_symbols`] currently is.
+#[derive(Clone, Copy)]
+struct ScopePos<'a> {
+    /// Recursion depth, bounded by `MAX_SCOPE_WALK_DEPTH`.
+    depth: u32,
+    /// The `::`-rooted qualified namespace this scope's definitions home to.
+    namespace: &'a str,
 }
 
 fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LineRange {
@@ -382,8 +473,10 @@ fn scope_symbols(
     source: &str,
     scope: &Scope,
     line_index: &LineIndex,
-    depth: u32,
+    pos: ScopePos<'_>,
+    ctx: &mut SymbolCtx<'_>,
 ) -> Vec<DocumentSymbol> {
+    let ScopePos { depth, namespace } = pos;
     if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
         return Vec::new();
     }
@@ -398,7 +491,17 @@ fn scope_symbols(
     let mut proc_pairs: Vec<(&String, &ProcDef)> = scope.procs.iter().collect();
     proc_pairs.sort_by_key(|(_, pd)| pd.name_span.start());
     for (_, proc_def) in proc_pairs {
-        symbols.push(proc_symbol(source, proc_def, scope, line_index, depth));
+        let symbol = proc_symbol(source, proc_def, scope, line_index, depth, ctx);
+        // Only a namespace-level definition can be re-homed: a proc nested
+        // inside another proc's body belongs under that proc in the outline
+        // whatever its qualified name spells, because that is where the user
+        // wrote — and reads — it.
+        let home = enclosing_namespace(&proc_def.qualified_name);
+        if matches!(scope.kind, ScopeKind::Global | ScopeKind::Namespace) && home != namespace {
+            ctx.rehomed.push((home, symbol));
+        } else {
+            symbols.push(symbol);
+        }
     }
 
     if matches!(scope.kind, ScopeKind::Global | ScopeKind::Namespace) {
@@ -438,7 +541,17 @@ fn scope_symbols(
             && let Some(span) = child.body_span
         {
             let body_range = span_to_range(source, line_index, span);
-            let child_syms = scope_symbols(source, child, line_index, depth + 1);
+            let child_ns = join_namespace(namespace, &child.name);
+            let child_syms = scope_symbols(
+                source,
+                child,
+                line_index,
+                ScopePos {
+                    depth: depth + 1,
+                    namespace: &child_ns,
+                },
+                ctx,
+            );
             // `selectionRange` is "the range that should be selected and
             // revealed when this symbol is picked" — the *name*, exactly as
             // `proc_symbol` does.  A namespace used to answer its whole body
@@ -594,6 +707,7 @@ fn proc_symbol(
     scope: &Scope,
     line_index: &LineIndex,
     depth: u32,
+    ctx: &mut SymbolCtx<'_>,
 ) -> DocumentSymbol {
     // Find the proc's body scope to recurse into for nested definitions by its
     // body span, which is identical between the `ProcDef` and its `Scope`.
@@ -601,13 +715,25 @@ fn proc_symbol(
     // proc, because the proc scope is keyed by the qualified name
     // (`ns::outer`) while `proc_def.name` is the bare tail (`outer`) — issue
     // 185.
+    let body_namespace = enclosing_namespace(&proc_def.qualified_name);
     let child_symbols: Vec<DocumentSymbol> = scope
         .children
         .iter()
         .find(|child| {
             matches!(child.kind, ScopeKind::Proc) && child.body_span == Some(proc_def.body_span)
         })
-        .map(|child| scope_symbols(source, child, line_index, depth + 1))
+        .map(|child| {
+            scope_symbols(
+                source,
+                child,
+                line_index,
+                ScopePos {
+                    depth: depth + 1,
+                    namespace: &body_namespace,
+                },
+                ctx,
+            )
+        })
         .unwrap_or_default();
 
     let body_range = span_to_range(source, line_index, proc_def.body_span);
@@ -1971,5 +2097,78 @@ mod tests {
                 );
             }
         }
+    }
+
+    // Namespace-resolved proc homing (issue #1140 idx 67).
+
+    #[test]
+    fn tp_a_qualified_proc_written_outside_its_namespace_block_nests_under_it() {
+        // TP — issue #1140 idx 67, the nico-robert/pix shape reduced: the
+        // `namespace eval` blocks have already closed when the qualified
+        // `proc` is written, yet tclsh puts it at `::pix::svg::parse` and
+        // this LSP's own hover / definition / references all say so. The
+        // outline used to contradict them by placing it at top level.
+        let src = concat!(
+            "namespace eval ::pix {\n",
+            "    namespace eval svg {\n",
+            "    }\n",
+            "}\n",
+            "proc pix::svg::parse {a} {\n",
+            "    return $a\n",
+            "}\n",
+        );
+        let symbols = document_symbols(src, "tcl8.6");
+        assert_eq!(names(&symbols), vec!["::pix"], "{symbols:#?}");
+        let svg = find(&symbols, "svg").expect("svg namespace node");
+        assert_eq!(
+            names(&svg.children),
+            vec!["parse"],
+            "the proc must nest under `pix > svg`: {symbols:#?}",
+        );
+    }
+
+    #[test]
+    fn tn_a_proc_written_inside_its_namespace_block_still_nests_lexically() {
+        // TN — the ordinary case must be untouched: lexical and semantic
+        // home agree, so nothing moves.
+        let src = "namespace eval ::a {\n    proc caller {} {\n        return 1\n    }\n}\n";
+        let symbols = document_symbols(src, "tcl8.6");
+        let a = find(&symbols, "::a").expect("namespace node");
+        assert_eq!(names(&a.children), vec!["caller"], "{symbols:#?}");
+    }
+
+    #[test]
+    fn tn_an_unqualified_top_level_proc_stays_at_top_level() {
+        // TN — a plain `proc greet` homes to `::`, which is the scope it was
+        // written in, so it is not re-homed anywhere.
+        let src = "proc greet {} { return 1 }\n";
+        let symbols = document_symbols(src, "tcl8.6");
+        assert_eq!(names(&symbols), vec!["greet"], "{symbols:#?}");
+    }
+
+    #[test]
+    fn fp_a_qualified_proc_whose_namespace_is_never_opened_stays_where_written() {
+        // FP guard — re-homing must never invent a namespace node. With no
+        // `namespace eval ::nowhere` in the document there is nothing to
+        // nest under, so the symbol keeps its written position.
+        let src = "proc nowhere::helper {} { return 1 }\n";
+        let symbols = document_symbols(src, "tcl8.6");
+        assert_eq!(names(&symbols), vec!["helper"], "{symbols:#?}");
+    }
+
+    #[test]
+    fn fp_a_proc_nested_in_another_procs_body_is_never_re_homed() {
+        // FP guard — a `proc` written inside another proc's body belongs
+        // under that proc in the outline, whatever its qualified name
+        // spells: that is where the reader finds it.
+        let src = concat!(
+            "namespace eval ::ns {\n}\n",
+            "proc outer {} {\n",
+            "    proc ns::inner {} { return 1 }\n",
+            "}\n",
+        );
+        let symbols = document_symbols(src, "tcl8.6");
+        let outer = find(&symbols, "outer").expect("outer proc node");
+        assert_eq!(names(&outer.children), vec!["inner"], "{symbols:#?}");
     }
 }

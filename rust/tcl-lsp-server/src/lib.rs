@@ -13555,15 +13555,31 @@ impl LanguageServer for Backend {
         // relative `source <path>` arguments resolve.  When
         // the URI isn't a `file://` URL we leave the workspace
         // root unset and only absolute paths surface as links.
+        let doc_path = uri
+            .to_file_path()
+            .and_then(|p| p.to_str().map(str::to_owned));
         let workspace_root = uri
             .to_file_path()
             .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
             .and_then(|p| p.to_str().map(str::to_owned));
+        // The document's own path is what `[info script]` answers while it is
+        // being sourced, so a computed `source [file dirname [info script]]`
+        // path resolves through the same evaluator the source graph uses
+        // instead of being fabricated from raw text (issue #1140 idx 41).
+        let home = std::env::var("HOME").ok();
         // Pure-CPU segmentation on a worker so a parser panic is contained
         // as a JSON-RPC error.
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
         let links = tokio::task::spawn_blocking(move || {
-            core_document_links::document_links(&text, &dialect, workspace_root.as_deref())
+            core_document_links::document_links_in_context(
+                &text,
+                &dialect,
+                &core_document_links::LinkContext {
+                    workspace_root: workspace_root.as_deref(),
+                    home: home.as_deref(),
+                    script_path: doc_path.as_deref(),
+                },
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {

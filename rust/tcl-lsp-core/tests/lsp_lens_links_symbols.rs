@@ -644,6 +644,85 @@ fn links_source_uri_is_percent_encoded() {
     }
 }
 
+// Computed `source` paths — issue #1140 idx 41. The provider used to fall
+// through to treating the *raw unevaluated Tcl text* as a literal path, then
+// percent-encode it onto the workspace root, producing a syntactically valid
+// but semantically bogus `file://` URI. It now resolves what the source
+// graph's own evaluator can resolve, and emits nothing otherwise.
+
+fn links_in(src: &str, script_path: &str) -> Vec<DocumentLink> {
+    let root = script_path.rsplit_once('/').map_or("/", |(dir, _)| dir);
+    tcl_lsp_core::document_links::document_links_in_context(
+        src,
+        "tcl8.6",
+        &tcl_lsp_core::document_links::LinkContext {
+            workspace_root: Some(root),
+            home: None,
+            script_path: Some(script_path),
+        },
+    )
+}
+
+#[test]
+fn fp_a_computed_source_path_never_produces_a_fabricated_target() {
+    // FP guard — the exact georgtree/tclopt shape. Whatever else happens,
+    // no link may carry the raw Tcl text percent-encoded into its URI.
+    let src = "source [file join $undeclared .. pkgfile.tcl]\n";
+    let links = links_in(src, "/proj/test/all_codeCoverage.tcl");
+    assert!(
+        links.iter().all(|l| !l.target.contains("%5B")
+            && !l.target.contains('$')
+            && !l.target.contains('[')),
+        "no link may encode unevaluated Tcl text: {links:?}",
+    );
+}
+
+#[test]
+fn fp_a_bare_variable_source_path_produces_no_link() {
+    // FP guard — a whole-word `$var` is exactly one token, which is why the
+    // old `single_token_word` test let it through as a "literal".
+    let src = "source $dir\n";
+    assert!(links_in(src, "/proj/a.tcl").is_empty());
+}
+
+#[test]
+fn tp_info_script_based_paths_resolve_through_the_source_graph_evaluator() {
+    // TP — `[file dirname [info script]]` is what the source graph already
+    // evaluates for the M9 rehoming edges; the link provider consumes the
+    // same evaluator instead of growing a second one.
+    let src = "source [file join [file dirname [info script]] lib helper.tcl]\n";
+    let links = links_in(src, "/proj/test/all.tcl");
+    assert_eq!(links.len(), 1, "{links:?}");
+    assert_eq!(links[0].target, "file:///proj/test/lib/helper.tcl");
+}
+
+#[test]
+fn tp_a_single_set_constant_propagates_into_the_join() {
+    // TP — the corpus idiom: one `set dir …` then `source [file join $dir …]`.
+    let src = "set dir [file dirname [info script]]\nsource [file join $dir sub other.tcl]\n";
+    let links = links_in(src, "/proj/test/all.tcl");
+    assert_eq!(links.len(), 1, "{links:?}");
+    assert_eq!(links[0].target, "file:///proj/test/sub/other.tcl");
+}
+
+#[test]
+fn fp_a_variable_assigned_twice_is_not_propagated() {
+    // FP guard — which value a later `source` sees is a flow question this
+    // provider does not ask, so a re-assigned name is dropped entirely
+    // rather than guessed at.
+    let src = "set dir /one\nset dir /two\nsource [file join $dir x.tcl]\n";
+    assert!(links_in(src, "/proj/a.tcl").is_empty());
+}
+
+#[test]
+fn tn_a_plain_literal_path_still_links() {
+    // TN — the ordinary case is untouched.
+    let src = "source helper.tcl\n";
+    let links = links_in(src, "/proj/a.tcl");
+    assert_eq!(links.len(), 1, "{links:?}");
+    assert_eq!(links[0].target, "file:///proj/helper.tcl");
+}
+
 // NOTE on BIG-IP-specific extraction: this provider keys on the vanilla Tcl
 // `source` / `package require` commands. It has no BIG-IP-config-specific link
 // extraction (e.g. `include`/`source` of a tmsh config fragment) — those would

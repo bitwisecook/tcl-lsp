@@ -261,6 +261,36 @@ pub fn innermost_scope_reaches_oo_helpers(root: &Scope, byte_offset: u32) -> boo
     innermost_oo_frame(root, byte_offset, |child| child.oo_global_resolution)
 }
 
+/// The **implicit `namespace path`** a bare command word written at
+/// `byte_offset` resolves through — the namespaces Tcl searches after the
+/// frame's own current namespace and before global, without anyone having
+/// written a `namespace path` command.
+///
+/// Empty everywhere except a `TclOO` object frame, where the path is
+/// registry data
+/// ([`tcl_registry::definer::TCLOO_MEMBER_BODY_NAMESPACE_PATH`]) rather than
+/// a namespace name spelled in this crate.  [`Scope::oo_global_resolution`]
+/// — the flag [`innermost_scope_reaches_oo_helpers`] reads — is precisely
+/// "this frame resolves like a `TclOO` member body", so the two facts are
+/// one lookup and cannot drift apart.
+///
+/// This is the single recording site for the path (issue #1137 idx 51): the
+/// analyser folds it into every affected invocation's
+/// `resolution_candidates`, so a cross-document consumer walking that list
+/// finds a `proc ::oo::Helpers::NAME` declared in *another* file without
+/// growing its own lenient fallback.
+#[must_use]
+pub fn implicit_command_namespace_path_at(
+    root: &Scope,
+    byte_offset: u32,
+) -> &'static [&'static str] {
+    if innermost_scope_reaches_oo_helpers(root, byte_offset) {
+        tcl_registry::definer::TCLOO_MEMBER_BODY_NAMESPACE_PATH
+    } else {
+        &[]
+    }
+}
+
 /// Whether the innermost scope containing `byte_offset` is a real `TclOO`
 /// **method invocation** — the *callability* half of the `oo::Helpers`
 /// scoping rule, and the counterpart to
@@ -1029,6 +1059,22 @@ impl Analyser {
         reachable
     }
 
+    /// The implicit `namespace path` each recorded call site carries, indexed
+    /// alongside `command_invocations`.
+    ///
+    /// Computed up front, before [`Self::finalise_invocation_resolutions`]
+    /// borrows that vector mutably, because the lookup reads the scope tree
+    /// living on the same `result`.
+    fn implicit_invocation_namespace_paths(&self) -> Vec<&'static [&'static str]> {
+        self.result
+            .command_invocations
+            .iter()
+            .map(|inv| {
+                implicit_command_namespace_path_at(&self.result.global_scope, inv.range.start())
+            })
+            .collect()
+    }
+
     pub(super) fn finalise_invocation_resolutions(&mut self) {
         // Populate the per-dialect builtin-name cache before splitting field
         // borrows below (`builtin_command_names` needs `&mut self`).
@@ -1061,6 +1107,7 @@ impl Analyser {
         // const-dispatch / variable-command passes' `Self::fact_live_for_call`
         // calls reuse the same map instead of rebuilding it.
         self.reachable_call_offsets = self.compute_reachable_call_offsets();
+        let implicit_paths = self.implicit_invocation_namespace_paths();
         let renamed_away = self.renamed_away_builtin_names();
         let deleted_commands = &self.deleted_commands;
         let rename_offsets = &self.rename_offsets;
@@ -1089,7 +1136,8 @@ impl Analyser {
             deleted_commands,
             reachable_call_offsets,
         };
-        for inv in &mut result.command_invocations {
+        for (idx, inv) in result.command_invocations.iter_mut().enumerate() {
+            let implicit_path = implicit_paths.get(idx).copied().unwrap_or(&[]);
             // Absolute names are exact — the sole candidate is the name itself.
             // `None` means a background scan that skipped the scope walk; leave
             // its (empty) candidate list untouched.
@@ -1170,18 +1218,37 @@ impl Analyser {
                     continue;
                 }
             };
-            let path: &[String] = paths.get(&ns).map_or(&[], Vec::as_slice);
+            // A frame carrying an *implicit* `namespace path` (a `TclOO`
+            // member body's `::oo::Helpers`, registry data — see
+            // [`implicit_command_namespace_path_at`]) searches that path
+            // between its own current namespace and global.  That current
+            // namespace is the object's (`::oo::ObjN`) and has no static
+            // spelling, so the walk substitutes global for it — which, left
+            // alone, would put the *global* candidate ahead of the path one
+            // and invert Tcl's order (tclsh 8.6.16 / 9.0.4: with both
+            // `::callback` and `::oo::Helpers::callback` defined, a bare
+            // `callback` in a method body reaches the latter).  The
+            // unspellable slot is therefore dropped and the implicit path
+            // takes its place at the head of the search.
+            let declared_path: &[String] = paths.get(&ns).map_or(&[], Vec::as_slice);
+            let (search_ns, search_path): (&str, Vec<&str>) = match implicit_path.split_first() {
+                Some((first, rest)) => (first, rest.to_vec()),
+                None => (
+                    ns.as_str(),
+                    declared_path.iter().map(String::as_str).collect(),
+                ),
+            };
             // Record the full ordered candidate list so a cross-document
             // consumer can re-settle this call against a *workspace-wide*
             // existence check — the local-first guess below only sees this
             // file, so a call resolving (via `namespace path`) to a proc
             // defined in another file cannot settle correctly here.
             inv.resolution_candidates =
-                crate::naming::command_resolution_candidates(&ns, path, &inv.name);
+                crate::naming::command_resolution_candidates(search_ns, &search_path, &inv.name);
             let call_off = inv.range.start();
             let known_here = |c: &str| known_ctx.known(c, call_off);
             if let Some(winner) =
-                crate::naming::resolve_command_with(&ns, path, &inv.name, &known_here)
+                crate::naming::resolve_command_with(search_ns, &search_path, &inv.name, &known_here)
                 && winner != resolved
             {
                 inv.resolved_qualified_name = Some(winner);
