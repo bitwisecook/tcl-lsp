@@ -1009,6 +1009,28 @@ pub fn is_dynamic_word(word: &str) -> bool {
     word.contains('$') || word.contains('[')
 }
 
+/// True when a word whose **token kind** is known carries a substitution.
+///
+/// A brace-quoted word never substitutes, so its content is literal by
+/// construction however many `$` or `[` characters it holds: in
+/// `namespace path {$ns ::a}` the first entry is a namespace literally named
+/// `$ns`.  [`is_dynamic_word`] alone re-scans the *reconstructed* content —
+/// braces already stripped — and so mistakes such a word for a dynamic one,
+/// making the whole command abstain (issue #1245).
+///
+/// Only braces suppress substitution: a `"…"`-quoted word does substitute, so
+/// it is scanned like a bare word.
+///
+/// ```
+/// use tcl_syntax::naming::word_is_dynamic;
+/// assert!(word_is_dynamic("$ns ::a", false));
+/// assert!(!word_is_dynamic("$ns ::a", true));
+/// ```
+#[must_use]
+pub fn word_is_dynamic(word: &str, braced_literal: bool) -> bool {
+    !braced_literal && is_dynamic_word(word)
+}
+
 /// The offset-keyed synthetic identity markers the analyser mints for
 /// constructs whose real name is a run-time fact: a dynamic
 /// `namespace eval $ns { … }` scope (`@dynns@<offset>`), a dynamic

@@ -2931,7 +2931,21 @@ impl Analyser {
         if args.len() != 2 {
             return;
         }
-        if tcl_syntax::naming::is_dynamic_word(&args[1]) {
+        // The word arrives with its braces already stripped, so a text-only
+        // dynamism scan mistakes `namespace path {$ns ::a}` for a computed
+        // path and abstains from the whole command. Braces suppress
+        // substitution, so the token kind is the authority (issue #1245).
+        // tclsh-proof: tclsh8.6.14 —
+        //   set nn {::$ns}; namespace eval $nn {}; namespace eval a {}
+        //   namespace eval n { namespace path {::$ns ::a} }
+        //   namespace eval n { namespace path }   ->  {::$ns} ::a
+        // i.e. the entry is a namespace literally *named* `::$ns`; without
+        // that namespace existing the same line errors with
+        // `namespace "$ns" not found in "::n"` — never a variable read.
+        let braced = arg_tokens
+            .get(1)
+            .is_some_and(|tok| tok.kind == TokenType::Str);
+        if tcl_syntax::naming::word_is_dynamic(&args[1], braced) {
             return;
         }
         // The `namespace path` command-resolution tier is an 8.5 addition
@@ -7820,6 +7834,44 @@ mod tests {
             Some(&["inner".to_string()][..]),
             "each namespace path declaration replaces the whole path",
         );
+    }
+
+    /// #1245 — a **braced** path word is literal, not dynamic. The word
+    /// arrives with braces stripped, so a text-only dynamism scan sees the
+    /// `$` and abstains from the whole command; the token kind is the
+    /// authority.
+    ///
+    /// tclsh-proof: tclsh8.6.14 —
+    /// `set nn {::$ns}; namespace eval $nn {}; namespace eval a {}` then
+    /// `namespace eval n { namespace path {::$ns ::a} }` and
+    /// `namespace eval n { namespace path }` answers `{::$ns} ::a` — the
+    /// entry is a namespace literally *named* `::$ns`.
+    #[test]
+    fn handle_namespace_path_records_a_braced_dollar_bearing_word() {
+        let mut a = Analyser::new();
+        a.handle_namespace_path_command(
+            &["path".to_string(), "::$ns ::a".to_string()],
+            &[esc_tok(span(0, 4)), str_tok(span(5, 16))],
+            &[],
+        );
+        assert_eq!(
+            a.namespace_paths.get("::").map(Vec::as_slice),
+            Some(&["::$ns".to_string(), "::a".to_string()][..]),
+            "a braced word never substitutes, so its entries are literal names",
+        );
+    }
+
+    /// TN control — the same text **unbraced** really is a substitution, so
+    /// the command still abstains.
+    #[test]
+    fn handle_namespace_path_still_skips_an_unbraced_dollar_word() {
+        let mut a = Analyser::new();
+        a.handle_namespace_path_command(
+            &["path".to_string(), "$entries".to_string()],
+            &[esc_tok(span(0, 4)), Token::new(TokenType::Var, span(5, 13))],
+            &[],
+        );
+        assert!(a.namespace_paths.is_empty());
     }
 
     /// The query form (no list) and a dynamic list (`$var` / `[cmd]`)
