@@ -1320,6 +1320,37 @@ impl CommandRegistry {
         sub.map_or(spec.traits, |sub| spec.traits.union(sub.traits))
     }
 
+    /// The declared [`ArgTypeHint`] for the 0-based argument `index` (after
+    /// the command name) of a call to `name` with `args`.
+    ///
+    /// Resolves through the subcommand when the command is an ensemble and
+    /// `args[0]` names one, so `dict for {k v} $d body` reports the `Dict`
+    /// hint the `for` subcommand declares on its own argument 1.
+    ///
+    /// [`ArgTypeHint`]: crate::hooks::ArgTypeHint
+    #[must_use]
+    pub fn arg_type_hint(
+        &self,
+        name: &str,
+        args: &[&str],
+        index: usize,
+    ) -> Option<&'static crate::hooks::ArgTypeHint> {
+        let spec = self.get(name)?;
+        let find = |types: &'static [(u8, crate::hooks::ArgTypeHint)], idx: usize| {
+            u8::try_from(idx)
+                .ok()
+                .and_then(|i| types.iter().find(|(at, _)| *at == i).map(|(_, h)| h))
+        };
+        if !spec.subcommands.is_empty()
+            && !args.is_empty()
+            && let Some(sub) = spec.resolve_subcommand(args[0])
+            && index >= 1
+        {
+            return find(sub.arg_types, index - 1);
+        }
+        find(spec.arg_types, index)
+    }
+
     /// Resolve argument indices for a given role.
     ///
     /// For subcommand-based commands (e.g. `dict create`), pass the
