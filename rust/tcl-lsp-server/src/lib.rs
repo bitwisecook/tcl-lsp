@@ -100,9 +100,9 @@ use tower_lsp_server::ls_types::{
     DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkOptions,
     DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams,
     DocumentSymbolResponse, Documentation, ExecuteCommandOptions, ExecuteCommandParams,
-    FileChangeType, FileOperationFilter, FileOperationPattern, FileOperationRegistrationOptions,
-    FileSystemWatcher, FoldingRange, FoldingRangeKind, FoldingRangeParams,
-    FoldingRangeProviderCapability, FullDocumentDiagnosticReport, GlobPattern,
+    FileChangeType, FileOperationFilter, FileOperationPattern, FileOperationPatternOptions,
+    FileOperationRegistrationOptions, FileSystemWatcher, FoldingRange, FoldingRangeKind,
+    FoldingRangeParams, FoldingRangeProviderCapability, FullDocumentDiagnosticReport, GlobPattern,
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
     HoverProviderCapability, ImplementationProviderCapability, InitializeParams, InitializeResult,
     InitializedParams, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams,
@@ -136,7 +136,25 @@ use tower_lsp_server::{Client, LanguageServer};
 /// Document store value: source text + dialect string.
 #[derive(Debug, Clone)]
 struct DocumentState {
+    /// The document's text **as analysis sees it**.
+    ///
+    /// Inside [`Backend::documents`] this is byte-for-byte what the client
+    /// sent (the shadow buffer every incremental `didChange` splices into).
+    /// [`Backend::read_document`] hands out a copy whose lone `\r`s have been
+    /// rewritten to `\n` ([`tcl_lexer::normalise_lone_cr`]) and stashes the
+    /// client's bytes in `raw_text`, so every provider that re-lexes this
+    /// field sees the same script `tclsh` would (a channel opened with
+    /// `-translation auto` turns each `\r` into a command terminator before
+    /// the parser runs) and lands on the same lines as the client. The
+    /// rewrite is byte-length preserving, so spans and offsets are
+    /// interchangeable between the two.
     text: String,
+    /// The client's exact bytes, when they differ from `text` — i.e. only for
+    /// an old-Mac / mixed document handed out by [`Backend::read_document`].
+    /// Read it via [`DocumentState::raw`] for anything that must see the real
+    /// terminators: the W118 line-ending lint and the formatter (whose output
+    /// EOL and whose replace range are both computed from the real document).
+    raw_text: Option<String>,
     /// Persisted line-start index for `text`, built with the **LSP** EOL model
     /// ([`tcl_lexer::LineIndex::new_lsp`]) so the server's `(line, character)`
     /// coordinates match the client's (`\n`, `\r\n`, and lone `\r` all break a
@@ -164,6 +182,17 @@ struct DocumentState {
     /// with published diagnostics so clients can discard obsolete
     /// diagnostics if messages arrive out of order.
     version: Option<i32>,
+    /// The backing file was deleted on disk while this buffer stayed open —
+    /// an out-of-band `mv`/`rm`/branch switch, for which no editor sends a
+    /// `didClose`.
+    ///
+    /// The buffer keeps working (its own diagnostics, hover, symbols all still
+    /// resolve from `text`), but it stops contributing to the **cross-document**
+    /// workspace index: the path it claims no longer exists, so leaving it
+    /// indexed duplicates every proc of the file it was renamed to and sends
+    /// go-to-definition to a path the editor cannot open.  Cleared when the
+    /// path comes back (`didOpen`, a save, or a watched `CREATED`/`CHANGED`).
+    backing_file_deleted: bool,
 }
 
 impl DocumentState {
@@ -172,12 +201,14 @@ impl DocumentState {
         let has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&text);
         Self {
             text,
+            raw_text: None,
             line_index,
             has_bare_cr,
             dialect,
             language_id: String::new(),
             revision: 0,
             version: None,
+            backing_file_deleted: false,
         }
     }
 
@@ -186,12 +217,14 @@ impl DocumentState {
         let has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&text);
         Self {
             text,
+            raw_text: None,
             line_index,
             has_bare_cr,
             dialect,
             language_id: String::new(),
             revision: 0,
             version: Some(version),
+            backing_file_deleted: false,
         }
     }
 
@@ -199,6 +232,25 @@ impl DocumentState {
     /// form, so the existing constructors stay two-argument).
     fn with_language_id(mut self, language_id: String) -> Self {
         self.language_id = language_id;
+        self
+    }
+
+    /// The client's exact bytes — `text` unless this snapshot has been
+    /// normalised for analysis, in which case the originals are in `raw_text`.
+    fn raw(&self) -> &str {
+        self.raw_text.as_deref().unwrap_or(&self.text)
+    }
+
+    /// Rewrite `text` into its analysis form, keeping the client's bytes in
+    /// `raw_text`.  A no-op for the overwhelmingly common LF / CRLF document
+    /// (`has_bare_cr` is already known, so this costs one branch); only an
+    /// old-Mac / mixed buffer allocates.
+    fn normalised_for_analysis(mut self) -> Self {
+        if !self.has_bare_cr {
+            return self;
+        }
+        let normalised = tcl_lexer::normalise_lone_cr(&self.text).into_owned();
+        self.raw_text = Some(std::mem::replace(&mut self.text, normalised));
         self
     }
 
@@ -2136,6 +2188,15 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         file,
         config,
     } = job;
+    // `text` is the client's exact buffer; `analysis_text` is what the parser
+    // must see — a lone `\r` is a command terminator to `tclsh` (its script
+    // channel's `-translation auto` rewrites it before the parser runs), not
+    // the horizontal whitespace our lexer would make of it.  The two are the
+    // same string for every LF / CRLF document and are always the same length,
+    // so a span from one lifts unchanged against the other.  The *style* lints
+    // keep the raw buffer: W118 exists precisely to report the real
+    // terminators.
+    let analysis_text = tcl_lexer::normalise_lone_cr(&text);
 
     let delivery = DeliveryCtx {
         client: &client,
@@ -2153,7 +2214,8 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     }
 
     if let Some(settled) =
-        run_diagnostics_f5_dialect(&delivery, &disabled, &text, &dialect, &language_id).await
+        run_diagnostics_f5_dialect(&delivery, &disabled, &analysis_text, &dialect, &language_id)
+            .await
     {
         return settled;
     }
@@ -2163,7 +2225,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         uri,
         file,
         config,
-        text: &text,
+        text: &analysis_text,
         dialect: &dialect,
     };
     let lift_inputs = LiftInputs {
@@ -2684,10 +2746,20 @@ async fn publish_diagnostics_result(
             // newer state.
             return true;
         }
+        // A buffer whose backing file has been deleted (an out-of-band rename /
+        // removal — no `didClose` arrives) is re-analysed and re-published like
+        // any other, but must not be re-added to the cross-document index: the
+        // path is dead, and re-adding it here is what used to resurrect the
+        // ghost `did_change_watched_files` had just retired.
+        let orphaned = docs
+            .get(delivery.uri)
+            .is_some_and(|doc| doc.backing_file_deleted);
         {
             let mut index = workspace_index.write().await;
             index.remove_document(delivery.uri.as_str());
-            index.add_document(delivery.uri.as_str(), analysis);
+            if !orphaned {
+                index.add_document(delivery.uri.as_str(), analysis);
+            }
         }
         // The document is now indexed standalone: invalidate its applied
         // source-site seed record (M9) so the next cross-document query
@@ -2768,6 +2840,13 @@ pub struct Backend {
     /// Updated by ``did_change_configuration`` so editor reconfigures
     /// take effect for subsequently-opened documents.
     default_dialect: Mutex<String>,
+    /// Whether [`Backend::default_dialect`] was set by an explicit
+    /// `tclLsp.dialect` — a pulled/pushed configuration value or the
+    /// `tcl-lsp.setDialect` command — rather than still being the built-in
+    /// fallback.  Reported as `dialect_explicitly_set` by
+    /// `tcl-lsp.getEffectiveConfig` so a caller tracing a surprising dialect can
+    /// tell "nobody configured one" from "someone configured exactly this".
+    default_dialect_explicit: Mutex<bool>,
     /// Workspace folder roots received from `initialize` /
     /// `workspace/didChangeWorkspaceFolders`.  Stored as
     /// `Uri` (typically `file://...` directories).
@@ -3370,10 +3449,19 @@ enum FolderGenericPatterns {
 /// Each field is `None` (or empty) when the folder's pulled `tclLsp` config
 /// did not set it, in which case the resolver falls back to the process-global
 /// value.  In a multi-root workspace each root can
-/// carry its own diagnostics, optimiser, formatting, and feature settings.
-/// Per-folder *dialect* is handled separately by [`Backend::folder_dialects`].
+/// carry its own diagnostics, optimiser, formatting, dialect, and feature
+/// settings.  The other source of a per-folder dialect —
+/// `initializationOptions.folderDialects` — lives in
+/// [`Backend::folder_dialects`]; [`Backend::folder_dialect_overrides`] merges
+/// the two.
 #[derive(Clone, Default)]
 struct FolderConfig {
+    /// `tclLsp.dialect` scoped to this folder (issue #407).  `None` when the
+    /// folder's pulled config names no dialect (or names an unknown one, which
+    /// is dropped by [`is_known_dialect_name`] exactly as the
+    /// `initializationOptions.folderDialects` path drops it), in which case the
+    /// document falls back to the session `default_dialect`.
+    dialect: Option<String>,
     feature_toggles: FeatureToggles,
     disabled_diagnostics: Option<HashSet<String>>,
     /// `tclLsp.diagnosticSeverity` per-code LSP severity overrides; `None`
@@ -3582,6 +3670,7 @@ impl Backend {
             documents: Arc::new(Mutex::new(HashMap::new())),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
+            default_dialect_explicit: Mutex::new(false),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
             folder_configs: Mutex::new(Vec::new()),
@@ -3635,6 +3724,12 @@ impl Backend {
     /// Lock order is always `db` → `db_files` → `db_tombstones` → `db_project`.
     async fn db_set_source(&self, uri: &Uri, text: String, dialect: String) {
         use salsa::Setter as _;
+        // Salsa's `SourceFile.text` is the analyser's input, so it stores the
+        // analysis form of the document (lone `\r` → `\n`) regardless of which
+        // path — `didOpen`/`didChange`, a folder scan, a watched-file change —
+        // produced it.  Doing it here rather than at each caller is what keeps
+        // the interactive and background-indexing paths from disagreeing.
+        let text = tcl_lexer::normalise_lone_cr(&text).into_owned();
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
         if let Some(&file) = files.get(uri) {
@@ -3734,6 +3829,9 @@ impl Backend {
         let mut tombstones = self.db_tombstones.lock().await;
         let mut membership_changed = false;
         for (uri, text, dialect) in entries {
+            // Same analysis-form invariant `db_set_source` enforces; the disk
+            // scanners already normalise, so this is a borrow in practice.
+            let text = tcl_lexer::normalise_lone_cr(text).into_owned();
             if let Some(&file) = files.get(uri) {
                 file.set_text(&mut *db).to(text.clone());
                 file.set_dialect(&mut *db).to(dialect.clone());
@@ -4167,13 +4265,7 @@ impl Backend {
                 let Some(dialect) = dialect_val.as_str() else {
                     continue;
                 };
-                // Valid names: any catalog profile (now including the
-                // config-only f5-tmsh / f5-bigip / bpf, which the old
-                // DialectSet::parse check wrongly rejected) plus `tk`
-                // (a parseable library shell, not a profile — §7.2).
-                if tcl_dialect::DialectProfile::find(dialect).is_none()
-                    && DialectSet::parse(dialect).is_none()
-                {
+                if !is_known_dialect_name(dialect) {
                     continue;
                 }
                 parsed.push((url, dialect.to_owned()));
@@ -4200,20 +4292,60 @@ impl Backend {
     /// Resolution order:
     ///
     /// 1. The LSP ``languageId`` field — when it names a known
-    ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl9.0"``
-    ///    / etc.), use it directly.
+    ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl90"`` /
+    ///    ``"tcl9.0"`` / etc.), use it directly.
     /// 2. Detection over the document itself — for the bare ``"tcl"``
     ///    id every editor sends for a `.tcl` buffer, the shared
     ///    [`tcl_registry::dialects::detect_dialect`] (directive,
     ///    shebang, version guard, content signatures, then extension).
-    /// 3. The per-folder override map (`folder_dialects`) — when
-    ///    the document URI sits under one of the configured folder
-    ///    URLs, use the deepest-matching folder's dialect.
+    /// 3. The per-folder override map ([`Self::folder_dialect_overrides`] —
+    ///    `initializationOptions.folderDialects` merged over each folder's
+    ///    pulled `tclLsp.dialect`) — when the document URI sits under one of
+    ///    the configured folder URLs, use the deepest-matching folder's
+    ///    dialect.
     /// 4. The session-wide ``default_dialect`` fallback.
     async fn dialect_for_open(&self, uri: &Uri, language_id: &str, text: &str) -> String {
-        let folder_dialects = self.folder_dialects.lock().await.clone();
+        let folder_dialects = self.folder_dialect_overrides().await;
         let default_dialect = self.default_dialect.lock().await.clone();
         Self::dialect_for_open_sync(uri, language_id, text, &folder_dialects, &default_dialect)
+    }
+
+    /// Every per-folder dialect override in effect, as the
+    /// `(folder-uri, dialect)` list [`folder_dialect_for`] resolves a document
+    /// against.
+    ///
+    /// Two sources can set one and they are merged here so every dialect
+    /// resolution — open document, closed on-disk file, batched watched-file
+    /// reindex, the `getEffectiveConfig` command — sees the same mapping:
+    ///
+    /// 1. `initializationOptions.folderDialects` (`folder_dialects`) — a
+    ///    host-supplied mapping fixed at `initialize` and never re-pulled.  It
+    ///    wins for the folder URIs it names: a host that states the mapping
+    ///    outright is making a deliberate choice the editor's settings files
+    ///    should not silently override.
+    /// 2. The folder's pulled `tclLsp.dialect` (`folder_configs`) — what VS
+    ///    Code resolves for a `.vscode/settings.json` at the folder scope
+    ///    (issue #407).  Applies to every folder the map above does not name.
+    ///
+    /// Across *different* folders precedence is unchanged: `folder_dialect_for`
+    /// still picks the longest matching folder prefix, so a nested folder
+    /// shadows its parent whichever source each of them came from.
+    async fn folder_dialect_overrides(&self) -> Vec<(Uri, String)> {
+        let mut merged = self.folder_dialects.lock().await.clone();
+        let from_config: Vec<(Uri, String)> = {
+            let configs = self.folder_configs.lock().await;
+            configs
+                .iter()
+                .filter_map(|(folder, fc)| fc.dialect.clone().map(|d| (folder.clone(), d)))
+                .collect()
+        };
+        for (folder, dialect) in from_config {
+            if merged.iter().any(|(u, _)| u.as_str() == folder.as_str()) {
+                continue;
+            }
+            merged.push((folder, dialect));
+        }
+        merged
     }
 
     /// Pure core of [`Self::dialect_for_open`] (and so of
@@ -4227,15 +4359,17 @@ impl Backend {
     /// Resolution order:
     ///
     /// 1. The LSP ``languageId`` field — when it names a known
-    ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl9.0"``
-    ///    / etc.), use it directly.
+    ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl90"`` /
+    ///    ``"tcl9.0"`` / etc.), use it directly.
     /// 2. Detection over the document itself — for the bare ``"tcl"``
     ///    id every editor sends for a `.tcl` buffer, the shared
     ///    [`tcl_registry::dialects::detect_dialect`] (directive,
     ///    shebang, version guard, content signatures, then extension).
-    /// 3. The per-folder override map (`folder_dialects`) — when
-    ///    the document URI sits under one of the configured folder
-    ///    URLs, use the deepest-matching folder's dialect.
+    /// 3. The per-folder override map ([`Self::folder_dialect_overrides`] —
+    ///    `initializationOptions.folderDialects` merged over each folder's
+    ///    pulled `tclLsp.dialect`) — when the document URI sits under one of
+    ///    the configured folder URLs, use the deepest-matching folder's
+    ///    dialect.
     /// 4. The session-wide ``default_dialect`` fallback.
     fn dialect_for_open_sync(
         uri: &Uri,
@@ -4290,12 +4424,18 @@ impl Backend {
         // still decide an ordinary Tcl buffer (issue #805). An empty `default`
         // is the "nothing detected" sentinel: it keeps that deferral intact.
         if language_id == "tcl" {
-            let detected = tcl_registry::dialects::detect_dialect(text, Some(uri.as_str()), "");
+            // The directive / shebang / version-guard tiers are line-oriented,
+            // so an old-Mac buffer must be normalised first or the whole file
+            // reads as line 0 and a `# tcl-lsp: dialect=…` header on line 2
+            // never registers.  A no-op for LF / CRLF text.
+            let text = tcl_lexer::normalise_lone_cr(text);
+            let detected = tcl_registry::dialects::detect_dialect(&text, Some(uri.as_str()), "");
             if !detected.is_empty() {
                 return detected.to_owned();
             }
         }
-        // A *versioned* or non-Tcl language id (`tcl8.4`, `tcl9.0`,
+        // A *versioned* or non-Tcl language id (`tcl84`/`tcl8.4`,
+        // `tcl90`/`tcl9.0`,
         // `f5-irules`, …) is a deliberate, specific choice and wins over the
         // per-folder and session (config-file) dialect below. The bare `"tcl"`
         // id is different: editors send it for *every* `.tcl` file, so it names
@@ -4328,8 +4468,7 @@ impl Backend {
     /// preferring the deepest (longest-prefix) match so nested
     /// folders shadow their parents.
     async fn resolve_folder_dialect(&self, uri: &Uri) -> Option<String> {
-        let folders = self.folder_dialects.lock().await;
-        folder_dialect_for(uri, &folders)
+        folder_dialect_for(uri, &self.folder_dialect_overrides().await)
     }
 
     /// Map an LSP ``languageId`` string to a dialect name accepted
@@ -4346,11 +4485,19 @@ impl Backend {
         // name they map to so callers in either world land on the
         // string the registry / provider trait expects.
         let mapped = match language_id {
-            "tcl" | "tcl8.6" => "tcl8.6",
-            "tcl8.4" => "tcl8.4",
-            "tcl8.5" => "tcl8.5",
-            "tcl9.0" => "tcl9.0",
-            "tcl9.1" => "tcl9.1",
+            // The version-pinned ids come in two spellings. The VS Code
+            // extension contributes the *undotted* `tcl84` … `tcl91` because a
+            // language id containing a `.` cannot carry a
+            // `configurationDefaults` override (VS Code splits the key on the
+            // dot and throws, dropping the rest of the block — issue #1122).
+            // Every other editor integration (Neovim, Sublime, JetBrains,
+            // Emacs, Helix) still sends the dotted form, as do direct/MCP
+            // callers passing a canonical dialect name, so both are accepted.
+            "tcl" | "tcl8.6" | "tcl86" => "tcl8.6",
+            "tcl8.4" | "tcl84" => "tcl8.4",
+            "tcl8.5" | "tcl85" => "tcl8.5",
+            "tcl9.0" | "tcl90" => "tcl9.0",
+            "tcl9.1" | "tcl91" => "tcl9.1",
             "tcl-irule" | "f5-irules" => "f5-irules",
             // `tcl-apl` is the APL (iApp presentation language) editor id — an
             // iApp sublanguage, so it analyses as `f5-iapps` rather than
@@ -4399,10 +4546,23 @@ impl Backend {
         self.edit_order.settled().await;
     }
 
+    /// A snapshot of `url`'s text, **normalised for analysis**: every lone
+    /// `\r` in the open buffer (or the on-disk fallback) is rewritten to `\n`
+    /// before the snapshot is handed out, with the client's own bytes kept in
+    /// [`DocumentState::raw`].
+    ///
+    /// This is the single choke point between the shadow buffer and every
+    /// feature provider, so the ~80 `LineIndex::new` sites in `tcl-lsp-core`
+    /// and the lexer's `\n`-only line model agree with the client's
+    /// `\n`/`\r\n`/lone-`\r` model without any of them changing — and so the
+    /// analysis matches what `tclsh` would parse from the same file, where the
+    /// `-translation auto` channel makes a lone `\r` a command terminator.
+    /// Only the formatter and the W118 line-ending lint read
+    /// [`DocumentState::raw`] instead.
     async fn read_document(&self, url: &Uri) -> Option<DocumentState> {
         self.edits_settled().await;
         if let Some(doc) = self.documents.lock().await.get(url).cloned() {
-            return Some(doc);
+            return Some(doc.normalised_for_analysis());
         }
         // On-disk fallback: files the folder scan indexed but the
         // editor hasn't opened aren't in the open-document map.
@@ -4420,7 +4580,7 @@ impl Backend {
             Some(d) => d,
             None => self.default_dialect.lock().await.clone(),
         };
-        Some(DocumentState::new(text, dialect))
+        Some(DocumentState::new(text, dialect).normalised_for_analysis())
     }
 
     /// Cross-file super/subtype targets for the type-hierarchy walk, resolved
@@ -4887,7 +5047,13 @@ impl Backend {
     ) -> Option<(Uri, String, String, AnalysisResult)> {
         tokio::task::spawn_blocking(move || {
             let path = uri.to_file_path()?;
-            let text = std::fs::read_to_string(&path).ok()?;
+            // Normalise on the way in, exactly as `read_document` does for the
+            // interactive path, so a disk-backed file's index entry, salsa
+            // input and diagnostics describe the same script the editor would
+            // see once the file is opened (issue: background and interactive
+            // paths must not disagree about where a lone `\r` breaks a line).
+            let text =
+                tcl_lexer::normalise_lone_cr(&std::fs::read_to_string(&path).ok()?).into_owned();
             let dialect =
                 Self::dialect_for_closed_sync(&uri, &text, &folder_dialects, &default_dialect);
             let analysis = Analyser::new().analyse(&text, &dialect);
@@ -4919,7 +5085,7 @@ impl Backend {
         if uris.is_empty() {
             return;
         }
-        let folder_dialects = Arc::new(self.folder_dialects.lock().await.clone());
+        let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.default_dialect.lock().await.clone());
         let concurrency = std::thread::available_parallelism()
             .map_or(4, std::num::NonZeroUsize::get)
@@ -4999,7 +5165,7 @@ impl Backend {
         // same on-disk population as the workspace index, so a proc defined in
         // a closed/never-opened file still suppresses W123 / drives the arity
         // error in its siblings.
-        let folder_dialects = Arc::new(self.folder_dialects.lock().await.clone());
+        let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.default_dialect.lock().await.clone());
         let scanned = Self::scan_disk_file(uri.clone(), folder_dialects, default_dialect).await;
         // Serialise the standalone replacement with source-site reconciliation,
@@ -6907,7 +7073,9 @@ impl Backend {
                     uri: current_uri.clone(),
                     text: current_source.to_owned(),
                     dialect: current_dialect.to_owned(),
-                    line_index: tcl_lexer::LineIndex::new(current_source),
+                    // The LSP EOL model, matching the `line_index` the sibling
+                    // branch takes straight off the stored `DocumentState`.
+                    line_index: tcl_lexer::LineIndex::new_lsp(current_source),
                 }
             } else {
                 let Ok(parsed) = Uri::from_str(&u) else {
@@ -8447,14 +8615,19 @@ impl Backend {
         let (disabled, na_mode) = self.analyser_config().await;
         let extra: HashSet<String> = self.extra_commands.lock().await.iter().cloned().collect();
         let dialect = doc.dialect.clone();
-        let mut source = doc.text.clone();
+        // The fixed-up buffer is handed back to the client verbatim, so it
+        // carries the document's real terminators; the analyser that locates
+        // the fixes still sees the normalised form.  The rewrite is
+        // byte-length preserving, so a fix span resolved against one applies
+        // unchanged to the other.
+        let mut source = doc.raw().to_owned();
         let value = tokio::task::spawn_blocking(move || {
             const SAFE: &[&str] = &["W100", "W105", "W108", "W110", "W201", "W304", "IRULE2001"];
             let mut applied: Vec<serde_json::Value> = Vec::new();
             for _ in 0..4 {
                 let mut analyser =
                     Self::configured_analyser(disabled.clone(), na_mode, extra.clone());
-                let analysis = analyser.analyse(&source, &dialect);
+                let analysis = analyser.analyse(&tcl_lexer::normalise_lone_cr(&source), &dialect);
                 // First fix per safe diagnostic, sorted by start offset.
                 let mut fixes: Vec<(u32, u32, String, String, String)> = Vec::new();
                 for d in &analysis.diagnostics {
@@ -8516,6 +8689,11 @@ impl Backend {
     /// switch, line length, and analyser settings.  Tests poll this command
     /// after a `tclLsp.features.X = false` config change to confirm the server
     /// has applied the toggle without sleeping on wall-clock time.
+    ///
+    /// The argument may name a *folder* rather than a document — the multi-root
+    /// suite polls each workspace folder's URI to watch the per-folder pull
+    /// settle — so every resolved value goes through the same folder chain a
+    /// document under that folder would use.
     async fn get_effective_config_command(
         &self,
         args: &[serde_json::Value],
@@ -8524,15 +8702,44 @@ impl Backend {
             .first()
             .and_then(serde_json::Value::as_str)
             .unwrap_or_default();
-        // Resolve the dialect via the open document when the URI names one,
-        // else the session default — never `null`, so a polling client always
-        // sees a concrete value.
-        let dialect = match Uri::from_str(uri_str) {
-            Ok(uri) => match self.read_document(&uri).await {
+        let parsed_uri = Uri::from_str(uri_str).ok();
+        let folder_overrides = self.folder_dialect_overrides().await;
+        let known_folders = self.workspace_folder_urls().await;
+        // The deepest workspace folder containing the queried URI (the folder
+        // itself when a folder URI was passed) — the scope whose overrides the
+        // values below resolved through.
+        let folder_uri = parsed_uri.as_ref().and_then(|uri| {
+            known_folders
+                .iter()
+                .filter(|folder| uri_under_folder(uri.as_str(), folder.as_str()))
+                .max_by_key(|folder| folder.as_str().len())
+                .map(|folder| folder.as_str().to_owned())
+        });
+        // Resolve the dialect via the open document when the URI names one.  A
+        // folder (or any other non-document) URI is not readable as a document,
+        // so it resolves through the per-folder override chain before falling
+        // back to the session default — never `null`, so a polling client
+        // always sees a concrete value.
+        let dialect = match &parsed_uri {
+            Some(uri) => match self.read_document(uri).await {
                 Some(doc) => doc.dialect,
-                None => self.default_dialect.lock().await.clone(),
+                None => match folder_dialect_for(uri, &folder_overrides) {
+                    Some(d) => d,
+                    None => self.default_dialect.lock().await.clone(),
+                },
             },
-            Err(_) => self.default_dialect.lock().await.clone(),
+            None => self.default_dialect.lock().await.clone(),
+        };
+        // Whether a `tclLsp.dialect` was actually configured for this URI — by
+        // the folder it sits under, or session-wide — as opposed to the
+        // built-in fallback that a never-configured session reports.
+        let dialect_explicitly_set = parsed_uri
+            .as_ref()
+            .is_some_and(|uri| folder_dialect_for(uri, &folder_overrides).is_some())
+            || *self.default_dialect_explicit.lock().await;
+        let extra_commands = match &parsed_uri {
+            Some(uri) => self.resolved_extra_commands(uri).await,
+            None => self.extra_commands.lock().await.clone(),
         };
         let features = self.feature_toggles.lock().await.resolved_map();
         let optimiser_enabled = *self.optimiser_enabled.lock().await;
@@ -8554,8 +8761,8 @@ impl Backend {
         // reflect what actually applies to `uri_str`.  A URI naming no
         // overriding folder (or a single-root workspace) falls back to the
         // global `db_config`, matching the previous behaviour exactly.
-        let (mut disabled_sorted, mode) = if let Ok(uri) = Uri::from_str(uri_str) {
-            let config = self.resolved_db_config(&uri).await;
+        let (mut disabled_sorted, mode) = if let Some(uri) = &parsed_uri {
+            let config = self.resolved_db_config(uri).await;
             let db = self.db.lock().await;
             (
                 config.disabled_diagnostics(&*db).clone(),
@@ -8568,7 +8775,14 @@ impl Backend {
         disabled_sorted.sort();
         Ok(Some(serde_json::json!({
             "uri": uri_str,
+            "folder_uri": folder_uri,
             "dialect": dialect,
+            "dialect_explicitly_set": dialect_explicitly_set,
+            "extra_commands": extra_commands,
+            "known_folder_uris": known_folders
+                .iter()
+                .map(|f| f.as_str().to_owned())
+                .collect::<Vec<String>>(),
             "features": features,
             "optimiser_enabled": optimiser_enabled,
             "optimiser_profile": optimiser_profile,
@@ -8601,6 +8815,7 @@ impl Backend {
             })));
         }
         *self.default_dialect.lock().await = dialect.to_owned();
+        *self.default_dialect_explicit.lock().await = true;
         self.reresolve_open_document_dialects().await;
         Ok(Some(
             serde_json::json!({ "success": true, "dialect": dialect }),
@@ -8739,6 +8954,18 @@ impl Backend {
                 self.apply_folder_configs(parsed).await;
             }
         }
+        // Both applies above can move a document's dialect: `apply_global_config`
+        // rewrites the session `default_dialect`, and `apply_folder_configs`
+        // replaces the per-folder `tclLsp.dialect` map.  Every already-open
+        // buffer must be re-resolved against the new state here, at the single
+        // point every pull passes through, rather than at each of the four call
+        // sites (`initialized`, `did_change_configuration`, the workspace-folder
+        // change, and the `.tcl-lsp.ini` watcher) — two of which previously did
+        // not, which is what let a transient session-global dialect stay baked
+        // into open buffers (the pull reverted the global without re-resolving)
+        // and what left a document opened concurrently with `initialized`'s pull
+        // stuck on the pre-config default.
+        self.reresolve_open_document_dialects().await;
     }
 
     /// Apply the *content* of a pulled `tclLsp` config section (`cfg`) onto the
@@ -8887,6 +9114,7 @@ impl Backend {
         }
         if let Some(dialect) = cfg.get("dialect").and_then(serde_json::Value::as_str) {
             *self.default_dialect.lock().await = dialect.to_owned();
+            *self.default_dialect_explicit.lock().await = true;
         }
     }
 
@@ -9437,6 +9665,28 @@ impl Backend {
         }
     }
 
+    /// The line ending any server-composed edit for `uri` should insert: the
+    /// resolved `tclLsp.formatting.lineEnding`, whose `auto` default means
+    /// "whatever `source` already uses" ([`core_formatting::detect_line_ending`]).
+    ///
+    /// Pass the document's **raw** text ([`DocumentState::raw`]) — the sniff
+    /// has to see the real terminators, not their analysis form.
+    async fn resolved_edit_line_ending(&self, uri: &Uri, source: &str) -> String {
+        let configured = self
+            .resolved_formatting(uri)
+            .await
+            .get("lineEnding")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_ascii_lowercase);
+        match configured.as_deref() {
+            Some("crlf") => "\r\n".to_owned(),
+            Some("cr") => "\r".to_owned(),
+            Some("lf") => "\n".to_owned(),
+            // `auto` (the default) and anything unrecognised: follow the file.
+            _ => core_formatting::detect_line_ending(source).to_owned(),
+        }
+    }
+
     /// The resolved W111 source-style line length (`tclLsp.style.lineLength`)
     /// for `uri`: a folder override wins, else the process-global value.
     /// Distinct from [`Self::resolved_line_length`] (the formatter width).
@@ -9668,13 +9918,19 @@ impl Backend {
         }
         let (disabled, _non_ascii_mode, optimiser_enabled, opt_disabled) =
             self.resolved_analysis_settings(uri).await;
+        // `text` is the client's exact buffer and `analysis_text` its analysis
+        // form (lone `\r` → `\n`), exactly as `run_diagnostics_core` splits
+        // them on the push path: the parser sees the script `tclsh` would, the
+        // W118 line-ending lint sees the real terminators, and the two agree
+        // on every offset because the rewrite preserves byte length.
+        let analysis_text = tcl_lexer::normalise_lone_cr(&text).into_owned();
         // F5 dialect dispatch: BIG-IP config / iApp APL
         // presentation documents have model-level validators, not the Tcl
         // analyser — mirror the push path's dispatch so a pull-mode editor
         // receives the same BIGIP/IAPP diagnostics.
         if let Some(diags) = f5_dialect_diagnostics(
             uri,
-            &text,
+            &analysis_text,
             &dialect,
             language_id,
             &disabled,
@@ -9684,7 +9940,9 @@ impl Backend {
         {
             return diags;
         }
-        let analysis = self.analysis_for(uri, text.clone(), dialect.clone()).await;
+        let analysis = self
+            .analysis_for(uri, analysis_text.clone(), dialect.clone())
+            .await;
         let registry = self.registry_for_dialect(&dialect).await;
 
         // Cross-file: the project's proc arities, so the
@@ -9697,7 +9955,7 @@ impl Backend {
         let cross_file_on = self.cross_file_resolution_enabled(uri).await;
         let project_arities = self.project_arities_if(cross_file_on).await;
         let compiler_diags = self
-            .compiler_diagnostics_for(uri, &text, &dialect, registry)
+            .compiler_diagnostics_for(uri, &analysis_text, &dialect, registry)
             .await;
 
         // XC100-301 translatability lints — independent toggle, f5-irules only.
@@ -9717,57 +9975,23 @@ impl Backend {
             ),
             None => analysis.diagnostics.clone(),
         };
-        // #723: refine the single-file W120 against the workspace package
-        // database, mirroring the push path's `refine_and_lift_diagnostics`, so a
-        // workspace whose `pkgIndex.tcl`/`libraryPaths` prove a required package
-        // transitively provides the flagged package suppresses the false W120.
-        // #804: also inherit the requires of the project's entry files / the
-        // `source` ancestors of this document. Only computed when there is a
-        // W120 to refine, matching the push path — otherwise the workspace-index
-        // lock and `source`-graph walk are avoidable work.
-        let inherited_requires = if analyser_diags
-            .iter()
-            .any(|d| d.code == DiagCode::W120 || d.code == DiagCode::W123)
-        {
-            self.inherited_package_requires(uri).await
-        } else {
-            Vec::new()
-        };
-        let analyser_diags = refine_workspace_w120(
-            analyser_diags,
-            analysis.as_ref(),
-            &inherited_requires,
-            &self.package_resolver,
-            registry,
-        )
-        .await;
-        // #832: drop any W123 the package database can resolve (auto-loaded
-        // library command, or an available package's defined command), mirroring
-        // the push path so pull and push stay behaviour-identical.
-        let analyser_diags = refine_workspace_w123(
-            analyser_diags,
-            analysis.as_ref(),
-            &inherited_requires,
-            &self.package_resolver,
-            &dialect,
-        )
-        .await;
-        // idx 80: and any W123 the workspace index resolves, when
-        // `crossFileResolution` is on — again mirroring the push path.
-        let workspace_known_names = if cross_file_on {
-            Some(self.workspace_index.read().await.command_names())
-        } else {
-            None
-        };
-        let analyser_diags =
-            refine_workspace_index_w123(analyser_diags, workspace_known_names.as_deref());
+        let analyser_diags = self
+            .refine_pull_analyser_diagnostics(
+                uri,
+                analyser_diags,
+                &analysis,
+                &dialect,
+                registry,
+                cross_file_on,
+            )
+            .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
         let severity_overrides = self.resolved_severity_overrides(uri).await;
         tokio::task::spawn_blocking(move || {
-            let mut diagnostics = lift_analyser_diagnostics(&text, &analyser_diags);
+            let mut diagnostics = lift_analyser_diagnostics(&analysis_text, &analyser_diags);
             append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
             diagnostics.extend(lift_compiler_diagnostics(
-                &text,
+                &analysis_text,
                 &compiler_diags,
                 optimiser_enabled,
                 &opt_disabled,
@@ -9785,7 +10009,7 @@ impl Backend {
             // the push path).
             if xc_for_irules {
                 diagnostics.extend(lift_xc_diagnostics(
-                    &text,
+                    &analysis_text,
                     &disabled,
                     &analysis.suppressed_lines,
                 ));
@@ -9795,6 +10019,62 @@ impl Backend {
         })
         .await
         .unwrap_or_default()
+    }
+
+    /// Apply the workspace refinements the push path's
+    /// `refine_and_lift_diagnostics` applies, so a pulled report matches a
+    /// pushed one diagnostic for diagnostic:
+    ///
+    /// * **#723 / #804 W120** — a package the workspace's
+    ///   `pkgIndex.tcl` / `libraryPaths` prove is transitively provided, or
+    ///   that an entry file / `source` ancestor already required.
+    /// * **#832 W123** — a command the package database resolves (auto-loaded
+    ///   library command, or an available package's defined command).
+    /// * **idx 80 W123** — a command the workspace index resolves, when
+    ///   `crossFileResolution` is on.
+    ///
+    /// The inherited-requires walk and the workspace-index read are both
+    /// gated on there being something to refine, so a clean document pays
+    /// neither the lock nor the `source`-graph walk.
+    async fn refine_pull_analyser_diagnostics(
+        &self,
+        uri: &Uri,
+        analyser_diags: Vec<tcl_compiler::analyser::Diagnostic>,
+        analysis: &AnalysisResult,
+        dialect: &str,
+        registry: &CommandRegistry,
+        cross_file_on: bool,
+    ) -> Vec<tcl_compiler::analyser::Diagnostic> {
+        let inherited_requires = if analyser_diags
+            .iter()
+            .any(|d| d.code == DiagCode::W120 || d.code == DiagCode::W123)
+        {
+            self.inherited_package_requires(uri).await
+        } else {
+            Vec::new()
+        };
+        let analyser_diags = refine_workspace_w120(
+            analyser_diags,
+            analysis,
+            &inherited_requires,
+            &self.package_resolver,
+            registry,
+        )
+        .await;
+        let analyser_diags = refine_workspace_w123(
+            analyser_diags,
+            analysis,
+            &inherited_requires,
+            &self.package_resolver,
+            dialect,
+        )
+        .await;
+        let workspace_known_names = if cross_file_on {
+            Some(self.workspace_index.read().await.command_names())
+        } else {
+            None
+        };
+        refine_workspace_index_w123(analyser_diags, workspace_known_names.as_deref())
     }
 
     /// Compute and publish diagnostics synchronously (awaited).  Used by the
@@ -10169,7 +10449,7 @@ impl Backend {
         // open documents so the blocking worker can run without
         // touching any async mutex.
         let open: HashSet<Uri> = self.documents.lock().await.keys().cloned().collect();
-        let folder_dialects = self.folder_dialects.lock().await.clone();
+        let folder_dialects = self.folder_dialect_overrides().await;
         let default_dialect = self.default_dialect.lock().await.clone();
         // Inputs for the package-database `auto_path`: the editor's
         // `tclLsp.libraryPaths` (config.ini / .tcl-lsp.ini layers are read from
@@ -10326,7 +10606,9 @@ impl Backend {
                     if open.contains(&uri) {
                         return None;
                     }
-                    let text = std::fs::read_to_string(&path).ok()?;
+                    // Analysis form, matching `read_document` / `scan_disk_file`.
+                    let text = tcl_lexer::normalise_lone_cr(&std::fs::read_to_string(&path).ok()?)
+                        .into_owned();
                     let dialect = folder_dialect_for(&uri, &folder_dialects)
                         .unwrap_or_else(|| default_dialect.clone());
                     let mut analyser = Analyser::new();
@@ -10882,6 +11164,19 @@ impl LanguageServer for Backend {
         // the same pattern `did_change_watched_files` already uses after its
         // own `scan_workspace_folders` call on a config change.
         self.reschedule_all_open_documents().await;
+        // VS Code computes a document's sticky-scroll model once, when the
+        // editor opens, and a folding provider that registers *after* that
+        // first computation does not itself trigger a recompute — the tabs
+        // restored at startup would keep an empty sticky bar until the next
+        // edit.  `workspace/foldingRange/refresh` does trigger one (it fires
+        // `SyntaxRangeProvider.onDidChange`), so send it once the provider is
+        // genuinely live.  Best-effort and idempotent, exactly as in
+        // `did_change_configuration`: a client without refresh support
+        // rejects the request, which is harmless.
+        let _ = self
+            .client
+            .send_request::<FoldingRangeRefreshRequest>(())
+            .await;
     }
 
     async fn shutdown(&self) -> jsonrpc::Result<()> {
@@ -11105,6 +11400,7 @@ impl LanguageServer for Backend {
                 let was = std::mem::replace(&mut *default, d.clone());
                 was != d
             };
+            *self.default_dialect_explicit.lock().await = true;
             // A document's resolved dialect only depends on the session
             // default as a fallback (an explicit language id / BIG-IP
             // basename / folder override still wins), so nothing changes
@@ -11134,8 +11430,9 @@ impl LanguageServer for Backend {
         self.pull_and_apply_config().await;
         // The re-pull may have flipped `features.diagnostics`,
         // `optimiser.enabled`, or the disabled-diagnostics set — none of which
-        // changes a document's dialect, so `reresolve_open_document_dialects`
-        // above skips them.  Re-run diagnostics for every open buffer so the
+        // changes a document's dialect (the dialect the re-pull *does* resolve
+        // is re-applied by `pull_and_apply_config`'s own re-resolve).  Re-run
+        // diagnostics for every open buffer so the
         // new toggles take effect immediately (clearing squiggles when the
         // master switch goes off, dropping O-codes when the optimiser goes off)
         // rather than lingering until the next keystroke.
@@ -11336,23 +11633,63 @@ impl LanguageServer for Backend {
         // branch switch used to run 500 sequential full analyses, each with
         // its own `documents.lock()` / pull-cache probe, here).
         let mut deleted: Vec<Uri> = Vec::new();
+        // The subset of `deleted` whose buffer is still open. Their index entry
+        // is retired like any other deletion, but they must not have their
+        // *diagnostics* cleared as a closed file's badge would be — the editor
+        // is still showing the buffer.
+        let mut deleted_while_open: HashSet<Uri> = HashSet::new();
         let mut changed: Vec<Uri> = Vec::new();
+        // Open buffers whose backing file reappeared (a branch switch that
+        // deletes then restores a path emits CREATED/CHANGED for it): clear the
+        // orphan mark so the buffer rejoins the cross-document index.
+        let mut revived_while_open: Vec<Uri> = Vec::new();
         for (uri, typ) in last_kind {
-            // Files the editor has open are driven by did_open/did_change; their
-            // unsaved buffer must not be clobbered by the on-disk copy.
-            // `batch_reindex_from_disk` re-checks this under the lock as well.
-            if self.documents.lock().await.contains_key(&uri) {
-                continue;
-            }
+            let is_open = self.documents.lock().await.contains_key(&uri);
             if typ == FileChangeType::DELETED {
+                if is_open {
+                    deleted_while_open.insert(uri.clone());
+                }
+                // A DELETED event runs even for an open buffer.  The editor
+                // sends no `didClose` when a file is renamed or removed
+                // out-of-band (a terminal `mv`, a branch switch), so skipping
+                // open URIs here left the dead path in `workspace_index` and the
+                // salsa `Project` for the process's life — duplicate workspace
+                // symbols and a go-to-definition jump to a file that no longer
+                // exists, once the new path was indexed alongside it.  Only the
+                // *index* is retired; `self.documents` is untouched, so the
+                // still-open buffer keeps working exactly as `did_close`'s
+                // reindex-from-disk leaves a closed-and-deleted file.
                 deleted.push(uri);
-            } else {
+            } else if !is_open {
                 // CREATED or CHANGED: re-analyse from disk (a Tcl source file)
-                // or drop it if it no longer reads as one.
+                // or drop it if it no longer reads as one.  Files the editor has
+                // open are driven by did_open/did_change; their unsaved buffer
+                // must not be clobbered by the on-disk copy.
+                // `batch_reindex_from_disk` re-checks this under the lock as
+                // well.
                 changed.push(uri);
+            } else {
+                revived_while_open.push(uri);
             }
         }
-        let domain_changed = !deleted.is_empty() || !changed.is_empty();
+        // Apply the orphan marks before any re-analysis is scheduled, so the
+        // publish path (which consults the flag under the `documents` lock)
+        // cannot re-add a just-retired path.
+        if !deleted_while_open.is_empty() || !revived_while_open.is_empty() {
+            let mut docs = self.documents.lock().await;
+            for uri in &deleted_while_open {
+                if let Some(doc) = docs.get_mut(uri) {
+                    doc.backing_file_deleted = true;
+                }
+            }
+            for uri in &revived_while_open {
+                if let Some(doc) = docs.get_mut(uri) {
+                    doc.backing_file_deleted = false;
+                }
+            }
+        }
+        let domain_changed =
+            !deleted.is_empty() || !changed.is_empty() || !revived_while_open.is_empty();
 
         // Closed files that already carry a badge (a pull-cache entry) and whose
         // on-disk change must refresh (#865) or clear that badge — computed once
@@ -11365,7 +11702,7 @@ impl LanguageServer for Backend {
             (
                 deleted
                     .iter()
-                    .filter(|uri| cache.contains_key(uri))
+                    .filter(|uri| cache.contains_key(uri) && !deleted_while_open.contains(*uri))
                     .cloned()
                     .collect(),
                 changed
@@ -11471,7 +11808,7 @@ impl LanguageServer for Backend {
         // Run on a worker so a formatter panic is contained as a JSON-RPC
         // error rather than unwinding the event loop, matching every sibling
         // handler.
-        let text = doc.text.clone();
+        let text = doc.raw().to_owned();
         let edits = tokio::task::spawn_blocking(move || {
             core_formatting::formatting_with(&text, &config, registry)
         })
@@ -11503,12 +11840,17 @@ impl LanguageServer for Backend {
             .feature_enabled("folding", &params.text_document.uri)
             .await
         {
-            // Return an authoritative *empty* set, not `None`: a `None` result
-            // makes VS Code fall back to its built-in indentation folding (so
-            // the ranges reappear), whereas an empty list is honoured as "this
-            // provider has no folding ranges", suppressing folding as the toggle
-            // intends.
-            return Ok(Some(Vec::new()));
+            // `None`, never `Some([])` — and the same holds for every other
+            // return path below (issue #1122).  An *empty* folding result is
+            // not neutral in VS Code: its sticky-scroll model provider treats
+            // the folding candidate as valid whenever the model is non-null,
+            // so an authoritative empty list is accepted as a valid, terminal
+            // sticky model and the chain never falls through to the
+            // indentation model — sticky scroll stays permanently blank for
+            // the whole session.  `None` is the only result that both lets
+            // the folding UI fall back to built-in indentation folding and
+            // lets sticky scroll fall through to its indentation model.
+            return Ok(None);
         }
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
             return Ok(None);
@@ -11549,6 +11891,9 @@ impl LanguageServer for Backend {
                 data: None,
             })?
         };
+        if ranges.is_empty() {
+            return Ok(None);
+        }
         Ok(Some(ranges.into_iter().map(lift_folding_range).collect()))
     }
 
@@ -12363,8 +12708,10 @@ impl LanguageServer for Backend {
         // warnings.
         let items = self
             .full_diagnostics_for(
+                // The raw buffer: `full_diagnostics_for` derives the analysis
+                // form itself, and W118 must see the real terminators.
                 &uri,
-                doc.text.clone(),
+                doc.raw().to_owned(),
                 doc.dialect.clone(),
                 &doc.language_id,
             )
@@ -13159,6 +13506,11 @@ impl LanguageServer for Backend {
         // the project's evidence a quick-fix could offer to delete a branch
         // the project proves reachable (issue #977).
         let evidence = self.cross_file_evidence_for(&uri).await;
+        // The action builders compose their inserted text with plain `\n`;
+        // this is the line ending it is retargeted onto below, so a docstring
+        // / `package require` / `# noqa` / extracted `set` inserted into a
+        // CRLF or old-Mac document keeps that document's terminators.
+        let line_ending = self.resolved_edit_line_ending(&uri, doc.raw()).await;
         let actions = tokio::task::spawn_blocking(move || {
             let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
             actions.extend(core_code_actions::package_require_actions(
@@ -13213,6 +13565,8 @@ impl LanguageServer for Backend {
         if actions.is_empty() {
             return Ok(None);
         }
+        let mut actions = actions;
+        core_code_actions::retarget_newlines(&mut actions, &line_ending);
         let lifted = lift_code_actions(actions, &uri, params.context.only.as_ref());
         if lifted.is_empty() {
             return Ok(None);
@@ -13267,8 +13621,11 @@ impl LanguageServer for Backend {
         let formatting = self.resolved_formatting(&params.text_document.uri).await;
         let config = formatter_config_from(&formatting, &params.options, &doc.dialect);
         // Pure-CPU formatting on a worker so a parser panic is contained as
-        // a JSON-RPC error.
-        let text = doc.text.clone();
+        // a JSON-RPC error.  The formatter is one of the two consumers that
+        // must see the document's *real* terminators (`lineEnding: auto`
+        // sniffs them, and the whole-document replace range is measured
+        // against them) — see `DocumentState::raw`.
+        let text = doc.raw().to_owned();
         let edits = tokio::task::spawn_blocking(move || {
             core_formatting::formatting_with(&text, &config, registry)
         })
@@ -13310,7 +13667,7 @@ impl LanguageServer for Backend {
         let config = formatter_config_from(&formatting, &params.options, &doc.dialect);
         // Pure-CPU formatting on a worker so a parser panic is contained as
         // a JSON-RPC error.
-        let text = doc.text.clone();
+        let text = doc.raw().to_owned();
         let edits = tokio::task::spawn_blocking(move || {
             core_formatting::range_formatting(&text, range, &config, registry)
         })
@@ -14262,6 +14619,9 @@ fn apply_formatting_object(
             "crlf" => "\r\n".to_owned(),
             "cr" => "\r".to_owned(),
             "lf" => "\n".to_owned(),
+            // `auto` (the default) is resolved against the document being
+            // formatted by `FormatterConfig::resolved_line_ending`; any other
+            // value is passed through as a literal terminator.
             other => other.to_owned(),
         };
     }
@@ -14706,6 +15066,17 @@ fn parse_folder_formatting(
 fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     let obj = cfg.as_object()?;
     let mut fc = FolderConfig::default();
+    // `tclLsp.dialect` scoped to this folder (issue #407).  Validated with the
+    // same predicate the `initializationOptions.folderDialects` path uses, so an
+    // unknown name is dropped (the folder inherits the session default) rather
+    // than pinning documents to a dialect no provider can resolve.
+    if let Some(dialect) = obj
+        .get("dialect")
+        .and_then(serde_json::Value::as_str)
+        .filter(|d| is_known_dialect_name(d))
+    {
+        fc.dialect = Some(dialect.to_owned());
+    }
     if let Some(features) = obj.get("features").and_then(serde_json::Value::as_object) {
         fc.feature_toggles.apply(features);
     }
@@ -15960,6 +16331,18 @@ fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
     ))
 }
 
+/// Whether `name` is a dialect the server accepts wherever a dialect *name* is
+/// configured — `initializationOptions.folderDialects` and the per-folder
+/// `tclLsp.dialect` pulled by `workspace/configuration`.
+///
+/// Valid names: any catalog profile (including the config-only f5-tmsh /
+/// f5-bigip / bpf, which a bare `DialectSet::parse` check wrongly rejects) plus
+/// `tk` (a parseable library shell, not a profile — §7.2).  One predicate so
+/// the two configuration paths cannot drift apart on what they accept.
+fn is_known_dialect_name(name: &str) -> bool {
+    tcl_dialect::DialectProfile::find(name).is_some() || DialectSet::parse(name).is_some()
+}
+
 /// Resolve the per-folder dialect override for the given URI. The
 /// longest matching folder prefix wins so a nested folder mapping
 /// shadows its parent. Returns `None` when no folder covers the
@@ -16205,14 +16588,36 @@ const TCL_SOURCE_EXTENSIONS: &[&str] = &[
 /// references / rename / call-hierarchy / workspace-symbols miss
 /// definitions that live in `.itcl`/`.irule`/`.iapp`/… files until they
 /// are opened.
+///
+/// The extension is compared case-insensitively, matching every other
+/// extension test in the server (`tcl_registry::dialects`'
+/// `dialect_from_extension`, `core_bigip::is_bigip_conf_name`, the APL source
+/// check) — an `UPPER.TCL` opens as Tcl but used to be invisible to the
+/// workspace scan, the watched-file filter, and the rename filter.
 fn is_tcl_source(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
-        .is_some_and(|ext| TCL_SOURCE_EXTENSIONS.contains(&ext))
+        .is_some_and(|ext| {
+            TCL_SOURCE_EXTENSIONS
+                .iter()
+                .any(|known| known.eq_ignore_ascii_case(ext))
+        })
 }
 
 /// The `**/*.{…}` glob naming exactly [`TCL_SOURCE_EXTENSIONS`], for the
 /// LSP registrations that take a glob rather than a predicate.
+///
+/// Lower-case only.  A glob cannot express "any casing" — brace-expanding to
+/// `{tcl,TCL,…}` would still miss `Upper.Tcl`, so the extension list stays
+/// single-cased and the *predicate* ([`is_tcl_source`]) does the case-folding.
+/// `willRename` / `didRename` close the gap properly via the protocol's own
+/// `FileOperationPatternOptions.ignoreCase` (see
+/// [`rename_file_operation_options`]); `workspace/didChangeWatchedFiles` has no
+/// such option, and VS Code matches watcher globs against the platform file
+/// system — case-insensitively on Windows and macOS, case-**sensitively** on
+/// Linux.  So a residual gap remains: on Linux an oddly-cased `FOO.TCL` that
+/// changes on disk outside the editor is not watched.  It is still scanned,
+/// indexed, and renameable; only the external-change notification is missed.
 fn tcl_source_glob() -> String {
     format!("**/*.{{{}}}", TCL_SOURCE_EXTENSIONS.join(","))
 }
@@ -16337,9 +16742,11 @@ fn client_supports_pull_diagnostics(params: &InitializeParams) -> bool {
 ///
 /// `ls-types` 0.0.6 predates this method, so it is declared locally to be sent
 /// via [`Client::send_request`].  Params and result are both `()` per the spec.
-/// Asks the client to re-request folding ranges for all editors — used after a
-/// config change flips `features.folding`, since the client otherwise keeps its
-/// cached ranges until the next document edit.
+/// Asks the client to re-request folding ranges for all editors.  Sent after a
+/// config change flips `features.folding` (the client otherwise keeps its
+/// cached ranges until the next document edit) and once from `initialized`,
+/// so a tab restored before the provider went live recomputes its folding —
+/// and, in VS Code, its sticky-scroll model with it (issue #1122).
 enum FoldingRangeRefreshRequest {}
 
 impl tower_lsp_server::ls_types::request::Request for FoldingRangeRefreshRequest {
@@ -16480,6 +16887,10 @@ fn build_server_capabilities(
 
 /// File-operation filter for `willRename` / `didRename`: match the Tcl
 /// source extensions the workspace scan indexes ([`TCL_SOURCE_EXTENSIONS`]).
+///
+/// `ignoreCase` so the filter agrees with [`is_tcl_source`], which case-folds:
+/// an `UPPER.TCL` the scan indexed must still have its `source` references
+/// rewritten when it is renamed.
 fn rename_file_operation_options() -> FileOperationRegistrationOptions {
     FileOperationRegistrationOptions {
         filters: vec![FileOperationFilter {
@@ -16487,7 +16898,9 @@ fn rename_file_operation_options() -> FileOperationRegistrationOptions {
             pattern: FileOperationPattern {
                 glob: tcl_source_glob(),
                 matches: None,
-                options: None,
+                options: Some(FileOperationPatternOptions {
+                    ignore_case: Some(true),
+                }),
             },
         }],
     }
@@ -19894,6 +20307,33 @@ mod tests {
         );
     }
 
+    /// The VS Code extension contributes *undotted* version-pinned language
+    /// ids (`tcl84` … `tcl91`) because a dotted id cannot carry a
+    /// `configurationDefaults` override (issue #1122). Every other editor
+    /// integration still sends the dotted form, so both spellings must resolve
+    /// to the same dialect.
+    #[test]
+    fn dialect_from_language_id_accepts_undotted_and_dotted_version_ids() {
+        for (undotted, dotted) in [
+            ("tcl84", "tcl8.4"),
+            ("tcl85", "tcl8.5"),
+            ("tcl86", "tcl8.6"),
+            ("tcl90", "tcl9.0"),
+            ("tcl91", "tcl9.1"),
+        ] {
+            assert_eq!(
+                Backend::dialect_from_language_id(undotted),
+                Some(dotted),
+                "undotted VS Code language id `{undotted}` should map to dialect `{dotted}`",
+            );
+            assert_eq!(
+                Backend::dialect_from_language_id(dotted),
+                Some(dotted),
+                "dotted language id `{dotted}` must keep working for non-VS Code editors",
+            );
+        }
+    }
+
     #[test]
     fn dialect_from_language_id_returns_none_for_unknown_ids() {
         assert!(Backend::dialect_from_language_id("plaintext").is_none());
@@ -20081,6 +20521,7 @@ mod tests {
             documents: Arc::new(Mutex::new(HashMap::new())),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
+            default_dialect_explicit: Mutex::new(false),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
             folder_configs: Mutex::new(Vec::new()),
@@ -20166,6 +20607,136 @@ mod tests {
             )),
             "expected W211 in cached diagnostics, got {:?}",
             entry.diagnostics,
+        );
+    }
+
+    /// A lone `\r` is a command terminator in a file on disk — `tclsh` opens
+    /// scripts with `-translation auto`, which rewrites every `\r` to `\n`
+    /// before the parser runs.  Treating it as horizontal whitespace made
+    /// `set zz 1` part of the preceding comment, so `puts $zz` drew a bogus
+    /// W210 "read before it is set".
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn diagnostics_treat_a_lone_cr_as_a_command_terminator() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///oldmac.tcl").unwrap();
+        let src = "# note \rset zz 1\nputs $zz\n";
+        register(&backend, &uri, src).await;
+        backend
+            .db_set_source(&uri, src.to_owned(), "tcl8.6".to_owned())
+            .await;
+        backend
+            .publish_analyser_diagnostics(
+                uri.clone(),
+                src.to_owned(),
+                "tcl8.6".to_owned(),
+                0,
+                Some(1),
+            )
+            .await;
+        let cache = backend.pull_diag_cache.lock().await;
+        let entry = cache.get(&uri).expect("pull cache entry");
+        let codes: Vec<&str> = entry
+            .diagnostics
+            .iter()
+            .filter_map(|d| match &d.code {
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) => Some(c.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            !codes.contains(&"W210"),
+            "`set zz 1` is a command, so `zz` is set before it is read: {codes:?}",
+        );
+        // W118 still sees the document's real terminators.
+        assert!(codes.contains(&"W118"), "{codes:?}");
+    }
+
+    /// The style lints are line-oriented, so on an old-Mac document their line
+    /// numbers must follow the client's (and the analyser's) line model, not a
+    /// `\n`-only split that would collapse the file to one line.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn style_diagnostics_line_numbers_follow_the_client_model_on_a_cr_document() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///oldmac-style.tcl").unwrap();
+        let src = "set a 1\rset b 2   \rputs \"$a$b\"\r";
+        register(&backend, &uri, src).await;
+        backend
+            .publish_analyser_diagnostics(
+                uri.clone(),
+                src.to_owned(),
+                "tcl8.6".to_owned(),
+                0,
+                Some(1),
+            )
+            .await;
+        let cache = backend.pull_diag_cache.lock().await;
+        let entry = cache.get(&uri).expect("pull cache entry");
+        let w112 = entry
+            .diagnostics
+            .iter()
+            .find(|d| {
+                matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W112")
+            })
+            .expect("trailing whitespace on the second line");
+        assert_eq!(w112.range.start.line, 1, "{:?}", w112.range);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn read_document_hands_out_analysis_text_and_keeps_the_raw_bytes() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///oldmac-read.tcl").unwrap();
+        let src = "set a 1\rset b 2\r\nset c 3\n";
+        register(&backend, &uri, src).await;
+        let doc = backend.read_document(&uri).await.expect("open document");
+        // The provider-facing text has the lone `\r` rewritten…
+        assert_eq!(doc.text, "set a 1\nset b 2\r\nset c 3\n");
+        // …the formatter / W118 view keeps the client's exact bytes…
+        assert_eq!(doc.raw(), src);
+        // …the rewrite never changes the byte length, so spans are shared…
+        assert_eq!(doc.text.len(), doc.raw().len());
+        // …and the stored shadow buffer is untouched.
+        assert_eq!(
+            backend.documents.lock().await.get(&uri).expect("doc").text,
+            src,
+        );
+        // An LF document is handed out unchanged (and does not allocate).
+        let plain = Uri::from_str("file:///plain.tcl").unwrap();
+        register(&backend, &plain, "set a 1\n").await;
+        let doc = backend.read_document(&plain).await.expect("open document");
+        assert_eq!(doc.text, "set a 1\n");
+        assert!(doc.raw_text.is_none());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn resolved_edit_line_ending_defaults_to_the_documents_own() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///eol.tcl").unwrap();
+        // No `lineEnding` configured → `auto` → follow the file.
+        assert_eq!(
+            backend.resolved_edit_line_ending(&uri, "a\r\nb\r\n").await,
+            "\r\n"
+        );
+        assert_eq!(
+            backend.resolved_edit_line_ending(&uri, "a\rb\r").await,
+            "\r"
+        );
+        assert_eq!(
+            backend.resolved_edit_line_ending(&uri, "a\nb\n").await,
+            "\n"
+        );
+        assert_eq!(
+            backend.resolved_edit_line_ending(&uri, "no breaks").await,
+            "\n"
+        );
+        // An explicit setting still wins.
+        backend
+            .apply_global_config(&serde_json::json!({
+                "formatting": { "lineEnding": "lf" }
+            }))
+            .await;
+        assert_eq!(
+            backend.resolved_edit_line_ending(&uri, "a\r\nb\r\n").await,
+            "\n"
         );
     }
 
@@ -22167,6 +22738,71 @@ mod tests {
         );
     }
 
+    /// Issue #407: the folder-scoped `tclLsp.dialect` must survive the parse.
+    /// It used to have nowhere to land — `FolderConfig` carried no dialect
+    /// field — so the scoped `workspace/configuration` reply's value was
+    /// silently dropped and every folder used the session default.
+    #[test]
+    fn parse_folder_config_reads_and_validates_the_dialect() {
+        let fc = parse_folder_config(&serde_json::json!({ "dialect": "f5-irules" }))
+            .expect("folder config");
+        assert_eq!(fc.dialect.as_deref(), Some("f5-irules"));
+        // A config-only profile (not a `DialectSet`-parseable Tcl dialect) is
+        // accepted, matching what `initializationOptions.folderDialects` takes.
+        let bigip =
+            parse_folder_config(&serde_json::json!({ "dialect": "f5-bigip" })).expect("folder cfg");
+        assert_eq!(bigip.dialect.as_deref(), Some("f5-bigip"));
+        // An unknown name is dropped rather than pinning the folder to a
+        // dialect no provider can resolve.
+        let bogus =
+            parse_folder_config(&serde_json::json!({ "dialect": "klingon" })).expect("folder cfg");
+        assert_eq!(bogus.dialect, None);
+        // An absent key inherits the session default.
+        let absent =
+            parse_folder_config(&serde_json::json!({ "extraCommands": [] })).expect("folder cfg");
+        assert_eq!(absent.dialect, None);
+    }
+
+    /// `initializationOptions.folderDialects` is authoritative for the folders
+    /// it names; every other folder takes its dialect from the pulled
+    /// per-folder config.
+    #[tokio::test]
+    async fn folder_dialect_overrides_prefer_initialisation_options() {
+        let backend = test_backend();
+        let pinned = Uri::from_str("file:///ws/pinned").unwrap();
+        let pulled = Uri::from_str("file:///ws/pulled").unwrap();
+        *backend.folder_dialects.lock().await = vec![(pinned.clone(), "tcl9.0".to_owned())];
+        *backend.folder_configs.lock().await = vec![
+            (
+                pinned.clone(),
+                FolderConfig {
+                    dialect: Some("tcl8.4".to_owned()),
+                    ..FolderConfig::default()
+                },
+            ),
+            (
+                pulled.clone(),
+                FolderConfig {
+                    dialect: Some("f5-irules".to_owned()),
+                    ..FolderConfig::default()
+                },
+            ),
+        ];
+        let merged = backend.folder_dialect_overrides().await;
+        let pinned_doc = Uri::from_str("file:///ws/pinned/a.tcl").unwrap();
+        let pulled_doc = Uri::from_str("file:///ws/pulled/a.tcl").unwrap();
+        assert_eq!(
+            folder_dialect_for(&pinned_doc, &merged).as_deref(),
+            Some("tcl9.0"),
+            "the host-supplied mapping wins for the folder it names",
+        );
+        assert_eq!(
+            folder_dialect_for(&pulled_doc, &merged).as_deref(),
+            Some("f5-irules"),
+            "an unnamed folder takes its pulled `tclLsp.dialect`",
+        );
+    }
+
     #[test]
     fn parse_folder_config_reads_extra_library_and_generic_patterns() {
         let cfg = serde_json::json!({
@@ -23155,6 +23791,48 @@ mod tests {
         // living in an un-opened `.test` file were invisible to
         // cross-document find-references / rename-safety.
         assert!(is_tcl_source(Path::new("/ws/test/argparse.test")));
+    }
+
+    /// The extension test must case-fold, like every other extension check in
+    /// the server (`dialect_from_extension`, `is_bigip_conf_name`, the APL
+    /// source check).  An `UPPER.TCL` opened fine but was invisible to the
+    /// workspace scan, the watched-file filter, and the rename filter — so its
+    /// procs never reached cross-document navigation until it was opened, and a
+    /// rename never rewrote the `source` lines pointing at it.
+    #[test]
+    fn is_tcl_source_ignores_extension_case() {
+        for name in [
+            "/ws/UPPER.TCL",
+            "/ws/Mixed.Tcl",
+            "/ws/rule.IRULE",
+            "/ws/suite.TEST",
+            "/ws/mod.Tm",
+        ] {
+            assert!(
+                is_tcl_source(Path::new(name)),
+                "expected {name} to be a Tcl-family source",
+            );
+        }
+        // NEGATIVE control: case-folding must not widen the set itself.
+        assert!(!is_tcl_source(Path::new("/ws/notes.TXT")));
+    }
+
+    /// The `willRename` / `didRename` filter must carry `ignoreCase`, because
+    /// [`is_tcl_source`] case-folds and a glob cannot express "any casing":
+    /// without it an `UPPER.TCL` the scan indexed would be renamed on a
+    /// case-sensitive file system without its `source` references being
+    /// rewritten.
+    #[test]
+    fn rename_filter_matches_case_insensitively() {
+        let options = rename_file_operation_options().filters[0]
+            .pattern
+            .options
+            .clone();
+        assert_eq!(
+            options.and_then(|o| o.ignore_case),
+            Some(true),
+            "the rename filter must set ignoreCase",
+        );
     }
 
     /// The file-watcher registration and the `willRename` / `didRename` filter

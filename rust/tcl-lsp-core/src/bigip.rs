@@ -737,4 +737,28 @@ ltm virtual /Common/v {
     fn empty_source_yields_no_folds() {
         assert!(folding_ranges("").is_empty());
     }
+
+    /// A stanza whose closing `}` is the file's last line must not fold past
+    /// it — with or without a trailing newline.  A fold end at or beyond the
+    /// client's `lineCount` is discarded wholesale by VS Code's sticky-scroll
+    /// filter, taking the candidate's whole subtree with it (issue #1122).
+    #[test]
+    fn stanza_ending_at_eof_stays_in_bounds() {
+        let base = "ltm pool /Common/p1 {\n    members {\n        1.2.3.4:80 { }\n    }\n}";
+        for source in [base.to_owned(), format!("{base}\n")] {
+            let line_count = u32::try_from(tcl_lexer::LineIndex::new_lsp(&source).line_count())
+                .expect("line count fits u32");
+            let folds = folding_ranges(&source);
+            assert!(!folds.is_empty(), "expected stanza folds for {source:?}");
+            for r in &folds {
+                assert!(
+                    r.end_line < line_count,
+                    "fold {}..{} ends past the last line (line_count {line_count})",
+                    r.start_line,
+                    r.end_line,
+                );
+                assert!(r.start_line < r.end_line, "degenerate fold {r:?}");
+            }
+        }
+    }
 }

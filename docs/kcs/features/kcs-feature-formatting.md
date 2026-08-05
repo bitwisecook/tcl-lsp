@@ -21,7 +21,20 @@ all-editors, MCP, transform
   - `braceStyle` (k_and_r)
   - `maxLineLength`, `goalLineLength`
   - `spaceAfterCommentHash`, `trimTrailingWhitespace`, `ensureFinalNewline`
+  - `lineEnding` (default `auto`)
   - `expandSingleLineBodies`, `blankLinesBetweenProcs`, and more.
+
+### Line endings
+
+`tclLsp.formatting.lineEnding` defaults to `auto`: formatted output — and every
+newline the server inserts through a code action ("Generate docstring", "Extract
+into variable", "Add `package require …`", a `# noqa` suppression) — reuses
+whichever line ending the file already has. A file with no line break at all
+gets a line feed. Set `lf`, `crlf`, or `cr` to force one instead, which rewrites
+every line ending in the file the next time it is formatted.
+
+Line endings are also what the W118 warning reports; see
+[Why W112 and W118 have no quick fix](../kcs-qa-why-w112-w118-have-no-quick-fix.md).
 
 ### Format on save
 

@@ -1976,8 +1976,12 @@ constraints apply.
 The dialect is selected automatically using the following priority chain
 (highest to lowest):
 
-1. **Editor language ID** -- opening a file as `tcl-irule`, `tcl8.4`, etc.
-   selects the matching dialect immediately.
+1. **Editor language ID** -- opening a file as `tcl-irule`, `tcl84`, etc.
+   selects the matching dialect immediately.  (The version-pinned VS Code
+   language ids are undotted -- `tcl84`, `tcl85`, `tcl86`, `tcl90`, `tcl91` -- because
+   VS Code cannot carry a `configurationDefaults` override for a language id
+   containing a `.`.  The *dialect* names below keep their dots, and the server
+   still accepts the dotted `tcl8.4`-style id other editors send.)
 2. **File extension** -- `.irul`/`.irule` → `f5-irules`,
    `.iapp`/`.iappimpl`/`.impl` → `f5-iapps`, `.exp` → `expect`.
 3. **Comment directive** -- a `# tcl-dialect: <dialect>` comment in the
@@ -2848,7 +2852,7 @@ on the F5 iRules Style Guide):
 | `blankLinesBetweenProcs` | `1` | Blank lines separating proc definitions |
 | `blankLinesBetweenBlocks` | `1` | Blank lines between control flow blocks |
 | `maxConsecutiveBlankLines` | `2` | Maximum consecutive blank lines allowed |
-| `lineEnding` | `lf` | Line ending style (`lf`, `crlf`, `cr`) |
+| `lineEnding` | `auto` | Line ending style for formatted output and for newlines inserted by code actions (`auto` keeps the file's own; `lf`, `crlf`, `cr` force one) |
 | `ensureFinalNewline` | `true` | Ensure file ends with a newline |
 
 ### Shimmer detection settings

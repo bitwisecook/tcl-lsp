@@ -4108,6 +4108,46 @@ fn issue_968_version_gated_math_function_dual_fires_end_to_end() {
     );
 }
 
+/// The VS Code extension contributes *undotted* version-pinned language ids
+/// (`tcl84` … `tcl91`) — a dotted id cannot carry a `configurationDefaults`
+/// override (issue #1122). The server must resolve them to the same dialects
+/// the dotted forms resolve to, while still accepting the dotted ids the other
+/// editor integrations send.
+#[test]
+fn undotted_vscode_language_ids_resolve_to_the_same_dialect_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    for language_id in ["tcl84", "tcl8.4"] {
+        let uri = unique_uri("undotted84");
+        let diags = lsp.open_ready_lang(&uri, "set x [expr {min(1, 2)}]\n", language_id);
+        assert!(
+            has_code(&diags, "W002") && has_code(&diags, "W123"),
+            "min() under languageId {language_id} must resolve to the 8.4 dialect \
+             and draw both W002 and W123: {:?}",
+            codes(&diags)
+        );
+    }
+    for language_id in ["tcl86", "tcl8.6"] {
+        let uri = unique_uri("undotted86");
+        let diags = lsp.open_ready_lang(&uri, "set x [expr {min(1, 2)}]\n", language_id);
+        assert!(
+            !has_code(&diags, "W002") && !has_code(&diags, "W123"),
+            "min() under languageId {language_id} must resolve to the 8.6 dialect \
+             and stay clean: {:?}",
+            codes(&diags)
+        );
+    }
+    for language_id in ["tcl90", "tcl9.0"] {
+        let uri = unique_uri("undotted90");
+        let diags = lsp.open_ready_lang(&uri, "set x [expr {min(1, 2)}]\n", language_id);
+        assert!(
+            !has_code(&diags, "W002") && !has_code(&diags, "W123"),
+            "min() under languageId {language_id} must resolve to the 9.0 dialect \
+             and stay clean: {:?}",
+            codes(&diags)
+        );
+    }
+}
+
 #[test]
 fn issue_968_expr_function_after_rename_away_still_w123_end_to_end() {
     let mut lsp = Lsp::tcl();

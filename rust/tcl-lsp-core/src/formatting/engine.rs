@@ -1562,8 +1562,9 @@ pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegi
     if config.ensure_final_newline && !result.ends_with('\n') {
         result.push('\n');
     }
-    if config.line_ending != "\n" {
-        result = result.replace('\n', &config.line_ending);
+    let line_ending = config.resolved_line_ending(source);
+    if line_ending != "\n" {
+        result = result.replace('\n', line_ending);
     }
     result
 }

@@ -668,10 +668,16 @@ fn fmt_group_blank_lines_and_file_format() -> (&'static str, Vec<FmtSetting>) {
             },
             FmtSetting {
                 field: "line_ending",
-                default: json!("lf"),
+                default: json!("auto"),
                 json_type: "string",
-                description: "Line ending style for formatted output.",
-                enum_values: &["lf", "crlf", "cr"],
+                description: "Line ending style for formatted output, and for newlines inserted by code actions.",
+                enum_values: &["auto", "lf", "crlf", "cr"],
+                enum_descriptions: &[
+                    "Keep the line ending the file already uses.",
+                    "Line feed (\\n).",
+                    "Carriage return + line feed (\\r\\n).",
+                    "Carriage return (\\r).",
+                ],
                 ..FmtSetting::DEFAULT
             },
             FmtSetting {

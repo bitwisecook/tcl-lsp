@@ -43,6 +43,7 @@ import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
 import { buildIruleEventSkeleton } from "./iruleSkeleton";
+import { isTclLanguage } from "./languageIds";
 import { loadTemplateSnippets, renderTemplateSnippet } from "./templateSnippets";
 import { getClient } from "./extension";
 import {
@@ -966,31 +967,11 @@ async function waitForDocumentTextChange(
 function ensureCursorInVisibleEditor(): void {
   const editor =
     vscode.window.activeTextEditor ??
-    vscode.window.visibleTextEditors.find((visible) =>
-      isTclLanguageId(visible.document.languageId),
-    );
+    vscode.window.visibleTextEditors.find((visible) => isTclLanguage(visible.document.languageId));
   if (!editor) {
     return;
   }
   keepCursorVisible(editor);
-}
-
-function isTclLanguageId(languageId: string): boolean {
-  return (
-    languageId === "tcl" ||
-    languageId === "tcl-irule" ||
-    languageId === "tcl-iapp" ||
-    languageId === "tcl-bigip" ||
-    languageId === "tcl8.4" ||
-    languageId === "tcl8.5" ||
-    languageId === "tcl9.0" ||
-    languageId === "tcl-synopsys" ||
-    languageId === "tcl-cadence" ||
-    languageId === "tcl-xilinx" ||
-    languageId === "tcl-quartus" ||
-    languageId === "tcl-mentor" ||
-    languageId === "tcl-expect"
-  );
 }
 
 async function configureScreenshotCursor(): Promise<void> {

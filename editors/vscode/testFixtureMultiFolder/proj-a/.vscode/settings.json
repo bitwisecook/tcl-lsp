@@ -1,0 +1,13 @@
+{
+  "tclLsp.formatting.maxLineLength": 160,
+  "tclLsp.diagnostics.W111": false,
+  "tclLsp.dialect": "tcl8.4",
+  "tclLsp.style.nonAscii": "strict",
+  "tclLsp.extraCommands": [
+    "folder-a-helper",
+    "shared-util"
+  ],
+  "tclLsp.libraryPaths": [
+    "/opt/proj-a/tcl-lib"
+  ]
+}

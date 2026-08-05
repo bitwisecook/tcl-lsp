@@ -1,0 +1,12 @@
+{
+  "tclLsp.formatting.maxLineLength": 60,
+  "tclLsp.dialect": "f5-irules",
+  "tclLsp.style.nonAscii": "off",
+  "tclLsp.extraCommands": [
+    "folder-b-helper"
+  ],
+  "tclLsp.libraryPaths": [
+    "/opt/proj-b/tcl-lib",
+    "/usr/local/share/tcl"
+  ]
+}

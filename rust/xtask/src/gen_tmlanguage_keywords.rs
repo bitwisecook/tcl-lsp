@@ -53,7 +53,7 @@
 //!
 //! Unlike Zed (which emits a *separate* query file per dialect directory),
 //! all three TextMate-family grammars here share **one** grammar file across
-//! every registered language ID (`tcl`, `tcl-irule`, `tcl9.0`, …) — see
+//! every registered language ID (`tcl`, `tcl-irule`, `tcl90`, …) — see
 //! `editors/vscode/package.json`'s `contributes.grammars`, which points every
 //! Tcl-family language at the same `syntaxes/tcl.tmLanguage.json`. Pulling in
 //! the full iRules command surface (~1,270 commands, mostly `HTTP::`/`LB::`/…

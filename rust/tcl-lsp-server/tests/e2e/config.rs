@@ -449,3 +449,206 @@ fn diagnostic_severity_override_is_per_code() {
         "an un-overridden code (W220) must keep its emitted Hint (4); got {diags:?}"
     );
 }
+
+/// Regression (#407): a folder-scoped `tclLsp.dialect` must reach the server.
+///
+/// A multi-root editor answers the *unscoped* `workspace/configuration` pull
+/// with the workspace-merged settings — folder-level values are invisible
+/// there — and only the *scoped* pull carries a folder's own `tclLsp.dialect`.
+/// The scoped reply used to be parsed into a `FolderConfig` that had no dialect
+/// field at all, so the value was dropped on the floor and every document in
+/// every root resolved to the session default. Mirrors the multi-root VS Code
+/// suite (`multiFolderConfig.test.ts`) without an editor.
+#[test]
+fn folder_scoped_dialect_reaches_documents_in_that_folder() {
+    use std::time::{Duration, Instant};
+
+    let base = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-folder-dialect-{}-{}",
+        std::process::id(),
+        line!()
+    ));
+    let root_a = base.join("proj-a");
+    let root_b = base.join("proj-b");
+    std::fs::create_dir_all(&root_a).expect("mk proj-a");
+    std::fs::create_dir_all(&root_b).expect("mk proj-b");
+    // Deliberately signature-free source: nothing in it makes
+    // `detect_dialect` (directive / shebang / `package require Tcl` / content
+    // signatures) pick a dialect, so the folder override is what decides — the
+    // exact case issue #407 is about.  `puts` is a core Tcl command and is
+    // *not* in the iRules surface, so it is the cross-folder discriminator.
+    let src = "proc greet {who} {\n    puts \"hi $who\"\n}\ngreet world\n";
+    let file_a = root_a.join("foo.tcl");
+    let file_b = root_b.join("foo.tcl");
+    std::fs::write(&file_a, src).expect("write proj-a fixture");
+    std::fs::write(&file_b, src).expect("write proj-b fixture");
+
+    let mut lsp = Lsp::multi_root(
+        // What the unscoped pull returns — the package.json default, naming
+        // neither folder's dialect.
+        json!({ "dialect": "tcl8.6" }),
+        &[
+            (root_a.as_path(), json!({ "dialect": "tcl8.4" })),
+            (root_b.as_path(), json!({ "dialect": "f5-irules" })),
+        ],
+    );
+
+    // The folder URIs themselves resolve through the folder chain: this is what
+    // the VS Code suite polls to know the per-folder pull has settled.
+    let uri_a = format!("file://{}", root_a.to_string_lossy());
+    let uri_b = format!("file://{}", root_b.to_string_lossy());
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        let a = lsp.effective_config(&uri_a);
+        let b = lsp.effective_config(&uri_b);
+        if a.get("dialect") == Some(&json!("tcl8.4"))
+            && b.get("dialect") == Some(&json!("f5-irules"))
+        {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "per-folder dialects never settled: proj-a={a}, proj-b={b}"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+
+    // …and so do documents inside them, which is what actually changes analysis.
+    let doc_a = format!("file://{}", file_a.to_string_lossy());
+    let doc_b = format!("file://{}", file_b.to_string_lossy());
+    let diags_a = lsp.open_ready(&doc_a, src);
+    let diags_b = lsp.open_ready(&doc_b, src);
+    assert_eq!(
+        lsp.effective_config(&doc_a).get("dialect"),
+        Some(&json!("tcl8.4")),
+        "proj-a/foo.tcl must resolve its folder's dialect"
+    );
+    assert_eq!(
+        lsp.effective_config(&doc_b).get("dialect"),
+        Some(&json!("f5-irules")),
+        "proj-b/foo.tcl must resolve its folder's dialect"
+    );
+    let unknown_puts = |diags: &[Value]| {
+        diags.iter().any(|d| {
+            d.get("code").and_then(Value::as_str) == Some("W123")
+                && d.get("message")
+                    .and_then(Value::as_str)
+                    .is_some_and(|m| m.contains("puts"))
+        })
+    };
+    assert!(
+        !unknown_puts(&diags_a),
+        "tcl8.4 (proj-a) must know `puts`: {diags_a:?}"
+    );
+    assert!(
+        unknown_puts(&diags_b),
+        "f5-irules (proj-b) has no `puts` and must flag it: {diags_b:?}"
+    );
+
+    // The four fields the multi-root VS Code suite's `EffectiveConfig` shape
+    // declares, and which nothing used to emit.
+    let cfg = lsp.effective_config(&doc_a);
+    assert_eq!(cfg.get("folder_uri"), Some(&json!(uri_a)));
+    assert_eq!(cfg.get("dialect_explicitly_set"), Some(&json!(true)));
+    assert!(
+        cfg.get("extra_commands").is_some_and(Value::is_array),
+        "extra_commands must always be an array: {cfg}"
+    );
+    let known: Vec<&str> = cfg
+        .get("known_folder_uris")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+    assert!(
+        known.contains(&uri_a.as_str()) && known.contains(&uri_b.as_str()),
+        "known_folder_uris must name both roots: {cfg}"
+    );
+
+    std::fs::remove_dir_all(&base).ok();
+}
+
+/// Regression: a **deleted-while-open** file must stop contributing to the
+/// cross-document index, without losing the buffer.
+///
+/// An out-of-band rename (`mv` in a terminal, a branch switch) makes the editor
+/// send `didChangeWatchedFiles` DELETED for the old path and CREATED for the
+/// new one — but no `didClose`, because the buffer is still on screen. The
+/// DELETED event used to be skipped outright for any URI with an open document,
+/// so the dead path stayed in the workspace index forever: every proc appeared
+/// twice in the symbol picker, and go-to-definition could land on a file that
+/// no longer exists.
+#[test]
+fn watched_delete_retires_an_open_documents_index_entry() {
+    use std::time::{Duration, Instant};
+
+    let root = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-deleted-while-open-{}-{}",
+        std::process::id(),
+        line!()
+    ));
+    std::fs::create_dir_all(&root).expect("mk workspace root");
+    let old_path = root.join("live.tcl");
+    let new_path = root.join("live_moved.tcl");
+    let src = "proc ghost_marker {} { return 1 }\n";
+    std::fs::write(&old_path, src).expect("write fixture");
+
+    let mut lsp = Lsp::at_workspace_root(&root);
+    let old_uri = format!("file://{}", old_path.to_string_lossy());
+    let new_uri = format!("file://{}", new_path.to_string_lossy());
+    lsp.open_ready(&old_uri, src);
+
+    let ghost_uris = |lsp: &mut Lsp| -> Vec<String> {
+        let result = lsp.workspace_symbols("ghost_marker");
+        result
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+            .iter()
+            .filter(|s| s.get("name").and_then(Value::as_str) == Some("ghost_marker"))
+            .filter_map(|s| {
+                s.get("location")
+                    .and_then(|l| l.get("uri"))
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            })
+            .collect()
+    };
+    assert_eq!(
+        ghost_uris(&mut lsp),
+        vec![old_uri.clone()],
+        "precondition: the open document is indexed under its own URI"
+    );
+
+    // Rename on disk; the buffer stays open at the old URI.
+    std::fs::rename(&old_path, &new_path).expect("rename fixture");
+    lsp.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [
+            { "uri": old_uri, "type": 3 },
+            { "uri": new_uri, "type": 1 },
+        ]}),
+    );
+
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        let uris = ghost_uris(&mut lsp);
+        if uris == vec![new_uri.clone()] {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the deleted path must be retired and only the new one indexed; got {uris:?}"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+
+    // The buffer itself keeps working — only the workspace index dropped it.
+    let symbols = lsp.document_symbols(&old_uri);
+    let names = crate::common::helpers::symbol_names(&symbols);
+    assert!(
+        names.contains("ghost_marker"),
+        "the still-open buffer must keep answering its own requests: {symbols:?}"
+    );
+
+    std::fs::remove_dir_all(&root).ok();
+}

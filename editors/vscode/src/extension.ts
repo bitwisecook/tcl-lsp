@@ -72,6 +72,7 @@ import {
 } from "./compilerExplorer";
 import { openTkPreview, tkPreviewDocChanged, tkPreviewEditorChanged } from "./tkPreviewPanel";
 import { registerHighlightingHealthChecks } from "./highlightingHealth";
+import { ensureStickyScrollDefaultModel } from "./stickyScrollHealth";
 import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
 import { TCL_LANGUAGE_IDS, isTclLanguage } from "./languageIds";
 
@@ -117,7 +118,14 @@ const DEFAULT_DIALECT = "tcl8.6";
 // importers that pull these from ./extension keep working.
 export { TCL_LANGUAGE_IDS, isTclLanguage };
 
-/** Map language IDs that imply a specific dialect. */
+/**
+ * Map language IDs that imply a specific dialect.
+ *
+ * Keys are *language ids* (undotted — see `./languageIds`); values are
+ * *dialect* names, which keep their dots. The two namespaces are distinct:
+ * `tcl84` is what VS Code calls the language, `tcl8.4` is what the server
+ * calls the dialect.
+ */
 const LANGUAGE_ID_DIALECTS: Record<string, string> = {
   "tcl-irule": "f5-irules",
   "tcl-iapp": "f5-iapps",
@@ -125,10 +133,11 @@ const LANGUAGE_ID_DIALECTS: Record<string, string> = {
   // server maps `tcl-apl` → `f5-iapps`, so mirror that here.
   "tcl-apl": "f5-iapps",
   "tcl-bigip": "f5-bigip",
-  "tcl8.4": "tcl8.4",
-  "tcl8.5": "tcl8.5",
-  "tcl9.0": "tcl9.0",
-  "tcl9.1": "tcl9.1",
+  tcl84: "tcl8.4",
+  tcl85: "tcl8.5",
+  tcl86: "tcl8.6",
+  tcl90: "tcl9.0",
+  tcl91: "tcl9.1",
   "tcl-synopsys": "synopsys-eda-tcl",
   "tcl-cadence": "cadence-eda-tcl",
   "tcl-xilinx": "xilinx-eda-tcl",
@@ -274,7 +283,19 @@ const FEATURE_EDITOR_DEFAULTS: Record<string, () => boolean> = {
       .get<boolean | string>("semanticHighlighting.enabled", true);
     return v !== false; // "configuredByTheme" and true both resolve to enabled
   },
-  folding: () => workspace.getConfiguration("editor").get<boolean>("folding", true),
+  // Deliberately NOT inherited from `editor.folding` (issue #1122). Vanilla
+  // VS Code's sticky-scroll model provider calls
+  // `FoldingController.getFoldingRangeProviders` unconditionally — it never
+  // reads `EditorOption.folding` — so a user who has switched the folding UI
+  // off in vanilla VS Code still gets provider-based sticky scroll. Our
+  // toggle used to inherit `editor.folding`, so the same user's Tcl files
+  // got NO folding ranges at all; since VS Code >=1.105 treats an empty
+  // folding-range array as a *terminal* sticky model (only null/undefined
+  // falls through to the indentation heuristic), that silently killed
+  // sticky scroll for every Tcl file — a divergence from platform semantics
+  // and the most consistent explanation of the bug report. Folding stays
+  // on unless a user explicitly sets `tclLsp.features.folding: false`.
+  folding: () => true,
   signatureHelp: () =>
     workspace.getConfiguration("editor").get<boolean>("parameterHints.enabled", true),
   // Inlay hints split into two opt-in families, both off unless the user
@@ -463,7 +484,7 @@ export async function activate(context: ExtensionContext) {
   context.subscriptions.push(
     window.onDidChangeActiveTextEditor((editor) => {
       onActiveEditorChanged(editor);
-      void applyDialectForEditor(editor);
+      applyDialectForEditor(editor);
       explorerEditorChanged();
       tkPreviewEditorChanged();
     }),
@@ -477,10 +498,11 @@ export async function activate(context: ExtensionContext) {
 
   // Update status bar label when manually changing settings, and re-push
   // resolved feature toggles when the underlying editor globals change.
+  // editor.folding is deliberately absent (issue #1122): `features.folding`
+  // no longer inherits it, so changing it has nothing to re-push here.
   const editorSettingsAffectingFeatures = [
     "editor.hover.enabled",
     "editor.semanticHighlighting.enabled",
-    "editor.folding",
     "editor.parameterHints.enabled",
     "editor.inlayHints.enabled",
     "editor.occurrencesHighlight",
@@ -490,11 +512,15 @@ export async function activate(context: ExtensionContext) {
   context.subscriptions.push(
     workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("tclLsp.dialect")) {
-        const configured = workspace
-          .getConfiguration("tclLsp")
-          .get<string>("dialect", DEFAULT_DIALECT);
-        activeDialect = configured;
-        updateDialectStatusBar();
+        // The setting changed (``tclLsp.selectDialect``, or the user editing
+        // settings.json).  The server picks it up from its own
+        // ``workspace/configuration`` pull; all that is left here is the
+        // status-bar label and the iRules context key.  A focused document
+        // with its own detected dialect re-asserts the label on the next
+        // editor/document event.
+        setActiveDialectLabel(
+          workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT),
+        );
       }
       // When a VS Code editor setting that a feature toggle inherits from
       // changes, re-push resolved feature values so the server stays in sync.
@@ -521,7 +547,7 @@ export async function activate(context: ExtensionContext) {
         (change) => change.range.start.line < DIALECT_DIRECTIVE_SCAN_LINES,
       );
       if (touchesDirectiveLines) {
-        void applyDialectForDocument(e.document);
+        applyDialectForDocument(e.document);
       }
       explorerDocChanged();
       tkPreviewDocChanged();
@@ -532,7 +558,7 @@ export async function activate(context: ExtensionContext) {
   context.subscriptions.push(
     workspace.onDidOpenTextDocument((document) => {
       if (window.activeTextEditor?.document.uri.toString() === document.uri.toString()) {
-        void applyDialectForDocument(document);
+        applyDialectForDocument(document);
       }
     }),
   );
@@ -652,7 +678,8 @@ export async function activate(context: ExtensionContext) {
   const clientStartTime = Date.now();
   await client.start();
   ch.appendLine(`[timing] client.start: ${Date.now() - clientStartTime}ms`);
-  await applyDialectForEditor(window.activeTextEditor);
+  void ensureStickyScrollDefaultModel(context, ch);
+  applyDialectForEditor(window.activeTextEditor);
 
   try {
     registerIruleParticipant(context);
@@ -941,7 +968,12 @@ function detectDialectFromDocument(document: TextDocument): string {
   return DEFAULT_DIALECT;
 }
 
-export async function setServerDialect(dialect: string): Promise<void> {
+/**
+ * Update the dialect the UI reports for the focused editor: the status-bar
+ * label and the ``tclLsp.isIruleDialect`` context key that gates the iRules
+ * commands.  Purely client-side — it tells the server nothing.
+ */
+function setActiveDialectLabel(dialect: string): void {
   if (activeDialect === dialect) {
     return;
   }
@@ -952,6 +984,25 @@ export async function setServerDialect(dialect: string): Promise<void> {
     "tclLsp.isIruleDialect",
     dialect === "f5-irules",
   );
+}
+
+/**
+ * Change the **session** dialect: update the local label and push
+ * ``tclLsp.dialect`` to the server as a configuration change.
+ *
+ * Session-global, so this is only for deliberate whole-session switches — the
+ * ``tclLsp.selectDialect`` command (which also writes the setting) and the chat
+ * commands that run a document under a fixed dialect and restore the previous
+ * one afterwards.  It must NOT be used to tell the server about the focused
+ * file's dialect: the server detects that per document (``detect_dialect``),
+ * and pushing it globally makes one tab's dialect leak into every other open
+ * buffer.
+ */
+export async function setServerDialect(dialect: string): Promise<void> {
+  if (activeDialect === dialect) {
+    return;
+  }
+  setActiveDialectLabel(dialect);
 
   if (!client) {
     return;
@@ -962,19 +1013,27 @@ export async function setServerDialect(dialect: string): Promise<void> {
   });
 }
 
-export async function applyDialectForDocument(document: TextDocument): Promise<void> {
+/**
+ * Reflect *document*'s detected dialect in the status bar.
+ *
+ * Status bar only.  Per-document dialect resolution belongs to the server: it
+ * runs the same directive / shebang / ``package require`` / content-signature /
+ * extension detection at ``didOpen`` and on every edit, scoped to that one
+ * document.  This used to push the focused file's dialect as a session-global
+ * ``didChangeConfiguration``, which re-tagged every other open buffer with it.
+ */
+export function applyDialectForDocument(document: TextDocument): void {
   if (!isTclLanguage(document.languageId)) {
     return;
   }
-  const dialect = detectDialectFromDocument(document);
-  await setServerDialect(dialect);
+  setActiveDialectLabel(detectDialectFromDocument(document));
 }
 
-async function applyDialectForEditor(editor: TextEditor | undefined): Promise<void> {
+function applyDialectForEditor(editor: TextEditor | undefined): void {
   if (!editor || !isTclLanguage(editor.document.languageId)) {
     return;
   }
-  await applyDialectForDocument(editor.document);
+  applyDialectForDocument(editor.document);
 }
 
 async function renamePartition(uriString?: string, oldPartition?: string): Promise<void> {

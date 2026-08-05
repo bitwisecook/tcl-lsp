@@ -120,7 +120,12 @@ pub struct FormatterConfig {
     /// default) a standalone comment is re-indented to the code column; when
     /// `false` the comment keeps its original column.
     pub align_comments_to_code: bool,
-    /// Line ending for formatted output.
+    /// Line ending for formatted output: `"\n"`, `"\r\n"`, `"\r"`, or the
+    /// sentinel [`LINE_ENDING_AUTO`] (the default) meaning "keep whatever the
+    /// document already uses". Resolve it against the text being formatted
+    /// with [`FormatterConfig::resolved_line_ending`] — never read this field
+    /// directly at a substitution point, or an `auto` config will write the
+    /// literal string `auto` into the output.
     pub line_ending: String,
     /// Ensure the file ends with a newline.
     pub ensure_final_newline: bool,
@@ -177,7 +182,7 @@ impl Default for FormatterConfig {
             enforce_braced_variables: false,
             enforce_braced_expr: false,
             align_comments_to_code: true,
-            line_ending: "\n".to_owned(),
+            line_ending: LINE_ENDING_AUTO.to_owned(),
             ensure_final_newline: true,
             expand_single_line_bodies: false,
             min_body_commands_for_expansion: 2,
@@ -195,7 +200,44 @@ impl Default for FormatterConfig {
     }
 }
 
+/// Sentinel value of [`FormatterConfig::line_ending`] meaning "use the line
+/// ending the document already has" — the default, and what the editors'
+/// `tclLsp.formatting.lineEnding: "auto"` maps to.
+pub const LINE_ENDING_AUTO: &str = "auto";
+
+/// The line ending `source` already uses: whichever of `\r\n`, a lone `\r`, or
+/// `\n` occurs first. A document with no line break at all (a single line, no
+/// trailing newline) has no evidence either way and yields `"\n"`.
+#[must_use]
+pub fn detect_line_ending(source: &str) -> &'static str {
+    let bytes = source.as_bytes();
+    for (i, &b) in bytes.iter().enumerate() {
+        match b {
+            b'\n' => return "\n",
+            b'\r' if bytes.get(i + 1) == Some(&b'\n') => return "\r\n",
+            b'\r' => return "\r",
+            _ => {}
+        }
+    }
+    "\n"
+}
+
 impl FormatterConfig {
+    /// The concrete line ending to emit when formatting `source`: the
+    /// configured one, or — for the [`LINE_ENDING_AUTO`] default — the one
+    /// `source` already uses ([`detect_line_ending`]).
+    ///
+    /// Every newline a formatter or code action writes into a document must go
+    /// through here, so an edit never mixes `\n` into a CRLF (or old-Mac) file.
+    #[must_use]
+    pub fn resolved_line_ending<'a>(&'a self, source: &str) -> &'a str {
+        if self.line_ending == LINE_ENDING_AUTO {
+            detect_line_ending(source)
+        } else {
+            &self.line_ending
+        }
+    }
+
     /// Build the indentation string for nesting `level`.
     #[must_use]
     pub fn make_indent(&self, level: usize) -> String {

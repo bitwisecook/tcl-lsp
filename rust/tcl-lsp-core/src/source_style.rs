@@ -396,6 +396,14 @@ pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
 ) -> Vec<StyleDiagnostic> {
     let mut out = Vec::new();
 
+    // The line-oriented lints below split on `\n`, so a lone `\r` — a line
+    // break to the editor and a command terminator to `tclsh` — must become
+    // one first, or their line numbers drift from the client's (and from the
+    // analyser's, whose `suppressed_lines` key this function's own
+    // suppression check).  W118 is the one lint that must see the *real*
+    // terminators, so it keeps `source`.
+    let lines_source = tcl_lexer::normalise_lone_cr(source);
+
     let push_line_suppressed = |diags: Vec<StyleDiagnostic>, out: &mut Vec<StyleDiagnostic>| {
         for d in diags {
             // The diagnostic line is always a real source line, so
@@ -415,13 +423,13 @@ pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
     let enabled = |code: &str| !disabled.contains("*") && !disabled.contains(code);
 
     if enabled("W111") {
-        push_line_suppressed(check_line_length(source, line_length), &mut out);
+        push_line_suppressed(check_line_length(&lines_source, line_length), &mut out);
     }
     if enabled("W112") {
-        push_line_suppressed(check_trailing_whitespace(source), &mut out);
+        push_line_suppressed(check_trailing_whitespace(&lines_source), &mut out);
     }
     if enabled("W115") {
-        push_line_suppressed(check_comment_continuation(source), &mut out);
+        push_line_suppressed(check_comment_continuation(&lines_source), &mut out);
     }
     if enabled("W118") {
         out.extend(check_line_endings(source, line_ending));
@@ -532,6 +540,27 @@ mod tests {
         assert_eq!(
             diags[0].message,
             "Mixed line endings: LF (1), CRLF (1), CR (1); expected LF"
+        );
+    }
+
+    #[test]
+    fn line_lints_use_the_client_line_model_but_w118_sees_the_real_endings() {
+        // An old-Mac document: the editor (and `tclsh`, whose script channel
+        // rewrites `\r` to `\n` before parsing) sees three lines, so the
+        // trailing whitespace on the second one is a line-1 diagnostic — not
+        // a column deep inside a single 30-character line.
+        let src = "set a 1\rset b 2   \rset c 3\r";
+        let diags = style_diagnostics(src, 120, "\n", &no_disable(), &no_suppress());
+        let w112: Vec<_> = diags.iter().filter(|d| d.code == "W112").collect();
+        assert_eq!(w112.len(), 1, "{diags:?}");
+        assert_eq!(w112[0].range.start_line, 1);
+        assert_eq!(w112[0].range.start_character, 7);
+        // W118 still reports the document's actual terminators.
+        let w118: Vec<_> = diags.iter().filter(|d| d.code == "W118").collect();
+        assert_eq!(w118.len(), 1, "{diags:?}");
+        assert_eq!(
+            w118[0].message,
+            "File uses CR line endings (3); expected LF"
         );
     }
 

@@ -128,6 +128,21 @@ async function main() {
       ) + "\n",
       "utf8",
     );
+    // The per-folder diagnostic tests each drive their own scratch file
+    // (``extra.tcl`` for the ``extraCommands`` W123 check, ``race.tcl`` for the
+    // dialect-change-after-open check).  They replace the contents through the
+    // editor, but ``workspace.openTextDocument(Uri.file(...))`` still needs the
+    // path to exist, so materialise them here alongside the settings.  Nothing
+    // reads the seed text.
+    for (const folder of ["proj-a", "proj-b"]) {
+      for (const name of ["extra.tcl", "race.tcl"]) {
+        writeFileSync(
+          path.resolve(extensionDevelopmentPath, "testFixtureMultiFolder", folder, name),
+          "# placeholder — each test replaces this through the editor\n",
+          "utf8",
+        );
+      }
+    }
   } catch {
     /* best-effort */
   }

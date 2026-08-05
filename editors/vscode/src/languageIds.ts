@@ -19,6 +19,14 @@
 // Tcl language identifiers contributed by this extension. Kept vscode-free so
 // it can be imported by lightweight/unit-testable modules without pulling in
 // the language client.
+//
+// A language id must NEVER contain a `.`. VS Code splits a
+// `configurationDefaults` override key on `.` while building the
+// default-configuration value tree, so a `"[tcl8.4]": {…}` block throws and
+// aborts every remaining override in that block — ours and, because the tree
+// is shared, other extensions' too (issue #1122). The version-pinned dialect
+// ids are therefore undotted (`tcl84`, not `tcl8.4`); the *dialect* strings
+// they map to keep their dots (`tcl8.4`), which is a different namespace.
 
 export const TCL_LANGUAGE_IDS = new Set([
   "tcl",
@@ -26,10 +34,11 @@ export const TCL_LANGUAGE_IDS = new Set([
   "tcl-iapp",
   "tcl-apl",
   "tcl-bigip",
-  "tcl8.4",
-  "tcl8.5",
-  "tcl9.0",
-  "tcl9.1",
+  "tcl84",
+  "tcl85",
+  "tcl86",
+  "tcl90",
+  "tcl91",
   "tcl-synopsys",
   "tcl-cadence",
   "tcl-xilinx",

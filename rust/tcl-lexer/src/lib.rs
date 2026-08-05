@@ -61,7 +61,7 @@ pub use highlight::{
     highlight_tcl_with_config,
 };
 pub use lexer::{LexError, LexWarning, Lexer, LexerConfig};
-pub use line_index::LineIndex;
+pub use line_index::{LineIndex, normalise_lone_cr};
 pub use ranges::{word_closer_offset, word_end_position};
 pub use source_map::SourceMap;
 pub use span::Span;
