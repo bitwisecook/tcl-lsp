@@ -1159,11 +1159,28 @@ mod soundness_gates {
     }
 
     #[test]
-    fn array_element_is_not_folded() {
+    fn array_element_of_touched_array_is_not_folded() {
+        // Any touch of the base array abstains the element fold — a sibling
+        // element write may be `array set`-style populating the guard's key
+        // path in a shape the scan conflates (issue #1173 keeps the fold
+        // one-sided and base-name-driven).
         assert!(!fires(
-            "proc p {} { if {[info exists A(k)]} { puts a } else { puts b } }",
+            "proc p {} { set A(x) 1; if {[info exists A(k)]} { puts a } else { puts b } }",
             "I230"
         ));
+    }
+
+    #[test]
+    fn array_element_of_never_touched_array_folds_false() {
+        // Issue #1173: an element guard on an array nothing in a
+        // barrier-free body ever creates is provably false.
+        // tclsh 9.0.4 / 8.6.16: `proc p {} { info exists A(k) }; p` → 0.
+        let src = "proc p {} { if {[info exists A(k)]} { puts a } else { puts b } }";
+        assert!(
+            i230_messages(src)
+                .iter()
+                .any(|m| m.contains("always false"))
+        );
     }
 
     #[test]
