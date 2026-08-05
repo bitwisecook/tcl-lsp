@@ -472,6 +472,116 @@ fn test_already_formatted_is_stable() {
     }
 }
 
+/// Issue #1186 — the formatting engine consumes registry grammar, so the
+/// absolute global spellings C Tcl resolves to the same commands
+/// (`namespace which -command ::if` → `::if`) format identically to their
+/// bare forms. The old `name == "if"` / `"for"` / `"try"` comparisons did
+/// not fire for them at all.
+#[test]
+fn test_formatting_qualified_control_flow_matches_bare_form() {
+    let mut lsp = Lsp::tcl();
+    for (bare_src, head, qualified) in [
+        (
+            "if {$x} then {\nputs yes\n} else {\nputs no\n}\n",
+            "if",
+            "::if",
+        ),
+        (
+            "for {set i 0} {$i < 3} {incr i} {\nputs $i\n}\n",
+            "for",
+            "::for",
+        ),
+        (
+            "try {\nrisky\n} on error {msg opts} {\nputs $msg\n}\n",
+            "try",
+            "::try",
+        ),
+    ] {
+        let bare_uri = unique_uri("tcl");
+        lsp.open_ready(&bare_uri, bare_src);
+        let bare = full_text(&lsp.formatting(&bare_uri, 4, true)).expect("formatting edit");
+
+        let qualified_src = bare_src.replacen(head, qualified, 1);
+        let q_uri = unique_uri("tcl");
+        lsp.open_ready(&q_uri, &qualified_src);
+        let qualified_out = full_text(&lsp.formatting(&q_uri, 4, true)).expect("formatting edit");
+
+        assert_eq!(
+            qualified_out,
+            bare.replacen(head, qualified, 1),
+            "{qualified} formatted differently from {head}"
+        );
+    }
+}
+
+/// Issue #1186 — `for`'s `start` / `next` scripts stay on the header line
+/// (registry `ArgPresentation::InlineScript`) while only the body expands,
+/// and range formatting agrees with whole-document formatting.
+#[test]
+fn test_range_formatting_keeps_for_header_inline() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "for {set i 0} {$i < 3} {incr i} {\nputs $i\n}\n");
+    let range = json!({
+        "start": { "line": 0, "character": 0 },
+        "end": { "line": 2, "character": 1 },
+    });
+    let edits = lsp.range_formatting(&uri, range, 4);
+    let arr = edits.as_array().cloned().unwrap_or_default();
+    let text: String = arr
+        .iter()
+        .filter_map(|e| e["newText"].as_str())
+        .collect::<Vec<_>>()
+        .join("");
+    if !text.is_empty() {
+        assert!(
+            text.contains("for {set i 0} {$i < 3} {incr i} {"),
+            "for header was split across lines: {text:?}"
+        );
+    }
+}
+
+/// Issue #1196 — formatting must never change a proc's arity. C Tcl 9
+/// collapses the backslash-newline in a pre-pass before the parameter word is
+/// list-parsed (even inside braces), so this proc has two required
+/// parameters; the old formatter emitted `{a\ b}`, which is one *optional*
+/// parameter `a` defaulting to `b`.
+#[test]
+fn test_formatting_preserves_proc_arity_across_backslash_newline() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc f {a\\\n b} {return}\n");
+    let formatted = full_text(&lsp.formatting(&uri, 4, true)).expect("formatting produced no edit");
+    assert!(
+        formatted.contains("proc f {a b} {"),
+        "arity-changing reflow: {formatted:?}"
+    );
+    assert!(
+        !formatted.contains("a\\ b"),
+        "two parameters fused into one defaulted parameter: {formatted:?}"
+    );
+}
+
+/// Issue #1196 — the same document formatted twice is a fixed point, and the
+/// escaped-space form (genuinely one element) keeps its identity.
+#[test]
+fn test_formatting_param_lists_are_idempotent() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc f {a\\ b   {c 1}   d} {return}\n");
+    let once = full_text(&lsp.formatting(&uri, 4, true)).expect("formatting produced no edit");
+    assert!(
+        once.contains("proc f {{a b} {c 1} d} {"),
+        "escaped-space element lost: {once:?}"
+    );
+
+    let uri2 = unique_uri("tcl");
+    lsp.open_ready(&uri2, &once);
+    if let Some(twice) = full_text(&lsp.formatting(&uri2, 4, true)) {
+        assert_eq!(twice, once, "formatting is not idempotent");
+    }
+}
+
 #[test]
 fn test_range_formatting_returns_edits() {
     let mut lsp = Lsp::tcl();

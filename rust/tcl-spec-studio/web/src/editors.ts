@@ -52,6 +52,7 @@ export const STRUCTURAL_KINDS = new Set([
   "optIndexList",
   "flagSet",
   "roleMap",
+  "presentationMap",
   "prefixMap",
   "argTypeMap",
   "argValueMap",
@@ -604,6 +605,34 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
         },
         set,
         "role",
+      ),
+
+    presentationMap: (_kind, value, set) =>
+      rowList<Json>(
+        asArray(value),
+        () => ({ index: 0, presentation: "BlockScript" }),
+        (item, _i, update, remove) => {
+          const row = asRecord(item);
+          return el("div", { class: "row" }, [
+            labelled(
+              "index",
+              numberInput(asNumber(row.index) ?? 0, (n) =>
+                update({ index: n ?? 0, presentation: row.presentation ?? "BlockScript" }),
+              ),
+            ),
+            labelled(
+              "presentation",
+              catalogueSelect(
+                { tag: "enum", catalogue: "argPresentation" },
+                asString(row.presentation),
+                (presentation) => update({ index: row.index ?? 0, presentation }),
+              ),
+            ),
+            removeButton(remove),
+          ]);
+        },
+        set,
+        "presentation",
       ),
 
     prefixMap: (_kind, value, set) =>

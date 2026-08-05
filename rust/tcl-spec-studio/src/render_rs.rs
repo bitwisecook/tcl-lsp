@@ -239,6 +239,20 @@ fn role_map_expr(values: &[Value]) -> String {
     format!("&[{}]", items.join(", "))
 }
 
+fn presentation_map_expr(values: &[Value]) -> String {
+    let items: Vec<String> = values
+        .iter()
+        .map(|entry| {
+            format!(
+                "({}, ArgPresentation::{})",
+                as_u64(&entry["index"]),
+                as_str(&entry["presentation"])
+            )
+        })
+        .collect();
+    format!("&[{}]", items.join(", "))
+}
+
 fn prefix_map_expr(values: &[Value]) -> String {
     let items: Vec<String> = values
         .iter()
@@ -580,6 +594,7 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
         FieldKind::Arity => arity_expr(value),
         FieldKind::RoleMap => role_map_expr(as_array(value)),
         FieldKind::PrefixMap => prefix_map_expr(as_array(value)),
+        FieldKind::PresentationMap => presentation_map_expr(as_array(value)),
         FieldKind::ArgTypeMap => arg_type_map_expr(as_array(value), indent),
         FieldKind::ArgValueMap => arg_value_map_expr(as_array(value), indent),
         FieldKind::Options => "OPTIONS".to_owned(),

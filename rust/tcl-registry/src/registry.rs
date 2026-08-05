@@ -193,6 +193,25 @@ fn all_dialect_command_names() -> &'static FxHashSet<&'static str> {
     })
 }
 
+/// Append the indices covered by `layouts` whose declared role equals `role`.
+///
+/// `tail_len` is the number of argument words the layouts index over (the
+/// whole post-head list, or the words after a subcommand word), and `offset`
+/// is added to each result to convert back into an absolute `args` index —
+/// the same `+1`-for-the-subcommand-word convention every other role source
+/// here uses.
+fn push_repeated_roles(
+    out: &mut Vec<usize>,
+    layouts: &[crate::repeated::RepeatedArgLayout],
+    tail_len: usize,
+    offset: usize,
+    role: ArgRole,
+) {
+    for layout in layouts.iter().filter(|l| l.role == role) {
+        out.extend(layout.indices(tail_len).into_iter().map(|i| i + offset));
+    }
+}
+
 /// Append the `args` indices consumed by value-taking options whose value role
 /// (primary or secondary) equals `role`.
 ///
@@ -1311,8 +1330,18 @@ impl CommandRegistry {
     /// Resolve argument indices for a given role.
     ///
     /// For subcommand-based commands (e.g. `dict create`), pass the
-    /// subcommand as the first element of `args`. This is the Rust
-    /// equivalent of `arg_indices_for_role()`.
+    /// subcommand as the first element of `args`.
+    ///
+    /// Three role sources feed this, in the order the registry contract
+    /// documents: a dynamic `arg_role_resolver`, the static `arg_roles`
+    /// table, and — for the unbounded regular tails a fixed table cannot
+    /// express — the [`RepeatedArgLayout`]s of
+    /// [`CommandSpec::repeated_args`] (issue #1185).  The repeated layouts
+    /// are *additive*: a spec may pin its leading words with `arg_roles`
+    /// (`namespace upvar`'s leading namespace word) and still declare the
+    /// repeating pair tail.
+    ///
+    /// [`RepeatedArgLayout`]: crate::repeated::RepeatedArgLayout
     #[must_use]
     pub fn arg_indices_for_role(&self, name: &str, args: &[&str], role: ArgRole) -> Vec<usize> {
         // `CommandPrefix` positions (with their appended arities) are owned by
@@ -1352,9 +1381,13 @@ impl CommandRegistry {
                         .map(|(i, _)| *i as usize + 1),
                 );
             }
+            // Repeated tails, over the words after the subcommand word.
+            push_repeated_roles(&mut out, sub.repeated_args, n.saturating_sub(1), 1, role);
             // Value-taking options on the subcommand (scan past the sub word).
             push_option_value_roles(&mut out, sub.options, args, 1, role);
             out.retain(|&idx| idx < n);
+            out.sort_unstable();
+            out.dedup();
             return out;
         }
 
@@ -1374,10 +1407,123 @@ impl CommandRegistry {
                     .map(|(i, _)| *i as usize),
             );
         }
+        // Repeated tails (`global a b c`, `upvar ?level? o l o l`).
+        push_repeated_roles(&mut out, spec.repeated_args, n, 0, role);
         // Value-taking options carry roles at their (dynamic) value positions.
         push_option_value_roles(&mut out, spec.options, args, 0, role);
         out.retain(|&idx| idx < n);
+        out.sort_unstable();
+        out.dedup();
         out
+    }
+
+    /// The format-string words of **one concrete call**: which argument
+    /// positions carry a conversion / field string, and which mini-language
+    /// each is written in.
+    ///
+    /// The single registry answer to a question the LSP used to answer by
+    /// matching command spellings — `match head { "format" => …, "scan" =>
+    /// …, "clock" => …, "binary" => …, "regsub" => … }` in both the
+    /// semantic-token walk and the inlay-hint collector, each with its own
+    /// copy of the argument layout (issue #1185). It combines the two facts
+    /// the registry already models:
+    ///
+    /// * **Where** — the [`ArgRole::FormatString`] / [`ArgRole::ScanFormat`]
+    ///   positions of the call, resolved through
+    ///   [`Self::arg_indices_for_role`], so a fixed index (`format`), a
+    ///   resolver-computed one (`scan`, `regsub` past its switches), a
+    ///   subcommand-relative one (`binary format`), and an **option value**
+    ///   (`clock format … -format FMT`) all answer the same way.
+    /// * **Which language** — [`CommandSpec::format_string_type`], overridden
+    ///   by [`SubCommand::format_string_type`] when a subcommand dispatches
+    ///   (`clock format` ⇒ `Clock`, `binary scan` ⇒ `Binary`).
+    ///
+    /// Because the head is resolved through [`Self::get`], the explicitly
+    /// global spellings (`::format`, `::clock`, …) answer identically to the
+    /// bare ones — the false negative the spelling tests had. A command with
+    /// no declared family answers empty, so a same-named user proc, an
+    /// unknown command, or a dynamic head is never misread.
+    ///
+    /// `args` is the post-head argument list, subcommand first, the same
+    /// shape [`Self::arg_indices_for_role`] takes; returned indices are into
+    /// that list.
+    #[must_use]
+    pub fn format_string_args(&self, name: &str, args: &[&str]) -> Vec<FormatStringArg> {
+        let Some(spec) = self.get(name) else {
+            return Vec::new();
+        };
+        // A dispatching subcommand's family wins over the parent's.
+        let sub = (!spec.subcommands.is_empty())
+            .then(|| args.first().and_then(|word| spec.resolve_subcommand(word)))
+            .flatten();
+        let Some(kind) = sub
+            .and_then(|s| s.format_string_type)
+            .or(spec.format_string_type)
+        else {
+            return Vec::new();
+        };
+        let mut out: Vec<FormatStringArg> = Vec::new();
+        for (role, scan) in [(ArgRole::FormatString, false), (ArgRole::ScanFormat, true)] {
+            out.extend(
+                self.arg_indices_for_role(name, args, role)
+                    .into_iter()
+                    .map(|index| FormatStringArg { index, kind, scan }),
+            );
+        }
+        out.sort_by_key(|f| f.index);
+        out
+    }
+
+    /// How a formatter should **present** argument `index` of a call to
+    /// `name` — the layout fact that refines the argument's semantic
+    /// [`ArgRole`] (issue #1186).
+    ///
+    /// Returns the declared override, or [`ArgPresentation::BlockScript`]
+    /// (the default) when the spec says nothing. `for`'s `start` and `next`
+    /// scripts answer [`ArgPresentation::InlineScript`], which is how the
+    /// formatting engine keeps them on the header line without a
+    /// `name == "for"` branch.
+    ///
+    /// Resolves through [`Self::get`], so the explicitly-global spelling
+    /// `::for` answers identically to the bare `for` — the false negative
+    /// the formatter's literal name comparison had. A command the registry
+    /// does not know (a user proc, a dynamic head) answers the default,
+    /// which is what leaves such a call formatted like any other command.
+    ///
+    /// `args` is the post-name argument list, in the same shape
+    /// [`Self::arg_indices_for_role`] takes (subcommand first), so a
+    /// subcommand-dispatching call resolves against the subcommand's own
+    /// table with the same `+1` offset.
+    #[must_use]
+    pub fn arg_presentation(
+        &self,
+        name: &str,
+        args: &[&str],
+        index: usize,
+    ) -> crate::presentation::ArgPresentation {
+        use crate::presentation::ArgPresentation;
+        let Some(spec) = self.get(name) else {
+            return ArgPresentation::default();
+        };
+        // A dispatching subcommand owns the positions after its own word.
+        if !spec.subcommands.is_empty()
+            && let Some(sub) = args.first().and_then(|word| spec.resolve_subcommand(word))
+            && index > 0
+            && let Ok(sub_index) = u8::try_from(index - 1)
+        {
+            return sub
+                .arg_presentation
+                .iter()
+                .find(|(i, _)| *i == sub_index)
+                .map_or_else(ArgPresentation::default, |(_, p)| *p);
+        }
+        let Ok(idx) = u8::try_from(index) else {
+            return ArgPresentation::default();
+        };
+        spec.arg_presentation
+            .iter()
+            .find(|(i, _)| *i == idx)
+            .map_or_else(ArgPresentation::default, |(_, p)| *p)
     }
 
     /// The declared roles of the argument positions a call has **not**
@@ -1792,6 +1938,26 @@ pub struct ResolvedTerminator {
     /// `0` for every subcommand-scoped match (no subcommand currently
     /// needs the reservation) and for any form without one declared.
     pub reserved_trailing_words: usize,
+}
+
+/// One format-string word of a concrete call — the answer
+/// [`CommandRegistry::format_string_args`] returns.
+///
+/// The two facts a consumer needs are deliberately separate: `kind` names the
+/// mini-language (a `clock` field string and a `format` %-string share
+/// neither syntax nor version gates), while `scan` says which *direction* it
+/// is written in (`format` and `scan` share the `Sprintf` family but not its
+/// conversion set — `%b` is 8.6+ in both, `%p` is a `format`-only Tcl 9
+/// addition). Collapsing them would make a consumer guess one from the other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FormatStringArg {
+    /// 0-based index into the post-head argument list.
+    pub index: usize,
+    /// Which mini-language the word is written in.
+    pub kind: crate::patterns::FormatType,
+    /// The word is a **scan**-direction spec ([`ArgRole::ScanFormat`]) rather
+    /// than a format-direction one ([`ArgRole::FormatString`]).
+    pub scan: bool,
 }
 
 /// Which `TclOO` method-context keyword a command word is — the answer
@@ -2522,6 +2688,179 @@ mod tests {
         let kw = reg.arg_indices_for_role("try", &args, ArgRole::Keyword);
         // on@1, finally@5
         assert_eq!(kw, vec![1, 5], "{kw:?}");
+    }
+
+    /// Issue #1185 — the format families answer from registry data alone:
+    /// the *position* from the `FormatString` / `ScanFormat` roles, the
+    /// *family* from `format_string_type` (previously never populated).
+    #[test]
+    fn format_string_args_cover_every_family() {
+        use crate::patterns::FormatType;
+        let reg = CommandRegistry::build_default();
+        let found = |name: &str, args: &[&str]| -> Vec<(usize, FormatType, bool)> {
+            reg.format_string_args(name, args)
+                .into_iter()
+                .map(|f| (f.index, f.kind, f.scan))
+                .collect()
+        };
+        // TP — a fixed argument index.
+        assert_eq!(
+            found("format", &["%d", "7"]),
+            vec![(0, FormatType::Sprintf, false)]
+        );
+        // TP — a resolver-computed index, scan direction.
+        assert_eq!(
+            found("scan", &["$s", "%d", "v"]),
+            vec![(1, FormatType::Sprintf, true)]
+        );
+        // TP — subcommand-relative indices.
+        assert_eq!(
+            found("binary", &["format", "c3", "$l"]),
+            vec![(1, FormatType::Binary, false)]
+        );
+        assert_eq!(
+            found("binary", &["scan", "$v", "c3", "out"]),
+            vec![(2, FormatType::Binary, true)]
+        );
+        // TP — an *option value* position, both directions.
+        assert_eq!(
+            found("clock", &["format", "$t", "-format", "%Y"]),
+            vec![(3, FormatType::Clock, false)]
+        );
+        assert_eq!(
+            found("clock", &["scan", "$s", "-format", "%Y"]),
+            vec![(3, FormatType::Clock, true)]
+        );
+        // TP — `regsub`'s replacement template, shifted past its switches.
+        assert_eq!(
+            found("regsub", &["-all", "--", "e", "$s", "X", "out"]),
+            vec![(4, FormatType::Regsub, false)]
+        );
+        // FN guard — the explicitly global spellings resolve identically.
+        assert_eq!(
+            found("::format", &["%d", "7"]),
+            found("format", &["%d", "7"])
+        );
+        assert_eq!(
+            found("::clock", &["format", "$t", "-format", "%Y"]),
+            found("clock", &["format", "$t", "-format", "%Y"])
+        );
+        // TN — a subcommand with no format string, and an unknown command.
+        assert!(found("binary", &["encode", "hex", "$d"]).is_empty());
+        assert!(found("clock", &["seconds"]).is_empty());
+        assert!(found("no::such::command", &["%d"]).is_empty());
+        assert!(found("puts", &["%d"]).is_empty());
+        // TN — `regsub -command` makes that position a callback, not a
+        // template, so it declares no replacement word.
+        assert!(
+            !found("regsub", &["-command", "--", "e", "$s", "cb"])
+                .iter()
+                .any(|(i, _, _)| *i == 3)
+        );
+    }
+
+    /// Issue #1185 — the repeated argument tails a fixed index table cannot
+    /// express now answer through the ordinary role query.
+    #[test]
+    fn repeated_layouts_answer_through_arg_indices_for_role() {
+        let reg = CommandRegistry::build_default();
+        let vars =
+            |name: &str, args: &[&str]| reg.arg_indices_for_role(name, args, ArgRole::VarWrite);
+        // TP — every argument of `global`.
+        assert_eq!(vars("global", &["a", "b", "c"]), vec![0, 1, 2]);
+        // TP — every *even* argument of `variable` (names, not values).
+        assert_eq!(vars("variable", &["x", "1", "y", "2"]), vec![0, 2]);
+        // TP — the local of each `namespace upvar` pair, past the namespace.
+        assert_eq!(
+            vars("namespace", &["upvar", "::ns", "o1", "l1", "o2", "l2"]),
+            vec![3, 5]
+        );
+        // TP — each `dict update` varName, with the trailing body excluded.
+        // Index 1 is the dictionary variable itself, which the subcommand
+        // already declared (it is read on entry and written back after the
+        // body).  The pair locals answer as `LoopVarList` — bound once
+        // before the body, and only when the key is present — NOT as
+        // `VarWrite`: an unconditional SSA def both defeated the key-aware
+        // read-before-set suppression and would hide the genuine
+        // absent-key warning.
+        assert_eq!(
+            vars("dict", &["update", "d", "k1", "v1", "k2", "v2", "{body}"]),
+            vec![1]
+        );
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "dict",
+                &["update", "d", "k1", "v1", "k2", "v2", "{body}"],
+                ArgRole::LoopVarList
+            ),
+            vec![3, 5]
+        );
+        // TP — `foreach` / `lmap` variable specs, body excluded.
+        for name in ["foreach", "lmap"] {
+            assert_eq!(
+                reg.arg_indices_for_role(
+                    name,
+                    &["{a b}", "$l1", "c", "$l2", "{body}"],
+                    ArgRole::LoopVarList
+                ),
+                vec![0, 2],
+                "{name}"
+            );
+        }
+        // FN guard — the explicitly global spellings resolve identically.
+        assert_eq!(vars("::global", &["a", "b"]), vars("global", &["a", "b"]));
+        // TN — a command with no repeated tail is unaffected.
+        assert_eq!(vars("puts", &["a", "b"]), Vec::<usize>::new());
+        // FP guard — a short call names nothing it should not.
+        assert_eq!(vars("global", &[]), Vec::<usize>::new());
+        assert_eq!(
+            reg.arg_indices_for_role("foreach", &["{body}"], ArgRole::LoopVarList),
+            Vec::<usize>::new()
+        );
+    }
+
+    /// Issue #1186 — `for`'s three script arguments share the semantic
+    /// [`ArgRole::Body`], and the *presentation* fact is what separates the
+    /// trailing body (block-expanded) from `start` / `next` (inline).
+    #[test]
+    fn for_declares_inline_presentation_for_start_and_next() {
+        use crate::presentation::ArgPresentation;
+        let reg = CommandRegistry::build_default();
+        let args = ["{set i 0}", "{$i < 3}", "{incr i}", "{puts $i}"];
+        // Semantics unchanged: all three scripts are still bodies.
+        assert_eq!(
+            reg.arg_indices_for_role("for", &args, ArgRole::Body),
+            vec![0, 2, 3]
+        );
+        // Presentation splits them.
+        assert_eq!(
+            reg.arg_presentation("for", &args, 0),
+            ArgPresentation::InlineScript
+        );
+        assert_eq!(
+            reg.arg_presentation("for", &args, 2),
+            ArgPresentation::InlineScript
+        );
+        assert_eq!(
+            reg.arg_presentation("for", &args, 3),
+            ArgPresentation::BlockScript
+        );
+        assert!(reg.arg_presentation("for", &args, 3).is_block());
+        // The absolute global spelling resolves to the same spec.
+        assert_eq!(
+            reg.arg_presentation("::for", &args, 0),
+            ArgPresentation::InlineScript
+        );
+        // A command with nothing to say answers the block default, and so
+        // does one the registry does not know at all.
+        assert_eq!(
+            reg.arg_presentation("while", &["{$x}", "{body}"], 1),
+            ArgPresentation::BlockScript
+        );
+        assert_eq!(
+            reg.arg_presentation("no::such::command", &["{a}"], 0),
+            ArgPresentation::BlockScript
+        );
     }
 
     // -- Option-value roles (Phase 1) ------------------------------------

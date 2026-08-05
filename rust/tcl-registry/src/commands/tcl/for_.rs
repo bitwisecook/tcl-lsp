@@ -53,6 +53,15 @@ pub fn spec() -> CommandSpec {
             (2, ArgRole::Body),
             (3, ArgRole::Body),
         ],
+        // `start` and `next` are genuine Tcl scripts — the semantic role above
+        // is correct and every analysis consumer must keep walking them — but
+        // a formatter keeps them on the `for` header line, expanding only the
+        // trailing `body`.  Declaring the preference here is what lets the
+        // formatting engine drop its `name == "for"` branch (issue #1186).
+        arg_presentation: &[
+            (0, ArgPresentation::InlineScript),
+            (2, ArgPresentation::InlineScript),
+        ],
         lowering_hook: Some(crate::hooks::LoweringHookId::For),
         return_type: Some(TclType::String),
         arg_types: &[(

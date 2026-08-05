@@ -600,6 +600,39 @@ where
     out
 }
 
+/// Re-render `s` as a canonical Tcl list: the same elements, separated by
+/// exactly one space, each re-quoted by the shared list-element encoder.
+///
+/// This is `Tcl_SplitList` followed by `Tcl_Merge` — the only way to
+/// re-space a list without changing what it *is*. A hand-rolled scan that
+/// splits on whitespace and balanced braces gets the escaped forms wrong:
+/// `a\ b` is **one** element (the escaped space is data), `{a b}` is one
+/// element whose braces are structure, and a `"a b"` element is one element
+/// too. Losing any of those changes the list's length, which for a `proc`
+/// parameter list is a change of arity (issue #1196).
+///
+/// Returns `Err` for input that is not a well-formed list (an unmatched brace
+/// or quote, junk after a closing delimiter). A caller that is reformatting
+/// source must then preserve the original text verbatim rather than guess.
+///
+/// Note that Tcl's `\<newline>` line-continuation collapse happens in a
+/// *pre-pass* over the script, before any word is list-parsed — even inside
+/// braces. A caller holding raw source text must run
+/// [`crate::backslash::collapse_brace_continuations_str`] over it first, or
+/// the backslash will be read as escaping the newline *inside* an element.
+///
+/// ```
+/// use tcl_syntax::list::normalise_spacing;
+/// assert_eq!(normalise_spacing("a    b   c").unwrap(), "a b c");
+/// // Structure is preserved, not flattened.
+/// assert_eq!(normalise_spacing("a  {b 1}  c").unwrap(), "a {b 1} c");
+/// assert_eq!(normalise_spacing(r"a\ b  c").unwrap(), r"{a b} c");
+/// assert!(normalise_spacing("a {b").is_err());
+/// ```
+pub fn normalise_spacing(s: &str) -> Result<String, ListError> {
+    Ok(join_list(split_list(s)?))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -610,6 +643,40 @@ mod tests {
             .into_iter()
             .map(Cow::into_owned)
             .collect()
+    }
+
+    #[test]
+    fn normalise_spacing_preserves_element_count_and_structure() {
+        // TP — plain whitespace runs collapse.
+        assert_eq!(normalise_spacing("a    b\t\tc").unwrap(), "a b c");
+        // TP — a braced element keeps its braces (one element, not two).
+        assert_eq!(normalise_spacing("a   {b 1}   c").unwrap(), "a {b 1} c");
+        // TP — an escaped space is data: one element, re-quoted as a brace.
+        assert_eq!(normalise_spacing(r"a\ b c").unwrap(), r"{a b} c");
+        // TP — a quoted element is one element, re-quoted canonically.
+        assert_eq!(normalise_spacing(r#""a b" c"#).unwrap(), "{a b} c");
+        // TN — malformed input has no canonical rendering.
+        assert!(normalise_spacing("a {b").is_err());
+        assert!(normalise_spacing(r#"a "b"#).is_err());
+        // FP guard — empty and whitespace-only lists stay empty.
+        assert_eq!(normalise_spacing("").unwrap(), "");
+        assert_eq!(normalise_spacing("  \n ").unwrap(), "");
+    }
+
+    #[test]
+    fn normalise_spacing_is_idempotent() {
+        for src in [
+            "a b c",
+            "a {b 1} c",
+            r"a\ b c",
+            "{} a",
+            "args",
+            "{a {b c} d}",
+        ] {
+            let once = normalise_spacing(src).expect("well-formed");
+            let twice = normalise_spacing(&once).expect("well-formed");
+            assert_eq!(once, twice, "not idempotent for {src:?}");
+        }
     }
 
     #[test]

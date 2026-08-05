@@ -657,6 +657,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // elsewhere (tclsh 9.0.4 / 8.6.16: inside `namespace eval ::rel`,
         // `namespace upvar kid v alias` binds `::rel::kid::v`).
         arg_roles: &[(0, ArgRole::NamespaceName)],
+        // `namespace upvar NS otherVar myVar ?otherVar myVar ...?` — the
+        // *local* name of each pair, from index 2 after the subcommand word
+        // (issue #1185).
+        repeated_args: &[RepeatedArgLayout::strided(ArgRole::VarWrite, 2, 2)],
         creates_scope_alias: true,
         dialects: Some(DialectSet::TCL85_PLUS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceUpvar),

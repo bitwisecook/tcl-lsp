@@ -36,6 +36,8 @@ use crate::hooks::{
 };
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
 use crate::patterns::{FormatType, PatternType};
+use crate::presentation::ArgPresentation;
+use crate::repeated::RepeatedArgLayout;
 use crate::side_effects::{SideEffect, StorageType};
 use crate::symbol_def::SymbolDef;
 use crate::taint::{SetterConstraint, TaintColour};
@@ -368,6 +370,31 @@ pub struct CommandSpec {
 
     /// Dynamic argument role resolver (for variable-layout commands).
     pub arg_role_resolver: Option<ArgRoleResolver>,
+
+    /// Formatter **presentation** overrides, keyed by 0-based argument index
+    /// — how an argument should be *laid out*, as distinct from what
+    /// [`Self::arg_roles`] says it *is* (issue #1186).
+    ///
+    /// Only overrides are declared: every [`ArgRole::Body`] argument is an
+    /// [`ArgPresentation::BlockScript`] by default, so a spec with nothing
+    /// unusual to say leaves this empty. `for` declares its `start` (0) and
+    /// `next` (2) scripts [`ArgPresentation::InlineScript`], which is what
+    /// keeps `for {set i 0} {$i < 3} {incr i} { … }` on one header line
+    /// without the formatter having to know the command's name.
+    ///
+    /// See [`crate::presentation`] for why this is a separate fact rather
+    /// than a different [`ArgRole`].
+    pub arg_presentation: &'static [(u8, ArgPresentation)],
+
+    /// Repeated argument-role layouts — a role that recurs at a fixed
+    /// stride over the argument tail (`global a b c`, `variable n v n v`,
+    /// `foreach v1 l1 v2 l2 body`, `upvar ?level? o l o l`).
+    ///
+    /// Folded into [`crate::CommandRegistry::arg_indices_for_role`] alongside
+    /// [`Self::arg_roles`] and [`Self::arg_role_resolver`], so a consumer
+    /// asking which arguments carry a role gets the unbounded tail without
+    /// knowing the command (issue #1185). See [`crate::repeated`].
+    pub repeated_args: &'static [RepeatedArgLayout],
 
     /// How the command crosses stack frames — which argument is the level
     /// word, which arguments name variables in the selected frame, and
@@ -969,6 +996,8 @@ impl CommandSpec {
         arity: Arity::any(),
         arg_roles: &[],
         arg_role_resolver: None,
+        arg_presentation: &[],
+        repeated_args: &[],
         frame_effect: None,
         clause_shape_check: None,
         command_prefixes: &[],
@@ -1444,6 +1473,16 @@ pub struct SubCommand {
     /// Dynamic argument role resolver.
     pub arg_role_resolver: Option<ArgRoleResolver>,
 
+    /// Formatter presentation overrides (after the subcommand word) — the
+    /// subcommand-level twin of [`CommandSpec::arg_presentation`]. Empty
+    /// means every body argument is laid out as a block, the default.
+    pub arg_presentation: &'static [(u8, ArgPresentation)],
+
+    /// Repeated argument-role layouts (after the subcommand word) — the
+    /// subcommand-level twin of [`CommandSpec::repeated_args`]
+    /// (`namespace upvar NS o l o l`, `dict update d k v k v body`).
+    pub repeated_args: &'static [RepeatedArgLayout],
+
     /// Static command-prefix positions + appended arities (after the
     /// subcommand word), e.g. `trace add variable`'s callback.
     pub command_prefixes: &'static [(u8, crate::arg_role::AppendedArity)],
@@ -1712,6 +1751,8 @@ impl SubCommand {
         hover: None,
         arg_roles: &[],
         arg_role_resolver: None,
+        arg_presentation: &[],
+        repeated_args: &[],
         command_prefixes: &[],
         command_prefix_resolver: None,
         return_type: None,

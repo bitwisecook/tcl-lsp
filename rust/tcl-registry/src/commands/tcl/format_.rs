@@ -608,6 +608,11 @@ pub fn spec() -> CommandSpec {
         // Index 0 is the %-string (the §6 argument-DSL rung: `%b` is
         // 8.6+, `%ll…u` is 9.0+).
         arg_roles: &[(0, ArgRole::FormatString)],
+        // The family of this command's format string; the
+        // `ArgRole::FormatString` role above locates the word. Together
+        // they are the whole registry answer, so the LSP's format
+        // highlighting and inlay hints name no command (#1185).
+        format_string_type: Some(FormatType::Sprintf),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         const_fold_versioned: Some(fold_format),

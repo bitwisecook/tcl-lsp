@@ -1394,8 +1394,8 @@ fn special_arg_kinds(
         overrides.insert(tok.span.start(), ArgOverride::Kind(TokenKind::Event));
     }
 
-    insert_regex_overrides(seg, registry, head, &mut overrides);
-    insert_format_overrides(seg, &mut overrides);
+    insert_regex_overrides(seg, registry, head, arg_texts, &mut overrides);
+    insert_format_overrides(seg, registry, head, arg_texts, &mut overrides);
 
     // `proc NAME …` — the name argument is a function definition.  Procedure
     // definers come from the registry's `DEFINES_PROCEDURE` trait; a spec
@@ -1445,8 +1445,8 @@ fn special_arg_kinds(
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, oo_grammar, arg_texts, &mut overrides);
     insert_scoped_subcommand_overrides(seg, scoped_env, head, &mut overrides);
-    insert_multiname_var_overrides(seg, oo_grammar, &mut overrides);
-    insert_ref_var_overrides(seg, &mut overrides);
+    insert_multiname_var_overrides(seg, registry, head, arg_texts, oo_grammar, &mut overrides);
+    insert_ref_var_overrides(seg, registry, head, &mut overrides);
     insert_loop_var_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_param_list_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_var_role_overrides(
@@ -1462,15 +1462,17 @@ fn special_arg_kinds(
     overrides
 }
 
-/// Loop-variable specs → variable declarations.  Two sources feed
-/// [`ArgOverride::LoopVarList`] (whose [`collect_loop_var_list`] emits each
-/// name — a bareword or the elements of a braced list — as a variable):
+/// Loop-variable specs → variable declarations.
 ///
-/// * The registry's [`ArgRole::LoopVarList`] (`dict for {k v} …`,
-///   `dict map {k v} …`).
-/// * `foreach` / `lmap`, whose resolvers surface only the `Body` role, so their
-///   (possibly repeated) `v1 l1 ?v2 l2 …?` variable-spec positions — every
-///   other argument before the trailing body — are added here.
+/// Every position comes from the registry's [`ArgRole::LoopVarList`]
+/// ([`ArgOverride::LoopVarList`]'s [`collect_loop_var_list`] then emits each
+/// name — a bareword or the elements of a braced list — as a variable). That
+/// covers both the fixed shape (`dict for {k v} …`, `dict map {k v} …`) and
+/// the repeating one (`foreach v1 l1 ?v2 l2 …? body`, `lmap` likewise), whose
+/// stride and excluded trailing body are declared as a
+/// [`tcl_registry::RepeatedArgLayout`] on the spec rather than re-derived
+/// here from the command's name (issue #1185) — so the explicitly global
+/// `::foreach` is covered too, and a same-named user proc is not.
 ///
 /// Highlighting only: the loop bodies already resolve these reads via the
 /// analyser's scope tracking.
@@ -1481,25 +1483,14 @@ fn insert_loop_var_overrides(
     arg_texts: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let mark = |pos: usize, overrides: &mut FxHashMap<u32, ArgOverride>| {
-        if let Some(tok) = seg.argv.get(pos)
+    // `i` indexes the argument words → `argv[i + 1]`.
+    for i in registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::LoopVarList) {
+        if let Some(tok) = seg.argv.get(i + 1)
             && matches!(tok.kind, TokenType::Esc | TokenType::Str)
         {
             overrides
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::LoopVarList);
-        }
-    };
-    // Registry-declared specs (`i` indexes the argument words → `argv[i + 1]`).
-    for i in registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::LoopVarList) {
-        mark(i + 1, overrides);
-    }
-    // `foreach v1 l1 ?v2 l2 …? body` — specs at odd `seg.texts` indices
-    // (`v1` = texts[1], `v2` = texts[3], …) up to but excluding the trailing
-    // body.  Needs at least head + varlist + list + body.
-    if matches!(head, "foreach" | "lmap") && seg.texts.len() >= 4 {
-        for pos in (1..seg.texts.len() - 1).step_by(2) {
-            mark(pos, overrides);
         }
     }
 }
@@ -1539,47 +1530,50 @@ fn insert_param_list_overrides(
     }
 }
 
-/// Highlight the local-variable names bound by a by-reference command whose
-/// registry role marks only the leading (or no) target:
+/// Highlight the local-variable names bound by `upvar`'s
+/// `?level? otherVar localVar ?otherVar localVar ...?` pair tail.
 ///
-/// * `upvar ?level? otherVar localVar ?otherVar localVar ...?` — the *local*
-///   name of each pair.  A leading level word is present when the argument
-///   count is odd, so the first local sits at `seg.texts[3]` (level) or
-///   `seg.texts[2]` (no level), then every other word.
-/// * `namespace upvar ns otherVar localVar ?...?` — the local of each pair,
-///   starting at `seg.texts[4]`.
-/// * `dict update dictVar key varName ?key varName ...? body` — each `varName`
-///   (`seg.texts[4]`, `[6]`, …), excluding the trailing body.
+/// The sibling by-reference shapes — `namespace upvar ns o l ?o l?` and
+/// `dict update dictVar key varName ?key varName? body` — declare their pair
+/// tail as a [`tcl_registry::RepeatedArgLayout`] on their subcommand spec and
+/// are handled generically by [`insert_multiname_var_overrides`]'s
+/// `VarWrite` walk (issue #1185).
+///
+/// `upvar`'s own layout is not a [`tcl_registry::RepeatedArgLayout`] because
+/// the registry already models it more precisely: its
+/// [`tcl_registry::FrameEffectSpec`] declares
+/// [`FrameArgLayout::AliasPairs`] (other/local pairs) with
+/// [`FrameLevelWord::ArityParity`] (C Tcl reads the optional level word off
+/// the *argument count parity*, never off the word's text — `Tcl_UpvarObjCmd`
+/// tests `objc`; tclsh 9.0.4 / 8.6.14 agree).  This reads those two facts, so
+/// the explicitly global `::upvar` behaves like the bare form and a
+/// same-named user proc does not.
 ///
 /// Highlighting only: the analyser already scopes these locals.  A `$`-computed
 /// / array / quoted name is skipped.
 fn insert_ref_var_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    head: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let sub = seg.texts.get(1).map(String::as_str);
-    let positions: Vec<usize> = match (seg.texts[0].as_str(), sub) {
-        ("upvar", _) => {
-            let n = seg.texts.len() - 1; // argument count
-            if n < 2 {
-                return;
-            }
-            // A level word (present iff the argument count is odd) shifts the
-            // first local from texts[2] to texts[3].
-            let start = if n % 2 == 1 { 3 } else { 2 };
-            (start..seg.texts.len()).step_by(2).collect()
-        }
-        ("namespace", Some("upvar")) if seg.texts.len() >= 5 => {
-            (4..seg.texts.len()).step_by(2).collect()
-        }
-        ("dict", Some("update")) if seg.texts.len() >= 6 => {
-            // varNames are the even words after `dict update dictVar key`, up to
-            // but excluding the trailing body.
-            (4..seg.texts.len() - 1).step_by(2).collect()
-        }
-        _ => return,
+    use tcl_registry::{FrameArgLayout, FrameLevelWord};
+    let Some(effect) = registry.get(head).and_then(|s| s.frame_effect) else {
+        return;
     };
-    for pos in positions {
+    if effect.layout != FrameArgLayout::AliasPairs
+        || effect.level_word != FrameLevelWord::ArityParity
+    {
+        return;
+    }
+    let n = seg.texts.len() - 1; // argument count
+    if n < 2 {
+        return;
+    }
+    // The level word is present exactly when the argument count is odd, and
+    // shifts the first local from texts[2] to texts[3].
+    let start = if n % 2 == 1 { 3 } else { 2 };
+    for pos in (start..seg.texts.len()).step_by(2) {
         if let Some(tok) = seg.argv.get(pos)
             && matches!(tok.kind, TokenType::Esc)
             && !tok.in_quote
@@ -1592,47 +1586,48 @@ fn insert_ref_var_overrides(
     }
 }
 
-/// Highlight the *trailing* name arguments of a multi-name variable-declaring
-/// command that the registry's single leading `VarWrite` role
-/// ([`insert_var_decl_overrides`], index 0) leaves as plain strings:
+/// Highlight the name arguments of a multi-name variable-declaring command —
+/// `global name ?name ...?` (every argument), `variable name ?value name
+/// value ...?` at namespace level (every *even* argument; the interleaved
+/// values are left alone).
 ///
-/// * `global name ?name ...?` — every argument is a declared variable.
-/// * `variable name ?value name value ...?` at namespace level — the name sits
-///   at every *even* argument position (0, 2, …); the interleaved values are
-///   left alone.  (A `variable` *inside a definition body* is a grammar member
-///   handled by [`insert_oo_body_overrides`], where `TclOO` declares every name
-///   and snit declares only the leading one.)
+/// The stride is registry data: each spec declares a
+/// [`tcl_registry::RepeatedArgLayout`] for its `VarWrite` tail, so this reads
+/// [`ArgRole::VarWrite`] positions and never names a command or re-derives a
+/// stride (issue #1185).  That also makes the explicitly global spellings
+/// (`::global`, `::variable`) behave like the bare ones.
+///
+/// A `variable` *inside a definition body* is a grammar member handled by
+/// [`insert_oo_body_overrides`] (where `TclOO` declares every name and snit
+/// only the leading one), so this steps aside whenever a definition-body
+/// grammar is in force.
 ///
 /// Highlighting only: the analyser already tracks every one of these names via
-/// the commands' lowering hooks (`global` / `variable`), so no diagnostic
-/// depends on this.  An array element (`arr(x)`), a `$`-computed name, or a
-/// quoted word is skipped so its inner `$var` sub-tokens survive.
+/// the commands' lowering hooks, so no diagnostic depends on this.  An array
+/// element (`arr(x)`), a `$`-computed name, or a quoted word is skipped so its
+/// inner `$var` sub-tokens survive.
 fn insert_multiname_var_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    head: &str,
+    arg_texts: &[&str],
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    // Stride over the argument words (`seg.texts[1..]`): 1 = every word is a
-    // name, 2 = names at every other word (name/value pairs).
-    let stride = match seg.texts[0].as_str() {
-        "global" => 1,
-        // `variable` inside a definition body is a grammar member (handled
-        // elsewhere); at namespace level it is name/value pairs.
-        "variable" if oo_grammar.is_none() => 2,
-        _ => return,
-    };
-    let mut i = 1;
-    while i < seg.texts.len() {
-        if let Some(tok) = seg.argv.get(i)
+    if oo_grammar.is_some() {
+        return;
+    }
+    for i in registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::VarWrite) {
+        let pos = i + 1;
+        if let Some(tok) = seg.argv.get(pos)
             && matches!(tok.kind, TokenType::Esc)
             && !tok.in_quote
-            && is_plain_var_name(&seg.texts[i])
+            && seg.texts.get(pos).is_some_and(|t| is_plain_var_name(t))
         {
             overrides
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::VarDecl);
         }
-        i += stride;
     }
 }
 
@@ -1789,13 +1784,20 @@ fn insert_oo_member_overrides(
     }
 }
 
-/// Regex pattern / regsub-replacement overrides for a `pattern_type ==
-/// Regex` command (option-skipped first positional, and — for `regsub` —
-/// the replacement spec two words later).
+/// Regex-pattern overrides for a `pattern_type == Regex` command.
+///
+/// Both facts are registry data: the *language* from
+/// [`tcl_registry::CommandSpec::pattern_type`], and the *position* from the
+/// [`tcl_registry::ArgRole::Pattern`] role the spec's resolver reports —
+/// which is what shifts the pattern past a call's leading switches without
+/// this walker re-implementing option parsing (issue #1185). The paired
+/// `regsub` replacement template is claimed by
+/// [`insert_format_overrides`] through its own `FormatType::Regsub` family.
 fn insert_regex_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
+    arg_texts: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     if !registry
@@ -1805,36 +1807,37 @@ fn insert_regex_overrides(
     {
         return;
     }
-    let args = &seg.texts[1..];
-    let mut idx = 0;
-    while idx < args.len() && args[idx].starts_with('-') && args[idx] != "--" {
-        if args[idx] == "-start" && idx + 1 < args.len() {
-            idx += 2;
-        } else {
+    // Sub-tokenise only the *literal* fragments of the pattern word as regex:
+    // in `"abc$var.*"` the `abc` / `.*` fragments are regex, but `$var` is
+    // variable interpolation Tcl resolves before `regexp` sees it (and
+    // `"[cmd]"` is command substitution, not a char class). Marking the
+    // literal fragments — not the whole word — leaves the `Var` / `Cmd`
+    // fragments to the default classifier, so they render as Tcl and never
+    // overlap the regex sub-tokens.
+    let declared = registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::Pattern);
+    let positions: Vec<usize> = if declared.is_empty() {
+        // A `Regex` command whose spec does not (yet) declare where its
+        // pattern sits: fall back to the first positional word past the
+        // leading switches, the layout every stock regex command shares.
+        let mut idx = 0;
+        while idx < arg_texts.len() && arg_texts[idx].starts_with('-') && arg_texts[idx] != "--" {
+            if arg_texts[idx] == "-start" && idx + 1 < arg_texts.len() {
+                idx += 2;
+            } else {
+                idx += 1;
+            }
+        }
+        if idx < arg_texts.len() && arg_texts[idx] == "--" {
             idx += 1;
         }
-    }
-    if idx < args.len() && args[idx] == "--" {
-        idx += 1;
-    }
-    // `args[idx]` is the pattern; its whole-word span is `seg.argv[idx + 1]`
-    // (argv[0] is the command head).  Sub-tokenise only the *literal*
-    // fragments of the word as regex: in `"abc$var.*"` the `abc` / `.*`
-    // fragments are regex, but `$var` is variable interpolation Tcl resolves
-    // before `regexp` sees it (and `"[cmd]"` is command substitution, not a
-    // char class).  Marking the literal fragments — not the whole word —
-    // leaves the `Var` / `Cmd` fragments to the default classifier, so they
-    // render as Tcl and never overlap the regex sub-tokens.
-    if let Some(tok) = seg.argv.get(idx + 1) {
-        mark_literal_fragments(seg, tok.span, ArgOverride::RegexPattern, overrides);
-    }
-    // `regsub … exp string subSpec …` — the replacement spec sits two
-    // words after the pattern.  Same literal-fragment treatment (its
-    // backrefs are handled by the regsub-replacement scanner).
-    if head == "regsub"
-        && let Some(tok) = seg.argv.get(idx + 3)
-    {
-        mark_literal_fragments(seg, tok.span, ArgOverride::RegsubReplace, overrides);
+        vec![idx]
+    } else {
+        declared
+    };
+    for idx in positions {
+        if let Some(tok) = seg.argv.get(idx + 1) {
+            mark_literal_fragments(seg, tok.span, ArgOverride::RegexPattern, overrides);
+        }
     }
 }
 
@@ -1880,49 +1883,48 @@ fn mark_regex_source_words(
     }
 }
 
-/// Conversion-string overrides for the format families: `format`/`scan`
-/// (sprintf), `clock format/scan -format`, and `binary format/scan`.
+/// Conversion-string overrides for every format family the registry declares
+/// — sprintf (`format` / `scan`), `clock`'s field string (a fixed argument or
+/// the `-format` option value), `binary`'s cursor spec, and `regsub`'s
+/// replacement template.
+///
+/// Entirely registry-driven ([`CommandRegistry::format_string_args`]): the
+/// *position* comes from the [`tcl_registry::ArgRole::FormatString`] /
+/// `ScanFormat` roles the specs and resolvers declare, and the *family* from
+/// `format_string_type`. No command name appears here, so the explicitly
+/// global spellings (`::format`, `::clock`, …) — which the previous
+/// `match head { "format" => … }` silently missed — resolve identically, and
+/// a same-named user proc or a dynamic head simply declares no family and is
+/// left alone (issue #1185).
+///
+/// The `Regsub` family marks only the word's *literal* fragments, matching
+/// how the regex pattern beside it is treated: a `$var` inside a replacement
+/// template is variable interpolation Tcl performs before `regsub` sees it,
+/// not part of the template.
 fn insert_format_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    head: &str,
+    arg_texts: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let head = &seg.texts[0];
-
-    // `format FMT …` (arg 1) / `scan STR FMT …` (arg 2) — the conversion
-    // string.  Command-name gated (the registry's `format_string_type`
-    // field is never populated).
-    let fmt_word = match head.as_str() {
-        "format" if seg.argv.len() >= 2 => Some(1),
-        "scan" if seg.argv.len() >= 3 => Some(2),
-        _ => None,
-    };
-    if let Some(w) = fmt_word
-        && let Some(tok) = seg.argv.get(w)
-    {
-        overrides.insert(tok.span.start(), ArgOverride::SprintfFormat);
-    }
-
-    // `clock format/scan … -format FMT` — the `-format` option value.
-    if head == "clock"
-        && seg.texts.len() >= 3
-        && matches!(seg.texts[1].as_str(), "format" | "scan")
-        && let Some(i) = (2..seg.texts.len()).find(|&i| seg.texts[i] == "-format")
-        && let Some(tok) = seg.argv.get(i + 1)
-    {
-        overrides.insert(tok.span.start(), ArgOverride::ClockFormat);
-    }
-
-    // `binary format FMT …` (arg 2) / `binary scan VAL FMT …` (arg 3).
-    if head == "binary" && seg.texts.len() >= 3 {
-        let bin_word = match seg.texts[1].as_str() {
-            "format" => Some(2),
-            "scan" if seg.texts.len() >= 4 => Some(3),
-            _ => None,
+    for found in registry.format_string_args(head, arg_texts) {
+        let Some(tok) = seg.argv.get(found.index + 1) else {
+            continue;
         };
-        if let Some(w) = bin_word
-            && let Some(tok) = seg.argv.get(w)
-        {
-            overrides.insert(tok.span.start(), ArgOverride::BinaryFormat);
+        match found.kind {
+            tcl_registry::FormatType::Sprintf => {
+                overrides.insert(tok.span.start(), ArgOverride::SprintfFormat);
+            }
+            tcl_registry::FormatType::Clock => {
+                overrides.insert(tok.span.start(), ArgOverride::ClockFormat);
+            }
+            tcl_registry::FormatType::Binary => {
+                overrides.insert(tok.span.start(), ArgOverride::BinaryFormat);
+            }
+            tcl_registry::FormatType::Regsub => {
+                mark_literal_fragments(seg, tok.span, ArgOverride::RegsubReplace, overrides);
+            }
         }
     }
 }
@@ -1949,15 +1951,22 @@ fn insert_format_overrides(
 /// name — never match; only a literal `-force`-style word does.
 ///
 /// [`OptionSpec`]: tcl_registry::OptionSpec
-/// Whether an option value's role is re-coloured by a later semantic-token pass
-/// (`insert_role_overrides` for `Body`/`Expr`, `insert_var_decl_overrides` for
-/// `VarWrite`).  Such values must not be claimed as `OptionValue` by the option
-/// pass, which runs first and would block the more specific role token.
+/// Whether an option value's role is re-coloured by another semantic-token
+/// pass (`insert_role_overrides` for `Body`/`Expr`, `insert_var_decl_overrides`
+/// for `VarWrite`, `insert_format_overrides` for a conversion string).  Such
+/// values must not be claimed as `OptionValue` by the option pass, which would
+/// block the more specific role token.
 fn role_claimed_by_token_pass(role: Option<tcl_registry::ArgRole>) -> bool {
     use tcl_registry::ArgRole;
     matches!(
         role,
-        Some(ArgRole::Body | ArgRole::Expr | ArgRole::VarWrite)
+        Some(
+            ArgRole::Body
+                | ArgRole::Expr
+                | ArgRole::VarWrite
+                | ArgRole::FormatString
+                | ArgRole::ScanFormat
+        )
     )
 }
 
@@ -2829,13 +2838,27 @@ fn insert_oo_define_keyword_overrides(
     registry: &CommandRegistry,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    if !matches!(seg.texts[0].as_str(), "oo::define" | "oo::objdefine") {
+    let Some(spec) = registry.get(seg.texts[0].as_str()) else {
+        return;
+    };
+    // The *outer-call shape* — "argument 1 is the target, the member call
+    // starts at argument 2" — is what separates a definer-**extension**
+    // command from a definer that *creates* (`oo::class create Name ?body?`
+    // puts a class name at that position, not a member keyword). The
+    // registry already draws exactly that line with the `OoDefine` /
+    // `OoObjdefine` analyser hooks, so this dispatches on them rather than
+    // comparing spellings (issue #1185) — which also means the
+    // explicitly-global `::oo::define` resolves like the bare form.
+    if !matches!(
+        spec.analyser_hook,
+        Some(
+            tcl_registry::hooks::AnalyserHookId::OoDefine
+                | tcl_registry::hooks::AnalyserHookId::OoObjdefine
+        )
+    ) {
         return;
     }
-    let Some(grammar) = registry
-        .get(seg.texts[0].as_str())
-        .and_then(|s| s.definition_body)
-    else {
+    let Some(grammar) = spec.definition_body else {
         return;
     };
     let mut mark_keyword = |pos: usize| {
@@ -9564,6 +9587,127 @@ mod tests {
             failures.is_empty(),
             "semantic-token legend not fully handled:\n  {}",
             failures.join("\n  ")
+        );
+    }
+
+    // Issue #1185 — semantic tokens read command grammar from the registry,
+    // so the explicitly global spellings C Tcl resolves to the same commands
+    // (`namespace which -command ::format` → `::format`) are classified
+    // identically to their bare forms, and a same-named user proc is not.
+
+    /// The decoded token *kinds* of `src`, positions discarded.
+    fn kinds_only(src: &str, registry: &CommandRegistry) -> Vec<u32> {
+        decode_full(src, "tcl", registry)
+            .into_iter()
+            .map(|(_, _, _, kind, _)| kind)
+            .collect()
+    }
+
+    /// Assert that qualifying a command head with a leading `::` changes
+    /// nothing but the head itself: the qualified stream must *end with* the
+    /// bare stream's kinds (the qualified head contributes one extra
+    /// namespace-separator token at the front), so every argument is
+    /// classified identically.
+    fn assert_qualified_matches_bare(
+        bare: &str,
+        head: &str,
+        qualified: &str,
+        registry: &CommandRegistry,
+    ) {
+        let bare_kinds = kinds_only(bare, registry);
+        let qualified_kinds = kinds_only(&bare.replacen(head, qualified, 1), registry);
+        assert!(
+            qualified_kinds.len() >= bare_kinds.len(),
+            "{qualified} produced fewer tokens than {head}: \
+             {qualified_kinds:?} vs {bare_kinds:?}"
+        );
+        let tail = &qualified_kinds[qualified_kinds.len() - bare_kinds.len()..];
+        assert_eq!(
+            tail,
+            &bare_kinds[..],
+            "{qualified} classified its arguments differently from {head}"
+        );
+    }
+
+    #[test]
+    fn qualified_format_family_classifies_like_the_bare_form() {
+        let r = reg();
+        for (bare, head, qualified) in [
+            ("format {%08x} 42\n", "format", "::format"),
+            ("scan $s {%d %d} a b\n", "scan", "::scan"),
+            ("binary format c3 {1 2 3}\n", "binary", "::binary"),
+            ("binary scan $v c3 out\n", "binary", "::binary"),
+            ("clock format $t -format {%Y-%m-%d}\n", "clock", "::clock"),
+            ("clock scan $s -format {%Y}\n", "clock", "::clock"),
+            ("regsub -all e $s {[&]} out\n", "regsub", "::regsub"),
+        ] {
+            assert_qualified_matches_bare(bare, head, qualified, &r);
+        }
+    }
+
+    #[test]
+    fn qualified_grammar_commands_classify_like_the_bare_form() {
+        let r = reg();
+        for (bare, head, qualified) in [
+            ("foreach {a b} {1 2} { puts $a }\n", "foreach", "::foreach"),
+            ("lmap x $l { expr {$x} }\n", "lmap", "::lmap"),
+            ("upvar 1 src local\n", "upvar", "::upvar"),
+            ("upvar src local\n", "upvar", "::upvar"),
+            ("global aa bb cc\n", "global", "::global"),
+            ("variable x 1 y 2\n", "variable", "::variable"),
+            (
+                "oo::define C method m {args} { return $args }\n",
+                "oo::define",
+                "::oo::define",
+            ),
+            (
+                "oo::objdefine $o method m {} { return }\n",
+                "oo::objdefine",
+                "::oo::objdefine",
+            ),
+            (
+                "namespace upvar ::ns o1 l1 o2 l2\n",
+                "namespace",
+                "::namespace",
+            ),
+            ("dict update d k1 v1 k2 v2 { puts $v1 }\n", "dict", "::dict"),
+        ] {
+            assert_qualified_matches_bare(bare, head, qualified, &r);
+        }
+    }
+
+    /// FP guard — a user proc in another namespace that happens to share a
+    /// built-in's tail name does not inherit its grammar, and data words that
+    /// merely look like format strings are not painted as ones.
+    #[test]
+    fn same_named_user_command_does_not_inherit_grammar() {
+        let r = reg();
+        // `ns::format` is a different command; its argument stays a plain
+        // string, so no format-specifier sub-tokens appear.
+        let user = decode_full("ns::format {%08x} 42\n", "tcl", &r);
+        let builtin = decode_full("format {%08x} 42\n", "tcl", &r);
+        assert!(
+            builtin.len() > user.len(),
+            "the built-in must produce specifier sub-tokens the user proc does not:\n\
+             builtin={builtin:?}\nuser={user:?}"
+        );
+        // A data word that spells a format string is untouched.
+        assert_eq!(
+            kinds_only("puts {%08x}\n", &r),
+            kinds_only("puts {plain}\n", &r)
+        );
+    }
+
+    /// TN — a `{*}`-expanded (dynamic) head has no resolvable identity, so no
+    /// grammar is applied to its arguments.
+    #[test]
+    fn dynamic_head_gets_no_format_grammar() {
+        let r = reg();
+        let dynamic = decode_full("{*}$cmd {%08x} 42\n", "tcl", &r);
+        let builtin = decode_full("format {%08x} 42\n", "tcl", &r);
+        assert!(
+            dynamic.len() < builtin.len(),
+            "a dynamic head must not get format sub-tokens: {dynamic:?}"
         );
     }
 

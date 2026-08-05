@@ -122,6 +122,8 @@ class StringCommand(CommandDef):
 |-------|------|---------|---------|
 | `arg_roles` | `dict[int, ArgRole]` | `{}` | Static arg roles: `BODY`, `EXPR`, `VAR_NAME`, `VAR_READ`, `PATTERN`, etc. |
 | `arg_role_resolver` | `ArgRoleResolver \| None` | `None` | Dynamic arg-role resolution for variable-layout commands (if, try, switch) |
+| `arg_presentation` | `&[(u8, ArgPresentation)]` | `&[]` | Formatter layout override per argument index -- see [ArgPresentation](#argpresentation----how-a-formatter-lays-an-argument-out) |
+| `repeated_args` | `&[RepeatedArgLayout]` | `&[]` | Roles that recur at a fixed stride over the argument tail (`global a b c`, `foreach v l ... body`) |
 | `clause_shape_check` | `ClauseShapeChecker \| None` | `None` | Validates a clause-chain shape a plain `min..=max` arity can't express (if's `elseif`/`else` chain -- see `tcl_registry::clause_shape`); the compiler dispatches on the hook's presence, not the command name |
 | `arg_types` | `dict[int, ArgTypeHint]` | `{}` | Per-argument type expectations (e.g. `INT`, `LIST`).  Drives shimmer detection |
 | `return_type` | `TclType \| None` | `None` | Return type of the command |
@@ -342,6 +344,131 @@ role fails to compile until someone decides which side it falls on:
 `LOOP_VAR_LIST` is deliberately outside `names_variable()`: that word is a
 *list* of names, not one name, so a consumer must split it before it holds a
 variable name at all.
+
+### Repeated argument layouts -- unbounded regular tails
+
+`arg_roles` is a fixed index table and an `arg_role_resolver` is an opaque
+closure; neither is a good fit for the *regular, unbounded* argument tails a
+whole family of Tcl commands takes:
+
+```tcl
+global a b c                       ;# a name at every word
+variable n1 v1 n2 v2               ;# a name at every other word
+foreach v1 $l1 v2 $l2 { ... }      ;# a spec at every other word, body excluded
+namespace upvar ::ns o1 l1 o2 l2   ;# the local of each pair, after a fixed prefix
+dict update d k1 v1 k2 v2 { ... }  ;# the same, with the body excluded
+```
+
+Every consumer that needed one of these re-derived the stride from the
+command's *name* -- three separate copies in the semantic-token walk alone.
+`repeated_args: &[RepeatedArgLayout]` (on both `CommandSpec` and `SubCommand`)
+declares the layout as data instead:
+
+| Field | Meaning |
+|---|---|
+| `role` | the `ArgRole` assigned at each covered position |
+| `start` | first covered index (after the head, or after the subcommand word) |
+| `stride` | distance between covered positions (`1` = every word, `2` = every other) |
+| `exclude_trailing` | words at the *end* the layout does not cover (a trailing body) |
+| `optional_leading_word` | the command takes one optional leading word whose presence shows only in the argument count (`upvar`'s `?level?`); the group is then anchored to the end of the covered range |
+
+The layouts feed `CommandRegistry::arg_indices_for_role` alongside
+`arg_role_resolver` and `arg_roles`, **additively** -- so a spec can pin its
+leading words with `arg_roles` (`namespace upvar`'s leading namespace word)
+and still declare the repeating pair tail. A consumer therefore just asks
+"which arguments carry role X" and gets the whole answer.
+
+**Limits.** The layout is purely positional: it cannot express a stride that
+depends on a *word's value* (a switch that shifts the tail), which still needs
+an `arg_role_resolver`. `upvar` deliberately does **not** use one -- its
+`?level?` word is already modelled more precisely by `FrameEffectSpec`
+(`FrameArgLayout::AliasPairs` + `FrameLevelWord::ArityParity`, which is how C
+Tcl itself decides: `Tcl_UpvarObjCmd` tests `objc`, never the word's text).
+
+### Format strings -- family plus location
+
+Which words of a call carry a conversion / field string, and in which
+mini-language, is two registry facts read together through
+`CommandRegistry::format_string_args`:
+
+- **Where** -- the `ArgRole::FormatString` / `ArgRole::ScanFormat` positions of
+  the call. That covers a fixed index (`format`), a resolver-computed one
+  (`scan`, `regsub` past its switches), a subcommand-relative one
+  (`binary format`), and an **option value** (`clock format ... -format FMT`),
+  because `arg_indices_for_role` already resolves all four.
+- **Which language** -- `format_string_type` (`FormatType::Sprintf` / `Clock` /
+  `Binary` / `Regsub`), overridden by the subcommand's own when one dispatches.
+
+The `scan` flag on the returned `FormatStringArg` says which *direction* the
+word is written in: `format` and `scan` share the `Sprintf` family but not its
+conversion set, so a consumer must not infer one from the other.
+
+The family check is load-bearing for correctness, not decoration. `clock`'s
+field string, `binary`'s cursor spec, and `regsub`'s backreference template all
+sit at `FormatString`/`ScanFormat` positions, and none is a printf %-string --
+running the sprintf version gate over `clock format $t -format {%b}` would
+report a bogus Tcl 8.6 requirement. `record_dsl_format_sites` (W138) therefore
+gates on `FormatType::Sprintf` and leaves the other families alone rather than
+guessing.
+
+### ArgPresentation -- how a formatter lays an argument out
+
+`ArgRole` says what an argument **is**. `arg_presentation` (a
+`&'static [(u8, ArgPresentation)]` on both `CommandSpec` and `SubCommand`)
+says how a *formatter* should lay it out. The two are deliberately separate
+facts, because two arguments can share a semantic role and still want
+different presentation.
+
+`for start test next body` is the case that forced the split. All three of
+`start`, `next`, and `body` are Tcl scripts and carry `ArgRole::Body` --
+every analysis consumer must keep walking them. But conventional Tcl keeps
+`start` and `next` on the `for` header line and expands only `body`:
+
+```tcl
+for {set i 0} {$i < 3} {incr i} {
+    puts $i
+}
+```
+
+Erasing the semantic distinction would break the walkers; keeping a
+`name == "for"` branch in the formatter is exactly the command-specific
+knowledge the registry contract forbids. So `for` declares the layout
+preference as data instead:
+
+```rust
+arg_presentation: &[
+    (0, ArgPresentation::InlineScript),
+    (2, ArgPresentation::InlineScript),
+],
+```
+
+| Variant | Meaning |
+|---|---|
+| `BlockScript` | expanded onto its own indented lines, opening brace left on the command line (K&R). The **default** for every `Body` argument |
+| `InlineScript` | kept on the command's own line, however long -- `for`'s `start` / `next` |
+
+Only overrides are declared, so a spec with nothing unusual to say leaves
+the field empty. Consumers ask
+`CommandRegistry::arg_presentation(name, args, index)`, which resolves
+through the same `get` path as every other query -- so `::for` answers
+identically to `for` -- and returns `BlockScript` for a command the registry
+does not know.
+
+**Limits.** `ArgPresentation` describes layout preference only; it carries no
+line-width, alignment, or comment policy (those are `FormatterConfig`), and
+it cannot make a *non*-body argument expand. The enum is `#[non_exhaustive]`:
+it is the extension point for further presentation facts, and a consumer must
+keep working when a new variant arrives.
+
+**Structural keywords are not a presentation fact.** `if`'s `then` /
+`elseif` / `else` and `try`'s `on` / `trap` / `finally` already carry
+`ArgRole::Keyword` at the positions the C-Tcl-shaped clause walk puts them,
+so the formatter reads that role directly rather than scanning argument
+*values* for those words. The difference is observable: in
+`if {1} {a} else then` the trailing `then` sits in the else-branch **body**
+slot -- tclsh 8.6 and 9.0.4 run `a` and treat `then` as that branch's script
+-- so it is a body word, not a keyword, and only a positional answer gets
+that right.
 
 `Traits.BUILDS_COMMAND_PREFIX` (set on `list` only, not `concat`) marks a
 command whose result, when its own first argument is a literal command name,

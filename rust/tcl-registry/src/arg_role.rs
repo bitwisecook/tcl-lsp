@@ -182,6 +182,8 @@ impl ArgRole {
         Self::Value,
         Self::Subcommand,
         Self::OptionTerminator,
+        Self::FormatString,
+        Self::ScanFormat,
         Self::Channel,
         Self::Index,
         Self::Keyword,
