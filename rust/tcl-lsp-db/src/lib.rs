@@ -1012,6 +1012,23 @@ pub struct ItemBodyKey<'db> {
     /// Class instance variables pre-bound in a method body (empty for procs).
     #[returns(ref)]
     pub class_variables: Vec<String>,
+    /// The constant command-substitution fold context (issue #1132): the
+    /// whole-file command-mutation trust snapshot the shell attached for a
+    /// body with a fold candidate, paired with the instance-side `TclOO`
+    /// defining class (`[self class]`'s answer) when the body is such a
+    /// method — mirrors
+    /// [`tcl_compiler::analyser::per_item::DeferredBody::command_trust`] /
+    /// `oo_defining_class`. One field because the class fact is only ever
+    /// consumed under a trust snapshot (no snapshot ⇒ the fold distrusts
+    /// everything and never reads the class). Part of the key so a `rename`
+    /// appearing (or disappearing) anywhere in the file re-analyses exactly
+    /// the bodies whose folds it could affect; `None` (no candidate) keeps
+    /// the key untouched by unrelated renames.
+    #[returns(ref)]
+    pub fold_ctx: Option<(
+        Arc<tcl_compiler::command_binding::CommandTrustSnapshot>,
+        Option<String>,
+    )>,
     /// Snapshot of the enclosing safe-interpreter visibility context (issue
     /// #1001 follow-up) — mirrors [`tcl_compiler::analyser::per_item::DeferredBody::safe_interp_ctx`]
     /// exactly (same flattened, sorted-`Vec` shape, for the same reason: a
@@ -1037,6 +1054,10 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
     // The isolated analysis works at offset 0 and ignores `body_tok` / scope
     // path (the aggregator supplies the real position when grafting), so a
     // placeholder token is fine.
+    let (command_trust, oo_defining_class) = match key.fold_ctx(db) {
+        Some((trust, class)) => (Some(Arc::clone(trust)), class.clone()),
+        None => (None, None),
+    };
     let body = DeferredBody {
         body_text: Arc::clone(key.body_text(db)),
         body_tok: tcl_lexer::Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, 0)),
@@ -1047,6 +1068,8 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
         scope_name: key.scope_name(db).clone(),
         params: key.params(db).clone(),
         class_variables: key.class_variables(db).clone(),
+        command_trust,
+        oo_defining_class,
         safe_interp_ctx: key.safe_interp_ctx(db).clone(),
     };
     let disabled: HashSet<String> = key.disabled(db).iter().cloned().collect();
@@ -2525,6 +2548,9 @@ pub fn file_analysis_incremental(
             body.is_method,
             body.oo_global_resolution,
             body.class_variables.clone(),
+            body.command_trust
+                .clone()
+                .map(|trust| (trust, body.oo_defining_class.clone())),
             body.safe_interp_ctx.clone(),
             dialect.clone(),
             disabled_vec.clone(),
@@ -3009,6 +3035,7 @@ mod tests {
                 false,
                 Vec::new(),
                 None,
+                None,
                 "tcl8.6".to_owned(),
                 Vec::new(),
                 NonAsciiMode::Default,
@@ -3030,6 +3057,7 @@ mod tests {
             false,
             false,
             Vec::new(),
+            None,
             None,
             "tcl8.6".to_owned(),
             Vec::new(),

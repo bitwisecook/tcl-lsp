@@ -1605,6 +1605,10 @@ impl Analyser {
                 scope_name: scope_name.to_string(),
                 params: params.to_vec(),
                 class_variables: Vec::new(),
+                // Attached later by `fill_deferred_bodies` for bodies with a
+                // fold candidate (issue #1132).
+                command_trust: None,
+                oo_defining_class: None,
                 safe_interp_ctx,
             });
         } else {
@@ -1769,6 +1773,10 @@ impl Analyser {
                     scope_name,
                     params: combined_params,
                     class_variables: Vec::new(),
+                    // Attached later by `fill_deferred_bodies` for bodies
+                    // with a fold candidate (issue #1132).
+                    command_trust: None,
+                    oo_defining_class: None,
                     safe_interp_ctx,
                 });
             } else {
@@ -2118,6 +2126,10 @@ impl Analyser {
                 scope_name,
                 params,
                 class_variables: Vec::new(),
+                // Attached later by `fill_deferred_bodies` for bodies with a
+                // fold candidate (issue #1132).
+                command_trust: None,
+                oo_defining_class: None,
                 safe_interp_ctx,
             });
         } else {

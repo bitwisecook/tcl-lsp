@@ -267,6 +267,30 @@ pub fn head_may_fold(registry: &CommandRegistry, inner: &str) -> bool {
             .any(|sc| sc.const_fold.is_some() || sc.const_fold_versioned.is_some())
 }
 
+/// Whether `body` textually contains any `[cmd …]` opener whose head could
+/// fold ([`head_may_fold`]) — the cheap pre-filter the analyser's per-item
+/// path uses to decide which deferred proc/method bodies need the
+/// whole-file command-trust snapshot attached to their memo key (issue
+/// #1132). Deliberately the same predicate the fold itself gates on, so a
+/// body this scan clears can never attempt a fold.
+#[must_use]
+pub fn body_has_fold_candidate(body: &str, registry: &CommandRegistry) -> bool {
+    let mut rest = body;
+    while let Some(i) = rest.find('[') {
+        let tail = &rest[i + 1..];
+        // The head word ends at whitespace OR the closing bracket (`[list]`
+        // has no interior whitespace at all).
+        let end = tail
+            .find(|c: char| c.is_whitespace() || c == ']')
+            .unwrap_or(tail.len());
+        if head_may_fold(registry, &tail[..end]) {
+            return true;
+        }
+        rest = tail;
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

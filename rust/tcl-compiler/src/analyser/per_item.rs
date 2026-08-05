@@ -158,6 +158,22 @@ pub struct DeferredBody {
     /// pass below only needs the names, so this stays `Vec<String>` (and salsa
     /// -interning-friendly — see `tcl-lsp-db`'s `ItemBodyKey`).
     pub class_variables: Vec<String>,
+    /// The whole-file command-mutation trust snapshot, attached by
+    /// [`Analyser::fill_deferred_bodies`] to every deferred body whose text
+    /// could fold a command substitution
+    /// ([`crate::const_subst::body_has_fold_candidate`], issue #1132), and
+    /// `None` for every other body. The isolated pass folds only under this
+    /// snapshot — its own body-only source cannot see a `rename` elsewhere
+    /// in the file, so an absent snapshot means *distrust everything*.
+    /// Canonical/sorted so it keys `tcl-lsp-db`'s `ItemBodyKey`: a rename
+    /// appearing (or disappearing) anywhere in the file re-keys exactly the
+    /// bodies whose folds it could affect.
+    pub command_trust: Option<std::sync::Arc<crate::command_binding::CommandTrustSnapshot>>,
+    /// Mirrors [`super::types::Scope::oo_defining_class`] for the isolated
+    /// rebuild: the fully-qualified defining class when this is an
+    /// instance-side `TclOO` method body of a statically-named class,
+    /// `None` otherwise (class-side members, snit / itcl, procs).
+    pub oo_defining_class: Option<String>,
     /// A flattened snapshot of `self.safe_interp_stack`'s *top* entry (issue
     /// #1001 follow-up) at the moment this body was deferred — `(base_hidden,
     /// hidden_extra, exposed)`, sorted `Vec<String>`s rather than the live
@@ -404,6 +420,30 @@ impl Analyser {
             });
             return Err(Box::new(self.fresh_full_analyse(source, dialect)));
         }
+        // Attach the whole-file command-mutation trust snapshot to every
+        // body whose text could fold a command substitution (issue #1132):
+        // the isolated body pass cannot see a `rename` elsewhere in the
+        // file, so without this it must distrust everything and would
+        // diverge from the whole-file walk's folds. Bodies with no fold
+        // candidate stay `None`, so their memo keys are untouched by an
+        // unrelated rename appearing elsewhere. The oracle itself is
+        // computed at most once (it lowers the whole file).
+        let mut deferred = deferred;
+        if let Some(registry) = self.registry {
+            let mut trust: Option<std::sync::Arc<crate::command_binding::CommandTrustSnapshot>> =
+                None;
+            for db in &mut deferred {
+                if crate::const_subst::body_has_fold_candidate(&db.body_text, registry) {
+                    if trust.is_none() {
+                        trust = self
+                            .whole_file_command_trust()
+                            .map(|m| std::sync::Arc::new(m.snapshot()));
+                    }
+                    db.command_trust.clone_from(&trust);
+                }
+            }
+        }
+        let deferred = deferred;
         // **Proc duplicates take the fast path.**  A whole-file walk's
         // `all_variables` for a duplicated proc is the *union* of every
         // definition's locals, with last-definition-wins for keys shared across
@@ -774,6 +814,15 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     // Offset 0: the body content is the whole source; a synthetic `Str` body
     // token spans it with `content_offset = 0` (no `{` to skip).
     a.source = db.body_text.to_string();
+    // The isolated pass has no whole-file view, so the constant
+    // command-substitution fold (issue #1132) may trust only the snapshot
+    // the shell attached — and must distrust EVERYTHING when none was
+    // (lowering the body-only `a.source` would miss a `rename` elsewhere
+    // in the file).
+    a.command_trust = Some(std::sync::Arc::new(db.command_trust.as_ref().map_or_else(
+        crate::command_binding::ModuleCommandMutations::distrust_all,
+        |snap| snap.to_mutations(),
+    )));
     // Source spans are `u32`; a proc body longer than 4 GiB is not
     // representable (and never occurs), so clamp to `u32::MAX`.
     let body_len = u32::try_from(db.body_text.len()).unwrap_or(u32::MAX);
@@ -810,6 +859,10 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         // walks the class-level `initialise` frame inline and never defers —
         // so the isolated scope is a method frame too (`Scope::oo_method_frame`).
         scope.oo_method_frame = true;
+        // And the instance-side defining-class fact travels with the body
+        // (issue #1132), so `[self class]` folds identically here and on
+        // the whole-file walk.
+        scope.oo_defining_class.clone_from(&db.oo_defining_class);
     }
     let placeholder = tcl_lexer::Span::new(0, 0);
     let dummy = Token::new(tcl_lexer::TokenType::Str, placeholder);

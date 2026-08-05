@@ -756,6 +756,19 @@ impl Analyser {
         } else {
             format!("{class_qualified}::{}", mb.name)
         };
+        // Instance-side `TclOO` method of a statically-named class:
+        // `[self class]` answers the defining class in this frame, so
+        // record the fact for the constant command-substitution fold
+        // (issue #1132). `oo_global_resolution` is exactly the
+        // `TclOO`-family gate (snit / itcl walkers pass `false`);
+        // class-side members abstain (`self class` never answers the
+        // written class there); a synthetic key (`::@objdefine@…`) is
+        // not a class name.
+        let oo_defining_class = (oo_global_resolution
+            && !mb.class_side
+            && !class_qualified.is_empty()
+            && !class_qualified.contains('@'))
+        .then(|| class_qualified.to_owned());
         let Some(method_idx) = ({
             scope_at_mut(&mut self.result.global_scope, scope_path).map(|parent| {
                 let mut child = Scope::new(ScopeKind::Method, method_qn.clone());
@@ -767,20 +780,7 @@ impl Analyser {
                 // resolvable (tclsh 9.0.4 inside a constructor: `link zzz`
                 // returns `::oo::ObjN::zzz`).
                 child.oo_method_frame = oo_global_resolution;
-                // Instance-side `TclOO` method of a statically-named class:
-                // `[self class]` answers the defining class in this frame,
-                // so record the fact for the constant command-substitution
-                // fold (issue #1132). `oo_global_resolution` is exactly the
-                // `TclOO`-family gate (snit / itcl walkers pass `false`);
-                // class-side members abstain (`self class` raises there);
-                // a synthetic key (`::@objdefine@…`) is not a class name.
-                if oo_global_resolution
-                    && !mb.class_side
-                    && !class_qualified.is_empty()
-                    && !class_qualified.contains('@')
-                {
-                    child.oo_defining_class = Some(class_qualified.to_owned());
-                }
+                child.oo_defining_class.clone_from(&oo_defining_class);
                 parent.children.push(child);
                 parent.children.len() - 1
             })
@@ -848,6 +848,10 @@ impl Analyser {
                 // declaration spans; the graft keeps the shell's span, so
                 // the deferred body pass only needs the names.
                 class_variables: class_variables.to_vec(),
+                // Attached later by `fill_deferred_bodies` for bodies with a
+                // fold candidate (issue #1132).
+                command_trust: None,
+                oo_defining_class,
                 safe_interp_ctx,
             });
         } else {

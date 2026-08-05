@@ -4963,6 +4963,45 @@ mod const_cmd_subst_set_rhs {
     }
 
     #[test]
+    fn per_item_path_folds_and_abstains_identically_to_the_whole_file_walk() {
+        // The per-item (incremental) path analyses each proc body in
+        // ISOLATION — it cannot see a `rename` elsewhere in the file, so
+        // the shell attaches a whole-file trust snapshot to every deferred
+        // body with a fold candidate (`DeferredBody::command_trust`).
+        // Both directions must match the whole-file walk byte-for-byte:
+        // the TP still folds, the FP still abstains.
+        let tp = concat!(
+            "namespace eval tc { proc setdef {a b} { return 1 } }\n",
+            "proc user {} {\n",
+            "    set ns [namespace qualifiers ::tc::X]\n",
+            "    ${ns}::setdef x y\n",
+            "}\n",
+        );
+        let fp = concat!(
+            "namespace eval tc { proc setdef {a b} { return 1 } }\n",
+            "proc user {} {\n",
+            "    set ns [namespace qualifiers ::tc::X]\n",
+            "    ${ns}::setdef x y\n",
+            "}\n",
+            "proc sabotage {} { rename namespace nsx }\n",
+        );
+        for (src, expected) in [(tp, "::tc::setdef"), (fp, "::${ns}::setdef")] {
+            let whole = analysis(src, "tcl8.6");
+            let per_item = Analyser::new().analyse_per_item(src, "tcl8.6");
+            assert_eq!(
+                resolutions_of(&whole, "${ns}"),
+                [expected],
+                "whole-file walk for {src:?}"
+            );
+            assert_eq!(
+                resolutions_of(&per_item, "${ns}"),
+                resolutions_of(&whole, "${ns}"),
+                "per-item must match the whole-file walk for {src:?}"
+            );
+        }
+    }
+
+    #[test]
     fn a_dominating_constant_argument_folds_through_the_lattice() {
         // TP — the substitution reads a `$q` that IS a dominating
         // constant; the fold chains through the constant lattice.

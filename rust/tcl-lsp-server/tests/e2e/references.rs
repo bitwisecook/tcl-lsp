@@ -588,3 +588,43 @@ fn references_reach_a_my_dispatch_call_inside_a_switch_arm() {
         "the my bar call site inside the switch arm is missing: {lines:?}"
     );
 }
+
+/// Issue #1132: `set ns [namespace qualifiers ::tc::X]` folds through the
+/// analyser's constant lattice (the registry `const_fold` engine), so the
+/// `${ns}::setdef` head resolves and find-references reaches the indirect
+/// call site — the ticklecharts navigation chain's `set`-RHS hop.
+#[test]
+fn references_reach_a_call_through_a_folded_cmd_subst_constant() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "namespace eval tc { proc setdef {a b} { return 1 } }\nproc user {} {\n    set ns [namespace qualifiers ::tc::X]\n    ${ns}::setdef x y\n}\n",
+    );
+    // Line 0: `namespace eval tc { proc setdef {a b} … }` — cursor on the
+    // `setdef` declaration (column 25).
+    let lines = start_lines(&lsp.references(&uri, 0, 25, true));
+    assert!(lines.contains(&0), "decl missing: {lines:?}");
+    assert!(
+        lines.contains(&3),
+        "the ${{ns}}::setdef call site is missing: {lines:?}"
+    );
+}
+
+/// FP guard for the fold above: a whole-module `rename` of the folding
+/// head withdraws the constant, so the indirect site must NOT be reported
+/// as a reference (soundness: never a manufactured navigation edge).
+#[test]
+fn references_do_not_reach_the_indirect_site_when_the_head_is_renamed() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "namespace eval tc { proc setdef {a b} { return 1 } }\nproc user {} {\n    set ns [namespace qualifiers ::tc::X]\n    ${ns}::setdef x y\n}\nproc sabotage {} { rename namespace nsx }\n",
+    );
+    let lines = start_lines(&lsp.references(&uri, 0, 25, true));
+    assert!(
+        !lines.contains(&3),
+        "a renamed fold head must not manufacture a reference: {lines:?}"
+    );
+}
