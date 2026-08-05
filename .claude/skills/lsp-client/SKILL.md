@@ -56,15 +56,35 @@ All line/col arguments are **0-based**, matching the LSP protocol.
 `definition`, `references`, `diagnostics`, `code-actions`, `context`,
 `all`, `completion`, and `code-lens` wait for the server's background
 workspace scan to finish before
-proceeding (bounded by `--scan-timeout`, default 15s) — otherwise
-cross-file results (workspace variables, package tiers, cross-file
-definition/references, sibling-file completions, workspace-wide lens
-counts) are racy depending on scan timing (issue #1094).
+proceeding (bounded by `--scan-timeout`, default 30s — see below) —
+otherwise cross-file results (workspace variables, package tiers,
+cross-file definition/references, sibling-file completions,
+workspace-wide lens counts) are racy depending on scan timing (issue #1094).
 Other subcommands are single-file and unaffected. If you add a new
 cross-file check, call `client.wait_for_workspace_scan()` yourself before
 opening the document(s) it depends on — see the method's docstring in
 `lsp_client.py` for the exact signal it waits on and why waiting *before*
 `didOpen` matters for diagnostics specifically.
+
+**Multi-file helper (`--also-open`):** pass `--also-open FILE` (repeatable,
+any subcommand) to open one or more companion files before the main
+`<file>` argument — the first-class "open two files and assert" helper
+(issue #1111). Companion files open *after* the workspace-scan wait above
+and *before* `<file>`, so whichever subcommand you run sees them:
+
+```bash
+python3 .claude/skills/lsp-client/lsp_client.py --also-open lib.tcl \
+    definition consumer.tcl 3 10
+```
+
+(`--also-open`, like `--scan-timeout` and `--server-bin`, is a top-level
+option — it must come *before* the subcommand name, not after.)
+
+This opens `lib.tcl`, waits the usual workspace-scan barrier (since
+`definition` is a cross-file command), then opens `consumer.tcl` and asks
+for the definition at `3:10` — the pattern the docstring above used to ask
+callers to hand-roll with `wait_for_workspace_scan()` + two `open_document()`
+calls.
 
 ## Interpreting Output
 
@@ -243,6 +263,7 @@ python3 .claude/skills/lsp-client/lsp_client.py context tcl-lsp/samples/for_scre
 python3 .claude/skills/lsp-client/lsp_client.py all tcl-lsp/samples/for_screenshots/03-completions.tcl
 python3 .claude/skills/lsp-client/lsp_client.py bench tcl-lsp/samples/tcl/09_long_code.tcl --iterations 3
 python3 .claude/skills/lsp-client/lsp_client.py logs tcl-lsp/samples/tcl/09_long_code.tcl --timing-only
+python3 .claude/skills/lsp-client/lsp_client.py --also-open tcl-lsp/samples/tcl/lib.tcl definition tcl-lsp/samples/tcl/consumer.tcl 3 10
 ```
 
 $ARGUMENTS
