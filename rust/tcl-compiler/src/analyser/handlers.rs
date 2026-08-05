@@ -7514,6 +7514,37 @@ mod tests {
         );
     }
 
+    /// The incremental per-item path must agree with full analysis here: a
+    /// deferred proc body is walked by a fresh `Analyser` that does not
+    /// inherit the interpreter stack, so a `rename` buried in a proc defined
+    /// inside a child body is the shape most likely to diverge.
+    #[test]
+    fn per_item_agrees_on_a_rename_nested_in_a_child_body() {
+        let src = "interp create c\n\
+                   c eval { proc setup {} { rename puts myputs } }\n\
+                   puts hi\n";
+        let codes = |r: &super::super::types::AnalysisResult| {
+            let mut v: Vec<(String, u32)> = r
+                .diagnostics
+                .iter()
+                .map(|d| (d.code.to_string(), d.span.start()))
+                .collect();
+            v.sort();
+            v
+        };
+        let full = Analyser::new().analyse(src, "tcl8.6");
+        let per_item = Analyser::new().analyse_per_item(src, "tcl8.6");
+        assert_eq!(codes(&full), codes(&per_item));
+        assert!(
+            !full
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("'puts'")),
+            "{:?}",
+            codes(&full)
+        );
+    }
+
     /// The same rename written in the parent still records normally — the
     /// guard narrows the fact to its interpreter, it does not disable it.
     #[test]

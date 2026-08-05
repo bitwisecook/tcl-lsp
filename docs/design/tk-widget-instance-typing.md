@@ -284,8 +284,21 @@ TK1001 stays strictly per-domain in every case (never merging an unresolved
 domain into another), for the same reason: a conflict we cannot justify is
 not worth reporting.
 
-**Known limit.** `AnalysisResult::instance_classes` — the *receiver typing*
-map this document's W001/E002/E003 work is built on — is still whole-file
+**Known limit: Tk activation is still whole-file.**  `package require Tk`
+loads Tk into the interpreter that runs it, so `interp create c;
+c eval { package require Tk }` makes Tk available in `c` and *not* in the
+parent.  `Analyser::has_tk_require` reads `result.package_requires` for the
+whole file, so a child-only load activates the TK checks everywhere.  Left
+as-is deliberately: the alternative — gating activation on the main
+interpreter — silently drops the genuine diagnostics inside the child, which
+is the worse failure, and making activation itself per-domain needs a model
+of `load {} Tk child` / `::safe::loadTk` that nothing else in the analyser
+wants yet.  Over-activation costs nothing on a file that has no Tk-shaped
+commands in its non-Tk domains, which is every realistic file.
+
+**Known limit: receiver typing.** `AnalysisResult::instance_classes` — the
+*receiver typing* map this document's W001/E002/E003 work is built on — is
+still whole-file
 and name-keyed, not interpreter-keyed.  A `.t` created as a `ttk::treeview`
 in the parent and as a `listbox` in a child collapses to one entry.  That is
 harmless in the direction that matters: `bind_registry_instance_class` drops
