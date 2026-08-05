@@ -392,6 +392,12 @@ pub enum AnalyserHookId {
     /// `package provide name ?version?` — records the provided
     /// package (stamped on `package`'s `provide` subcommand).
     PackageProvide,
+    /// `package prefer ?latest|stable?` — records the interpreter's
+    /// version-selection mode change (stamped on `package`'s `prefer`
+    /// subcommand), which decides whether a later `package require`
+    /// takes the highest acceptable version or the highest acceptable
+    /// *stable* one (issue #1126 item 1).
+    PackagePrefer,
     /// `source ?-encoding enc? fileName` — records the source target.
     Source,
     /// `append varName ?value ...?` — read-modify-write variable

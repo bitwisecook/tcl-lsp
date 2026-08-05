@@ -1240,6 +1240,10 @@ impl Analyser {
                 self.handle_package_provide(cmd_tok, args);
                 false
             }
+            Hook::PackagePrefer => {
+                self.handle_package_prefer(cmd_tok, args);
+                false
+            }
             Hook::Source => {
                 self.handle_source_command(args, arg_tokens, arg_single, scope_path);
                 false

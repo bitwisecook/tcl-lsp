@@ -207,14 +207,17 @@ approximately:
   navigates into 2.3, whichever directory was scanned first. With 1.2 and
   1.3b1 it navigates into **1.2** — a prerelease loses to a stable release,
   which is what `package prefer` defaults to. A document that raises the
-  preference with `package prefer latest` is not tracked, so navigation keeps
-  the default answer there.
+  preference with `package prefer latest` above the require gets the other
+  answer: navigation follows it into 1.3b1, exactly as the interpreter would.
+  A raise written below a top-level require, one inside an `if` / `catch`, or
+  one in another file leaves the default in place.
 
   Two providers declaring the *same* version are the one case with no answer
   to match: real Tcl keeps whichever `pkgIndex.tcl` its `glob` sourced last,
-  and that is filesystem order. Navigation takes the first provider in
-  search-path order instead, so it is at least the same on every machine —
-  list a workspace-local copy first and it shadows the installed one.
+  and that is filesystem order. Navigation reads **both** copies rather than
+  betting on one, so the definition is found in whichever really loaded; the
+  release it *reports* is the first provider in search-path order, which is at
+  least the same on every machine.
 
 ### Caller-frame variables
 

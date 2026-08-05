@@ -142,6 +142,40 @@ pub struct SignaturePackageRequire {
     pub conditional: bool,
 }
 
+/// A `package prefer latest` invocation — the one form of `package
+/// prefer` that changes anything (issue #1126 item 1).
+///
+/// `package prefer` sets the interpreter-global rule `package
+/// require` uses to choose between the highest acceptable version
+/// and the highest acceptable **stable** one.  Only the raise to
+/// `latest` is recorded, because it is the only transition that
+/// exists:
+///
+/// * the default is `stable`, so `package prefer stable` from the
+///   default changes nothing;
+/// * `latest` is sticky — the manpage says an attempt to set it back
+///   is silently ineffective, and the interpreter agrees.
+///
+// tclsh-proof: on tclsh8.6 (8.6.14) `package prefer` → `stable`;
+// `package prefer latest` → `latest`; a following `package prefer
+// stable` returns `latest` with no error, and `package prefer` still
+// answers `latest`.
+///
+/// So the state at any point is the monotone predicate "has a
+/// `package prefer latest` already run", which is why this record
+/// carries no mode field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignaturePackagePrefer {
+    /// Source span of the `package` command word, matching
+    /// [`SignaturePackageRequire::range`]'s anchoring.
+    pub range: Span,
+    /// `true` when the call is inside a guarded branch (an
+    /// `if`/`elseif`/`else` body, a `catch` script, or a
+    /// `try`/`on`/`trap`/`finally` clause), so a consumer can refuse
+    /// to flip the selection rule on a statement that may not run.
+    pub conditional: bool,
+}
+
 /// A `source` invocation recorded by the signature scanner.
 ///
 /// `is_literal` is `true` when the path argument contains no `$` or

@@ -387,9 +387,8 @@ fn a_dynamic_lambda_is_not_descended() {
     assert!(availabilities(src, V90).is_empty());
 }
 
-/// A requirement naming a **patch level** cannot be evaluated against the
-/// two-component release model, so the guard abstains instead of deciding it
-/// wrongly.
+/// A requirement the members of a release *line* disagree about abstains —
+/// and only then (issue #1126 item 3).
 ///
 /// Oracle (`tclsh9.0`, `[package provide Tcl]` = 9.0.4):
 ///
@@ -399,13 +398,17 @@ fn a_dynamic_lambda_is_not_descended() {
 /// vsatisfies 9.0.4 9.0.9- = 0
 /// ```
 ///
-/// `TclVersion::V9_0`'s `version_string` is `9.0`, which compares *below*
-/// `9.0.1` — so evaluating the requirement would report the guard as failing
-/// on a real 9.0.4 and mark the package `Unavailable`, the one direction that
-/// makes W123 fire falsely on its commands.  Two shipped 9.0 releases disagree
-/// about `9.0.9-`, so "conditional" is the only honest answer.
+/// `TclVersion::V9_0` stands for every 9.0.x, and two shipped 9.0 releases
+/// disagree about `9.0.1`, so deciding it either way would be a guess: taking
+/// it as failed would mark the package `Unavailable` on a real 9.0.4 — the one
+/// direction that makes W123 fire falsely on its commands.
+///
+/// The *same* requirement against 8.6 is not a guess at all: no 8.6.x reaches
+/// a 9.0 bound, so the guard is decidably false there
+/// ([`tcl_dialect::TclVersion::satisfies_any_ternary`] evaluates the whole
+/// line, not its first release).
 #[test]
-fn a_patch_level_requirement_leaves_the_declaration_conditional() {
+fn a_patch_level_requirement_the_line_disagrees_about_stays_conditional() {
     for requirement in ["9.0.1", "9.0.1-", "9.0-9.0.2"] {
         let src = format!(
             "if {{![package vsatisfies [package provide Tcl] {requirement}]}} {{return}}\n\
@@ -414,18 +417,18 @@ fn a_patch_level_requirement_leaves_the_declaration_conditional() {
         assert_eq!(
             only(&src, V90),
             Availability::Conditional,
-            "a patch-level requirement must abstain: {requirement}",
+            "the 9.0 line disagrees about {requirement}, so it must abstain",
         );
         assert_eq!(
             only(&src, V86),
-            Availability::Conditional,
-            "a patch-level requirement must abstain: {requirement}",
+            Availability::Unavailable,
+            "no 8.6.x satisfies {requirement}, so the guard is decided",
         );
     }
 }
 
 /// TN for the same rule: a requirement that *is* satisfiable two-component
-/// still settles the whole `vsatisfies` OR, however many patch-level
+/// still settles the whole `vsatisfies` OR, however many undecidable
 /// requirements sit beside it — real `package vsatisfies` is an OR.
 #[test]
 fn a_satisfied_two_component_requirement_still_decides_beside_a_patch_level_one() {
@@ -434,8 +437,13 @@ fn a_satisfied_two_component_requirement_still_decides_beside_a_patch_level_one(
     // 9.0 satisfies the bare `9`, so the guard is decided true regardless of
     // the undecidable `9.0.1`.
     assert_eq!(only(src, V90), Availability::Available);
-    // 8.6 satisfies neither the bare `9` nor (decidably) `9.0.1`.
-    assert_eq!(only(src, V86), Availability::Conditional);
+    // 8.6 satisfies neither the bare `9` nor `9.0.1` — and both refusals are
+    // decided, so the whole OR is.
+    assert_eq!(only(src, V86), Availability::Unavailable);
+    // …while an undecidable requirement beside a refused one still abstains.
+    let mixed = "if {![package vsatisfies [package provide Tcl] 8.6.14- 9]} {return}\n\
+                 package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
+    assert_eq!(only(mixed, V86), Availability::Conditional);
 }
 
 /// Control — the two-component matrix this module already decided is

@@ -53,7 +53,7 @@ pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKe
 pub use profile::DialectProfile;
 pub use version::{
     PackagePrefer, TclVersion, Ternary, compare_versions, exact_requirement,
-    requirement_names_patch_level, select_package_version, version_is_stable, version_satisfies,
+    select_package_version, version_is_stable, version_satisfies,
 };
 
 /// Crate version string.
