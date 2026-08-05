@@ -3742,6 +3742,7 @@ mod tests {
             uses: HashMap::new(),
             defs: [(x, 1u32)].into_iter().collect(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
         ssa.blocks.insert(
             entry,
@@ -3818,12 +3819,14 @@ mod tests {
             uses: HashMap::new(),
             defs: [(x, 1u32)].into_iter().collect(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
         let ssa_eval = SsaStatement {
             statement: eval_call,
             uses: [(x, 1u32)].into_iter().collect(),
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
 
         ssa.blocks.insert(
@@ -3893,6 +3896,7 @@ mod tests {
             uses: HashMap::new(),
             defs: [(ssa.intern_var("x"), 1u32)].into_iter().collect(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
         let ssa_sink = SsaStatement {
             statement: sink,
@@ -3902,6 +3906,7 @@ mod tests {
                 .collect(),
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
         ssa.blocks.insert(
             entry,
@@ -4052,18 +4057,21 @@ mod tests {
             uses: HashMap::new(),
             defs: [(x, 1u32)].into_iter().collect(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
         let ssa_s1 = SsaStatement {
             statement: s1,
             uses: [(x, 1u32)].into_iter().collect(),
             defs: [(y, 1u32)].into_iter().collect(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
         let ssa_s2 = SsaStatement {
             statement: s2,
             uses: [(y, 1u32)].into_iter().collect(),
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
         ssa.blocks.insert(
             entry,
@@ -4172,6 +4180,7 @@ mod tests {
                 uses: [(ssa.intern_var("p"), 1u32)].into_iter().collect(),
                 defs: HashMap::new(),
                 may_defs: std::collections::HashSet::new(),
+                quoted_uses: std::collections::HashSet::new(),
             }]
         });
         let d = w.iter().find(|w| w.code == DiagCode::W313).expect("W313");
@@ -4205,12 +4214,14 @@ mod tests {
                 uses: [(base, 0u32)].into_iter().collect(),
                 defs: [(p, 1u32)].into_iter().collect(),
                 may_defs: std::collections::HashSet::new(),
+                quoted_uses: std::collections::HashSet::new(),
             };
             let s1 = SsaStatement {
                 statement: file_call(&["delete", "$p"]),
                 uses: [(p, 1u32)].into_iter().collect(),
                 defs: HashMap::new(),
                 may_defs: std::collections::HashSet::new(),
+                quoted_uses: std::collections::HashSet::new(),
             };
             vec![s0, s1]
         });
@@ -4241,6 +4252,7 @@ mod tests {
                     uses: HashMap::new(),
                     defs: HashMap::new(),
                     may_defs: std::collections::HashSet::new(),
+                    quoted_uses: std::collections::HashSet::new(),
                 }]
             })
             .is_empty()
@@ -4316,6 +4328,7 @@ mod tests {
             uses: HashMap::new(),
             defs: [(x, 1u32)].into_iter().collect(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
         ssa.blocks.insert(
             entry,
@@ -4393,12 +4406,14 @@ mod tests {
             uses: HashMap::new(),
             defs: [(pattern, 1u32)].into_iter().collect(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
         let ssa_regexp = SsaStatement {
             statement: regexp_call,
             uses: [(pattern, 1u32)].into_iter().collect(),
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
 
         ssa.blocks.insert(
@@ -4489,12 +4504,14 @@ mod tests {
             uses: HashMap::new(),
             defs: [(pattern, 1u32)].into_iter().collect(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
         let ssa_regexp = SsaStatement {
             statement: regexp_call,
             uses: [(pattern, 1u32)].into_iter().collect(),
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
 
         ssa.blocks.insert(

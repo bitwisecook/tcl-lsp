@@ -287,6 +287,56 @@ impl ArgRole {
             | Self::Keyword => false,
         }
     }
+
+    /// Whether a **brace-quoted** word in this role is nonetheless evaluated —
+    /// as script or as an expression — in the **calling frame**, so a `$name`
+    /// written inside it is a genuine read at this call site.
+    ///
+    /// Tcl performs no substitution on a braced word: `puts {$y}` prints the
+    /// two characters `$y` and reads nothing (tclsh 9.0.4 / 8.6.16 agree).
+    /// Whether the *callee* then evaluates that text, and in whose frame, is
+    /// a per-role fact — which is exactly what this answers, and the one
+    /// place that answers it. `expr {$a + $b}` and `if {$c} {…}` re-evaluate
+    /// their braced word where the caller's variables are in scope, so the
+    /// names inside are read here and now. Everything else — a pattern, a
+    /// format string, a channel, a plain value, a deferred command prefix —
+    /// consumes the word as inert data, or evaluates it later, elsewhere, or
+    /// never.
+    ///
+    /// [`Self::LambdaLiteral`] is `false` on purpose: `apply {{} {puts $x}}`
+    /// runs in a **fresh** frame, so nothing inside it reads the caller's
+    /// `x` (tclsh 9.0.4 / 8.6.16: `set x 7; apply {{} {puts $x}}` errors
+    /// with `can't read "x": no such variable`).
+    ///
+    /// The match is exhaustive on purpose: a new role that carries
+    /// caller-frame code fails to compile until someone decides which side
+    /// it falls on.
+    #[must_use]
+    pub const fn braced_word_evaluated_in_frame(self) -> bool {
+        match self {
+            Self::Body | Self::Expr => true,
+            Self::LambdaLiteral
+            | Self::CommandPrefix
+            | Self::CommandName
+            | Self::CommandNameProbe
+            | Self::VarWrite
+            | Self::VarRead
+            | Self::LoopVarList
+            | Self::ParamList
+            | Self::Name
+            | Self::Pattern
+            | Self::Option
+            | Self::Value
+            | Self::Subcommand
+            | Self::OptionTerminator
+            | Self::FormatString
+            | Self::ScanFormat
+            | Self::Channel
+            | Self::Index
+            | Self::NamespaceName
+            | Self::Keyword => false,
+        }
+    }
 }
 
 /// How many arguments a command appends to a [`ArgRole::CommandPrefix`]
@@ -338,5 +388,38 @@ impl AppendedArity {
     #[must_use]
     pub const fn is_checkable(self) -> bool {
         !matches!(self, Self::Unknown)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ArgRole;
+
+    /// `braced_word_evaluated_in_frame` is the one answer to "does the callee
+    /// substitute this brace-quoted word against the *caller's* variables?".
+    /// Only the two roles that re-evaluate their word as caller-frame code say
+    /// yes; every other role consumes the word as data, defers it, or runs it
+    /// in a fresh frame.
+    ///
+    /// tclsh-proof: tclsh8.6.14 — `puts {$y}` prints `$y` with `y` undefined,
+    /// while `expr {$y}` errors with `can't read "y": no such variable`.
+    #[test]
+    fn braced_word_evaluated_in_frame_is_body_and_expr_only() {
+        let evaluated: Vec<ArgRole> = ArgRole::ALL
+            .iter()
+            .copied()
+            .filter(|r| r.braced_word_evaluated_in_frame())
+            .collect();
+        assert_eq!(evaluated, vec![ArgRole::Body, ArgRole::Expr]);
+    }
+
+    /// A lambda literal carries code, but in a **fresh** frame, so it must not
+    /// claim a read of the caller's variables.
+    /// tclsh-proof: tclsh8.6.14 — `set x 7; apply {{} {puts $x}}` errors with
+    /// `can't read "x": no such variable`.
+    #[test]
+    fn lambda_literal_is_script_bearing_but_not_caller_frame() {
+        assert!(ArgRole::LambdaLiteral.carries_script());
+        assert!(!ArgRole::LambdaLiteral.braced_word_evaluated_in_frame());
     }
 }

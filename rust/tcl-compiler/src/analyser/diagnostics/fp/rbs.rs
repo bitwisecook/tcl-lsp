@@ -1857,3 +1857,111 @@ fn issue_1078_braced_element_and_spaced_names_key_on_their_own_spelling() {
         codes(spaced, D)
     );
 }
+
+// Issues #1142 / #1237 — a braced word is data, not a script the call site
+// substitutes.  The SSA use is *classified* (`ssa::UseClass`) rather than
+// dropped: liveness keeps honouring it (the text may be evaluated later),
+// read-before-set does not.
+//
+// Oracle, tclsh 8.6.14:
+//
+//   puts {$y}                       -> $y          (y undefined; no error)
+//   puts {\n set y 1\n return $y\n} -> the literal three lines
+//   proc f {} { return {$y} }; f    -> $y
+//   catch {puts $y} m; set m        -> can't read "y": no such variable
+
+/// #1237 — a braced data argument reads nothing, so no `W210`.
+#[test]
+fn issue_1237_braced_data_argument_is_not_a_read() {
+    for src in [
+        "proc f {} { puts {$y} }\n",
+        "proc f {} { puts {\n    set y 1\n    return $y\n} }\n",
+        "proc f {} { return {$y} }\n",
+    ] {
+        assert!(
+            !fires(src, D, "W210"),
+            "#1237: a braced word performs no substitution; {src} emitted: {:?}",
+            codes(src, D)
+        );
+    }
+}
+
+/// #1142 — the generic half: an un-hooked / unknown definer's brace-shaped
+/// trailing argument is unclassifiable data, so it must not feed W210 either.
+/// The unknown-command hint stays: abstaining about the *body* says nothing
+/// about the *name*.
+#[test]
+fn issue_1142_unknown_definer_body_is_not_read_before_set() {
+    let src = "proc f {} { mydefiner ::foo::bar {optlist} {\n    set y 1\n    return $y\n} }\n";
+    assert!(
+        !fires(src, D, "W210"),
+        "#1142: an unknown command's braced argument must not be walked as a \
+script in this frame; emitted: {:?}",
+        codes(src, D)
+    );
+    assert!(
+        fires(src, D, "W123"),
+        "#1142: the unknown command itself is still reported; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+/// TN control — a **quoted** word really is substituted, so the genuine
+/// read-before-set survives.  This is the measurement that separates
+/// "classified use" from "stop scanning braced words".
+#[test]
+fn issue_1237_quoted_word_still_fires_w210() {
+    for src in [
+        "proc f {} { puts \"$y\" }\n",
+        "proc f {} { puts $y }\n",
+        "proc f {} { return \"$y\" }\n",
+    ] {
+        assert!(
+            fires(src, D, "W210"),
+            "#1237 TN: a substituted read must still fire; {src} emitted: {:?}",
+            codes(src, D)
+        );
+    }
+}
+
+/// FP guard — a braced word whose role has the callee evaluate it **in this
+/// frame** is a real read: `expr`'s expression and `if`'s condition/body both
+/// substitute against the caller's variables.
+#[test]
+fn issue_1237_in_frame_braced_roles_still_read() {
+    for src in [
+        "proc f {} { expr {$p + $q} }\n",
+        "proc f {} { if {$p} { puts hi } }\n",
+        "proc f {} { catch {puts $p} m }\n",
+    ] {
+        assert!(
+            fires(src, D, "W210"),
+            "#1237 FP guard: an Expr/Body-role braced word is evaluated in \
+this frame; {src} emitted: {:?}",
+            codes(src, D)
+        );
+    }
+}
+
+/// FP guard — the use itself must **survive**, classified: dropping it would
+/// resurrect `W211 set but never used` / `W220 never read` on a variable whose
+/// only mention is inside a braced word that may be evaluated later (a
+/// deferred callback, an `eval`, an unknown definer).  This is the guard rail
+/// that rules out the "skip the scan" shortcut, restated for a scalar
+/// alongside `w220_braced_literal_arg_is_not_a_read`'s array element.
+#[test]
+fn issue_1237_quoted_use_still_keeps_the_variable_live() {
+    let src = "proc f {} { set x 1; puts {$x} }\n";
+    assert!(
+        !fires(src, D, "W211") && !fires(src, D, "W220"),
+        "#1237: a quoted mention keeps the store live; emitted: {:?}",
+        codes(src, D)
+    );
+    // TP control: with no mention of any kind the dead store is reported.
+    let unmentioned = "proc f {} { set x 1; puts {$y} }\n";
+    assert!(
+        fires(unmentioned, D, "W211") || fires(unmentioned, D, "W220"),
+        "#1237 TP: an unmentioned store is still dead; emitted: {:?}",
+        codes(unmentioned, D)
+    );
+}

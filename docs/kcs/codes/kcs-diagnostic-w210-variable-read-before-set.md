@@ -60,6 +60,32 @@ idioms for a single exact name: `[info vars X] ne ""`,
 (`info globals` is not used — it proves the *global* exists, not the bare-`$X`
 local — and glob patterns are not statically decidable.)
 
+## Braces are not substitution
+
+A word wrapped in braces is passed through exactly as written — Tcl performs
+no `$` substitution inside it — so the names it mentions are not read there:
+
+```tcl
+puts {$y}              ;# prints the two characters $y; not flagged
+puts {set y 1; puts $y}  ;# prints the line; not flagged
+mydefiner ::a::b {optlist} {set y 1; return $y}   ;# not flagged
+```
+
+That holds however the braced word is later used. `after 100 {puts $x}` may
+run its script much later, an unknown command may run its braced argument in
+a frame of its own, or it may never run it at all — none of which the
+analyser can decide, so it declines to call the mention a read.
+
+Two shapes are the exception, because the command really does evaluate the
+braced word against *your* variables: an expression (`expr {$a + $b}`,
+`if {$a} …`) and a body that shares your frame (`if`, `while`, `foreach`,
+`catch`). Those are read normally and still flagged.
+
+A braced mention does still count as *use* for
+[`W211`](kcs-diagnostic-w211-variable-set-not-used.md) and
+[`W220`](kcs-diagnostic-w220-dead-store.md): the text may be evaluated later,
+so the assignment feeding it is not reported dead.
+
 ## Variables set inside a loop
 
 A variable assigned inside a loop body and read *after* the loop is **not**

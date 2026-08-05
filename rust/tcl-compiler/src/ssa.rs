@@ -115,6 +115,48 @@ pub struct SsaStatement {
     /// may-def (old type ⊔ written value); write-sensitive passes (shimmer
     /// oscillation, dead-store) must not count one as a real write.
     pub may_defs: HashSet<Symbol>,
+    /// The subset of [`Self::uses`] that are [`UseClass::Quoted`] — carried
+    /// only by a brace-quoted word this statement does not substitute. The
+    /// use is real for liveness (the text may be evaluated later) but is not
+    /// a read *here*, so read-before-set must ignore it. See [`UseClass`].
+    pub quoted_uses: HashSet<Symbol>,
+}
+
+/// How a statement consumes a variable reference.
+///
+/// Tcl substitutes `$name` in a bare or `"`-quoted word, and never in a
+/// brace-quoted one: `puts {$y}` prints the two characters `$y` and reads
+/// nothing (tclsh 9.0.4 / 8.6.16 agree, and `puts {$y}` succeeds with `y`
+/// undefined). A braced word's contents may still be *evaluated* — by
+/// `expr`, by `if`, by an `after` callback, by an unknown definer — but when
+/// and in which frame is the callee's business.
+///
+/// The two consumers of the use set need opposite conservatism about that
+/// word, which is why the use is classified rather than present-or-absent:
+///
+/// - liveness / dead-store (W211, W220, store elimination) must assume the
+///   word **may** be evaluated, so the use must exist;
+/// - read-before-set (W210) must assume it **may not** be, or may be
+///   evaluated in a frame that binds the name, so it must not claim the read.
+///
+/// Filtering at either end breaks the other: dropping the use resurrects
+/// `W211 set but never used` on `set a(k) 1; puts {$a(k)}`, and recording the
+/// name as a self-initialising def deletes the feeding store outright
+/// (issues #1142, #1237).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UseClass {
+    /// Substituted at this call site, or evaluated by the callee in this same
+    /// frame (an [`ArgRole::Expr`](tcl_registry::ArgRole::Expr) /
+    /// [`ArgRole::Body`](tcl_registry::ArgRole::Body) word). A genuine read,
+    /// here and now.
+    Substituted,
+    /// Carried only inside a brace-quoted word that this call site does not
+    /// substitute and whose role does not have the callee evaluate it in this
+    /// frame (see
+    /// [`ArgRole::braced_word_evaluated_in_frame`](tcl_registry::ArgRole::braced_word_evaluated_in_frame)).
+    /// Kept as a use so liveness stays conservative; ignored by
+    /// read-before-set.
+    Quoted,
 }
 
 /// A CFG basic block in SSA form.
@@ -1152,90 +1194,89 @@ pub(crate) fn structural_body_indices(
 ///
 /// Returns sorted variable names, excluding variables that are defined
 /// by this statement (unless they exhibit read-before-write semantics).
+///
+/// Names only, dropping the [`UseClass`] classification — use
+/// [`uses_of_classified`] when the caller must distinguish a substituted read
+/// from one carried by an unevaluated brace-quoted word.
 pub fn uses_of(
     stmt: &Statement,
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
 ) -> Vec<String> {
-    let mut vars_found: BTreeSet<String> = BTreeSet::new();
+    uses_of_classified(stmt, scanner, registry)
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect()
+}
+
+/// The classified reads a statement scan accumulates: names substituted (or
+/// evaluated in this frame) by the statement, and names mentioned only inside
+/// a brace-quoted word it passes through verbatim.
+#[derive(Default)]
+struct ClassifiedUses {
+    substituted: BTreeSet<String>,
+    quoted: BTreeSet<String>,
+}
+
+/// [`uses_of`] with each name's [`UseClass`].
+///
+/// A name reached by both a substituted word and a brace-quoted one is
+/// [`UseClass::Substituted`] — the definite read wins.
+pub fn uses_of_classified(
+    stmt: &Statement,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> Vec<(String, UseClass)> {
+    let mut found = ClassifiedUses::default();
     let mut reads_own_def: BTreeSet<String> = BTreeSet::new();
 
     match stmt {
         Statement::ExprEval { expr, .. } => {
-            vars_found.extend(expr_vars_for(scanner, expr));
+            found.substituted.extend(expr_vars_for(scanner, expr));
         }
 
         Statement::AssignConst { .. }
         | Statement::AssignExpr { .. }
         | Statement::AssignValue { .. }
         | Statement::Incr { .. } => {
-            uses_in_assignment(stmt, scanner, registry, &mut vars_found, &mut reads_own_def);
+            uses_in_assignment(
+                stmt,
+                scanner,
+                registry,
+                &mut found.substituted,
+                &mut reads_own_def,
+            );
         }
 
         Statement::Call { .. } => {
-            uses_in_call(stmt, scanner, registry, &mut vars_found, &mut reads_own_def);
+            uses_in_call(stmt, scanner, registry, &mut found, &mut reads_own_def);
         }
 
-        Statement::Return { value, expr, .. } => {
-            if let Some(v) = value {
-                vars_found.extend(scanner.scan_word(v, registry));
-            }
-            if let Some(e) = expr {
-                vars_found.extend(expr_vars_for(scanner, e));
-            }
-        }
-
-        Statement::Barrier {
-            command,
-            canonical_command,
-            args,
-            tokens,
+        // A braced return value is literal: `proc f {} { return {$y} }`
+        // returns the two characters `$y` and reads nothing.
+        // tclsh-proof: tclsh8.6.14 — `proc f {} { return {$y} }; puts [f]`
+        // prints `$y` with `y` undefined.
+        Statement::Return {
+            value,
+            expr,
+            braced,
             ..
         } => {
-            scan_command_words(
-                command,
-                canonical_command.as_deref(),
-                args,
-                tokens.as_ref(),
-                scanner,
-                registry,
-                &mut vars_found,
-            );
-            // Scope-alias subcommands (`dict with` / `dict update` — any
-            // resolved subcommand with `creates_scope_alias`): the aliased
-            // variable name is a plain string, not a $-substitution, so
-            // scan_word misses it.
-            //
-            // The variable arg carries both VarRead and VarWrite roles.
-            // When barrier defs route through the registry, the same name
-            // appears in `defs` from the VarWrite query.  The closing
-            // filter at line ~553
-            // (`!defs.contains(v) || reads_own_def.contains(v)`) would
-            // then drop the var unless we mark it as reads-own-def here.
-            // Without this, a proc whose only reference to a parameter is
-            // `dict with $param {}` would produce a false unused-parameter
-            // diagnostic.
-            let creates_scope_alias = registry
-                .get(command)
-                .zip(args.first())
-                .and_then(|(spec, sub)| spec.resolve_subcommand(sub))
-                .is_some_and(|sub| sub.creates_scope_alias);
-            if creates_scope_alias {
-                let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-                for idx in registry.arg_indices_for_role(
-                    command,
-                    &arg_strs,
-                    tcl_registry::ArgRole::VarWrite,
-                ) {
-                    let Some(word) = args.get(idx) else { continue };
-                    let alias_var = normalise_var_name(word);
-                    if !alias_var.is_empty() {
-                        let owned = alias_var.to_owned();
-                        vars_found.insert(owned.clone());
-                        reads_own_def.insert(owned);
-                    }
-                }
+            if let Some(v) = value {
+                let sink = if *braced {
+                    &mut found.quoted
+                } else {
+                    &mut found.substituted
+                };
+                sink.extend(scanner.scan_word(v, registry));
             }
+            if let Some(e) = expr {
+                found.substituted.extend(expr_vars_for(scanner, e));
+            }
+        }
+
+        Statement::Barrier { .. } => {
+            uses_in_barrier(stmt, scanner, registry, &mut found, &mut reads_own_def);
         }
 
         // A non-lowered (glob/regexp/fall-through) `switch` is kept opaque as a
@@ -1248,7 +1289,7 @@ pub fn uses_of(
             default_body,
             ..
         } => {
-            vars_found.extend(switch_reads(
+            found.substituted.extend(switch_reads(
                 subject,
                 arms,
                 default_body.as_ref(),
@@ -1276,10 +1317,82 @@ pub fn uses_of(
     let defs: HashSet<String> = defs_of_with_registry(stmt, Some(registry))
         .into_iter()
         .collect();
-    vars_found
+    // A name reached both ways is a definite read — the quoted mention adds
+    // nothing the substituted one does not already assert.
+    let ClassifiedUses {
+        substituted,
+        mut quoted,
+    } = found;
+    quoted.retain(|v| !substituted.contains(v));
+    substituted
         .into_iter()
-        .filter(|v| !v.is_empty() && (!defs.contains(v) || reads_own_def.contains(v)))
+        .map(|v| (v, UseClass::Substituted))
+        .chain(quoted.into_iter().map(|v| (v, UseClass::Quoted)))
+        .filter(|(v, _)| !v.is_empty() && (!defs.contains(v) || reads_own_def.contains(v)))
         .collect()
+}
+
+/// Variable reads of a [`Statement::Barrier`]: its head + non-body argument
+/// words, plus the scope-alias name a `dict with` / `dict update` unpacks.
+/// Extracted from [`uses_of_classified`].
+fn uses_in_barrier(
+    stmt: &Statement,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+    found: &mut ClassifiedUses,
+    reads_own_def: &mut BTreeSet<String>,
+) {
+    let Statement::Barrier {
+        command,
+        canonical_command,
+        args,
+        tokens,
+        ..
+    } = stmt
+    else {
+        return;
+    };
+    scan_command_words(
+        command,
+        canonical_command.as_deref(),
+        args,
+        tokens.as_ref(),
+        scanner,
+        registry,
+        found,
+    );
+    // Scope-alias subcommands (`dict with` / `dict update` — any
+    // resolved subcommand with `creates_scope_alias`): the aliased
+    // variable name is a plain string, not a $-substitution, so
+    // scan_word misses it.
+    //
+    // The variable arg carries both VarRead and VarWrite roles.
+    // When barrier defs route through the registry, the same name
+    // appears in `defs` from the VarWrite query.  The closing
+    // filter in `uses_of_classified`
+    // (`!defs.contains(v) || reads_own_def.contains(v)`) would
+    // then drop the var unless we mark it as reads-own-def here.
+    // Without this, a proc whose only reference to a parameter is
+    // `dict with $param {}` would produce a false unused-parameter
+    // diagnostic.
+    let creates_scope_alias = registry
+        .get(command)
+        .zip(args.first())
+        .and_then(|(spec, sub)| spec.resolve_subcommand(sub))
+        .is_some_and(|sub| sub.creates_scope_alias);
+    if !creates_scope_alias {
+        return;
+    }
+    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    for idx in registry.arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::VarWrite) {
+        let Some(word) = args.get(idx) else { continue };
+        let alias_var = normalise_var_name(word);
+        if !alias_var.is_empty() {
+            let owned = alias_var.to_owned();
+            found.substituted.insert(owned.clone());
+            reads_own_def.insert(owned);
+        }
+    }
 }
 
 /// Variable reads of an assignment-style statement (`set` / `set =expr` /
@@ -1355,7 +1468,7 @@ fn uses_in_call(
     stmt: &Statement,
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
-    vars_found: &mut BTreeSet<String>,
+    found: &mut ClassifiedUses,
     reads_own_def: &mut BTreeSet<String>,
 ) {
     let Statement::Call {
@@ -1378,8 +1491,9 @@ fn uses_in_call(
         tokens.as_ref(),
         scanner,
         registry,
-        vars_found,
+        found,
     );
+    let vars_found = &mut found.substituted;
     if let Some(value) =
         canonical_set_value(command, canonical_command.as_deref(), args, defs, registry)
     {
@@ -1519,9 +1633,9 @@ fn scan_command_words(
     tokens: Option<&CommandTokens>,
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
-    vars_found: &mut BTreeSet<String>,
+    out: &mut ClassifiedUses,
 ) {
-    vars_found.extend(scanner.scan_word(command, registry));
+    out.substituted.extend(scanner.scan_word(command, registry));
     // Registry lookups use the canonical name when the lowering resolved one
     // (a bare `test` under `namespace import ::tcltest::*` canonicalises to
     // `tcltest::test`; the raw spelling alone is not a registry key).
@@ -1548,11 +1662,36 @@ fn scan_command_words(
                 .filter(|&i| t.arg_is_braced_literal(i))
                 .collect()
         });
+    // Positions whose brace-quoted word the callee still evaluates in *this*
+    // frame — `expr {$a + $b}`, `if {$c} …`. Registry-driven: the set is
+    // every `ArgRole` that answers `braced_word_evaluated_in_frame`, never a
+    // command name. An un-roled position (including every position of a
+    // command the registry does not describe) is absent, so its braced word
+    // is classified `Quoted`.
+    let in_frame_braced: std::collections::HashSet<usize> = {
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        tcl_registry::ArgRole::ALL
+            .iter()
+            .filter(|role| role.braced_word_evaluated_in_frame())
+            .flat_map(|&role| registry.arg_indices_for_role(lookup, &arg_strs, role))
+            .collect()
+    };
     for (idx, arg) in args.iter().enumerate() {
         if body_indices.contains(&idx) || name_role_braced.contains(&idx) {
             continue;
         }
-        vars_found.extend(scanner.scan_word(arg, registry));
+        // Tcl substitutes nothing inside `{…}`: the names a braced word
+        // mentions are not read at this call site. They stay recorded as
+        // `Quoted` uses so liveness keeps assuming the text may be evaluated
+        // later, while read-before-set declines to claim the read (#1237).
+        let quoted =
+            !in_frame_braced.contains(&idx) && tokens.is_some_and(|t| t.arg_is_braced_literal(idx));
+        let sink = if quoted {
+            &mut out.quoted
+        } else {
+            &mut out.substituted
+        };
+        sink.extend(scanner.scan_word(arg, registry));
     }
 }
 
@@ -1974,6 +2113,82 @@ impl RenameWalk {
             .collect()
     }
 
+    /// Rename one statement's uses and defs into SSA form: look up each read's
+    /// current version (carrying its [`UseClass`] through to `quoted_uses`),
+    /// then push a fresh version for each def. Extracted from
+    /// [`Self::enter_block`].
+    fn rename_statement(
+        &mut self,
+        stmt: &Statement,
+        frame: &mut RenameFrame,
+        registry: &CommandRegistry,
+        elems: &ArrayElems,
+    ) -> SsaStatement {
+        let classified = uses_of_classified(stmt, &mut self.scanner, registry);
+        let class_of: HashMap<&str, UseClass> = classified
+            .iter()
+            .map(|(name, class)| (name.as_str(), *class))
+            .collect();
+        let uses_list: Vec<String> = classified.iter().map(|(name, _)| name.clone()).collect();
+        let mut uses_map: HashMap<Symbol, Version> = HashMap::new();
+        let mut quoted_uses: HashSet<Symbol> = HashSet::new();
+        // A base read (`$a($i)`, `array get a`) reads every known
+        // constant-keyed element — record their versions so the element chains
+        // are live. A fanned element inherits its base's class: reached only
+        // through a quoted base mention it is no more definite than that
+        // mention.
+        let fanned = expand_uses(&uses_list, &[], elems);
+        for var in uses_list.iter().chain(fanned.iter()) {
+            let v = self.top(var);
+            let sym = self.interner.intern(var);
+            if uses_map.insert(sym, v).is_some() {
+                continue;
+            }
+            let class = class_of.get(var.as_str()).copied().or_else(|| {
+                let base = &var[..var.find('(')?];
+                class_of.get(base).copied()
+            });
+            if class == Some(UseClass::Quoted) {
+                quoted_uses.insert(sym);
+            }
+        }
+
+        let direct_defs = defs_of_with_registry(stmt, Some(registry));
+        let expanded = expand_defs(&direct_defs, elems);
+        // A fanned element def is a *may*-write — the dynamic-key /
+        // whole-array write may have hit it: record a use of its prior version
+        // so type inference joins old and new rather than trusting the written
+        // value alone. (The base refresh of an element write is also a may-def,
+        // but reads nothing — an extra base use would make dead-store analysis
+        // see every element write as an observation of the whole array.)
+        for var in expanded
+            .iter()
+            .filter(|v| !direct_defs.contains(v) && v.contains('('))
+        {
+            let ver = self.top(var);
+            uses_map.entry(self.interner.intern(var)).or_insert(ver);
+        }
+        let mut defs_map: HashMap<Symbol, Version> = HashMap::new();
+        let mut may_defs: HashSet<Symbol> = HashSet::new();
+        for var in expanded {
+            let ver = self.push_new(&var);
+            frame.pushed_vars.push(var.clone());
+            let sym = self.interner.intern(&var);
+            defs_map.insert(sym, ver);
+            if !direct_defs.contains(&var) {
+                may_defs.insert(sym);
+            }
+        }
+
+        SsaStatement {
+            statement: stmt.clone(),
+            uses: uses_map,
+            defs: defs_map,
+            may_defs,
+            quoted_uses,
+        }
+    }
+
     /// Process one block on first visit: assign phi versions, record entry /
     /// exit versions, rename statement uses/defs, and seed successors' phi
     /// incoming edges. Extracted from [`build_ssa`]'s rename walk.
@@ -2018,58 +2233,8 @@ impl RenameWalk {
         if let Some(block) = func.blocks.get(&bn) {
             let stmts: Vec<Statement> = block.statements.clone();
             for stmt in &stmts {
-                let uses_list = uses_of(stmt, &mut self.scanner, registry);
-                let mut uses_map: HashMap<Symbol, Version> = HashMap::new();
-                for var in &uses_list {
-                    let v = self.top(var);
-                    uses_map.insert(self.interner.intern(var), v);
-                }
-                // A base read (`$a($i)`, `array get a`) reads every known
-                // constant-keyed element — record their versions so the
-                // element chains are live.
-                for var in expand_uses(&uses_list, &[], elems) {
-                    let v = self.top(&var);
-                    uses_map.entry(self.interner.intern(&var)).or_insert(v);
-                }
-
-                let direct_defs = defs_of_with_registry(stmt, Some(registry));
-                let expanded = expand_defs(&direct_defs, elems);
-                // A fanned element def is a *may*-write — the dynamic-key /
-                // whole-array write may have hit it: record a use of its
-                // prior version so type inference joins old and new rather
-                // than trusting the written value alone. (The base refresh
-                // of an element write is also a may-def, but reads nothing —
-                // an extra base use would make dead-store analysis see every
-                // element write as an observation of the whole array.)
-                for var in expanded
-                    .iter()
-                    .filter(|v| !direct_defs.contains(v) && v.contains('('))
-                {
-                    let ver = self.top(var);
-                    uses_map.entry(self.interner.intern(var)).or_insert(ver);
-                }
-                let mut defs_map: HashMap<Symbol, Version> = HashMap::new();
-                let mut may_defs: HashSet<Symbol> = HashSet::new();
-                for var in expanded {
-                    let ver = self.push_new(&var);
-                    frame.pushed_vars.push(var.clone());
-                    let sym = self.interner.intern(&var);
-                    defs_map.insert(sym, ver);
-                    if !direct_defs.contains(&var) {
-                        may_defs.insert(sym);
-                    }
-                }
-
-                self.out
-                    .stmt_infos
-                    .get_mut(&bn)
-                    .unwrap()
-                    .push(SsaStatement {
-                        statement: stmt.clone(),
-                        uses: uses_map,
-                        defs: defs_map,
-                        may_defs,
-                    });
+                let info = self.rename_statement(stmt, frame, registry, elems);
+                self.out.stmt_infos.get_mut(&bn).unwrap().push(info);
             }
         }
 
@@ -2309,6 +2474,7 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::from([(Symbol(0), 1)]),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
         assert_eq!(stmt.defs[&Symbol(0)], 1);
         assert!(stmt.uses.is_empty());
@@ -3115,6 +3281,124 @@ mod tests {
         let uses = uses_of(&stmt, &mut scanner, &reg);
         assert!(uses.contains(&"a".to_string()));
         assert!(uses.contains(&"b".to_string()));
+    }
+
+    // UseClass classification (issues #1142 / #1237)
+
+    /// A `Call` whose argument words are `args`, with per-word token kinds
+    /// derived from the word text: `{…}` lexes to `Str` (brace-quoted, the one
+    /// form Tcl leaves wholly unsubstituted), everything else to `Esc`.
+    fn call_with_words(command: &str, args: &[&str]) -> Statement {
+        let words: Vec<String> = std::iter::once(command.to_owned())
+            .chain(args.iter().map(|a| (*a).to_owned()))
+            .collect();
+        let kinds: Vec<tcl_lexer::TokenType> = words
+            .iter()
+            .map(|w| {
+                if w.starts_with('{') && w.ends_with('}') {
+                    tcl_lexer::TokenType::Str
+                } else {
+                    tcl_lexer::TokenType::Esc
+                }
+            })
+            .collect();
+        let contents: Vec<String> = args
+            .iter()
+            .map(|a| {
+                a.strip_prefix('{')
+                    .and_then(|s| s.strip_suffix('}'))
+                    .unwrap_or(a)
+                    .to_owned()
+            })
+            .collect();
+        Statement::Call {
+            span: Span::new(0, 1),
+            command: command.to_owned(),
+            canonical_command: None,
+            args: contents,
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: Some(crate::ir::CommandTokens {
+                argv: vec![Span::new(0, 1); words.len()],
+                argv_texts: words.clone(),
+                argv_kinds: kinds,
+                single_token_word: vec![true; words.len()],
+                all_tokens: Vec::new(),
+                expand_word: None,
+            }),
+            foreach_groups: None,
+        }
+    }
+
+    fn classify(stmt: &Statement, reg: &CommandRegistry, name: &str) -> Option<UseClass> {
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        uses_of_classified(stmt, &mut scanner, reg)
+            .into_iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, class)| class)
+    }
+
+    /// A braced word at a role the callee does **not** evaluate in this frame
+    /// is a `Quoted` use: still recorded (liveness must assume it may be
+    /// evaluated later) but not a read here.
+    /// tclsh-proof: tclsh8.6.14 — `puts {$y}` prints `$y` with `y` undefined.
+    #[test]
+    fn uses_of_classified_braced_data_word_is_quoted() {
+        let reg = default_registry();
+        let stmt = call_with_words("puts", &["{$y}"]);
+        assert_eq!(classify(&stmt, &reg, "y"), Some(UseClass::Quoted));
+    }
+
+    /// The same name in an unbraced word is a definite read.
+    #[test]
+    fn uses_of_classified_unbraced_word_is_substituted() {
+        let reg = default_registry();
+        let stmt = call_with_words("puts", &["$y"]);
+        assert_eq!(classify(&stmt, &reg, "y"), Some(UseClass::Substituted));
+    }
+
+    /// A braced `Expr`-role word really does substitute — `expr` evaluates it
+    /// against the caller's variables — so it stays `Substituted`.
+    #[test]
+    fn uses_of_classified_braced_expr_word_is_substituted() {
+        let reg = default_registry();
+        let stmt = call_with_words("expr", &["{$a + $b}"]);
+        assert_eq!(classify(&stmt, &reg, "a"), Some(UseClass::Substituted));
+        assert_eq!(classify(&stmt, &reg, "b"), Some(UseClass::Substituted));
+    }
+
+    /// A command the registry does not describe has no roles at all, so its
+    /// braced words are unclassifiable data — `Quoted`, never a read (#1142).
+    #[test]
+    fn uses_of_classified_unknown_command_braced_word_is_quoted() {
+        let reg = default_registry();
+        let stmt = call_with_words("mydefiner", &["::foo::bar", "{optlist}", "{return $y}"]);
+        assert_eq!(classify(&stmt, &reg, "y"), Some(UseClass::Quoted));
+    }
+
+    /// A name reached both ways in one statement is a definite read.
+    #[test]
+    fn uses_of_classified_substituted_wins_over_quoted() {
+        let reg = default_registry();
+        let stmt = call_with_words("puts", &["{$y}", "$y"]);
+        assert_eq!(classify(&stmt, &reg, "y"), Some(UseClass::Substituted));
+    }
+
+    /// A braced `return` value is literal.
+    /// tclsh-proof: tclsh8.6.14 — `proc f {} { return {$y} }; puts [f]` prints
+    /// `$y` with `y` undefined.
+    #[test]
+    fn uses_of_classified_braced_return_value_is_quoted() {
+        let reg = default_registry();
+        let stmt = Statement::Return {
+            span: Span::new(0, 15),
+            value: Some("$y".into()),
+            expr: None,
+            braced: true,
+        };
+        assert_eq!(classify(&stmt, &reg, "y"), Some(UseClass::Quoted));
     }
 
     // build_ssa tests

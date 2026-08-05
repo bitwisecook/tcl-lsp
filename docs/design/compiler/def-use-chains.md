@@ -28,7 +28,37 @@ UseSite
   statement_index: int
   variable: str             # for phi: the phi variable
   phi_version: int          # for phi: the phi's version
+  class: UseClass           # SUBSTITUTED | QUOTED
 ```
+
+## Use classification (`UseClass`)
+
+A use is **classified**, not merely present or absent, because the two
+families of consumer need opposite conservatism about the same word.
+
+Tcl substitutes `$name` in a bare or `"`-quoted word and never in a
+brace-quoted one: `puts {$y}` prints the two characters `$y` and reads
+nothing.  A braced word's contents may still be *evaluated* later — by
+`expr`, by `if`, by an `after` callback, by an unknown definer — but when,
+and in which frame, is the callee's business.
+
+| `UseClass` | Meaning | Who honours it |
+|---|---|---|
+| `SUBSTITUTED` | Substituted at this site, or evaluated by the callee in this same frame (an `ArgRole::Expr` / `ArgRole::Body` word) — a genuine read here | everyone |
+| `QUOTED` | Carried only by a brace-quoted word this site passes through verbatim | liveness / dead-store only |
+
+Liveness, W211, W220 and store elimination must assume a quoted word *may*
+be evaluated, so the use has to exist.  Read-before-set (W210 / W213) must
+assume it *may not* be, or may be evaluated in a frame that binds the name,
+so it skips `QUOTED` uses.  Filtering at either end breaks the other:
+dropping the use resurrects `W211 set but never used` on `set a(k) 1; puts
+{$a(k)}`, and recording the name as a self-initialising def deletes the
+feeding store outright (issues #1142, #1237).
+
+Which roles keep a braced word `SUBSTITUTED` is registry data, not a
+command list: `ArgRole::braced_word_evaluated_in_frame` is the single
+answer, and an un-roled position — including every position of a command
+the registry does not describe — falls to `QUOTED`.
 
 ## Derivation from SSA
 
