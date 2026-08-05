@@ -958,11 +958,7 @@ fn oo_method_constants(
     if !allow_locals {
         return std::collections::HashMap::new();
     }
-    let (Some(fu), Some(method), Some(registry)) = (
-        cu.methods.get(qname),
-        cu.ir_module.methods.get(qname),
-        ctx.registry,
-    ) else {
+    let (Some(fu), Some(registry)) = (cu.methods.get(qname), ctx.registry) else {
         return std::collections::HashMap::new();
     };
     if fu.complexity_guarded {
@@ -975,12 +971,19 @@ fn oo_method_constants(
     // after the first O129 suggestion. The frame's defining class is
     // proven by [`oo_frame_for`], so the `[self class]` frame fact is
     // sound here and only here.
+    //
+    // The escaping set is the unit's own `method_facts` carrier — the same
+    // struct the existence fold and the W-family diagnostics read — never a
+    // second lookup of `MethodDef::instance_vars` (issue #1174).
+    let Some(facts) = fu.method_facts.as_deref() else {
+        return std::collections::HashMap::new();
+    };
     let sccp = crate::sccp::sccp_with_builtin_folds(
         &fu.cfg,
         &fu.ssa,
         None,
         FoldPolicy::from_registry(registry),
-        &method.instance_vars,
+        &facts.instance_vars,
         crate::sccp::TraceInputs {
             registry,
             traced_variables: &cu.ir_module.traced_variables,

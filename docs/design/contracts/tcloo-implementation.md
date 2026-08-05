@@ -19,6 +19,22 @@ body / param / var layout (`MemberKind::Flat`), nested-member wrappers
 forms (`property` — `MemberKind::FlagKeyed`).  TclOO, snit, and [incr Tcl]
 are pure registry data; the shared walkers hold no member-keyword lists.
 
+The list-valued definition words — `filter`, `superclass`, `mixin`,
+`variable` — are **slots** (`oo::Slot` instances in real Tcl), not
+assignments, and their behaviour is registry data too
+(`MemberSpec::slot`, a `SlotSpec`; issue #1169): each slot carries its
+C-pinned default operation (`-append` for `filter`/`variable`, `-set` for
+`superclass`/`mixin` — identical in 8.6.16 and 9.0.4) plus a dedup rule
+(`variable` dedups, `filter` keeps duplicates), and the explicit
+`-set` / `-append` / `-appendifnew` / `-prepend` / `-remove` / `-clear`
+operations fold through the single `SlotSpec::apply` fold.  Every consumer
+(the instance `filters`, the class-object `class_filters`, `superclasses`,
+`mixins`, and declared `variables`) takes the identical fold, so `filter a;
+filter b` keeps both live and `superclass -append B` extends rather than
+being dropped as a flag.  Known limit: an unrecognised leading `-op` word
+aborts the whole definition in real Tcl; the fold conservatively leaves the
+slot unchanged rather than modelling the abort.
+
 ### Member arguments that name commands (`record_member_command_references`)
 
 A member argument that *names a command* is a first-class command reference,

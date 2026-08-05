@@ -153,7 +153,7 @@ class TclLspSettingsPanel {
     private val diagW250 = JBCheckBox("W250: Instantiating an oo::abstract class")
     private val diagW308 = JBCheckBox("W308: Unknown TclOO method")
     private val diagW314 = JBCheckBox("W314: Definition has no absolute (fully-qualified) name")
-    private val diagW315 = JBCheckBox("W315: Class definition cannot run")
+    private val diagW315 = JBCheckBox("W315: Class or object definition cannot run")
 
     // Diagnostics — Variables
     private val diagW210 = JBCheckBox("W210: Variable read before set")

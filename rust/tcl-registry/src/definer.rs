@@ -142,6 +142,146 @@ pub struct RetractionWords<'a> {
     pub arrives_at: Option<usize>,
 }
 
+/// One operation on a `TclOO` **slot** — the list-valued definition words
+/// (`filter`, `superclass`, `mixin`, `variable`) that are `oo::Slot`
+/// instances in real Tcl rather than plain assignments (issue #1169).
+///
+/// A slot call's first argument may name the operation explicitly
+/// (`filter -set x`, `mixin -append M`); a bare word list uses the slot's
+/// own default operation.  Oracle for the operation set, C Tcl 9.0.4
+/// `tclOODefineCmds.c` (`slotMethods[]`), confirmed live on tclsh 9.0.4:
+///
+/// ```text
+/// unknown method "-bogus": must be -append, -appendifnew, -clear,
+/// -prepend, -remove or -set
+/// ```
+///
+/// Tcl 8.6 has only `-set` / `-append` / `-clear` (`tclOO.c`'s embedded
+/// slot script: `export -set -append -clear`); `-appendifnew` / `-prepend`
+/// / `-remove` are 9.0 additions.  The fold below accepts all six under
+/// every dialect — modelling an 8.6 script that uses a 9.0-only operation
+/// as the operation it names is strictly closer to what the author meant
+/// than treating `-prepend` as a member name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SlotOp {
+    /// `-set` — replace the slot's contents with the arguments.
+    Set,
+    /// `-append` — add the arguments at the end (no deduplication:
+    /// tclsh 9.0.4, `filter a ; filter a b` → `a a b`).
+    Append,
+    /// `-appendifnew` (9.0+) — add each argument not already present.
+    AppendIfNew,
+    /// `-prepend` (9.0+) — add the arguments at the front
+    /// (tclsh 9.0.4: `filter a ; filter -prepend b` → `b a`).
+    Prepend,
+    /// `-remove` (9.0+) — remove the named items.
+    Remove,
+    /// `-clear` — empty the slot (takes no further arguments).
+    Clear,
+}
+
+impl SlotOp {
+    /// Parse an explicit slot-operation word, or `None` when `word` is not
+    /// one.  Only the **first** argument of a slot call is ever an
+    /// operation — tclsh 9.0.4: `filter a -set b` appends the three literal
+    /// items `a`, `-set`, `b`.
+    #[must_use]
+    pub fn parse(word: &str) -> Option<Self> {
+        match word {
+            "-set" => Some(Self::Set),
+            "-append" => Some(Self::Append),
+            "-appendifnew" => Some(Self::AppendIfNew),
+            "-prepend" => Some(Self::Prepend),
+            "-remove" => Some(Self::Remove),
+            "-clear" => Some(Self::Clear),
+            _ => None,
+        }
+    }
+}
+
+/// The slot behaviour of a list-valued member word: its default operation
+/// and whether the slot deduplicates on append (issue #1169).
+///
+/// Defaults pinned against C Tcl — identical in 9.0.4 (`slots[]` in
+/// `tclOODefineCmds.c`) and 8.6.16 (`tclOO.c`'s embedded
+/// `--default-operation` forwards) — and confirmed live on tclsh 9.0.4:
+///
+/// | slot                    | default op | dedup |
+/// |-------------------------|------------|-------|
+/// | `filter` (both sides)   | `-append`  | no (`filter a; filter a b` → `a a b`) |
+/// | `variable` (both sides) | `-append`  | yes (`variable a; variable a b` → `a b`) |
+/// | `superclass`            | `-set`     | —     |
+/// | `mixin` (both sides)    | `-set`     | —     |
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SlotSpec {
+    /// The operation a bare word list applies.
+    pub default_op: SlotOp,
+    /// Whether appending skips items already present (`variable` does,
+    /// `filter` does not — oracle above).
+    pub dedup: bool,
+}
+
+impl SlotSpec {
+    /// Split one slot call's arguments into its effective operation and
+    /// value words: an explicit leading operation word wins, a bare list
+    /// takes the slot default.  Returns `None` for an unrecognised leading
+    /// `-word` — real Tcl aborts the whole definition there (`unknown
+    /// method "-bogus"`), so a consumer must not fold anything for it.
+    #[must_use]
+    pub fn split_call<'a>(&self, args: &'a [String]) -> Option<(SlotOp, &'a [String])> {
+        match args.first() {
+            Some(first) if first.starts_with('-') => {
+                SlotOp::parse(first).map(|op| (op, &args[1..]))
+            }
+            _ => Some((self.default_op, args)),
+        }
+    }
+
+    /// Fold one slot call into `current` — the single definition of what
+    /// each operation does to the slot's list, shared by every consumer so
+    /// the instance `filters`, class-object `class_filters`, `superclass`,
+    /// `mixin`, and `variable` channels cannot diverge (issue #1169).
+    ///
+    /// An unrecognised leading operation word leaves the slot unchanged
+    /// (see [`Self::split_call`]).
+    pub fn apply(&self, current: &mut Vec<String>, args: &[String]) {
+        let Some((op, values)) = self.split_call(args) else {
+            return;
+        };
+        match op {
+            SlotOp::Set => {
+                current.clear();
+                self.extend(current, values);
+            }
+            SlotOp::Append => self.extend(current, values),
+            SlotOp::AppendIfNew => {
+                for v in values {
+                    if !current.iter().any(|c| c == v) {
+                        current.push(v.clone());
+                    }
+                }
+            }
+            SlotOp::Prepend => {
+                let mut fresh: Vec<String> = Vec::with_capacity(values.len() + current.len());
+                self.extend(&mut fresh, values);
+                fresh.append(current);
+                *current = fresh;
+            }
+            SlotOp::Remove => current.retain(|c| !values.iter().any(|v| v == c)),
+            SlotOp::Clear => current.clear(),
+        }
+    }
+
+    /// Append `values` honouring the slot's dedup rule.
+    fn extend(self, current: &mut Vec<String>, values: &[String]) {
+        for v in values {
+            if !self.dedup || !current.iter().any(|c| c == v) {
+                current.push(v.clone());
+            }
+        }
+    }
+}
+
 /// The visibility a member word imposes on the members its arguments name.
 ///
 /// The sibling of [`MemberSpec::retraction`] for the *other* kind
@@ -241,6 +381,18 @@ pub struct MemberSpec {
     /// `deletemethod` removes every name it is given, `renamemethod` only its
     /// first.
     pub retraction: Option<MemberRetraction>,
+    /// The slot behaviour of this member word, or `None` when it is not a
+    /// slot (issue #1169).
+    ///
+    /// A slot member's word list is **not** an assignment: `filter a` then
+    /// `filter b` leaves both filters live (`-append` default), while
+    /// `superclass` / `mixin` replace (`-set` default), and all four slots
+    /// accept explicit `-set` / `-append` / `-prepend` / `-clear` /
+    /// `-remove` / `-appendifnew` operation words.  Consumers fold the
+    /// call through [`SlotSpec::apply`] instead of overwriting, and skip
+    /// the leading operation word when classifying arguments (it names no
+    /// class / method / variable).
+    pub slot: Option<SlotSpec>,
     /// The visibility this member imposes on the members its arguments name,
     /// or `None` when it has no visibility effect.
     ///
@@ -268,6 +420,7 @@ impl MemberSpec {
             dialects: None,
             retraction: None,
             visibility_effect: None,
+            slot: None,
         }
     }
 
@@ -285,6 +438,7 @@ impl MemberSpec {
             dialects: None,
             retraction: None,
             visibility_effect: None,
+            slot: None,
         }
     }
 
@@ -301,6 +455,7 @@ impl MemberSpec {
             dialects: None,
             retraction: None,
             visibility_effect: None,
+            slot: None,
         }
     }
 
@@ -318,6 +473,7 @@ impl MemberSpec {
             dialects: None,
             retraction: None,
             visibility_effect: None,
+            slot: None,
         }
     }
 
@@ -336,6 +492,7 @@ impl MemberSpec {
             dialects: None,
             retraction: None,
             visibility_effect: None,
+            slot: None,
         }
     }
 
@@ -357,6 +514,7 @@ impl MemberSpec {
             dialects: None,
             retraction: None,
             visibility_effect: None,
+            slot: None,
         }
     }
 
@@ -386,6 +544,15 @@ impl MemberSpec {
         self
     }
 
+    /// Mark this member as a `TclOO` **slot** with the given default
+    /// operation and dedup rule (a builder over the constructors above) —
+    /// see [`Self::slot`] and [`SlotSpec`].
+    #[must_use]
+    const fn slot_spec(mut self, default_op: SlotOp, dedup: bool) -> Self {
+        self.slot = Some(SlotSpec { default_op, dedup });
+        self
+    }
+
     /// A [`MemberKind::FlagKeyed`] member (`property`).
     #[must_use]
     const fn flag_keyed(keyword: &'static str) -> Self {
@@ -399,6 +566,7 @@ impl MemberSpec {
             dialects: None,
             retraction: None,
             visibility_effect: None,
+            slot: None,
         }
     }
 
@@ -545,14 +713,20 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     // `private` is a prefix wrapper (`private method m {} {…}`, `private
     // variable x`) *and* a bare definition-script block (`private { … }`).
     MemberSpec::wrapper_or_body("private").with_dialects(TCL90_MEMBERS),
-    // `variable a b c` inside a class body declares every name.
-    MemberSpec::all_vars("variable"),
+    // `variable a b c` inside a class body declares every name.  A slot:
+    // `-append` default like `filter`, but deduplicating (tclsh 9.0.4:
+    // `variable a ; variable a b` → `a b`).
+    MemberSpec::all_vars("variable").slot_spec(SlotOp::Append, true),
     // Reference-only members: they declare nothing and recurse nothing, but
     // their arguments *name* an entity defined elsewhere — a class or a method
-    // — so they are references, not free strings.
-    MemberSpec::all_refs("superclass", MemberRefKind::Class),
-    MemberSpec::all_refs("mixin", MemberRefKind::Class),
-    MemberSpec::all_refs("filter", MemberRefKind::Method),
+    // — so they are references, not free strings.  All three are slots
+    // (issue #1169); the defaults are pinned against C Tcl (`slots[]` in
+    // 9.0.4's tclOODefineCmds.c, the `--default-operation` forwards in
+    // 8.6.16's tclOO.c — identical): `superclass` / `mixin` replace,
+    // `filter` appends.
+    MemberSpec::all_refs("superclass", MemberRefKind::Class).slot_spec(SlotOp::Set, false),
+    MemberSpec::all_refs("mixin", MemberRefKind::Class).slot_spec(SlotOp::Set, false),
+    MemberSpec::all_refs("filter", MemberRefKind::Method).slot_spec(SlotOp::Append, false),
     MemberSpec::all_refs("export", MemberRefKind::Method).visibility(MemberVisibility::Exported),
     MemberSpec::all_refs("unexport", MemberRefKind::Method)
         .visibility(MemberVisibility::Unexported),
@@ -626,15 +800,30 @@ const SNIT_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("expose"),
 ];
 
-/// The definition-body grammar for snit `type` / `widget` / `widgetadaptor`.
-/// `implicit_vars` is the set snit injects into *every* member body; a
-/// widget's extra `win` / `hull` are added by the analyser only for the widget
-/// definers (they are not implicit in a plain `snit::type`), so they are not
-/// listed in this shared grammar.
+/// The definition-body grammar for a plain snit `type`.  `implicit_vars` is
+/// the set snit injects into *every* member body; the widget definers carry
+/// [`SNIT_WIDGET_GRAMMAR`], whose `implicit_vars` add the `win` / `hull`
+/// pair a widget injects on top (they are not implicit in a plain
+/// `snit::type`), so which definers inject them is registry data, not a
+/// consumer's name-suffix check.
 pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Snit,
     members: SNIT_MEMBERS,
     implicit_vars: &["self", "selfns", "type", "options"],
+    member_body_namespace_path: &[],
+};
+
+/// The definition-body grammar for snit `widget` / `widgetadaptor`: the same
+/// member set as [`SNIT_GRAMMAR`], plus the widget-only implicit instance
+/// variables `win` (the widget's window path) and `hull` (the hull
+/// component).
+pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+    family: DefinerFamily::Snit,
+    members: SNIT_MEMBERS,
+    implicit_vars: &["self", "selfns", "type", "options", "win", "hull"],
+    // Same as SNIT_GRAMMAR: snit resolves member-body barewords through its
+    // own generated type namespace, not an implicit helper path (#1137's
+    // `::oo::Helpers` fact is TclOO-only).
     member_body_namespace_path: &[],
 };
 
@@ -687,7 +876,100 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
 
 #[cfg(test)]
 mod tests {
-    use super::{MemberRetraction, MemberVisibility, TCLOO_GRAMMAR};
+    use super::{MemberRetraction, MemberVisibility, SlotOp, SlotSpec, TCLOO_GRAMMAR};
+
+    fn strs(words: &[&str]) -> Vec<String> {
+        words.iter().map(ToString::to_string).collect()
+    }
+
+    /// Issue #1169: the four `TclOO` slot members carry their C-pinned
+    /// default operations (`slots[]` in 9.0.4's tclOODefineCmds.c; identical
+    /// forwards in 8.6.16's tclOO.c): `filter`/`variable` append,
+    /// `superclass`/`mixin` replace — and only `variable` deduplicates
+    /// (tclsh 9.0.4: `filter a; filter a b` → `a a b`, `variable a;
+    /// variable a b` → `a b`).
+    #[test]
+    fn tcloo_slot_members_carry_their_c_pinned_defaults() {
+        let want = [
+            ("filter", SlotOp::Append, false),
+            ("variable", SlotOp::Append, true),
+            ("superclass", SlotOp::Set, false),
+            ("mixin", SlotOp::Set, false),
+        ];
+        for (keyword, default_op, dedup) in want {
+            let m = TCLOO_GRAMMAR.member(keyword).expect("member exists");
+            let slot = m.slot.unwrap_or_else(|| panic!("`{keyword}` is a slot"));
+            assert_eq!(slot.default_op, default_op, "{keyword} default op");
+            assert_eq!(slot.dedup, dedup, "{keyword} dedup");
+        }
+    }
+
+    /// TN for the slot flag: members that declare, retract, or flip
+    /// visibility are not slots — folding their words through slot ops
+    /// would corrupt real declarations.
+    #[test]
+    fn non_slot_members_carry_no_slot_spec() {
+        for keyword in [
+            "method",
+            "constructor",
+            "destructor",
+            "forward",
+            "export",
+            "unexport",
+            "deletemethod",
+            "renamemethod",
+        ] {
+            let m = TCLOO_GRAMMAR.member(keyword).expect("member exists");
+            assert_eq!(m.slot, None, "{keyword} must not be a slot");
+        }
+    }
+
+    /// The fold itself, one op per case, each pinned live on tclsh 9.0.4.
+    #[test]
+    fn slot_fold_matches_the_oracle() {
+        let filter = SlotSpec {
+            default_op: SlotOp::Append,
+            dedup: false,
+        };
+        // `filter a ; filter a b` → `a a b` (append, no dedup).
+        let mut list = Vec::new();
+        filter.apply(&mut list, &strs(&["a"]));
+        filter.apply(&mut list, &strs(&["a", "b"]));
+        assert_eq!(list, strs(&["a", "a", "b"]));
+        // `filter -set x` → `x`; `filter -clear` → empty.
+        filter.apply(&mut list, &strs(&["-set", "x"]));
+        assert_eq!(list, strs(&["x"]));
+        filter.apply(&mut list, &strs(&["-clear"]));
+        assert!(list.is_empty());
+        // `filter a ; filter -prepend b` → `b a`.
+        filter.apply(&mut list, &strs(&["a"]));
+        filter.apply(&mut list, &strs(&["-prepend", "b"]));
+        assert_eq!(list, strs(&["b", "a"]));
+        // `filter -remove b` → `a`; `-appendifnew a c` → `a c`.
+        filter.apply(&mut list, &strs(&["-remove", "b"]));
+        assert_eq!(list, strs(&["a"]));
+        filter.apply(&mut list, &strs(&["-appendifnew", "a", "c"]));
+        assert_eq!(list, strs(&["a", "c"]));
+        // The op word is recognised at argument 0 only: `filter a -set b`
+        // appends the three literal items (tclsh 9.0.4).
+        let mut mid = Vec::new();
+        filter.apply(&mut mid, &strs(&["a", "-set", "b"]));
+        assert_eq!(mid, strs(&["a", "-set", "b"]));
+        // An unknown leading `-op` aborts the definition in real Tcl —
+        // the fold must leave the slot untouched, never treat it as data.
+        let mut untouched = strs(&["keep"]);
+        filter.apply(&mut untouched, &strs(&["-bogus", "x"]));
+        assert_eq!(untouched, strs(&["keep"]));
+        // The dedup rule (`variable`): appending an existing name is a no-op.
+        let variable = SlotSpec {
+            default_op: SlotOp::Append,
+            dedup: true,
+        };
+        let mut vars = Vec::new();
+        variable.apply(&mut vars, &strs(&["a"]));
+        variable.apply(&mut vars, &strs(&["a", "b"]));
+        assert_eq!(vars, strs(&["a", "b"]));
+    }
 
     /// Every `TclOO` member word that *names* a method carries the effect it has
     /// on that method as registry data, so no consumer matches the keyword.

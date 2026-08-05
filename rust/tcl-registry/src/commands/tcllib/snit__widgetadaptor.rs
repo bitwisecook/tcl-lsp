@@ -47,7 +47,7 @@ pub fn spec() -> CommandSpec {
         body_kind: BodyKind::Structural,
         tcllib_package: Some("snit"),
         required_package: Some("snit"),
-        definition_body: Some(&crate::definer::SNIT_GRAMMAR),
+        definition_body: Some(&crate::definer::SNIT_WIDGET_GRAMMAR),
         ..CommandSpec::DEFAULT
     }
 }

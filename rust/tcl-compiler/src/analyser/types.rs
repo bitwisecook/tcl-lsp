@@ -635,6 +635,41 @@ pub struct ObjectMethodDef {
     pub objdefine_offset: u32,
 }
 
+/// Effective **per-object member state** for one receiver binding — the
+/// durable home issue #1170 gives `oo::objdefine` effects, folded in source
+/// order across every block on the same binding (the same binding identity
+/// [`ObjectMethodDef::objdefine_offset`] anchors: the innermost proc / method
+/// body declaring the receiver variable, or the top level).
+///
+/// [`AnalysisResult::object_methods`] stays the per-block *declaration*
+/// record (navigation to each declared member, reassignment abstention);
+/// this is the *folded* record — what the object's own table and visibility
+/// look like after the last walked block — which is what dispatch-order
+/// consumers (definition, completion) and the `oo::objdefine` W315 need.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ObjectMemberState {
+    /// The object's own member table after every walked block: declared
+    /// methods, minus retractions, with renames applied — each entry
+    /// carrying its effective visibility.
+    pub methods: HashMap<String, MethodDef>,
+    /// Names this binding's blocks explicitly `export` — including names the
+    /// object's *class* provides, which is exactly the flip that had nowhere
+    /// to live (issue #1119 item 3).  Kept mutually exclusive with
+    /// [`Self::unexports`], last writer wins, the same contract as the
+    /// class-side pairs.
+    pub exports: std::collections::HashSet<String>,
+    /// Names explicitly `unexport`ed — see [`Self::exports`].
+    pub unexports: std::collections::HashSet<String>,
+    /// Byte offset of the binding's first `oo::objdefine` receiver word —
+    /// the anchor a consumer resolves to a variable binding, exactly as
+    /// [`ObjectMethodDef::objdefine_offset`] is resolved.
+    pub anchor_offset: u32,
+    /// True when any contributing block ran under a conditional: the
+    /// cross-block table is then not order-provable, and the per-object
+    /// W315 abstains rather than judge retractions against it.
+    pub conditional: bool,
+}
+
 /// `TclOO` property definition.
 ///
 /// Recorded by the OO body walker for ``property`` subcommands
@@ -861,7 +896,21 @@ impl DefinitionAbort {
     /// error text after a fixed "cannot run" preamble.
     #[must_use]
     pub fn message(&self) -> String {
-        let reason = match self.kind {
+        format!("this class definition cannot run: {}", self.reason())
+    }
+
+    /// [`Self::message`] for a **per-object** definition (`oo::objdefine`),
+    /// whose failing script is an object definition, not a class one — the
+    /// interpreter's own reason text is identical on both paths (issue
+    /// #1170).
+    #[must_use]
+    pub fn object_message(&self) -> String {
+        format!("this object definition cannot run: {}", self.reason())
+    }
+
+    /// The interpreter-mirroring reason text shared by both message forms.
+    fn reason(&self) -> String {
+        match self.kind {
             DefinitionAbortKind::MissingMember => {
                 format!("method \"{}\" does not exist", self.member)
             }
@@ -869,8 +918,7 @@ impl DefinitionAbort {
                 format!("method called \"{}\" already exists", self.member)
             }
             DefinitionAbortKind::RenameToItself => "cannot rename method to itself".to_string(),
-        };
-        format!("this class definition cannot run: {reason}")
+        }
     }
 }
 
@@ -1625,6 +1673,11 @@ pub struct AnalysisResult {
     /// unrelated locals both named `o` in different procs are different
     /// objects; issue #945 fault 5).
     pub object_methods: HashMap<String, Vec<ObjectMethodDef>>,
+    /// Folded per-object member state, keyed like [`Self::object_methods`]
+    /// (receiver variable simple name, plus the resolved object name when the
+    /// receiver word folds to a constant), one entry per distinct receiver
+    /// **binding** — see [`ObjectMemberState`] (issue #1170).
+    pub object_member_state: HashMap<String, Vec<ObjectMemberState>>,
     /// Call sites of unresolved (unknown) commands — `(span, bare name)`, the
     /// same set the W123 diagnostic is emitted for, but recorded **regardless of
     /// whether W123 is disabled** (only the *diagnostic* honours the toggle).

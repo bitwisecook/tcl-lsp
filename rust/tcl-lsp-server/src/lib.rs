@@ -5657,7 +5657,21 @@ impl Backend {
             data: None,
         })?;
         if !in_doc.is_empty() {
-            // Resolved within the current document.
+            // Resolved within the current document — but a class-side member
+            // dispatch must still honour the *workspace* visibility union
+            // before that answer stands.  The declaring document's own
+            // provider resolves `C Cm` from its local tables, so a cross-file
+            // `self unexport Cm` / `self deletemethod Cm` suppressed the
+            // member for every document except the one declaring the class
+            // (issue #1168).  The predicate reads the same chain fold the
+            // cross-file tier resolves through, and abstains (answers
+            // "not suppressed") without positive suppression evidence.
+            if self
+                .class_side_dispatch_suppressed(&doc.text, &analysis, pos)
+                .await
+            {
+                return Ok(Vec::new());
+            }
             return Ok(in_doc
                 .into_iter()
                 .map(|r| Location {
@@ -5665,6 +5679,21 @@ impl Backend {
                     range: lift_lsp_range(r),
                 })
                 .collect());
+        }
+        // A per-object visibility mask (`oo::objdefine $o { unexport m }`, or
+        // an unexported per-object member) makes `$obj m` answer `unknown
+        // method` regardless of the class chain (issue #1170).  The
+        // in-document provider answers such a call with a *definitive* empty
+        // result, which is indistinguishable from "no local answer" here —
+        // without this gate the cross-file method tier below would resolve
+        // the class's own member right past the mask.
+        if core_definition::object_masks_external_dispatch(
+            &analysis,
+            &doc.text,
+            pos.line,
+            pos.character,
+        ) {
+            return Ok(Vec::new());
         }
         // Cross-file TclOO method definition: a `$obj method` / `my method`
         // call (or a method-name cursor in a class body) whose defining class
@@ -7041,6 +7070,38 @@ impl Backend {
         self.resolve_method_target(uri, &doc.text, &doc.dialect, analysis, pos)
             .await
             .map(|(class_q, method, is_classmethod, _access)| (class_q, method, is_classmethod))
+    }
+
+    /// Whether the cursor sits on a bare `ClassName member` **class-side**
+    /// dispatch whose member the workspace visibility union suppresses —
+    /// the gate the in-document definition and hover tiers consult before
+    /// their local answer stands (issue #1168).
+    ///
+    /// Classification comes from the local analysis alone
+    /// ([`core_rename::method_target_with_access`]), which is exactly the
+    /// case this gate exists for: the querying document declares the class,
+    /// so its own tables classify the receiver, and the in-document provider
+    /// would answer before any workspace tier ran.  The suppression decision
+    /// itself is [`core_workspace_index::WorkspaceIndex::class_member_dispatch_suppressed`]
+    /// — a reading of the same chain fold the cross-file resolvers use, so
+    /// the two tiers share one decision function and cannot diverge.
+    ///
+    /// Instance-side dispatches are deliberately not gated here: a per-object
+    /// `oo::objdefine` override legitimately answers ahead of the class
+    /// chain, and the in-document provider owns that layering.
+    async fn class_side_dispatch_suppressed(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+    ) -> bool {
+        let Some((class_q, method, true, access)) =
+            core_rename::method_target_with_access(source, pos.line, pos.character, analysis)
+        else {
+            return false;
+        };
+        let index = self.workspace_index.read().await;
+        index.class_member_dispatch_suppressed(&class_q, &method, access)
     }
 
     async fn resolve_method_target(
@@ -14515,6 +14576,16 @@ impl LanguageServer for Backend {
             data: None,
         })?;
         if let Some(hover) = result {
+            // Same tier-order gate as `compute_definition` (issue #1168): a
+            // class-side member dispatch the workspace visibility union
+            // suppresses must not surface its in-document hover from the
+            // declaring document either.
+            if self
+                .class_side_dispatch_suppressed(&doc.text, &analysis, pos)
+                .await
+            {
+                return Ok(None);
+            }
             return Ok(Some(lift_hover(hover)));
         }
         // Nothing in this document explains the word.  A namespace-qualified

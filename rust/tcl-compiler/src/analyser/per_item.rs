@@ -731,6 +731,28 @@ impl Analyser {
     /// across definitions with last-definition-wins for shared keys, matching the
     /// whole-file `define_var`.  (For a non-duplicate proc every local key is
     /// unique, so insert and merge coincide — byte-identical to before.)
+    /// Merge one grafted body's per-object records into the shell's result.
+    /// Per-object methods accumulate per receiver name across bodies — the
+    /// binding-identity consumer scopes them by objdefine site (issue #945
+    /// fault 5), so records from different procs coexist; the folded member
+    /// state merges the same way (bindings from different bodies are
+    /// distinct entries, keyed by their own anchor — issue #1170).
+    fn merge_per_object_records(
+        result: &mut AnalysisResult,
+        object_methods: std::collections::HashMap<String, Vec<super::types::ObjectMethodDef>>,
+        object_member_state: std::collections::HashMap<
+            String,
+            Vec<super::types::ObjectMemberState>,
+        >,
+    ) {
+        for (k, v) in object_methods {
+            result.object_methods.entry(k).or_default().extend(v);
+        }
+        for (k, v) in object_member_state {
+            result.object_member_state.entry(k).or_default().extend(v);
+        }
+    }
+
     fn graft_proc_body(
         &mut self,
         db: &DeferredBody,
@@ -799,12 +821,7 @@ impl Analyser {
                 .or_default()
                 .extend(subs);
         }
-        // Per-object methods accumulate per receiver name across bodies —
-        // the binding-identity consumer scopes them by objdefine site
-        // (issue #945 fault 5), so records from different procs coexist.
-        for (k, v) in r.object_methods {
-            self.result.object_methods.entry(k).or_default().extend(v);
-        }
+        Self::merge_per_object_records(&mut self.result, r.object_methods, r.object_member_state);
         self.result.instance_classes.extend(r.instance_classes);
         // `object_handle_facts` is deliberately **not** merged here (issue #994
         // C5a).  It has exactly one producer — `emit_cfg_ssa_diagnostics_with_cu`
@@ -1455,6 +1472,15 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
             om.objdefine_offset += d;
             om.def.name_span = shift(om.def.name_span, d);
             om.def.body_span = shift(om.def.body_span, d);
+        }
+    }
+    for states in r.object_member_state.values_mut() {
+        for st in states {
+            st.anchor_offset += d;
+            for m in st.methods.values_mut() {
+                m.name_span = shift(m.name_span, d);
+                m.body_span = shift(m.body_span, d);
+            }
         }
     }
     for x in &mut r.auto_path_entries {

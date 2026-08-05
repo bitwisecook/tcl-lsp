@@ -5365,6 +5365,97 @@ fn method_body_ordinary_unused_local_still_flags_w211() {
     );
 }
 
+// Issue #1172 — method units now come from the registry definer grammars,
+// so `oo::objdefine`, snit, and itcl method bodies get the same CFG/SSA
+// diagnostic family.
+
+#[test]
+fn objdefine_method_body_unbound_read_now_flags_w210() {
+    // FN now caught — an `oo::objdefine $obj { method … }` body previously
+    // produced no method unit at all, so a genuinely unbound read inside it
+    // got zero diagnostics (issue #1172 item 1).
+    let src = "oo::class create C {}\nset k [C new]\noo::objdefine $k {\n    method probe {} { return $neverBound }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        codes.contains(&"W210".to_string()),
+        "an unbound read inside an objdefine method must flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn objdefine_per_object_variable_does_not_false_positive_w210() {
+    // FP guard — the objdefine block's own `variable z` auto-binds `z` in
+    // the per-object method's frame exactly as a class-level declaration
+    // does for class methods; reading it must not flag.
+    let src = "oo::class create C {}\nset k [C new]\noo::objdefine $k {\n    variable z\n    method probe {} { if {[info exists z]} { return $z }\nreturn {} }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        !codes.contains(&"W210".to_string()),
+        "a per-object instance-variable read must not flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn snit_method_body_unbound_read_now_flags_w210() {
+    // FN now caught — snit method bodies previously never became method
+    // units (issue #1172 item 2), so this unbound read was invisible.
+    let src = "snit::type Dog {\n    method bark {} { return $neverBound }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        codes.contains(&"W210".to_string()),
+        "an unbound read inside a snit method must flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn snit_method_implicits_and_declared_vars_do_not_false_positive_w210() {
+    // FP guard — snit injects `self` / `selfns` / `type` / `options` into
+    // every method body, and a type-level `variable` declaration is
+    // auto-linked; none of those reads may flag.
+    let src = "snit::type Dog {\n    variable name\n    method describe {} { return \"$self $type $name $options(-color)\" }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        !codes.contains(&"W210".to_string()),
+        "snit implicit / declared variable reads must not flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn snit_widget_win_and_hull_do_not_false_positive_w210() {
+    // FP guard — the widget definers additionally inject `win` / `hull`
+    // (registry data: SNIT_WIDGET_GRAMMAR's implicit_vars).
+    let src = "snit::widget Bar {\n    method redraw {} { return \"$win $hull\" }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        !codes.contains(&"W210".to_string()),
+        "widget `win`/`hull` reads must not flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn itcl_method_body_unbound_read_now_flags_w210() {
+    // FN now caught — itcl method bodies previously never became method
+    // units either (issue #1172 item 2).
+    let src = "itcl::class Toaster {\n    public method toast {} { return $neverBound }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        codes.contains(&"W210".to_string()),
+        "an unbound read inside an itcl method must flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn itcl_instance_state_and_this_do_not_false_positive_w210() {
+    // FP guard — itcl auto-binds `this`, every `variable`, and every
+    // `common` in method bodies (including modifier-wrapped declarations).
+    let src = "itcl::class Toaster {\n    variable crumbs 0\n    protected common heat 3\n    public method status {} { return \"$this $crumbs $heat\" }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        !codes.contains(&"W210".to_string()),
+        "itcl `this`/variable/common reads must not flag W210: {codes:?}"
+    );
+}
+
 #[test]
 fn method_body_unbound_read_inside_switch_arm_still_flags_w210() {
     // TN — a sanity check that the new loop reaches a method's full CFG,
@@ -5519,11 +5610,100 @@ fn info_exists_does_not_fold_conditionally_set_var() {
 
 #[test]
 fn info_exists_does_not_fold_namespaced_or_array() {
-    // Array elements / namespaced vars may be populated outside the
-    // function's view — never fold them.
+    // Namespaced vars (and elements of namespaced arrays) may be populated
+    // outside the function's view — never fold them.  A *local* array's
+    // element guard folds on the base name instead (issue #1173, below).
     assert!(
         !codes_for("proc f {} { if {[info exists ::env(PATH)]} { puts hi } }")
             .contains(&"I230".to_string())
+    );
+}
+
+// Array-element guards (issue #1173): an element of an array this body never
+// touches is provably absent — tclsh 9.0.4 / 8.6.16:
+//   proc f {} { info exists Params(key) }; f   ;# → 0
+// The fold is decided on the *array* name, one-sided (false only), with the
+// same scope-alias / instance-state / dynamic-write abstentions as a simple
+// name.
+
+#[test]
+fn info_exists_folds_false_for_element_of_never_touched_array() {
+    // TP — the SpiceGenTcl-adjacent idiom: guarding optional state through an
+    // element of an array nothing in the proc ever creates.
+    let codes = codes_for("proc f {} { if {[info exists Params(key)]} { puts hi } }");
+    assert!(
+        codes.contains(&"I230".to_string()),
+        "an element guard on a never-touched array should fold to I230; got {codes:?}",
+    );
+}
+
+#[test]
+fn info_exists_folds_false_for_dynamic_element_of_never_touched_array() {
+    // TP — the guard is about the array, so even a runtime-selected element
+    // is provably absent when the array itself was never created.
+    let codes = codes_for("proc f {k} { if {[info exists Params($k)]} { puts hi } }");
+    assert!(
+        codes.contains(&"I230".to_string()),
+        "a dynamic element guard on a never-touched array should fold; got {codes:?}",
+    );
+}
+
+#[test]
+fn info_exists_element_fold_abstains_when_the_array_is_touched() {
+    // FP guards — any touch of the base, under either spelling, abstains:
+    // a sibling element write, a whole-array `array set`, an `upvar` alias,
+    // a `global` / `variable` link, and a parameter base.
+    for src in [
+        "proc f {} { set Params(other) 1\n if {[info exists Params(key)]} { puts hi } }",
+        "proc f {} { array set Params {a 1}\n if {[info exists Params(key)]} { puts hi } }",
+        "proc f {} { upvar 1 src Params\n if {[info exists Params(key)]} { puts hi } }",
+        "proc f {} { global Params\n if {[info exists Params(key)]} { puts hi } }",
+        "proc f {} { variable Params\n if {[info exists Params(key)]} { puts hi } }",
+        "proc f {Params} { if {[info exists Params(key)]} { puts hi } }",
+    ] {
+        let codes = codes_for(src);
+        assert!(
+            !codes.contains(&"I230".to_string()),
+            "a touched / aliased / parameter base must abstain; got {codes:?} for {src}",
+        );
+    }
+}
+
+#[test]
+fn info_exists_element_fold_abstains_on_dynamic_writes() {
+    // FP guard — `set $n …` may create exactly `Params(key)` (or `Params`),
+    // so the never-touched proof is gone.
+    let codes = codes_for("proc f {n} { set $n 1\n if {[info exists Params(key)]} { puts hi } }");
+    assert!(
+        !codes.contains(&"I230".to_string()),
+        "a dynamic write must abstain the element fold; got {codes:?}",
+    );
+}
+
+#[test]
+fn info_exists_element_fold_abstains_on_instance_state_arrays() {
+    // FP guard — a class-level `variable Params` binds the name to per-object
+    // storage: an earlier call on the same instance may have populated it,
+    // the same abstention the simple-name fold takes (issue #1129).
+    let codes = codes_for(
+        "oo::class create C {\n variable Params\n method setit {} { set Params(key) 1 }\n \
+         method m {} { if {[info exists Params(key)]} { puts hi } }\n}\n",
+    );
+    assert!(
+        !codes.contains(&"I230".to_string()),
+        "an instance-state array element must abstain; got {codes:?}",
+    );
+}
+
+#[test]
+fn info_exists_element_fold_survives_an_unrelated_array() {
+    // TP control for the touched-base skip: touching a *different* array must
+    // not blanket-disable the fold.
+    let codes =
+        codes_for("proc f {} { set Other(key) 1\n if {[info exists Params(key)]} { puts hi } }");
+    assert!(
+        codes.contains(&"I230".to_string()),
+        "an unrelated array's write must not disable the fold; got {codes:?}",
     );
 }
 

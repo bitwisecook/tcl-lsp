@@ -794,6 +794,208 @@ fn tn_cross_file_self_unexport_leaves_the_instance_method_dispatchable() {
     );
 }
 
+// Issue #1168 — suppression must reach the declaring document too.
+
+/// TP: the suppression direction of the class-side channel, queried from the
+/// **declaring document itself**.  `decl.tcl` declares and dispatches a
+/// class-side `cm`; `flip.tcl` `self unexport`s it.  The in-document provider
+/// resolves `C cm` from its local tables, so before the fix the cross-file
+/// flip suppressed the member for every document *except* the one declaring
+/// the class — exactly where the author is navigating.
+///
+/// Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
+///
+/// ```tcl
+/// oo::class create C { self { method cm {} { return 1 } } }
+/// oo::define C { self unexport cm }
+/// C cm    ;# -> unknown method "cm": must be create, destroy or new
+/// ```
+#[test]
+fn tp_cross_file_self_unexport_suppresses_in_the_declaring_document() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    let src = concat!(
+        "oo::class create C {\n",
+        "    self { method cm {} { return 1 } }\n",
+        "}\n",
+        "C cm\n",
+    );
+    let flip = unique_uri("tcl");
+    lsp.open_ready(&flip, "oo::define C { self unexport cm }\n");
+    lsp.open_ready(&decl, src);
+    assert!(
+        locations(&lsp.definition(&decl, 3, 3)).is_empty(),
+        "a cross-file `self unexport` must suppress the declaring document's own dispatch",
+    );
+    // Hover shares the tier order, so it must decline at the same site.
+    assert!(
+        hover_text(&lsp.hover(&decl, 3, 3)).is_empty(),
+        "hover must not describe a member the visibility union suppresses",
+    );
+}
+
+/// TP: a cross-file `self deletemethod` tombstone suppresses the declaring
+/// document's dispatch the same way (the member is gone, not merely
+/// unexported).
+#[test]
+fn tp_cross_file_self_deletemethod_suppresses_in_the_declaring_document() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    let src = concat!(
+        "oo::class create C {\n",
+        "    self { method cm {} { return 1 } }\n",
+        "}\n",
+        "C cm\n",
+    );
+    let flip = unique_uri("tcl");
+    lsp.open_ready(&flip, "oo::define C { self deletemethod cm }\n");
+    lsp.open_ready(&decl, src);
+    assert!(
+        locations(&lsp.definition(&decl, 3, 3)).is_empty(),
+        "a cross-file `self deletemethod` must suppress the declaring document's own dispatch",
+    );
+}
+
+/// TN (CRITICAL FP guard): with no cross-file flip in view, the declaring
+/// document's own `C cm` must keep resolving — the gate abstains without
+/// positive suppression evidence.
+#[test]
+fn tn_declaring_document_dispatch_survives_without_suppressing_evidence() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(
+        &decl,
+        concat!(
+            "oo::class create C {\n",
+            "    self { method cm {} { return 1 } }\n",
+            "}\n",
+            "C cm\n",
+        ),
+    );
+    assert!(
+        !locations(&lsp.definition(&decl, 3, 3)).is_empty(),
+        "the declaring document's class-side dispatch must keep resolving",
+    );
+}
+
+/// TN (CRITICAL FP guard): the gate is class-side only — an identically-named
+/// *instance* method dispatched from the declaring document must survive the
+/// class-side flip (the two sides never share a visibility record).
+#[test]
+fn tn_declaring_document_instance_dispatch_survives_a_class_side_flip() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    let src = concat!(
+        "oo::class create C {\n",
+        "    method cm {} { return 1 }\n",
+        "    self { method cm {} { return 2 } }\n",
+        "}\n",
+        "set o [C new]\n",
+        "$o cm\n",
+    );
+    let flip = unique_uri("tcl");
+    lsp.open_ready(&flip, "oo::define C { self unexport cm }\n");
+    lsp.open_ready(&decl, src);
+    assert!(
+        !locations(&lsp.definition(&decl, 5, 4)).is_empty(),
+        "an instance `$o cm` in the declaring document must survive a class-side unexport",
+    );
+}
+
+// Issue #1170 — per-object member state reaches dispatch resolution.
+
+/// TP: `oo::objdefine $o { unexport m }` masks a class-provided member for
+/// this object's external dispatch — oracle (tclsh 9.0.4 / 8.6.14):
+///
+/// ```tcl
+/// oo::class create C { method m {} { return 1 } } ; set o [C new]
+/// oo::objdefine $o { unexport m } ; $o m
+/// ;# -> unknown method "m": must be destroy or n
+/// ```
+///
+/// so `$o m` must resolve to nothing (and hover must decline), while a
+/// sibling instance keeps the class dispatch.
+#[test]
+fn tp_per_object_unexport_masks_the_objects_own_dispatch() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create C {\n",
+            "    method m {} { return 1 }\n",
+            "}\n",
+            "set o [C new]\n",
+            "set p [C new]\n",
+            "oo::objdefine $o { unexport m }\n",
+            "$o m\n",
+            "$p m\n",
+        ),
+    );
+    assert!(
+        locations(&lsp.definition(&uri, 6, 3)).is_empty(),
+        "a per-object unexport must mask `$o m`",
+    );
+    assert!(
+        hover_text(&lsp.hover(&uri, 6, 3)).is_empty(),
+        "hover must not describe a per-object-masked member",
+    );
+    // TN (CRITICAL FP guard): the sibling object is untouched.
+    assert!(
+        !locations(&lsp.definition(&uri, 7, 3)).is_empty(),
+        "a sibling instance keeps the class dispatch",
+    );
+}
+
+/// TP: `oo::objdefine $o { export M }` revives a member the `TclOO` name rule
+/// left unexported — `$o M` dispatches (tclsh 9.0.4 / 8.6.14) and must
+/// resolve to the class's declaration.
+#[test]
+fn tp_per_object_export_revives_an_unexported_member() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create C {\n",
+            "    method M {} { return 1 }\n",
+            "}\n",
+            "set o [C new]\n",
+            "oo::objdefine $o { export M }\n",
+            "$o M\n",
+        ),
+    );
+    let def = lsp.definition(&uri, 5, 3);
+    assert_eq!(
+        start_lines(&def),
+        [1].into_iter().collect(),
+        "a per-object export must revive the member's dispatch: {def:?}"
+    );
+}
+
+/// TN: an unexported per-object member (`method M` under the name rule)
+/// masks the name for external dispatch even though the same class exports
+/// an `m`-style sibling — `$o M` is `unknown method` in real Tcl.
+#[test]
+fn tn_an_unexported_per_object_member_does_not_navigate_externally() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create C {\n",
+            "}\n",
+            "set o [C new]\n",
+            "oo::objdefine $o { method Hidden {} { return 1 } }\n",
+            "$o Hidden\n",
+        ),
+    );
+    assert!(
+        locations(&lsp.definition(&uri, 4, 4)).is_empty(),
+        "an unexported per-object member must not resolve for `$o Hidden`",
+    );
+}
+
 // Issue #1121 — the renamed destination is a navigable member.
 
 /// TP: `renamemethod old new` makes `new` a real member carrying `old`'s body

@@ -181,6 +181,58 @@ pub type TaintCascadeCallback<'a> =
 
 // Per-function analysis bundle
 
+/// The single method-body view of `TclOO` instance state, built **once** per
+/// method unit from its typed [`crate::ir::MethodDef`] and read by every
+/// consumer that needs "which names are auto-bound in this method's frame"
+/// (issue #1174).
+///
+/// Before this carrier existed the same fact reached method-body analyses
+/// through three independent channels — [`FunctionUnit::build_for_method`]'s
+/// `object_state` (the `[info exists]` fold, I230 / O100 / O101), the
+/// analyser's `emit_method_body_diagnostics` rebuilding `known_bound` from the
+/// IR for W210/W211/W220, and the optimiser's `oo_method_constants` handing
+/// `MethodDef::instance_vars` to `sccp_with_extra_escaping` — exactly the
+/// parallel-channel shape that produced issue #1129 (two copies of the
+/// existence fold sourcing parameters from different maps).  All three now
+/// read this struct off [`FunctionUnit::method_facts`], so they cannot diverge
+/// by construction.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MethodBodyFacts {
+    /// The method's own formal parameter names, in declaration order.
+    pub params: Vec<String>,
+    /// Names auto-bound to out-of-frame *object* storage on entry — the
+    /// class-wide cross-definition-block union lowering computes
+    /// ([`crate::ir::MethodDef::instance_vars`]).
+    pub instance_vars: HashSet<String>,
+}
+
+impl MethodBodyFacts {
+    /// Build the facts from the method's typed IR — the one construction
+    /// site (called by [`FunctionUnit::build_for_method`] and the guarded
+    /// path in `build_method_units`).
+    #[must_use]
+    pub fn from_method(method: &crate::ir::MethodDef) -> Self {
+        Self {
+            params: method.params.clone(),
+            instance_vars: method.instance_vars.clone(),
+        }
+    }
+
+    /// Names bound at entry to the method's frame: its own parameters plus
+    /// the auto-linked instance variables — the W210-family `known_bound`
+    /// set (and, cloned, the seed of its `cross_event_vars` suppression
+    /// set: a "setter" method writing an instance var with no local read is
+    /// not a dead store, another method reads it later).
+    #[must_use]
+    pub fn known_bound_at_entry(&self) -> HashSet<String> {
+        self.instance_vars
+            .iter()
+            .chain(self.params.iter())
+            .cloned()
+            .collect()
+    }
+}
+
 /// Analysis artefacts for one function (top-level or procedure).
 ///
 /// `PartialEq` enables salsa early-cutoff: when [`crate`]'s salsa-native
@@ -266,6 +318,14 @@ pub struct FunctionUnit {
     /// lattices (`types`/`taints`/`rendered_props`/`def_use`, keyed by
     /// `ValueKey`) are unaffected.
     pub base_offset: i64,
+    /// The method-body instance-state view, for a unit built from a
+    /// [`crate::ir::MethodDef`] (issue #1174) — `None` for procs, lambdas,
+    /// `namespace eval` bodies, and the top level, none of which have any.
+    ///
+    /// Span-free (names only), so offset rebasing never touches it.  Behind
+    /// an `Arc` like the other shared lattices — the analyser and optimiser
+    /// consumers read it many times per unit.
+    pub method_facts: Option<Arc<MethodBodyFacts>>,
 }
 
 /// Whole-module variable-trace fact that [`crate::sccp::sccp`] needs —
@@ -453,10 +513,12 @@ impl FunctionUnit {
     /// *and* the class's instance variables (the cross-definition-block union
     /// lowering computes — see [`crate::ir::MethodDef::instance_vars`]).
     ///
-    /// Only the existence fold consumes the instance-variable half today: a
-    /// class-level `variable x` binds `x` in every method frame with no
-    /// binding command in the body, so without it `[info exists x]` folded to
-    /// "always absent" (issue #1129).
+    /// The instance-variable half feeds the existence fold (a class-level
+    /// `variable x` binds `x` in every method frame with no binding command
+    /// in the body, so without it `[info exists x]` folded to "always
+    /// absent" — issue #1129), and — via [`Self::method_facts`], the single
+    /// carrier built here (issue #1174) — the analyser's W210/W211/W220
+    /// `known_bound` set and the optimiser's method-constants escaping set.
     #[must_use]
     pub fn build_for_method(
         name: impl Into<String>,
@@ -466,20 +528,23 @@ impl FunctionUnit {
         known_classes: &HashSet<String>,
         trace_facts: ModuleTraceFacts<'_>,
     ) -> Self {
+        let facts = Arc::new(MethodBodyFacts::from_method(method));
         let no_extra_escaping = HashSet::new();
-        Self::build_full(
+        let mut unit = Self::build_full(
             name,
             cfg,
             FunctionBuildInputs {
-                params: &method.params,
+                params: &facts.params,
                 registry,
                 param_constants: None,
                 known_classes,
                 extra_global_escaping: &no_extra_escaping,
                 trace_facts,
-                object_state: Some(&method.instance_vars),
+                object_state: Some(&facts.instance_vars),
             },
-        )
+        );
+        unit.method_facts = Some(facts);
+        unit
     }
 
     /// Shared body behind every `FunctionUnit` build. Takes its analysis inputs
@@ -607,6 +672,7 @@ impl FunctionUnit {
             dynamic_names,
             complexity_guarded: false,
             base_offset: 0,
+            method_facts: None,
         }
     }
 
@@ -633,6 +699,7 @@ impl FunctionUnit {
             dynamic_names: crate::dynamic_names::DynamicNameBarrier::default(),
             complexity_guarded: true,
             base_offset: 0,
+            method_facts: None,
         }
     }
 
@@ -1365,7 +1432,13 @@ impl CompilationUnit {
                     .span
                     .map_or(0usize, |s| s.end().saturating_sub(s.start()) as usize);
                 let fu = if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
-                    FunctionUnit::trivial_guarded(mqname, cfg)
+                    // The guarded unit still carries its method facts: the
+                    // deep lattices are skipped, but every consumer of "which
+                    // names are bound in this method's frame" must read the
+                    // same carrier as the deep path (issue #1174).
+                    let mut fu = FunctionUnit::trivial_guarded(mqname, cfg);
+                    fu.method_facts = Some(Arc::new(MethodBodyFacts::from_method(method)));
+                    fu
                 } else {
                     FunctionUnit::build_for_method(
                         mqname,
@@ -1880,6 +1953,45 @@ mod tests {
         assert_eq!(cu.source, "");
         assert_eq!(cu.top_level.name, "::top");
         assert!(cu.procedures.is_empty());
+    }
+
+    /// Issue #1174: every method unit carries exactly one instance-state
+    /// carrier (`method_facts`), and its content matches the typed IR — the
+    /// invariant that keeps the existence fold (I230/O100/O101), the
+    /// W210/W211/W220 `known_bound` set, and the optimiser's method-constants
+    /// escaping set reading the same struct.
+    #[test]
+    fn method_units_carry_the_single_method_facts_carrier() {
+        let src = "oo::class create C {\n\
+                       variable state\n\
+                       method m {arg} { return $arg }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.methods.get("::C::m").expect("method unit built");
+        let facts = fu
+            .method_facts
+            .as_deref()
+            .expect("a method unit must carry method_facts");
+        assert_eq!(facts.params, vec!["arg".to_string()]);
+        assert!(facts.instance_vars.contains("state"));
+        let known = facts.known_bound_at_entry();
+        assert!(known.contains("arg") && known.contains("state"));
+        // The IR the carrier was built from agrees (same construction site).
+        let ir = cu.ir_module.methods.get("::C::m").expect("method IR");
+        assert_eq!(facts.instance_vars, ir.instance_vars);
+        assert_eq!(facts.params, ir.params);
+    }
+
+    /// TN for #1174: bodies with no object state — the top level and plain
+    /// procedures — carry no `method_facts`, so no consumer can mistake a
+    /// proc frame for a method frame.
+    #[test]
+    fn non_method_units_carry_no_method_facts() {
+        let src = "proc p {a} { return $a }\nset x 1\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        assert!(cu.top_level.method_facts.is_none());
+        let fu = cu.procedures.get("::p").expect("proc unit built");
+        assert!(fu.method_facts.is_none());
     }
 
     #[test]
