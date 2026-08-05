@@ -66,6 +66,18 @@ pub struct LexerGrammar {
     pub irules_brace_separator: bool,
     /// How a `${…}` variable name is delimited — see [`BracedVarStyle`].
     pub braced_var: BracedVarStyle,
+    /// When true, the script reader skips a leading UTF-8 byte-order mark
+    /// (U+FEFF) at offset 0 of a *file* before evaluating it.
+    ///
+    /// Tcl 9.0's `source` does (`Tcl_FSEvalFileEx` strips the BOM after
+    /// decoding); Tcl 8.x's does not, so an 8.x script whose first byte is a
+    /// BOM really does fail with `invalid command name "﻿set"` and the
+    /// unresolved-command diagnostic on it is correct.  Only the *file* entry
+    /// point skips it — a BOM inside a string, or partway through a script,
+    /// is ordinary data in every version, which is why this is a grammar
+    /// property consulted once at the top of a file analysis rather than a
+    /// lexer rule that fires wherever U+FEFF appears.
+    pub script_skips_leading_bom: bool,
 }
 
 impl Default for LexerGrammar {
@@ -76,6 +88,7 @@ impl Default for LexerGrammar {
             expand_syntax: true,
             irules_brace_separator: false,
             braced_var: BracedVarStyle::Tcl9Nesting,
+            script_skips_leading_bom: true,
         }
     }
 }
@@ -97,5 +110,6 @@ mod tests {
         assert!(g.expand_syntax);
         assert!(!g.irules_brace_separator);
         assert_eq!(g.braced_var, BracedVarStyle::Tcl9Nesting);
+        assert!(g.script_skips_leading_bom);
     }
 }

@@ -77,6 +77,7 @@ const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
     expand_syntax: false,
     irules_brace_separator: false,
     braced_var: BracedVarStyle::FirstClose,
+    script_skips_leading_bom: false,
 };
 
 /// The 8.5/8.6-family lexing grammar (plain 8.5/8.6, iApps, tmsh, Expect,
@@ -85,6 +86,7 @@ const GRAMMAR_TCL8X: LexerGrammar = LexerGrammar {
     expand_syntax: true,
     irules_brace_separator: false,
     braced_var: BracedVarStyle::FirstClose,
+    script_skips_leading_bom: false,
 };
 
 /// The modern 9.x grammar (also the permissive default): `{*}` expansion,
@@ -93,6 +95,7 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
     expand_syntax: true,
     irules_brace_separator: false,
     braced_var: BracedVarStyle::Tcl9Nesting,
+    script_skips_leading_bom: true,
 };
 
 /// The iRules lexing grammar: a Tcl 8.4 base (no `{*}`) plus the
@@ -101,6 +104,7 @@ const GRAMMAR_IRULES: LexerGrammar = LexerGrammar {
     expand_syntax: false,
     irules_brace_separator: true,
     braced_var: BracedVarStyle::FirstClose,
+    script_skips_leading_bom: false,
 };
 
 /// One resolved dialect. `'static`, interned in [`DialectProfile::all`],

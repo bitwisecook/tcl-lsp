@@ -930,6 +930,16 @@ impl Analyser {
         tcl_lexer::LexerConfig::from_grammar(self.profile.grammar)
     }
 
+    /// [`Self::lexer_config`] for the **whole-file** segmentation at the top of
+    /// [`Self::analyse`] — the one place that stands where a Tcl runtime's
+    /// `source` stands, and therefore the only place that may skip a leading
+    /// byte-order mark (issue #1218).  Whether it does is the dialect's
+    /// business: Tcl 9's `source` strips a leading U+FEFF, Tcl 8.x's does not
+    /// and genuinely fails on such a file.
+    pub(super) fn file_lexer_config(&self) -> tcl_lexer::LexerConfig {
+        tcl_lexer::LexerConfig::for_file_grammar(self.profile.grammar)
+    }
+
     /// A [`tcl_lexer::SourceMap`] over [`Self::source`], built from the
     /// cached [`Self::cached_line_index`] rather than rescanning the
     /// document. Use this instead of `SourceMap::new(&self.source)` in any
@@ -1286,7 +1296,7 @@ impl Analyser {
         let mut commands = crate::segmenter::segment_commands_with_recovery_and_config(
             source,
             &known_commands,
-            self.lexer_config(),
+            self.file_lexer_config(),
         );
         drop(known_commands);
 

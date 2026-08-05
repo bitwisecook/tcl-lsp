@@ -2274,6 +2274,11 @@ impl Analyser {
             let mut child =
                 super::types::Scope::new(super::types::ScopeKind::Namespace, scope_name);
             child.body_span = body_span;
+            // The written `NAME` word, so the outline can point its
+            // `selectionRange` at the name rather than the whole body
+            // (issue #1218).  Recorded even for a dynamic `$ns` target: the
+            // word is still where the user would want the cursor.
+            child.name_span = arg_tokens.get(1).map(|t| t.span);
             let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
             else {
                 return false;

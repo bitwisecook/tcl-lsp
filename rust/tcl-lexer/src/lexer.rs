@@ -167,6 +167,32 @@ pub struct LexerConfig {
     pub base_line: u32,
     /// Column to add to the first line's character values.
     pub base_col: u32,
+    /// What a UTF-8 byte-order mark at byte 0 of this buffer *is* — script
+    /// prologue or ordinary content.  See [`LeadingBom`].
+    pub leading_bom: LeadingBom,
+}
+
+/// How the lexer reads a UTF-8 byte-order mark (U+FEFF) sitting at byte 0 of
+/// the buffer it was handed.
+///
+/// [`LeadingBom::Content`] is the default and the only correct answer for any
+/// buffer that is not a whole file: the lexer is shared with the VM's `eval`
+/// path, where a mark at the head of a string is ordinary data. Only a
+/// *file*-analysis entry point may choose [`LeadingBom::Skip`], and only when
+/// the dialect's script reader does the same
+/// (`tcl_dialect::LexerGrammar::script_skips_leading_bom` — Tcl 9's `source`
+/// skips it, Tcl 8.x's does not). See issue #1218.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum LeadingBom {
+    /// Lex the mark as the first word's opening characters, like any other
+    /// character.
+    #[default]
+    Content,
+    /// Skip it, by starting the scan past it — so every token keeps its true
+    /// byte offset and the client-visible line/column maths on line 0 is
+    /// unchanged. The mark stays in the document; it is simply not part of
+    /// any token.
+    Skip,
 }
 
 impl Default for LexerConfig {
@@ -179,9 +205,13 @@ impl Default for LexerConfig {
             base_offset: 0,
             base_line: 0,
             base_col: 0,
+            leading_bom: LeadingBom::Content,
         }
     }
 }
+
+/// The UTF-8 encoding of U+FEFF, the byte-order mark.
+pub const UTF8_BOM: &str = "\u{FEFF}";
 
 impl LexerConfig {
     /// Build a config from a dialect profile's [`LexerGrammar`] — the
@@ -218,6 +248,26 @@ impl LexerConfig {
     #[must_use]
     pub fn for_dialect(dialect: &str) -> Self {
         Self::from_grammar(tcl_dialect::DialectProfile::by_name(dialect).grammar)
+    }
+
+    /// [`Self::from_grammar`] for the entry point that lexes a **whole file**:
+    /// identical, plus [`Self::leading_bom`] set from the grammar's
+    /// `script_skips_leading_bom`.
+    ///
+    /// Use this exactly where a Tcl runtime would `source` the buffer — the
+    /// top of a document analysis. Every nested re-lex (a body, an `eval`
+    /// argument, a VM string) must keep using [`Self::from_grammar`]: a BOM
+    /// there is data, not a file prologue.
+    #[must_use]
+    pub fn for_file_grammar(grammar: tcl_dialect::LexerGrammar) -> Self {
+        Self {
+            leading_bom: if grammar.script_skips_leading_bom {
+                LeadingBom::Skip
+            } else {
+                LeadingBom::Content
+            },
+            ..Self::from_grammar(grammar)
+        }
     }
 }
 
@@ -298,9 +348,20 @@ impl<'src> Lexer<'src> {
     /// built from the same source string.
     #[must_use]
     pub fn with_source_map(source_map: SourceMap<'src>, config: LexerConfig) -> Self {
+        // A leading byte-order mark is skipped by *starting past it*, so every
+        // token keeps its true byte offset (issue #1218). Guarded on the flag
+        // as well as the bytes: the same lexer serves the VM's `eval`, where a
+        // BOM at the head of a string is ordinary data.
+        let pos = if config.leading_bom == LeadingBom::Skip
+            && source_map.source().starts_with(UTF8_BOM)
+        {
+            u32::try_from(UTF8_BOM.len()).unwrap_or(0)
+        } else {
+            0
+        };
         Self {
             source_map,
-            pos: 0,
+            pos,
             at_command_start: true,
             in_quote: false,
             pending_sep: None,

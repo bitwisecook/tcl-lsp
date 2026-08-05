@@ -225,6 +225,22 @@ impl<'a> Builder<'a> {
     }
 
     fn run(mut self) -> GreenNode {
+        // Source that precedes the first token is still source. The lexer skips
+        // a leading byte-order mark when the file entry asks it to
+        // (`LexerConfig::leading_bom`, issue #1218), and the start-to-start
+        // tiling below only covers `tokens[0].start ..`, so without this the
+        // tree would be three bytes short at the front and *every* offset it
+        // derives would slide back by that much. Attaching the prefix as
+        // leading trivia keeps the tree lossless, which is the property the
+        // offsets rest on.
+        if let Some(first) = self.tokens.first()
+            && first.span.start() > 0
+            && let Some(lead) = self.source.get(..first.span.start() as usize)
+            && !lead.is_empty()
+        {
+            self.pending
+                .push(GreenTrivia::new(TriviaKind::Whitespace, lead));
+        }
         for i in 0..self.tokens.len() {
             let tok = self.tokens[i];
             if tok.kind == TokenType::Eof {
