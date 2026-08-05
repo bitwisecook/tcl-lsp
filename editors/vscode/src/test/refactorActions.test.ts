@@ -44,6 +44,15 @@ suite("Refactor Actions (applied)", () => {
     return editor;
   }
 
+  async function actionTitles(range: vscode.Range): Promise<string[]> {
+    const actions = (await vscode.commands.executeCommand(
+      "vscode.executeCodeActionProvider",
+      docUri,
+      range,
+    )) as vscode.CodeAction[];
+    return (actions || []).map((a) => a.title);
+  }
+
   async function findAction(range: vscode.Range, titleNeedle: string): Promise<vscode.CodeAction> {
     const found = await pollUntil(
       async () => {
@@ -178,15 +187,24 @@ suite("Refactor Actions (applied)", () => {
   });
 
   test("extract proc refuses a selection containing return", async () => {
-    // A refused refactoring is offered *greyed out* with its reason, so the
-    // user can tell "cannot be done here" from "is broken".
+    // A refused refactoring is delivered greyed out with its reason over LSP
+    // (`disabled.reason`), pinned end-to-end by lsp_e2e's
+    // `test_extract_proc_refuses_a_selection_containing_return`.  VS Code's
+    // `executeCodeActionProvider` surfaces only the *valid* (non-disabled)
+    // action set, so what this harness can observe is the refusal's flip
+    // side: the sibling extract-variable action is offered for the same
+    // selection while no applicable extract-proc action is.
     await loadScratch("proc f {} {\n    set x 1\n    return $x\n}\n");
     const range = new vscode.Range(new vscode.Position(2, 0), new vscode.Position(3, 0));
-    const action = await findAction(range, "Extract selection into proc");
-    assert.ok(action.disabled, "a return in the selection must be refused");
+    await pollUntil(
+      () => actionTitles(range),
+      (ts) => ts.some((t) => t.includes("Extract into variable")),
+      { timeout: 10_000, label: "extract-variable anchor" },
+    );
+    const titles = await actionTitles(range);
     assert.ok(
-      action.disabled!.reason.includes("call frame"),
-      `reason should name the call frame; got: ${action.disabled!.reason}`,
+      !titles.some((t) => t.includes("Extract selection into proc")),
+      `a selection containing return must not offer an applicable extract-proc; got: ${titles}`,
     );
   });
 
@@ -206,14 +224,22 @@ suite("Refactor Actions (applied)", () => {
 
   test("inline proc refuses a braced argument whose value is not a plain word", async () => {
     // `greet {a b}` passes the value `a b`; splicing the written `{a b}` made
-    // the body print the braces.
-    await loadScratch('proc greet {name} { puts "hello $name" }\ngreet {a b}\n');
-    const range = new vscode.Range(new vscode.Position(1, 0), new vscode.Position(1, 0));
-    const action = await findAction(range, "Inline proc");
-    assert.ok(action.disabled, "a non-plain-word value must be refused");
+    // the body print the braces.  The refusal itself (greyed out, reason
+    // naming the plain-word rule) is pinned by lsp_e2e — this harness only
+    // sees VS Code's valid-action set, so the observable contract is: the
+    // plain-word call site offers Inline proc, the braced one does not.
+    await loadScratch('proc greet {name} { puts "hello $name" }\ngreet world\ngreet {a b}\n');
+    const good = new vscode.Range(new vscode.Position(1, 0), new vscode.Position(1, 0));
+    await pollUntil(
+      () => actionTitles(good),
+      (ts) => ts.some((t) => t.includes("Inline proc")),
+      { timeout: 10_000, label: "inline-proc anchor" },
+    );
+    const bad = new vscode.Range(new vscode.Position(2, 0), new vscode.Position(2, 0));
+    const titles = await actionTitles(bad);
     assert.ok(
-      action.disabled!.reason.includes("plain word"),
-      `reason should explain the value; got: ${action.disabled!.reason}`,
+      !titles.some((t) => t.includes("Inline proc")),
+      `a non-plain-word argument must not offer an applicable inline; got: ${titles}`,
     );
   });
 
