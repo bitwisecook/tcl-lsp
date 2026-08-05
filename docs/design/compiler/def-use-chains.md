@@ -44,8 +44,8 @@ and in which frame, is the callee's business.
 
 | `UseClass` | Meaning | Who honours it |
 |---|---|---|
-| `SUBSTITUTED` | Substituted at this site, or evaluated by the callee in this same frame (an `ArgRole::Expr` / `ArgRole::Body` word) — a genuine read here | everyone |
-| `QUOTED` | Carried only by a brace-quoted word this site passes through verbatim | liveness / dead-store only |
+| `SUBSTITUTED` | A genuine read here | everyone |
+| `QUOTED` | Carried only by a brace-quoted word nothing evaluates in this frame | liveness / dead-store only |
 
 Liveness, W211, W220 and store elimination must assume a quoted word *may*
 be evaluated, so the use has to exist.  Read-before-set (W210 / W213) must
@@ -55,10 +55,28 @@ dropping the use resurrects `W211 set but never used` on `set a(k) 1; puts
 {$a(k)}`, and recording the name as a self-initialising def deletes the
 feeding store outright (issues #1142, #1237).
 
-Which roles keep a braced word `SUBSTITUTED` is registry data, not a
-command list: `ArgRole::braced_word_evaluated_in_frame` is the single
-answer, and an un-roled position — including every position of a command
-the registry does not describe — falls to `QUOTED`.
+### The three kinds of braced word
+
+A braced word is never read *at* the call site.  What it **is** decides the
+class, and the answer is registry data rather than a command list
+(`ssa::braced_word_class`):
+
+| Kind | Test | Example | Class |
+|---|---|---|---|
+| script, this frame | the position's `ArgRole` answers `braced_word_evaluated_in_frame` (`Body` / `Expr`) | `expr {$a + $b}`, `if {$c} …` | `SUBSTITUTED` |
+| data | the registry **describes** the command, and the role is not one of those | `puts {$y}`, `string match {$pat*} …`, `lsort -command {cmp $x}` | `QUOTED` |
+| unclassified | the registry does **not** describe the command | `mywrapper {puts $myf}` | `SUBSTITUTED`, unless the word `set`s the name itself → `QUOTED` |
+
+The unclassified row is the conservative one, and deliberately so: a user
+proc's braced argument may be a script, and a wrapper that hands it to an
+`uplevel`-ing worker runs it in *this* frame, where a free read of an unset
+name is a genuine error tclsh reproduces.  A name the word sets itself is
+that script's own local whichever frame it runs in — the shape an un-hooked
+definer body takes — so only that is demoted.  It is the `Statement::Call`
+twin of the analyser's `barrier_body_locally_sets`.
+
+A braced `return` value (`return {$y}`) is `QUOTED` on both the statement
+and the terminator read.
 
 ## Derivation from SSA
 

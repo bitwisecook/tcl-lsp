@@ -150,12 +150,11 @@ pub enum UseClass {
     /// [`ArgRole::Body`](tcl_registry::ArgRole::Body) word). A genuine read,
     /// here and now.
     Substituted,
-    /// Carried only inside a brace-quoted word that this call site does not
-    /// substitute and whose role does not have the callee evaluate it in this
-    /// frame (see
-    /// [`ArgRole::braced_word_evaluated_in_frame`](tcl_registry::ArgRole::braced_word_evaluated_in_frame)).
-    /// Kept as a use so liveness stays conservative; ignored by
-    /// read-before-set.
+    /// Carried only inside a brace-quoted word this call site does not
+    /// substitute and that nothing evaluates in this frame — see
+    /// [`braced_word_class`] for the three kinds a braced word falls into and
+    /// which of them land here. Kept as a use so liveness stays conservative;
+    /// ignored by read-before-set.
     Quoted,
 }
 
@@ -1665,9 +1664,7 @@ fn scan_command_words(
     // Positions whose brace-quoted word the callee still evaluates in *this*
     // frame — `expr {$a + $b}`, `if {$c} …`. Registry-driven: the set is
     // every `ArgRole` that answers `braced_word_evaluated_in_frame`, never a
-    // command name. An un-roled position (including every position of a
-    // command the registry does not describe) is absent, so its braced word
-    // is classified `Quoted`.
+    // command name.
     let in_frame_braced: std::collections::HashSet<usize> = {
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
         tcl_registry::ArgRole::ALL
@@ -1676,23 +1673,95 @@ fn scan_command_words(
             .flat_map(|&role| registry.arg_indices_for_role(lookup, &arg_strs, role))
             .collect()
     };
+    // Whether the registry describes this command at all — the difference
+    // between a braced word that is known **data** and one that is merely
+    // *unclassified*. See [`braced_word_class`].
+    let described = registry.get(lookup).is_some();
     for (idx, arg) in args.iter().enumerate() {
         if body_indices.contains(&idx) || name_role_braced.contains(&idx) {
             continue;
         }
-        // Tcl substitutes nothing inside `{…}`: the names a braced word
-        // mentions are not read at this call site. They stay recorded as
-        // `Quoted` uses so liveness keeps assuming the text may be evaluated
-        // later, while read-before-set declines to claim the read (#1237).
-        let quoted =
-            !in_frame_braced.contains(&idx) && tokens.is_some_and(|t| t.arg_is_braced_literal(idx));
-        let sink = if quoted {
-            &mut out.quoted
-        } else {
-            &mut out.substituted
-        };
-        sink.extend(scanner.scan_word(arg, registry));
+        let braced = tokens.is_some_and(|t| t.arg_is_braced_literal(idx));
+        for name in scanner.scan_word(arg, registry) {
+            let class = braced_word_class(&BracedWordSite {
+                braced,
+                evaluated_in_frame: in_frame_braced.contains(&idx),
+                described,
+                word: arg,
+                name: &name,
+            });
+            match class {
+                UseClass::Quoted => out.quoted.insert(name),
+                UseClass::Substituted => out.substituted.insert(name),
+            };
+        }
     }
+}
+
+/// One `(argument word, name found in it)` pair, with the facts
+/// [`braced_word_class`] decides on.
+struct BracedWordSite<'a> {
+    /// The word is a brace-quoted literal — Tcl substitutes nothing in it.
+    braced: bool,
+    /// The registry gives this position a role whose word the callee
+    /// re-evaluates in the *calling* frame (`Body` / `Expr`).
+    evaluated_in_frame: bool,
+    /// The registry has a `CommandSpec` for this command at all.
+    described: bool,
+    /// The word's text (braces already stripped).
+    word: &'a str,
+    /// The name the scan found inside it.
+    name: &'a str,
+}
+
+/// How this statement consumes `site.name`.
+///
+/// Tcl substitutes nothing inside `{…}`, so a braced word is never read *at*
+/// the call site. What the word then **is** falls into three kinds, and the
+/// answer differs per kind:
+///
+/// - **script, this frame** — `expr {$a + $b}`, `if {$c} …`: the callee
+///   re-evaluates the text where the caller's variables are in scope, so the
+///   name really is read here. [`UseClass::Substituted`].
+/// - **data** — a braced word of a command the registry *describes*, at a
+///   role that never evaluates it: `puts {$y}`, `string match {$pat*} …`,
+///   `lsort -command {cmp $x}`. The registry is the authority that nothing
+///   here evaluates the word in this frame, so there is no read.
+///   [`UseClass::Quoted`] (issue #1237).
+/// - **unclassified** — a braced word of a command the registry does *not*
+///   describe: a user proc, an unknown definer. It may be a script, and if it
+///   is it may run in this frame — a wrapper that hands it to an
+///   `uplevel`-ing worker does exactly that, and tclsh then errors on an
+///   unset name — so the read stands. **Unless** the word sets the name
+///   itself first: then the read is of that script's own local whichever
+///   frame it runs in, which is the shape an un-hooked definer body takes
+///   (issue #1142).
+fn braced_word_class(site: &BracedWordSite<'_>) -> UseClass {
+    if !site.braced || site.evaluated_in_frame {
+        return UseClass::Substituted;
+    }
+    if site.described || word_sets_name(site.word, site.name) {
+        return UseClass::Quoted;
+    }
+    UseClass::Substituted
+}
+
+/// True when `word`, read as a script, contains a top-level `set NAME …` for
+/// `name` — so a `$name` elsewhere in the same word reads that script's own
+/// local rather than a variable of the enclosing frame.
+///
+/// The `Call` twin of the analyser's `barrier_body_locally_sets`, which
+/// recovers the same fact for an opaque `Statement::Barrier` body. Segmenting
+/// is skipped unless the word plausibly holds a `set` at all.
+fn word_sets_name(word: &str, name: &str) -> bool {
+    if !word.contains("set") {
+        return false;
+    }
+    crate::segmenter::segment_commands(word)
+        .into_iter()
+        .filter(|seg| seg.texts.first().map(String::as_str) == Some("set"))
+        .filter_map(|seg| seg.texts.get(1).map(|w| normalise_var_name(w).to_owned()))
+        .any(|target| target == name)
 }
 
 /// Reads of a non-lowered (`-glob`/`-regexp`, or `-exact` with a fall-through
@@ -3369,13 +3438,28 @@ mod tests {
         assert_eq!(classify(&stmt, &reg, "b"), Some(UseClass::Substituted));
     }
 
-    /// A command the registry does not describe has no roles at all, so its
-    /// braced words are unclassifiable data — `Quoted`, never a read (#1142).
+    /// A command the registry does not describe carries no role information,
+    /// so its braced word is *unclassified*: it may be a script that runs in
+    /// this frame. A name the word sets itself is that script's own local —
+    /// the un-hooked definer shape (#1142) — so it is `Quoted`.
     #[test]
-    fn uses_of_classified_unknown_command_braced_word_is_quoted() {
+    fn uses_of_classified_unknown_definer_body_local_is_quoted() {
         let reg = default_registry();
-        let stmt = call_with_words("mydefiner", &["::foo::bar", "{optlist}", "{return $y}"]);
+        let stmt = call_with_words(
+            "mydefiner",
+            &["::foo::bar", "{optlist}", "{set y 1; return $y}"],
+        );
         assert_eq!(classify(&stmt, &reg, "y"), Some(UseClass::Quoted));
+    }
+
+    /// TN control — a name the unclassified word does **not** set stays a
+    /// read: a wrapper handing the word to an `uplevel`-ing worker really does
+    /// evaluate it in this frame, and tclsh errors on the unset name.
+    #[test]
+    fn uses_of_classified_unknown_command_free_read_stays_substituted() {
+        let reg = default_registry();
+        let stmt = call_with_words("wrapper", &["myf", "{puts $myf}"]);
+        assert_eq!(classify(&stmt, &reg, "myf"), Some(UseClass::Substituted));
     }
 
     /// A name reached both ways in one statement is a definite read.

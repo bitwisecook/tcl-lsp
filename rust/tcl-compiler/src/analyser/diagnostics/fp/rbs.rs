@@ -1887,21 +1887,39 @@ fn issue_1237_braced_data_argument_is_not_a_read() {
 }
 
 /// #1142 — the generic half: an un-hooked / unknown definer's brace-shaped
-/// trailing argument is unclassifiable data, so it must not feed W210 either.
-/// The unknown-command hint stays: abstaining about the *body* says nothing
-/// about the *name*.
+/// trailing argument carries no role information, so a `$y` in it that the
+/// same word `set`s is that body's own local, whichever frame the body ends up
+/// running in — never a read-before-set of the enclosing scope. The
+/// unknown-command hint stays: abstaining about the *body* says nothing about
+/// the *name*.
 #[test]
 fn issue_1142_unknown_definer_body_is_not_read_before_set() {
     let src = "proc f {} { mydefiner ::foo::bar {optlist} {\n    set y 1\n    return $y\n} }\n";
     assert!(
         !fires(src, D, "W210"),
-        "#1142: an unknown command's braced argument must not be walked as a \
-script in this frame; emitted: {:?}",
+        "#1142: an un-hooked definer body's own local is not read-before-set; \
+emitted: {:?}",
         codes(src, D)
     );
     assert!(
         fires(src, D, "W123"),
         "#1142: the unknown command itself is still reported; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+/// TN control for #1142 — a **free** read in an unclassified braced word (one
+/// nothing sets) is still a read: the word may be a script, and a wrapper that
+/// hands it to an `uplevel`-ing worker runs it in this frame, where tclsh
+/// errors on the unset name. Only a registry-*described* command's braced
+/// word (`puts {$y}`) is known data.
+#[test]
+fn issue_1142_unclassified_braced_word_free_read_still_fires() {
+    let src = "proc f {} { mywrapper {puts $notset} }\n";
+    assert!(
+        fires(src, D, "W210"),
+        "#1142 TN: an unclassified braced word may run in this frame; \
+emitted: {:?}",
         codes(src, D)
     );
 }
