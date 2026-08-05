@@ -1463,7 +1463,14 @@ async function fixAllSafeIssues(): Promise<void> {
   const result = (await client.sendRequest("workspace/executeCommand", {
     command: "tcl-lsp.fixAllSafeIssues",
     arguments: [uri],
-  })) as { source: string; applied: Array<{ code: string; description: string }> } | null;
+  })) as {
+    // `safety` is the fix's classification (issue #1195). Only
+    // `semantics-equivalent` fixes reach this list — the server applies
+    // nothing else in bulk — so it is reported for traceability rather than
+    // filtered on here.
+    source: string;
+    applied: Array<{ code: string; description: string; safety: string }>;
+  } | null;
 
   if (!result || !result.applied || result.applied.length === 0) {
     window.showInformationMessage("No safe auto-fixes available.");

@@ -1301,6 +1301,10 @@ impl Analyser {
                     span: cmd_tok.span,
                     new_text: format!("call {cmd_name}"),
                     description: format!("Use 'call {cmd_name}'"),
+                    // IRULE5005: routing the call through `call` is required for an
+                    // iRules proc, but the analyser cannot prove the head resolves to a
+                    // proc rather than to a renamed or aliased command.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 }],
             });
         }
@@ -1339,8 +1343,24 @@ impl Analyser {
             cmd_tok,
             scope_path,
         } = *site;
-        if cmd_name == "catch" {
-            self.emit_w302_catch_no_result_var(args, cmd_tok, arg_tokens, arg_single);
+        // W302 dispatches off the registry's own `AnalyserHookId::Catch`
+        // stamp rather than the literal head text, so any spelling the
+        // registry resolves to that spec is covered without the analyser
+        // naming a command (issue #1190).  It reads the stamp straight off
+        // the resolved spec rather than through `resolve_analyser_hook`,
+        // whose documented contract deliberately declines a `::`-qualified
+        // bareword (`::proc`, `::catch`) so hook *handler* dispatch keeps
+        // the exact reach the retired per-handler guards had.  A diagnostic
+        // has no such compatibility constraint: `::catch {error oops}`
+        // swallows errors exactly as `catch {error oops}` does, so it is
+        // reported — and fixed — the same way.
+        if self
+            .registry
+            .and_then(|registry| registry.get(cmd_name))
+            .and_then(|spec| spec.analyser_hook)
+            == Some(tcl_registry::hooks::AnalyserHookId::Catch)
+        {
+            self.emit_w302_catch_no_result_var(cmd_name, args, cmd_tok, arg_tokens, arg_single);
         }
         self.emit_w001_unknown_subcommand(
             cmd_name,

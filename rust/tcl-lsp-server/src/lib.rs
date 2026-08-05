@@ -377,6 +377,39 @@ const SEMANTIC_TOKENS_REFRESH_DEBOUNCE: std::time::Duration = std::time::Duratio
 /// workspace walk touches.
 const CLOSED_DIAG_BADGE_CAP: usize = 512;
 
+/// How many re-analyse-and-apply rounds `tcl-lsp.fixAllSafeIssues` runs.
+///
+/// Each round applies a batch of non-overlapping fixes and re-analyses, so a
+/// fix a previous edit unblocked (or a diagnostic a previous edit revealed)
+/// is picked up next time round.  The loop also stops early as soon as a
+/// round changes nothing, so this is the guard against a pathological
+/// oscillation — two fixes that keep undoing each other — not the normal
+/// exit.
+const FIX_ALL_MAX_PASSES: usize = 4;
+
+/// One fix selected for a `tcl-lsp.fixAllSafeIssues` pass.
+///
+/// A named struct rather than the tuple the selection used to build: the
+/// tuple's five same-typed fields were positional, and the apply loop indexed
+/// them (`f.0`, `f.2`) at the point where getting one wrong silently rewrites
+/// the wrong bytes.
+struct BulkFix {
+    /// Inclusive start byte offset of the replaced range.
+    start: u32,
+    /// Exclusive end byte offset of the replaced range.
+    end: u32,
+    /// Replacement text.
+    new_text: String,
+    /// The diagnostic code the fix came from, for the `applied` report.
+    code: String,
+    /// The fix's own description, for the `applied` report.
+    description: String,
+    /// The fix's safety class, for the `applied` report — always the
+    /// semantics-equivalent one here, reported so a caller can see *why* the
+    /// fix qualified rather than having to trust the command's name.
+    safety: &'static str,
+}
+
 /// What "still the current state" means for a diagnostics run at publish time,
 /// and therefore what the currency guard re-checks under the `documents` lock
 /// before delivering (`RUST_ISSUE_098`).
@@ -8596,9 +8629,34 @@ impl Backend {
         Some(serde_json::json!({ "events": events }))
     }
 
-    /// Handle `tcl-lsp.fixAllSafeIssues`: apply every non-overlapping safe
-    /// diagnostic fix iteratively until the source stabilises (a whitelist of
-    /// safe fix codes, applied over multiple passes).
+    /// Handle `tcl-lsp.fixAllSafeIssues`: apply every non-overlapping
+    /// **provably semantics-preserving** diagnostic fix, iteratively, until
+    /// the source stabilises.
+    ///
+    /// "Safe" is a property of the individual fix, read from the
+    /// [`FixSafety`](tcl_compiler::analyser::FixSafety) the emitter attached
+    /// to it — not of the diagnostic's code.  The command used to carry its
+    /// own whitelist of codes (`W100`, `W110`, …), which promised a guarantee
+    /// the implementation never established: the same code emits an
+    /// equivalent rewrite for one call and a behaviour-changing one for the
+    /// next.  Under C Tcl 9.0.3:
+    ///
+    /// ```tcl
+    /// set a {$x}; set x 3; set b 2
+    /// puts [expr $a + $b]          ;# 5 — W100's brace fix makes this an error
+    /// puts [expr {"1" == "01"}]    ;# 1 — W110's `eq` rewrite makes this 0
+    /// ```
+    ///
+    /// Both are valuable fixes — they are offered as their own named code
+    /// actions — but neither belongs in an unattended bulk pass (#1195).
+    ///
+    /// Per pass: re-analyse (so a fix whose proof depended on text an earlier
+    /// pass rewrote is re-derived rather than re-used), take each
+    /// diagnostic's first bulk-applicable fix, drop any whose span overlaps
+    /// one already chosen, and apply the rest from the end of the buffer
+    /// backwards so earlier offsets stay valid.  A diagnostic whose code the
+    /// user disabled is not analysed in the first place, so its fixes cannot
+    /// be applied here either.
     async fn fix_all_safe_issues_command(
         &self,
         args: &[serde_json::Value],
@@ -8622,54 +8680,32 @@ impl Backend {
         // unchanged to the other.
         let mut source = doc.raw().to_owned();
         let value = tokio::task::spawn_blocking(move || {
-            const SAFE: &[&str] = &["W100", "W105", "W108", "W110", "W201", "W304", "IRULE2001"];
             let mut applied: Vec<serde_json::Value> = Vec::new();
-            for _ in 0..4 {
+            for _ in 0..FIX_ALL_MAX_PASSES {
                 let mut analyser =
                     Self::configured_analyser(disabled.clone(), na_mode, extra.clone());
                 let analysis = analyser.analyse(&tcl_lexer::normalise_lone_cr(&source), &dialect);
-                // First fix per safe diagnostic, sorted by start offset.
-                let mut fixes: Vec<(u32, u32, String, String, String)> = Vec::new();
-                for d in &analysis.diagnostics {
-                    if !SAFE.contains(&d.code.as_str()) {
-                        continue;
-                    }
-                    if let Some(f) = d.fixes.first() {
-                        fixes.push((
-                            f.span.start(),
-                            f.span.end(),
-                            f.new_text.clone(),
-                            d.code.to_string(),
-                            f.description.clone(),
-                        ));
-                    }
-                }
-                fixes.sort_by_key(|f| f.0);
-                // Keep non-overlapping fixes in order.
-                let mut chosen: Vec<(u32, u32, String, String, String)> = Vec::new();
-                let mut last_end = 0u32;
-                for f in fixes {
-                    if f.0 >= last_end {
-                        last_end = f.1;
-                        chosen.push(f);
-                    }
-                }
+                let chosen = Self::bulk_applicable_fixes(&analysis);
                 if chosen.is_empty() {
                     break;
                 }
                 // Apply from the end so earlier byte offsets stay valid.
                 let mut new_source = source.clone();
-                for f in chosen.iter().rev() {
-                    let (s, e) = (f.0 as usize, f.1 as usize);
-                    if s <= e && e <= new_source.len() {
-                        new_source.replace_range(s..e, &f.2);
+                for fix in chosen.iter().rev() {
+                    let (start, end) = (fix.start as usize, fix.end as usize);
+                    if start <= end && end <= new_source.len() {
+                        new_source.replace_range(start..end, &fix.new_text);
                     }
                 }
                 if new_source == source {
                     break;
                 }
-                for f in &chosen {
-                    applied.push(serde_json::json!({ "code": f.3, "description": f.4 }));
+                for fix in &chosen {
+                    applied.push(serde_json::json!({
+                        "code": fix.code,
+                        "description": fix.description,
+                        "safety": fix.safety,
+                    }));
                 }
                 source = new_source;
             }
@@ -8682,6 +8718,54 @@ impl Backend {
             data: None,
         })?;
         Ok(Some(value))
+    }
+
+    /// The fixes one "Fix All Safe Issues" pass may apply to `analysis`:
+    /// every diagnostic's first [`FixSafety::is_bulk_applicable`] fix, in
+    /// ascending start order, with overlapping fixes dropped.
+    ///
+    /// Three filters, in order:
+    ///
+    /// 1. **Provably equivalent only.** A fix is taken only when its emitter
+    ///    classified *that instance* as semantics-preserving.  A diagnostic
+    ///    whose only fixes are behaviour-changing contributes nothing — its
+    ///    fixes stay available as individually-named code actions.
+    /// 2. **Non-empty edit.** A zero-width fix inserting nothing cannot make
+    ///    progress and would keep the pass loop spinning.
+    /// 3. **Non-overlapping.** Two fixes whose spans touch cannot both be
+    ///    applied against the same coordinate space; the earlier-starting one
+    ///    wins and the other is left for the next pass, where it is
+    ///    re-derived from the rewritten source (so a fix whose proof the
+    ///    first edit invalidated is simply not re-offered).
+    fn bulk_applicable_fixes(analysis: &tcl_compiler::analyser::AnalysisResult) -> Vec<BulkFix> {
+        let mut candidates: Vec<BulkFix> = analysis
+            .diagnostics
+            .iter()
+            .filter_map(|diag| {
+                let fix = diag
+                    .fixes
+                    .iter()
+                    .find(|fix| fix.safety.is_bulk_applicable())?;
+                (fix.span.end() > fix.span.start() || !fix.new_text.is_empty()).then(|| BulkFix {
+                    start: fix.span.start(),
+                    end: fix.span.end(),
+                    new_text: fix.new_text.clone(),
+                    code: diag.code.to_string(),
+                    description: fix.description.clone(),
+                    safety: fix.safety.as_str(),
+                })
+            })
+            .collect();
+        candidates.sort_by_key(|fix| (fix.start, fix.end));
+        let mut chosen: Vec<BulkFix> = Vec::new();
+        let mut last_end = 0u32;
+        for fix in candidates {
+            if fix.start >= last_end {
+                last_end = fix.end.max(fix.start);
+                chosen.push(fix);
+            }
+        }
+        chosen
     }
 
     /// Handle `tcl-lsp.getEffectiveConfig`: the resolved per-document config —
@@ -13513,8 +13597,18 @@ impl LanguageServer for Backend {
         let line_ending = self.resolved_edit_line_ending(&uri, doc.raw()).await;
         let actions = tokio::task::spawn_blocking(move || {
             let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
+            // The fuzzy package-suggestion path needs both the analysis (to
+            // prove the cursor is on an unresolved *command head* rather than
+            // on a comment, a string, or a data word) and the request's own
+            // diagnostics (the editor may be showing a W123 this analysis has
+            // not re-emitted).  Passing neither is what let it fire anywhere
+            // an identifier-shaped word appeared — issue #1191.
             actions.extend(core_code_actions::package_require_actions(
-                &doc.text, range, registry,
+                &doc.text,
+                range,
+                registry,
+                Some(&analysis),
+                &context_diags,
             ));
             actions.extend(core_code_actions::context_diagnostic_actions(
                 &doc.text,
@@ -14410,6 +14504,14 @@ fn lift_code_actions(
             let data = a
                 .data_group_definition
                 .map(|def| serde_json::json!({ "data_group_definition": def }));
+            // A refactoring that found its subject but cannot preserve
+            // behaviour is surfaced *greyed out* with its reason, rather than
+            // silently omitted: LSP's `disabled.reason` is what the editor
+            // shows, and without it a user cannot tell "does not apply here"
+            // from "is broken" (issues #1199 / #1201).
+            let disabled = a
+                .disabled
+                .map(|reason| tower_lsp_server::ls_types::CodeActionDisabled { reason });
             CodeActionOrCommand::CodeAction(CodeAction {
                 title: a.title,
                 kind: Some(tower_lsp_server::ls_types::CodeActionKind::new(
@@ -14423,7 +14525,7 @@ fn lift_code_actions(
                 }),
                 command,
                 is_preferred: None,
-                disabled: None,
+                disabled,
                 data,
             })
         })
@@ -17116,6 +17218,7 @@ mod tests {
                 span: tcl_lexer::Span::new(0, 0),
                 new_text: format!("package require {pkg}\n"),
                 description: format!("Add 'package require {pkg}'"),
+                safety: tcl_compiler::analyser::FixSafety::BehaviourHardening,
             }],
         }
     }

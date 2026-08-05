@@ -48,21 +48,94 @@ fn source(result: &Value) -> &str {
 // -- TestDocumentTransforms ----------------------------------------------
 
 #[test]
-fn fix_all_safe_issues_clears_w100() {
+fn fix_all_safe_issues_braces_a_substitution_free_expression() {
+    // TP: nothing substitutes in `abs(-2)`, so `expr` receives the same
+    // string braced or not — the class of repair the bulk pass exists for.
+    // The assertion is on the returned *source*, not on the `applied` code
+    // list, so a fix that reports itself but rewrites the wrong bytes fails.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "if $a { puts yes }\nset n [expr $x + 1]\n");
+    lsp.open_ready(&uri, "set n [expr abs(-2)]\n");
     let result = lsp.execute_command("tcl-lsp.fixAllSafeIssues", json!([uri]));
     assert!(!result.is_null());
-    assert!(
-        source(&result).contains("if {$a} { puts yes }"),
-        "{}",
-        source(&result)
-    );
+    assert_eq!(source(&result), "set n [expr {abs(-2)}]\n");
     assert_eq!(
         applied_codes(&result),
         std::collections::BTreeSet::from(["W100".to_owned()])
     );
+}
+
+#[test]
+fn fix_all_safe_issues_leaves_a_substituted_expression_alone() {
+    // FP, and the reason issue #1195 was filed.  Under C Tcl 9.0.3 this
+    // program prints `5`: `$a` substitutes to the string `$x`, and `expr`
+    // substitutes *that* to 3.  Bracing makes it an error, so the bulk pass
+    // must not do it — the individually-named "Brace expr for safety and
+    // performance" action still offers it.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set a {$x}\nset x 3\nset b 2\nputs [expr $a + $b]\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.fixAllSafeIssues", json!([uri]));
+    assert!(!result.is_null());
+    assert_eq!(source(&result), src, "the source must come back untouched");
+    assert!(!applied_codes(&result).contains("W100"), "{result:?}");
+}
+
+#[test]
+fn fix_all_safe_issues_leaves_a_numeric_string_comparison_alone() {
+    // FP: `expr {"1" == "01"}` is 1 (numeric coercion) and
+    // `expr {"1" eq "01"}` is 0 (string comparison).  W110's advice is
+    // sound; applying it unattended changes results.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "puts [expr {\"1\" == \"01\"}]\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.fixAllSafeIssues", json!([uri]));
+    assert!(!result.is_null());
+    assert_eq!(source(&result), src);
+    assert!(!applied_codes(&result).contains("W110"), "{result:?}");
+}
+
+#[test]
+fn fix_all_safe_issues_reports_the_safety_class_it_applied() {
+    // The `applied` entries name *why* each fix qualified, so a caller need
+    // not trust the command's name for that.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set n [expr abs(-2)]\n");
+    let result = lsp.execute_command("tcl-lsp.fixAllSafeIssues", json!([uri]));
+    let applied = result.get("applied").and_then(Value::as_array).unwrap();
+    assert!(!applied.is_empty());
+    for entry in applied {
+        assert_eq!(
+            entry.get("safety").and_then(Value::as_str),
+            Some("semantics-equivalent"),
+            "{entry:?}"
+        );
+    }
+}
+
+#[test]
+fn fix_all_safe_issues_respects_a_disabled_diagnostic() {
+    // TN: a diagnostic the user turned off is never analysed, so its fixes
+    // cannot be applied in bulk either.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set n [expr abs(-2)]\n";
+    lsp.apply_configuration_settle(
+        json!({ "diagnostics": { "W100": false } }),
+        &uri,
+        |config| {
+            config["disabled_diagnostics"]
+                .as_array()
+                .is_some_and(|codes| codes.iter().any(|code| code == "W100"))
+        },
+    );
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.fixAllSafeIssues", json!([uri]));
+    assert!(!result.is_null());
+    assert_eq!(source(&result), src);
 }
 
 #[test]

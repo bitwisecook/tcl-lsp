@@ -102,6 +102,35 @@ restart needed. If a false-positive W120 persists after the workspace has
 clearly finished loading (the status bar shows the server is idle), that is
 a bug — open an issue with the workspace layout.
 
+## The quick fix, and when it is offered
+
+Two things can offer to add a `package require`, and both need evidence.
+
+**W120's own fix** is precise: the diagnostic already knows, from the command
+registry, exactly which package the command belongs to. Applying it inserts
+the require line at the top of the file.
+
+**The suggestion for a command the registry does not know** is the fallback,
+and it is offered only when *all* of these hold:
+
+- the cursor is on a **command head** — an actual call, not a mention of the
+  same identifier in a comment, a quoted or braced string, an argument word,
+  or the name word of a `proc` definition;
+- the head is written out literally, not computed (`$cmd`, `[pick]`);
+- the head's leading namespace **exactly** names a package the registry
+  knows — `json::write` is evidence for `json`; `jsonify` is evidence for
+  nothing;
+- nothing else in the workspace answers to that name (no registry command, no
+  same-file or imported definition, no static `rename` or `interp alias`);
+- the file contains no computed `package require` or `load`, which could
+  register the command at run time;
+- the package is not already required.
+
+Applying either fix **loads the package and runs its initialisation code**,
+so neither is applied by
+[Fix All Safe Issues](../kcs-qa-what-does-fix-all-safe-issues-apply.md) —
+both are classified behaviour-hardening, and you accept them one at a time.
+
 ## How to suppress
 
 Add `# noqa: W120` at the end of the offending line.

@@ -3406,6 +3406,9 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
                         span: Span::new(tight.start(), tight.start()),
                         new_text: "-- ".to_owned(),
                         description: "Insert '--' option terminator".to_owned(),
+                        // T102: `--` stops a tainted value being read as an option — the
+                        // fix, and a change for a call that meant it as one.
+                        safety: crate::irules_checks::FixSafety::BehaviourHardening,
                     }],
                 ),
                 None => (span, Vec::new()),

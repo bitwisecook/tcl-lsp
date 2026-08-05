@@ -881,6 +881,8 @@ impl Analyser {
                     span: inv.range,
                     new_text: (*best).to_string(),
                     description: format!("Replace with '{best}'"),
+                    // W123: an edit-distance guess at the intended command.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 });
             }
             self.result.diagnostics.push(super::types::Diagnostic {
@@ -1050,6 +1052,9 @@ impl Analyser {
                 span: tcl_lexer::Span::new(insert_offset, insert_offset),
                 new_text: format!("package require {pkg}\n"),
                 description: format!("Add 'package require {pkg}'"),
+                // W120: a `package require` loads the package, running its
+                // initialisation code and changing what commands exist.
+                safety: crate::irules_checks::FixSafety::BehaviourHardening,
             };
             new_diags.push(super::types::Diagnostic {
                 code: DiagCode::W120,

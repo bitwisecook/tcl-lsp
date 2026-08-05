@@ -130,6 +130,7 @@ pub fn inline_variable(
         edits: vec![delete, replace],
         kind: ActionKind::RefactorInline,
         data_group: None,
+        disabled: None,
     })
 }
 

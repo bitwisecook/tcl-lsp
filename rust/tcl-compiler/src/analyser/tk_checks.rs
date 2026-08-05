@@ -259,6 +259,8 @@ impl Analyser {
                     span,
                     new_text: (*best).to_string(),
                     description: format!("Replace with '{best}'"),
+                    // TK1003: an edit-distance guess at the intended option.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 });
             }
             self.tk_pending_diags.push(Diagnostic {

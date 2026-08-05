@@ -145,6 +145,48 @@ pub(in crate::analyser) fn has_substitution_of_kind(
         || matches!(kind, tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd)
 }
 
+/// The safety class of a "wrap this word in braces" quick-fix (W100's
+/// unbraced expression, W105's unbraced code block).
+///
+/// Bracing is the recommended form because it stops Tcl substituting the
+/// word *before* the command sees it.  That is exactly why it cannot be
+/// classified once for the whole diagnostic code (issue #1195): where the
+/// written word carries no substitution, brace-quoting reaches the command
+/// with byte-identical text and nothing observable changes; where it does,
+/// the fix deliberately removes a round of substitution and a program that
+/// depended on it changes behaviour.  C Tcl 9.0.3:
+///
+/// ```tcl
+/// set a {$x}; set x 3; set b 2
+/// puts [expr $a + $b]      ;# 5  — `$a` substitutes to `$x`, then expr
+/// puts [expr {$a + $b}]    ;# error: `$a` is the string `$x`
+/// ```
+///
+/// Equivalence therefore requires the written word to be substitution-free
+/// on *every* mechanism the outer parse applies:
+///
+/// * no `$` / `[` and no whole-word `Var` / `Cmd` token — the caller passes
+///   this as *`has_substitution`*, since W100 and W105 each already compute
+///   it (W100 over a joined argument run, W105 over one body word);
+/// * no backslash — the outer parse decodes `\n`, `\t`, `\x41`, and a
+///   line continuation, so the braced text is not the text that reached
+///   the command before;
+/// * no `"` — a quoted word is stripped of its quotes by the outer parse,
+///   so brace-quoting it either keeps them as literal characters or (where
+///   the emitter strips them) depends on the word being exactly one quoted
+///   run, which a `"a" eq "b"` argument list is not.
+pub(in crate::analyser) fn brace_wrap_fix_safety(
+    text: &str,
+    has_substitution: bool,
+) -> crate::analyser::types::FixSafety {
+    use crate::analyser::types::FixSafety;
+    if has_substitution || text.contains('\\') || text.contains('"') {
+        FixSafety::BehaviourHardening
+    } else {
+        FixSafety::SemanticsEquivalent
+    }
+}
+
 /// Whether one word of a [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`]
 /// tail contributes *statically-known script text* to the `Tcl_ConcatObj`
 /// join — the one predicate every eval-family static-tail check shares

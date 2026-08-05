@@ -80,7 +80,10 @@ impl ScopeKind {
 /// emitters that know exactly *what* the user should change (E101
 /// inserts a missing ``{``, E103
 /// inserts a missing ``}``, W123 may suggest a similarly-named command, etc.).
-pub use crate::irules_checks::CodeFix;
+/// Each fix carries a [`FixSafety`] classification recording how much the
+/// rewrite changes behaviour; "Fix All Safe Issues" applies only the
+/// provably equivalent ones.
+pub use crate::irules_checks::{CodeFix, FixSafety};
 
 /// Diagnostic emitted by the analyser.
 ///

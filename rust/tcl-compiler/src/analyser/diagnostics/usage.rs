@@ -130,6 +130,10 @@ Use braces: {{ \u{2026} }}"
                 span: body_tok.span,
                 new_text,
                 description: "Wrap code block in braces".to_string(),
+                // Per-instance: bracing a substitution-free body reaches the
+                // command byte-identically; bracing one that substitutes
+                // removes a round of substitution by design.
+                safety: super::helpers::brace_wrap_fix_safety(trimmed, has_substitution),
             }],
         });
     }
@@ -284,6 +288,12 @@ Use braces: {{ \u{2026} }}"
                 span,
                 new_text: format!("{{{fix_inner}}}"),
                 description: "Wrap expression in braces".to_string(),
+                // Per-instance: `expr 1 + 2` → `expr {1 + 2}` reaches `expr`
+                // with the same string, but `expr $a + $b` → `expr {$a + $b}`
+                // stops `$a` being substituted before `expr` parses it, which
+                // is a real behaviour change when `$a` holds expression text
+                // (issue #1195).
+                safety: super::helpers::brace_wrap_fix_safety(text, has_sub),
             }],
         });
     }
@@ -551,6 +561,10 @@ Use braces: {{ \u{2026} }}"
                             span,
                             new_text: repl.to_string(),
                             description: "Replace with ASCII equivalent".to_string(),
+                            // W108: substituting the ASCII look-alike changes the character's
+                            // value. In an identifier that is the repair; inside a string literal
+                            // it rewrites the program's data.
+                            safety: crate::irules_checks::FixSafety::BehaviourHardening,
                         }]
                     })
                     .unwrap_or_default();
@@ -672,6 +686,10 @@ Use braces: {{ \u{2026} }}"
             span,
             new_text: format!("lappend {name_raw} {piece}"),
             description: "Rewrite with `lappend`".to_string(),
+            // W104: `append x " a"` and `lappend x a` agree only when `x`
+            // already holds a well-formed list — which depends on its run-time
+            // value, not on anything visible here.
+            safety: crate::irules_checks::FixSafety::RequiresReview,
         })
     }
 
@@ -977,6 +995,8 @@ content); use `{corrected}` to access the array element with index substitution"
                                 span,
                                 new_text: corrected.clone(),
                                 description: format!("Replace with `{corrected}`"),
+                                // W216: a `did you mean` reading of an ambiguous reference.
+                                safety: crate::irules_checks::FixSafety::RequiresReview,
                             }],
                         });
                     }
@@ -1021,6 +1041,8 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
                     span,
                     new_text: corrected.clone(),
                     description: format!("Replace with `{corrected}`"),
+                    // W216: as above.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 }],
             });
         }
@@ -1131,6 +1153,11 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
                     span: diag_span,
                     new_text: rewritten,
                     description: format!("Use '{replacement}' for string comparison"),
+                    // W110: `eq` compares as strings where `==` coerces numerically —
+                    // `"1" == "01"` is true, `"1" eq "01"` is false. Removing the
+                    // coercion is the fix, and it changes results in exactly the cases
+                    // the diagnostic is about.
+                    safety: crate::irules_checks::FixSafety::BehaviourHardening,
                 });
             }
         }
@@ -1635,6 +1662,10 @@ fn w114_unwrap_fix(
         span,
         new_text,
         description: "Unwrap the nested `expr`".to_string(),
+        // W114: unwrapping the nested `expr` removes a
+        // stringify/re-parse round, which can change the numeric formatting
+        // of a floating-point intermediate.
+        safety: crate::irules_checks::FixSafety::RequiresReview,
     })
 }
 

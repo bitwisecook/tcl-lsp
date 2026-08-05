@@ -5,7 +5,7 @@
 
 ## Summary
 
-Mechanical code refactorings: extract/inline variables, if-to-switch, switch-to-dict, brace expr, and data-group extraction with type-aware IP/CIDR support.
+Mechanical code refactorings: extract/inline variables, extract/inline procs, if-to-switch, switch-to-dict, brace expr, and data-group extraction with type-aware IP/CIDR support.
 
 ## Applies to
 
@@ -19,6 +19,8 @@ Place the cursor on the target construct and trigger code actions (Ctrl+. in VS 
 
 - **Extract variable**: select an expression → "Extract into variable '$result'"
 - **Inline variable**: cursor on `set var value` with a single use → "Inline variable '$var'"
+- **Extract into proc**: select whole commands → "Extract selection into proc" (caller-frame writes are carried through with `upvar`)
+- **Inline proc**: cursor on a call → "Inline proc 'name'" (parameters are bound to the call's argument values, defaults included)
 - **if/elseif → switch**: cursor on `if` with equality chain → "Convert to switch on $var"
 - **switch → dict lookup**: cursor on `switch` where every arm sets the same variable → "Convert to dict lookup"
 - **Brace expr**: cursor on `expr "..."` → "Brace expr for safety and performance"
@@ -69,6 +71,10 @@ The AI-enhanced data-group tool (`suggest_datagroup_extractions`) returns struct
 - `tooling/refactoring/_extract_datagroup.py`
 - `server/features/code_actions.py`
 - `ai/mcp/tcl_mcp_server.py`
+
+## Refusals
+
+A refactoring that finds its subject but cannot preserve behaviour is offered **greyed out**, with a plain-English reason (LSP's `disabled.reason`), rather than silently omitted. A missing menu entry tells you nothing; "the body calls 'return', which acts on the call frame" tells you what to change first. The extract-proc and inline-proc refactorings both work this way.
 
 ## Failure modes
 
@@ -124,6 +130,8 @@ for the full walkthrough.
 
 - [Extract variable](kcs-feature-refactor-extract-variable.md)
 - [Inline variable](kcs-feature-refactor-inline-variable.md)
+- [Extract into proc](kcs-feature-refactor-extract-proc.md)
+- [Inline proc](kcs-feature-refactor-inline-proc.md)
 - [if/elseif → switch](kcs-feature-refactor-if-to-switch.md)
 - [switch → dict lookup](kcs-feature-refactor-switch-to-dict.md)
 - [Brace expr](kcs-feature-refactor-brace-expr.md)
