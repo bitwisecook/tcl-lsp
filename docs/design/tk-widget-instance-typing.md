@@ -35,13 +35,20 @@ moment `ttk::treeview .t` runs, and that name is reused *as source text*
 (bareword or via a variable holding the identical string) everywhere else.
 Two consequences:
 
-- **Namespaces don't apply.** The Tk window hierarchy is global, not
-  namespace-scoped — unlike a command or class name, `.t` means the same
+- **Namespaces don't apply, but interpreters do.** The Tk window hierarchy is
+  not namespace-scoped — unlike a command or class name, `.t` means the same
   window regardless of which Tcl namespace the referencing code runs in.
   Widget-path identity needs no namespace-qualification step (the
   *constructor command name*, `ttk::treeview` itself, still resolves via the
   normal namespace-aware command-resolution algorithm in `tcl_syntax::naming`
-  — that part is unchanged and reused as-is).
+  — that part is unchanged and reused as-is).  It is, however, scoped to the
+  **interpreter**: `TkCreateMainWindow` (Tk 9.0.4 `generic/tkWindow.c`) gives
+  every interpreter that initialises Tk a fresh `TkMainInfo` with its own
+  widget-path `nameTable` and its own `.` root, and both `Tk_NameToWindow` and
+  the geometry managers' `TkSetGeometryContainer` resolve through that
+  per-application table.  So `.t` in a `child eval { … }` body and `.t` in the
+  parent script are two unrelated windows.  See
+  [Interpreter domains](#interpreter-domains-issue-1141) below.
 - **No MRO.** Every Tk/ttk widget `CommandSpec` is already a complete,
   self-contained subcommand table (confirmed: `ttk::treeview` and
   `ttk::notebook` each separately declare their own `instate`, rather than
@@ -204,6 +211,92 @@ resolves it with **no code changes**.
    exactly as before — this is a narrow, additive safety improvement, not
    a semantic change to the shared field.
 
+## Interpreter domains (issue #1141)
+
+TK1001 (geometry-manager conflict) and TK1002 (widget path references a
+non-existent parent) are not questions about *source text* — they are
+questions about **Tk runtime state**: "has this parent window been created
+yet?", "has this container already been claimed by another geometry
+manager?".  That state is per-interpreter.
+
+What C Tk actually does (Tk 9.0.4 sources, read directly — Tk cannot be run
+headless in this environment, so this half is source-derived, not
+live-tested):
+
+- `TkCreateMainWindow` (`generic/tkWindow.c`) runs once **per interpreter**
+  that initialises Tk — `Tk_Init` / `Tk_SafeInit` → `Initialize` →
+  `TkCreateMainWindow`.  It allocates a fresh `TkMainInfo`, calls
+  `Tcl_InitHashTable(&mainPtr->nameTable, TCL_STRING_KEYS)`, and seeds it
+  with its own `"."` root entry.
+- `Tk_NameToWindow` resolves a widget path through
+  `((TkWindow *) tkwin)->mainPtr->nameTable` — that per-application table,
+  never a global one.
+- `pack`'s container bookkeeping ends in
+  `TkSetGeometryContainer(interp, containerPtr->tkwin, "pack")`
+  (`generic/tkPack.c`), i.e. the "cannot use geometry manager X inside Y"
+  claim lives on a `TkWindow` drawn from that same table.
+
+So `interp create child; load {} Tk child; child eval { frame .top }` and a
+parent-side `frame .top` create **two unrelated windows that share a path
+string**.  The interpreter isolation this rests on is verified live against
+tclsh 9.0.4: a command created inside `child eval { … }` never appears in the
+parent's `info commands`, and a widget-creation command *is* how a widget
+path becomes a command.
+
+Before #1141 the analyser held one flat, file-wide `tk_created_widgets` /
+`tk_geometry` pair, so both diagnostics were decided across every
+interpreter at once — a false TK1001 (a parent-side `pack` "conflicting"
+with a child-side `grid`) and a missed TK1002 (a parent created in one
+interpreter vouching for a child widget in another).
+
+The fix keys the accumulator by **interpreter domain**
+(`Analyser::tk_domains: BTreeMap<String, TkDomainState>` in
+`analyser/tk_checks.rs`), reusing the campaign's existing synthetic-key
+mechanism rather than inventing a parallel one:
+
+- The domain identity is the same `@interp@<path>[#<epoch>]` name
+  `isolate_interp_eval_body` (`analyser/handlers.rs`) already mints for the
+  synthetic scope a child body's procs and variables home under — the one
+  place both `interp eval PATH { … }` and the handle form `NAME eval { … }`
+  pass through.  The main interpreter is the empty key.
+- That helper now pushes an `InterpFrame { key, domain, resolved }` rather
+  than a bare path string, so any analyser state that models per-interpreter
+  runtime state can ask "which interpreter am I in?" without a second,
+  drift-prone notion of interpreter identity.
+- Folding the deletion *epoch* into the identity means `interp delete c;
+  interp create c` genuinely ends the hierarchy: the recreated child starts
+  empty, as it does in C.
+- What creates or targets an interpreter still comes entirely from registry
+  data — the `InterpCreate` / `InterpDelete` / `InterpEval` /
+  `InterpAlias` / `InterpHide` / `InterpExpose` `AnalyserHookId`s stamped on
+  `interp`'s subcommands, plus the handle form recognised from the tracked
+  `interpreters` map.  No command name is matched in the analyser.
+
+**Unknowable targets widen rather than accuse.**  `interp eval $i { … }`
+whose `$i` cannot be resolved (not a tracked `set VAR [interp create …]`
+binding) still gets its own domain — two such bodies must not merge — but
+the frame is marked `resolved: false`.  TK1002's existence question then
+treats an unresolved domain on *either* side as possibly the same
+interpreter, so a widget created there suppresses the warning.  A warning's
+false positive is the expensive direction, and an unknowable handle is
+exactly where the analyser has no grounds to insist a parent is missing.
+TK1001 stays strictly per-domain in every case (never merging an unresolved
+domain into another), for the same reason: a conflict we cannot justify is
+not worth reporting.
+
+**Known limit.** `AnalysisResult::instance_classes` — the *receiver typing*
+map this document's W001/E002/E003 work is built on — is still whole-file
+and name-keyed, not interpreter-keyed.  A `.t` created as a `ttk::treeview`
+in the parent and as a `listbox` in a child collapses to one entry.  That is
+harmless in the direction that matters: `bind_registry_instance_class` drops
+a name bound to two *different* classes entirely, so the receiver simply
+fails to resolve (silent abstention).  Two same-class widgets in two
+interpreters share a subcommand table anyway, so nothing is lost there
+either.  Making it interpreter-keyed is a real (if low-value) follow-up; it
+is recorded here rather than fixed because the map's collision-dropping
+already fails closed, unlike the TK1001/TK1002 accumulators, which failed
+*open* in both directions.
+
 ## Deliberately deferred / abstained (with reasons)
 
 Consistent with this codebase's stated philosophy — *"prefer silence over a
@@ -230,14 +323,13 @@ following are explicit non-goals, not accidental gaps:
   Abstain after a `rename` of a tracked path; do not attempt to follow it.
 - **`interp alias`** onto a widget path is a command-table fact, not a
   value-flow fact, and is out of scope for the same reason.
-- **Safe/sub-interpreters** (`interp create`, `interp eval $child {…}`):
-  the analyser has no model of interpreter boundaries for widget identity,
-  and this change does not add one. A widget path created in a child
-  interpreter's literal `interp eval` body is tracked at the same
-  per-file/per-`CompilationUnit` granularity as everything else in
-  `instance_classes` today (already true for TclOO) — imprecise but not a
-  *new* risk, and dynamic (non-literal) `interp eval` bodies are opaque to
-  static analysis regardless.
+- **Safe/sub-interpreters** (`interp create`, `interp eval $child {…}`) for
+  **receiver typing**: `instance_classes` is still whole-file and
+  name-keyed, not interpreter-keyed — see
+  [Interpreter domains](#interpreter-domains-issue-1141) for why that is
+  fail-closed here and therefore left as a follow-up.  The *window
+  hierarchy* half (TK1001 / TK1002) is no longer deferred: it is keyed by
+  interpreter domain as of issue #1141.
 - **Interprocedural flow for diagnostics** (a widget path passed as a proc
   argument, `proc configureWidget {w} { $w instate … }`): the diagnostic's
   receiver resolution is whole-file (via `instance_classes`), not
@@ -337,6 +429,20 @@ following are explicit non-goals, not accidental gaps:
   --lib` suite (4133 tests after the additions above, 0 failures) and
   `cargo test -p tcl-registry` (320 tests, 0 failures) both stay green,
   plus a clean `cargo check --workspace` across all ~40 crates.
+- **Interpreter domains** (issue #1141), `tk_checks.rs`'s
+  `tests::interp_domains` module — 19 cases covering TP/FP/TN/FN in both
+  directions: the false TK1001 across isolated interpreters and the true
+  same-interpreter one; the missed TK1002 in both directions (parent only in
+  the child, parent only in the parent) and the same-domain true negative;
+  accumulation across two evals into one live interpreter; the handle form
+  (`child eval`) agreeing with the literal form; the empty path staying in
+  the current interpreter; nested paths (`s t`); delete-and-recreate starting
+  a fresh hierarchy; a safe child; a tracked `$handle` binding; and the
+  unresolved-target widening (both that it abstains, and that it does not
+  fall silent when the parent exists nowhere at all).  End-to-end coverage of
+  the published diagnostics is in
+  `rust/tcl-lsp-server/tests/e2e/tk_dialect.rs` (6 further cases, including
+  the literal `dialog1.tcl` shape from the audit).
 
 ## Sources
 
@@ -345,3 +451,8 @@ Sundaresan et al. OOPSLA'00) and the command-resolution contract at
 [`docs/design/contracts/command-resolution.md`](contracts/command-resolution.md)
 for the namespace/alias/rename/trace boundary rules reused as-is for
 constructor-command-name resolution.
+
+Per-interpreter window hierarchies (issue #1141) are read from the Tk 9.0.4
+C sources: `generic/tkWindow.c` (`TkCreateMainWindow`, `Tk_NameToWindow`) and
+`generic/tkPack.c` (`TkSetGeometryContainer`).  The interpreter-isolation
+half is verified live against tclsh 9.0.4.

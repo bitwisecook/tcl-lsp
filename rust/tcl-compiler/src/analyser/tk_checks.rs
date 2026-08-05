@@ -41,12 +41,35 @@
 //! whole-file accumulator (which an isolated proc body cannot see) never
 //! diverges from full analysis.
 //!
+//! ## Which interpreter's windows?
+//!
+//! TK1001 and TK1002 both ask a question about *runtime state* — "has this
+//! parent been created?", "has this container already been claimed by another
+//! geometry manager?" — and that state is per-interpreter, not per-file.  Tk's
+//! `TkCreateMainWindow` (9.0.4 `generic/tkWindow.c`) allocates a fresh
+//! `TkMainInfo` for **each** interpreter it initialises, with its own
+//! widget-path `nameTable` seeded with its own `.` root; `Tk_NameToWindow` and
+//! `TkSetGeometryContainer` both resolve through that per-application table.
+//! So `interp create c; load {} Tk c; c eval { frame .top }` and a parent-side
+//! `frame .top` are two unrelated windows.
+//!
+//! The accumulators are therefore keyed by **interpreter domain**
+//! (`Analyser::tk_domains`) — the same synthetic
+//! `@interp@<path>[#<epoch>]` identity the shared isolation helper
+//! `isolate_interp_eval_body` already homes a child body's procs and variables
+//! under.  Before issue #1141 they were one flat pair of file-wide fields, which
+//! produced a false TK1001 (a parent-side `pack` "conflicting" with a child-side
+//! `grid`) and a missed TK1002 (a parent created in one interpreter vouching for
+//! a child widget in another).
+//!
 //! Diagnostic codes:
 //!
 //! - **TK1001** (WARNING): geometry-manager conflict — `pack` and `grid`
-//!   used on the same parent (a runtime error in Tk).
-//! - **TK1002** (WARNING): widget path references a non-existent parent.
-//! - **TK1003** (HINT): unknown option for a widget command.
+//!   used on the same parent *in the same interpreter* (a runtime error in Tk).
+//! - **TK1002** (WARNING): widget path references a parent that does not exist
+//!   *in that interpreter's* hierarchy.
+//! - **TK1003** (HINT): unknown option for a widget command (per-command, so
+//!   interpreter-independent).
 
 use tcl_core_types::DiagCode;
 use tcl_lexer::Token;
@@ -64,6 +87,35 @@ pub(super) struct TkGeometryUsage {
     /// Each geometry call site `(manager, span)`, in document order, so a
     /// conflict reports on every offending call.
     pub sites: Vec<(String, tcl_lexer::Span)>,
+}
+
+/// One interpreter's Tk window hierarchy as the walk models it (issue
+/// #1141) — the analyser-side mirror of C Tk's per-interpreter
+/// `TkMainInfo`.
+///
+/// Every interpreter that loads Tk gets a fresh `TkMainInfo` from
+/// `TkCreateMainWindow` (Tk 9.0.4 `generic/tkWindow.c`) with its own
+/// widget-path `nameTable` and its own `.` root entry, and every widget
+/// lookup (`Tk_NameToWindow`) and geometry-manager claim
+/// (`TkSetGeometryContainer`) goes through that table.  So `.top` created
+/// in `child eval {…}` and `.top` created in the parent script are two
+/// unrelated windows, and neither TK1002's parent-existence question nor
+/// TK1001's `pack`/`grid` conflict may be decided across the two.
+#[derive(Debug, Default)]
+pub(super) struct TkDomainState {
+    /// `false` when the interpreter this domain models could not be named
+    /// statically (an `interp eval $unknown {…}` body).  Such a domain may
+    /// in truth *be* any other domain, including the main interpreter, so
+    /// the TK1002 existence question widens across it in both directions
+    /// rather than treating it as a distinct hierarchy.
+    pub resolved: bool,
+    /// Widget paths created so far in this interpreter, so a child's
+    /// parent can be checked for existence (TK1002).
+    pub created_widgets: std::collections::HashSet<String>,
+    /// Per-parent geometry-manager usage in this interpreter, keyed by
+    /// parent widget path, flushed post-walk so a `pack`/`grid` conflict
+    /// can be decided (TK1001).
+    pub geometry: std::collections::BTreeMap<String, TkGeometryUsage>,
 }
 
 /// Tk geometry-manager commands.
@@ -155,16 +207,22 @@ impl Analyser {
             return;
         }
 
+        // Every widget/geometry fact belongs to the Tk hierarchy of the
+        // interpreter this command runs in, never to a file-wide pool.
+        let (domain, resolved) = self.current_tk_domain();
+
         if self.is_widget_command(cmd_name)
             && let Some(path) = args.first()
             && is_widget_path(path)
         {
-            self.tk_created_widgets.insert(path.clone());
-
-            // TK1002: the parent widget must already exist.  The root `.`
-            // always exists, so it is never flagged.
+            // TK1002: the parent widget must already exist *in this
+            // hierarchy*.  The root `.` always exists (every `TkMainInfo`
+            // seeds its `nameTable` with it), so it is never flagged.
             let parent = parent_widget_path(path);
-            if !parent.is_empty() && parent != "." && !self.tk_created_widgets.contains(parent) {
+            if !parent.is_empty()
+                && parent != "."
+                && !self.tk_parent_widget_exists(&domain, resolved, parent)
+            {
                 self.tk_pending_diags.push(Diagnostic {
                     code: DiagCode::Tk1002,
                     span: cmd_tok.span,
@@ -175,6 +233,10 @@ impl Analyser {
                     fixes: Vec::new(),
                 });
             }
+
+            self.tk_domain_state(&domain, resolved)
+                .created_widgets
+                .insert(path.clone());
 
             // TK1003: unknown option for the widget command.
             self.emit_tk1003_unknown_options(cmd_name, args, arg_tokens, cmd_tok);
@@ -187,10 +249,57 @@ impl Analyser {
         {
             let parent = parent_widget_path(widget_path).to_string();
             let span = arg_tokens.first().map_or(cmd_tok.span, |t| t.span);
-            let usage = self.tk_geometry.entry(parent).or_default();
+            let usage = self
+                .tk_domain_state(&domain, resolved)
+                .geometry
+                .entry(parent)
+                .or_default();
             usage.managers.insert(cmd_name.to_string());
             usage.sites.push((cmd_name.to_string(), span));
         }
+    }
+
+    /// The interpreter domain the walk is currently inside, as
+    /// `(domain, resolved)`: the `@interp@…` identity of the innermost
+    /// `interp eval` / `NAME eval` body on the walk stack, or `("", true)`
+    /// for the main interpreter.
+    ///
+    /// This is the *same* synthetic-key mechanism that homes a child body's
+    /// procs and variables under `@interp@<path>[#<epoch>]`
+    /// (`isolate_interp_eval_body` in `super::handlers`) — deliberately not a
+    /// second, parallel notion of "which interpreter is this", so a domain
+    /// identity can never drift between the scope tree and the Tk state.
+    /// Folding in the deletion epoch also means
+    /// `interp delete c; interp create c` really does end the old
+    /// hierarchy: the recreated child starts with an empty `nameTable`
+    /// (tclsh 9.0.4-verified for the analogous command table).
+    fn current_tk_domain(&self) -> (String, bool) {
+        self.interp_path_stack
+            .last()
+            .map_or_else(|| (String::new(), true), |f| (f.domain.clone(), f.resolved))
+    }
+
+    /// The accumulator for `domain`, created on first use.
+    fn tk_domain_state(&mut self, domain: &str, resolved: bool) -> &mut TkDomainState {
+        let state = self.tk_domains.entry(domain.to_string()).or_default();
+        state.resolved = resolved;
+        state
+    }
+
+    /// Whether `parent` has been created in the hierarchy `domain` names.
+    ///
+    /// Widened conservatively for domains whose interpreter could not be
+    /// named statically: if *either* side of the comparison is unresolved,
+    /// the two might be the same interpreter, so a widget created there
+    /// counts as possibly present here and TK1002 abstains.  A warning's
+    /// false positive is the expensive direction, and an unknowable
+    /// `interp eval $handle {…}` is exactly where the analyser has no
+    /// grounds to insist a parent is missing.
+    fn tk_parent_widget_exists(&self, domain: &str, resolved: bool, parent: &str) -> bool {
+        self.tk_domains.iter().any(|(key, state)| {
+            (key == domain || !resolved || !state.resolved)
+                && state.created_widgets.contains(parent)
+        })
     }
 
     /// TK1003 — buffer `-option` words that the widget command does not
@@ -286,28 +395,33 @@ impl Analyser {
     /// `package require Tk`.  Clears the accumulated state either way so a
     /// reused [`Analyser`] starts clean.
     pub(super) fn flush_tk_geometry_diagnostics(&mut self) {
-        let geometry = std::mem::take(&mut self.tk_geometry);
+        let domains = std::mem::take(&mut self.tk_domains);
         let pending = std::mem::take(&mut self.tk_pending_diags);
-        self.tk_created_widgets.clear();
 
         if !self.tk_dialect && !self.has_tk_require() {
             return;
         }
 
         self.result.diagnostics.extend(pending);
-        for (parent, usage) in geometry {
-            if usage.managers.contains("pack") && usage.managers.contains("grid") {
-                for (_manager, span) in usage.sites {
-                    self.result.diagnostics.push(Diagnostic {
-                        code: DiagCode::Tk1001,
-                        span,
-                        message: format!(
-                            "Geometry manager conflict: cannot mix 'pack' and 'grid' \
-                             in the same parent '{parent}'."
-                        ),
-                        severity: Severity::Warning,
-                        fixes: Vec::new(),
-                    });
+        // Each interpreter's containers are decided separately: a `pack` in
+        // the parent script and a `grid` in a child's eval body claim two
+        // different `TkWindow`s that merely share a path string, so they can
+        // never conflict.
+        for state in domains.into_values() {
+            for (parent, usage) in state.geometry {
+                if usage.managers.contains("pack") && usage.managers.contains("grid") {
+                    for (_manager, span) in usage.sites {
+                        self.result.diagnostics.push(Diagnostic {
+                            code: DiagCode::Tk1001,
+                            span,
+                            message: format!(
+                                "Geometry manager conflict: cannot mix 'pack' and 'grid' \
+                                 in the same parent '{parent}'."
+                            ),
+                            severity: Severity::Warning,
+                            fixes: Vec::new(),
+                        });
+                    }
                 }
             }
         }
@@ -409,6 +523,239 @@ mod tests {
         // `package require Tk` the post-walk gate stays closed.
         let src = "set msg \"package require Tk in a comment\"\nframe .outer.inner";
         assert!(!has(src, "tcl8.6", "TK1002"));
+    }
+
+    /// Issue #1141 — the analyser's Tk widget/geometry state is keyed by
+    /// interpreter domain, mirroring C Tk's per-interpreter `TkMainInfo`
+    /// (`TkCreateMainWindow`, 9.0.4 `generic/tkWindow.c`: a fresh
+    /// `nameTable` and a fresh `.` root per interpreter).  The interpreter
+    /// isolation these tests lean on is tclsh 9.0.4-verified (a command —
+    /// and a widget path *is* a command — created inside `child eval {…}`
+    /// never appears in the parent's `info commands`); the Tk-specific half
+    /// is read from the C sources, since Tk cannot be run headless here.
+    mod interp_domains {
+        use super::{codes, has};
+
+        /// FP (the bug): a parent-side `grid` and a child-side `pack` on the
+        /// same *path* are two different containers, so no conflict.
+        #[test]
+        fn tk1001_fp_does_not_fire_across_isolated_interps() {
+            let src = "interp create child\n\
+                       child eval { frame .top; pack .top.a }\n\
+                       frame .top\n\
+                       grid .top.b\n";
+            assert!(
+                !has(src, "tk", "TK1001"),
+                "cross-interpreter geometry must not conflict: {:?}",
+                codes(src, "tk")
+            );
+        }
+
+        /// TP control: the same conflict entirely in the parent still fires.
+        #[test]
+        fn tk1001_tp_same_domain_conflict_still_fires() {
+            let src = "interp create child\n\
+                       child eval { frame .other }\n\
+                       frame .top\n\
+                       pack .top.a\n\
+                       grid .top.b\n";
+            assert!(has(src, "tk", "TK1001"));
+        }
+
+        /// FN (the bug's other half): a conflict genuinely inside one child
+        /// interpreter must fire — it was previously decided against a pool
+        /// that mixed in the parent's calls.
+        #[test]
+        fn tk1001_fn_conflict_inside_one_child_body_fires() {
+            let src = "interp create child\n\
+                       child eval { frame .top; pack .top.a; grid .top.b }\n";
+            assert!(has(src, "tk", "TK1001"));
+        }
+
+        /// Two evals into the *same* live interpreter accumulate into one
+        /// hierarchy, as in C — so a conflict split across them fires.
+        #[test]
+        fn tk1001_tp_conflict_split_across_two_evals_into_one_interp() {
+            let src = "interp create child\n\
+                       child eval { frame .top; pack .top.a }\n\
+                       child eval { grid .top.b }\n";
+            assert!(has(src, "tk", "TK1001"));
+        }
+
+        /// TN: no conflict anywhere, in either domain.
+        #[test]
+        fn tk1001_tn_pack_only_in_both_domains() {
+            let src = "interp create child\n\
+                       child eval { frame .top; pack .top.a }\n\
+                       frame .top\n\
+                       pack .top.b\n";
+            assert!(!has(src, "tk", "TK1001"));
+        }
+
+        /// FN (the bug): `.top` exists only in the child, so the parent's
+        /// `.top.inner` really does have no parent.
+        #[test]
+        fn tk1002_fn_parent_created_only_in_child_still_missing_here() {
+            let src = "interp create child\n\
+                       child eval { frame .top }\n\
+                       frame .top.inner\n";
+            assert!(
+                has(src, "tk", "TK1002"),
+                "parent in another interpreter must not vouch: {:?}",
+                codes(src, "tk")
+            );
+        }
+
+        /// The mirror image: `.top` exists only in the parent, so the
+        /// child's `.top.inner` has no parent either.
+        #[test]
+        fn tk1002_fn_parent_created_only_in_parent_is_missing_in_child() {
+            let src = "interp create child\n\
+                       frame .top\n\
+                       child eval { frame .top.inner }\n";
+            assert!(has(src, "tk", "TK1002"));
+        }
+
+        /// TN: parent and child created in the same domain — silent.
+        #[test]
+        fn tk1002_tn_same_domain_parent_is_quiet() {
+            let src = "interp create child\n\
+                       child eval { frame .top; frame .top.inner }\n";
+            assert!(!has(src, "tk", "TK1002"));
+        }
+
+        /// TN: the hierarchy accumulates across separate evals into one
+        /// live interpreter.
+        #[test]
+        fn tk1002_tn_parent_from_an_earlier_eval_into_the_same_interp() {
+            let src = "interp create child\n\
+                       child eval { frame .top }\n\
+                       child eval { frame .top.inner }\n";
+            assert!(!has(src, "tk", "TK1002"));
+        }
+
+        /// The handle form (`child eval`) and the literal form
+        /// (`interp eval child`) name the same domain — tclsh 9.0.4-verified
+        /// that both reach one command table.
+        #[test]
+        fn handle_and_literal_eval_forms_share_one_hierarchy() {
+            let src = "interp create child\n\
+                       interp eval child { frame .top }\n\
+                       child eval { frame .top.inner }\n";
+            assert!(!has(src, "tk", "TK1002"));
+        }
+
+        /// An empty path targets the *current* interpreter (tclsh
+        /// 9.0.4-verified), so it shares the caller's hierarchy in both
+        /// directions.
+        #[test]
+        fn tn_empty_interp_path_stays_in_the_current_hierarchy() {
+            let parent_first = "frame .top\ninterp eval {} { frame .top.inner }\n";
+            assert!(!has(parent_first, "tk", "TK1002"));
+            let conflict = "frame .top\npack .top.a\ninterp eval {} { grid .top.b }\n";
+            assert!(has(conflict, "tk", "TK1001"));
+        }
+
+        /// A nested child (`interp create t` inside `s`'s body creates the
+        /// path `s t` — tclsh 9.0.4-verified) is a third, distinct
+        /// hierarchy.
+        #[test]
+        fn nested_interpreter_paths_are_distinct_hierarchies() {
+            let src = "interp create s\n\
+                       s eval { interp create t\n t eval { frame .top } }\n\
+                       frame .top.inner\n";
+            assert!(has(src, "tk", "TK1002"));
+        }
+
+        /// `interp delete` ends the domain: a recreated path starts with an
+        /// empty window table (tclsh 9.0.4-verified for the analogous
+        /// command table), so the old `.top` no longer vouches.
+        #[test]
+        fn deleted_and_recreated_interpreter_starts_a_fresh_hierarchy() {
+            let src = "interp create c\n\
+                       c eval { frame .top }\n\
+                       interp delete c\n\
+                       interp create c\n\
+                       c eval { frame .top.inner }\n";
+            assert!(has(src, "tk", "TK1002"));
+        }
+
+        /// A safe child is still its own hierarchy — and a conflict inside
+        /// it is still a conflict.
+        #[test]
+        fn safe_child_is_its_own_hierarchy() {
+            let isolated = "interp create -safe c\n\
+                            c eval { frame .top; pack .top.a }\n\
+                            frame .top\n\
+                            grid .top.b\n";
+            assert!(!has(isolated, "tk", "TK1001"));
+            let inside = "interp create -safe c\n\
+                          c eval { frame .top; pack .top.a; grid .top.b }\n";
+            assert!(has(inside, "tk", "TK1001"));
+        }
+
+        /// A `$handle` bound by `set h [interp create]` resolves to a real
+        /// domain, so it isolates exactly like the literal spelling.
+        #[test]
+        fn tracked_handle_binding_resolves_to_its_own_domain() {
+            let src = "set h [interp create sandbox]\n\
+                       $h eval { frame .top }\n\
+                       frame .top.inner\n";
+            assert!(has(src, "tk", "TK1002"));
+        }
+
+        /// Unknowable target — the domain widens rather than asserting a
+        /// missing parent: `$i` could name the very interpreter the parent
+        /// script runs in.
+        #[test]
+        fn unresolved_interp_path_widens_rather_than_flagging() {
+            let from_parent = "frame .top\n\
+                              proc run {i} { interp eval $i { frame .top.inner } }\n";
+            assert!(
+                !has(from_parent, "tk", "TK1002"),
+                "unknowable target must abstain: {:?}",
+                codes(from_parent, "tk")
+            );
+            let to_parent = "proc run {i} { interp eval $i { frame .top } }\n\
+                             frame .top.inner\n";
+            assert!(!has(to_parent, "tk", "TK1002"));
+        }
+
+        /// Widening is not blanket silence: with no `.top` created anywhere
+        /// in the file, the unknowable body's `.top.inner` is still flagged.
+        #[test]
+        fn unresolved_interp_path_still_flags_a_parent_created_nowhere() {
+            let src = "proc run {i} { interp eval $i { frame .top.inner } }\n";
+            assert!(has(src, "tk", "TK1002"));
+        }
+
+        /// The geometry side never merges an unknowable domain into another:
+        /// a `pack` there and a `grid` in the parent are not a conflict
+        /// (avoiding a warning we cannot justify).
+        #[test]
+        fn unresolved_interp_path_does_not_conflict_with_the_parent() {
+            let src = "frame .top\n\
+                       grid .top.b\n\
+                       proc run {i} { interp eval $i { pack .top.a } }\n";
+            assert!(!has(src, "tk", "TK1001"));
+        }
+
+        /// Domain keying does not depend on the `tk` dialect: a plain
+        /// `.tcl` file with `package require Tk` gets the same isolation.
+        #[test]
+        fn domain_keying_applies_under_package_require_tk_too() {
+            let src = "package require Tk\n\
+                       interp create child\n\
+                       child eval { frame .top; pack .top.a }\n\
+                       frame .top\n\
+                       grid .top.b\n";
+            assert!(!has(src, "tcl8.6", "TK1001"));
+            let fires = "package require Tk\n\
+                         interp create child\n\
+                         child eval { frame .top }\n\
+                         frame .top.inner\n";
+            assert!(has(fires, "tcl8.6", "TK1002"));
+        }
     }
 
     #[test]

@@ -335,7 +335,16 @@ these rather than inventing something new:
   — shared body-isolation helper for both literal `interp eval PATH { … }`
   and handle-form `NAME eval { … }`. If a third spelling of "run this script
   in an isolated child-interpreter scope" turns up, extend this, not a new
-  parallel implementation.
+  parallel implementation. It pushes an `InterpFrame { key, domain, resolved }`
+  onto `interp_path_stack`, so **any** analyser state that models
+  *per-interpreter runtime state* can key itself by `domain` (the same
+  `@interp@<path>[#<epoch>]` identity above) instead of pooling every
+  interpreter into one file-wide map — issue #1141 did exactly this for the
+  Tk widget/geometry accumulators (`analyser/tk_checks.rs`,
+  `Analyser::tk_domains`). `resolved: false` marks a body whose target
+  interpreter could not be named (`interp eval $i { … }`); consumers should
+  widen conservatively across such a domain rather than treat it as provably
+  distinct.
 - **`innermost_namespace_at`** (`rust/tcl-lsp-core/src/definition.rs`) — thin
   wrapper over `tcl_compiler::analyser::command_resolution_namespace_at`,
   the one canonical implementation of "what namespace does an unqualified

@@ -2412,7 +2412,14 @@ impl Analyser {
         let Some(body_tok) = arg_tokens.get(2).copied() else {
             return true;
         };
-        self.isolate_interp_eval_body(&key, &args[2], body_tok, scope_path);
+        // A path we could not resolve still gets its own domain (two
+        // `interp eval $a {…}` / `interp eval $b {…}` bodies must not
+        // merge), but it is flagged unresolved so per-interpreter state
+        // widens rather than asserting this is a *different* interpreter
+        // from every other — `$path` could hold any name, including one
+        // already used literally elsewhere in the file.
+        let resolved = literal_path || resolved_dynamic.is_some();
+        self.isolate_interp_eval_body(&key, resolved, &args[2], body_tok, scope_path);
         true
     }
 
@@ -2427,16 +2434,27 @@ impl Analyser {
     /// must isolate it identically rather than maintaining two copies of
     /// this logic that could drift apart.
     ///
+    /// `path_resolved` says whether `key` names an interpreter the walk could
+    /// identify statically (a literal path, or a dynamic one resolved through
+    /// a tracked `set VAR [interp create …]` binding).  It is recorded on the
+    /// pushed [`InterpFrame`](super::state::InterpFrame) so consumers of the
+    /// domain identity — analyser state that models *per-interpreter runtime
+    /// state*, such as the Tk widget/geometry hierarchy (issue #1141) — can
+    /// widen conservatively for a body whose interpreter is unknowable
+    /// instead of treating it as provably distinct from every other domain.
+    ///
     /// Returns `false` (never isolated) only when the scope-tree path has
     /// gone stale — shouldn't happen during a healthy walk.
     fn isolate_interp_eval_body(
         &mut self,
         key: &str,
+        path_resolved: bool,
         body_text: &str,
         body_tok: Token,
         scope_path: &[usize],
     ) -> bool {
         let outer = scope_path.to_vec();
+        let domain = self.interp_domain_name(key);
         let child_scope_idx = {
             // The child's global namespace is its own domain, not a parent
             // namespace — home the scope under a synthetic
@@ -2448,10 +2466,8 @@ impl Analyser {
             // *epoch*, so a deleted-and-recreated interpreter is a fresh
             // domain that never merges with its predecessor's definitions
             // (issue #945 fault 8's temporal identity).
-            let mut child = super::types::Scope::new(
-                super::types::ScopeKind::Namespace,
-                self.interp_domain_name(key),
-            );
+            let mut child =
+                super::types::Scope::new(super::types::ScopeKind::Namespace, domain.clone());
             child.body_span = Some(body_tok.span);
             let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &outer)
             else {
@@ -2485,8 +2501,17 @@ impl Analyser {
             false
         };
         // `interp` operations inside the body name paths relative to *this*
-        // child — push its path so they qualify correctly.
-        self.interp_path_stack.push(key.to_string());
+        // child — push its path so they qualify correctly.  The frame also
+        // carries the body's domain identity for per-interpreter state; an
+        // unresolvable path anywhere in the enclosing chain makes the whole
+        // frame unresolved, since a body nested inside an unknowable
+        // interpreter is itself in an unknowable one.
+        let enclosing_resolved = self.interp_path_stack.last().is_none_or(|f| f.resolved);
+        self.interp_path_stack.push(super::state::InterpFrame {
+            key: key.to_string(),
+            domain,
+            resolved: path_resolved && enclosing_resolved,
+        });
         self.analyse_body(body_text, body_tok, &child_path);
         self.interp_path_stack.pop();
         if pushed {
@@ -2554,7 +2579,11 @@ impl Analyser {
         let Some(body_tok) = arg_tokens.get(1).copied() else {
             return false;
         };
-        self.isolate_interp_eval_body(&key, &args[1], body_tok, scope_path)
+        // Always a resolved target: a literal head is the interpreter's own
+        // object command, and a `$handle` head only reaches here through a
+        // tracked `set VAR [interp create …]` binding (both arms above
+        // return `false` otherwise).
+        self.isolate_interp_eval_body(&key, true, &args[1], body_tok, scope_path)
     }
 
     /// Qualify a literal `interp` path operand against the enclosing
@@ -2565,7 +2594,7 @@ impl Analyser {
     fn qualified_interp_key(&self, path: &str) -> String {
         let local = interp_path_key(path);
         match self.interp_path_stack.last() {
-            Some(enclosing) if !local.is_empty() => format!("{enclosing} {local}"),
+            Some(enclosing) if !local.is_empty() => format!("{} {local}", enclosing.key),
             _ => local,
         }
     }
@@ -2741,10 +2770,10 @@ impl Analyser {
     /// stack entry is a snapshot taken before the body walk began).  A
     /// no-op outside any interpreter body.
     pub(super) fn mark_locally_defined_in_enclosing_interp(&mut self, bare_name: &str) {
-        let Some(key) = self.interp_path_stack.last() else {
+        let Some(frame) = self.interp_path_stack.last() else {
             return;
         };
-        if let Some(state) = self.interpreters.get_mut(key) {
+        if let Some(state) = self.interpreters.get_mut(&frame.key) {
             state.exposed.insert(bare_name.to_string());
         }
         if let Some(ctx) = self.safe_interp_stack.last_mut() {

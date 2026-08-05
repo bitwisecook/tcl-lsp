@@ -114,6 +114,33 @@ pub(super) struct SafeInterpCtx {
     pub exposed: HashSet<String>,
 }
 
+/// One `interp eval` body on the walk stack — the interpreter-domain
+/// identity of the script currently being analysed.
+///
+/// Pushed by `isolate_interp_eval_body` (`super::handlers`) for both
+/// `interp eval PATH {…}` and the handle form `NAME eval {…}`, so every piece
+/// of analyser state that models *per-interpreter runtime state* can key
+/// itself by the domain the code actually executes in rather than merging
+/// every interpreter's state into one flat file-wide bucket.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(super) struct InterpFrame {
+    /// The interpreter path key relative-qualified against the enclosing
+    /// frames (`s`, `s t`) — what `interp` operations *inside* the body
+    /// qualify their own path operands against.
+    pub key: String,
+    /// The synthetic `@interp@<key>[#<epoch>]` domain identity minted for
+    /// this body's scope (see `interp_domain_name` in `super::handlers`).
+    /// Two evals into the same live interpreter share it; a
+    /// deleted-and-recreated path does not.
+    pub domain: String,
+    /// `false` once this frame — or any frame enclosing it — targeted an
+    /// interpreter whose path could not be resolved statically
+    /// (`interp eval $unknown {…}`). The body then really runs in *some*
+    /// interpreter we cannot name, so per-domain state must widen rather
+    /// than treat the domain as distinct from every other.
+    pub resolved: bool,
+}
+
 /// One entry in [`Analyser::var_command_sites`] —
 /// `(var_name, method_name?, cmd_token_span, in_method)`.
 ///
@@ -253,14 +280,17 @@ pub struct Analyser {
     /// emitted post-walk by [`Self::flush_tk_geometry_diagnostics`], once the
     /// `tk` dialect / `package require Tk` activation condition is resolved.
     pub(super) tk_pending_diags: Vec<super::types::Diagnostic>,
-    /// Tk checks (TK1002): widget paths created so far in the walk, so a
-    /// child's parent can be checked for existence.  Cleared by
-    /// [`Self::flush_tk_geometry_diagnostics`].
-    pub(super) tk_created_widgets: HashSet<String>,
-    /// Tk checks (TK1001): per-parent geometry-manager usage, keyed by
-    /// parent widget path, accumulated across the walk and flushed
-    /// post-walk so a `pack`/`grid` conflict can be decided.
-    pub(super) tk_geometry: std::collections::BTreeMap<String, super::tk_checks::TkGeometryUsage>,
+    /// Tk checks (TK1001 / TK1002): the created-widget set and per-parent
+    /// geometry-manager usage accumulated across the walk, **keyed by the
+    /// interpreter domain** the commands execute in (`""` = the main
+    /// interpreter, otherwise the `@interp@…` identity on
+    /// [`Self::interp_path_stack`]).  Every interpreter that loads Tk gets
+    /// its own `TkMainInfo` with its own widget-path `nameTable` and its own
+    /// `.` root (Tk 9.0.4 `generic/tkWindow.c`, `TkCreateMainWindow`), so the
+    /// same widget path in two domains is two unrelated windows — merging
+    /// them produced a false TK1001 and a missed TK1002 (issue #1141).
+    /// Cleared by [`Self::flush_tk_geometry_diagnostics`].
+    pub(super) tk_domains: std::collections::BTreeMap<String, super::tk_checks::TkDomainState>,
     /// Version-aware diagnostics (W135 / W136): command/option uses gated behind
     /// a package `min_version`, buffered during the walk and decided post-walk by
     /// [`Self::flush_version_gate_diagnostics`] once every `package require` is
@@ -483,12 +513,15 @@ pub struct Analyser {
     /// merge with the deleted interpreter's definitions (as in C, where
     /// the recreated child starts with an empty command table).
     pub(super) interp_epochs: HashMap<String, u32>,
-    /// The interpreter-path components of the `interp eval` bodies
-    /// currently on the walk stack: an `interp` operation *inside* a child
-    /// body names paths relative to that child (`interp create t` inside
-    /// `interp eval s {…}` creates `s t`), so handlers qualify their
-    /// literal path operands against this stack.
-    pub(super) interp_path_stack: Vec<String>,
+    /// The `interp eval` bodies currently on the walk stack: an `interp`
+    /// operation *inside* a child body names paths relative to that child
+    /// (`interp create t` inside `interp eval s {…}` creates `s t`), so
+    /// handlers qualify their literal path operands against the top frame's
+    /// [`key`](InterpFrame::key).  The frame also carries the body's
+    /// [`domain`](InterpFrame::domain) identity, which is what analyser
+    /// state modelling *per-interpreter runtime state* keys itself by
+    /// (issue #1141).
+    pub(super) interp_path_stack: Vec<InterpFrame>,
     /// Safe-interpreter evaluation contexts currently on the walk stack:
     /// non-empty while walking an `interp eval` body whose target
     /// interpreter is safe.  The per-command gate consults the top —
@@ -906,8 +939,7 @@ impl Analyser {
             tk_possibly_active: false,
             tk_dialect: false,
             tk_pending_diags: Vec::new(),
-            tk_created_widgets: HashSet::new(),
-            tk_geometry: std::collections::BTreeMap::new(),
+            tk_domains: std::collections::BTreeMap::new(),
             version_gate_sites: Vec::new(),
             dsl_gate_sites: Vec::new(),
             library_versions: tcl_dialect::LibraryVersionOverrides::default(),
