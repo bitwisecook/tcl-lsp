@@ -253,7 +253,7 @@ fn join_namespace(prefix: &str, name: &str) -> String {
 /// `symbols` (whose own qualified prefix is `prefix`).  Returns `Some(symbol)`
 /// unchanged when no such namespace node exists.
 fn place_under_namespace(
-    symbols: &mut Vec<DocumentSymbol>,
+    symbols: &mut [DocumentSymbol],
     prefix: &str,
     home: &str,
     symbol: DocumentSymbol,
@@ -268,10 +268,7 @@ fn place_under_namespace(
             node.children.push(carried);
             return None;
         }
-        match place_under_namespace(&mut node.children, &qualified, home, carried) {
-            None => return None,
-            Some(back) => carried = back,
-        }
+        carried = place_under_namespace(&mut node.children, &qualified, home, carried)?;
     }
     Some(carried)
 }

@@ -5584,7 +5584,7 @@ mod const_dominated_namespace_eval {
         let src =
             "proc mk {n} {\n    namespace eval $n {\n        proc go {} { return 1 }\n    }\n}\n";
         let names = proc_names(src);
-        assert!(names.iter().any(|n| n.contains("@dynns@")), "{names:?}",);
+        assert!(names.iter().any(|n| n.contains("@dynns@")), "{names:?}");
     }
 
     #[test]

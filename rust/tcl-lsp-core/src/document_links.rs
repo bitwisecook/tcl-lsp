@@ -333,7 +333,7 @@ fn substitute_constants(
         let (name, next) = if bytes.get(i + 1) == Some(&b'{') {
             match text[i + 2..].find('}') {
                 Some(rel) => (&text[i + 2..i + 2 + rel], i + 2 + rel + 1),
-                None => (&text[i + 1..i + 1], i + 1),
+                None => ("", i + 1),
             }
         } else {
             let mut j = i + 1;

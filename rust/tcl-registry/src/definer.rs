@@ -448,7 +448,7 @@ pub struct DefinitionBodyGrammar {
     /// `TclOO` puts `::oo::Helpers` there unconditionally (tclsh 8.6.16 and
     /// 9.0.4: inside any method body `namespace path` is `::oo::Helpers`, so
     /// a bare `callback` reaches `::oo::Helpers::callback` — the documented
-    /// "TclOO Tricks" idiom — before `::callback`).  snit and itcl member
+    /// "`TclOO` Tricks" idiom — before `::callback`).  snit and itcl member
     /// bodies run in the type / class namespace with no injected path, so
     /// theirs is empty.
     ///

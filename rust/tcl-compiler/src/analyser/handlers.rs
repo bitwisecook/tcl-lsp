@@ -2954,7 +2954,7 @@ impl Analyser {
             // accept either; record nothing rather than half of one.
             return;
         };
-        let entries: Vec<String> = elements.iter().map(|e| e.to_string()).collect();
+        let entries: Vec<String> = elements.iter().map(ToString::to_string).collect();
         self.record_namespace_path_element_refs(&args[1], arg_tokens.get(1), &ns);
         self.namespace_paths.insert(ns, entries);
     }

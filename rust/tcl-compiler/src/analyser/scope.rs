@@ -1059,6 +1059,22 @@ impl Analyser {
         reachable
     }
 
+    /// The implicit `namespace path` each recorded call site carries, indexed
+    /// alongside `command_invocations`.
+    ///
+    /// Computed up front, before [`Self::finalise_invocation_resolutions`]
+    /// borrows that vector mutably, because the lookup reads the scope tree
+    /// living on the same `result`.
+    fn implicit_invocation_namespace_paths(&self) -> Vec<&'static [&'static str]> {
+        self.result
+            .command_invocations
+            .iter()
+            .map(|inv| {
+                implicit_command_namespace_path_at(&self.result.global_scope, inv.range.start())
+            })
+            .collect()
+    }
+
     pub(super) fn finalise_invocation_resolutions(&mut self) {
         // Populate the per-dialect builtin-name cache before splitting field
         // borrows below (`builtin_command_names` needs `&mut self`).
@@ -1091,18 +1107,7 @@ impl Analyser {
         // const-dispatch / variable-command passes' `Self::fact_live_for_call`
         // calls reuse the same map instead of rebuilding it.
         self.reachable_call_offsets = self.compute_reachable_call_offsets();
-        // The implicit `namespace path` each call site carries, indexed
-        // alongside `command_invocations`. Computed before the mutable borrow
-        // of that vector below, since the lookup reads the scope tree that
-        // lives on the same `result`.
-        let implicit_paths: Vec<&'static [&'static str]> = self
-            .result
-            .command_invocations
-            .iter()
-            .map(|inv| {
-                implicit_command_namespace_path_at(&self.result.global_scope, inv.range.start())
-            })
-            .collect();
+        let implicit_paths = self.implicit_invocation_namespace_paths();
         let renamed_away = self.renamed_away_builtin_names();
         let deleted_commands = &self.deleted_commands;
         let rename_offsets = &self.rename_offsets;
