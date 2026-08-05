@@ -466,6 +466,34 @@ declare_traits! {
     /// `FRAME_HASH_BUILTINS` list.
     FrameHashBuiltin => FRAME_HASH_BUILTIN;
 
+    /// (Command or subcommand) observes or manipulates **command names as
+    /// data** — reflection over the command table (`info procs` / `info
+    /// commands` / `info body|args|default|cmdtype`, `info level` / `info
+    /// frame`, `namespace export|import|forget|origin|which|ensemble|
+    /// unknown`), command-identity manipulation (`rename`, `interp`), the
+    /// unresolved-command path (`unknown`, the `auto_*` loader procs), and
+    /// execution traces (`trace add|remove|info`).  A program that invokes
+    /// any of these can observe the *name* of a procedure, so a
+    /// semantics-preserving transform must not rename procedures anywhere
+    /// in that program (the observed name is data, not a private symbol).
+    /// Consumed generically by the minifier's compact tier; no consumer
+    /// matches these commands by spelling.
+    ReflectsCommandNames => REFLECTS_COMMAND_NAMES;
+
+    /// Aliases variables out of a **caller's stack frame chosen at
+    /// runtime** (`upvar` — `Tcl_UpvarObjCmd`, `generic/tclVar.c`; the
+    /// level argument defaults to `1` and may name any enclosing frame).
+    /// Distinct from [`Traits::CREATES_SCOPE_ALIAS`], which `global` /
+    /// `variable` also carry: those target the global / namespace frame,
+    /// while this one can observe *any proc's* locals by name.  A renaming
+    /// transform therefore cannot rename local variables in **any** scope
+    /// of a program that invokes such a command — the observed frame is
+    /// statically unknowable.  Distinct from
+    /// [`Traits::EVALUATES_IN_SHIFTED_FRAME`] (`uplevel`), which evaluates
+    /// a *script* in the shifted frame; both imply the same all-scopes
+    /// rename barrier in the minifier.
+    AliasesCallerFrame => ALIASES_CALLER_FRAME;
+
     /// A Tcl auto-loading / library proc that user code is expected to
     /// redefine (`unknown`, `auto_*`, `pkg_*`, `tclLog`,
     /// `tcl_findLibrary`, the `tcl_*Word*` helpers, …), so redefining

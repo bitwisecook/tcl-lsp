@@ -297,7 +297,11 @@ fn trace_legacy_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "add",
-        traits: Traits::TARGETS_VARIABLE_BY_NAME.union(Traits::ESTABLISHES_VARIABLE_TRACE),
+        // `trace add command|execution NAME …` targets a command by its
+        // spelled name, so command identities are observable data here too.
+        traits: Traits::TARGETS_VARIABLE_BY_NAME
+            .union(Traits::ESTABLISHES_VARIABLE_TRACE)
+            .union(Traits::REFLECTS_COMMAND_NAMES),
         arity: Arity::exact(4),
         detail: "Arrange for commandPrefix to be invoked, with operation-specific arguments appended, whenever the variable/command/execution named by name undergoes one of the operations in ops. For type command or execution, name must already exist or this throws an error; for type variable, a nonexistent name is instead silently created without a value (visible to a namespace which query but not to info exists, until something writes it). Present, with this exact 4-argument shape, in every Tcl release from 8.4 through 9.1.",
         synopsis: "trace add type name ops commandPrefix",
@@ -319,7 +323,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "info",
-        traits: Traits::TARGETS_VARIABLE_BY_NAME,
+        // `trace info command|execution NAME` reads traces off a command
+        // named as data.
+        traits: Traits::TARGETS_VARIABLE_BY_NAME.union(Traits::REFLECTS_COMMAND_NAMES),
         arity: Arity::exact(2),
         detail: "Return a list of the traces currently set on the command or variable name, one element per trace, each itself a two-element {opList commandPrefix} list, or an empty list if none are set. For type command or execution, a nonexistent name throws an error; for type variable, a nonexistent name likewise just yields an empty list.",
         synopsis: "trace info type name",
@@ -339,7 +345,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "remove",
-        traits: Traits::TARGETS_VARIABLE_BY_NAME.union(Traits::ESTABLISHES_VARIABLE_TRACE),
+        // `trace remove command|execution NAME …` targets a command by its
+        // spelled name.
+        traits: Traits::TARGETS_VARIABLE_BY_NAME
+            .union(Traits::ESTABLISHES_VARIABLE_TRACE)
+            .union(Traits::REFLECTS_COMMAND_NAMES),
         arity: Arity::exact(4),
         detail: "Remove a previously added trace matching type, name, ops, and commandPrefix exactly. For a variable name that does not exist, or a variable/command/execution trace that does not match, this is silently a no-op; for a nonexistent command or execution name it instead throws an error.",
         synopsis: "trace remove type name opList commandPrefix",

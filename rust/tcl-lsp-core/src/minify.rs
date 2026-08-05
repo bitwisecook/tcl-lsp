@@ -33,10 +33,19 @@
 //!    AST-level shrinking (comparison inversion, De Morgan,
 //!    double-negation) when it shortens the expression.
 //! 7. Replacing `${var}` with `$var` when safe.
-//! 8. Minifying `switch` braced case-list bodies individually.
-//! 9. Deduplicating repeated dynamic templates (`[subst $alias]`).
-//! 10. Abbreviating ensemble subcommands for fixed-ensemble
-//!     dialects (`f5-irules` / `f5-iapps` / `f5-bigip`).
+//! 8. Minifying the braced clause-list argument of registry
+//!    `case_list` commands (`switch`, Expect's `expect`) with the
+//!    Tcl **list** grammar — a braced case list is a list, not a
+//!    script, so `#` is an ordinary pattern there, never a comment
+//!    (issue #1197).
+//! 9. Abbreviating ensemble subcommands for fixed-ensemble
+//!    dialects (`f5-irules` / `f5-iapps` / `f5-bigip`).
+//!
+//! The default tier never introduces variables, writes, or any other
+//! observable behaviour — its output is frame-transparent (issue
+//! #1194 removed the former `[subst $alias]` template
+//! deduplication, whose `set alias {…}` preamble could clobber a
+//! live variable, fire traces, and change `info vars`).
 //!
 //! Note: the expression tokeniser adds a catch-all so no character
 //! is dropped — naively dropping unmatched characters (e.g. commas
@@ -44,23 +53,51 @@
 //! those expressions.
 //!
 //! The **`compact_names` tier** ([`minify_tcl_compact`]) renames
-//! proc-local variables, parameters, and proc names to short
-//! identifiers and returns a [`SymbolMap`].  It relies on the
-//! analyser tracking `$var` references inside `[…]` command
-//! substitutions and braced `expr` bodies (added alongside this
-//! tier) so a rename never rewrites a declaration without its body
-//! references.  Scopes containing a dynamic-barrier command (e.g.
-//! `upvar`) are left untouched; `isolated` also compacts the global
-//! scope.  Static array-member keys (`arr(member)`) are compacted
-//! too, skipping arrays whose members look user-input-derived.
+//! proc-local variables and parameters to short identifiers and
+//! returns a [`SymbolMap`].  It relies on the analyser tracking
+//! `$var` references inside `[…]` command substitutions and braced
+//! `expr` bodies so a rename never rewrites a declaration without
+//! its body references.  Renaming is fenced by registry-declared
+//! observability facts (issues #1192/#1193):
+//!
+//! * Scopes containing a dynamic-barrier command (`upvar`, `eval`,
+//!   `trace`, … — [`Traits::CREATES_DYNAMIC_BARRIER`]) or a
+//!   variable-name introspection ([`Traits::INTROSPECTS_BY_NAME`],
+//!   e.g. `info locals` / `info vars` / `info exists`) are left
+//!   untouched.
+//! * A caller-frame command (`upvar` —
+//!   [`Traits::ALIASES_CALLER_FRAME`], `uplevel` —
+//!   [`Traits::EVALUATES_IN_SHIFTED_FRAME`]) anywhere blocks
+//!   variable renaming in **every** scope: the observed frame is
+//!   statically unknowable.
+//! * **Procedure names are public identities** — `info procs`,
+//!   `rename`, `namespace export`, external callers, and `unknown`
+//!   can all observe or invoke them — so procs are renamed only
+//!   under `isolated` (the caller asserts a self-contained,
+//!   closed-world script), and even then only when no
+//!   command-name-reflecting command
+//!   ([`Traits::REFLECTS_COMMAND_NAMES`]) and no computed command
+//!   name is present.
+//! * Array member keys (`arr(member)`) are Tcl **data**, never
+//!   compacted: `array get` / `array names` / serialization observe
+//!   them (issue #1192).
+//!
+//! `isolated` also compacts global-scope variables.
 //!
 //! The **`aggressive` tier** ([`minify_tcl_aggressive`]) applies the
 //! compiler's optimiser rewrites, compacts names, aliases repeated
 //! commands / arguments / quoted-string substrings (the last via a
 //! suffix array), then minifies whitespace, returning a
-//! [`MinifyResult`].  The aliasing generators are seeded with every
-//! compacted short name so a `$alias` can never shadow a proc-local
-//! compacted variable.
+//! [`MinifyResult`].  **Aggressive output is deliberately not
+//! frame-transparent**: the aliasing phases inject `set alias …`
+//! preambles, which create real Tcl variables (visible to `info
+//! vars`, traces, and any pre-existing same-named variable).  The
+//! alias generators avoid every name the compiler can see — the
+//! compacted shorts, every variable name in any analysed scope or
+//! SSA table, and every textual `$name` reference — but a name that
+//! only exists in the *hosting interpreter* (a variable set before
+//! the minified script is sourced) cannot be proven absent; use the
+//! default or compact tier where frame transparency is required.
 //!
 //! [`unminify_error`] translates compacted names in an error
 //! message back to the originals via a [`SymbolMap`] (round-tripped
@@ -127,8 +164,6 @@ pub struct SymbolMap {
     pub variables: BTreeMap<String, BTreeMap<String, String>>,
     /// `{original_proc: short}`.
     pub procs: BTreeMap<String, String>,
-    /// Per-array `{original_member: short}` maps.
-    pub array_members: BTreeMap<String, BTreeMap<String, String>>,
     /// `{original_command: alias_var}` (aggressive tier).
     pub command_aliases: BTreeMap<String, String>,
     /// `{original_argument: alias_var}` (aggressive tier).
@@ -154,14 +189,6 @@ impl SymbolMap {
         for (scope_name, var_map) in &self.variables {
             lines.push(format!("# Variables in {scope_name}"));
             let mut entries: Vec<(&String, &String)> = var_map.iter().collect();
-            entries.sort_by(|a, b| a.1.cmp(b.1));
-            for (original, short) in entries {
-                lines.push(format!("  {short} <- {original}"));
-            }
-        }
-        for (array_name, member_map) in &self.array_members {
-            lines.push(format!("# Array members of {array_name}"));
-            let mut entries: Vec<(&String, &String)> = member_map.iter().collect();
             entries.sort_by(|a, b| a.1.cmp(b.1));
             for (original, short) in entries {
                 lines.push(format!("  {short} <- {original}"));
@@ -211,11 +238,6 @@ impl SymbolMap {
                 rev.entry(short.clone()).or_insert_with(|| original.clone());
             }
         }
-        for member_map in self.array_members.values() {
-            for (original, short) in member_map {
-                rev.entry(short.clone()).or_insert_with(|| original.clone());
-            }
-        }
         for aliases in [
             &self.command_aliases,
             &self.argument_aliases,
@@ -246,12 +268,6 @@ impl SymbolMap {
                 section_name.push_str(rest);
                 continue;
             }
-            if let Some(rest) = stripped.strip_prefix("# Array members of ") {
-                section = "array_members";
-                section_name.clear();
-                section_name.push_str(rest);
-                continue;
-            }
             if stripped.starts_with("# Procs") {
                 section = "procs";
                 continue;
@@ -271,12 +287,6 @@ impl SymbolMap {
                 }
                 "variables" => {
                     sm.variables
-                        .entry(section_name.clone())
-                        .or_default()
-                        .insert(original, short);
-                }
-                "array_members" => {
-                    sm.array_members
                         .entry(section_name.clone())
                         .or_default()
                         .insert(original, short);
@@ -511,10 +521,17 @@ pub fn minify_tcl(source: &str, dialect: &str, registry: &CommandRegistry) -> St
 /// string substrings, then minify whitespace.  Returns a
 /// [`MinifyResult`].
 ///
-/// The aliasing phases seed their generators with every compacted
-/// short name so a `$alias` can never collide with a (possibly
-/// proc-local) compacted variable — a collision-safe design.
-/// Deferred: SCCP static-substring folding (phase 1.5).
+/// **Not frame-transparent** (issue #1194): the aliasing phases
+/// inject `set alias …` preambles, which create real Tcl variables
+/// — observable via `info vars`, variable traces, and any
+/// same-named variable in the hosting interpreter.  The alias
+/// generators avoid every name the compiler can see (compacted
+/// shorts, every analysed / SSA-known variable name, every textual
+/// `$name` reference — [`collect_live_names`]), so a collision with
+/// a name *present in the script* cannot happen, but names that
+/// exist only in the hosting interpreter's frames cannot be proven
+/// absent.  Use the default or compact tier where the script must
+/// not add variables.
 #[must_use]
 pub fn minify_tcl_aggressive(
     source: &str,
@@ -549,8 +566,14 @@ pub fn minify_tcl_aggressive(
     symbol_map.static_folds = static_folds;
 
     // Phases 2.5–2.7: aliasing.  Seed claimed names with every
-    // compacted short so aliases never shadow a local variable.
+    // compacted short so aliases never shadow a local variable, and
+    // with every live name the compiler can see in the renamed
+    // source (analysed scopes, SSA symbol tables, textual `$refs`)
+    // so a preamble `set alias …` never clobbers a variable the
+    // script reads through a name-taking command like `[set a]`
+    // (issue #1194).
     let mut claimed_names = collect_symbol_shorts(&symbol_map);
+    claimed_names.extend(collect_live_names(&renamed, dialect, registry));
     let (renamed, cmd_aliases) =
         alias_repeated_commands(&renamed, dialect, &mut claimed_names, registry);
     symbol_map.command_aliases = cmd_aliases;
@@ -619,15 +642,15 @@ fn minify_body(source: &str, dialect: &str, registry: &CommandRegistry, depth: u
         rendered.push(arg_strs);
     }
 
-    // Template deduplication (subst aliasing) of repeated dynamic
-    // quoted args.
-    let (template_map, rendered) = dedup_templates(rendered);
-
+    // NB: no template deduplication here.  The former `[subst $alias]`
+    // rewrite injected a `set alias {…}` preamble — a real Tcl variable
+    // write that could clobber a live variable read through a
+    // name-taking command (`puts [set a]`), fire traces, and change
+    // `info vars` — so it is banned from this semantics-preserving tier
+    // (issue #1194).  Aggressive aliasing (an explicitly
+    // behaviour-changing tier) covers the same compression ground.
     let is_irules = tcl_registry::prelude::DialectSet::is_irules_dialect(Some(dialect));
     let mut parts: Vec<String> = Vec::new();
-    for (content, alias) in &template_map {
-        parts.push(format!("set {alias} {{{content}}}"));
-    }
     for arg_strs in &rendered {
         if is_irules && arg_strs.len() > 1 {
             // In iRules, `}{` is a valid word boundary — omit the
@@ -751,28 +774,164 @@ fn scope_label_at_offset(
     }
 }
 
-/// Scope labels containing a dynamic-barrier command — renaming
-/// inside them is unsafe.
-fn find_barrier_scopes(
+/// Where renaming is unsafe, as proven by registry-declared
+/// observability facts over the script's command invocations.
+#[derive(Debug, Default)]
+struct RenameBarriers {
+    /// Scope labels where variable renaming is barred (a
+    /// dynamic-barrier or variable-introspection command runs there).
+    scopes: FxHashSet<String>,
+    /// Variable renaming is barred in **every** scope: a caller-frame
+    /// command (`upvar` / `uplevel`) or a cross-proc parameter
+    /// introspection (`info args PROC`) can observe any frame.
+    all_variable_scopes: bool,
+    /// Variable renaming is barred in the global scope specifically —
+    /// a scope-alias command (`global` / `variable`) or a global
+    /// introspection links / enumerates global cells by name.
+    global_variables: bool,
+    /// Procedure renaming is barred: a command-name-reflecting
+    /// command or a computed command name is present, so proc names
+    /// are observable data.
+    procs: bool,
+}
+
+impl RenameBarriers {
+    /// Whether variables in the scope with the given label may be renamed.
+    fn allows_scope(&self, label: &str) -> bool {
+        !self.all_variable_scopes
+            && !self.scopes.contains(label)
+            && (label != "::" || !self.global_variables)
+    }
+}
+
+/// The literal subcommand word following a command head at `inv`, or
+/// `None` when the next word is dynamic (`$var` / `[…]` / quoted) or
+/// absent.  A dynamic subcommand word means the invocation could be
+/// *any* subcommand, so callers must assume the worst-case traits.
+fn static_subcommand_word<'s>(
+    source: &'s str,
+    inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+) -> Option<&'s str> {
+    let bytes = source.as_bytes();
+    let mut pos = inv.range.end() as usize;
+    while bytes.get(pos).is_some_and(|b| matches!(b, b' ' | b'\t')) {
+        pos += 1;
+    }
+    let start = pos;
+    while bytes
+        .get(pos)
+        .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_' || *b == b'-' || *b == b':')
+    {
+        pos += 1;
+    }
+    if pos == start {
+        return None;
+    }
+    source.get(start..pos)
+}
+
+/// Compute every rename barrier the script's invocations impose.
+///
+/// All observability knowledge is registry data — traits on command
+/// and subcommand specs — never a spelled command name:
+///
+/// * [`Traits::CREATES_DYNAMIC_BARRIER`] (command level) bars the
+///   containing scope, as before.
+/// * [`Traits::CREATES_SCOPE_ALIAS`] (`global` / `variable` /
+///   `upvar`) additionally bars the global scope — the alias links a
+///   global / namespace cell by name from elsewhere.
+/// * [`Traits::ALIASES_CALLER_FRAME`] (`upvar`) and
+///   [`Traits::EVALUATES_IN_SHIFTED_FRAME`] (`uplevel`) bar **every**
+///   scope: the observed frame is chosen at runtime.
+/// * [`Traits::REFLECTS_COMMAND_NAMES`] (command or subcommand
+///   level) bars proc renaming, as does any computed command name
+///   (`inv.indirect`).
+/// * [`Traits::INTROSPECTS_BY_NAME`] / [`Traits::TARGETS_VARIABLE_BY_NAME`]
+///   subcommands (`info locals` / `info exists` / `trace add
+///   variable`) bar the containing scope and the global scope; a
+///   subcommand that *also* reflects command names (`info args PROC`
+///   — another proc's parameter list) bars every scope.
+/// * A **dynamic** subcommand word on a command that has any flagged
+///   subcommand is assumed to be the worst-case subcommand.
+fn find_rename_barriers(
+    source: &str,
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
     include_global: bool,
-) -> FxHashSet<String> {
-    let barrier_cmds: FxHashSet<&str> = registry
-        .commands_with_trait(Traits::CREATES_DYNAMIC_BARRIER)
-        .into_iter()
-        .collect();
-    let mut out = FxHashSet::default();
+) -> RenameBarriers {
+    let mut out = RenameBarriers::default();
+    let scope_at =
+        |offset: u32| scope_label_at_offset(&analysis.global_scope, offset, "::", include_global);
     for inv in &analysis.command_invocations {
-        if barrier_cmds.contains(inv.name.as_str())
-            && let Some(label) = scope_label_at_offset(
-                &analysis.global_scope,
-                inv.range.start(),
-                "::",
-                include_global,
-            )
+        if inv.indirect {
+            // A computed command head can spell any proc name at runtime.
+            out.procs = true;
+            continue;
+        }
+        let head = inv.name.trim_start_matches(':');
+        let Some(spec) = registry.get(head) else {
+            continue;
+        };
+        if spec.traits.contains(Traits::CREATES_DYNAMIC_BARRIER)
+            && let Some(label) = scope_at(inv.range.start())
         {
-            out.insert(label);
+            out.scopes.insert(label);
+        }
+        if spec.traits.contains(Traits::CREATES_SCOPE_ALIAS) {
+            out.global_variables = true;
+        }
+        if spec.traits.contains(Traits::ALIASES_CALLER_FRAME)
+            || spec.traits.contains(Traits::EVALUATES_IN_SHIFTED_FRAME)
+        {
+            out.all_variable_scopes = true;
+        }
+        if spec.traits.contains(Traits::REFLECTS_COMMAND_NAMES) {
+            out.procs = true;
+        }
+
+        // Subcommand-level observability.
+        let var_subs = Traits::INTROSPECTS_BY_NAME | Traits::TARGETS_VARIABLE_BY_NAME;
+        let flagged: Vec<&tcl_registry::SubCommand> = spec
+            .subcommands
+            .iter()
+            .filter(|s| {
+                s.traits.intersects(var_subs) || s.traits.contains(Traits::REFLECTS_COMMAND_NAMES)
+            })
+            .collect();
+        if flagged.is_empty() {
+            continue;
+        }
+        let (reflects_vars, reflects_cmds) = match static_subcommand_word(source, inv) {
+            Some(word) => {
+                let hit = flagged.iter().find(|s| s.name == word);
+                (
+                    hit.is_some_and(|s| s.traits.intersects(var_subs)),
+                    hit.is_some_and(|s| s.traits.contains(Traits::REFLECTS_COMMAND_NAMES)),
+                )
+            }
+            // Dynamic subcommand word — assume the worst flagged one.
+            None => (
+                flagged.iter().any(|s| s.traits.intersects(var_subs)),
+                flagged
+                    .iter()
+                    .any(|s| s.traits.contains(Traits::REFLECTS_COMMAND_NAMES)),
+            ),
+        };
+        if reflects_cmds {
+            out.procs = true;
+        }
+        if reflects_vars {
+            if let Some(label) = scope_at(inv.range.start()) {
+                out.scopes.insert(label);
+            }
+            // `info globals` (and a dynamic `info $sub`) can enumerate the
+            // global frame from anywhere.
+            out.global_variables = true;
+            if reflects_cmds {
+                // `info args PROC` / `info default PROC` reflect *another*
+                // proc's parameter names — any scope may be observed.
+                out.all_variable_scopes = true;
+            }
         }
     }
     out
@@ -958,9 +1117,13 @@ fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisRes
     out
 }
 
-/// Compact proc-local (and, when `isolated`, global) variable,
-/// parameter, and proc names; returns
-/// `(renamed_source, symbol_map)`.
+/// Compact proc-local (and, when `isolated`, global) variable and
+/// parameter names — plus, under `isolated` only, proc names —
+/// returning `(renamed_source, symbol_map)`.
+///
+/// Array member keys are **never** compacted: `arr(member)` is Tcl
+/// data observable through `array get` / `array names` / traces /
+/// serialization, not a private compiler symbol (issue #1192).
 fn compact_names(
     source: &str,
     dialect: &str,
@@ -971,7 +1134,7 @@ fn compact_names(
     let mut symbol_map = SymbolMap::default();
     let mut edits: Vec<Edit> = Vec::new();
 
-    let barrier_scopes = find_barrier_scopes(&analysis, registry, isolated);
+    let barriers = find_rename_barriers(source, &analysis, registry, isolated);
     let rmw_targets = rmw_target_var_names(source, dialect, registry);
     let builtin_names: FxHashSet<&str> = registry.command_names().collect();
 
@@ -979,7 +1142,7 @@ fn compact_names(
         source,
         analysis: &analysis,
         isolated,
-        barrier_scopes: &barrier_scopes,
+        barriers: &barriers,
         rmw_targets: &rmw_targets,
     };
     process_scope(
@@ -992,208 +1155,69 @@ fn compact_names(
         },
     );
 
-    // Proc renaming.
-    let mut proc_gen = NameGenerator::new();
-    let mut used_proc_names: FxHashSet<String> = FxHashSet::default();
-    let mut proc_keys: Vec<&String> = analysis.all_procs.keys().collect();
-    proc_keys.sort();
-    for qname in proc_keys {
-        let proc_def = &analysis.all_procs[qname];
-        let name = &proc_def.name;
-        if name.len() <= 1 || name.contains("::") {
-            continue;
-        }
-        let mut short = proc_gen.next_name();
-        while builtin_names.contains(short.as_str()) || used_proc_names.contains(&short) {
-            short = proc_gen.next_name();
-        }
-        if short.len() >= name.len() {
-            continue;
-        }
-        used_proc_names.insert(short.clone());
-
-        let r = proc_def.name_span;
-        let actual = slice(source, r);
-        let def_key = (r.start() as usize, actual.len());
-        if actual == *name {
-            edits.push((r.start() as usize, actual.len(), short.clone()));
-        }
-        for call in find_proc_call_sites(name, &proc_def.qualified_name, &analysis) {
-            let call_text = slice(source, call);
-            let key = (call.start() as usize, call_text.len());
-            if key != def_key && call_text == *name {
-                edits.push((call.start() as usize, call_text.len(), short.clone()));
+    // Proc renaming.  A proc name is a *public command identity* —
+    // observable via `info procs` / `info commands`, `rename`,
+    // `namespace export`, `unknown`, traces, and callable by code
+    // outside this script — so it is renamed only when the caller
+    // asserts a closed world (`isolated`) AND no command-name
+    // reflection or computed command name is present (issue #1193).
+    if isolated && !barriers.procs {
+        let mut proc_gen = NameGenerator::new();
+        let mut used_proc_names: FxHashSet<String> = FxHashSet::default();
+        let mut proc_keys: Vec<&String> = analysis.all_procs.keys().collect();
+        proc_keys.sort();
+        for qname in proc_keys {
+            let proc_def = &analysis.all_procs[qname];
+            let name = &proc_def.name;
+            if name.len() <= 1 || name.contains("::") {
+                continue;
             }
-        }
-        symbol_map.procs.insert(name.clone(), short);
-    }
+            // A proc that overrides a registry-known command (`proc unknown
+            // …`, an `auto_*` replacement, a shadowed builtin) is invoked by
+            // the interpreter or library through that exact spelling — its
+            // name is load-bearing.
+            if builtin_names.contains(name.as_str()) {
+                continue;
+            }
+            let mut short = proc_gen.next_name();
+            while builtin_names.contains(short.as_str()) || used_proc_names.contains(&short) {
+                short = proc_gen.next_name();
+            }
+            if short.len() >= name.len() {
+                continue;
+            }
+            used_proc_names.insert(short.clone());
 
-    // Static array-member compaction (global across scopes).
-    let array_members = compact_array_members(source, &mut edits);
-    if !array_members.is_empty() {
-        symbol_map.array_members = array_members;
+            let r = proc_def.name_span;
+            let actual = slice(source, r);
+            let def_key = (r.start() as usize, actual.len());
+            if actual == *name {
+                edits.push((r.start() as usize, actual.len(), short.clone()));
+            }
+            for call in find_proc_call_sites(name, &proc_def.qualified_name, &analysis) {
+                let call_text = slice(source, call);
+                let key = (call.start() as usize, call_text.len());
+                if key != def_key && call_text == *name {
+                    edits.push((call.start() as usize, call_text.len(), short.clone()));
+                }
+            }
+            symbol_map.procs.insert(name.clone(), short);
+        }
     }
 
     let result = apply_edits(source, edits);
     (result, symbol_map)
 }
 
-/// Compact static array-member names (`arr(member)` → `arr(x)`).
-/// Renames are global across scopes and skip arrays whose members
-/// look user-input-derived.
-fn compact_array_members(
-    source: &str,
-    edits: &mut Vec<Edit>,
-) -> BTreeMap<String, BTreeMap<String, String>> {
-    let array_uses = collect_array_uses(source);
-    let mut result = BTreeMap::new();
-    for (arr, members) in &array_uses {
-        if members.keys().any(|m| is_unsafe_member(m)) {
-            continue;
-        }
-        let mut r#gen = NameGenerator::new();
-        let mut member_map: BTreeMap<String, String> = BTreeMap::new();
-        let existing: FxHashSet<String> = members.keys().cloned().collect();
-        for member in members.keys() {
-            let claimed: FxHashSet<String> = member_map.values().cloned().collect();
-            let Some(short) = next_unused_name(&mut r#gen, &existing, &claimed) else {
-                continue;
-            };
-            if short.len() >= member.len() {
-                continue;
-            }
-            for &off in &members[member] {
-                edits.push((off, member.len(), short.clone()));
-            }
-            member_map.insert(member.clone(), short);
-        }
-        if !member_map.is_empty() {
-            result.insert(arr.clone(), member_map);
-        }
-    }
-    result
-}
-
-/// Recursively scan for `arr(member)` references, descending into
-/// braced and command-substitution tokens.  Returns
-/// `arr -> member -> [offsets]`.
-fn collect_array_uses(top_source: &str) -> BTreeMap<String, BTreeMap<String, Vec<usize>>> {
-    let mut uses: BTreeMap<String, BTreeMap<String, Vec<usize>>> = BTreeMap::new();
-    let mut stack: Vec<(String, u32)> = vec![(top_source.to_owned(), 0)];
-    while let Some((text, base)) = stack.pop() {
-        let sm = SourceMap::new(&text);
-        let Ok(tokens) = Lexer::new(&text).tokenise_all() else {
-            continue;
-        };
-        let mut prev_type = TokenType::Eol;
-        let mut in_quoted = false;
-        for tok in &tokens {
-            match tok.kind {
-                TokenType::Eof => break,
-                TokenType::Sep | TokenType::Eol => {
-                    prev_type = tok.kind;
-                    in_quoted = false;
-                    continue;
-                }
-                TokenType::Str => {
-                    let inner = sm.token_text(*tok);
-                    if inner.len() >= 4 {
-                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
-                    }
-                    prev_type = TokenType::Str;
-                    in_quoted = false;
-                    continue;
-                }
-                TokenType::Cmd => {
-                    let inner = sm.token_text(*tok);
-                    if inner.len() >= 4 {
-                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
-                    }
-                    prev_type = TokenType::Cmd;
-                    continue;
-                }
-                _ => {}
-            }
-            if matches!(prev_type, TokenType::Sep | TokenType::Eol) {
-                let abs = (base + tok.span.start()) as usize;
-                in_quoted = top_source.as_bytes().get(abs) == Some(&b'"');
-            }
-            prev_type = tok.kind;
-            if in_quoted && tok.kind == TokenType::Esc {
-                continue;
-            }
-            if !matches!(tok.kind, TokenType::Esc | TokenType::Var) {
-                continue;
-            }
-            let ttext = sm.token_text(*tok);
-            let Some((arr, member)) = parse_array_member(ttext) else {
-                continue;
-            };
-            if member.chars().count() <= 1 || arr.contains("::") {
-                continue;
-            }
-            let text_start = if tok.kind == TokenType::Var {
-                base + tok.span.start() + 1
-            } else {
-                base + tok.span.start()
-            };
-            let member_offset = text_start as usize + arr.len() + 1;
-            uses.entry(arr.to_owned())
-                .or_default()
-                .entry(member.to_owned())
-                .or_default()
-                .push(member_offset);
-        }
-    }
-    uses
-}
-
-/// Parse `arr(member)` token text into `(arr, member)`: `arr` is
-/// `[\w:]+`, `member` excludes `)`, `$`, `[`.
-fn parse_array_member(text: &str) -> Option<(&str, &str)> {
-    let inner = text.strip_suffix(')')?;
-    let lparen = inner.find('(')?;
-    let arr = &inner[..lparen];
-    let member = &inner[lparen + 1..];
-    if arr.is_empty() || member.is_empty() {
-        return None;
-    }
-    if !arr
-        .chars()
-        .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
-    {
-        return None;
-    }
-    if member.chars().any(|c| c == ')' || c == '$' || c == '[') {
-        return None;
-    }
-    Some((arr, member))
-}
-
-/// Whether an array-member name looks user-input-derived (and so
-/// must not be renamed).
-fn is_unsafe_member(member: &str) -> bool {
-    const PREFIXES: &[&str] = &[
-        "uri", "url", "path", "header", "cookie", "query", "param", "filename", "request", "input",
-        "form", "method", "remote", "client", "addr", "password", "auth", "token", "session",
-    ];
-    let lower = member.to_ascii_lowercase();
-    PREFIXES.iter().any(|p| {
-        lower
-            .strip_prefix(p)
-            .is_some_and(|rest| rest.is_empty() || rest.starts_with('_'))
-    })
-}
-
 /// Read-only context for the recursive scope rename walk: the document
 /// `source`, the analyser result, the `isolated` flag, and the precomputed
-/// barrier-scope / read-modify-write-target name sets.
+/// rename-barrier / read-modify-write-target sets.
 #[derive(Clone, Copy)]
 struct ScopeCtx<'a> {
     source: &'a str,
     analysis: &'a AnalysisResult,
     isolated: bool,
-    barrier_scopes: &'a FxHashSet<String>,
+    barriers: &'a RenameBarriers,
     rmw_targets: &'a FxHashSet<String>,
 }
 
@@ -1211,12 +1235,12 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
         source,
         analysis,
         isolated,
-        barrier_scopes,
+        barriers,
         rmw_targets,
     } = ctx;
     let rename_scope = (scope.kind == ScopeKind::Proc
         || (isolated && scope.kind == ScopeKind::Global))
-        && !barrier_scopes.contains(scope_label);
+        && barriers.allows_scope(scope_label);
 
     if rename_scope {
         // Identify the proc this scope belongs to by its body span — unique per
@@ -1250,6 +1274,15 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
             if var_name.len() <= 1 || var_name.contains("::") {
                 continue;
             }
+            // A local that aliases a namespace / global cell (`global v`,
+            // `variable v`, `namespace upvar …`) shares that cell's public
+            // name — renaming the local spelling would detach it from the
+            // cell.  (Scopes containing the aliasing command are already
+            // barred; this guards the same variable observed from a scope
+            // that is not.)
+            if var_def.link_target.is_some() {
+                continue;
+            }
             // Skip variables that are the bare write-target of a mutating
             // command (`incr` / `append` / `lappend`): the analyser records
             // those as definitions, not reads, so `VarDef.references` (reads
@@ -1279,17 +1312,28 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
                         .push((r.start() as usize, var_name.len(), short.clone()));
                 }
             }
-            // Reference sites (`$var`): skip the `$`.
+            // Reference sites.  A reference is either a `$var` read (skip
+            // the `$`) or a **bare name word** — a re-definition (`set x 2`
+            // twice), a registry `VarRead`/`VarWrite`-role argument
+            // (`unset x`, `lappend x …`, `catch {…} x`).  Bare sites must
+            // be rewritten in lock-step: renaming the declaration and the
+            // `$` reads while leaving `set x 2` / `unset x` spelled with
+            // the old name silently splits one variable into two
+            // (pre-#1193 corruption: `set v 1;set v 2;return $v` returned
+            // 1 after compaction).
             for &reference in &var_def.references {
                 let ref_text = slice(source, reference);
-                if let Some(rest) = ref_text.strip_prefix('$')
-                    && rest == var_name
-                {
-                    out.edits.push((
-                        reference.start() as usize + 1,
-                        var_name.len(),
-                        short.clone(),
-                    ));
+                if let Some(rest) = ref_text.strip_prefix('$') {
+                    if rest == var_name {
+                        out.edits.push((
+                            reference.start() as usize + 1,
+                            var_name.len(),
+                            short.clone(),
+                        ));
+                    }
+                } else if ref_text == var_name {
+                    out.edits
+                        .push((reference.start() as usize, var_name.len(), short.clone()));
                 }
             }
             var_map.insert(var_name.clone(), short);
@@ -1313,13 +1357,15 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
     }
 }
 
-/// Variable names that are the bare write-target of a read-modify-write
+/// Variable names that are the bare target of a read-modify-write
 /// command (`incr` / `append` / `lappend` / `lset` — the registry's
-/// `rmw_first_arg_variable` set; a whole-value `set` is rename-safe). The
-/// analyser records these as definitions, not reads, so
-/// [`AnalysisResult`]'s `VarDef.references` (reads only) never includes the
-/// target argument. The name compaction excludes them so it cannot rename
-/// the `set` / `$var` sites while leaving the `incr var` target untouched
+/// `rmw_first_arg_variable` set; a whole-value `set` is rename-safe) or
+/// of a variable-destroying command (`unset` —
+/// [`Traits::DESTROYS_VARIABLE`]). The analyser records these as
+/// definitions, not reads, so [`AnalysisResult`]'s `VarDef.references`
+/// (reads plus re-definition sites) can miss the target argument. The
+/// name compaction excludes them so it cannot rename the `set` / `$var`
+/// sites while leaving the `incr var` / `unset var` target untouched
 /// (which would corrupt the program).
 fn rmw_target_var_names(
     source: &str,
@@ -1338,7 +1384,10 @@ fn rmw_target_var_names(
                         names.insert(name.clone());
                     }
                     Statement::Call { command, defs, .. }
-                        if registry.rmw_first_arg_variable(command) =>
+                        if registry.rmw_first_arg_variable(command)
+                            || registry
+                                .get(command)
+                                .is_some_and(|s| s.traits.contains(Traits::DESTROYS_VARIABLE)) =>
                     {
                         names.extend(defs.iter().cloned());
                     }
@@ -1373,8 +1422,48 @@ fn collect_symbol_shorts(sm: &SymbolMap) -> HashSet<String> {
     for m in sm.variables.values() {
         out.extend(m.values().cloned());
     }
-    for m in sm.array_members.values() {
-        out.extend(m.values().cloned());
+    out
+}
+
+/// Every variable name the compiler can see in `source`, for seeding
+/// the aggressive tier's alias generators (issue #1194): the
+/// analyser's per-scope variable tables (recursively), the SSA
+/// symbol tables of every function unit (which include names only
+/// *read* through name-taking commands, e.g. `[set a]`), and every
+/// textual `$name` / `${name}` reference.  Conservative superset —
+/// an alias name is rejected on any hit.
+fn collect_live_names(source: &str, dialect: &str, registry: &CommandRegistry) -> HashSet<String> {
+    let mut out: HashSet<String> = HashSet::new();
+
+    // Analyser scope tables.
+    let analysis = Analyser::new().analyse(source, dialect).clone();
+    let mut stack: Vec<&Scope> = vec![&analysis.global_scope];
+    while let Some(scope) = stack.pop() {
+        out.extend(scope.variables.keys().cloned());
+        stack.extend(scope.children.iter());
+    }
+
+    // SSA symbol tables (per function unit).
+    let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect);
+    let mut units: Vec<&FunctionUnit> = vec![&cu.top_level];
+    units.extend(cu.procedures.values());
+    for fu in units {
+        out.extend(fu.ssa.var_names().iter().cloned());
+    }
+
+    // Textual `$name` / `${name}` references.
+    let bytes = source.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'$' {
+            let (end, name) = parse_var_ref(source, i);
+            if let Some(name) = name {
+                out.insert(name.to_owned());
+                i = end.max(i + 1);
+                continue;
+            }
+        }
+        i += 1;
     }
     out
 }
@@ -2266,129 +2355,6 @@ fn subcommand_abbreviation(command: &str, sub: &str) -> Option<&'static str> {
         .map(|(_, abbr)| *abbr)
 }
 
-/// Replace repeated dynamic quoted args with `[subst $alias]` and a
-/// shared `set alias {content}` preamble.  Returns the ordered
-/// `(content, alias)` preamble pairs plus the rewritten commands.
-fn dedup_templates(rendered: Vec<Vec<String>>) -> (Vec<(String, String)>, Vec<Vec<String>>) {
-    // content -> use sites, preserving first-seen order.
-    let mut order: Vec<String> = Vec::new();
-    let mut uses: std::collections::HashMap<String, Vec<(usize, usize)>> =
-        std::collections::HashMap::new();
-    for (ci, args) in rendered.iter().enumerate() {
-        for (ai, s) in args.iter().enumerate() {
-            if !(s.starts_with('"') && s.ends_with('"') && s.len() >= 2) {
-                continue;
-            }
-            let content = &s[1..s.len() - 1];
-            if !content.contains('$') && !content.contains('[') {
-                continue;
-            }
-            if content.len() < 10 {
-                continue;
-            }
-            if content.matches('{').count() != content.matches('}').count() {
-                continue;
-            }
-            let key = content.to_owned();
-            uses.entry(key.clone()).or_insert_with(|| {
-                order.push(key.clone());
-                Vec::new()
-            });
-            uses.get_mut(&key).expect("inserted").push((ci, ai));
-        }
-    }
-    if order.is_empty() {
-        return (Vec::new(), rendered);
-    }
-
-    // Names already referenced as $var, so aliases don't shadow them.
-    let mut used_names = collect_used_var_names(&rendered);
-
-    // Process candidates by descending count * content-length.
-    let mut candidates = order.clone();
-    candidates.sort_by(|a, b| {
-        let ka = uses[a].len() * a.len();
-        let kb = uses[b].len() * b.len();
-        kb.cmp(&ka).then_with(|| {
-            // Stable on first-seen order for ties.
-            order
-                .iter()
-                .position(|x| x == a)
-                .cmp(&order.iter().position(|x| x == b))
-        })
-    });
-
-    let mut r#gen = NameGenerator::new();
-    let mut template_map: Vec<(String, String)> = Vec::new();
-    for content in &candidates {
-        let count = uses[content].len();
-        if count < 2 {
-            continue;
-        }
-        let mut alias = r#gen.next_name();
-        while used_names.contains(&alias) {
-            alias = r#gen.next_name();
-        }
-        let original_cost = count * (content.len() + 2);
-        let preamble_cost = 4 + alias.len() + 1 + 1 + content.len() + 1 + 1;
-        let subst_ref = format!("[subst ${alias}]");
-        let aliased_cost = preamble_cost + count * subst_ref.len();
-        if aliased_cost >= original_cost {
-            continue;
-        }
-        if content.contains(&format!("${alias}")) || content.contains(&format!("${{{alias}}}")) {
-            continue;
-        }
-        template_map.push((content.clone(), alias.clone()));
-        used_names.insert(alias);
-    }
-    if template_map.is_empty() {
-        return (Vec::new(), rendered);
-    }
-
-    // Apply replacements.
-    let mut result = rendered;
-    for (content, alias) in &template_map {
-        let subst_ref = format!("[subst ${alias}]");
-        for &(ci, ai) in &uses[content] {
-            result[ci][ai].clone_from(&subst_ref);
-        }
-    }
-    (template_map, result)
-}
-
-/// Names referenced as `$var` / `${var}` anywhere in the rendered
-/// commands.
-fn collect_used_var_names(rendered: &[Vec<String>]) -> std::collections::HashSet<String> {
-    let mut out = std::collections::HashSet::new();
-    for args in rendered {
-        for s in args {
-            let bytes = s.as_bytes();
-            let mut i = 0;
-            while i < bytes.len() {
-                if bytes[i] == b'$' {
-                    let mut j = i + 1;
-                    if j < bytes.len() && bytes[j] == b'{' {
-                        j += 1;
-                    }
-                    let start = j;
-                    while j < bytes.len() && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_')
-                    {
-                        j += 1;
-                    }
-                    if j > start {
-                        out.insert(s[start..j].to_owned());
-                    }
-                    i = j;
-                } else {
-                    i += 1;
-                }
-            }
-        }
-    }
-    out
-}
-
 /// Group a token stream into commands (lists of arguments),
 /// dropping comments and whitespace.
 fn parse_commands(source: &str, tokens: &[Token]) -> Vec<Vec<Arg>> {
@@ -2453,17 +2419,22 @@ fn render_command(
     let body_indices = role_indices(registry, &cmd_name, &post_refs, ArgRole::Body);
     let lambda_indices = role_indices(registry, &cmd_name, &post_refs, ArgRole::LambdaLiteral);
     let expr_indices = role_indices(registry, &cmd_name, &post_refs, ArgRole::Expr);
-    let is_case_list = cmd_name == "switch" && is_switch_case_list_form(&post_refs);
+    // The braced clause-list form of a registry `case_list` command
+    // (`switch … { pat body … }`, Expect's `expect { … }`).  Registry
+    // data, never a spelled command name (issue #1197).
+    let case_list_spec = registry.get(&cmd_name).and_then(|s| s.case_list);
+    let is_case_list = case_list_spec.is_some_and(|cl| is_case_list_form(cl, &post_refs));
 
     let mut out: Vec<String> = Vec::with_capacity(cmd_args.len());
     for (i, arg) in cmd_args.iter().enumerate() {
         let single_braced = arg.is_braced && arg.tokens.len() == 1;
         if body_indices.contains(&i) && single_braced {
             let inner = sm.token_text(arg.tokens[0]);
-            let minified = if is_case_list {
-                minify_switch_case_list(inner, dialect, registry, depth + 1)
-            } else {
-                minify_body(inner, dialect, registry, depth + 1)
+            let minified = match case_list_spec {
+                Some(cl) if is_case_list && i == cmd_args.len() - 1 => {
+                    minify_case_list(inner, cl, dialect, registry, depth + 1)
+                }
+                _ => minify_body(inner, dialect, registry, depth + 1),
             };
             out.push(format!("{{{minified}}}"));
         } else if lambda_indices.contains(&i) && single_braced {
@@ -2698,125 +2669,160 @@ fn reconstruct_arg(
     }
 }
 
-// switch case-list handling
+// case-list (clause list) handling
 
-/// Whether the post-name args use the braced case-list form (a
-/// single trailing word after any leading options).
-fn is_switch_case_list_form(args: &[&str]) -> bool {
-    let i = skip_switch_options(args);
-    i < args.len() && i == args.len() - 1
-}
-
-/// Skip leading `switch` option words and the match-value arg
-/// (options, then one value arg), returning the index of the first
-/// case-list element.
-fn skip_switch_options(args: &[&str]) -> usize {
-    let mut i = 0;
+/// Whether the post-name args are in a `case_list` command's braced
+/// clause-list form: command options (per the spec's `value_options`),
+/// then `subject_args` subject words, then exactly one trailing word
+/// (the braced clause list).  Mirrors the option-skip walk in
+/// `references.rs`'s `case_list_clause_body_regions` — driven entirely
+/// by [`tcl_registry::CaseListSpec`] fields, never a command spelling.
+fn is_case_list_form(cl: &tcl_registry::CaseListSpec, args: &[&str]) -> bool {
+    let mut i = 0usize;
     while i < args.len() {
         let a = args[i];
         if a == "--" {
             i += 1;
             break;
         }
-        if a.starts_with('-') {
-            // `-matchvar` / `-indexvar` consume a following value.
-            if matches!(a, "-matchvar" | "-indexvar") {
-                i += 1;
-            }
-            i += 1;
-        } else {
+        if !a.starts_with('-') {
             break;
         }
+        i += if cl.value_options.contains(&a) { 2 } else { 1 };
     }
-    // Skip the match-value argument itself.
-    if i < args.len() {
-        i += 1;
-    }
-    i
+    i += usize::from(cl.subject_args);
+    i < args.len() && i == args.len() - 1
 }
 
-/// Minify the content of a `switch` braced case list, recursively
-/// minifying each braced body.
-fn minify_switch_case_list(
-    source: &str,
+/// One element of a braced clause list, with enough shape to re-emit
+/// it exactly as written.
+struct CaseElement {
+    /// Interior byte range in the list content (delimiters stripped).
+    value: std::ops::Range<usize>,
+    /// Written `{…}`-braced.
+    braced: bool,
+    /// Written `"…"`-quoted.
+    quoted: bool,
+}
+
+/// Split the content of a braced clause list into elements with the
+/// central Tcl **list** grammar ([`tcl_syntax::list::find_element`]).
+/// Returns `None` when the content is not a well-formed list — the
+/// caller must then leave the original text untouched.
+fn case_list_elements(inner: &str) -> Option<Vec<CaseElement>> {
+    let bytes = inner.as_bytes();
+    let mut out = Vec::new();
+    let mut scan = 0usize;
+    loop {
+        match tcl_syntax::list::find_element(inner, scan) {
+            Ok(Some(el)) => {
+                let quoted = !el.braced
+                    && el.value.start > 0
+                    && bytes.get(el.value.start - 1) == Some(&b'"');
+                let next = el.next;
+                out.push(CaseElement {
+                    value: el.value,
+                    braced: el.braced,
+                    quoted,
+                });
+                if next <= scan {
+                    break;
+                }
+                scan = next;
+            }
+            Ok(None) => break,
+            Err(_) => return None,
+        }
+    }
+    Some(out)
+}
+
+/// Re-emit a clause-list element exactly as written (original
+/// delimiters and interior spelling preserved).
+fn case_element_text<'s>(inner: &'s str, el: &CaseElement) -> &'s str {
+    if el.braced || el.quoted {
+        // `value` strips the delimiters; the closer sits at `value.end`.
+        &inner[(el.value.start - 1)..=el.value.end]
+    } else {
+        &inner[el.value.clone()]
+    }
+}
+
+/// Minify the content of a `case_list` command's braced clause list.
+///
+/// A braced case list is a Tcl **list**, not a script: `#` and `;`
+/// are ordinary pattern characters there (C Tcl's
+/// `TclNRSwitchObjCmd` splits it with `TclListObjGetElements`,
+/// `generic/tclCmdMZ.c`), so the content is decoded with the central
+/// list grammar, never the script lexer — the previous script-lexer
+/// implementation dropped a valid `#` pattern and its body as a
+/// "comment" (issue #1197; tclsh 9.0.4: `switch # { # {puts matched}
+/// default {puts default} }` prints `matched`).
+///
+/// Only `{…}`-braced **body** elements are recursively minified (their
+/// content is literal script text); every flag, pattern, fall-through
+/// `-`, and non-braced body is re-emitted exactly as written.  The
+/// original text is preserved untouched when the content is not a
+/// well-formed list or when any clause is missing its body (Tcl
+/// errors on the odd-length list and the error message quotes the
+/// original).
+fn minify_case_list(
+    inner: &str,
+    cl: &tcl_registry::CaseListSpec,
     dialect: &str,
     registry: &CommandRegistry,
     depth: u32,
 ) -> String {
-    let sm = SourceMap::new(source);
-    let Ok(tokens) = Lexer::new(source).tokenise_all() else {
-        return source.to_owned();
+    let Some(elements) = case_list_elements(inner) else {
+        return inner.to_owned();
     };
-    // Segment into words (pattern / body), grouping multi-token words.
-    // `is_braced` marks a `{…}` word (re-wrapped via `reconstruct_raw`);
-    // `is_quoted` marks a `"…"` word — its delimiters are stripped by the
-    // lexer (the inner content lexes as `Esc`/`Var`/`Cmd` tokens), so the
-    // reconstructed raw must be re-quoted or a multi-word pattern like
-    // `"c d"` collapses to two bare words and breaks the case list.
-    let mut words: Vec<(String, bool, bool, Token)> = Vec::new(); // (raw, is_braced, is_quoted, first_tok)
-    let mut prev_type = TokenType::Eol;
-    for tok in tokens {
-        match tok.kind {
-            TokenType::Eof => break,
-            TokenType::Sep | TokenType::Eol | TokenType::Comment => {
-                prev_type = tok.kind;
-                continue;
-            }
-            _ => {}
-        }
-        let starting_new_word = matches!(
-            prev_type,
-            TokenType::Sep | TokenType::Eol | TokenType::Comment
-        ) || words.is_empty();
-        // A word is quoted when its first token opens on a `"` in the source;
-        // continuation tokens inherit the current word's quotedness. Passing it
-        // to `reconstruct_raw` keeps a quoted lone `$` verbatim (`RUST_ISSUE_103`).
-        let word_quoted = if starting_new_word {
-            source.as_bytes().get(tok.span.start() as usize) == Some(&b'"')
-        } else {
-            words.last().is_some_and(|w| w.2)
-        };
-        let raw = reconstruct_raw(&sm, tok, None, dialect, registry, word_quoted, depth);
-        if starting_new_word {
-            words.push((raw, tok.kind == TokenType::Str, word_quoted, tok));
-        } else {
-            words.last_mut().expect("non-empty").0.push_str(&raw);
-        }
-        prev_type = tok.kind;
+    if elements.is_empty() {
+        return String::new();
     }
 
-    // Render a pattern/body word, preserving its original delimiters so it
-    // stays a single Tcl word when re-emitted.
-    let render_word = |raw: &str, is_braced: bool, is_quoted: bool| -> String {
-        if is_braced {
-            format!("{{{raw}}}")
-        } else if is_quoted {
-            format!("\"{raw}\"")
-        } else {
-            raw.to_owned()
-        }
+    // Walk clauses with the registry-declared shape (clause flags may
+    // precede a pattern — Expect's `-re` / `-timeout 5`).
+    let is_flag = |el: &CaseElement| -> bool {
+        !el.braced && cl.clause_flags.contains(&&inner[el.value.clone()])
+    };
+    let takes_value = |el: &CaseElement| -> bool {
+        !el.braced && cl.clause_value_flags.contains(&&inner[el.value.clone()])
     };
 
     let mut parts: Vec<String> = Vec::new();
-    let mut idx = 0;
-    while idx + 1 < words.len() {
-        let (pat_raw, pat_braced, pat_quoted, _) = &words[idx];
-        // `reconstruct_raw` already re-wraps a braced `Str` pattern, so only
-        // re-quote here (avoid double-bracing).
-        let pattern = render_word(pat_raw, false, *pat_quoted && !*pat_braced);
-        let (body_raw, body_braced, body_quoted, body_tok) = &words[idx + 1];
-        let body_inner = sm.token_text(*body_tok);
-        if body_inner == "-" && *body_raw == "-" {
-            parts.push(format!("{pattern} -"));
-        } else if *body_braced {
-            let minified = minify_body(body_inner, dialect, registry, depth);
-            parts.push(format!("{pattern} {{{minified}}}"));
-        } else if *body_quoted {
-            parts.push(format!("{pattern} \"{body_raw}\""));
-        } else {
-            parts.push(format!("{pattern} {body_raw}"));
+    let mut i = 0usize;
+    while i < elements.len() {
+        // Leading clause flags (and their value words).
+        while i < elements.len() && is_flag(&elements[i]) {
+            let flag = &elements[i];
+            parts.push(case_element_text(inner, flag).to_owned());
+            let consumed_value = takes_value(flag);
+            i += 1;
+            if consumed_value && i < elements.len() {
+                parts.push(case_element_text(inner, &elements[i]).to_owned());
+                i += 1;
+            }
         }
-        idx += 2;
+        // Pattern + body.  A trailing pattern with no body is a malformed
+        // list ("extra switch pattern with no body") — preserve the
+        // original so the runtime error (and its quoted text) is
+        // unchanged.
+        if i >= elements.len() {
+            break;
+        }
+        if i + 1 >= elements.len() {
+            return inner.to_owned();
+        }
+        let (pattern, body) = (&elements[i], &elements[i + 1]);
+        parts.push(case_element_text(inner, pattern).to_owned());
+        if body.braced {
+            let body_src = &inner[body.value.clone()];
+            let minified = minify_body(body_src, dialect, registry, depth);
+            parts.push(format!("{{{minified}}}"));
+        } else {
+            parts.push(case_element_text(inner, body).to_owned());
+        }
+        i += 2;
     }
     parts.join(" ")
 }
@@ -3344,15 +3350,101 @@ mod tests {
         minify_tcl_compact(src, "tcl8.6", false, &registry).0
     }
 
+    fn min_compact_isolated(src: &str) -> String {
+        let registry = CommandRegistry::build_default();
+        minify_tcl_compact(src, "tcl8.6", true, &registry).0
+    }
+
     #[test]
     fn compact_renames_proc_local_vars_and_params() {
-        // `greet`→`a`, param `name`→`b`, local `message`→`a`.
+        // Param `name`→`b`, local `message`→`a`.  The PROC name is a public
+        // command identity (issue #1193): non-isolated compaction must keep
+        // `greet` callable by external code.
         assert_eq!(
             min_compact(
                 "proc greet {name} {\n    set message \"hi $name\"\n    return $message\n}\n"
             ),
-            "proc a {b} {set a \"hi $b\";return $a}",
+            "proc greet {b} {set a \"hi $b\";return $a}",
         );
+    }
+
+    #[test]
+    fn compact_isolated_renames_procs() {
+        // Under `isolated` the caller asserts a closed world, so the proc
+        // name may be compacted (definition + call sites in lock-step).
+        assert_eq!(
+            min_compact_isolated("proc greet {name} {\n    return $name\n}\nputs [greet world]\n"),
+            "proc a {a} {return $a};puts [a world]",
+        );
+    }
+
+    #[test]
+    fn compact_isolated_keeps_procs_when_reflection_present() {
+        // `info procs` reflects proc names (registry
+        // REFLECTS_COMMAND_NAMES), so even `isolated` must keep them.
+        // tclsh 9.0.4: renaming only the definition+call leaves
+        // `info procs longprocedure` returning an empty list — an
+        // observable change (issue #1193).
+        let out = min_compact_isolated(
+            "proc longprocedure {} {return ok}\nputs [info procs longprocedure]\nputs [longprocedure]\n",
+        );
+        assert!(out.contains("proc longprocedure {}"), "{out}");
+        assert!(out.contains("info procs longprocedure"), "{out}");
+    }
+
+    #[test]
+    fn compact_keeps_locals_when_info_locals_present() {
+        // `info locals` reflects local variable names (registry
+        // INTROSPECTS_BY_NAME), so the scope must not be renamed.
+        // tclsh 9.0.4: the original prints `longvariable`; a compacted
+        // `set a 1` would print `a` (issue #1193).
+        let out = min_compact("proc f {} {\n    set longvariable 1\n    return [info locals]\n}\n");
+        assert_eq!(out, "proc f {} {set longvariable 1;return [info locals]}");
+    }
+
+    #[test]
+    fn compact_keeps_locals_when_info_exists_present() {
+        // `info exists NAME` reads a variable by bare name; renaming the
+        // `set` site but not the introspection flips the result 1 → 0.
+        let out = min_compact("proc f {} {\n    set myvar 1\n    return [info exists myvar]\n}\n");
+        assert_eq!(out, "proc f {} {set myvar 1;return [info exists myvar]}");
+    }
+
+    #[test]
+    fn compact_renames_repeated_set_sites_in_lock_step() {
+        // A re-definition (`set myvar 2`) is a bare-name reference site;
+        // it must be renamed together with the declaration and the `$`
+        // reads, or one variable silently splits into two (pre-#1193:
+        // this returned 1 instead of 2 after compaction).
+        assert_eq!(
+            min_compact("proc f {} {\n    set myvar 1\n    set myvar 2\n    return $myvar\n}\n"),
+            "proc f {} {set a 1;set a 2;return $a}",
+        );
+    }
+
+    #[test]
+    fn compact_never_splits_unset_from_its_variable() {
+        // `unset myvar` names the variable as a bare argument the
+        // analyser does not link as a reference, so `myvar` must be
+        // left unrenamed everywhere (renaming only the `set` site
+        // would unset a different variable).  Unrelated locals still
+        // compact.
+        let out = min_compact(
+            "proc f {} {\n    set myvar 1\n    unset myvar\n    set other 2\n    return $other\n}\n",
+        );
+        assert_eq!(out, "proc f {} {set myvar 1;unset myvar;set a 2;return $a}");
+    }
+
+    #[test]
+    fn compact_upvar_blocks_all_scopes() {
+        // `upvar` aliases a caller frame chosen at runtime (registry
+        // ALIASES_CALLER_FRAME): any proc could be the caller, so no
+        // scope may rename its locals while one exists.  tclsh 9.0.4:
+        // renaming `callervar` in `use` breaks `get`'s upvar target.
+        let out = min_compact(
+            "proc get {} {\n    upvar 1 callervar m\n    return $m\n}\nproc use {} {\n    set callervar 5\n    return [get]\n}\n",
+        );
+        assert!(out.contains("set callervar 5"), "{out}");
     }
 
     #[test]
@@ -3377,30 +3469,40 @@ mod tests {
     fn compact_renames_refs_inside_expr_and_command_subst() {
         // The `$value` ref lives inside `[expr {...}]`; it must be
         // renamed in lock-step with the param declaration (relies on
-        // the analyser tracking expr/command-subst references).
+        // the analyser tracking expr/command-subst references).  Proc
+        // names stay — public identities in the non-isolated tier.
         assert_eq!(
             min_compact(
                 "proc helper {value} {\n    return [expr {$value * 2}]\n}\nproc main {} {\n    set result [helper 21]\n    puts $result\n}\n"
             ),
-            "proc a {a} {return [expr {$a*2}]};proc b {} {set a [a 21];puts $a}",
+            "proc helper {a} {return [expr {$a*2}]};proc main {} {set a [helper 21];puts $a}",
         );
     }
 
     #[test]
     fn compact_returns_symbol_map() {
         let registry = CommandRegistry::build_default();
+        // Non-isolated: variables compact, procs do not (issue #1193).
         let (_, sym) = minify_tcl_compact(
             "proc greet {name} {\n    return $name\n}\n",
             "tcl8.6",
             false,
             &registry,
         );
-        assert_eq!(sym.procs.get("greet").map(String::as_str), Some("a"));
+        assert!(sym.procs.is_empty(), "{:?}", sym.procs);
         assert!(
             sym.variables
                 .values()
                 .any(|m| m.get("name").map(String::as_str) == Some("a"))
         );
+        // Isolated: the proc is renamed and reported.
+        let (_, sym) = minify_tcl_compact(
+            "proc greet {name} {\n    return $name\n}\n",
+            "tcl8.6",
+            true,
+            &registry,
+        );
+        assert_eq!(sym.procs.get("greet").map(String::as_str), Some("a"));
     }
 
     #[test]
@@ -3418,10 +3520,12 @@ mod tests {
     #[test]
     fn unminify_error_round_trips_via_symbol_map() {
         let registry = CommandRegistry::build_default();
+        // Isolated so the proc is renamed too (issue #1193 keeps proc
+        // names in the non-isolated tier).
         let (_, sym) = minify_tcl_compact(
             "proc greet {name} {\n    return $name\n}\n",
             "tcl8.6",
-            false,
+            true,
             &registry,
         );
         // Procs win the bare-name reverse entry, so `a` -> `greet`.
@@ -3522,15 +3626,31 @@ mod tests {
 
     #[test]
     fn aggressive_aliases_avoid_compacted_local_collisions() {
-        // `handler`->`a`, `request`->`a` (proc-local); the command
-        // alias must skip `a` and use `b`, else `$a` in command
-        // position would resolve to the local param.
+        // `request`->`a` (proc-local); the command alias must skip `a`
+        // and use `b`, else `$a` in command position would resolve to
+        // the local param.  (`handler` itself stays — proc names are
+        // public identities in the non-isolated tier, issue #1193.)
         assert_eq!(
             agg(
                 "proc handler {request} {\n    mylongcmd $request\n    mylongcmd $request\n    mylongcmd $request\n}\n"
             ),
-            "set b mylongcmd;proc a {a} {$b $a;$b $a;$b $a}",
+            "set b mylongcmd;proc handler {a} {$b $a;$b $a;$b $a}",
         );
+    }
+
+    #[test]
+    fn aggressive_aliases_avoid_live_variable_names() {
+        // Issue #1194: the alias generator must not claim a name the
+        // script reads through a name-taking command (`[set a]` has no
+        // `$a` spelling anywhere).  tclsh 9.0.4: with `a` pre-set to
+        // SENTINEL, an alias preamble `set a mylongcmd` changes what
+        // `[set a]` returns.
+        let out = agg("mylongcmd x\nmylongcmd y\nmylongcmd z\nputs [set a]\n");
+        assert!(
+            !out.contains("set a mylongcmd"),
+            "alias clobbered live variable `a`: {out}"
+        );
+        assert!(out.contains("puts [set a]"), "{out}");
     }
 
     #[test]
@@ -3538,8 +3658,9 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let src = "proc greet {name} {\n    set message \"hi $name\"\n    return $message\n}\n";
         let res = minify_tcl_aggressive(src, "tcl8.6", false, &registry);
-        // With no applicable optimisations this equals the compact tier.
-        assert_eq!(res.source, "proc a {b} {set a \"hi $b\";return $a}");
+        // With no applicable optimisations this equals the compact tier
+        // (proc name preserved — public identity, issue #1193).
+        assert_eq!(res.source, "proc greet {b} {set a \"hi $b\";return $a}");
         assert_eq!(res.original_length, src.len());
         assert_eq!(res.minified_length(), res.source.len());
         assert!(res.savings_pct() > 0.0);
@@ -3557,7 +3678,7 @@ mod tests {
         // require every run to produce the same intact output.
         let registry = CommandRegistry::build_default();
         let src = "namespace eval a {\n    proc dup {arg} { set collidevar [expr {$arg + 1}]; return $collidevar }\n}\nnamespace eval b {\n    proc dup {collidevar} { return $collidevar }\n}\n";
-        let expected = "namespace eval a {proc a {a} {set b [expr {$a+1}];return $b}};namespace eval b {proc b {a} {return $a}}";
+        let expected = "namespace eval a {proc dup {a} {set b [expr {$a+1}];return $b}};namespace eval b {proc dup {a} {return $a}}";
         for _ in 0..32 {
             let res = minify_tcl_aggressive(src, "tcl8.6", false, &registry);
             assert_eq!(res.source, expected, "collision corrupted the output");
@@ -3565,22 +3686,34 @@ mod tests {
     }
 
     #[test]
-    fn compact_renames_static_array_members() {
-        assert_eq!(
-            min_compact(
-                "proc f {} {\n    set config(database) 1\n    set config(timeout) 2\n    puts $config(database)$config(timeout)\n}\n"
-            ),
-            "proc f {} {set config(a) 1;set config(b) 2;puts $config(a)$config(b)}",
+    fn compact_never_renames_array_members() {
+        // Array member names are Tcl DATA, not private symbols: `array
+        // get` / `array names` / traces / serialization observe them, so
+        // no tier may rename them (issue #1192).  tclsh 9.0.4: the
+        // original prints `longmember 1`; the pre-fix compaction printed
+        // `a 1`.
+        let out = min_compact(
+            "proc f {} {\n    set arr(longmember) 1\n    return [array get arr]\n}\nputs [f]\n",
         );
+        assert!(out.contains("arr(longmember)"), "{out}");
+        // And even in isolated mode — observability does not depend on
+        // the closed-world assertion.
+        let out = min_compact_isolated(
+            "proc f {} {\n    set arr(longmember) 1\n    return [array get arr]\n}\nputs [f]\n",
+        );
+        assert!(out.contains("arr(longmember)"), "{out}");
     }
 
     #[test]
-    fn compact_skips_user_input_array_members() {
-        // `uri` looks user-input-derived — leave the array alone.
-        assert_eq!(
-            min_compact("proc f {} {\n    set config(uri) 1\n    puts $config(uri)\n}\n"),
-            "proc f {} {set config(uri) 1;puts $config(uri)}",
+    fn compact_symbol_map_has_no_array_member_section() {
+        let registry = CommandRegistry::build_default();
+        let (_, sym) = minify_tcl_compact(
+            "proc f {} {\n    set config(database) 1\n    puts $config(database)\n}\n",
+            "tcl8.6",
+            false,
+            &registry,
         );
+        assert!(!sym.format().contains("Array members"), "{}", sym.format());
     }
 
     #[test]
@@ -3592,10 +3725,16 @@ mod tests {
     }
 
     #[test]
-    fn dedup_repeated_dynamic_templates() {
+    fn default_tier_never_introduces_variables() {
+        // Issue #1194: the former template deduplication emitted a
+        // `set a {…}` preamble + `[subst $a]` — a real variable write
+        // that clobbered any live `a` (tclsh 9.0.4: `puts [set a]`
+        // stopped printing the pre-existing value), fired traces, and
+        // changed `info vars`.  The default tier must stay
+        // frame-transparent: no `set`, no `subst`, strings verbatim.
         check(
-            "puts \"value is $longvariablename here\"\nputs \"value is $longvariablename here\"\n",
-            "set a {value is $longvariablename here};puts [subst $a];puts [subst $a]",
+            "puts \"value is $longvariablename here\"\nputs \"value is $longvariablename here\"\nputs [set a]\n",
+            "puts \"value is $longvariablename here\";puts \"value is $longvariablename here\";puts [set a]",
         );
     }
 
@@ -3725,6 +3864,66 @@ mod tests {
             "switch $x {\n    a -\n    b {\n        puts 2\n    }\n}\n",
             "switch $x {a - b {puts 2}}",
         );
+    }
+
+    #[test]
+    fn switch_hash_pattern_is_not_a_comment() {
+        // Issue #1197: a braced case list is a Tcl LIST, so `#` is an
+        // ordinary pattern there, never a comment.  tclsh 9.0.4:
+        // `switch # { # {puts matched} default {puts default} }`
+        // prints `matched`; the pre-fix minifier dropped the `#` arm
+        // and the output printed `default`.
+        check(
+            "switch # {\n    # {puts matched}\n    default {puts default}\n}\n",
+            "switch # {# {puts matched} default {puts default}}",
+        );
+    }
+
+    #[test]
+    fn switch_hash_prefixed_pattern_and_semicolon_pattern_survive() {
+        // `#foo` and `;` are ordinary list elements too.
+        check(
+            "switch $x {\n    #foo {puts a}\n    {;} {puts b}\n    default {puts c}\n}\n",
+            "switch $x {#foo {puts a} {;} {puts b} default {puts c}}",
+        );
+    }
+
+    #[test]
+    fn switch_backslash_escaped_pattern_survives_verbatim() {
+        // A bare element with backslash escapes (`a\ b` — one pattern
+        // word containing a space) must be re-emitted exactly as
+        // written, not decoded or re-quoted.
+        check(
+            "switch $x {\n    a\\ b {puts one}\n    default {puts two}\n}\n",
+            "switch $x {a\\ b {puts one} default {puts two}}",
+        );
+    }
+
+    #[test]
+    fn switch_odd_length_case_list_preserved_verbatim() {
+        // An odd-length list is a runtime error ("extra switch pattern
+        // with no body") whose message quotes the original text — the
+        // minifier must not restructure it.
+        let out = min("switch $x {\n    a {puts 1}\n    b\n}\n");
+        assert!(out.contains("a {puts 1}"), "{out}");
+        assert!(out.contains('b'), "{out}");
+    }
+
+    #[test]
+    fn switch_dynamic_case_list_not_treated_as_case_list() {
+        // A non-braced final arg (`$cases`) is not the braced clause-list
+        // form; nothing to recurse into.
+        check("switch $x $cases\n", "switch $x $cases");
+    }
+
+    #[test]
+    fn renamed_switch_lookalike_user_command_untouched() {
+        // A same-named USER command in a namespace (`::my::switch`) is not
+        // the registry `switch`; its braced arg is not a case list.  The
+        // registry lookup is by resolved head, so the qualified spelling
+        // does not match and the argument body is left as an opaque word.
+        let out = min("my::switch x {\n    # {puts matched}\n}\n");
+        assert!(out.contains("# {puts matched}"), "{out}");
     }
 
     #[test]

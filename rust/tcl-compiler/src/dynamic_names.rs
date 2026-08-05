@@ -514,6 +514,35 @@ fn scan_command(
             barrier.reads = true;
         }
     }
+    // An ENUMERATING variable introspection — an
+    // [`Traits::INTROSPECTS_BY_NAME`] subcommand that names no specific
+    // variable (`info locals` / `info vars` / `info globals`, all
+    // pattern-only) — observes which variables *exist* in the frame, so
+    // every store is observable: deleting a "dead" `set longvariable 1`
+    // changes what `info locals` returns (issue #1193's differential).
+    // Subcommands that do take a name argument (`info exists x`) are
+    // covered precisely by the `VarRead` role walk above and raise
+    // nothing here.  A dynamic subcommand word (`info $sub`) could be any
+    // of them, so it counts as enumerating.
+    let introspecting: Vec<&str> =
+        registry.subcommands_with_trait(command, Traits::INTROSPECTS_BY_NAME);
+    if !introspecting.is_empty() {
+        let enumerating = match arg_strs.first() {
+            Some(word) if !word.contains('$') && !word.contains('[') => {
+                introspecting.contains(word)
+                    && spec.subcommand(word).is_some_and(|sub| {
+                        sub.arg_roles
+                            .iter()
+                            .all(|(_, role)| !matches!(role, ArgRole::VarRead | ArgRole::VarWrite))
+                    })
+            }
+            Some(_) => true, // dynamic subcommand word — assume the worst.
+            None => false,
+        };
+        if enumerating {
+            barrier.reads = true;
+        }
+    }
     // A template-expanding command (`subst`) performs `$name` substitution
     // over its argument string. With a literal template the names are in the
     // text and the ordinary scanners see them; with a computed one the names

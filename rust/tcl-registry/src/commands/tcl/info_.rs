@@ -223,7 +223,9 @@ const INFO_CLASS_SUBS: &[SubSubCommand] = &[
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "args",
-        traits: Traits::INTROSPECTS_BY_NAME,
+        // Reflects another proc's parameter names, looked up by the proc's
+        // spelled name — observable identity for both symbol kinds.
+        traits: Traits::INTROSPECTS_BY_NAME.union(Traits::REFLECTS_COMMAND_NAMES),
         arity: Arity::exact(1),
         detail: "Returns the names of the parameters to the procedure named procname.",
         synopsis: "info args procname",
@@ -236,6 +238,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "body",
+        // Reflects a proc's source (including its local-variable spellings)
+        // by the proc's spelled name.
+        traits: Traits::INTROSPECTS_BY_NAME.union(Traits::REFLECTS_COMMAND_NAMES),
         arity: Arity::exact(1),
         detail: "Returns the body of the procedure named procname.",
         synopsis: "info body procname",
@@ -268,6 +273,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "cmdtype",
+        // Introspects a command by its spelled name.
+        traits: Traits::REFLECTS_COMMAND_NAMES,
         arity: Arity::exact(1),
         detail: "Returns the type of the command named commandName: alias, coroutine, ensemble, import, native, object, privateObject, proc, interp, or zlibStream.",
         synopsis: "info cmdtype commandName",
@@ -281,6 +288,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "commands",
+        // Enumerates command names — reflection over the command table.
+        traits: Traits::REFLECTS_COMMAND_NAMES,
         arity: Arity::new(0, 1),
         detail: "Returns the names of all commands visible in the current namespace.",
         synopsis: "info commands ?pattern?",
@@ -338,7 +347,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "default",
-        traits: Traits::INTROSPECTS_BY_NAME,
+        // Reflects a named proc's parameter defaults by the proc's spelled
+        // name — observable identity for both symbol kinds.
+        traits: Traits::INTROSPECTS_BY_NAME.union(Traits::REFLECTS_COMMAND_NAMES),
         arity: Arity::exact(3),
         detail: "If the parameter has a default value, stores that value in varname and returns 1; otherwise returns 0.",
         synopsis: "info default procname parameter varname",
@@ -372,6 +383,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "frame",
+        // Reflects the active command words (including proc names) of any
+        // stack frame.
+        traits: Traits::REFLECTS_COMMAND_NAMES,
         arity: Arity::new(0, 1),
         detail: "Returns the depth of the call to info frame itself when depth is omitted; otherwise returns a dictionary describing the active command at that depth (keys: type — one of source/proc/eval/precompiled — plus line, file, cmd, proc, lambda, level as applicable). Reports every stack frame, including eval/uplevel/source frames that info level does not see.",
         synopsis: "info frame ?depth?",
@@ -392,6 +406,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "globals",
+        // Enumerates global variable names — the global-scope counterpart
+        // of `info vars` / `info locals`.
+        traits: Traits::INTROSPECTS_BY_NAME,
         arity: Arity::new(0, 1),
         detail: "Returns a list of all the names of currently-defined global variables.",
         synopsis: "info globals ?pattern?",
@@ -410,6 +427,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "level",
+        // `info level N` reflects the full command (name + arguments) at
+        // that level, so proc names are observable data.
+        traits: Traits::REFLECTS_COMMAND_NAMES,
         arity: Arity::new(0, 1),
         detail: "Returns the current stack level (0 at top level) when level is omitted; otherwise returns the complete command (name and arguments, as a list) active at that level. A positive level is absolute (1 = outermost active procedure); zero or a negative level is relative to the current one.",
         synopsis: "info level ?level?",
@@ -480,6 +500,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "procs",
+        // Enumerates procedure names — reflection over the command table.
+        traits: Traits::REFLECTS_COMMAND_NAMES,
         arity: Arity::new(0, 1),
         detail: "Returns the names of all visible procedures.",
         synopsis: "info procs ?pattern?",

@@ -24301,7 +24301,9 @@ mod tests {
             serde_json::Value::String(uri.to_string()),
             serde_json::Value::Bool(true), // compact
             serde_json::Value::Bool(false),
-            serde_json::Value::Bool(false),
+            // isolated — proc names are public command identities, renamed
+            // only under the closed-world assertion (issue #1193).
+            serde_json::Value::Bool(true),
         ];
         let result = backend
             .minify_document_command(&args)

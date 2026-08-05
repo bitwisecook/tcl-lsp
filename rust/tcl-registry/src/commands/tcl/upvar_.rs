@@ -74,7 +74,12 @@ pub fn spec() -> CommandSpec {
             | Traits::CREATES_BARRIER
             | Traits::CREATES_SCOPE_ALIAS
             | Traits::CREATES_DYNAMIC_BARRIER
-            | Traits::FRAME_HASH_BUILTIN,
+            | Traits::FRAME_HASH_BUILTIN
+            // The aliased frame is picked by the runtime level argument
+            // (default 1), so any enclosing proc's locals can be read or
+            // written by name — renaming transforms must treat every scope
+            // as observable while an `upvar` exists.
+            | Traits::ALIASES_CALLER_FRAME,
         // At least one otherVar/myVar pair is required — `upvar` and
         // `upvar x` (0 or 1 trailing word) both raise "wrong # args",
         // `upvar x y` does not (tclsh 8.6.14). No upper bound: any
