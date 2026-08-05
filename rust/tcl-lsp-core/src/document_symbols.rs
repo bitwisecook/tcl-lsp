@@ -2171,6 +2171,4 @@ mod tests {
         let outer = find(&symbols, "outer").expect("outer proc node");
         assert_eq!(names(&outer.children), vec!["inner"], "{symbols:#?}");
     }
-
-
 }
