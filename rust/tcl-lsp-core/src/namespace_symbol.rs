@@ -70,12 +70,20 @@
 //!
 //! * A namespace created only **implicitly**, as a parent (`namespace eval
 //!   ::p::q::r {}` creates `::p` and `::p::q` too, both interpreters), has no
-//!   declaring site of its own.  Asking for `::p::q` answers nothing rather
-//!   than jumping into the middle of the `::p::q::r` word, which is not that
-//!   namespace's name.
-//! * A **computed** target (`namespace eval $ns { … }`) names no static
-//!   namespace and is never recorded, so it neither answers nor pollutes
-//!   another namespace's reference set.
+//!   declaring site of its own.  It is answered separately, by
+//!   [`namespace_implicit_parent_spans`], with the *covering prefix* of the
+//!   deepest written name — the sub-range spelling exactly that namespace,
+//!   never the whole word, which names a different one — and hover words it
+//!   as "implicitly created by" rather than "declared by" (issue #1113
+//!   item 1).  A prefix that is not written at all (inside `namespace eval
+//!   ::p`, the word `q::r` spells no `::p`) still answers nothing.
+//! * A **computed** target (`namespace eval $ns { … }`) is recorded only when
+//!   its value is constant-dominated — `set ns ::app; namespace eval $ns
+//!   { … }` creates `::app` on every run, so the `$ns` word is that
+//!   namespace's declaring site (issue #1113 item 3).  A branch-conditional
+//!   or parameter-fed target proves nothing and is recorded nowhere, so it
+//!   neither answers nor pollutes another namespace's reference set.  A
+//!   computed word in *reference* position stays unrecorded either way.
 //! * Inert text is excluded: a `namespace exists ::x` that is really comment
 //!   prose or a braced data word is not code, so it must not resolve
 //!   (issue #923 idx 24).  Here that falls out of the model rather than
@@ -199,6 +207,87 @@ pub fn namespace_declaration_spans(analysis: &AnalysisResult, cell: &str) -> Vec
         .collect()
 }
 
+/// The sites that create `cell` **implicitly**, as the parent of a deeper
+/// declared namespace — `namespace eval ::p::q::r {}` really does create
+/// `::p` and `::p::q` on both interpreters (`namespace exists ::p::q` is `1`
+/// straight after), but neither name is written as a name of its own.
+///
+/// The answer is the **covering prefix** of the deepest written name: the
+/// leading sub-range of that `namespace eval`'s name word which spells
+/// `cell`, so the span is real source text naming exactly this namespace and
+/// nothing more — never the whole word, which names a different namespace
+/// (issue #1113 item 1).
+///
+/// Empty when `cell` is declared outright (the declaration is the better
+/// answer and [`namespace_declaration_spans`] already gives it), and empty
+/// when the prefix is not written either: inside `namespace eval ::p`, the
+/// word of `namespace eval q::r` spells only `q::r`, so `::p` has no covering
+/// prefix here and the honest answer is nothing at all.
+#[must_use]
+pub fn namespace_implicit_parent_spans(
+    source: &str,
+    analysis: &AnalysisResult,
+    cell: &str,
+) -> Vec<Span> {
+    let wanted = normalise_namespace(cell);
+    if wanted.is_empty() {
+        // The global namespace is created by the interpreter, not by any
+        // block, so it has no implicit site either.
+        return Vec::new();
+    }
+    let wanted_depth = wanted.split("::").count();
+    analysis
+        .namespace_refs
+        .iter()
+        .filter(|r| r.declares)
+        .filter_map(|r| {
+            let declared = normalise_namespace(&r.qualified_name);
+            // Strict descendant only — an exact match is a real declaration.
+            declared
+                .strip_prefix(wanted)
+                .filter(|rest| rest.starts_with("::"))?;
+            covering_prefix_span(source, r.span, declared, wanted_depth)
+        })
+        .collect()
+}
+
+/// The leading sub-range of the name word at `span` that spells the first
+/// `wanted_depth` segments of `declared`.
+///
+/// The word may be written relatively (`namespace eval q::r` inside `::p`
+/// declares `::p::q::r` from two written segments), so the written text
+/// covers only the *last* N segments of the qualified name; a prefix shorter
+/// than that offset is not written here at all and yields `None`.
+fn covering_prefix_span(
+    source: &str,
+    span: Span,
+    declared: &str,
+    wanted_depth: usize,
+) -> Option<Span> {
+    let text = source.get(span.start() as usize..span.end() as usize)?;
+    let rooted = text.starts_with("::");
+    let written = text.trim_start_matches("::");
+    let written_depth = written.split("::").count();
+    let declared_depth = declared.split("::").count();
+    // How many leading segments of `declared` this word does not spell.
+    let unwritten = declared_depth.checked_sub(written_depth)?;
+    let take = wanted_depth.checked_sub(unwritten)?;
+    if take == 0 || take > written_depth {
+        return None;
+    }
+    // Byte offset of the end of the `take`-th written segment.
+    let mut end = 0usize;
+    for (i, segment) in written.split("::").take(take).enumerate() {
+        if i > 0 {
+            end += 2;
+        }
+        end += segment.len();
+    }
+    let lead = u32::try_from(usize::from(rooted) * 2).ok()?;
+    let end = u32::try_from(end).ok()?;
+    Some(Span::new(span.start(), span.start() + lead + end))
+}
+
 /// Every **non-declaring** occurrence of `cell` in this document, in source
 /// order — the reference set find-references reports when the declarations
 /// are not asked for.
@@ -245,6 +334,11 @@ pub struct NamespaceFacts {
     pub declarations: usize,
     /// Occurrences that are not declarations.
     pub references: usize,
+    /// Deeper `namespace eval` blocks that create this namespace **only as a
+    /// parent** — `namespace eval ::p::q::r {}` for `::p::q` (issue #1113
+    /// item 1).  Counted separately because it is a weaker statement than a
+    /// declaration and hover must not word the two alike.
+    pub implicit_declarations: usize,
     /// How many documents contributed — `1` for a single-document tally.
     pub documents: usize,
 }
@@ -256,6 +350,7 @@ impl NamespaceFacts {
         Self {
             declarations: self.declarations + other.declarations,
             references: self.references + other.references,
+            implicit_declarations: self.implicit_declarations + other.implicit_declarations,
             documents: self.documents + other.documents,
         }
     }
@@ -274,10 +369,25 @@ pub fn namespace_facts(analysis: &AnalysisResult, cell: &str) -> NamespaceFacts 
                 if row.declares { (d + 1, r) } else { (d, r + 1) }
             },
         );
+    // Deeper blocks that create `cell` only as a parent.  Pure name
+    // arithmetic, so the workspace tier can fold in its own rows the same
+    // way without needing any document's text.
+    let wanted = normalise_namespace(cell);
+    let implicit_declarations = analysis
+        .namespace_refs
+        .iter()
+        .filter(|r| r.declares && !wanted.is_empty())
+        .filter(|r| {
+            normalise_namespace(&r.qualified_name)
+                .strip_prefix(wanted)
+                .is_some_and(|rest| rest.starts_with("::"))
+        })
+        .count();
     NamespaceFacts {
         declarations,
         references,
-        documents: usize::from(declarations + references > 0),
+        implicit_declarations,
+        documents: usize::from(declarations + references + implicit_declarations > 0),
     }
 }
 
@@ -297,7 +407,24 @@ pub fn namespace_facts(analysis: &AnalysisResult, cell: &str) -> NamespaceFacts 
 #[must_use]
 pub fn namespace_hover_markdown(cell: &str, facts: NamespaceFacts) -> Option<String> {
     if facts.declarations == 0 {
-        return None;
+        // Nothing declares it outright — but a deeper block may still create
+        // it as a parent, which is a real answer and a differently-worded one
+        // (issue #1113 item 1).
+        if facts.implicit_declarations == 0 {
+            return None;
+        }
+        let blocks = if facts.implicit_declarations == 1 {
+            "1 deeper `namespace eval` block".to_owned()
+        } else {
+            format!(
+                "{} deeper `namespace eval` blocks",
+                facts.implicit_declarations,
+            )
+        };
+        return Some(format!(
+            "**Namespace** `{cell}`\n\nImplicitly created by {blocks}; {} other reference(s)",
+            facts.references,
+        ));
     }
     let blocks = if facts.declarations == 1 {
         "1 `namespace eval` block".to_owned()
@@ -499,34 +626,125 @@ mod tests {
         assert!(namespace_reference_spans(&analysis, "::mypkg").is_empty());
     }
 
-    // TN: a **computed** target names no static namespace, so it is recorded
-    // nowhere and cannot be mistaken for a literal one.
+    // A **computed** target is recorded only when its value is
+    // constant-dominated (issue #1113 item 3): `set ns ::mypkg` then
+    // `namespace eval $ns {}` creates `::mypkg` on every run, so the `$ns`
+    // word of the *declaring* command is that namespace's declaring site.
+    // A reference-position `$ns` (`namespace children $ns`) is still
+    // recorded nowhere — reading a variable is not writing a name, and the
+    // whole-word role scan skips dynamic words.
     #[test]
-    fn tn_computed_namespace_target_is_not_recorded() {
+    fn tp_only_the_constant_computed_declaration_is_recorded() {
         let src = "set ns ::mypkg\nnamespace eval $ns {}\nnamespace children $ns\n";
         let analysis = analyse(src);
+        assert_eq!(
+            texts(src, &namespace_declaration_spans(&analysis, "::mypkg")),
+            vec!["$ns"],
+            "{:?}",
+            analysis.namespace_refs,
+        );
         assert!(
-            analysis.namespace_refs.is_empty(),
-            "a `$ns` target names nothing statically: {:?}",
+            namespace_reference_spans(&analysis, "::mypkg").is_empty(),
+            "a computed *reference* still names nothing statically: {:?}",
             analysis.namespace_refs,
         );
     }
 
-    // TN: a namespace that exists only as an **implicit parent** has no
-    // declaring site of its own.  `namespace eval ::p::q::r {}` really does
-    // create `::p` and `::p::q` (both interpreters), but neither name is
-    // written anywhere, so definition abstains rather than jumping into the
-    // middle of another namespace's name word.
     #[test]
-    fn tn_implicit_parent_namespace_has_no_declaration_site() {
+    fn tn_a_computed_target_with_no_constant_value_is_recorded_nowhere() {
+        let src = "proc mk {ns} { namespace eval $ns {} }\n";
+        let analysis = analyse(src);
+        assert!(
+            analysis.namespace_refs.is_empty(),
+            "a parameter target names nothing statically: {:?}",
+            analysis.namespace_refs,
+        );
+    }
+
+    // A namespace that exists only as an **implicit parent** has no declaring
+    // site of its own — `namespace eval ::p::q::r {}` really does create
+    // `::p` and `::p::q` (both interpreters), but neither name is written as
+    // a name of its own.  The answer is the covering prefix of the deepest
+    // written name, never the whole word (issue #1113 item 1).
+    #[test]
+    fn tp_implicit_parent_answers_with_the_covering_prefix() {
         let src = "namespace eval ::p::q::r {}\nnamespace children ::p::q\n";
         let analysis = analyse(src);
         assert_eq!(cell_at(src, "::p::q\n").as_deref(), Some("::p::q"));
-        assert!(namespace_declaration_spans(&analysis, "::p::q").is_empty());
+        assert!(
+            namespace_declaration_spans(&analysis, "::p::q").is_empty(),
+            "an implicit parent is not a declaration",
+        );
+        assert_eq!(
+            texts(src, &namespace_implicit_parent_spans(src, &analysis, "::p::q")),
+            vec!["::p::q"],
+            "the prefix, not the whole `::p::q::r` word",
+        );
+        assert_eq!(
+            texts(src, &namespace_implicit_parent_spans(src, &analysis, "::p")),
+            vec!["::p"],
+        );
+        // The declared namespace itself keeps its exact declaration and gains
+        // no implicit site.
         assert_eq!(
             texts(src, &namespace_declaration_spans(&analysis, "::p::q::r")),
             vec!["::p::q::r"],
         );
+        assert!(
+            namespace_implicit_parent_spans(src, &analysis, "::p::q::r").is_empty(),
+        );
+    }
+
+    #[test]
+    fn tp_a_relatively_written_name_still_yields_the_written_prefix() {
+        // Only the segments actually written can be answered with: inside
+        // `::outer`, the word of `namespace eval a::b` spells `a::b`, so
+        // `::outer::a` is covered by its first segment…
+        let src = "namespace eval ::outer {\n    namespace eval a::b {}\n}\n";
+        let analysis = analyse(src);
+        assert_eq!(
+            texts(
+                src,
+                &namespace_implicit_parent_spans(src, &analysis, "::outer::a")
+            ),
+            vec!["a"],
+        );
+        // …while `::outer` itself is not spelled in that word at all, so it
+        // gets no implicit site from it — its own block declares it anyway.
+        assert_eq!(
+            texts(src, &namespace_declaration_spans(&analysis, "::outer")),
+            vec!["::outer"],
+        );
+    }
+
+    #[test]
+    fn fp_an_unrelated_namespace_gets_no_implicit_site() {
+        // FP guard — prefix matching is segment-wise, so `::pq` must not be
+        // read as a parent of `::p::q::r`.
+        let src = "namespace eval ::p::q::r {}\n";
+        let analysis = analyse(src);
+        assert!(namespace_implicit_parent_spans(src, &analysis, "::pq").is_empty());
+        assert!(namespace_implicit_parent_spans(src, &analysis, "::q").is_empty());
+    }
+
+    #[test]
+    fn tn_the_global_namespace_has_no_implicit_site() {
+        // TN — `::` is created by the interpreter, not by any block.
+        let src = "namespace eval ::p::q {}\n";
+        let analysis = analyse(src);
+        assert!(namespace_implicit_parent_spans(src, &analysis, "::").is_empty());
+    }
+
+    #[test]
+    fn tp_hover_labels_an_implicitly_created_namespace_differently() {
+        let src = "namespace eval ::p::q::r {}\nnamespace children ::p::q\n";
+        let analysis = analyse(src);
+        let text = namespace_hover_text(&analysis, "::p::q").expect("hover");
+        assert!(text.contains("Implicitly created by"), "{text}");
+        assert!(text.contains("1 deeper `namespace eval` block"), "{text}");
+        // …and a really-declared namespace keeps the stronger wording.
+        let declared = namespace_hover_text(&analysis, "::p::q::r").expect("hover");
+        assert!(declared.contains("Declared by"), "{declared}");
     }
 
     // FN guard: `namespace inscope` must **not** be treated as a declaration —
@@ -657,6 +875,7 @@ mod tests {
         let one = NamespaceFacts {
             declarations: 1,
             references: 2,
+            implicit_declarations: 0,
             documents: 1,
         };
         let text = namespace_hover_markdown("::mypkg", one).expect("hover");
@@ -667,6 +886,7 @@ mod tests {
         let many = NamespaceFacts {
             declarations: 3,
             references: 4,
+            implicit_declarations: 0,
             documents: 2,
         };
         let text = namespace_hover_markdown("::mypkg", many).expect("hover");
@@ -691,6 +911,7 @@ mod tests {
             NamespaceFacts {
                 declarations: 2,
                 references: 1,
+                implicit_declarations: 0,
                 documents: 2,
             },
         );
@@ -715,5 +936,183 @@ mod tests {
         assert!(text.contains("`::mypkg`"), "{text}");
         assert!(text.contains("2 `namespace eval` blocks"), "{text}");
         assert!(text.contains("1 other reference(s)"), "{text}");
+    }
+
+    // `namespace path {::a ::b}` — issue #1113 item 2.  The argument is a
+    // *list* of namespace names inside one word, so no whole-word `ArgRole`
+    // can mark it; each element is recorded at its own span by the analyser's
+    // `namespace path` handler, using the shared Tcl list grammar.
+
+    #[test]
+    fn tp_each_namespace_path_element_is_its_own_reference() {
+        let src = "namespace eval ::a {}\n\
+                   namespace eval ::b {}\n\
+                   namespace path {::a ::b}\n";
+        let analysis = analyse(src);
+        assert_eq!(
+            texts(src, &namespace_reference_spans(&analysis, "::a")),
+            vec!["::a"],
+        );
+        assert_eq!(
+            texts(src, &namespace_reference_spans(&analysis, "::b")),
+            vec!["::b"],
+        );
+        // …and a cursor on the second element names that namespace, so
+        // go-to-definition reaches its declaring block.
+        let off = u32::try_from(src.rfind("::b").expect("found")).expect("offset fits u32");
+        assert_eq!(
+            namespace_cell_at_offset(src, &analysis, off).as_deref(),
+            Some("::b"),
+        );
+        assert_eq!(
+            texts(src, &namespace_declaration_spans(&analysis, "::b")),
+            vec!["::b"],
+        );
+    }
+
+    #[test]
+    fn tp_a_relative_path_element_roots_against_the_declaring_namespace() {
+        // The path entry follows the ordinary relative rule, which is what
+        // `command_resolution_candidates` already assumes.
+        let src = "namespace eval ::outer {\n\
+                   \x20   namespace eval helpers {}\n\
+                   \x20   namespace path helpers\n\
+                   }\n";
+        let analysis = analyse(src);
+        assert_eq!(
+            texts(
+                src,
+                &namespace_reference_spans(&analysis, "::outer::helpers")
+            ),
+            vec!["helpers"],
+        );
+    }
+
+    #[test]
+    fn tp_a_braced_path_element_gets_the_element_span_not_the_word() {
+        // A braced element (`{my ns}`) is exactly what the old
+        // `split_whitespace` split could not express — it made two bogus
+        // entries.  The list grammar keeps it one name.
+        let src = "namespace path {{my ns} ::b}\n";
+        let analysis = analyse(src);
+        assert_eq!(
+            texts(src, &namespace_reference_spans(&analysis, "::my ns")),
+            vec!["my ns"],
+        );
+    }
+
+    #[test]
+    fn fp_a_path_word_carrying_substitution_records_nothing() {
+        // FP guard — the whole word substitutes, so no element has a span
+        // whose text is a namespace name.  The handler's existing
+        // dynamic-word gate rejects the command before the split, which is
+        // the conservative answer and the one this test pins.
+        let src = "namespace eval ::a {}\nnamespace path [concat $extra ::a]\n";
+        let analysis = analyse(src);
+        assert!(
+            namespace_reference_spans(&analysis, "::a").is_empty(),
+            "a computed path claims no element spans: {:?}",
+            analysis.namespace_refs,
+        );
+    }
+
+    #[test]
+    fn tn_a_braced_path_word_that_looks_dynamic_is_still_skipped() {
+        // TN / documented limit — braces suppress substitution, so tclsh
+        // reads `$ns` here as a *literal* namespace name.  The handler's
+        // whole-word dynamic gate predates the element split and skips the
+        // command outright; recording nothing is a miss, never a wrong span.
+        let src = "namespace path {$ns ::a}\n";
+        let analysis = analyse(src);
+        assert!(
+            analysis.namespace_refs.is_empty(),
+            "{:?}",
+            analysis.namespace_refs,
+        );
+    }
+
+    #[test]
+    fn fp_a_whole_word_dynamic_path_records_nothing_at_all() {
+        let src = "namespace path $entries\n";
+        let analysis = analyse(src);
+        assert!(
+            analysis.namespace_refs.is_empty(),
+            "{:?}",
+            analysis.namespace_refs,
+        );
+    }
+
+    // `apply {{x} {…} ::ns}`'s third list element — issue #1113 item 4.  The
+    // analyser already models its *semantics* (`namespace_overrides`); this
+    // is its reference identity, which sits inside an
+    // `ArgRole::LambdaLiteral` word no whole-word role reaches.
+
+    #[test]
+    fn tp_an_apply_lambdas_namespace_element_is_a_reference() {
+        let src = "namespace eval ::ns {}\napply {{x} { return $x } ::ns} 1\n";
+        let analysis = analyse(src);
+        assert_eq!(
+            texts(src, &namespace_reference_spans(&analysis, "::ns")),
+            vec!["::ns"],
+        );
+        let off = u32::try_from(src.rfind("::ns").expect("found")).expect("offset fits u32");
+        assert_eq!(
+            namespace_cell_at_offset(src, &analysis, off).as_deref(),
+            Some("::ns"),
+        );
+    }
+
+    #[test]
+    fn fp_a_two_element_lambda_records_no_namespace_reference() {
+        // FP guard — the element is optional; a two-element lambda runs in
+        // `::` and names nothing.
+        let src = "apply {{x} { return $x }} 1\n";
+        let analysis = analyse(src);
+        assert!(
+            analysis.namespace_refs.is_empty(),
+            "{:?}",
+            analysis.namespace_refs,
+        );
+    }
+
+    #[test]
+    fn fp_a_dynamic_lambda_namespace_element_records_nothing() {
+        let src = "apply [list {x} { return $x } $ns] 1\n";
+        let analysis = analyse(src);
+        assert!(
+            analysis.namespace_refs.is_empty(),
+            "{:?}",
+            analysis.namespace_refs,
+        );
+    }
+
+    // A constant-dominated computed target — issue #1113 item 3.  `set ns
+    // ::app; namespace eval $ns { … }` creates `::app` on every run, so the
+    // `$ns` word is a declaring occurrence and navigation reaches it.
+
+    #[test]
+    fn tp_a_constant_computed_target_is_a_declaring_site() {
+        let src = "set ns ::app\nnamespace eval $ns { proc go {} { return 1 } }\nnamespace children ::app\n";
+        let analysis = analyse(src);
+        assert_eq!(
+            texts(src, &namespace_declaration_spans(&analysis, "::app")),
+            vec!["$ns"],
+        );
+        // …and the reference in `namespace children ::app` reaches it.
+        let off = u32::try_from(src.rfind("::app").expect("found")).expect("offset fits u32");
+        assert_eq!(
+            namespace_cell_at_offset(src, &analysis, off).as_deref(),
+            Some("::app"),
+        );
+    }
+
+    #[test]
+    fn fp_a_branch_conditional_target_declares_nothing() {
+        // FP guard — which namespace the block creates is a run-time
+        // question, so no declaration may be claimed for either candidate.
+        let src = "set ns ::a\nif {$c} { set ns ::b }\nnamespace eval $ns { proc go {} { return 1 } }\n";
+        let analysis = analyse(src);
+        assert!(namespace_declaration_spans(&analysis, "::a").is_empty());
+        assert!(namespace_declaration_spans(&analysis, "::b").is_empty());
     }
 }
