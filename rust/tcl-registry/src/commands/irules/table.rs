@@ -190,7 +190,7 @@ const SUBTABLE_OPTIONS: &[OptionSpec] = &[
         detail: "Do not reset lifetime/timeout on access.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-subtable",
@@ -198,7 +198,7 @@ const SUBTABLE_OPTIONS: &[OptionSpec] = &[
         detail: "Operate on a named subtable.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-georedundancy",
@@ -206,7 +206,7 @@ const SUBTABLE_OPTIONS: &[OptionSpec] = &[
         detail: "Enable geo-redundancy for this entry.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "--",
@@ -214,7 +214,7 @@ const SUBTABLE_OPTIONS: &[OptionSpec] = &[
         detail: "",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -226,7 +226,7 @@ const SET_OPTIONS: &[OptionSpec] = &[
         detail: "Do not reset lifetime/timeout on access.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-subtable",
@@ -234,7 +234,7 @@ const SET_OPTIONS: &[OptionSpec] = &[
         detail: "Operate on a named subtable.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-georedundancy",
@@ -242,7 +242,7 @@ const SET_OPTIONS: &[OptionSpec] = &[
         detail: "Enable geo-redundancy for this entry.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-mustexist",
@@ -250,7 +250,7 @@ const SET_OPTIONS: &[OptionSpec] = &[
         detail: "Fail if key does not already exist.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-excl",
@@ -258,7 +258,7 @@ const SET_OPTIONS: &[OptionSpec] = &[
         detail: "Fail if key already exists.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "--",
@@ -266,7 +266,7 @@ const SET_OPTIONS: &[OptionSpec] = &[
         detail: "",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -278,7 +278,7 @@ const MUSTEXIST_OPTIONS: &[OptionSpec] = &[
         detail: "Do not reset lifetime/timeout on access.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-subtable",
@@ -286,7 +286,7 @@ const MUSTEXIST_OPTIONS: &[OptionSpec] = &[
         detail: "Operate on a named subtable.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-georedundancy",
@@ -294,7 +294,7 @@ const MUSTEXIST_OPTIONS: &[OptionSpec] = &[
         detail: "Enable geo-redundancy for this entry.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-mustexist",
@@ -302,7 +302,7 @@ const MUSTEXIST_OPTIONS: &[OptionSpec] = &[
         detail: "Fail if key does not already exist.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "--",
@@ -310,7 +310,7 @@ const MUSTEXIST_OPTIONS: &[OptionSpec] = &[
         detail: "",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -323,7 +323,7 @@ const DELETE_OPTIONS: &[OptionSpec] = &[
         detail: "Operate on a named subtable.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-georedundancy",
@@ -331,7 +331,7 @@ const DELETE_OPTIONS: &[OptionSpec] = &[
         detail: "Enable geo-redundancy for this entry.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-all",
@@ -339,7 +339,7 @@ const DELETE_OPTIONS: &[OptionSpec] = &[
         detail: "Delete all keys in a subtable.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "--",
@@ -347,7 +347,7 @@ const DELETE_OPTIONS: &[OptionSpec] = &[
         detail: "",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -360,7 +360,7 @@ const REMAINING_OPTIONS: &[OptionSpec] = &[
         detail: "Operate on a named subtable.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-georedundancy",
@@ -368,7 +368,7 @@ const REMAINING_OPTIONS: &[OptionSpec] = &[
         detail: "Enable geo-redundancy for this entry.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-remaining",
@@ -376,7 +376,7 @@ const REMAINING_OPTIONS: &[OptionSpec] = &[
         detail: "Return remaining time.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "--",
@@ -384,7 +384,7 @@ const REMAINING_OPTIONS: &[OptionSpec] = &[
         detail: "",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -397,7 +397,7 @@ const KEYS_OPTIONS: &[OptionSpec] = &[
         detail: "Operate on a named subtable.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-count",
@@ -405,7 +405,7 @@ const KEYS_OPTIONS: &[OptionSpec] = &[
         detail: "Return count of matching keys.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-notouch",
@@ -413,7 +413,7 @@ const KEYS_OPTIONS: &[OptionSpec] = &[
         detail: "Do not reset lifetime/timeout on access.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "--",
@@ -421,7 +421,7 @@ const KEYS_OPTIONS: &[OptionSpec] = &[
         detail: "",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -432,7 +432,7 @@ const OPTIONS_1: &[OptionSpec] = &[
         detail: "Fail if key does not already exist.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-excl",
@@ -440,7 +440,7 @@ const OPTIONS_1: &[OptionSpec] = &[
         detail: "Fail if key already exists.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-notouch",
@@ -448,7 +448,7 @@ const OPTIONS_1: &[OptionSpec] = &[
         detail: "Do not reset lifetime/timeout on access.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-subtable",
@@ -456,7 +456,7 @@ const OPTIONS_1: &[OptionSpec] = &[
         detail: "Operate on a named subtable.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-georedundancy",
@@ -464,7 +464,7 @@ const OPTIONS_1: &[OptionSpec] = &[
         detail: "Enable geo-redundancy for this entry.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-remaining",
@@ -472,7 +472,7 @@ const OPTIONS_1: &[OptionSpec] = &[
         detail: "Return remaining time.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-count",
@@ -480,7 +480,7 @@ const OPTIONS_1: &[OptionSpec] = &[
         detail: "Return count of matching keys.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-all",
@@ -488,7 +488,7 @@ const OPTIONS_1: &[OptionSpec] = &[
         detail: "Delete all keys in a subtable.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

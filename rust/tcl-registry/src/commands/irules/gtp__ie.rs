@@ -49,7 +49,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Operate on a specific GTP message object.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-type",
@@ -57,7 +57,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Filter by IE type value.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-instance",
@@ -65,7 +65,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Filter by IE instance.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

@@ -72,6 +72,7 @@ pub mod forms;
 pub mod frame_effect;
 pub mod hooks;
 pub mod hover;
+pub mod lifecycle;
 pub mod mathfunc;
 pub mod patterns;
 pub mod presentation;
@@ -124,6 +125,7 @@ pub mod prelude {
         ArgValue, FormKind, FormSpec, HoverSnippet, IntegerDomain, OptionArg, OptionArity,
         OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome,
     };
+    pub use crate::lifecycle::{Lifecycle, LifecycleState};
     pub use crate::patterns::{FormatType, PatternType};
     pub use crate::presentation::ArgPresentation;
     pub use crate::repeated::RepeatedArgLayout;

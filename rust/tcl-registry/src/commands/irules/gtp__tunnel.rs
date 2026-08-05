@@ -43,7 +43,7 @@ pub const fn spec() -> CommandSpec {
                 detail: "Operate on a specific GTP message object.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
             }]
         },
         side_effects: &[SideEffect {

@@ -29,7 +29,7 @@ const MENU_ENTRY_OPTIONS: &[OptionSpec] = &[
         detail: "Tcl command to invoke when the menu entry is invoked.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-variable",
@@ -37,7 +37,7 @@ const MENU_ENTRY_OPTIONS: &[OptionSpec] = &[
         detail: "Global variable tied to a checkbutton or radiobutton entry.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-label",
@@ -45,7 +45,7 @@ const MENU_ENTRY_OPTIONS: &[OptionSpec] = &[
         detail: "Text displayed in the menu entry.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-state",
@@ -53,7 +53,7 @@ const MENU_ENTRY_OPTIONS: &[OptionSpec] = &[
         detail: "State of the entry: normal, active, or disabled.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-value",
@@ -61,7 +61,7 @@ const MENU_ENTRY_OPTIONS: &[OptionSpec] = &[
         detail: "Value stored in the variable when a radiobutton entry is selected.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-onvalue",
@@ -69,7 +69,7 @@ const MENU_ENTRY_OPTIONS: &[OptionSpec] = &[
         detail: "Value stored in the variable when a checkbutton entry is on.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-offvalue",
@@ -77,7 +77,7 @@ const MENU_ENTRY_OPTIONS: &[OptionSpec] = &[
         detail: "Value stored in the variable when a checkbutton entry is off.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-accelerator",
@@ -85,7 +85,7 @@ const MENU_ENTRY_OPTIONS: &[OptionSpec] = &[
         detail: "Accelerator key text displayed at the right of the entry.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-menu",
@@ -93,7 +93,7 @@ const MENU_ENTRY_OPTIONS: &[OptionSpec] = &[
         detail: "Submenu posted by a cascade entry.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -294,7 +294,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the menu should include a tear-off entry at the top.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-title",
@@ -302,7 +302,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Title string for the tear-off menu window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-type",
@@ -310,7 +310,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Type of the menu: menubar, tearoff, or normal.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-bg",
@@ -318,7 +318,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Shorthand for -background.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-background",
@@ -326,7 +326,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Background colour of the menu.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-fg",
@@ -334,7 +334,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Shorthand for -foreground.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-foreground",
@@ -342,7 +342,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Foreground colour for menu entries.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-font",
@@ -350,7 +350,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Font to use for text in the menu.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-activebackground",
@@ -358,7 +358,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Background colour for the active menu entry.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-activeforeground",
@@ -366,7 +366,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Foreground colour for the active menu entry.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-activeborderwidth",
@@ -374,7 +374,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the border drawn around active entries.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-disabledforeground",
@@ -382,7 +382,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Foreground colour for disabled menu entries.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-selectcolor",
@@ -390,7 +390,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the indicator for checkbutton and radiobutton entries.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-relief",
@@ -398,7 +398,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-borderwidth",
@@ -406,7 +406,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the border around the menu.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-postcommand",
@@ -414,7 +414,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Tcl command to invoke just before the menu is posted.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-tearoffcommand",
@@ -422,7 +422,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Command prefix invoked when the menu is torn off (the parent menu path and the torn-off menu path are appended).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-cursor",
@@ -430,7 +430,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Cursor to display when the mouse is over the menu.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-takefocus",
@@ -438,7 +438,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the menu accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

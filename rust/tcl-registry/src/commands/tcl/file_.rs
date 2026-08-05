@@ -85,7 +85,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Overwrite an existing destination file, adjusting its permissions first if necessary.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "--",
@@ -93,7 +93,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Marks the end of switches; the following word is treated as source even if it starts with -.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },
@@ -126,7 +126,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Remove a non-empty directory, adjusting permissions and relocating the process's cwd out of the path first if necessary.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "--",
@@ -134,7 +134,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Marks the end of switches; the following word is treated as pathname even if it starts with -.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },
@@ -271,7 +271,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Create (or require) a symbolic link.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-hard",
@@ -279,7 +279,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Create (or require) a hard link; files only.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },
@@ -461,7 +461,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Overwrite an existing destination file.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "--",
@@ -469,7 +469,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Marks the end of switches; the following word is treated as source even if it starts with -.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

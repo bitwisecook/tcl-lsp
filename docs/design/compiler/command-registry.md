@@ -79,6 +79,7 @@ class StringCommand(CommandDef):
 | `required_package` | `str \| None` | `None` | Only show in completions when this package has been `package require`d |
 | `tcllib_package` | `str \| None` | `None` | Tcllib package that provides this command (per-document activation) |
 | `warn_missing_import` | `bool` | `True` | Whether W120 fires when used without `package require`.  `False` for Tk commands (auto-loaded by `wish`) |
+| `lifecycle` | `Lifecycle` | `UNSPECIFIED` | Introducing / deprecating / **retiring** releases on the owning package's version axis.  See [Lifecycle](#lifecycle----one-contract-for-every-versioned-entity) |
 
 #### Documentation
 
@@ -245,7 +246,7 @@ subcommand (`binary scan` destructures where the bare `binary` does not).
 | `detail` | `str` | `""` | Short description for completion items |
 | `synopsis` | `str` | `""` | Usage synopsis for completion/hover |
 | `dialects` | `frozenset[str] \| None` | `None` | Override parent's dialect set.  `None` = inherit |
-| `min_version` / `max_version` | `Option<&str>` | `None` | Owning-package release range for this subcommand. On iRules commands this is compared with the existing `tclLsp.bigipVersion` / `--bigip-version` keyed BIG-IP floor |
+| `lifecycle` | `Lifecycle` | `UNSPECIFIED` | Introducing / deprecating / **retiring** releases of this subcommand on the owning package's version axis. Retirement is exclusive (`retired: 10.0.0` ⇒ gone *in* 10.0.0). On iRules commands this is compared with the existing `tclLsp.bigipVersion` / `--bigip-version` keyed BIG-IP floor. See `tcl_registry::lifecycle` |
 | `versioned_arg_values` | `&[VersionedArgValue]` | `&[]` | Owning-package release ranges for individual literal values declared in `arg_values`, indexed after the subcommand word (for example, the `mcp` mode of `persist add`) |
 | `destructive` | `bool` | `False` | Destructive operation (e.g. `file delete`) |
 | `credential_arg` | `int \| None` | `None` | Arg index that carries a secret |
@@ -808,6 +809,59 @@ module.
 `OptionSpec(name="--")` on a `SubCommand` or `FormSpec` declares `--` support;
 W304 ("use `--` before dynamic pattern") is derived automatically via
 `CommandRegistry.resolve_option_terminator()`.
+
+### Lifecycle -- one contract for every versioned entity
+
+`tcl_registry::lifecycle::Lifecycle` is the *only* way a registry entity
+describes its availability over releases. It is carried by `CommandSpec`,
+`SubCommand`, `OptionSpec`, `VersionedArgValue`, `EventProps` (iRules
+events), and `ProfileSpec` (BIG-IP profile types) under the same field name,
+`lifecycle`.
+
+| Field | Meaning |
+|---|---|
+| `introduced` | First release where the entity exists. `None` = present in every release of its axis. |
+| `deprecated` | First release where it still exists but should warn. `None` = not deprecated. |
+| `retired` | First release where it no longer exists — **exclusive**. `None` = not retired. |
+
+There is deliberately **no** generic maximum version. A known range is
+described by `introduced` alone; an upper bound exists only as retirement
+metadata, and `retired: 10.0.0` means the entity is already gone *in*
+10.0.0.
+
+`Lifecycle::state_at(target)` is the single decision point:
+
+```
+target >= retired                     -> LifecycleState::Retired
+target <  introduced                  -> LifecycleState::NotIntroduced
+target >= deprecated (still available) -> LifecycleState::Deprecated
+otherwise                              -> LifecycleState::Available
+```
+
+An absent `target` is permissive (`Available`) — the registry never gates on
+a version it could not resolve. `available_at`, `deprecated_at`, and
+`retired_at` are thin wrappers, and `available_for_version` on each spec type
+delegates to them, so completion, hover, diagnostics, the CLI, MCP, the query
+engine, snapshots, and the Spec Studio schema all apply the same exclusive
+retirement rule.
+
+Consumers:
+
+- **Diagnostics** — `W135`/`W136` (not introduced yet), `W144` (deprecated),
+  `W139` (retired); `IRULE1002`/`IRULE1003` for iRules events.
+- **Completion / hover** — retired items are omitted, deprecated ones are
+  kept and labelled with their deprecating release.
+- **Serialisation** — every JSON surface names the three fields
+  `introducedVersion` / `deprecatedVersion` / `retiredVersion` (snake_case
+  in the Spec Studio draft schema) with `null` meaning "never reached that
+  state".
+
+`Lifecycle::validate()` rejects impossible orderings (`deprecated <
+introduced`, `retired < deprecated`, `retired < introduced`); the registry
+sweep runs it over every entity so bad data cannot reach a consumer.
+`with_baseline` fills an absent `introduced` from an axis baseline (the
+BIG-IP surfaces declare everything present since 15.0) but never creates an
+impossible ordering.
 
 ### ArgumentValueSpec -- completions
 

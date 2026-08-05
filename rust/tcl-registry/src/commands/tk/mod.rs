@@ -91,11 +91,11 @@ pub fn tk_command_specs() -> Vec<CommandSpec> {
     specs.extend(tk_extra_cmds::specs());
     specs.extend(console::specs());
     // The themed-widget set (`ttk::*`) was introduced with Tk 8.5.  Stamp the
-    // package `min_version` here rather than in every ttk spec file so the
-    // gate stays in one place.
+    // package lifecycle here rather than in every ttk spec file so the gate
+    // stays in one place.
     for spec in &mut specs {
-        if spec.min_version.is_none() && spec.name.starts_with("ttk::") {
-            spec.min_version = Some("8.5");
+        if spec.lifecycle.introduced.is_none() && spec.name.starts_with("ttk::") {
+            spec.lifecycle.introduced = Some("8.5");
         }
     }
     specs
@@ -217,7 +217,7 @@ mod tests {
         }
         // ttk::spinbox is gated to 8.5 like the rest of the themed set.
         let spin = specs.iter().find(|s| s.name == "ttk::spinbox").unwrap();
-        assert_eq!(spin.min_version, Some("8.5"));
+        assert_eq!(spin.lifecycle.introduced, Some("8.5"));
     }
 
     #[test]
@@ -227,11 +227,11 @@ mod tests {
         // record` each take exactly one script argument that must resolve as
         // `ArgRole::Body` (so the LSP recurses into it) and must be listed as
         // a cross-interpreter eval sink (T105) — same shape as `interp eval`.
-        // Stable across Tk 8.4-9.0 (no `min_version` gate on any subcommand).
+        // Stable across Tk 8.4-9.0 (no lifecycle gate on any subcommand).
         let specs = tk_command_specs();
 
         let console = specs.iter().find(|s| s.name == "console").unwrap();
-        assert_eq!(console.min_version, None);
+        assert!(console.lifecycle.is_unspecified());
         assert_eq!(console.taint_interp_eval_subcommands, &["eval"]);
         let console_eval = console.resolve_subcommand("eval").unwrap();
         assert_eq!(console_eval.arity, Arity::exact(1));
@@ -242,7 +242,7 @@ mod tests {
         }
 
         let consoleinterp = specs.iter().find(|s| s.name == "consoleinterp").unwrap();
-        assert_eq!(consoleinterp.min_version, None);
+        assert!(consoleinterp.lifecycle.is_unspecified());
         assert_eq!(
             consoleinterp.taint_interp_eval_subcommands,
             &["eval", "record"]
@@ -285,14 +285,14 @@ mod tests {
     fn ttk_widgets_are_gated_to_tk_85() {
         let specs = tk_command_specs();
         let ttk_button = specs.iter().find(|s| s.name == "ttk::button").unwrap();
-        assert_eq!(ttk_button.min_version, Some("8.5"));
+        assert_eq!(ttk_button.lifecycle.introduced, Some("8.5"));
         // Available floor >= 8.5 -> present; older -> absent.
         assert!(ttk_button.available_for_version(Some("8.5")));
         assert!(ttk_button.available_for_version(Some("9.0")));
         assert!(!ttk_button.available_for_version(Some("8.4")));
-        // A plain widget carries no package min_version.
+        // A plain widget carries no package lifecycle gate.
         let button = specs.iter().find(|s| s.name == "button").unwrap();
-        assert_eq!(button.min_version, None);
+        assert!(button.lifecycle.is_unspecified());
     }
 
     #[test]

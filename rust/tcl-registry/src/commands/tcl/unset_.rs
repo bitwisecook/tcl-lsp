@@ -147,7 +147,7 @@ pub fn spec() -> CommandSpec {
                     detail: "Suppress every error unset would otherwise raise for each name that follows — a missing variable, an array-element reference against a scalar, or a nonexistent namespace — and keep processing the remaining names. Must be the literal first argument, spelled out in full; never abbreviated, so it can't be confused with a variable name that happens to start the same way.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "--",
@@ -155,7 +155,7 @@ pub fn spec() -> CommandSpec {
                     detail: "End option parsing, so a following word is always treated as a variable name even if it looks like an option. Recognised only as the first argument, or as the second when it immediately follows -nocomplain — anywhere else -- is itself just another name to delete.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

@@ -57,7 +57,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Option -ifile.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-content",
@@ -65,7 +65,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Option -content.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

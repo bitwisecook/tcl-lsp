@@ -33,7 +33,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Starting value for the numeric range.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-to",
@@ -41,7 +41,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Ending value for the numeric range.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-increment",
@@ -49,7 +49,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Amount to increment or decrement the value on each arrow press.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-values",
@@ -57,7 +57,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "List of values to cycle through instead of a numeric range.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-textvariable",
@@ -65,7 +65,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Name of a variable linked to the spinbox's contents.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-width",
@@ -73,7 +73,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Desired width of the spinbox in average-size characters.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-state",
@@ -81,7 +81,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "State of the spinbox: normal, disabled, or readonly.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-format",
@@ -89,7 +89,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Format string for displaying the value (e.g. %5.2f).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-wrap",
@@ -97,7 +97,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the value wraps around when the range limit is reached.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-command",
@@ -105,7 +105,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Tcl command to invoke when the value is changed via the arrows.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-validate",
@@ -113,7 +113,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Validation mode: none, focus, focusin, focusout, key, or all.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-validatecommand",
@@ -121,7 +121,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Script to evaluate when validation is triggered.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-invalidcommand",
@@ -129,7 +129,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Script to evaluate when validation fails.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-font",
@@ -137,7 +137,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Font to use for text in the spinbox.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-bg",
@@ -145,7 +145,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Shorthand for -background.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-fg",
@@ -153,7 +153,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Shorthand for -foreground.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-readonlybackground",
@@ -161,7 +161,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Background colour when the spinbox is in readonly state.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-buttonbackground",
@@ -169,7 +169,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Background colour of the increment/decrement buttons.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-buttoncursor",
@@ -177,7 +177,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Cursor to display when the mouse is over the buttons.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-buttondownrelief",
@@ -185,7 +185,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Relief of the down (decrement) button.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-buttonuprelief",
@@ -193,7 +193,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Relief of the up (increment) button.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-relief",
@@ -201,7 +201,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-selectbackground",
@@ -209,7 +209,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Background colour for selected text.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-selectborderwidth",
@@ -217,7 +217,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the border around selected text.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-selectforeground",
@@ -225,7 +225,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Foreground colour for selected text.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-insertbackground",
@@ -233,7 +233,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the insertion cursor.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-insertborderwidth",
@@ -241,7 +241,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the border around the insertion cursor.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-insertofftime",
@@ -249,7 +249,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Milliseconds the insertion cursor is off during blinking.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-insertontime",
@@ -257,7 +257,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Milliseconds the insertion cursor is on during blinking.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-insertwidth",
@@ -265,7 +265,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the insertion cursor in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-xscrollcommand",
@@ -273,7 +273,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Command prefix for communicating with horizontal scrollbars.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-exportselection",
@@ -281,7 +281,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the selection is exported to the X selection.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-cursor",
@@ -289,7 +289,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Cursor to display when the mouse is over the spinbox.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-takefocus",
@@ -297,7 +297,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the spinbox accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-highlightbackground",
@@ -305,7 +305,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the highlight region when the spinbox does not have focus.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-highlightcolor",
@@ -313,7 +313,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the highlight region when the spinbox has focus.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-highlightthickness",
@@ -321,7 +321,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the highlight rectangle drawn around the spinbox.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-activebackground",
@@ -329,7 +329,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies background color to use when drawing active elements. An element (a widget or portion of a widget).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-repeatinterval",
@@ -337,7 +337,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Used in conjunction with -repeatdelay: once auto-repeat begins, this option determines the number of.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-justify",
@@ -345,7 +345,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "When there are multiple lines of text displayed in a widget, this option determines how the lines line up.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-repeatdelay",
@@ -353,7 +353,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the number of milliseconds a button or key must be held down before it begins to auto-repeat. Used.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-disabledbackground",
@@ -361,7 +361,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the background color to use when the spinbox is disabled. If this option is the empty string, the.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-disabledforeground",
@@ -369,7 +369,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the foreground color to use when the spinbox is disabled. If this option is the empty string, the.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

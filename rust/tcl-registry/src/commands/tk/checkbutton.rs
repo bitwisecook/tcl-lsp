@@ -33,7 +33,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Text to display in the checkbutton.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-textvariable",
@@ -41,7 +41,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Name of a variable whose value will be used as the checkbutton text.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-variable",
@@ -49,7 +49,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Name of the global variable linked to the checkbutton state.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-onvalue",
@@ -57,7 +57,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Value stored in the variable when the checkbutton is selected.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-offvalue",
@@ -65,7 +65,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Value stored in the variable when the checkbutton is deselected.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-command",
@@ -73,7 +73,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Tcl command to invoke when the checkbutton is toggled.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-state",
@@ -81,7 +81,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "State of the checkbutton: normal, active, or disabled.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-indicatoron",
@@ -89,7 +89,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether to display the selection indicator.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-selectimage",
@@ -97,7 +97,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Image to display when the checkbutton is selected.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-selectcolor",
@@ -105,7 +105,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the indicator when the checkbutton is selected.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-image",
@@ -113,7 +113,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Image to display in the checkbutton.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-bitmap",
@@ -121,7 +121,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Bitmap to display in the checkbutton.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-compound",
@@ -129,7 +129,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether to display both image and text: none, bottom, top, left, right, or center.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-width",
@@ -137,7 +137,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Desired width of the checkbutton in characters (text) or pixels (image).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-height",
@@ -145,7 +145,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Desired height of the checkbutton in lines (text) or pixels (image).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-anchor",
@@ -153,7 +153,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "How information is positioned: n, ne, e, se, s, sw, w, nw, or center.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-justify",
@@ -161,7 +161,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Justification of multi-line text: left, center, or right.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-wraplength",
@@ -169,7 +169,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Maximum line length for word wrapping, in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-underline",
@@ -177,7 +177,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Index of character to underline for keyboard traversal (0-based).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-font",
@@ -185,7 +185,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Font to use for the checkbutton text.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-bg",
@@ -193,7 +193,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Shorthand for -background.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-fg",
@@ -201,7 +201,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Shorthand for -foreground.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-activebackground",
@@ -209,7 +209,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Background colour when the checkbutton is active (mouse over).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-activeforeground",
@@ -217,7 +217,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Foreground colour when the checkbutton is active.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-disabledforeground",
@@ -225,7 +225,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Foreground colour when the checkbutton is disabled.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-relief",
@@ -233,7 +233,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-padx",
@@ -241,7 +241,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Extra horizontal padding inside the checkbutton.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-pady",
@@ -249,7 +249,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Extra vertical padding inside the checkbutton.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-cursor",
@@ -257,7 +257,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Cursor to display when the mouse is over the checkbutton.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-takefocus",
@@ -265,7 +265,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the checkbutton accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-highlightbackground",
@@ -273,7 +273,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the highlight region when the checkbutton does not have focus.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-highlightcolor",
@@ -281,7 +281,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the highlight region when the checkbutton has focus.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-highlightthickness",
@@ -289,7 +289,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the highlight rectangle drawn around the checkbutton.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-overrelief",
@@ -297,7 +297,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Relief to use when the mouse cursor is over the checkbutton.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-offrelief",
@@ -305,7 +305,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the relief for the checkbutton when the indicator is not drawn and the checkbutton is off. The.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-tristateimage",
@@ -313,7 +313,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies an image to display (in place of the -image option) when the checkbutton is in tri-state mode. This.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-tristatevalue",
@@ -321,7 +321,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the value that causes the checkbutton to display the multi-value selection, also known as the.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

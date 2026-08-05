@@ -46,7 +46,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Return display name of categories.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-id",
@@ -54,7 +54,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Return category IDs.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-ip",
@@ -62,7 +62,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "IP address to categorize.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-custom_cat_match",
@@ -70,7 +70,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Match against a specified custom category.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

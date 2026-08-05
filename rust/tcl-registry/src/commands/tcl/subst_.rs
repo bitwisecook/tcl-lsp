@@ -62,7 +62,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Disable backslash substitution; backslash sequences such as \\n are left as literal text. Command and variable substitution are unaffected.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-nocommands",
@@ -70,7 +70,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Disable top-level command substitution; [ and ] are treated as ordinary characters. A [command] nested inside a variable reference (e.g. an array index) still runs, since that is part of resolving the variable, not a top-level substitution.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-novariables",
@@ -78,7 +78,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Disable top-level variable substitution; $ is treated as an ordinary character. A $variable reference nested inside a command still runs, since that is part of evaluating the command, not a top-level substitution.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     // Tcl 9.1 adds positive forms that enable *only* the named
     // substitution, defaulting every other kind off. Positive and negated
@@ -89,7 +89,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Enable only backslash substitution; commands and variables are left as literal text (Tcl 9.1). Cannot combine with -nobackslashes/-nocommands/-novariables.",
         dialects: Some(DialectSet::TCL91),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-commands",
@@ -97,7 +97,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Enable only command substitution; backslashes and variables are left as literal text (Tcl 9.1). Cannot combine with -nobackslashes/-nocommands/-novariables.",
         dialects: Some(DialectSet::TCL91),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-variables",
@@ -105,7 +105,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Enable only variable substitution; backslashes and commands are left as literal text (Tcl 9.1). Cannot combine with -nobackslashes/-nocommands/-novariables.",
         dialects: Some(DialectSet::TCL91),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

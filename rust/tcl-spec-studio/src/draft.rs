@@ -42,6 +42,7 @@ use tcl_registry::hooks::ArgTypeHint;
 use tcl_registry::hover::{
     ArgValue, FormSpec, HoverSnippet, IntegerDomain, OptionArity, OptionSpec, OptionValue,
 };
+use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::presentation::ArgPresentation;
 use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::{CommandSpec, SubCommand, SubSubCommand};
@@ -72,6 +73,16 @@ pub type Draft = Map<String, Value>;
 
 fn opt_str(value: Option<&'static str>) -> Value {
     value.map_or(Value::Null, |s| json!(s))
+}
+
+/// Write a [`Lifecycle`] into a draft under the three canonical keys used by
+/// every registry surface: `introduced_version`, `deprecated_version`, and
+/// `retired_version` (the last exclusive). `null` means the lifecycle never
+/// reached that state.
+fn insert_lifecycle(d: &mut Map<String, Value>, lifecycle: Lifecycle) {
+    d.insert("introduced_version".into(), opt_str(lifecycle.introduced));
+    d.insert("deprecated_version".into(), opt_str(lifecycle.deprecated));
+    d.insert("retired_version".into(), opt_str(lifecycle.retired));
 }
 
 fn str_list(values: &[&'static str]) -> Value {
@@ -253,7 +264,9 @@ fn option_spec(opt: &OptionSpec) -> (Value, bool) {
             "detail": opt.detail,
             "dialects": dialects(opt.dialects),
             "aliases": str_list(opt.aliases),
-            "min_version": opt_str(opt.min_version),
+            "introduced_version": opt_str(opt.lifecycle.introduced),
+            "deprecated_version": opt_str(opt.lifecycle.deprecated),
+            "retired_version": opt_str(opt.lifecycle.retired),
             "value": value,
         }),
         complete,
@@ -525,8 +538,7 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         lost.expr("subcommand_forms", !sub.subcommand_forms.is_empty()),
     );
     d.insert("dialects".into(), dialects(sub.dialects));
-    d.insert("min_version".into(), opt_str(sub.min_version));
-    d.insert("max_version".into(), opt_str(sub.max_version));
+    insert_lifecycle(d, sub.lifecycle);
     d.insert("safe_on_uninit".into(), dialects(sub.safe_on_uninit));
     d.insert("loop_list_header".into(), json!(sub.loop_list_header));
     d.insert("creates_scope_alias".into(), json!(sub.creates_scope_alias));
@@ -870,8 +882,7 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
             .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
     );
     d.insert("tcllib_package".into(), opt_str(spec.tcllib_package));
-    d.insert("min_version".into(), opt_str(spec.min_version));
-    d.insert("max_version".into(), opt_str(spec.max_version));
+    insert_lifecycle(d, spec.lifecycle);
     d.insert(
         "warn_missing_import".into(),
         json!(spec.warn_missing_import),

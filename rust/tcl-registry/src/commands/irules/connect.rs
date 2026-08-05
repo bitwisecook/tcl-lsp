@@ -58,7 +58,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "IP protocol (default TCP).",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-myaddr",
@@ -66,7 +66,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Source address for the connection.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-myport",
@@ -74,7 +74,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Source port for the connection.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-timeout",
@@ -82,7 +82,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Time in ms to wait for connection.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-idle",
@@ -90,7 +90,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Idle timeout in seconds (default 300).",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-tos",
@@ -98,7 +98,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "IP TOS value.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-status",
@@ -106,7 +106,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Save connection status into variable.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

@@ -76,7 +76,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Option -periodic.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-current",
@@ -84,7 +84,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Option -current.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

@@ -953,7 +953,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Compare without regard to case.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-length",
@@ -965,7 +965,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Compare only the first length characters; a negative value is ignored (the whole string is compared).",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },
@@ -987,7 +987,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Compare without regard to case.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-length",
@@ -999,7 +999,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Compare only the first length characters; a negative value is ignored (the whole string is compared).",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },
@@ -1148,7 +1148,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Treat the empty string as not matching the class (by default the empty string matches every class).",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-failindex",
@@ -1160,7 +1160,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Variable to receive the index where the class test failed. Left unset when string matches the class; on failure its exact contents are class-specific (e.g. -1 for a numeric overflow, the parse-failure index for list/dict, always 0 for boolean/true/false).",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },
@@ -1262,7 +1262,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 detail: "Match keys without regard to case.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
             }]
         },
         arg_types: &[
@@ -1317,7 +1317,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 detail: "Match without regard to case; the endpoints of a [x-y] range are lower-cased first, so [A-z] behaves like [A-Za-z].",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
             }]
         },
         ..SubCommand::DEFAULT

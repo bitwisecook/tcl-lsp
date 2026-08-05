@@ -54,7 +54,7 @@ pub const fn spec() -> CommandSpec {
                 detail: "Reset the server-side connection.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
             }]
         },
         side_effects: &[SideEffect {

@@ -43,7 +43,7 @@ pub const fn spec() -> CommandSpec {
                 detail: "HTTP method (GET, POST, PUT, DELETE, etc.).",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
             }]
         },
         side_effects: &[SideEffect {

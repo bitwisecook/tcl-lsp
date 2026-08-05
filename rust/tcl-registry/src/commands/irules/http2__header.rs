@@ -47,7 +47,7 @@ pub const fn spec() -> CommandSpec {
         // `f5-irules-cmds` library keyed on the BIG-IP release; this
         // command's introducing release comes from the hover prose below.
         required_package: Some("f5-irules-cmds"),
-        min_version: Some("16.1.0"),
+        lifecycle: Lifecycle::introduced_in("16.1.0"),
         arity: Arity::new(1, 3),
         hover: Some(HoverSnippet {
             summary: "Queries or modifies HTTP/2 pseudo-headers.",

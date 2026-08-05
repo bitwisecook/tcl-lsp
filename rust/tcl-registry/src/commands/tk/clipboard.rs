@@ -56,7 +56,7 @@ const APPEND_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the display for the clipboard operation.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-format",
@@ -64,7 +64,7 @@ const APPEND_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the representation format for the data (append).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-type",
@@ -72,7 +72,7 @@ const APPEND_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the form in which the selection is to be returned.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -83,7 +83,7 @@ const CLEAR_OPTIONS: &[OptionSpec] = &[OptionSpec {
     detail: "Specifies the display for the clipboard operation.",
     dialects: None,
     aliases: &[],
-    min_version: None,
+    lifecycle: Lifecycle::UNSPECIFIED,
 }];
 
 /// `get`: `-displayof` and `-type` — no `-format` (that only applies to
@@ -95,7 +95,7 @@ const GET_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the display for the clipboard operation.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-type",
@@ -103,7 +103,7 @@ const GET_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the form in which the selection is to be returned.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -122,7 +122,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the display for the clipboard operation.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-format",
@@ -130,7 +130,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the representation format for the data (append).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-type",
@@ -138,7 +138,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the form in which the selection is to be returned.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

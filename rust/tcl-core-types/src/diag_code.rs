@@ -423,11 +423,12 @@ diagnostic_codes! {
     W136 => "W136", diag(Warning, true, "Option requires a newer package version than the resolved `package require`.");
     W137 => "W137", diag(Warning, true, "Argument value requires a newer Tcl version than the dialect provides.");
     W138 => "W138", diag(Warning, true, "Format/scan conversion requires a newer Tcl version than the dialect provides.");
-    W139 => "W139", diag(Warning, true, "Command/option removed at the resolved package version (present only in earlier releases).");
+    W139 => "W139", diag(Warning, true, "Command/option retired at the resolved package version — the retiring release is exclusive, so the item is gone from that release onward.");
     W140 => "W140", diag(Warning, true, "`interp eval` / `interp` subcommand targets an interpreter path never created in this file — the call raises `could not find interpreter` at run time.");
     W141 => "W141", diag(Warning, true, "Option value fails a declared shape/content check (e.g. `-errorstack` must be an even-sized list) — the option-value sibling of W127 for a value that is structurally malformed rather than outside a closed set.");
     W142 => "W142", diag(Warning, true, "Command invalid in its current lexical/dispatch context (e.g. `return` with arguments directly inside an iRules event body).");
     W143 => "W143", diag(Warning, true, "Direct call into a private `::tcl::` implementation namespace (e.g. `::tcl::dict::create`) — use the public ensemble command instead (`dict create`).");
+    W144 => "W144", diag(Warning, true, "Command/subcommand/option/argument value is deprecated at the resolved package version — still available, but the registry records a deprecating release.");
     W200 => "W200", diag(Warning, true, "`exec` result not captured or binary format modifier requires newer Tcl.");
     W201 => "W201", diag(Warning, true, "Manual path concatenation — use `file join` instead.");
     W210 => "W210", diag(Variable, true, "Variable read before set.");

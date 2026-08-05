@@ -157,7 +157,7 @@ pub const fn spec() -> CommandSpec {
                 detail: "Do not propagate the header mutation to subsequent BIG-IP filters.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
             }]
         },
         hover: Some(HoverSnippet {

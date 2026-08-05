@@ -35,6 +35,7 @@ use crate::hooks::{
     TclVersion, VersionedConstFoldFn, WasmCodegenHookId,
 };
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
+use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::patterns::{FormatType, PatternType};
 use crate::presentation::ArgPresentation;
 use crate::repeated::RepeatedArgLayout;
@@ -737,17 +738,14 @@ pub struct CommandSpec {
     /// activation via `package require`. `None` = core/built-in.
     pub tcllib_package: Option<&'static str>,
 
-    /// Minimum version of `required_package` / `tcllib_package` that
-    /// introduced this command, as a dotted Tcl version string — e.g. the
-    /// `ttk::*` widgets need Tk `8.5`. `None` = present in every version of
-    /// the owning package. Gated against the version resolved from
-    /// `package require` via [`CommandSpec::available_for_version`].
-    pub min_version: Option<&'static str>,
-    /// The last package version that still provides this command, or
-    /// `None` while it remains present (the open maximum — nothing
-    /// modelled is removed yet). Checked alongside `min_version` by
-    /// [`CommandSpec::available_for_version`].
-    pub max_version: Option<&'static str>,
+    /// Introduction / deprecation / retirement releases of this command on
+    /// the version axis of `required_package` / `tcllib_package` — e.g. the
+    /// `ttk::*` widgets are introduced in Tk `8.5`.
+    /// [`Lifecycle::UNSPECIFIED`] = present in every version of the owning
+    /// package. Gated against the version resolved from `package require` via
+    /// [`CommandSpec::available_for_version`] /
+    /// [`CommandSpec::lifecycle_state`].
+    pub lifecycle: Lifecycle,
 
     /// Whether W120 (missing-import) fires when this package-gated
     /// command is used without a `package require`. Default `true`; set
@@ -1053,8 +1051,7 @@ impl CommandSpec {
         pattern_type: None,
         format_string_type: None,
         tcllib_package: None,
-        min_version: None,
-        max_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
         warn_missing_import: true,
         is_namespace_exported: false,
         xc_translatable: None,
@@ -1307,8 +1304,8 @@ impl CommandSpec {
 
     /// Like [`Self::switch_names`], but optionally including documented
     /// abbreviation aliases (`-bd` for `-borderwidth`) and filtering by the
-    /// resolved package version (dropping options whose `min_version` is
-    /// newer than *`package_version`*).
+    /// resolved package version (dropping options not yet introduced at, or
+    /// already retired by, *`package_version`*).
     ///
     /// `include_aliases` is for validation callers that must accept `-bd`;
     /// completion passes `false` so only canonical spellings are offered.
@@ -1384,23 +1381,21 @@ impl CommandSpec {
     ///
     /// *`package_version`* is the guaranteed-available floor from a
     /// `package require` (see [`crate::version::requirement_lower_bound`]).
-    /// `None` is permissive; a command with no `min_version` is always
-    /// available.
+    /// `None` is permissive; a command with an unspecified lifecycle is
+    /// always available.
     #[must_use]
     pub fn available_for_version(&self, package_version: Option<&str>) -> bool {
-        if let (Some(max), Some(version)) = (self.max_version, package_version)
-            && crate::version::compare(version, max).is_gt()
-        {
-            return false;
-        }
-        match (self.min_version, package_version) {
-            (Some(min), Some(have)) => crate::version::meets_min(have, min),
-            _ => true,
-        }
+        self.lifecycle.available_at(package_version)
+    }
+
+    /// This command's lifecycle state at the resolved *`package_version`*.
+    #[must_use]
+    pub fn lifecycle_state(&self, package_version: Option<&str>) -> LifecycleState {
+        self.lifecycle.state_at(package_version)
     }
 }
 
-/// A package-version gate on one literal positional argument value of a
+/// A lifecycle gate on one literal positional argument value of a
 /// subcommand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VersionedArgValue {
@@ -1408,25 +1403,22 @@ pub struct VersionedArgValue {
     pub index: u8,
     /// Literal value whose availability is gated.
     pub value: &'static str,
-    /// First owning-package version that accepts the value.
-    pub min_version: Option<&'static str>,
-    /// Last owning-package version that accepts the value.
-    pub max_version: Option<&'static str>,
+    /// Introduction / deprecation / retirement releases of this literal value
+    /// on the owning package's version axis.
+    pub lifecycle: Lifecycle,
 }
 
 impl VersionedArgValue {
     /// Whether this value exists at `package_version`.
     #[must_use]
     pub fn available_for_version(&self, package_version: Option<&str>) -> bool {
-        if let (Some(max), Some(version)) = (self.max_version, package_version)
-            && crate::version::compare(version, max).is_gt()
-        {
-            return false;
-        }
-        match (self.min_version, package_version) {
-            (Some(min), Some(have)) => crate::version::meets_min(have, min),
-            _ => true,
-        }
+        self.lifecycle.available_at(package_version)
+    }
+
+    /// This value's lifecycle state at `package_version`.
+    #[must_use]
+    pub fn lifecycle_state(&self, package_version: Option<&str>) -> LifecycleState {
+        self.lifecycle.state_at(package_version)
     }
 }
 
@@ -1577,13 +1569,11 @@ pub struct SubCommand {
     /// Dialect membership. `None` = inherit from parent `CommandSpec`.
     pub dialects: Option<DialectSet>,
 
-    /// Minimum version of the parent command's owning package that introduced
-    /// this subcommand. `None` means it is present in every package version.
-    pub min_version: Option<&'static str>,
-
-    /// Last version of the parent command's owning package that provides this
-    /// subcommand. `None` means it has not been removed.
-    pub max_version: Option<&'static str>,
+    /// Introduction / deprecation / retirement releases of this subcommand on
+    /// the parent command's owning-package version axis.
+    /// [`Lifecycle::UNSPECIFIED`] means it is present in every package
+    /// version.
+    pub lifecycle: Lifecycle,
 
     /// Safe-on-uninit dialect set.
     pub safe_on_uninit: Option<DialectSet>,
@@ -1775,8 +1765,7 @@ impl SubCommand {
         versioned_arg_values: &[],
         subcommand_forms: &[],
         dialects: None,
-        min_version: None,
-        max_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
         safe_on_uninit: None,
         loop_list_header: false,
         creates_scope_alias: false,
@@ -1820,15 +1809,13 @@ impl SubCommand {
     /// `None` is permissive, matching [`CommandSpec::available_for_version`].
     #[must_use]
     pub fn available_for_version(&self, package_version: Option<&str>) -> bool {
-        if let (Some(max), Some(version)) = (self.max_version, package_version)
-            && crate::version::compare(version, max).is_gt()
-        {
-            return false;
-        }
-        match (self.min_version, package_version) {
-            (Some(min), Some(have)) => crate::version::meets_min(have, min),
-            _ => true,
-        }
+        self.lifecycle.available_at(package_version)
+    }
+
+    /// This subcommand's lifecycle state at `package_version`.
+    #[must_use]
+    pub fn lifecycle_state(&self, package_version: Option<&str>) -> LifecycleState {
+        self.lifecycle.state_at(package_version)
     }
 
     /// Whether an enumerable positional argument value exists at

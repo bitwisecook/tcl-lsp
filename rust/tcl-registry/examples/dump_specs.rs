@@ -508,14 +508,22 @@ fn main() {
                 let implied = json_str_list(p.implied_profiles);
                 let setup = p.setup_event.map_or_else(|| "null".to_string(), json_str);
                 println!(
-                    "{{\"name\":{},\"client_side\":{},\"server_side\":{},\"transport\":{},\"implied_profiles\":{},\"flow\":{},\"deprecated\":{},\"hot\":{},\"common\":{},\"setup_event\":{}}}",
+                    "{{\"name\":{},\"client_side\":{},\"server_side\":{},\"transport\":{},\"implied_profiles\":{},\"flow\":{},\"introduced_version\":{},\"deprecated_version\":{},\"retired_version\":{},\"hot\":{},\"common\":{},\"setup_event\":{}}}",
                     json_str(n),
                     p.client_side,
                     p.server_side,
                     transport,
                     implied,
                     p.flow,
-                    p.deprecated,
+                    p.lifecycle()
+                        .introduced
+                        .map_or_else(|| "null".to_string(), json_str),
+                    p.lifecycle()
+                        .deprecated
+                        .map_or_else(|| "null".to_string(), json_str),
+                    p.lifecycle()
+                        .retired
+                        .map_or_else(|| "null".to_string(), json_str),
                     p.hot,
                     p.common,
                     setup,

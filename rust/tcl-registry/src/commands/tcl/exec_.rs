@@ -83,7 +83,7 @@ pub fn spec() -> CommandSpec {
                     detail: "Encoding used to decode subprocess output captured by exec, defaulting to the interpreter's system encoding ([encoding system]). Added in Tcl 9.0; earlier Tcl always uses the system encoding, and other encodings (including raw binary) require opening and reading the pipeline explicitly.",
                     dialects: Some(DialectSet::TCL90_PLUS),
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-ignorestderr",
@@ -91,7 +91,7 @@ pub fn spec() -> CommandSpec {
                     detail: "Stops exec from treating unredirected output on a subprocess's stderr as an error case. Added in Tcl 8.5; in 8.4 any unredirected stderr output always makes exec raise an error.",
                     dialects: Some(DialectSet::TCL85_PLUS),
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-keepnewline",
@@ -99,7 +99,7 @@ pub fn spec() -> CommandSpec {
                     detail: "Retains a trailing newline in the pipeline's result or error message; normally a single trailing newline is deleted.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "--",
@@ -107,7 +107,7 @@ pub fn spec() -> CommandSpec {
                     detail: "Marks the end of switches; the following argument is treated as the first pipeline word even if it begins with -.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

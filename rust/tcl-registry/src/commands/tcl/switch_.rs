@@ -167,7 +167,7 @@ pub fn spec() -> CommandSpec {
                     detail: "Exact string compare mode. This is the default.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-glob",
@@ -175,7 +175,7 @@ pub fn spec() -> CommandSpec {
                     detail: "Glob-style pattern mode, as implemented by `string match`.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-integer",
@@ -183,7 +183,7 @@ pub fn spec() -> CommandSpec {
                     detail: "Integer comparison mode: string and every pattern (other than a trailing default) must be a valid integer, or switch raises an error. Cannot be combined with -nocase.",
                     dialects: Some(DialectSet::TCL91),
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-regexp",
@@ -191,7 +191,7 @@ pub fn spec() -> CommandSpec {
                     detail: "Regular expression pattern mode.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-nocase",
@@ -199,7 +199,7 @@ pub fn spec() -> CommandSpec {
                     detail: "Case-insensitive matching. Not supported together with -integer (Tcl 9.1+).",
                     dialects: Some(DialectSet::TCL85_PLUS),
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-matchvar",
@@ -207,7 +207,7 @@ pub fn spec() -> CommandSpec {
                     detail: "Store the list of matched substrings here — element 0 is the overall match, each later element a capturing group (only legal with -regexp); an empty list when a default branch runs.",
                     dialects: Some(DialectSet::TCL85_PLUS),
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-indexvar",
@@ -215,7 +215,7 @@ pub fn spec() -> CommandSpec {
                     detail: "Store the list of matched substring start/end index pairs here, parallel to -matchvar (only legal with -regexp); an empty list when a default branch runs.",
                     dialects: Some(DialectSet::TCL85_PLUS),
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "--",
@@ -223,7 +223,7 @@ pub fn spec() -> CommandSpec {
                     detail: "End of options: the next word is always the subject string, even if it starts with -.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

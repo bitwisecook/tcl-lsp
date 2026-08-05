@@ -91,8 +91,7 @@ const TABLE_MODES: &[ArgValue] = &[
 const MCP_MODE_GATE: &[VersionedArgValue] = &[VersionedArgValue {
     index: 0,
     value: "mcp",
-    min_version: Some("21.1.0"),
-    max_version: None,
+    lifecycle: Lifecycle::introduced_in("21.1.0"),
 }];
 
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -206,7 +205,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             examples: "persist mcp persistence_name",
             return_value: "",
         }),
-        min_version: Some("21.1.0"),
+        lifecycle: Lifecycle::introduced_in("21.1.0"),
         ..SubCommand::DEFAULT
     },
     SubCommand {

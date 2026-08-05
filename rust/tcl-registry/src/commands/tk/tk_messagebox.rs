@@ -33,7 +33,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Name of the default button.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-detail",
@@ -41,7 +41,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Supplemental message text.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-icon",
@@ -49,7 +49,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Icon to display (error, info, question, warning).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-message",
@@ -57,7 +57,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Main message text to display.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-parent",
@@ -65,7 +65,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Parent window for the dialogue.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-title",
@@ -73,7 +73,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Title string for the dialogue window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-type",
@@ -81,7 +81,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Arrangement of buttons to display.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-command",
@@ -89,7 +89,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Command prefix invoked when the dialog closes; the clicked button name is appended (macOS).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

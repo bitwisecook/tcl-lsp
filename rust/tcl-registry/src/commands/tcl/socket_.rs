@@ -26,7 +26,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Local network interface, by domain name or IP address: the client-side interface to originate from (client sockets), or the interface to listen on (server sockets). Defaults to a system-chosen interface for a client socket, or the wildcard address (all interfaces) for a server socket.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-myport",
@@ -34,7 +34,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Client sockets only: local port to use for the connection. Defaults to a system-assigned port.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-async",
@@ -42,7 +42,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Client sockets only: create the socket and return immediately instead of waiting for the connection to complete. A gets or flush issued before it completes then either blocks (blocking channel) or fails with fblocked returning 1 (nonblocking channel).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-server",
@@ -51,7 +51,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Create a listening server socket instead of a client connection. command (a command prefix) is invoked as \"command channel clientAddr clientPort\" for each accepted connection.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-reuseaddr",
@@ -59,7 +59,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Server sockets only, Tcl 9.0+: whether the kernel may reuse the local address when no socket is actively listening on it (SO_REUSEADDR). True is the default on Windows; the default on other platforms is undocumented.",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-reuseport",
@@ -67,7 +67,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Server sockets only, Tcl 9.0+: whether multiple sockets may bind the same local address and port (SO_REUSEPORT). The default value is undocumented.",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

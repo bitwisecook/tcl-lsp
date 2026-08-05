@@ -40,6 +40,7 @@
 use std::collections::BTreeMap;
 
 use crate::bigip::{BigipPropertySpec, default_registry};
+use crate::lifecycle::Lifecycle;
 use crate::profiles::ProfileRegistry;
 
 /// Minimal JSON value tree with a two-space-indented, key-sorted
@@ -199,16 +200,7 @@ pub fn profile_graph_snapshot() -> Json {
         let spec = reg.get_profile(name).expect("listed profile resolves");
         let mut entry = BTreeMap::new();
         entry.insert("name".to_owned(), Json::s(spec.name));
-        entry.insert(
-            "bigipMinVersion".to_owned(),
-            spec.bigip_min_version
-                .or(tcl_dialect::VersionKey::BigipVersion.baseline_version())
-                .map_or(Json::Null, Json::s),
-        );
-        entry.insert(
-            "bigipMaxVersion".to_owned(),
-            spec.bigip_max_version.map_or(Json::Null, Json::s),
-        );
+        insert_lifecycle(&mut entry, spec.lifecycle());
         // The Rust crate stores `tls_shared` for the shared TLS/persistence
         // layer (PERSIST / SSL_PERSISTENCE) to drive its infrastructure logic;
         // both are reported as `tls`.
@@ -394,6 +386,26 @@ fn build_property_references(specs: &[&'static crate::bigip::BigipObjectSpec]) -
     out
 }
 
+/// Serialise a [`Lifecycle`] into a snapshot object under the three
+/// canonical keys. Every registry surface names the fields the same way and
+/// uses the same null semantics: `null` means the lifecycle never reached
+/// that state, and `retiredVersion` is the **exclusive** first release
+/// without the entity.
+fn insert_lifecycle(obj: &mut BTreeMap<String, Json>, lifecycle: Lifecycle) {
+    obj.insert(
+        "introducedVersion".to_owned(),
+        lifecycle.introduced.map_or(Json::Null, Json::s),
+    );
+    obj.insert(
+        "deprecatedVersion".to_owned(),
+        lifecycle.deprecated.map_or(Json::Null, Json::s),
+    );
+    obj.insert(
+        "retiredVersion".to_owned(),
+        lifecycle.retired.map_or(Json::Null, Json::s),
+    );
+}
+
 /// Sorted copy of a `&[&str]` slice as owned `String`s.
 fn sorted(items: &[&str]) -> Vec<String> {
     let mut v: Vec<String> = items.iter().map(|s| (*s).to_owned()).collect();
@@ -426,19 +438,9 @@ fn event_props_json(props: &crate::events::EventProps) -> Json {
         many => Json::str_array(sorted(many)),
     };
     let mut obj = BTreeMap::new();
-    // Declared BIG-IP range: explicit introduction data, or the 15.0 axis
-    // baseline; `null` max = still present.
-    obj.insert(
-        "bigipMinVersion".to_owned(),
-        props
-            .bigip_min_version
-            .or(tcl_dialect::VersionKey::BigipVersion.baseline_version())
-            .map_or(Json::Null, Json::s),
-    );
-    obj.insert(
-        "bigipMaxVersion".to_owned(),
-        props.bigip_max_version.map_or(Json::Null, Json::s),
-    );
+    // Declared BIG-IP lifecycle: explicit introduction data, or the 15.0 axis
+    // baseline; `null` deprecated/retired = the state was never reached.
+    insert_lifecycle(&mut obj, props.lifecycle());
     obj.insert("client_side".to_owned(), Json::Bool(props.client_side));
     obj.insert("server_side".to_owned(), Json::Bool(props.server_side));
     obj.insert("transport".to_owned(), transport);
@@ -447,7 +449,6 @@ fn event_props_json(props: &crate::events::EventProps) -> Json {
         Json::str_array(sorted(props.implied_profiles)),
     );
     obj.insert("flow".to_owned(), Json::Bool(props.flow));
-    obj.insert("deprecated".to_owned(), Json::Bool(props.deprecated));
     obj.insert("hot".to_owned(), Json::Bool(props.hot));
     obj.insert("common".to_owned(), Json::Bool(props.common));
     obj.insert(
@@ -495,7 +496,11 @@ pub fn event_graph_snapshot() -> Json {
             }),
         );
         entry.insert("known".to_owned(), Json::Bool(info.known));
-        entry.insert("deprecated".to_owned(), Json::Bool(info.deprecated));
+        insert_lifecycle(&mut entry, info.lifecycle);
+        entry.insert(
+            "lifecycleState".to_owned(),
+            Json::s(info.lifecycle_state.as_str()),
+        );
         entry.insert("multiplicity".to_owned(), Json::s(info.multiplicity));
         entry.insert("side".to_owned(), Json::s(info.side));
         entry.insert(

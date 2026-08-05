@@ -25,7 +25,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Match as regular expression.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-ex",
@@ -33,7 +33,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Match as exact string.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-input",
@@ -41,7 +41,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specify input source.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-output",
@@ -49,7 +49,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specify output destination.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-u",
@@ -57,7 +57,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Connect user to the specified process.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-o",
@@ -65,7 +65,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Apply to output.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-i",
@@ -73,7 +73,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specify spawn id.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-echo",
@@ -81,7 +81,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Echo characters.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-nobuffer",
@@ -89,7 +89,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Do not buffer input.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-f",
@@ -97,7 +97,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Force — do not flush.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-F",
@@ -105,7 +105,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Force — flush.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-reset",
@@ -113,7 +113,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Reset terminal modes.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

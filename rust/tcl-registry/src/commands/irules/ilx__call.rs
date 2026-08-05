@@ -44,7 +44,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Timeout in milliseconds.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "--",
@@ -52,7 +52,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

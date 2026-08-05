@@ -48,7 +48,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Return every matching index (ascending order) instead of just the first; with -inline, every matching value.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-ascii",
@@ -56,7 +56,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Compare as Unicode text (the flag name is historical, not literally ASCII-only); the default contents style, meaningful only with -exact or -sorted.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     // `-bisect` first appears in the Tcl 8.6 manpage — absent from both
     // the 8.4 and 8.5 option lists.
@@ -66,7 +66,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Binary search for an inexact match: the last index <= pattern (increasing list) or >= pattern (decreasing list), or -1 if none qualify. Implies -sorted; cannot combine with -all or -not.",
         dialects: Some(DialectSet::TCL86_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-decreasing",
@@ -74,7 +74,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "List is sorted in decreasing order (with -sorted).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-dictionary",
@@ -82,7 +82,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Dictionary-style comparison (with -exact/-sorted); differs from -ascii only under -sorted, since values are only dictionary-equal when exactly equal.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-exact",
@@ -90,7 +90,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Exact equality match.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-glob",
@@ -98,7 +98,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Glob-pattern match (default).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-increasing",
@@ -106,7 +106,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "List is sorted in increasing order (with -sorted; the default sort order).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     // `-index`, `-nocase`, `-subindices` were added to `lsearch` in Tcl 8.5
     // (absent from the 8.4 manpage's option list).
@@ -116,7 +116,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Search/compare a nested sub-element addressed by indexList (a path of lindex/lset-style indices) instead of the whole element.",
         dialects: Some(DialectSet::TCL85_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-inline",
@@ -124,7 +124,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Return the matching value(s) instead of index(es); empty string if nothing matches.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-integer",
@@ -132,7 +132,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Integer comparison (with -exact/-sorted).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-nocase",
@@ -140,7 +140,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Case-insensitive comparison (with -exact/-sorted); has no effect combined with -dictionary, -integer, or -real.",
         dialects: Some(DialectSet::TCL85_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-not",
@@ -148,7 +148,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Invert the match: return the first non-matching element's index (or value) instead of the first match.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-real",
@@ -156,7 +156,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Floating-point comparison (with -exact/-sorted).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-regexp",
@@ -164,7 +164,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Regular-expression match.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-sorted",
@@ -172,7 +172,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "List is sorted; use a faster search. Mutually exclusive with -glob/-regexp, and behaves like -exact when combined with -all or -not.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-start",
@@ -180,7 +180,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Start the search at index. Tcl 8.4 accepts a literal integer, end, or end-N; Tcl 8.5+ accepts full string-index arithmetic (the same rules as `string index`).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     // `lsearch -stride` is Tcl 9.0-only, TIP 351 (tclsh8.6 rejects it with
     // "bad option -stride"; the 8.6 `lsort -stride` is the separate TIP 326).
@@ -194,7 +194,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Treat the list as fixed-size groups of strideLength elements, matching each group's first element (or, with -index, the element -index selects within it); the reported index always points to the group's first element. strideLength must be >= 1 (default 1, no grouping) and evenly divide the list length.",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-subindices",
@@ -202,7 +202,7 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "With -index, report the full index path (usable with lindex/lset) to a match instead of just the top-level index; no effect without -index.",
         dialects: Some(DialectSet::TCL85_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     // NOTE: `lsearch` does NOT declare `--` in its option table.
     // This keeps W304 (missing-option-terminator) silent for

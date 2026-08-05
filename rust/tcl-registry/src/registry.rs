@@ -34,6 +34,7 @@ use crate::command_table::CommandTableEffect;
 use crate::dialects::DialectSet;
 use crate::forms::CommandForm;
 use crate::hooks::{AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId};
+use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
 use crate::traits::Traits;
 use crate::types::VarWriteTyping;
@@ -51,18 +52,14 @@ const FRAME_SENSITIVE_TRAITS: Traits = Traits::TERMINATES_BLOCK
 pub struct EventInfo {
     /// The upper-cased event name as queried.
     pub event: String,
-    /// The BIG-IP release this event is declared present from — explicit
-    /// data, or the axis baseline (15.0.0) for a known event with none.
-    /// `None` only for unknown events.
-    pub bigip_min_version: Option<&'static str>,
-    /// The last BIG-IP release providing this event; `None` = still
-    /// present (the open maximum).
-    pub bigip_max_version: Option<&'static str>,
+    /// Introduction / deprecation / retirement releases on the BIG-IP axis —
+    /// explicit data, with an absent introducing release inheriting the axis
+    /// baseline (15.0.0). Entirely unspecified for an unknown event.
+    pub lifecycle: Lifecycle,
+    /// The event's lifecycle state at the queried BIG-IP release.
+    pub lifecycle_state: LifecycleState,
     /// Whether the event is a recognised iRules event.
     pub known: bool,
-    /// Whether the event is deprecated (always `false`; see
-    /// [`CommandRegistry::event_info`]).
-    pub deprecated: bool,
     /// `"init"` / `"once_per_connection"` / `"per_request"` / `"unknown"`.
     pub multiplicity: &'static str,
     /// Description prose, or `""` when none is recorded.
@@ -850,10 +847,9 @@ impl CommandRegistry {
             let Some(version) = bigip_version else {
                 return true;
             };
-            let min = spec
-                .min_version
-                .or(tcl_dialect::VersionKey::BigipVersion.baseline_version());
-            crate::version::within_range(version, min, spec.max_version)
+            spec.lifecycle
+                .with_baseline(tcl_dialect::VersionKey::BigipVersion.baseline_version())
+                .available_at(Some(version))
         };
         let mut names: Vec<&str> = self
             .by_name
@@ -963,14 +959,11 @@ impl CommandRegistry {
             Vec::new()
         };
         let props = events.get_props(&name);
-        let (bigip_min_version, bigip_max_version) = events
-            .event_version_range(&name)
-            .map_or((None, None), |(min, max)| (min, max));
+        let lifecycle = events.event_lifecycle(&name).unwrap_or_default();
         EventInfo {
-            bigip_min_version,
-            bigip_max_version,
+            lifecycle,
+            lifecycle_state: lifecycle.state_at(Some(target)),
             known,
-            deprecated: false,
             multiplicity: events.multiplicity(&name),
             description: events.description(&name).unwrap_or("").to_owned(),
             side: props.map_or("unknown", crate::events::EventProps::side_label),

@@ -25,7 +25,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Match as regular expression.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-ex",
@@ -33,7 +33,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Match as exact string.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-gl",
@@ -41,7 +41,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Match as glob (default).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-nocase",
@@ -49,7 +49,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Case-insensitive matching.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-i",
@@ -57,7 +57,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specify the spawn id.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-info",
@@ -65,7 +65,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Return current patterns.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

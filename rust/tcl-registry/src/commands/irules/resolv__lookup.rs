@@ -44,7 +44,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Query for type A (IPv4) records.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-aaaa",
@@ -52,7 +52,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Query for type AAAA (IPv6) records.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-ptr",
@@ -60,7 +60,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Query for PTR records.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-txt",
@@ -68,7 +68,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Query for TXT records.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-mx",
@@ -76,7 +76,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Query for MX records.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

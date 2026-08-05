@@ -615,7 +615,12 @@ fn event_info(args: &Value) -> Value {
     json!({
         "event": info.event,
         "known": info.known,
-        "deprecated": info.deprecated,
+        // The three lifecycle releases, same names and null semantics as the
+        // CLI/query/snapshot surfaces; `retired_version` is exclusive.
+        "introduced_version": info.lifecycle.introduced,
+        "deprecated_version": info.lifecycle.deprecated,
+        "retired_version": info.lifecycle.retired,
+        "lifecycle_state": info.lifecycle_state.as_str(),
         "multiplicity": info.multiplicity,
         "description": info.description,
         "side": info.side,

@@ -55,7 +55,7 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
         detail: "Name of the ensemble's dispatch command (default: the fully-qualified name of the invoking namespace). Write-only, and valid only with create.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-map",
@@ -63,7 +63,7 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
         detail: "Maps subcommand names to target command-prefix lists, similar to interp alias (default: empty, meaning each subcommand maps to the identically-named command in the linked namespace).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-parameters",
@@ -71,7 +71,7 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
         detail: "Named arguments inserted between the ensemble command and the subcommand, used when generating error messages (default: none).",
         dialects: Some(DialectSet::TCL86_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-prefixes",
@@ -79,7 +79,7 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
         detail: "Whether unambiguous subcommand prefixes are accepted (default: on).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-subcommands",
@@ -87,7 +87,7 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
         detail: "Explicit list of valid subcommand names (default: empty, meaning the -map keys or the linked namespace's exported commands).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-unknown",
@@ -95,7 +95,7 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
         detail: "Command prefix invoked, with the ensemble's own invocation words appended, when a subcommand is not recognised (default: none, which raises a standard \"unknown subcommand\" error).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -139,7 +139,7 @@ static WHICH_OPTIONS: &[OptionSpec] = &[
         detail: "Resolve name as a command (the default).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-variable",
@@ -147,7 +147,7 @@ static WHICH_OPTIONS: &[OptionSpec] = &[
         detail: "Resolve name as a variable.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -183,7 +183,7 @@ static EXPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
     detail: "Reset the namespace's export pattern list to empty before appending the given patterns.",
     dialects: None,
     aliases: &[],
-    min_version: None,
+    lifecycle: Lifecycle::UNSPECIFIED,
 }];
 
 /// `namespace import`'s only flag — present unchanged in the synopsis of
@@ -194,7 +194,7 @@ static IMPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
     detail: "Silently overwrite an existing command instead of erroring on conflict.",
     dialects: None,
     aliases: &[],
-    min_version: None,
+    lifecycle: Lifecycle::UNSPECIFIED,
 }];
 
 /// `namespace delete ?namespace namespace ...?` — every positional word names

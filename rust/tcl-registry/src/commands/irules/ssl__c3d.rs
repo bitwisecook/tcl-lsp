@@ -79,7 +79,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             examples: "SSL::c3d cert_lifespan 5",
             return_value: "",
         }),
-        min_version: Some("21.1.0"),
+        lifecycle: Lifecycle::introduced_in("21.1.0"),
         mutator: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
@@ -120,7 +120,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 },
             ],
         )],
-        min_version: Some("21.1.0"),
+        lifecycle: Lifecycle::introduced_in("21.1.0"),
         mutator: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,

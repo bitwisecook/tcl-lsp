@@ -58,7 +58,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Suppresses all error messages; unload never reports an error when this switch is given.",
         dialects: Some(DialectSet::TCL85_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-keeplibrary",
@@ -66,7 +66,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Prevents unload from issuing the operating system call that detaches the library from the process; the library's own unload procedure still runs and the reference counts are still updated.",
         dialects: Some(DialectSet::TCL85_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "--",
@@ -74,7 +74,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Marks the end of switches; the following argument is treated as fileName even if it begins with -.",
         dialects: Some(DialectSet::TCL85_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

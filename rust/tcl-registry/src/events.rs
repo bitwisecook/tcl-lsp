@@ -24,17 +24,18 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::side_effects::ConnectionSide;
 
 /// Per-event protocol stack properties.
 ///
 /// Describes which connection side an event fires on, what transport
-/// it requires, which profiles must be active, and classification
-/// flags (hot, common, deprecated).
+/// it requires, which profiles must be active, its lifecycle on the
+/// `BIG-IP` release axis, and classification flags (hot, common).
 #[derive(Debug, Clone, PartialEq, Eq)]
 // `client_side` / `server_side` are mutually exclusive in
 // principle but the static tables include both-sides events; the
-// remaining four (`flow`, `deprecated`, `hot`, `common`) are
+// remaining three (`flow`, `hot`, `common`) are
 // orthogonal classification facts. A bitflags consolidation is
 // possible but the type is part of the registry's public surface
 // and the static-data tables encode 247 events as `EventProps {
@@ -51,8 +52,6 @@ pub struct EventProps {
     pub implied_profiles: &'static [&'static str],
     /// Whether there is active traffic flow during this event.
     pub flow: bool,
-    /// Event is deprecated.
-    pub deprecated: bool,
     /// Commonly used event (hot path).
     pub hot: bool,
     /// Commonly used event (general).
@@ -70,13 +69,11 @@ pub struct EventProps {
     /// because it is not the event's firing side — `SERVER_DATA` fires on
     /// both sides yet requires a *server*-side collect.)
     pub data_collect_side: Option<crate::side_effects::ConnectionSide>,
-    /// The BIG-IP release that introduced this event, when explicitly
-    /// known; `None` inherits the axis baseline (declared present since
-    /// BIG-IP 15.0 — `VersionKey::BigipVersion.baseline_version()`).
-    pub bigip_min_version: Option<&'static str>,
-    /// The last BIG-IP release providing this event; `None` = still
-    /// present (the open maximum).
-    pub bigip_max_version: Option<&'static str>,
+    /// Introduction / deprecation / retirement releases of this event on
+    /// the `BIG-IP` release axis. An absent introducing release inherits the
+    /// axis baseline (declared present since BIG-IP 15.0 —
+    /// `VersionKey::BigipVersion.baseline_version()`).
+    pub lifecycle: Lifecycle,
 }
 
 impl EventProps {
@@ -99,15 +96,32 @@ impl EventProps {
         transport: &[],
         implied_profiles: &[],
         flow: true,
-        deprecated: false,
         hot: false,
         common: false,
         setup_event: None,
         data_collect_protocols: &[],
         data_collect_side: None,
-        bigip_min_version: None,
-        bigip_max_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     };
+
+    /// The event's lifecycle with the `BIG-IP` axis baseline filled in for an
+    /// absent introducing release.
+    #[must_use]
+    pub fn lifecycle(&self) -> Lifecycle {
+        self.lifecycle
+            .with_baseline(tcl_dialect::VersionKey::BigipVersion.baseline_version())
+    }
+
+    /// Whether the event is deprecated at `bigip_version`, or — with no
+    /// resolved release — whether it is ever deprecated. Version-agnostic
+    /// surfaces (a plain hover, the catalogue dump) pass `None`.
+    #[must_use]
+    pub fn is_deprecated(&self, bigip_version: Option<&str>) -> bool {
+        match bigip_version {
+            Some(_) => self.lifecycle.deprecated_at(bigip_version),
+            None => self.lifecycle.is_deprecated_anywhere(),
+        }
+    }
 }
 
 /// What a command requires from the protocol stack.
@@ -185,29 +199,28 @@ pub struct EventRegistry {
 }
 
 impl EventRegistry {
-    /// The BIG-IP version range of `event`: the explicit introduction /
-    /// removal releases when known, with an absent minimum inheriting the
-    /// axis baseline (declared present since BIG-IP 15.0). `None` for an
+    /// The lifecycle of `event` on the BIG-IP release axis, with an absent
+    /// introducing release inheriting the axis baseline (declared present
+    /// since BIG-IP 15.0). `None` for an unknown event.
+    #[must_use]
+    pub fn event_lifecycle(&self, event: &str) -> Option<Lifecycle> {
+        Some(self.get_props(event)?.lifecycle())
+    }
+
+    /// The lifecycle state of `event` at BIG-IP `version`. `None` for an
     /// unknown event.
     #[must_use]
-    pub fn event_version_range(
-        &self,
-        event: &str,
-    ) -> Option<(Option<&'static str>, Option<&'static str>)> {
-        let props = self.get_props(event)?;
-        let min = props
-            .bigip_min_version
-            .or(tcl_dialect::VersionKey::BigipVersion.baseline_version());
-        Some((min, props.bigip_max_version))
+    pub fn event_lifecycle_state(&self, event: &str, version: &str) -> Option<LifecycleState> {
+        Some(self.event_lifecycle(event)?.state_at(Some(version)))
     }
 
     /// Whether `event` exists at BIG-IP `version` per the declared data
-    /// (baseline semantics — see [`Self::event_version_range`]). Unknown
+    /// (baseline semantics — see [`Self::event_lifecycle`]). Unknown
     /// events are `false`.
     #[must_use]
     pub fn event_available_at(&self, event: &str, version: &str) -> bool {
-        self.event_version_range(event)
-            .is_some_and(|(min, max)| crate::version::within_range(version, min, max))
+        self.event_lifecycle(event)
+            .is_some_and(|life| life.available_at(Some(version)))
     }
 
     /// Build the event registry from static data.
@@ -732,7 +745,7 @@ fn event_props_table_2() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["ASM", "FASTHTTP", "HTTP"],
-                deprecated: true,
+                lifecycle: Lifecycle::deprecated_in("11.3.0"),
                 ..EventProps::DEFAULT
             },
         ),
@@ -762,7 +775,7 @@ fn event_props_table_2() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["AUTH"],
-                deprecated: true,
+                lifecycle: Lifecycle::introduced_in("9.0.0").deprecated_from("9.4.0"),
                 ..EventProps::DEFAULT
             },
         ),
@@ -772,7 +785,7 @@ fn event_props_table_2() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["AUTH"],
-                deprecated: true,
+                lifecycle: Lifecycle::introduced_in("9.0.0").deprecated_from("9.4.0"),
                 ..EventProps::DEFAULT
             },
         ),
@@ -796,7 +809,7 @@ fn event_props_table_3() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["AUTH"],
-                deprecated: true,
+                lifecycle: Lifecycle::introduced_in("9.0.0").deprecated_from("9.4.0"),
                 ..EventProps::DEFAULT
             },
         ),
@@ -806,7 +819,7 @@ fn event_props_table_3() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["AUTH"],
-                deprecated: true,
+                lifecycle: Lifecycle::introduced_in("9.0.0").deprecated_from("9.4.0"),
                 ..EventProps::DEFAULT
             },
         ),
@@ -1204,7 +1217,7 @@ fn event_props_table_7() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["HTTP"],
-                deprecated: true,
+                lifecycle: Lifecycle::deprecated_in("11.4.0"),
                 ..EventProps::DEFAULT
             },
         ),
@@ -1219,7 +1232,7 @@ fn event_props_table_8() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["HTTP"],
-                deprecated: true,
+                lifecycle: Lifecycle::deprecated_in("11.4.0"),
                 ..EventProps::DEFAULT
             },
         ),
@@ -1757,7 +1770,7 @@ fn event_props_table_14() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["QOE"],
-                deprecated: true,
+                lifecycle: Lifecycle::introduced_in("11.5.0").deprecated_from("15.0.0"),
                 ..EventProps::DEFAULT
             },
         ),
@@ -2237,7 +2250,9 @@ fn event_props_table_19() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["FASTHTTP", "HTTP", "XML"],
-                deprecated: true,
+                lifecycle: Lifecycle::introduced_in("9.0.3")
+                    .deprecated_from("10.0.0")
+                    .retired_from("10.0.0"),
                 ..EventProps::DEFAULT
             },
         ),
@@ -2252,7 +2267,9 @@ fn event_props_table_20() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["FASTHTTP", "HTTP", "XML"],
-                deprecated: true,
+                lifecycle: Lifecycle::introduced_in("9.0.3")
+                    .deprecated_from("10.0.0")
+                    .retired_from("10.0.0"),
                 ..EventProps::DEFAULT
             },
         ),
@@ -2262,7 +2279,9 @@ fn event_props_table_20() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["FASTHTTP", "HTTP", "XML"],
-                deprecated: true,
+                lifecycle: Lifecycle::introduced_in("9.0.3")
+                    .deprecated_from("10.0.0")
+                    .retired_from("10.0.0"),
                 ..EventProps::DEFAULT
             },
         ),
@@ -2272,7 +2291,7 @@ fn event_props_table_20() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["FASTHTTP", "HTTP", "XML"],
-                deprecated: true,
+                lifecycle: Lifecycle::introduced_in("10.2.0"),
                 ..EventProps::DEFAULT
             },
         ),
@@ -2282,7 +2301,9 @@ fn event_props_table_20() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["FASTHTTP", "HTTP", "XML"],
-                deprecated: true,
+                lifecycle: Lifecycle::introduced_in("9.0.3")
+                    .deprecated_from("10.0.0")
+                    .retired_from("10.0.0"),
                 ..EventProps::DEFAULT
             },
         ),
@@ -2292,7 +2313,9 @@ fn event_props_table_20() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["FASTHTTP", "HTTP", "XML"],
-                deprecated: true,
+                lifecycle: Lifecycle::introduced_in("9.0.3")
+                    .deprecated_from("10.0.0")
+                    .retired_from("10.0.0"),
                 ..EventProps::DEFAULT
             },
         ),
@@ -2302,7 +2325,9 @@ fn event_props_table_20() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["FASTHTTP", "HTTP", "XML"],
-                deprecated: true,
+                lifecycle: Lifecycle::introduced_in("9.0.3")
+                    .deprecated_from("10.0.0")
+                    .retired_from("10.0.0"),
                 ..EventProps::DEFAULT
             },
         ),

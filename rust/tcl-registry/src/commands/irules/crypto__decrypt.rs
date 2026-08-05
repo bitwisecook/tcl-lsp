@@ -44,7 +44,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Decryption algorithm.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-ctx",
@@ -52,7 +52,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Context variable for multi-step operations.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-final",
@@ -60,7 +60,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Finalize context-based operation.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-key",
@@ -68,7 +68,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Binary key.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-keyhex",
@@ -76,7 +76,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Hex-encoded key.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-iv",
@@ -84,7 +84,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Initialization vector (binary).",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-ivhex",
@@ -92,7 +92,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Initialization vector (hex).",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-padding",
@@ -100,7 +100,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Padding mode (pkcs, oaep, none).",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

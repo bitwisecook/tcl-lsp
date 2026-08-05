@@ -33,7 +33,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Desired width of the toplevel in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-height",
@@ -41,7 +41,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Desired height of the toplevel in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-bg",
@@ -49,7 +49,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Shorthand for -background.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-background",
@@ -57,7 +57,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Background colour of the toplevel window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-relief",
@@ -65,7 +65,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-borderwidth",
@@ -73,7 +73,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the border around the toplevel.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-menu",
@@ -81,7 +81,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Path name of a menu widget to use as the toplevel's menu bar.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-screen",
@@ -89,7 +89,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Screen on which to place the toplevel window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-use",
@@ -97,7 +97,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Window identifier of a container in which to embed the toplevel.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-class",
@@ -105,7 +105,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Class name for the toplevel, used in option database lookups.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-colormap",
@@ -113,7 +113,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colourmap to use for the toplevel: new or inherited from a window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-container",
@@ -121,7 +121,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the toplevel will be a container for an embedded application.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-visual",
@@ -129,7 +129,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Visual information for the toplevel window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-cursor",
@@ -137,7 +137,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Cursor to display when the mouse is over the toplevel.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-takefocus",
@@ -145,7 +145,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the toplevel accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-highlightbackground",
@@ -153,7 +153,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the highlight region when the toplevel does not have focus.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-highlightcolor",
@@ -161,7 +161,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the highlight region when the toplevel has focus.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-highlightthickness",
@@ -169,7 +169,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the highlight rectangle drawn around the toplevel.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-pady",
@@ -177,7 +177,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies a non-negative value indicating how much extra space to request for the widget in the Y-direction.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-padx",
@@ -185,7 +185,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies a non-negative value indicating how much extra space to request for the widget in the X-direction.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

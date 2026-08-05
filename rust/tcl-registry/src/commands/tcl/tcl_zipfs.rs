@@ -98,7 +98,7 @@ static LIST_OPTIONS: [OptionSpec; 2] = [
         detail: "Match pattern as a glob pattern, per the rules of `string match` — the default when neither -glob nor -regexp is given.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-regexp",
@@ -106,7 +106,7 @@ static LIST_OPTIONS: [OptionSpec; 2] = [
         detail: "Match pattern as a regular expression instead of a glob pattern.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

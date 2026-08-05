@@ -156,7 +156,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Unwind the evaluation stack without regard to any intervening catch, rather than stopping at the first enclosing one.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "--",
@@ -164,7 +164,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Marks the end of switches; needed when path itself looks like a switch (e.g. -safe).",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },
@@ -192,7 +192,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "--",
@@ -200,7 +200,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },
@@ -231,7 +231,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 detail: "Enable exact per-command file/line tracking for `info frame` in the target interpreter (slower execution). Given with no value, only reports the current setting. Once turned on, cannot be turned back off.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
             }]
         },
         ..SubCommand::DEFAULT
@@ -329,7 +329,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Invoke the hidden command at the global level in the target interpreter, instead of the current call frame.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-namespace",
@@ -343,7 +343,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: Some(DialectSet::TCL85_PLUS),
                     detail: "Namespace in which to invoke the hidden command. Ignored if -global is also given.",
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "--",
@@ -351,7 +351,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: Some(DialectSet::TCL85_PLUS),
                     detail: "Marks the end of switches, so hiddenCmdName may itself start with -.",
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },
@@ -391,7 +391,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Script run in the global namespace of the interpreter that set this option, invoked when the limited interpreter's limit is exceeded; may extend the limit to let evaluation continue. Common to both limit types.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-granularity",
@@ -399,7 +399,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "How often, relative to the interpreter's consistent-state checkpoints, the limit is actually checked. Common to both limit types.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-milliseconds",
@@ -407,7 +407,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Millisecond offset applied after -seconds. Only meaningful for the time limit type, given alongside -seconds.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-seconds",
@@ -415,7 +415,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Epoch seconds (as from clock seconds) at which the time limit fires. Empty string clears the time limit. Only meaningful for the time limit type.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-value",
@@ -423,7 +423,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Number of commands the interpreter may execute before the command limit fires. Empty string clears the command limit. Only meaningful for the command limit type.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

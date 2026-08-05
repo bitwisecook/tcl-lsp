@@ -48,7 +48,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Option -publisher.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-pub",
@@ -56,7 +56,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Option -pub.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-proto",
@@ -64,7 +64,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Option -proto.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-pool",
@@ -72,7 +72,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Option -pool.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

@@ -29,7 +29,12 @@ interface GeneratedEvent {
   description?: string;
   common?: boolean;
   hot?: boolean;
-  deprecated?: boolean;
+  // Lifecycle releases on the BIG-IP axis. Absent means the event never
+  // reached that state; `retiredVersion` is the exclusive first release
+  // without the event.
+  introducedVersion?: string;
+  deprecatedVersion?: string;
+  retiredVersion?: string;
 }
 
 // Derive the common events list from the generated catalog.

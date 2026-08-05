@@ -58,7 +58,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Return extension at specified index.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-type",
@@ -66,7 +66,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Return extension matching specified type value.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

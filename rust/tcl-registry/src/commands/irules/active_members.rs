@@ -53,7 +53,7 @@ pub const fn spec() -> CommandSpec {
                 detail: "Return as list instead of count.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
             }]
         },
         side_effects: &[SideEffect {

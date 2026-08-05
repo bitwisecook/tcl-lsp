@@ -138,7 +138,7 @@ pub fn spec() -> CommandSpec {
                 detail: "In the bare (no numChars) form, discard one trailing newline from the data read — but only when the read reached true end-of-file; has no effect on an early nonblocking return. Not valid together with numChars.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
             }]
         },
         hover: Some(HoverSnippet {

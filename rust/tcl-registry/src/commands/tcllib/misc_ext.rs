@@ -777,8 +777,8 @@ const GRAMMAR__PEG__INTERP_CMDS: &[Row] = &[
 
 /// A row in the `html` package command table: name, arity, synopsis,
 /// summary, return type, purity (side-effect-free), and the html-package
-/// version that introduced the command (`min_version`; `None` = present in
-/// every modelled release).
+/// version that introduced the command (`None` = present in every modelled
+/// release).
 ///
 /// The `html` table is modelled richer than the shared 4-tuple [`Row`]
 /// because the package mixes pure string transformers (`quoteFormValue`,
@@ -801,7 +801,7 @@ fn html_rows(table: &'static [HtmlRow]) -> Vec<CommandSpec> {
     table
         .iter()
         .map(
-            |&(name, arity, synopsis, summary, return_type, pure, min_version)| CommandSpec {
+            |&(name, arity, synopsis, summary, return_type, pure, introduced)| CommandSpec {
                 name,
                 arity,
                 traits: if pure { Traits::PURE } else { Traits::empty() },
@@ -813,7 +813,10 @@ fn html_rows(table: &'static [HtmlRow]) -> Vec<CommandSpec> {
                 )),
                 tcllib_package: Some("html"),
                 required_package: Some("html"),
-                min_version,
+                lifecycle: Lifecycle {
+                    introduced,
+                    ..Lifecycle::UNSPECIFIED
+                },
                 ..CommandSpec::DEFAULT
             },
         )
@@ -822,7 +825,7 @@ fn html_rows(table: &'static [HtmlRow]) -> Vec<CommandSpec> {
 
 /// The `html` package (tcllib `html` 1.6). Every command mirrors the real
 /// `proc ::html::…` signature in `modules/html/html.tcl`: arities and
-/// synopses come straight from the definitions, and `min_version` records the
+/// synopses come straight from the definitions, and the lifecycle records the
 /// html-package release that introduced the later additions
 /// (`css`/`js`/`css-clear`/`js-clear`/`doctype`, all html 1.4).
 const HTML_CMDS: &[HtmlRow] = &[
@@ -3001,7 +3004,7 @@ pub fn specs() -> Vec<CommandSpec> {
         .iter()
         .flat_map(|&(pkg, table)| rows(pkg, table))
         // The `html` package uses the richer [`HtmlRow`] table (per-command
-        // return type, purity, and `min_version`) rather than the shared
+        // return type, purity, and introducing release) rather than the shared
         // 4-tuple [`Row`], so it is appended separately (issue #811).
         .chain(html_rows(HTML_CMDS))
         .chain(std::iter::once(processman_onexit_spec()))

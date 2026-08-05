@@ -598,7 +598,11 @@ fn run_event_info(
         let mut out = String::from("{\n");
         let _ = write!(out, "  \"event\": {}", json_string(&info.event));
         let _ = write!(out, ",\n  \"known\": {}", info.known);
-        let _ = write!(out, ",\n  \"deprecated\": {}", info.deprecated);
+        let _ = write!(
+            out,
+            ",\n  \"lifecycleState\": {}",
+            json_string(info.lifecycle_state.as_str())
+        );
         let _ = write!(
             out,
             ",\n  \"multiplicity\": {}",
@@ -617,15 +621,18 @@ fn run_event_info(
         }
         out.push_str(",\n  \"impliedProfiles\": ");
         push_json_string_array(&mut out, info.implied_profiles.iter().copied());
-        out.push_str(",\n  \"bigipMinVersion\": ");
-        match info.bigip_min_version {
-            Some(v) => out.push_str(&json_string(v)),
-            None => out.push_str("null"),
-        }
-        out.push_str(",\n  \"bigipMaxVersion\": ");
-        match info.bigip_max_version {
-            Some(v) => out.push_str(&json_string(v)),
-            None => out.push_str("null"),
+        // The three lifecycle releases, same names and null semantics as
+        // every other registry surface; `retiredVersion` is exclusive.
+        for (key, value) in [
+            ("introducedVersion", info.lifecycle.introduced),
+            ("deprecatedVersion", info.lifecycle.deprecated),
+            ("retiredVersion", info.lifecycle.retired),
+        ] {
+            let _ = write!(out, ",\n  \"{key}\": ");
+            match value {
+                Some(v) => out.push_str(&json_string(v)),
+                None => out.push_str("null"),
+            }
         }
         let _ = write!(
             out,
@@ -642,7 +649,7 @@ fn run_event_info(
     let mut lines = vec![
         format!("event: {}", info.event),
         format!("known: {}", if info.known { "yes" } else { "no" }),
-        format!("deprecated: {}", if info.deprecated { "yes" } else { "no" }),
+        format!("lifecycle: {}", info.lifecycle_state.as_str()),
         format!("multiplicity: {}", info.multiplicity),
     ];
     if !info.description.is_empty() {

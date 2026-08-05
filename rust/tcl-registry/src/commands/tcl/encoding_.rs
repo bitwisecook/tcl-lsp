@@ -86,7 +86,7 @@ const CONVERTFROM_OPTIONS: &[OptionSpec] = &[
         detail: "Encoding profile controlling how a conversion error is handled; defaults to strict.",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-failindex",
@@ -98,7 +98,7 @@ const CONVERTFROM_OPTIONS: &[OptionSpec] = &[
         detail: "Variable to receive the index of the source byte that triggered a conversion error, or -1 if none did. When given, returns the successfully-converted prefix instead of raising an exception on failure.",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -118,7 +118,7 @@ const CONVERTTO_OPTIONS: &[OptionSpec] = &[
         detail: "Encoding profile controlling how a conversion error is handled; defaults to strict.",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-failindex",
@@ -130,7 +130,7 @@ const CONVERTTO_OPTIONS: &[OptionSpec] = &[
         detail: "Variable to receive the index of the source character that triggered a conversion error, or -1 if none did. When given, returns the successfully-converted prefix instead of raising an exception on failure.",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

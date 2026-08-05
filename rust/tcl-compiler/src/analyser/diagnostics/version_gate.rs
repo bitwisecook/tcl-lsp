@@ -19,11 +19,17 @@
 //! Version-aware diagnostics (**W135** / **W136**, and the argument-DSL
 //! rung **W137** / **W138** / **W200**).
 //!
-//! A command or option can declare a `min_version` — the lowest version of its
-//! owning package (Tk, a tcllib package, `argparse`, …) that provides it.  When
-//! the resolved floor — the profile's library pin (§7.1) raised by any
-//! versioned `package require` — is *below* the declared minimum, using the
-//! command (W135) or option (W136) will fail at runtime.
+//! A command, subcommand, option, or literal argument value carries a
+//! [`Lifecycle`] on its owning package's version axis (Tk, a tcllib package,
+//! `argparse`, …): the introducing release, the deprecating release, and the
+//! retiring release.  The resolved floor — the profile's library pin (§7.1)
+//! raised by any versioned `package require` — is checked against all three:
+//!
+//! * floor below `introduced` ⇒ not available yet (W135 command/subcommand
+//!   /argument value, W136 option);
+//! * floor at or past `retired` ⇒ gone (W139) — the boundary is
+//!   **exclusive**, so `retired: 10.0.0` means 10.0.0 no longer has it;
+//! * floor at or past `deprecated` while still available ⇒ W144.
 //!
 //! The argument mini-languages get the same treatment one rung deeper
 //! (design doc §6): a `string is` class ([`ArgValue::min_tcl`], W137), a
@@ -42,12 +48,13 @@
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::ProfileQueries as _;
+use tcl_registry::lifecycle::{Lifecycle, LifecycleState};
 
 use super::super::state::Analyser;
 use super::super::types::{Diagnostic, Severity};
 
-/// A command/option use gated behind a package `min_version`, recorded during
-/// the walk and checked post-walk against the resolved `package require` floor.
+/// A command/option use carrying a package [`Lifecycle`], recorded during the
+/// walk and checked post-walk against the resolved `package require` floor.
 #[derive(Debug)]
 pub(in crate::analyser) struct VersionGateSite {
     /// Span the diagnostic anchors to (command head, or option token).
@@ -56,23 +63,10 @@ pub(in crate::analyser) struct VersionGateSite {
     ///
     /// [`owning_package`]: tcl_registry::CommandSpec::owning_package
     package: &'static str,
-    /// The bounding package version (introducing release for
-    /// [`VersionBound::Introduced`], last-providing release for
-    /// [`VersionBound::Removed`]).
-    min_version: &'static str,
-    /// Which bound this site checks.
-    bound: VersionBound,
+    /// The declared lifecycle on that package's version axis.
+    lifecycle: Lifecycle,
     /// What is gated — a command, subcommand, option, or argument value.
     item: VersionGateItem,
-}
-
-/// Which side of the declared version range a site checks.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum VersionBound {
-    /// The floor must reach the introducing release (W135/W136).
-    Introduced,
-    /// The floor must not exceed the last providing release (W139).
-    Removed,
 }
 
 /// Payload distinguishing the package-version gate's syntax granularity.
@@ -108,122 +102,89 @@ fn is_literal_option(arg: &str, token: Option<&Token>) -> bool {
     !token.is_some_and(|tok| matches!(tok.kind, TokenType::Var | TokenType::Cmd))
 }
 
-fn version_bound_is_violated(site: &VersionGateSite, floor: &str) -> bool {
-    match site.bound {
-        VersionBound::Introduced => !tcl_registry::version::meets_min(floor, site.min_version),
-        VersionBound::Removed => tcl_registry::version::compare(floor, site.min_version).is_gt(),
+/// Human phrase naming the gated syntax, reused by every lifecycle message.
+fn item_phrase(item: &VersionGateItem) -> String {
+    match item {
+        VersionGateItem::Command(cmd) => format!("'{cmd}'"),
+        VersionGateItem::Subcommand {
+            command,
+            subcommand,
+        } => format!("Subcommand '{subcommand}' on '{command}'"),
+        VersionGateItem::Option { command, option } => {
+            format!("Option '{option}' on '{command}'")
+        }
+        VersionGateItem::ArgumentValue {
+            command,
+            subcommand,
+            value,
+        } => format!("Argument value '{value}' on '{command} {subcommand}'"),
     }
 }
 
-fn version_gate_diagnostic(site: &VersionGateSite, guarantee: &str) -> (DiagCode, String) {
+/// W136 is the option-granularity twin of W135; every other item uses W135.
+fn not_introduced_code(item: &VersionGateItem) -> DiagCode {
+    match item {
+        VersionGateItem::Option { .. } => DiagCode::W136,
+        _ => DiagCode::W135,
+    }
+}
+
+/// The diagnostic for `site` at the resolved `floor`, or `None` when the
+/// lifecycle is satisfied there.
+///
+/// The three states are independently reportable and share one exclusive
+/// retirement rule (`floor >= retired` ⇒ gone), so a retired item never also
+/// reports as deprecated.
+fn version_gate_diagnostic(
+    site: &VersionGateSite,
+    floor: &str,
+    guarantee: &str,
+) -> Option<(DiagCode, String)> {
     let package = site.package;
-    let version = site.min_version;
-    match (&site.item, site.bound) {
-        (VersionGateItem::Command(cmd), VersionBound::Introduced) => (
-            DiagCode::W135,
-            format!("'{cmd}' requires {package} {version} but {guarantee}."),
-        ),
-        (VersionGateItem::Command(cmd), VersionBound::Removed) => (
-            DiagCode::W139,
-            format!("'{cmd}' was removed after {package} {version} but {guarantee}."),
-        ),
-        (
-            VersionGateItem::Subcommand {
-                command,
-                subcommand,
-            },
-            VersionBound::Introduced,
-        ) => (
-            DiagCode::W135,
-            format!(
-                "Subcommand '{subcommand}' on '{command}' requires {package} {version} but \
-                 {guarantee}."
-            ),
-        ),
-        (
-            VersionGateItem::Subcommand {
-                command,
-                subcommand,
-            },
-            VersionBound::Removed,
-        ) => (
-            DiagCode::W139,
-            format!(
-                "Subcommand '{subcommand}' on '{command}' was removed after {package} {version} \
-                 but {guarantee}."
-            ),
-        ),
-        (VersionGateItem::Option { command, option }, VersionBound::Introduced) => (
-            DiagCode::W136,
-            format!(
-                "Option '{option}' on '{command}' requires {package} {version} but {guarantee}."
-            ),
-        ),
-        (VersionGateItem::Option { command, option }, VersionBound::Removed) => (
-            DiagCode::W139,
-            format!(
-                "Option '{option}' on '{command}' was removed after {package} {version} but \
-                 {guarantee}."
-            ),
-        ),
-        (
-            VersionGateItem::ArgumentValue {
-                command,
-                subcommand,
-                value,
-            },
-            VersionBound::Introduced,
-        ) => (
-            DiagCode::W135,
-            format!(
-                "Argument value '{value}' on '{command} {subcommand}' requires {package} {version} \
-                 but {guarantee}."
-            ),
-        ),
-        (
-            VersionGateItem::ArgumentValue {
-                command,
-                subcommand,
-                value,
-            },
-            VersionBound::Removed,
-        ) => (
-            DiagCode::W139,
-            format!(
-                "Argument value '{value}' on '{command} {subcommand}' was removed after {package} \
-                 {version} but {guarantee}."
-            ),
-        ),
+    let what = item_phrase(&site.item);
+    match site.lifecycle.state_at(Some(floor)) {
+        LifecycleState::Available => None,
+        LifecycleState::NotIntroduced => {
+            let version = site.lifecycle.introduced?;
+            Some((
+                not_introduced_code(&site.item),
+                format!("{what} requires {package} {version} but {guarantee}."),
+            ))
+        }
+        LifecycleState::Retired => {
+            let version = site.lifecycle.retired?;
+            Some((
+                DiagCode::W139,
+                format!("{what} was removed in {package} {version} but {guarantee}."),
+            ))
+        }
+        LifecycleState::Deprecated => {
+            let version = site.lifecycle.deprecated?;
+            Some((
+                DiagCode::W144,
+                format!("{what} is deprecated as of {package} {version}; {guarantee}."),
+            ))
+        }
     }
 }
 
 impl Analyser {
-    fn record_version_bounds(
+    fn record_lifecycle_site(
         &mut self,
         span: Span,
         package: &'static str,
-        min_version: Option<&'static str>,
-        max_version: Option<&'static str>,
+        lifecycle: Lifecycle,
         item: VersionGateItem,
     ) {
-        if let Some(min_version) = min_version {
-            self.version_gate_sites.push(VersionGateSite {
-                span,
-                package,
-                min_version,
-                bound: VersionBound::Introduced,
-                item: item.clone(),
-            });
+        if lifecycle.is_unspecified() {
+            return;
         }
-        if let Some(min_version) = max_version {
-            self.version_gate_sites.push(VersionGateSite {
-                span,
-                package,
-                min_version,
-                bound: VersionBound::Removed,
-                item,
-            });
-        }
+        self.version_gate_sites.push(VersionGateSite {
+            span,
+            package,
+            lifecycle,
+            item,
+        });
     }
 
     fn record_subcommand_version_sites(
@@ -238,11 +199,10 @@ impl Analyser {
             .first()
             .is_some_and(|tok| !matches!(tok.kind, TokenType::Var | TokenType::Cmd));
         if sub_is_literal {
-            self.record_version_bounds(
+            self.record_lifecycle_site(
                 arg_tokens[0].span,
                 package,
-                sub.min_version,
-                sub.max_version,
+                sub.lifecycle,
                 VersionGateItem::Subcommand {
                     command: cmd_name.to_owned(),
                     subcommand: sub.name.to_owned(),
@@ -257,11 +217,10 @@ impl Analyser {
             if arg != gate.value || matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
                 continue;
             }
-            self.record_version_bounds(
+            self.record_lifecycle_site(
                 tok.span,
                 package,
-                gate.min_version,
-                gate.max_version,
+                gate.lifecycle,
                 VersionGateItem::ArgumentValue {
                     command: cmd_name.to_owned(),
                     subcommand: sub.name.to_owned(),
@@ -291,17 +250,16 @@ impl Analyser {
                 continue;
             }
             if let Some(opt) = options.iter().find(|o| o.matches(arg)) {
-                if let (Some(min_version), Some(tok)) = (opt.min_version, arg_tokens.get(i)) {
-                    self.version_gate_sites.push(VersionGateSite {
-                        span: tok.span,
+                if let Some(tok) = arg_tokens.get(i) {
+                    self.record_lifecycle_site(
+                        tok.span,
                         package,
-                        min_version,
-                        bound: VersionBound::Introduced,
-                        item: VersionGateItem::Option {
+                        opt.lifecycle,
+                        VersionGateItem::Option {
                             command: cmd_name.to_owned(),
                             option: arg.to_owned(),
                         },
-                    });
+                    );
                 }
                 i += 1 + opt.value_word_count(args, i);
                 continue;
@@ -312,14 +270,14 @@ impl Analyser {
 
     /// Buffer package-version-gated syntax uses at a dispatch site.
     ///
-    /// The command's `min_version` (if any) records a W135 candidate at the
-    /// command head; each option argument matching a value-gated
-    /// [`OptionSpec::min_version`] records a W136 candidate at the option token.
+    /// The command's [`Lifecycle`] (if declared) records a candidate at the
+    /// command head; each option argument matching a lifecycle-bearing
+    /// [`OptionSpec`] records one at the option token.
     /// Option scanning mirrors [`Analyser::emit_w004_dialect_invalid_option`]:
     /// it stops at `--`, skips negative-number literals and dynamic
     /// (`Var`/`Cmd`) tokens, and resolves subcommand-scoped options.
     ///
-    /// [`OptionSpec::min_version`]: tcl_registry::OptionSpec
+    /// [`OptionSpec`]: tcl_registry::OptionSpec
     pub(in crate::analyser) fn record_version_gate_sites(
         &mut self,
         cmd_name: &str,
@@ -347,13 +305,15 @@ impl Analyser {
         else {
             return;
         };
-        let effective_min = keyed.map_or(spec.min_version, |(min, _)| min);
-        let effective_max = keyed.and_then(|(_, max)| max).or(spec.max_version);
-        self.record_version_bounds(
+        let effective = keyed.map_or(spec.lifecycle, |(min, max)| Lifecycle {
+            introduced: min.or(spec.lifecycle.introduced),
+            deprecated: spec.lifecycle.deprecated,
+            retired: max.or(spec.lifecycle.retired),
+        });
+        self.record_lifecycle_site(
             cmd_tok.span,
             pkg,
-            effective_min,
-            effective_max,
+            effective,
             VersionGateItem::Command(cmd_name.to_owned()),
         );
 
@@ -398,16 +358,15 @@ impl Analyser {
             let Some((floor, source)) = self.package_version_floor(site.package) else {
                 continue;
             };
-            if !version_bound_is_violated(&site, &floor) {
-                continue;
-            }
             let guarantee = match source {
                 FloorSource::Require => format!("`package require` guarantees only {floor}"),
                 FloorSource::ProfilePin => {
                     format!("{} ships {} {floor}", self.profile.name, site.package)
                 }
             };
-            let (code, message) = version_gate_diagnostic(&site, &guarantee);
+            let Some((code, message)) = version_gate_diagnostic(&site, &floor, &guarantee) else {
+                continue;
+            };
             new_diags.push(Diagnostic {
                 code,
                 span: site.span,

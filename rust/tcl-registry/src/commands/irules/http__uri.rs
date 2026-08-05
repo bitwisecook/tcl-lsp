@@ -46,7 +46,7 @@ pub const fn spec() -> CommandSpec {
                 detail: "Return the canonicalised URI (URL evasion patterns rejected).",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
             }]
         },
         hover: Some(HoverSnippet {

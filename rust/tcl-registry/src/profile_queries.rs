@@ -342,10 +342,8 @@ impl ProfileQueries for DialectProfile {
         let tcl_dialect::LibraryVersion::Keyed(key) = pin.version else {
             return None;
         };
-        Some((
-            spec.min_version.or(key.baseline_version()),
-            spec.max_version,
-        ))
+        let lifecycle = spec.lifecycle.with_baseline(key.baseline_version());
+        Some((lifecycle.introduced, lifecycle.retired))
     }
 
     fn keyed_pin_for(&self, spec: &CommandSpec) -> Option<&'static tcl_dialect::LibraryPin> {

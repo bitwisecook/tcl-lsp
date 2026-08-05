@@ -24,7 +24,7 @@ const OPTIONS: &[OptionSpec] = &[OptionSpec {
     detail: "End of options.",
     dialects: None,
     aliases: &[],
-    min_version: None,
+    lifecycle: Lifecycle::UNSPECIFIED,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {

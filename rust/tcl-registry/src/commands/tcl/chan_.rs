@@ -164,7 +164,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Whether I/O on the channel may block the process indefinitely. Channels are blocking by default; nonblocking mode affects chan gets/read/puts/flush/close and requires the event loop (vwait/update) to drive it.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-buffering",
@@ -177,7 +177,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "full, line, or none — see the value list for the per-mode default.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-buffersize",
@@ -185,7 +185,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Buffer size in bytes for buffers subsequently allocated for this channel; capped at 1,000,000.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-encoding",
@@ -193,7 +193,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Character encoding used to convert the channel's bytes to/from Tcl's internal string representation; defaults to the platform/locale system encoding (encoding system). Use iso8859-1 for byte-transparent binary data (Tcl 8.5 instead used the pseudo-encoding \"binary\" for this; removed in Tcl 9.0).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-eofchar",
@@ -201,7 +201,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "A single character (\\x01-\\x7f) that signals end-of-file on input; the empty string (the default) disables it. Tcl 8.5/8.6 additionally accepted a {inChar outChar} two-element list for a read-write channel and defaulted to Control-Z on Windows file reads; Tcl 9.0+ takes a single value only and always defaults to the empty string.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-translation",
@@ -213,7 +213,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "End-of-line translation mode; also accepts a {inTranslation outTranslation} list to set input/output independently. See the value list for per-mode behaviour and defaults.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-profile",
@@ -226,7 +226,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Encoding profile controlling how conversion errors on this channel are handled (see PROFILES in encoding(n)).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     // Socket / terminal channel-type options, all Tcl 9.0+ (TIPs 344 and
     // 160). Settable only on the matching channel type; documented on
@@ -238,7 +238,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "TCP_NODELAY on a socket channel: disables Nagle's algorithm so small writes are sent immediately (Tcl 9.0+, TIP 344). Documented on socket(n).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-keepalive",
@@ -246,7 +246,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "SO_KEEPALIVE on a socket channel (Tcl 9.0+, TIP 344). Documented on socket(n).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-inputmode",
@@ -259,7 +259,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Terminal input mode on a serial/console channel (Tcl 9.0+, TIP 160); Unix-only (Windows exposes the equivalent on console channels). Documented on open(n).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -271,7 +271,7 @@ const COPY_OPTIONS: &[OptionSpec] = &[
         detail: "Maximum number of bytes (or characters, if the channels' encodings differ) to copy before stopping. Without it, chan copy reads until end of file.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-command",
@@ -279,7 +279,7 @@ const COPY_OPTIONS: &[OptionSpec] = &[
         detail: "Run the copy in the background and return immediately; callback is invoked on completion with the byte/character count appended, plus an error-message argument if the copy failed. inputChan/outputChan are switched to non-blocking automatically; an active event loop (vwait or Tk) is required to drive it.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -290,7 +290,7 @@ const PUTS_OPTIONS: &[OptionSpec] = &[OptionSpec {
     detail: "Suppress the trailing newline that chan puts otherwise appends.",
     dialects: None,
     aliases: &[],
-    min_version: None,
+    lifecycle: Lifecycle::UNSPECIFIED,
 }];
 
 /// `chan read`'s `-nonewline` flag.
@@ -300,7 +300,7 @@ const READ_OPTIONS: &[OptionSpec] = &[OptionSpec {
     detail: "Trim a trailing newline from the data read. Only meaningful when reading to end of file (i.e. without numChars).",
     dialects: None,
     aliases: &[],
-    min_version: None,
+    lifecycle: Lifecycle::UNSPECIFIED,
 }];
 
 /// `chan close`'s `direction` positional argument (index 1) — Tcl 8.6+
@@ -826,7 +826,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         detail: "Set blocking mode.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-buffering",
@@ -834,7 +834,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         detail: "Set buffering mode (full, line, none).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-buffersize",
@@ -842,7 +842,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         detail: "Set buffer size in bytes.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-encoding",
@@ -850,7 +850,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         detail: "Set character encoding.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-eofchar",
@@ -858,7 +858,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         detail: "Set end-of-file character(s).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-profile",
@@ -866,7 +866,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         detail: "Set encoding profile (strict, tcl8, replace).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-translation",
@@ -874,7 +874,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         detail: "Set line-ending translation mode.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

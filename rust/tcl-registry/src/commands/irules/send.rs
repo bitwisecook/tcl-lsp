@@ -44,7 +44,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Time in ms to wait for data to be sent.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "-status",
@@ -52,7 +52,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "Save send status into variable.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
                 OptionSpec {
                     name: "--",
@@ -60,7 +60,7 @@ pub const fn spec() -> CommandSpec {
                     detail: "",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
                 },
             ]
         },

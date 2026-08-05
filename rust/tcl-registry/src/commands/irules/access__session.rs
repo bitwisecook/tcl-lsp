@@ -114,7 +114,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 detail: "Session ID.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
             }]
         },
         side_effects: &[SideEffect {
@@ -150,7 +150,7 @@ const OPTIONS_1: &[OptionSpec] = &[
         detail: "Create a flow-scoped session.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-timeout",
@@ -158,7 +158,7 @@ const OPTIONS_1: &[OptionSpec] = &[
         detail: "Session timeout in seconds.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-lifetime",
@@ -166,7 +166,7 @@ const OPTIONS_1: &[OptionSpec] = &[
         detail: "Session lifetime in seconds.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -177,7 +177,7 @@ const OPTIONS_2: &[OptionSpec] = &[
         detail: "Session ID.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-timeout",
@@ -185,7 +185,7 @@ const OPTIONS_2: &[OptionSpec] = &[
         detail: "Session timeout in seconds.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-lifetime",
@@ -193,7 +193,7 @@ const OPTIONS_2: &[OptionSpec] = &[
         detail: "Session lifetime in seconds.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-remaining",
@@ -201,7 +201,7 @@ const OPTIONS_2: &[OptionSpec] = &[
         detail: "Remaining time.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -212,7 +212,7 @@ const OPTIONS_3: &[OptionSpec] = &[
         detail: "Session ID.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-state_allow",
@@ -220,7 +220,7 @@ const OPTIONS_3: &[OptionSpec] = &[
         detail: "Check for allow state.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-state_deny",
@@ -228,7 +228,7 @@ const OPTIONS_3: &[OptionSpec] = &[
         detail: "Check for deny state.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-state_redirect",
@@ -236,7 +236,7 @@ const OPTIONS_3: &[OptionSpec] = &[
         detail: "Check for redirect state.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-state_inprogress",
@@ -244,7 +244,7 @@ const OPTIONS_3: &[OptionSpec] = &[
         detail: "Check for in-progress state.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -255,7 +255,7 @@ const OPTIONS_4: &[OptionSpec] = &[
         detail: "Session ID.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-secure",
@@ -263,7 +263,7 @@ const OPTIONS_4: &[OptionSpec] = &[
         detail: "Access secure session data.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-config",
@@ -271,7 +271,7 @@ const OPTIONS_4: &[OptionSpec] = &[
         detail: "Access config session data.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-ssid",
@@ -279,7 +279,7 @@ const OPTIONS_4: &[OptionSpec] = &[
         detail: "Sub-session ID.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "--",
@@ -287,7 +287,7 @@ const OPTIONS_4: &[OptionSpec] = &[
         detail: "",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 
@@ -298,7 +298,7 @@ const OPTIONS_5: &[OptionSpec] = &[
         detail: "Create a flow-scoped session.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-timeout",
@@ -306,7 +306,7 @@ const OPTIONS_5: &[OptionSpec] = &[
         detail: "Session timeout in seconds.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-lifetime",
@@ -314,7 +314,7 @@ const OPTIONS_5: &[OptionSpec] = &[
         detail: "Session lifetime in seconds.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-sid",
@@ -322,7 +322,7 @@ const OPTIONS_5: &[OptionSpec] = &[
         detail: "Session ID.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-remaining",
@@ -330,7 +330,7 @@ const OPTIONS_5: &[OptionSpec] = &[
         detail: "Remaining time.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-state_allow",
@@ -338,7 +338,7 @@ const OPTIONS_5: &[OptionSpec] = &[
         detail: "Check for allow state.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-state_deny",
@@ -346,7 +346,7 @@ const OPTIONS_5: &[OptionSpec] = &[
         detail: "Check for deny state.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-state_redirect",
@@ -354,7 +354,7 @@ const OPTIONS_5: &[OptionSpec] = &[
         detail: "Check for redirect state.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-state_inprogress",
@@ -362,7 +362,7 @@ const OPTIONS_5: &[OptionSpec] = &[
         detail: "Check for in-progress state.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-secure",
@@ -370,7 +370,7 @@ const OPTIONS_5: &[OptionSpec] = &[
         detail: "Access secure session data.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-config",
@@ -378,7 +378,7 @@ const OPTIONS_5: &[OptionSpec] = &[
         detail: "Access config session data.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "-ssid",
@@ -386,7 +386,7 @@ const OPTIONS_5: &[OptionSpec] = &[
         detail: "Sub-session ID.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
     OptionSpec {
         name: "--",
@@ -394,7 +394,7 @@ const OPTIONS_5: &[OptionSpec] = &[
         detail: "",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     },
 ];
 

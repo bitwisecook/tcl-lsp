@@ -84,7 +84,7 @@
     {
       "name": "ASM_REQUEST_VIOLATION",
       "description": "Fires when ASM detects a request policy violation (pre-LB). Compatibility mode: fires only when a violation occurs. Normal mode: violations reported via ASM_REQUEST_DONE instead. Deprecated event.",
-      "deprecated": true
+      "deprecatedVersion": "11.3.0"
     },
     {
       "name": "ASM_RESPONSE_LOGIN",
@@ -97,12 +97,14 @@
     {
       "name": "AUTH_ERROR",
       "description": "Triggered when an error occurs during authorization (deprecated; use AUTH_RESULT).",
-      "deprecated": true
+      "introducedVersion": "9.0.0",
+      "deprecatedVersion": "9.4.0"
     },
     {
       "name": "AUTH_FAILURE",
       "description": "Triggered when an unsuccessful authorization operation completes (deprecated; use AUTH_RESULT).",
-      "deprecated": true
+      "introducedVersion": "9.0.0",
+      "deprecatedVersion": "9.4.0"
     },
     {
       "name": "AUTH_RESULT",
@@ -111,12 +113,14 @@
     {
       "name": "AUTH_SUCCESS",
       "description": "Triggered when a successful authorization completes (deprecated; use AUTH_RESULT).",
-      "deprecated": true
+      "introducedVersion": "9.0.0",
+      "deprecatedVersion": "9.4.0"
     },
     {
       "name": "AUTH_WANTCREDENTIAL",
       "description": "Triggered when an authorization operation needs an additional credential (deprecated; use AUTH_RESULT).",
-      "deprecated": true
+      "introducedVersion": "9.0.0",
+      "deprecatedVersion": "9.4.0"
     },
     {
       "name": "AVR_CSPM_INJECTION",
@@ -283,12 +287,12 @@
     {
       "name": "HTTP_CLASS_FAILED",
       "description": "Fires when an HTTP request does not match any HTTP class filter (deprecated; pre-LB classification).",
-      "deprecated": true
+      "deprecatedVersion": "11.4.0"
     },
     {
       "name": "HTTP_CLASS_SELECTED",
       "description": "Fires when an HTTP request matches an HTTP class filter (deprecated; pre-LB classification).",
-      "deprecated": true
+      "deprecatedVersion": "11.4.0"
     },
     {
       "name": "HTTP_DISABLED",
@@ -511,7 +515,8 @@
     {
       "name": "QOE_PARSE_DONE",
       "description": "Triggered when the system finishes parsing static video parameters from the video header.",
-      "deprecated": true
+      "introducedVersion": "11.5.0",
+      "deprecatedVersion": "15.0.0"
     },
     {
       "name": "RADIUS_AAA_ACCT_REQUEST",
@@ -709,37 +714,49 @@
     {
       "name": "XML_BEGIN_DOCUMENT",
       "description": "Triggered before the XML document gets parsed.",
-      "deprecated": true
+      "introducedVersion": "9.0.3",
+      "deprecatedVersion": "10.0.0",
+      "retiredVersion": "10.0.0"
     },
     {
       "name": "XML_BEGIN_ELEMENT",
       "description": "Triggered when the parser encounters the start of an element.",
-      "deprecated": true
+      "introducedVersion": "9.0.3",
+      "deprecatedVersion": "10.0.0",
+      "retiredVersion": "10.0.0"
     },
     {
       "name": "XML_CDATA",
       "description": "Triggered when the parser encounters character data (CDATA).",
-      "deprecated": true
+      "introducedVersion": "9.0.3",
+      "deprecatedVersion": "10.0.0",
+      "retiredVersion": "10.0.0"
     },
     {
       "name": "XML_CONTENT_BASED_ROUTING",
       "description": "Triggered when a match is found in the XML profile.",
-      "deprecated": true
+      "introducedVersion": "10.2.0"
     },
     {
       "name": "XML_END_DOCUMENT",
       "description": "Triggered when an XML document is completely parsed.",
-      "deprecated": true
+      "introducedVersion": "9.0.3",
+      "deprecatedVersion": "10.0.0",
+      "retiredVersion": "10.0.0"
     },
     {
       "name": "XML_END_ELEMENT",
       "description": "Triggered when the parser encounters the end of an element.",
-      "deprecated": true
+      "introducedVersion": "9.0.3",
+      "deprecatedVersion": "10.0.0",
+      "retiredVersion": "10.0.0"
     },
     {
       "name": "XML_EVENT",
       "description": "Generic catch-all event triggered for all XML events.",
-      "deprecated": true
+      "introducedVersion": "9.0.3",
+      "deprecatedVersion": "10.0.0",
+      "retiredVersion": "10.0.0"
     }
   ]
 }
