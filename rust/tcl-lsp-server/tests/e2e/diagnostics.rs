@@ -4465,3 +4465,96 @@ fn own_proc_in_a_private_namespace_is_not_w143() {
         codes(&diags)
     );
 }
+
+// Issue #1172 — lowering's OO extraction is driven by the registry definer
+// grammars, so `oo::objdefine`, snit, and itcl method bodies are analysed
+// end to end (they previously produced no method unit and therefore no
+// diagnostics of any kind).
+
+/// TP: an unbound read inside an `oo::objdefine` method body reaches the
+/// client as W210.
+#[test]
+fn objdefine_method_body_w210_reaches_the_client() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create C {}\n\
+         set k [C new]\n\
+         oo::objdefine $k {\n\
+             method probe {} { return $neverBound }\n\
+         }\n",
+    );
+    assert!(
+        has_code(&diags, "W210"),
+        "objdefine method body W210 must publish: {:?}",
+        codes(&diags)
+    );
+}
+
+/// FP guard: the objdefine block's own per-object `variable` binds the name
+/// in the per-object method's frame — no W210.
+#[test]
+fn objdefine_per_object_variable_read_publishes_no_w210() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create C {}\n\
+         set k [C new]\n\
+         oo::objdefine $k {\n\
+             variable z\n\
+             method probe {} { if {[info exists z]} { return $z }\nreturn {} }\n\
+         }\n",
+    );
+    assert!(
+        !has_code(&diags, "W210"),
+        "per-object variable read must not flag: {:?}",
+        codes(&diags)
+    );
+}
+
+/// TP + FP guard in one: a snit method body is analysed (unbound read
+/// flags) while the injected implicits (`self`/`type`/`options`) and the
+/// declared type variable stay clean.
+#[test]
+fn snit_method_bodies_are_analysed_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "snit::type Dog {\n\
+             variable name\n\
+             method bark {} { return $neverBound }\n\
+             method describe {} { return \"$self $type $name\" }\n\
+         }\n",
+    );
+    assert_eq!(
+        on_line(&diags, "W210"),
+        [2].into_iter().collect::<BTreeSet<i64>>(),
+        "exactly the unbound read must flag: {:?}",
+        codes(&diags)
+    );
+}
+
+/// TP: an itcl method body is analysed end to end; `this` and declared
+/// instance/common variables stay clean.
+#[test]
+fn itcl_method_bodies_are_analysed_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "itcl::class Toaster {\n\
+             variable crumbs 0\n\
+             public method toast {} { return $neverBound }\n\
+             public method status {} { return \"$this $crumbs\" }\n\
+         }\n",
+    );
+    assert_eq!(
+        on_line(&diags, "W210"),
+        [2].into_iter().collect::<BTreeSet<i64>>(),
+        "exactly the unbound read must flag: {:?}",
+        codes(&diags)
+    );
+}

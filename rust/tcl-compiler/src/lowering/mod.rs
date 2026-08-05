@@ -91,58 +91,82 @@ fn proc_namespace(qname: &str) -> String {
     }
 }
 
-/// Recognise the OO definition-command spellings. Returns
-/// `Some("oo::class")` / `Some("oo::define")` when the command is one
-/// of those (with or without a leading `::`), else `None`.
+/// One statically-extractable definer invocation, classified from the
+/// command's **registry spec** (issue #1172) — never a spelling match: the
+/// definer's member grammar plus which argv words carry the definition
+/// target and the static braced body.
 ///
-/// The stock property-/instantiation-restricting metaclasses
-/// (`oo::configurable`, `oo::abstract`, `oo::singleton`) create a class with
-/// the *identical* `METACLASS create NAME { body }` shape as `oo::class`, so
-/// they map to the `oo::class` form — their bodies are lowered and their
-/// methods lifted like any class's, rather than falling through to a barrier
-/// (issue #797: a `Device` class defined with `oo::configurable` left every
-/// method body unanalysed, so no object-collection types flowed).
-fn oo_definition_form(command: &str, canonical: Option<&str>) -> Option<&'static str> {
-    let c = canonical.unwrap_or(command);
-    let c = c.strip_prefix("::").unwrap_or(c);
-    match c {
-        "oo::class" | "oo::configurable" | "oo::abstract" | "oo::singleton" => Some("oo::class"),
-        "oo::define" => Some("oo::define"),
-        _ => None,
-    }
+/// Covers every command whose spec hangs a
+/// [`tcl_registry::definer::DefinitionBodyGrammar`] off
+/// `CommandSpec::definition_body`: the `TclOO` metaclasses (`oo::class`,
+/// `oo::configurable`, `oo::abstract`, `oo::singleton` — issue #797), the
+/// `oo::define` / `oo::objdefine` script forms, snit's `type` / `widget` /
+/// `widgetadaptor`, and itcl's `itcl::class`.  A new definer added to the
+/// registry is picked up here with no lowering change.
+#[derive(Clone, Copy)]
+struct DefinerCall {
+    /// The definer's member grammar (registry data).
+    grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
+    /// Full-argv index of the class / type / object-handle word.
+    name_idx: usize,
+    /// Full-argv index of the static braced definition body.
+    body_idx: usize,
+    /// `oo::objdefine`: the target is an *object handle*, so members and
+    /// `variable` declarations are **per-object** state (oracle case K of
+    /// issue #1129: `oo::objdefine $k { variable z }` then
+    /// `my variable z; info exists z` → `0` — per-object, not per-class).
+    /// They home under a synthetic `::@objdefine@::…` class name and never
+    /// join the real class's cross-block `class_instance_vars` union.
+    per_object: bool,
 }
 
-/// True iff the command carries the class/define shape with a static
-/// braced body block:
-///
-/// * `oo::class create Name { body }` — body at argv index 3.
-/// * `oo::define Name { body }` — body at argv index 2.
-///
-/// Only static braced bodies qualify — the single-method
-/// `oo::define Name method m {...} {...}` and dynamic-body forms are
-/// left to the default lowering. `texts` / `kinds` / `single` are the
-/// full per-word arrays (index 0 = command word).
-fn is_oo_definition_shape(
-    form: &str,
-    texts: &[String],
-    kinds: &[TokenType],
-    single: &[bool],
-) -> bool {
-    match form {
-        "oo::class" => {
-            texts.len() >= 4
-                && texts.get(1).is_some_and(|s| s == "create")
-                && word_is_static_braced(kinds, single, 3)
+impl<'r> Lowerer<'r> {
+    /// Classify one command as a statically-extractable definer call, from
+    /// its registry spec (see [`DefinerCall`]).  `None` when the command is
+    /// not a definer, uses a non-`create` metaclass form, or does not carry
+    /// a static braced body at the expected position (the single-member
+    /// `oo::define Cls method m {…} {…}` inline form and dynamic-body forms
+    /// stay with the default lowering).
+    fn classify_definer_call(
+        &self,
+        command: &str,
+        canonical: Option<&str>,
+        texts: &[String],
+        kinds: &[TokenType],
+        single: &[bool],
+    ) -> Option<DefinerCall> {
+        let spec = self.registry.get(canonical.unwrap_or(command))?;
+        let grammar = spec.definition_body?;
+        // A metaclass manufactures with `create NAME {body}` (body at argv
+        // 3); every other definer is `DEFINER TARGET {body}` (body at argv
+        // 2).  The metaclass `new {body}` / `createWithNamespace` forms name
+        // no static class, so they are left un-extracted as before.
+        let (name_idx, body_idx) = if spec
+            .traits
+            .contains(tcl_registry::prelude::Traits::IS_OO_METACLASS)
+        {
+            if texts.get(1).map(String::as_str) != Some("create") {
+                return None;
+            }
+            (2usize, 3usize)
+        } else {
+            (1usize, 2usize)
+        };
+        if texts.len() <= body_idx || !word_is_static_braced(kinds, single, body_idx) {
+            return None;
         }
-        "oo::define" => texts.len() >= 3 && word_is_static_braced(kinds, single, 2),
-        _ => false,
+        // Per-object vs per-class is dispatched on the spec's typed analyser
+        // hook ID — the same registry datum the analyser dispatches on —
+        // never the spelling.
+        let per_object =
+            spec.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::OoObjdefine);
+        Some(DefinerCall {
+            grammar,
+            name_idx,
+            body_idx,
+            per_object,
+        })
     }
-}
-
-/// Full-argv index of the body word for an OO definition form
-/// (`oo::class create Name {body}` → 3, `oo::define Name {body}` → 2).
-fn oo_body_word_idx(form: &str) -> usize {
-    if form == "oo::class" { 3 } else { 2 }
 }
 
 /// True iff `command` (`::`-stripped) is `namespace` and the args are
@@ -2408,21 +2432,19 @@ impl<'r> Lowerer<'r> {
                     tokens: Some(ct),
                     ..
                 } => {
-                    if let Some(form) = oo_definition_form(command, canonical_command.as_deref()) {
-                        if is_oo_definition_shape(
-                            form,
+                    if let Some(call) = self.classify_definer_call(
+                        command,
+                        canonical_command.as_deref(),
+                        &ct.argv_texts,
+                        &ct.argv_kinds,
+                        &ct.single_token_word,
+                    ) {
+                        self.extract_definer_members(
+                            call,
                             &ct.argv_texts,
-                            &ct.argv_kinds,
-                            &ct.single_token_word,
-                        ) {
-                            let idx = oo_body_word_idx(form);
-                            self.extract_oo_methods(
-                                form,
-                                &ct.argv_texts,
-                                ct.argv[idx].start() + 1,
-                                namespace,
-                            );
-                        }
+                            ct.argv[call.body_idx].start() + 1,
+                            namespace,
+                        );
                     } else if is_namespace_eval_shape(
                         command,
                         &ct.argv_texts,
@@ -2450,7 +2472,7 @@ impl<'r> Lowerer<'r> {
     /// Segment-level counterpart of [`Self::walk_for_oo_methods`] used
     /// for `namespace eval` bodies (which the lowerer discards). Walks
     /// re-segmented commands, recursing through nested `namespace eval`
-    /// and extracting methods from `oo::class` / `oo::define` blocks.
+    /// and extracting members from any registry-classified definer block.
     fn walk_segments_for_oo(&mut self, segments: &[SegmentedCommand], namespace: &str) {
         for seg in segments {
             if seg.is_partial || seg.texts.is_empty() {
@@ -2458,12 +2480,12 @@ impl<'r> Lowerer<'r> {
             }
             let kinds: Vec<TokenType> = seg.argv.iter().map(|t| t.kind).collect();
             let cmd = seg.texts[0].as_str();
-            if let Some(form) = oo_definition_form(cmd, None) {
-                if is_oo_definition_shape(form, &seg.texts, &kinds, &seg.single_token_word) {
-                    let idx = oo_body_word_idx(form);
-                    let off = seg.argv[idx].span.start() + u32::from(seg.argv[idx].content_offset);
-                    self.extract_oo_methods(form, &seg.texts, off, namespace);
-                }
+            if let Some(call) =
+                self.classify_definer_call(cmd, None, &seg.texts, &kinds, &seg.single_token_word)
+            {
+                let body = seg.argv[call.body_idx];
+                let off = body.span.start() + u32::from(body.content_offset);
+                self.extract_definer_members(call, &seg.texts, off, namespace);
             } else if is_namespace_eval_shape(cmd, &seg.texts, &kinds, &seg.single_token_word) {
                 let child_ns = join_namespace(namespace, &seg.texts[2]);
                 let off = seg.argv[3].span.start() + u32::from(seg.argv[3].content_offset);
@@ -2473,15 +2495,6 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Lift `method` / `classmethod` / `constructor` / `destructor`
-    /// bodies inside an `oo::class create` / `oo::define` block to
-    /// per-method [`MethodDef`] entries keyed by
-    /// `{class_qname}::{method_name}` (constructors / destructors use
-    /// the synthetic names `<constructor>` / `<destructor>`). `texts`
-    /// is the class command's
-    /// full per-word text array; `body_content_offset` is the absolute
-    /// source offset of the first byte inside the body's braces.
-    ///
     /// Recognise one class-body member whose registry grammar marks every
     /// argument as a class reference (`superclass A B`, `mixin M` —
     /// [`tcl_registry::definer::MemberRefKind::Class`]) and record each
@@ -2517,37 +2530,65 @@ impl<'r> Lowerer<'r> {
         true
     }
 
-    fn extract_oo_methods(
+    /// Lift the method-frame member bodies inside one definer block to
+    /// per-method [`MethodDef`] entries keyed by `{class_qname}::{name}`
+    /// (nameless members use synthetic names — `<constructor>`,
+    /// `<destructor>`, `<typeconstructor>`).  Member recognition and
+    /// argument layout come from the definer's registry grammar
+    /// ([`DefinerCall::grammar`], issue #1172), so `oo::objdefine`, snit,
+    /// and itcl bodies produce method units exactly as `oo::class create` /
+    /// `oo::define` always did — no member keyword is matched for layout.
+    ///
+    /// `texts` is the definer command's full per-word text array;
+    /// `body_content_offset` is the absolute source offset of the first
+    /// byte inside the body's braces.
+    fn extract_definer_members(
         &mut self,
-        form: &str,
+        call: DefinerCall,
         texts: &[String],
         body_content_offset: u32,
         namespace: &str,
     ) {
-        // `is_oo_definition_shape` guarantees the indices below exist.
-        let (class_simple, body_text) = match form {
-            "oo::class" => (texts[2].as_str(), texts[3].as_str()),
-            // oo::define
-            _ => (texts[1].as_str(), texts[2].as_str()),
+        let target = texts[call.name_idx].as_str();
+        let body_text = texts[call.body_idx].as_str();
+        let class_qname = if call.per_object {
+            // An `oo::objdefine` receiver is usually a substitution
+            // (`oo::objdefine $obj { … }`) — that is the common shape and
+            // the point of the exercise (issue #1172 item 1), so it is NOT
+            // skipped as a dynamic name.  The per-object members home under
+            // a synthetic, unrepresentable class name keyed by the
+            // receiver's written tail (mirroring the analyser's
+            // `::@objdefine@::…` keying), so they never collide with a real
+            // class or pollute its instance-variable union.
+            let tail = target.trim().trim_start_matches('$');
+            let tail = tail.trim_matches(|c| c == '{' || c == '}');
+            if tail.is_empty() || tail.contains('[') {
+                return;
+            }
+            format!("::@objdefine@::{tail}")
+        } else {
+            // Dynamic class names can't be resolved statically — and the
+            // block may (re)define methods on ANY class, so whole-module OO
+            // evidence is incomplete (issue #1166: the propagation barrier
+            // and method purity must widen rather than trust the bodies
+            // they can see).
+            if target.contains('$') || target.contains('[') {
+                self.module.oo_evidence.dynamic_target = true;
+                return;
+            }
+            qualify_proc_name(namespace, target)
         };
-        // Dynamic class names can't be resolved statically — and the block
-        // may (re)define methods on ANY class, so whole-module OO evidence
-        // is incomplete (issue #1166: the propagation barrier and method
-        // purity must widen rather than trust the bodies they can see).
-        if class_simple.contains('$') || class_simple.contains('[') {
-            self.module.oo_evidence.dynamic_target = true;
-            return;
-        }
-        let class_qname = qualify_proc_name(namespace, class_simple);
         let segments =
             segment_commands_with_offset_and_config(body_text, body_content_offset, self.config);
 
-        let class_ivars = class_level_instance_vars(&segments);
+        let class_ivars = declared_member_vars(call.grammar, &segments);
         // This block sees only its own declarations; a sibling `oo::define`
         // block may declare more state for the same class, and may be walked
         // *after* the methods that use it.  Accumulate the whole-class union
         // for `extract_oo_methods_pass`'s merge — see
-        // [`Self::class_instance_vars`].
+        // [`Self::class_instance_vars`].  A per-object block accumulates
+        // under its own synthetic key, so per-object `variable` declarations
+        // stay per-object by construction (oracle case K, issue #1129).
         if !class_ivars.is_empty() {
             self.class_instance_vars
                 .entry(class_qname.clone())
@@ -2555,139 +2596,389 @@ impl<'r> Lowerer<'r> {
                 .extend(class_ivars.iter().cloned());
         }
 
-        // The definer's registry grammar, for recognising class-reference
-        // members (`superclass A B`, `mixin M`) generically — a member whose
-        // spec marks every argument as a class reference declares a
-        // hierarchy relation, never matched by keyword here (issue #1164).
-        let definer_grammar = self.registry.get(form).and_then(|s| s.definition_body);
-        for seg in &segments {
+        self.extract_members_from_segments(&call, &segments, &class_qname, &class_ivars, namespace);
+    }
+
+    /// The per-segment member walk behind [`Self::extract_definer_members`],
+    /// factored out so a wrapper's block form (`self { … }` /
+    /// `private { … }`) can recurse into its nested definition script with
+    /// the same class context.
+    fn extract_members_from_segments(
+        &mut self,
+        call: &DefinerCall,
+        segments: &[SegmentedCommand],
+        class_qname: &str,
+        class_ivars: &HashSet<String>,
+        namespace: &str,
+    ) {
+        for seg in segments {
             if seg.is_partial || seg.texts.is_empty() {
                 continue;
             }
             let head = seg.texts[0].as_str();
-            if self.record_class_relation_member(definer_grammar, seg, &class_qname) {
+            if self.record_class_relation_member(Some(call.grammar), seg, class_qname) {
                 continue;
             }
-            let (name, params_str, b_idx, kind): (&str, &str, usize, &str) = match head {
-                "method" if seg.texts.len() >= 4 => {
-                    (seg.texts[1].as_str(), seg.texts[2].as_str(), 3, "method")
-                }
-                "classmethod" if seg.texts.len() >= 4 => (
-                    seg.texts[1].as_str(),
-                    seg.texts[2].as_str(),
-                    3,
-                    "classmethod",
-                ),
-                "constructor" if seg.texts.len() >= 3 => {
-                    ("<constructor>", seg.texts[1].as_str(), 2, "constructor")
-                }
-                "destructor" if seg.texts.len() >= 2 => ("<destructor>", "", 1, "destructor"),
-                _ => continue,
-            };
-            // Dynamic method names / non-static bodies are left
-            // un-lowered — and recorded as an unanalysable member of the
-            // class (issue #1166): any method of the class may have been
-            // (re)defined with a body no scan can read, so per-class
-            // analysis must abstain for the whole class.
-            if name.contains('$') || name.contains('[') || !seg_word_is_static_braced(seg, b_idx) {
-                self.module
-                    .oo_unanalysed_classes
-                    .insert(class_qname.clone());
+            let Some(member) = call.grammar.member(head) else {
                 continue;
-            }
-            let params = if params_str.is_empty() {
-                Vec::new()
-            } else {
-                parse_param_names(params_str)
             };
-            // Lower the method body in its own frame (fresh const-map +
-            // proc-depth) so the enclosing scope's tracked scalars
-            // don't leak into the body's barrier-relaxation gate —
-            // exactly as the `proc` case does — and suppress
-            // nested-proc registration while doing so.
-            let body_tok = seg.argv[b_idx];
-            let body_off = body_tok.span.start() + u32::from(body_tok.content_offset);
-            self.proc_depth += 1;
-            self.const_map_stack.push(HashMap::new());
-            let prev_suppress = self.suppress_proc_register;
-            self.suppress_proc_register = true;
-            let body_script = self.lower_body(seg.texts[b_idx].as_str(), body_off, namespace);
-            self.suppress_proc_register = prev_suppress;
-            self.const_map_stack.pop();
-            self.proc_depth -= 1;
-
-            // Instance vars in scope: class-level decls plus this
-            // method's own top-level `variable` declarations. A write
-            // to any of these mutates object state (impure for O126).
-            let mut method_ivars = class_ivars.clone();
-            collect_method_variable_decls(&body_script, &mut method_ivars);
-
-            let method_qname = format!("{class_qname}::{name}");
-            let def = MethodDef {
-                class_name: class_qname.clone(),
-                method_name: name.to_string(),
-                params,
-                body: body_script,
-                kind: MethodKind::from_str_lossy(kind),
-                span: Some(seg.span),
-                instance_vars: method_ivars,
+            // A wrapper member (`self …`, `private …`, itcl's access
+            // modifiers) either prefixes an inner member (shift one place
+            // right) or — for `wrapper_block_body` wrappers — carries a
+            // whole nested definition script to recurse into.
+            let (member, kw, base, wrapper) = match member.kind {
+                tcl_registry::definer::MemberKind::Wrapper => match seg.texts.get(1) {
+                    Some(inner) if call.grammar.is_member(inner) => {
+                        let inner_member = call.grammar.member(inner).expect("checked is_member");
+                        // No double wrapping (`self private method …` is not
+                        // a real Tcl shape).
+                        if inner_member.kind != tcl_registry::definer::MemberKind::Flat {
+                            continue;
+                        }
+                        (inner_member, inner.as_str(), 2usize, Some(head))
+                    }
+                    Some(_)
+                        if member.wrapper_block_body
+                            && seg.texts.len() >= 2
+                            && seg_word_is_static_braced(seg, 1) =>
+                    {
+                        // `self { … }` / `private { … }` — a nested
+                        // definition script with the same member grammar.
+                        let block_tok = seg.argv[1];
+                        let off = block_tok.span.start() + u32::from(block_tok.content_offset);
+                        let sub = segment_commands_with_offset_and_config(
+                            &seg.texts[1],
+                            off,
+                            self.config,
+                        );
+                        // A `self { variable v }` declares per-class-object
+                        // state, not instance state; keep it out of the
+                        // instance union — only the members are lifted.
+                        let wrapped_call = DefinerCall { ..*call };
+                        let empty = HashSet::new();
+                        let ivars = if head == "self" { &empty } else { class_ivars };
+                        self.extract_members_from_wrapper_block(
+                            &wrapped_call,
+                            &sub,
+                            class_qname,
+                            ivars,
+                            namespace,
+                            head,
+                        );
+                        continue;
+                    }
+                    _ => continue,
+                },
+                tcl_registry::definer::MemberKind::Flat => (member, head, 1usize, None),
+                // Flag-keyed bodies (`property … -get/-set …`) are accessor
+                // scripts, not method frames — no unit today (documented
+                // limit).
+                tcl_registry::definer::MemberKind::FlagKeyed => continue,
             };
-            // First definition wins for the stored body (matches proc
-            // registration), but a redefinition (a later `oo::define`
-            // or a duplicate in-body `method`) replaces the body at
-            // runtime — we can't statically know which body a given
-            // dispatch runs, so RETAIN the replacement in definition
-            // order (issue #1166): analysis consumers scan every retained
-            // body (the union over-approximates whichever is live) rather
-            // than abstaining on the mere fact of redefinition.
-            if self.module.methods.contains_key(&method_qname) {
-                self.module
-                    .redefined_methods
-                    .entry(method_qname)
-                    .or_default()
-                    .push(def);
-                continue;
-            }
-            self.module.methods.insert(method_qname, def);
+            self.extract_one_member(
+                MemberExtraction {
+                    call,
+                    seg,
+                    member,
+                    kw,
+                    base,
+                    wrapper,
+                },
+                class_qname,
+                class_ivars,
+                namespace,
+            );
         }
+    }
+
+    /// Recurse into a wrapper's block form with the wrapper name forced —
+    /// `self { method m … }` records `m` as a class-object method, and
+    /// `private { method m … }` as an instance method, exactly like their
+    /// prefix spellings.
+    fn extract_members_from_wrapper_block(
+        &mut self,
+        call: &DefinerCall,
+        segments: &[SegmentedCommand],
+        class_qname: &str,
+        class_ivars: &HashSet<String>,
+        namespace: &str,
+        wrapper: &str,
+    ) {
+        for seg in segments {
+            if seg.is_partial || seg.texts.is_empty() {
+                continue;
+            }
+            let head = seg.texts[0].as_str();
+            let Some(member) = call.grammar.member(head) else {
+                continue;
+            };
+            if member.kind != tcl_registry::definer::MemberKind::Flat {
+                continue;
+            }
+            self.extract_one_member(
+                MemberExtraction {
+                    call,
+                    seg,
+                    member,
+                    kw: head,
+                    base: 1,
+                    wrapper: Some(wrapper),
+                },
+                class_qname,
+                class_ivars,
+                namespace,
+            );
+        }
+    }
+
+    /// Lift one body-bearing member call to a [`MethodDef`] unit, when its
+    /// grammar layout and this consumer's kind routing say it opens a
+    /// method frame.
+    fn extract_one_member(
+        &mut self,
+        ex: MemberExtraction<'_, '_>,
+        class_qname: &str,
+        class_ivars: &HashSet<String>,
+        namespace: &str,
+    ) {
+        let MemberExtraction {
+            call,
+            seg,
+            member,
+            kw,
+            base,
+            wrapper,
+        } = ex;
+        let Some(kind) = member_method_kind(kw, wrapper == Some("self")) else {
+            return;
+        };
+        // Argument layout comes from the grammar: which relative index (0-
+        // based after the keyword) is the body / name / parameter list.
+        let Some(body_rel) = member.indices_for(ArgRole::Body).next() else {
+            return;
+        };
+        // A member that also declares a variable (itcl `variable NAME ?init?
+        // ?configbody?`, snit 1.x `onconfigure`) is a declaration whose
+        // trailing script is not an ordinary method frame — skipped
+        // (documented limit; `member_method_kind` already excludes them by
+        // keyword, this keeps the exclusion structural too).
+        if member.indices_for(ArgRole::VarWrite).next().is_some() {
+            return;
+        }
+        let b_idx = base + body_rel;
+        let name_owned: String;
+        let name: &str = match member.indices_for(ArgRole::Name).next() {
+            Some(rel) => match seg.texts.get(base + rel) {
+                Some(n) => n.as_str(),
+                None => return,
+            },
+            // Nameless members: the synthetic id is the keyword, matching
+            // the established `<constructor>` / `<destructor>` scheme.
+            None => {
+                name_owned = format!("<{kw}>");
+                &name_owned
+            }
+        };
+        // Dynamic method names / non-static bodies are left un-lowered —
+        // and recorded as an unanalysable member of the class (issue
+        // #1166): any method of the class may have been (re)defined with a
+        // body no scan can read, so per-class analysis must abstain for
+        // the whole class.
+        if name.contains('$') || name.contains('[') || !seg_word_is_static_braced(seg, b_idx) {
+            self.module
+                .oo_unanalysed_classes
+                .insert(class_qname.to_string());
+            return;
+        }
+        let params = match member.indices_for(ArgRole::ParamList).next() {
+            Some(rel) => seg
+                .texts
+                .get(base + rel)
+                .filter(|p| !p.is_empty())
+                .map(|p| parse_param_names(p))
+                .unwrap_or_default(),
+            None => Vec::new(),
+        };
+        // Lower the method body in its own frame (fresh const-map +
+        // proc-depth) so the enclosing scope's tracked scalars
+        // don't leak into the body's barrier-relaxation gate —
+        // exactly as the `proc` case does — and suppress
+        // nested-proc registration while doing so.
+        let body_tok = seg.argv[b_idx];
+        let body_off = body_tok.span.start() + u32::from(body_tok.content_offset);
+        self.proc_depth += 1;
+        self.const_map_stack.push(HashMap::new());
+        let prev_suppress = self.suppress_proc_register;
+        self.suppress_proc_register = true;
+        let body_script = self.lower_body(seg.texts[b_idx].as_str(), body_off, namespace);
+        self.suppress_proc_register = prev_suppress;
+        self.const_map_stack.pop();
+        self.proc_depth -= 1;
+
+        // Instance vars in scope: class-level decls (plus the grammar's
+        // implicit member-body variables — snit's `self`/`selfns`/`type`/
+        // `options`, a widget's `win`/`hull`, itcl's `this`) plus this
+        // method's own top-level `variable` declarations. A write to any of
+        // these mutates object state (impure for O126).
+        let mut method_ivars = class_ivars.clone();
+        method_ivars.extend(call.grammar.implicit_vars.iter().map(|s| (*s).to_string()));
+        for st in &body_script.statements {
+            if let Statement::Call {
+                command,
+                canonical_command,
+                args,
+                ..
+            } = st
+                && canonical_matches(command, canonical_command.as_deref(), "variable")
+            {
+                for nm in args {
+                    if is_instance_var_name(nm) {
+                        method_ivars.insert(normalise_var_name(nm).to_string());
+                    }
+                }
+            }
+        }
+
+        let method_qname = format!("{class_qname}::{name}");
+        let def = MethodDef {
+            class_name: class_qname.to_string(),
+            method_name: name.to_string(),
+            params,
+            body: body_script,
+            kind: MethodKind::from_str_lossy(kind),
+            span: Some(seg.span),
+            instance_vars: method_ivars,
+        };
+        // First definition wins for the stored body (matches proc
+        // registration), but a redefinition (a later `oo::define`
+        // or a duplicate in-body `method`) replaces the body at
+        // runtime — we can't statically know which body a given
+        // dispatch runs, so RETAIN the replacement in definition
+        // order (issue #1166): analysis consumers scan every retained
+        // body (the union over-approximates whichever is live) rather
+        // than abstaining on the mere fact of redefinition.
+        if self.module.methods.contains_key(&method_qname) {
+            self.module
+                .redefined_methods
+                .entry(method_qname)
+                .or_default()
+                .push(def);
+            return;
+        }
+        self.module.methods.insert(method_qname, def);
     }
 }
 
-/// Collect a method body's own top-level `variable` declarations into
-/// `ivars` (extracted from `extract_oo_methods`).
-fn collect_method_variable_decls(body_script: &Script, ivars: &mut HashSet<String>) {
-    for st in &body_script.statements {
-        if let Statement::Call {
-            command,
-            canonical_command,
-            args,
-            ..
-        } = st
-            && canonical_matches(command, canonical_command.as_deref(), "variable")
-        {
-            for nm in args {
-                if is_instance_var_name(nm) {
-                    ivars.insert(normalise_var_name(nm).to_string());
-                }
-            }
-        }
-    }
+/// One body-bearing member call ready to lift — bundles the walk context so
+/// [`Lowerer::extract_one_member`] stays under the argument limit.
+struct MemberExtraction<'a, 'b> {
+    call: &'a DefinerCall,
+    seg: &'a SegmentedCommand,
+    member: &'b tcl_registry::definer::MemberSpec,
+    /// The effective member keyword (the inner one for a wrapper prefix).
+    kw: &'a str,
+    /// Index of the member's first argument word in `seg.texts` (1, or 2
+    /// past a wrapper prefix).
+    base: usize,
+    /// The wrapper the member was written under, when any (`self`,
+    /// `private`, itcl's access modifiers).
+    wrapper: Option<&'a str>,
 }
 
-/// The instance variables one class-definition body declares at class level.
+/// Which [`MethodDef`] kind a member keyword's body opens, or `None` for
+/// members whose trailing script is **not** a method frame (`initialise` /
+/// `initialize` evaluate a *definition script* in the class object's
+/// namespace; `property` accessors are flag-keyed scripts; declarations
+/// carry no frame at all).
 ///
-/// The `TclOO` class-body `variable` slot is names-only (`variable a b c`
-/// declares three instance vars — verified against tclsh 9.0 — NOT
-/// name/value pairs), so every literal trailing word is a name.  These are
-/// auto-linked into every method of the class; a *sibling* definition block
-/// may declare more, which is why the caller accumulates a per-class union
-/// rather than using this result directly.
-fn class_level_instance_vars(segments: &[crate::segmenter::SegmentedCommand]) -> HashSet<String> {
+/// Routing a member keyword to its `MethodDef` kind is the analyser-local
+/// semantics AGENTS.md's definition-body contract leaves with the consumer
+/// (an object `destructor` and a class-level `initialise` are structurally
+/// identical single-body members — the difference is frame modelling, not
+/// command structure).  Recognition and argument layout still come from the
+/// registry grammar; this routes only.
+fn member_method_kind(kw: &str, wrapped_in_self: bool) -> Option<&'static str> {
+    Some(match kw {
+        "method" if wrapped_in_self => "classmethod",
+        "method" => "method",
+        // snit's `typemethod` / `typeconstructor` dispatch on the type
+        // command with no instance in frame — the class-method shape.
+        "classmethod" | "typemethod" | "typeconstructor" => "classmethod",
+        // A snit / itcl class-scoped `proc` opens a fresh frame like a
+        // method (with no instance state auto-bound; the over-approximated
+        // instance-var set only widens abstention, never a false claim).
+        "proc" => "method",
+        "constructor" => "constructor",
+        "destructor" => "destructor",
+        _ => return None,
+    })
+}
+
+/// The instance variables one definition body declares at class level, per
+/// the definer's grammar: every `all_args_var` member's names (the `TclOO`
+/// `variable` slot — skipping a leading slot-operation word, which names no
+/// variable) plus every `VarWrite`-role name (snit's `variable` /
+/// `typevariable` / `component` / `typecomponent`, itcl's `variable` /
+/// `common`), including itcl's access-modifier-wrapped spellings.
+///
+/// The result is the **union of every name ever declared** across the
+/// block: slot removal operations (`variable -remove a`, `-set`, `-clear`)
+/// are deliberately not folded here — the union is the conservative
+/// direction for every consumer of [`crate::ir::MethodDef::instance_vars`]
+/// (existence-fold abstention, W-family known-bound, O126 impurity), where
+/// a stale extra name only widens abstention while a missed name produces a
+/// false claim.  A *sibling* definition block may declare more, which is
+/// why the caller accumulates a per-class union rather than using this
+/// result directly.
+fn declared_member_vars(
+    grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+    segments: &[crate::segmenter::SegmentedCommand],
+) -> HashSet<String> {
     let mut out = HashSet::new();
     for seg in segments {
-        if !seg.is_partial && seg.texts.len() >= 2 && seg.texts[0] == "variable" {
-            for nm in &seg.texts[1..] {
+        if seg.is_partial || seg.texts.is_empty() {
+            continue;
+        }
+        let head = seg.texts[0].as_str();
+        let Some(member) = grammar.member(head) else {
+            continue;
+        };
+        // Unwrap an access-modifier prefix (itcl `public variable x`,
+        // TclOO 9's `private variable x`) one level.
+        let (member, args): (&tcl_registry::definer::MemberSpec, &[String]) =
+            if member.kind == tcl_registry::definer::MemberKind::Wrapper {
+                match seg.texts.get(1).and_then(|inner| grammar.member(inner)) {
+                    Some(inner_member)
+                        if inner_member.kind == tcl_registry::definer::MemberKind::Flat
+                            && seg.texts.len() >= 3 =>
+                    {
+                        (inner_member, &seg.texts[2..])
+                    }
+                    _ => continue,
+                }
+            } else {
+                (member, &seg.texts[1..])
+            };
+        if member.all_args_var {
+            // The `TclOO` `variable` slot: a leading operation word names
+            // no variable (issue #1169).
+            let values = match member.slot {
+                Some(slot) => match slot.split_call(args) {
+                    Some((_, values)) => values,
+                    None => continue,
+                },
+                None => args,
+            };
+            for nm in values {
                 if is_instance_var_name(nm) {
+                    out.insert(normalise_var_name(nm).to_string());
+                }
+            }
+        } else {
+            for rel in member.indices_for(ArgRole::VarWrite) {
+                if let Some(nm) = args.get(rel)
+                    && is_instance_var_name(nm)
+                {
                     out.insert(normalise_var_name(nm).to_string());
                 }
             }
@@ -3526,6 +3817,186 @@ mod tests {
         );
         assert!(
             m.methods.contains_key("::app::Widget::hide"),
+            "methods: {:?}",
+            m.methods.keys().collect::<Vec<_>>()
+        );
+    }
+
+    // Issue #1172: extraction is driven by the registry definer grammars,
+    // so oo::objdefine, snit, and itcl bodies produce method units too.
+
+    // TP (item 1): an `oo::objdefine $obj { … }` body produces per-object
+    // method units — previously no `MethodDef` existed at all, leaving the
+    // body invisible to every analysis.
+    #[test]
+    fn objdefine_bodies_produce_per_object_method_units() {
+        let src = "oo::class create C {}\n\
+                   set k [C new]\n\
+                   oo::objdefine $k {\n\
+                   \x20   variable z\n\
+                   \x20   method probe {} { return $z }\n\
+                   }\n";
+        let m = lower_to_ir(src, &reg());
+        let unit = m
+            .methods
+            .get("::@objdefine@::k::probe")
+            .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()));
+        assert_eq!(unit.method_name, "probe");
+        assert!(!unit.body.statements.is_empty(), "body must be lowered");
+        // The block's `variable z` is per-object state in scope for the
+        // per-object method.
+        assert!(
+            unit.instance_vars.contains("z"),
+            "ivars: {:?}",
+            unit.instance_vars
+        );
+    }
+
+    // TN (oracle case K, issue #1129): objdefine `variable` declarations are
+    // per-object — they must NOT pollute the real class's cross-block
+    // instance-variable union.
+    #[test]
+    fn objdefine_variables_stay_out_of_the_class_union() {
+        let src = "oo::class create C {\n\
+                   \x20   method m {} { info exists z }\n\
+                   }\n\
+                   set k [C new]\n\
+                   oo::objdefine $k { variable z }\n";
+        let m = lower_to_ir(src, &reg());
+        let class_m = &m.methods["::C::m"];
+        assert!(
+            !class_m.instance_vars.contains("z"),
+            "per-object `z` leaked into the class union: {:?}",
+            class_m.instance_vars
+        );
+    }
+
+    // TP (item 2): snit method / typemethod / constructor bodies become
+    // method units, with the grammar's implicit member-body variables
+    // (self / selfns / type / options) and declared type variables in scope.
+    #[test]
+    fn snit_type_bodies_produce_method_units() {
+        let src = "snit::type Dog {\n\
+                   \x20   variable name\n\
+                   \x20   constructor {args} { set name fido }\n\
+                   \x20   method bark {} { return \"$name barks\" }\n\
+                   \x20   typemethod count {} { return 0 }\n\
+                   }\n";
+        let m = lower_to_ir(src, &reg());
+        let bark = m
+            .methods
+            .get("::Dog::bark")
+            .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()));
+        assert_eq!(bark.kind, MethodKind::Method);
+        assert!(!bark.body.statements.is_empty());
+        for implicit in ["self", "selfns", "type", "options", "name"] {
+            assert!(
+                bark.instance_vars.contains(implicit),
+                "missing {implicit}: {:?}",
+                bark.instance_vars
+            );
+        }
+        assert_eq!(
+            m.methods["::Dog::count"].kind,
+            MethodKind::ClassMethod,
+            "typemethod dispatches on the type command"
+        );
+        assert!(m.methods.contains_key("::Dog::<constructor>"));
+    }
+
+    // TP: the widget grammar's extra implicit vars (win / hull) reach
+    // widget method units — registry data, not a name-suffix check.
+    #[test]
+    fn snit_widget_bodies_see_win_and_hull() {
+        let src = "snit::widget MyBar {\n\
+                   \x20   method redraw {} { return $win }\n\
+                   }\n";
+        let m = lower_to_ir(src, &reg());
+        let redraw = m
+            .methods
+            .get("::MyBar::redraw")
+            .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()));
+        assert!(redraw.instance_vars.contains("win"));
+        assert!(redraw.instance_vars.contains("hull"));
+    }
+
+    // TP (item 2): itcl method bodies — including the access-modifier
+    // wrapped spellings — become method units with `this`, instance
+    // variables, and commons in scope.
+    #[test]
+    fn itcl_class_bodies_produce_method_units() {
+        let src = "itcl::class Toaster {\n\
+                   \x20   variable crumbs 0\n\
+                   \x20   common heat 3\n\
+                   \x20   public method toast {n} { incr crumbs $n }\n\
+                   \x20   method clean {} { set crumbs 0 }\n\
+                   \x20   constructor {} { set crumbs 0 }\n\
+                   }\n";
+        let m = lower_to_ir(src, &reg());
+        let toast = m
+            .methods
+            .get("::Toaster::toast")
+            .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()));
+        assert_eq!(toast.params, vec!["n".to_string()]);
+        for name in ["this", "crumbs", "heat"] {
+            assert!(
+                toast.instance_vars.contains(name),
+                "missing {name}: {:?}",
+                toast.instance_vars
+            );
+        }
+        assert!(m.methods.contains_key("::Toaster::clean"));
+        assert!(m.methods.contains_key("::Toaster::<constructor>"));
+    }
+
+    // TP: TclOO wrapper members — `self { method … }` lifts a
+    // classmethod-kind unit, `private { method … }` an instance one; the
+    // prefix spellings match.
+    #[test]
+    fn tcloo_wrapper_members_produce_units() {
+        let src = "oo::class create W {\n\
+                   \x20   self { method make {} { return [my new] } }\n\
+                   \x20   private { method hidden {} { return 1 } }\n\
+                   \x20   self method direct {} { return 2 }\n\
+                   }\n";
+        let m = lower_to_ir(src, &reg());
+        assert_eq!(
+            m.methods
+                .get("::W::make")
+                .map(|d| d.kind)
+                .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>())),
+            MethodKind::ClassMethod
+        );
+        assert_eq!(m.methods["::W::direct"].kind, MethodKind::ClassMethod);
+        assert_eq!(m.methods["::W::hidden"].kind, MethodKind::Method);
+    }
+
+    // TN: an `initialise` body is a *definition script* evaluated in the
+    // class object's namespace, not a method frame — no unit.
+    #[test]
+    fn tcloo_initialise_body_is_not_a_method_unit() {
+        let src = "oo::class create I {\n\
+                   \x20   initialise { variable cache {} }\n\
+                   \x20   method read {} { return 1 }\n\
+                   }\n";
+        let m = lower_to_ir(src, &reg());
+        assert!(
+            !m.methods.keys().any(|k| k.contains("initialise")),
+            "methods: {:?}",
+            m.methods.keys().collect::<Vec<_>>()
+        );
+        assert!(m.methods.contains_key("::I::read"));
+    }
+
+    // TN: a dynamic objdefine receiver that is not a simple variable
+    // reference (a command substitution) stays un-extracted.
+    #[test]
+    fn objdefine_command_substitution_receiver_abstains() {
+        let src = "oo::class create C {}\n\
+                   oo::objdefine [C new] { method m {} { return 1 } }\n";
+        let m = lower_to_ir(src, &reg());
+        assert!(
+            !m.methods.keys().any(|k| k.starts_with("::@objdefine@")),
             "methods: {:?}",
             m.methods.keys().collect::<Vec<_>>()
         );

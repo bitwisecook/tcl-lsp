@@ -5365,6 +5365,97 @@ fn method_body_ordinary_unused_local_still_flags_w211() {
     );
 }
 
+// Issue #1172 — method units now come from the registry definer grammars,
+// so `oo::objdefine`, snit, and itcl method bodies get the same CFG/SSA
+// diagnostic family.
+
+#[test]
+fn objdefine_method_body_unbound_read_now_flags_w210() {
+    // FN now caught — an `oo::objdefine $obj { method … }` body previously
+    // produced no method unit at all, so a genuinely unbound read inside it
+    // got zero diagnostics (issue #1172 item 1).
+    let src = "oo::class create C {}\nset k [C new]\noo::objdefine $k {\n    method probe {} { return $neverBound }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        codes.contains(&"W210".to_string()),
+        "an unbound read inside an objdefine method must flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn objdefine_per_object_variable_does_not_false_positive_w210() {
+    // FP guard — the objdefine block's own `variable z` auto-binds `z` in
+    // the per-object method's frame exactly as a class-level declaration
+    // does for class methods; reading it must not flag.
+    let src = "oo::class create C {}\nset k [C new]\noo::objdefine $k {\n    variable z\n    method probe {} { if {[info exists z]} { return $z }\nreturn {} }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        !codes.contains(&"W210".to_string()),
+        "a per-object instance-variable read must not flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn snit_method_body_unbound_read_now_flags_w210() {
+    // FN now caught — snit method bodies previously never became method
+    // units (issue #1172 item 2), so this unbound read was invisible.
+    let src = "snit::type Dog {\n    method bark {} { return $neverBound }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        codes.contains(&"W210".to_string()),
+        "an unbound read inside a snit method must flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn snit_method_implicits_and_declared_vars_do_not_false_positive_w210() {
+    // FP guard — snit injects `self` / `selfns` / `type` / `options` into
+    // every method body, and a type-level `variable` declaration is
+    // auto-linked; none of those reads may flag.
+    let src = "snit::type Dog {\n    variable name\n    method describe {} { return \"$self $type $name $options(-color)\" }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        !codes.contains(&"W210".to_string()),
+        "snit implicit / declared variable reads must not flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn snit_widget_win_and_hull_do_not_false_positive_w210() {
+    // FP guard — the widget definers additionally inject `win` / `hull`
+    // (registry data: SNIT_WIDGET_GRAMMAR's implicit_vars).
+    let src = "snit::widget Bar {\n    method redraw {} { return \"$win $hull\" }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        !codes.contains(&"W210".to_string()),
+        "widget `win`/`hull` reads must not flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn itcl_method_body_unbound_read_now_flags_w210() {
+    // FN now caught — itcl method bodies previously never became method
+    // units either (issue #1172 item 2).
+    let src = "itcl::class Toaster {\n    public method toast {} { return $neverBound }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        codes.contains(&"W210".to_string()),
+        "an unbound read inside an itcl method must flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn itcl_instance_state_and_this_do_not_false_positive_w210() {
+    // FP guard — itcl auto-binds `this`, every `variable`, and every
+    // `common` in method bodies (including modifier-wrapped declarations).
+    let src = "itcl::class Toaster {\n    variable crumbs 0\n    protected common heat 3\n    public method status {} { return \"$this $crumbs $heat\" }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        !codes.contains(&"W210".to_string()),
+        "itcl `this`/variable/common reads must not flag W210: {codes:?}"
+    );
+}
+
 #[test]
 fn method_body_unbound_read_inside_switch_arm_still_flags_w210() {
     // TN — a sanity check that the new loop reaches a method's full CFG,
