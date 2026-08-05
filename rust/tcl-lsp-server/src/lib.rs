@@ -20687,9 +20687,7 @@ mod tests {
         let uri = Uri::from_str("file:///oldmac.tcl").unwrap();
         let src = "# note \rset zz 1\nputs $zz\n";
         register(&backend, &uri, src).await;
-        backend
-            .db_set_source(&uri, src, "tcl8.6".to_owned())
-            .await;
+        backend.db_set_source(&uri, src, "tcl8.6".to_owned()).await;
         backend
             .publish_analyser_diagnostics(
                 uri.clone(),

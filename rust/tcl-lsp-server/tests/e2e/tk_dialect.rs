@@ -227,7 +227,18 @@ fn large_generated_non_tk_document_stays_clean_and_responsive() {
         );
     }
     src.push_str("    return unknown\n}\n");
-    let codes = tk_codes(&mut lsp, &uri, &src);
+    // A full debug-build analysis of a 2000-branch proc is legitimately tens
+    // of seconds on a loaded two-core CI runner: pass the large-document
+    // backstop `open_ready_timeout` exists for instead of betting
+    // DEFAULT_TIMEOUT covers it (its doc comment is about exactly this test
+    // shape).  Load scaling still applies on top.
+    let codes: Vec<String> = lsp
+        .open_ready_timeout(&uri, &src, std::time::Duration::from_secs(180))
+        .iter()
+        .filter_map(|d| d.get("code").and_then(serde_json::Value::as_str))
+        .filter(|c| c.starts_with("TK"))
+        .map(str::to_owned)
+        .collect();
     assert!(codes.is_empty(), "{codes:?}");
     // Still serving: a completion resolves rather than timing out.
     let labels = completion_labels(&lsp.completion(&uri, 1, 7));
