@@ -239,11 +239,13 @@ pub struct Analyser {
     pub regex_vars: HashSet<(Vec<usize>, String)>,
     /// iRules: enclosing ``when EVENT`` name.
     pub current_event: Option<String>,
-    /// Tk checks: whether this document could be Tk (the `tk` dialect, or
-    /// the source mentions `package` / `require` / `Tk`).  Set per walk by
-    /// the `analyse*` entry points; gates the per-command accumulation so
-    /// non-Tk files pay nothing.  See [`super::tk_checks::tk_possibly_active`].
-    pub(super) tk_possibly_active: bool,
+    /// Tk checks: whether the per-command widget/geometry accumulation is
+    /// worth running for this document.  A pure performance precheck
+    /// ([`super::tk_checks::tk_checks_could_apply`]) — a sound
+    /// over-approximation, never the activation decision, which is the exact
+    /// `tk` dialect / `package require Tk` fact resolved at flush time.  Set
+    /// per walk by the `analyse*` entry points so non-Tk files pay nothing.
+    pub(super) tk_accumulation_enabled: bool,
     /// Whether the ingest dialect string was literally `"tk"` (a wish
     /// shell). `tk` is a library over a Tcl base, not a catalog profile
     /// (dialect-profile-model.md §7.2), so its shell identity is recorded
@@ -903,7 +905,7 @@ impl Analyser {
             nondominating_consts: HashMap::new(),
             regex_vars: HashSet::new(),
             current_event: None,
-            tk_possibly_active: false,
+            tk_accumulation_enabled: false,
             tk_dialect: false,
             tk_pending_diags: Vec::new(),
             tk_created_widgets: HashSet::new(),
@@ -1103,7 +1105,7 @@ impl Analyser {
         self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
+        self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, dialect);
         self.tk_dialect = dialect == "tk";
         // Clear the per-run iRules file-profile memo so a reused analyser
         // instance recomputes it for the new source / dialect.
@@ -1482,7 +1484,7 @@ impl Analyser {
         self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
+        self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, dialect);
         self.tk_dialect = dialect == "tk";
         self.unresolved_commands_emitted = false;
 
@@ -1566,7 +1568,7 @@ impl Analyser {
         self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
+        self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, dialect);
         self.tk_dialect = dialect == "tk";
         self.unresolved_commands_emitted = false;
 
