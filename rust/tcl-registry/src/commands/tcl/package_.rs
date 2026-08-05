@@ -135,6 +135,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         arg_values: &[(0, PREFER_VALUES)],
         closed_value_args: &[0],
+        // The setter form writes interpreter-global state that every later
+        // `package require` in *any* file reads — which release it selects
+        // when the best acceptable version is a prerelease (issue #1126
+        // item 1).
+        analyser_hook: Some(crate::hooks::AnalyserHookId::PackagePrefer),
         // Added in Tcl 8.5 (TIP 268).
         dialects: Some(DialectSet::TCL85_PLUS),
         ..SubCommand::DEFAULT

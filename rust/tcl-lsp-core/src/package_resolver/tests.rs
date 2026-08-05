@@ -489,17 +489,17 @@ fn exact_require_selects_that_release_or_nothing() {
     // TP — the exact release is present, so it is the one selected, where the
     // ranged reading of the same version would have taken 2.3.
     assert_eq!(
-        all.resolve_require("widget", Some("2.0"), true),
+        all.resolve_require("widget", Some("2.0"), true, PackagePrefer::default()),
         impl_of("v2")
     );
     assert_eq!(
-        all.resolve_require("widget", Some("2.0"), false),
+        all.resolve_require("widget", Some("2.0"), false, PackagePrefer::default()),
         impl_of("v3")
     );
     // TP — the trailing-zero spelling of the same release still satisfies
     // `-exact` (`package vcompare 2.0 2.0.0` is 0).
     assert_eq!(
-        all.resolve_require("widget", Some("2.0.0"), true),
+        all.resolve_require("widget", Some("2.0.0"), true, PackagePrefer::default()),
         impl_of("v2"),
     );
 
@@ -510,12 +510,12 @@ fn exact_require_selects_that_release_or_nothing() {
     without_exact.scan_path(&root.join("v3"));
     assert!(
         without_exact
-            .resolve_require("widget", Some("2.0"), true)
+            .resolve_require("widget", Some("2.0"), true, PackagePrefer::default())
             .is_empty(),
         "`-exact 2.0` must not resolve 2.3",
     );
     assert_eq!(
-        without_exact.resolve_require("widget", Some("2.0"), false),
+        without_exact.resolve_require("widget", Some("2.0"), false, PackagePrefer::default()),
         impl_of("v3"),
         "the ranged form still resolves 2.3, so the difference is the flag",
     );
@@ -526,18 +526,21 @@ fn exact_require_selects_that_release_or_nothing() {
     alpha_only.scan_path(&root.join("v4"));
     assert!(
         alpha_only
-            .resolve_require("widget", Some("2.0"), true)
+            .resolve_require("widget", Some("2.0"), true, PackagePrefer::default())
             .is_empty(),
     );
     assert_eq!(
-        alpha_only.resolve_require("widget", Some("2.0"), false),
+        alpha_only.resolve_require("widget", Some("2.0"), false, PackagePrefer::default()),
         impl_of("v4"),
     );
 
     // TN — `-exact` with no version is `package require -exact NAME`, a
     // syntax error in real Tcl; treated as unconstrained, so it picks the
     // best release rather than nothing.
-    assert_eq!(all.resolve_require("widget", None, true), impl_of("v3"));
+    assert_eq!(
+        all.resolve_require("widget", None, true, PackagePrefer::default()),
+        impl_of("v3")
+    );
 }
 
 /// An unconstrained require picks the highest **stable** release, which is
@@ -586,6 +589,158 @@ fn unconstrained_require_prefers_the_highest_stable_release() {
     );
 }
 
+/// `package prefer latest` flips the same corpus onto the prerelease
+/// (issue #1126 item 1).
+///
+// tclsh-proof: tclsh8.6 (8.6.14), with both registered by hand —
+//   package ifneeded widget 1.2   {package provide widget 1.2}
+//   package ifneeded widget 1.3b1 {package provide widget 1.3b1}
+//   package require widget          → 1.2
+// and with `package prefer latest` evaluated first → 1.3b1.
+// `package prefer` itself answers `stable` by default, `latest` after the
+// raise, and a following `package prefer stable` returns `latest` with no
+// error — the latch never falls back.
+#[test]
+fn prefer_latest_selects_the_prerelease() {
+    let td = TempDir::new("preferlatest");
+    let root = td.path();
+    for (dir, ver) in [("s", "1.2"), ("u", "1.3b1")] {
+        let pkg_dir = root.join(dir);
+        let file = format!("w{dir}.tcl");
+        write(&pkg_dir.join(&file), "proc w {} {}\n");
+        write(
+            &pkg_dir.join("pkgIndex.tcl"),
+            &format!("package ifneeded w {ver} [list source [file join $dir {file}]]\n"),
+        );
+    }
+    let mut both = PackageResolver::new();
+    both.scan_path(root);
+    // TP — the raise moves the answer onto the prerelease.
+    assert_eq!(
+        both.resolve_require("w", None, false, PackagePrefer::Latest),
+        vec![root.join("u").join("wu.tcl")],
+    );
+    // FP guard — the default is untouched.
+    assert_eq!(
+        both.resolve_require("w", None, false, PackagePrefer::Stable),
+        vec![root.join("s").join("ws.tcl")],
+    );
+    // TN — with no prerelease in the acceptable set the mode changes nothing.
+    let mut stable_only = PackageResolver::new();
+    stable_only.scan_path(&root.join("s"));
+    assert_eq!(
+        stable_only.resolve_require("w", None, false, PackagePrefer::Latest),
+        stable_only.resolve_require("w", None, false, PackagePrefer::Stable),
+    );
+}
+
+/// `package_prefer_at` reads the document's own raise, ordered against the
+/// `package require` that asks (issue #1126 item 1).
+#[test]
+fn package_prefer_state_is_ordered_against_the_require() {
+    use tcl_compiler::analyser::Analyser;
+    let analyse = |src: &str| Analyser::new().analyse(src, "tcl");
+    let at = |src: &str, needle: &str| {
+        u32::try_from(src.find(needle).expect("needle")).expect("offset fits")
+    };
+
+    // TP — a raise above the require is in effect.
+    let src = "package prefer latest\npackage require w\n";
+    let analysis = analyse(src);
+    assert_eq!(
+        crate::package_resolver::package_prefer_at(&analysis, at(src, "package require")),
+        PackagePrefer::Latest,
+    );
+
+    // FP guard — a raise written *below* a top-level require has not run yet.
+    let src = "package require w\npackage prefer latest\n";
+    let analysis = analyse(src);
+    assert_eq!(
+        crate::package_resolver::package_prefer_at(&analysis, at(src, "package require")),
+        PackagePrefer::Stable,
+    );
+
+    // TP — …but a require inside a proc body *does* see a raise written
+    // later at load level, because the whole file loads before any body runs
+    // (the `in_effect` rule the import family already shares).
+    let src = "proc load {} {\n    package require w\n}\npackage prefer latest\n";
+    let analysis = analyse(src);
+    assert_eq!(
+        crate::package_resolver::package_prefer_at(&analysis, at(src, "    package require")),
+        PackagePrefer::Latest,
+    );
+
+    // FP guard — a conditional raise is not taken as a fact.
+    let src = "if {$::tcl_platform(platform) eq \"unix\"} {\n    package prefer latest\n}\npackage require w\n";
+    let analysis = analyse(src);
+    assert_eq!(
+        crate::package_resolver::package_prefer_at(&analysis, at(src, "package require")),
+        PackagePrefer::Stable,
+    );
+
+    // TN — `package prefer stable` and the query form change nothing; a
+    // dynamic mode word is skipped rather than guessed at.
+    for src in [
+        "package prefer stable\npackage require w\n",
+        "package prefer\npackage require w\n",
+        "package prefer $mode\npackage require w\n",
+    ] {
+        let analysis = analyse(src);
+        assert_eq!(
+            crate::package_resolver::package_prefer_at(&analysis, at(src, "package require")),
+            PackagePrefer::Stable,
+            "{src}",
+        );
+    }
+}
+
+/// Two providers whose versions compare **equal** both contribute their files
+/// (issue #1126 item 2).
+///
+// tclsh-proof: tclsh8.6 (8.6.14) —
+//   package ifneeded w 1.0   {puts A}
+//   package ifneeded w 1.0.0 {puts B}
+//   package versions w   → 1.0        (one entry, the *first* version string)
+//   package ifneeded w 1.0 → puts B   (the *last* script)
+// The registration order is `glob` order, i.e. filesystem order, so which
+// script survives is machine-dependent and cannot be pinned.
+#[test]
+fn equal_comparing_providers_all_contribute_their_files() {
+    let td = TempDir::new("dupe");
+    let root = td.path();
+    for (dir, ver) in [("a", "1.0"), ("b", "1.0.0"), ("c", "0.9")] {
+        let pkg_dir = root.join(dir);
+        let file = format!("w{dir}.tcl");
+        write(&pkg_dir.join(&file), "proc w {} {}\n");
+        write(
+            &pkg_dir.join("pkgIndex.tcl"),
+            &format!("package ifneeded w {ver} [list source [file join $dir {file}]]\n"),
+        );
+    }
+    let mut resolver = PackageResolver::new();
+    resolver.scan_path(root);
+    // TP — `1.0` and `1.0.0` are one release to `package vcompare`, so both
+    // copies are indexed; discovery order (sorted by directory name) puts the
+    // one whose version string C Tcl keeps first.
+    assert_eq!(
+        resolver.resolve("w", None),
+        vec![root.join("a").join("wa.tcl"), root.join("b").join("wb.tcl"),],
+    );
+    // FP guard — a *lower* release is not dragged in with them.
+    assert_eq!(
+        resolver
+            .select_provider("w", None, false, PackagePrefer::default())
+            .map(|i| i.version.as_str()),
+        Some("1.0"),
+    );
+    // FP guard — a constraint that only the lower release satisfies still
+    // answers just that one.
+    assert_eq!(
+        resolver.resolve_require("w", Some("0.9"), true, PackagePrefer::default()),
+        vec![root.join("c").join("wc.tcl")],
+    );
+}
+
 /// `select_provider` reports the whole chosen declaration, not just its files
 /// — the version actually selected and the `pkgIndex.tcl` that declared it.
 #[test]
@@ -603,13 +758,21 @@ fn select_provider_reports_the_chosen_declaration() {
     let mut resolver = PackageResolver::new();
     resolver.scan_path(root);
     let chosen = resolver
-        .select_provider("p", None, false)
+        .select_provider("p", None, false, PackagePrefer::default())
         .expect("a provider");
     assert_eq!(chosen.version, "2.3");
     assert_eq!(chosen.pkg_index_path, root.join("b").join("pkgIndex.tcl"));
     // TN — nothing acceptable, and an unknown package, both answer `None`.
-    assert!(resolver.select_provider("p", Some("9.9"), false).is_none());
-    assert!(resolver.select_provider("absent", None, false).is_none());
+    assert!(
+        resolver
+            .select_provider("p", Some("9.9"), false, PackagePrefer::default())
+            .is_none()
+    );
+    assert!(
+        resolver
+            .select_provider("absent", None, false, PackagePrefer::default())
+            .is_none()
+    );
 }
 
 #[test]
@@ -694,16 +857,18 @@ fn transitive_closure_pulls_in_tk_through_a_wrapper_package() {
 }
 
 /// Two providers declaring versions that compare *equal*: the first scanned
-/// wins, deterministically.
+/// is the selected declaration, deterministically — while the *files* are the
+/// union of both (issue #1126 item 2, and
+/// [`super::PackageResolver::resolve_require`]'s doc).
 ///
 /// Real Tcl collapses them into one `package ifneeded` entry — first
 /// registration's version string, last registration's script — and the
 /// registration order is `glob` order, i.e. filesystem order, which differs
 /// per machine (verified: on this container `glob -directory … -join *
-/// pkgIndex.tcl` returned `b` before `a`). There is no stable oracle to match,
-/// so this pins the deterministic choice instead: discovery order, which sorts
-/// subdirectories by name, so a workspace-local copy listed first shadows an
-/// equally-versioned installed one.
+/// pkgIndex.tcl` returned `b` before `a`). There is no stable oracle for
+/// *which script survives*, so navigation reads both copies rather than
+/// betting; the deterministic half — which declaration is "the" one, and so
+/// which version string is reported — stays discovery order, sorted by name.
 #[test]
 fn resolver_first_provider_wins() {
     // Two providers of the same package: the first scanned keeps the head.
@@ -723,7 +888,19 @@ fn resolver_first_provider_wins() {
     let mut resolver = PackageResolver::new();
     resolver.scan_path(&first);
     resolver.scan_path(&second);
-    assert_eq!(resolver.resolve("dup", None), vec![first.join("dup.tcl")]);
+    assert_eq!(
+        resolver
+            .select_provider("dup", None, false, PackagePrefer::default())
+            .map(|i| i.pkg_index_path.clone()),
+        Some(first.join("pkgIndex.tcl")),
+        "the first-scanned declaration is the one C Tcl reports the version of",
+    );
+    assert_eq!(
+        resolver.resolve("dup", None),
+        vec![first.join("dup.tcl"), second.join("dup.tcl")],
+        "…and both copies are indexed, because which script survives is a \
+         filesystem-order fact",
+    );
 }
 
 // ---------------------------------------------------------------------------

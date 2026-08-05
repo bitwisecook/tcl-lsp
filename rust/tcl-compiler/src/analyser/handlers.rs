@@ -5202,6 +5202,39 @@ impl Analyser {
             });
     }
 
+    /// Record ``package prefer latest`` — the one form of ``package
+    /// prefer`` that changes the interpreter's version-selection rule
+    /// (issue #1126 item 1).
+    ///
+    /// ``package prefer`` with no argument is a query, and ``package
+    /// prefer stable`` never changes anything: it is a no-op from the
+    /// default and silently ineffective once ``latest`` has been set
+    /// (see [`crate::signature_scan::types::SignaturePackagePrefer`]
+    /// for the transcript), so neither is recorded and the state is
+    /// the monotone "has a raise already run".
+    ///
+    /// A non-literal mode word (``package prefer $mode``) is skipped
+    /// rather than guessed at — flipping the selection rule on a
+    /// substitution would silently move go-to-definition onto a
+    /// different release of a package.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::PackagePrefer`] (stamped
+    /// on `package`'s `prefer` subcommand).  See
+    /// [`Self::handle_package_require`] for the `cmd_tok` anchoring
+    /// convention.
+    pub fn handle_package_prefer(&mut self, cmd_tok: Token, args: &[String]) {
+        if args.len() < 2 || args[1] != "latest" {
+            return;
+        }
+        self.result.package_prefer_latest.push(
+            crate::signature_scan::types::SignaturePackagePrefer {
+                range: cmd_tok.span,
+                conditional: self.conditional_depth > 0,
+            },
+        );
+    }
+
     /// Resolve a command alias to `(target_cmd, effective_args)`.
     ///
     /// Returns `(cmd_name, args)` unchanged if no alias matches;
@@ -11409,6 +11442,34 @@ mod tests {
         let p = &r.package_requires[0];
         assert_eq!(p.name, "-exact");
         assert!(!p.exact);
+    }
+
+    /// `package prefer latest` is recorded; every other spelling of the
+    /// subcommand changes no state and is not (issue #1126 item 1).
+    #[test]
+    fn analyse_records_package_prefer_latest() {
+        let mut a = crate::analyser::Analyser::new();
+        // TP — the one transition that exists.
+        let r = a.analyse("package prefer latest", "tcl");
+        assert_eq!(r.package_prefer_latest.len(), 1);
+        assert!(!r.package_prefer_latest[0].conditional);
+        // TP — inside a guarded branch the record carries `conditional`, so a
+        // consumer can refuse to flip the selection rule on it.
+        let r = a.analyse("catch {package prefer latest}", "tcl");
+        assert_eq!(r.package_prefer_latest.len(), 1);
+        assert!(r.package_prefer_latest[0].conditional);
+        // TN — `stable` is a no-op from the default and silently ineffective
+        // afterwards; the bare form is a query; a dynamic mode word is not
+        // guessed at.
+        for src in [
+            "package prefer stable",
+            "package prefer",
+            "package prefer $mode",
+            "package prefer [mode]",
+        ] {
+            let r = a.analyse(src, "tcl");
+            assert!(r.package_prefer_latest.is_empty(), "{src}");
+        }
     }
 
     #[test]

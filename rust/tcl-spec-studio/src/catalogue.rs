@@ -360,6 +360,7 @@ pub const ANALYSER_HOOKS: &[Variant] = &[
     v("OoObjdefine", "oo::objdefine"),
     v("PackageRequire", "package require"),
     v("PackageProvide", "package provide"),
+    v("PackagePrefer", "package prefer"),
     v("Source", "source"),
     v("Append", "append"),
     v("Lappend", "lappend"),
@@ -1005,6 +1006,7 @@ mod tests {
             | AnalyserHookId::OoObjdefine
             | AnalyserHookId::PackageRequire
             | AnalyserHookId::PackageProvide
+            | AnalyserHookId::PackagePrefer
             | AnalyserHookId::Source
             | AnalyserHookId::Append
             | AnalyserHookId::Lappend

@@ -61,6 +61,53 @@ use std::path::{Path, PathBuf};
 
 use tcl_lexer::{Lexer, Token, TokenType};
 
+pub use tcl_dialect::PackagePrefer;
+
+/// The `package prefer` mode in force at `at` in `analysis` — the
+/// interpreter-global selection rule [`PackageResolver::resolve_require`]
+/// needs (issue #1126 item 1).
+///
+/// `package prefer` is a monotone latch: the default is
+/// [`PackagePrefer::Stable`], a `package prefer latest` raises it, and
+/// nothing lowers it again (`package prefer stable` afterwards is silently
+/// ineffective — transcript on
+/// [`tcl_compiler::signature_scan::types::SignaturePackagePrefer`]). So the
+/// whole state is "has a raise already run at this point", and the answer
+/// needs no fold over an ordered log — just one existence test.
+///
+/// Ordering is [`tcl_compiler::analyser::indirection::in_effect`], the rule
+/// every other "had this statement already run?" question in the resolver
+/// family uses: a top-level raise counts for a `package require` written
+/// anywhere in a proc body of the same file (the file loads before any body
+/// runs), while a raise inside a body does not reach back to a top-level
+/// require.
+///
+/// Two abstentions, both toward the interpreter default:
+///
+/// * a **conditional** raise (inside `if` / `catch` / `try`) is ignored — it
+///   may not run, and flipping the selection rule would move go-to-definition
+///   onto a different release of the package;
+/// * a raise in **another document** is not seen at all. The state is
+///   interpreter-global, so a `package prefer latest` in a file sourced first
+///   really does change this file's answer, but which file runs first is not
+///   a static fact — the same abstention the import family records for every
+///   cross-file event (`docs/design/import-order-source-graph.md`).
+#[must_use]
+pub fn package_prefer_at(
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    at: u32,
+) -> PackagePrefer {
+    let raised = analysis.package_prefer_latest.iter().any(|p| {
+        !p.conditional
+            && tcl_compiler::analyser::indirection::in_effect(analysis, p.range.start(), at)
+    });
+    if raised {
+        PackagePrefer::Latest
+    } else {
+        PackagePrefer::Stable
+    }
+}
+
 /// Metadata for one `package ifneeded` declaration discovered in a
 /// `pkgIndex.tcl`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -829,11 +876,12 @@ impl PackageResolver {
 
     /// Resolve a `package require NAME ?VERSION?` to its implementation files.
     ///
-    /// Shorthand for [`Self::resolve_require`] with `exact` false; see there
-    /// for the selection rule and its oracle.
+    /// Shorthand for [`Self::resolve_require`] with `exact` false and the
+    /// interpreter's default `package prefer` mode; see there for the
+    /// selection rule and its oracle.
     #[must_use]
     pub fn resolve(&self, name: &str, version: Option<&str>) -> Vec<PathBuf> {
-        self.resolve_require(name, version, false)
+        self.resolve_require(name, version, false, PackagePrefer::default())
     }
 
     /// Resolve a `package require ?-exact? NAME ?VERSION?` to its
@@ -844,7 +892,10 @@ impl PackageResolver {
     /// The selection is [`tcl_dialect::select_package_version`], a port of C
     /// Tcl's `SelectPackage`: among the providers satisfying the requirement,
     /// the **highest** version wins, preferring the highest *stable* one
-    /// (`package prefer`'s default on 8.6.14 and 9.0.4 alike).
+    /// unless `prefer` says otherwise ([`PackagePrefer::Stable`] is the
+    /// interpreter default on 8.6.14 and 9.0.4 alike; the caller derives the
+    /// mode in force at its own `package require` with
+    /// [`package_prefer_at`]).
     ///
     /// | Written | Means | picks, from 1.5 + 2.3 |
     /// |---------|-------|-----------------------|
@@ -862,27 +913,38 @@ impl PackageResolver {
     /// `-exact` with no version is `package require -exact NAME`, which real
     /// Tcl rejects as a syntax error; it is treated here as unconstrained.
     ///
-    /// Two deliberate bounds, both verified against the interpreters:
-    ///
-    /// * **`package prefer` is not tracked.** A document may raise the
-    ///   interpreter's preference to `latest`, which changes the answer only
-    ///   when the best acceptable version is a prerelease and a stable one is
-    ///   also acceptable (`1.2` + `1.3b1` loads 1.2 by default, 1.3b1 under
-    ///   `package prefer latest`). The state is interpreter-global and
-    ///   order-of-evaluation dependent, so this pins the default rather than
-    ///   guessing at it.
-    /// * **Two providers whose versions compare *equal*.** C Tcl collapses
-    ///   them into one `ifneeded` entry, keeping the first registration's
-    ///   version string and the *last* one's script — and the registration
-    ///   order is `glob` order, i.e. filesystem order, so which script that is
-    ///   varies by machine. This keeps the first-discovered provider (with
-    ///   discovery sorted by name), which is deterministic; a workspace-local
-    ///   copy listed first therefore still shadows an installed one.
+    /// **Equal-comparing duplicate providers contribute every one of their
+    /// files** (issue #1126 item 2). C Tcl collapses two `package ifneeded`
+    /// registrations whose versions compare equal (`1.0` / `1.0.0`, `5` /
+    /// `0005`) into one entry, keeping the *first* registration's version
+    /// string and the *last* one's script — and the registration order is
+    /// `glob` order, i.e. filesystem order, so which script that is varies by
+    /// machine and no oracle can pin it. [`Self::select_provider`] keeps the
+    /// first-discovered provider, which is deterministic and is also the one
+    /// whose version string C Tcl reports; this returns the union of the
+    /// equal-comparing providers' files, in discovery order, because the
+    /// question it answers is "which files may hold this package's
+    /// definitions" and the honest answer names all of them rather than
+    /// betting on a filesystem order. Navigation then finds a symbol in
+    /// whichever copy really loaded, instead of silently missing it half the
+    /// time.
     #[must_use]
-    pub fn resolve_require(&self, name: &str, version: Option<&str>, exact: bool) -> Vec<PathBuf> {
-        self.select_provider(name, version, exact)
-            .map(|info| info.source_files.clone())
-            .unwrap_or_default()
+    pub fn resolve_require(
+        &self,
+        name: &str,
+        version: Option<&str>,
+        exact: bool,
+        prefer: PackagePrefer,
+    ) -> Vec<PathBuf> {
+        let mut files: Vec<PathBuf> = Vec::new();
+        for info in self.select_providers(name, version, exact, prefer) {
+            for file in &info.source_files {
+                if !files.contains(file) {
+                    files.push(file.clone());
+                }
+            }
+        }
+        files
     }
 
     /// The single `package ifneeded` declaration a
@@ -890,14 +952,43 @@ impl PackageResolver {
     /// when no scanned provider is acceptable.  The full-fidelity form of
     /// [`Self::resolve_require`], for a caller that needs the chosen release's
     /// version or index file rather than just its sources.
+    ///
+    /// With several providers whose versions compare *equal*, this is the
+    /// **first-discovered** one — the entry whose version string C Tcl keeps
+    /// when it collapses them (see [`Self::resolve_require`] for why the file
+    /// list is nonetheless the union).
     #[must_use]
     pub fn select_provider(
         &self,
         name: &str,
         version: Option<&str>,
         exact: bool,
+        prefer: PackagePrefer,
     ) -> Option<&PackageInfo> {
-        let infos = self.packages.get(name)?;
+        self.select_providers(name, version, exact, prefer)
+            .into_iter()
+            .next()
+    }
+
+    /// Every provider of `name` whose version compares **equal** to the one
+    /// `package require ?-exact? NAME ?VERSION?` selects, in discovery order —
+    /// the first is the one C Tcl reports the version of, and the set is what
+    /// its collapsed `ifneeded` entry could be running.
+    ///
+    /// Empty when no scanned provider is acceptable (which includes the
+    /// "constraint no provider satisfies" case — never a silent fallback to
+    /// some other release).
+    #[must_use]
+    fn select_providers(
+        &self,
+        name: &str,
+        version: Option<&str>,
+        exact: bool,
+        prefer: PackagePrefer,
+    ) -> Vec<&PackageInfo> {
+        let Some(infos) = self.packages.get(name) else {
+            return Vec::new();
+        };
         let requirement = version.map(|v| {
             if exact {
                 tcl_dialect::exact_requirement(v)
@@ -907,12 +998,24 @@ impl PackageResolver {
         });
         let requirements: Vec<&str> = requirement.as_deref().into_iter().collect();
         let versions: Vec<&str> = infos.iter().map(|i| i.version.as_str()).collect();
-        let chosen = tcl_dialect::select_package_version(
-            &versions,
-            &requirements,
-            tcl_dialect::PackagePrefer::default(),
-        )?;
-        infos.get(chosen)
+        let Some(chosen) = tcl_dialect::select_package_version(&versions, &requirements, prefer)
+        else {
+            return Vec::new();
+        };
+        let chosen_version = versions[chosen];
+        infos
+            .iter()
+            .filter(|info| {
+                // Acceptable in its own right — an unparseable version string
+                // is skipped by `SelectPackage` and must not be dragged in by
+                // the lenient comparison `compare_versions` falls back to for
+                // one.
+                tcl_dialect::select_package_version(&[info.version.as_str()], &requirements, prefer)
+                    .is_some()
+                    && tcl_dialect::compare_versions(&info.version, chosen_version)
+                        == core::cmp::Ordering::Equal
+            })
+            .collect()
     }
 
     /// Whether the scanned paths know how to provide `name`.

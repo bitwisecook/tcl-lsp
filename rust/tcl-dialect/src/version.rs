@@ -110,33 +110,57 @@ impl TclVersion {
             .any(|r| version_satisfies(self.version_string(), r.as_ref()))
     }
 
-    /// [`Self::satisfies_any`], but [`Ternary::Inert`] when the answer depends
-    /// on a **patch level** this enum does not model.
+    /// [`Self::satisfies_any`], but [`Ternary::Inert`] when the answer really
+    /// does depend on a **patch level** this enum does not model.
     ///
-    /// `version_string` is `major.minor`, so a requirement naming a third
-    /// component is compared against `9.0` rather than the real `9.0.4`:
-    /// `vsatisfies 9.0.1-` reads as *unsatisfied* even though every shipped
-    /// 9.0 release from 9.0.1 on satisfies it.  That is the one direction that
-    /// turns into a false "this package cannot load" downstream, so a caller
-    /// that can abstain must, rather than take the wrong answer
-    /// ([`requirement_names_patch_level`]).
+    /// [`TclVersion`] names a release *line*, not a build: `V9_0` stands for
+    /// every `9.0.x` the user might be running.  So the honest question is not
+    /// "does `9.0` satisfy this requirement" but "does **every** member of the
+    /// line satisfy it, **none** of them, or some" — a requirement's satisfying
+    /// set is a version interval (`package(n)`: `min` … `max`), and so is a
+    /// release line, so the three answers are decided by two endpoint tests
+    /// plus one containment test (issue #1126 item 3):
+    ///
+    /// | line vs requirement interval | answer |
+    /// |---|---|
+    /// | line ⊆ requirement | [`Ternary::Yes`] |
+    /// | line ∩ requirement = ∅ | [`Ternary::No`] |
+    /// | otherwise | [`Ternary::Inert`] |
+    ///
+    /// This replaces the earlier "any bound with three components is
+    /// undecidable" rule, which abstained on requirements the line's *major*
+    /// alone settles.  Both directions gained precision, and both are
+    /// oracle-checked — `package vsatisfies` takes the candidate version as an
+    /// argument, so one interpreter answers for every line, and
+    /// `tests/data/package_version_oracle.txt` pins the operator itself
+    /// byte-identical on 8.6.14 and 9.0.4:
+    ///
+    // tclsh-proof: `package vsatisfies 8.6.14 9.0.1` → 0, and so does every
+    // other 8.6.x — no member of the 8.6 line can reach a 9.0 bound.
+    /// * `9.0.1` against `V8_6` was `Inert`, is now `No` — no 8.6.x reaches a
+    ///   9.0 bound however the patch level lands.
+    // tclsh-proof: `package vsatisfies 8.6.14 8.6-8.6` → 0 while
+    // `package vsatisfies 8.6 8.6-8.6` → 1: the degenerate (`-exact`) range
+    // accepts only the bound itself, so a patch release of the line fails it.
+    /// * `8.6-8.6` (what `package require -exact 8.6` builds) against `V8_6`
+    ///   was `Yes`, is now `Inert` — `-exact 8.6` accepts `8.6`/`8.6.0` and
+    ///   rejects `8.6.14`, so which it is depends on the running build.
     ///
     /// The OR short-circuits exactly as `package vsatisfies` does: a
-    /// two-component requirement that *is* satisfied settles the whole test
-    /// [`Ternary::Yes`] however many patch-level requirements sit beside it.
-    /// Abstention is deliberately coarse — `9.0.1-` is undecidable even for a
-    /// target the `major.minor` comparison alone would settle (8.6 cannot
-    /// satisfy it) — because "conditional" is the safe direction and the
-    /// precision is not worth a second comparison rule.
+    /// requirement the whole line satisfies settles the test [`Ternary::Yes`]
+    /// however many undecidable ones sit beside it, and `No` is only reached
+    /// when every requirement is refused by every member of the line.
+    ///
+    /// An empty `requirements` list is [`Ternary::No`], matching
+    /// [`Self::satisfies_any`].
     #[must_use]
     pub fn satisfies_any_ternary<S: AsRef<str>>(self, requirements: &[S]) -> Ternary {
         let mut undecidable = false;
         for requirement in requirements {
-            let requirement = requirement.as_ref();
-            if requirement_names_patch_level(requirement) {
-                undecidable = true;
-            } else if version_satisfies(self.version_string(), requirement) {
-                return Ternary::Yes;
+            match self.satisfies_ternary(requirement.as_ref()) {
+                Ternary::Yes => return Ternary::Yes,
+                Ternary::Inert => undecidable = true,
+                Ternary::No => {}
             }
         }
         if undecidable {
@@ -145,26 +169,63 @@ impl TclVersion {
             Ternary::No
         }
     }
+
+    /// One requirement of [`Self::satisfies_any_ternary`], evaluated over the
+    /// whole release line rather than against a single version string.
+    ///
+    /// The line is the closed interval `[M.m, M.m.PATCH_CEILING]`
+    /// ([`PATCH_CEILING`]); `M.m` and `M.m.0` are the same version to the
+    /// comparator (trailing zero components are not significant), so the low
+    /// endpoint is the line's first release.
+    ///
+    /// A requirement's satisfying set is an interval too, which is what makes
+    /// two endpoint tests sufficient for the `Yes` / `Inert` split: if both
+    /// ends of the line satisfy it, so does everything between them.  When
+    /// *neither* end does, the requirement interval is either entirely outside
+    /// the line or strictly inside it, and the discriminator is whether the
+    /// requirement's own **min bound** — always the first version its interval
+    /// admits — falls within the line.
+    ///
+    /// A malformed requirement is [`Ternary::No`], the same conservative
+    /// reading [`version_satisfies`] takes (real Tcl raises instead).
+    fn satisfies_ternary(self, requirement: &str) -> Ternary {
+        let low = self.version_string();
+        let high = format!("{low}.{PATCH_CEILING}");
+        match (
+            version_satisfies(low, requirement),
+            version_satisfies(&high, requirement),
+        ) {
+            (true, true) => Ternary::Yes,
+            (false, false) => {
+                let min = requirement
+                    .split_once('-')
+                    .map_or(requirement, |(min, _)| min);
+                if ParsedVersion::parse(min).is_some()
+                    && compare_versions(min, low) != core::cmp::Ordering::Less
+                    && compare_versions(min, &high) != core::cmp::Ordering::Greater
+                {
+                    // The requirement admits only versions inside this line —
+                    // some patch releases satisfy it, the endpoints do not.
+                    Ternary::Inert
+                } else {
+                    Ternary::No
+                }
+            }
+            _ => Ternary::Inert,
+        }
+    }
 }
 
-/// Whether a `package vsatisfies` requirement names a patch level — three or
-/// more dotted components in either bound (`9.0.1`, `9.0.1-`, `8.6-9.0.2`).
+/// The patch component standing in for "the last release this `major.minor`
+/// line will ever carry", the upper endpoint
+/// [`TclVersion::satisfies_ternary`] tests.
 ///
-/// [`TclVersion`] models `major.minor` releases only, so such a requirement
-/// cannot be evaluated against it faithfully; see
-/// [`TclVersion::satisfies_any_ternary`].
-#[must_use]
-pub fn requirement_names_patch_level(requirement: &str) -> bool {
-    let requirement = requirement.trim();
-    let (lo, hi) = match requirement.split_once('-') {
-        Some((lo, hi)) => (lo.trim(), hi.trim()),
-        None => (requirement, ""),
-    };
-    [lo, hi]
-        .into_iter()
-        .filter(|bound| !bound.is_empty())
-        .any(|bound| bound.split('.').count() >= 3)
-}
+/// Version components compare by digit count first and are never parsed into a
+/// fixed integer width ([`Segment::cmp`]), so a twenty-digit component is
+/// simply larger than every component any requirement or release realistically
+/// writes — including the deeper components of a four-part version
+/// (`8.6.16.2` orders below `8.6.<ceiling>` at the third component).
+const PATCH_CEILING: &str = "99999999999999999999";
 
 // ---------------------------------------------------------------------------
 // The package version comparator — a port of C Tcl's `generic/tclPkg.c`.
@@ -612,7 +673,7 @@ impl Ternary {
 
 #[cfg(test)]
 mod tests {
-    use super::{TclVersion, Ternary};
+    use super::{TclVersion, Ternary, exact_requirement};
 
     #[test]
     fn from_dialect_maps_every_versioned_tcl() {
@@ -695,23 +756,84 @@ mod tests {
         assert!(!TclVersion::V9_0.satisfies_any::<&str>(&[]));
     }
 
-    /// A requirement naming a patch level is undecidable against a
-    /// `major.minor`-only release model.
+    /// TP — a requirement the members of a release line genuinely disagree
+    /// about is undecidable, and only then.
     ///
     /// Oracle (`tclsh9.0`, `[package provide Tcl]` = 9.0.4):
     /// `vsatisfies 9.0.4 9.0.1` = 1, `vsatisfies 9.0.4 9.0.1-` = 1,
     /// `vsatisfies 9.0.4 9.0.9-` = 0 — two shipped 9.0 releases disagree, so
     /// the honest answer for the enum's `9.0` is neither.
     #[test]
-    fn a_patch_level_requirement_is_undecidable() {
-        for requirement in ["9.0.1", "9.0.1-", "9.0-9.0.2", "8.6.0"] {
-            assert!(
-                super::requirement_names_patch_level(requirement),
-                "{requirement}"
-            );
+    fn a_patch_level_requirement_the_line_disagrees_about_is_undecidable() {
+        for requirement in ["9.0.1", "9.0.1-", "9.0-9.0.2"] {
             assert_eq!(
                 TclVersion::V9_0.satisfies_any_ternary(&[requirement]),
                 Ternary::Inert,
+                "{requirement}"
+            );
+        }
+    }
+
+    /// TN — a patch-level requirement the line's *major/minor* already settles
+    /// is decided, not abstained on (issue #1126 item 3).
+    ///
+    /// Oracle (`tclsh8.6`, `[package provide Tcl]` = 8.6.14): `vsatisfies
+    /// 8.6.14 9.0.1` = 0, `vsatisfies 8.6.14 8.6.0` = 1 — and no 8.6.x
+    /// disagrees with either, because the bound sits outside the line in one
+    /// case and below all of it in the other.
+    #[test]
+    fn a_patch_level_requirement_outside_the_line_still_decides() {
+        for requirement in ["9.0.1", "9.0.1-", "9.0.0-9.0.2", "8.7.0"] {
+            assert_eq!(
+                TclVersion::V8_6.satisfies_any_ternary(&[requirement]),
+                Ternary::No,
+                "{requirement}"
+            );
+        }
+        for requirement in ["8.6.0", "8.6.0-", "8.5.1-", "8.6.0-8.7"] {
+            assert_eq!(
+                TclVersion::V8_6.satisfies_any_ternary(&[requirement]),
+                Ternary::Yes,
+                "{requirement}"
+            );
+        }
+    }
+
+    /// FP guard — the degenerate `V-V` range `package require -exact V`
+    /// builds is *not* satisfied by the whole line.
+    ///
+    /// Oracle: `vsatisfies 8.6 8.6-8.6` = 1 but `vsatisfies 8.6.14 8.6-8.6` =
+    /// 0 (the exact form is compared unpadded), so which answer a build gives
+    /// depends on its patch level and the line as a whole abstains — where the
+    /// old `major.minor`-only comparison answered a flat `Yes`.
+    #[test]
+    fn an_exact_requirement_on_the_line_abstains() {
+        assert_eq!(
+            TclVersion::V8_6.satisfies_any_ternary(&[exact_requirement("8.6")]),
+            Ternary::Inert,
+        );
+        // …while an exact requirement naming a *different* line is still a
+        // decided `No`.
+        assert_eq!(
+            TclVersion::V8_6.satisfies_any_ternary(&[exact_requirement("9.0")]),
+            Ternary::No,
+        );
+        // TP — an exact requirement naming one patch release of this line is
+        // undecidable: that build satisfies it, its siblings do not.
+        assert_eq!(
+            TclVersion::V8_6.satisfies_any_ternary(&[exact_requirement("8.6.14")]),
+            Ternary::Inert,
+        );
+    }
+
+    /// TN — a malformed requirement is refused rather than abstained on, the
+    /// same conservative reading [`super::version_satisfies`] takes.
+    #[test]
+    fn a_malformed_requirement_is_not_satisfied() {
+        for requirement in ["", "x", "1-2-3", " 8.6", "8.6.", "8.6c1"] {
+            assert_eq!(
+                TclVersion::V8_6.satisfies_any_ternary(&[requirement]),
+                Ternary::No,
                 "{requirement}"
             );
         }
@@ -722,10 +844,6 @@ mod tests {
     #[test]
     fn two_component_requirements_still_decide() {
         for requirement in ["8.5", "8.5-", "8.5-9.0", "9-", "9"] {
-            assert!(
-                !super::requirement_names_patch_level(requirement),
-                "{requirement}"
-            );
             assert_ne!(
                 TclVersion::V9_0.satisfies_any_ternary(&[requirement]),
                 Ternary::Inert,
@@ -736,11 +854,20 @@ mod tests {
             TclVersion::V9_0.satisfies_any_ternary(&["9.0.1", "9"]),
             Ternary::Yes,
         );
+        // Both requirements name the 9 line, which no 8.6.x reaches — so the
+        // OR is a decided `No`, not the abstention the old three-component
+        // rule produced (issue #1126 item 3).
         assert_eq!(
             TclVersion::V8_6.satisfies_any_ternary(&["9.0.1", "9"]),
-            Ternary::Inert,
+            Ternary::No,
         );
         assert_eq!(TclVersion::V8_6.satisfies_any_ternary(&["9"]), Ternary::No);
+        // …and an undecidable requirement beside a refused one still carries
+        // the whole test to `Inert`.
+        assert_eq!(
+            TclVersion::V8_6.satisfies_any_ternary(&["8.6.14-", "9"]),
+            Ternary::Inert,
+        );
     }
 
     /// Per-rule TP/FP/TN/FN for the four requirement forms, issue #1090.

@@ -28,7 +28,8 @@ use tcl_lexer::Span;
 
 use crate::signature_scan::types::{
     ParamDef, SignatureCommandAlias, SignatureCommandInvocation, SignatureNamespaceExport,
-    SignatureNamespaceForget, SignatureNamespaceImport, SignaturePackageRequire, SignatureSource,
+    SignatureNamespaceForget, SignatureNamespaceImport, SignaturePackagePrefer,
+    SignaturePackageRequire, SignatureSource,
 };
 
 pub use tcl_core_types::DiagCode;
@@ -1438,6 +1439,11 @@ pub struct AnalysisResult {
     pub package_requires: Vec<SignaturePackageRequire>,
     /// Package provide records (``package provide NAME ?VERSION?``).
     pub package_provides: Vec<PackageProvide>,
+    /// ``package prefer latest`` records — the interpreter-global
+    /// version-selection mode raises, in source order (issue #1126
+    /// item 1).  See [`SignaturePackagePrefer`] for why only the
+    /// raise to `latest` is a record.
+    pub package_prefer_latest: Vec<SignaturePackagePrefer>,
     /// True when a non-literal ``package require`` / ``load`` /
     /// ``auto_path`` mutation has been seen — downstream W123
     /// emission suppresses unknown-command diagnostics under this

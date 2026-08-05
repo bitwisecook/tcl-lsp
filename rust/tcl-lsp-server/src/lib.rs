@@ -6098,7 +6098,15 @@ impl Backend {
                 // the scan happened to read first.  `-exact` is carried
                 // through, so `package require -exact widget 2.0` navigates
                 // into 2.0 or nothing at all — never into 2.3 (issue #1090).
-                for f in resolver.resolve_require(&req.name, req.version.as_deref(), req.exact) {
+                // The `package prefer` mode is taken **at this require's own
+                // position**, so a document that raised the interpreter to
+                // `latest` above it navigates into the prerelease it really
+                // loads (issue #1126 item 1).
+                let prefer =
+                    tcl_lsp_core::package_resolver::package_prefer_at(analysis, req.range.start());
+                for f in
+                    resolver.resolve_require(&req.name, req.version.as_deref(), req.exact, prefer)
+                {
                     if !files.contains(&f) {
                         files.push(f);
                     }
