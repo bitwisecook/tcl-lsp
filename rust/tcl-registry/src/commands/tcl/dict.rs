@@ -440,10 +440,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `dictionaryVariable key varName ?key varName ...? body` — each
         // `varName` is a local the body sees, at every other index from 2
         // (after the subcommand word), with the trailing body excluded
-        // (issue #1185).
+        // (issue #1185).  `LoopVarList`, not `VarWrite`: the binding happens
+        // once before the body *and only when the key is present* (tclsh: an
+        // absent key leaves varName unset), so SSA must not model it as an
+        // unconditional def — the key-aware read-before-set harvester owns
+        // the conditional semantics, and a `VarWrite` def here both defeated
+        // its suppression and would hide the genuine absent-key warning.
         repeated_args: &[RepeatedArgLayout {
             exclude_trailing: 1,
-            ..RepeatedArgLayout::strided(ArgRole::VarWrite, 2, 2)
+            ..RepeatedArgLayout::strided(ArgRole::LoopVarList, 2, 2)
         }],
         arg_types: &[(
             0,

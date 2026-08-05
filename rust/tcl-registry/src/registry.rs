@@ -2778,10 +2778,22 @@ mod tests {
         // TP — each `dict update` varName, with the trailing body excluded.
         // Index 1 is the dictionary variable itself, which the subcommand
         // already declared (it is read on entry and written back after the
-        // body); the repeated layout adds the pair locals at 3 and 5.
+        // body).  The pair locals answer as `LoopVarList` — bound once
+        // before the body, and only when the key is present — NOT as
+        // `VarWrite`: an unconditional SSA def both defeated the key-aware
+        // read-before-set suppression and would hide the genuine
+        // absent-key warning.
         assert_eq!(
             vars("dict", &["update", "d", "k1", "v1", "k2", "v2", "{body}"]),
-            vec![1, 3, 5]
+            vec![1]
+        );
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "dict",
+                &["update", "d", "k1", "v1", "k2", "v2", "{body}"],
+                ArgRole::LoopVarList
+            ),
+            vec![3, 5]
         );
         // TP — `foreach` / `lmap` variable specs, body excluded.
         for name in ["foreach", "lmap"] {
