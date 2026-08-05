@@ -567,6 +567,264 @@ fn folder_scoped_dialect_reaches_documents_in_that_folder() {
     std::fs::remove_dir_all(&base).ok();
 }
 
+/// Issue #1217: a session dialect override survives a `workspace/configuration`
+/// pull, and is cleared only by the command that set it.
+///
+/// The chat commands pin a buffer to `f5-irules` and put it back afterwards.
+/// Doing that with a `didChangeConfiguration` push meant the very next pull —
+/// which the server makes on all sorts of unrelated events — re-applied the
+/// user's configured `tclLsp.dialect` and silently reverted the pin.
+#[test]
+fn a_session_dialect_override_outlives_a_config_pull() {
+    let uri = unique_uri("dialect-override");
+    let mut lsp = Lsp::tcl();
+    lsp.open_ready(&uri, "set x 1\n");
+    lsp.apply_configuration_settle(json!({ "dialect": "tcl8.6" }), "", |cfg| {
+        cfg["dialect"] == json!("tcl8.6")
+    });
+
+    let set = lsp.execute_command("tcl-lsp.setSessionDialectOverride", json!(["f5-irules"]));
+    assert_eq!(set["success"], json!(true), "{set}");
+    let cfg = lsp.effective_config("");
+    assert_eq!(cfg["dialect"], json!("f5-irules"), "{cfg}");
+    assert_eq!(cfg["session_dialect_override"], json!("f5-irules"), "{cfg}");
+
+    // A full config pull carrying the user's configured dialect must not touch
+    // the override.  Settled on a *second* key that the same pull carries, so
+    // the barrier proves the pull landed — settling on the override itself
+    // would pass before the pull even started.
+    let cfg = lsp.apply_configuration_settle(
+        json!({ "dialect": "tcl9.0", "formatting": { "lineLength": 97 } }),
+        "",
+        |cfg| cfg["line_length"] == json!(97),
+    );
+    assert_eq!(
+        cfg["dialect"],
+        json!("f5-irules"),
+        "a config pull must not revert the override: {cfg}"
+    );
+    assert_eq!(cfg["session_dialect_override"], json!("f5-irules"), "{cfg}");
+
+    // Clearing hands the session back to the configured value.
+    let cleared = lsp.execute_command("tcl-lsp.setSessionDialectOverride", json!([]));
+    assert_eq!(cleared["success"], json!(true), "{cleared}");
+    let cfg = lsp.effective_config("");
+    assert_eq!(cfg["dialect"], json!("tcl9.0"), "{cfg}");
+    assert_eq!(cfg["session_dialect_override"], Value::Null, "{cfg}");
+}
+
+/// Issue #1213: a burst of `didChangeConfiguration` notifications must produce
+/// **one** `workspace/configuration` pull, not one per notification.
+///
+/// A settings-editor burst of 16 used to produce 32 pull batches (one unscoped
+/// request plus one scoped batch per folder, each time) and re-analyse every
+/// open buffer 16 times.  The last generation must still run to completion, so
+/// the settings the final notification carried are the ones in effect.
+#[test]
+fn a_configuration_burst_pulls_once_and_settles_on_the_last_generation() {
+    use std::time::{Duration, Instant};
+
+    let uri = unique_uri("config-burst");
+    let mut lsp = Lsp::tcl();
+    lsp.open_ready(&uri, "set x 1\n");
+    // Let start-up's own pull (and the workspace scan behind it) finish before
+    // the burst, so only the burst's pulls are counted.
+    lsp.effective_config(&uri);
+    std::thread::sleep(Duration::from_millis(300));
+
+    let pulls_before = lsp
+        .server_requests()
+        .iter()
+        .filter(|r| r["method"] == "workspace/configuration")
+        .count();
+
+    // Sixteen notifications with no gap, exactly as the settings editor emits
+    // them — one per changed key. The last one wins.
+    for i in 0..16u32 {
+        let line_length = 90 + i;
+        lsp.set_config(json!({ "formatting": { "lineLength": line_length } }));
+        lsp.notify(
+            "workspace/didChangeConfiguration",
+            json!({ "settings": {} }),
+        );
+    }
+
+    // Settle on the last generation's value.
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        let cfg = lsp.effective_config(&uri);
+        if cfg["line_length"] == json!(105) {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the final generation must run to completion; last config: {cfg}"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    // Give a straggling generation a chance to show up before counting.
+    std::thread::sleep(Duration::from_millis(500));
+
+    let pulls = lsp
+        .server_requests()
+        .iter()
+        .filter(|r| r["method"] == "workspace/configuration")
+        .count()
+        - pulls_before;
+    assert!(
+        pulls <= 2,
+        "16 notifications must coalesce into a single pull \
+         (one batch, plus at most one straggler generation); got {pulls}"
+    );
+}
+
+/// Issue #1215: the `workspace/didChangeWatchedFiles` registration must match
+/// every casing of every extension the server itself treats as Tcl.
+///
+/// VS Code matches watcher globs against the platform file system —
+/// case-sensitively on Linux — and the registration carries no `ignoreCase`
+/// option, so the single-cased `**/*.{tcl,…}` it used to send never fired for
+/// an `UPPER.TCL`.  The glob now folds case per character.  Also asserts the
+/// project-config watcher rides along, so the layered-settings live-reload does
+/// not depend on each client registering its own watcher.
+#[test]
+fn watched_files_registration_folds_case_and_covers_project_config() {
+    use std::time::Duration;
+
+    let root = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-watch-glob-{}-{}",
+        std::process::id(),
+        line!()
+    ));
+    std::fs::create_dir_all(&root).expect("mk workspace root");
+    let path = root.join("seed.tcl");
+    std::fs::write(&path, "set x 1\n").expect("write fixture");
+    let mut lsp = Lsp::at_workspace_root(&root);
+    lsp.open_ready(&format!("file://{}", path.to_string_lossy()), "set x 1\n");
+
+    let registration = lsp
+        .try_await_server_request("client/registerCapability", Duration::from_secs(10), 0)
+        .expect("the server registers workspace/didChangeWatchedFiles");
+    let watchers: Vec<Value> = registration["params"]["registrations"]
+        .as_array()
+        .expect("registrations array")
+        .iter()
+        .filter(|r| r["method"] == "workspace/didChangeWatchedFiles")
+        .flat_map(|r| {
+            r["registerOptions"]["watchers"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+        })
+        .collect();
+    let globs: Vec<&str> = watchers
+        .iter()
+        .filter_map(|w| w["globPattern"].as_str())
+        .collect();
+    assert!(
+        globs.iter().any(|g| g.contains("[tT][cC][lL]")),
+        "the source watcher glob must fold case per character: {globs:?}"
+    );
+    assert!(
+        !globs.iter().any(|g| g.contains("{tcl,")),
+        "the single-cased glob must be gone: {globs:?}"
+    );
+    assert!(
+        globs.contains(&"**/.tcl-lsp.ini"),
+        "the project config must be watched by the server itself: {globs:?}"
+    );
+
+    std::fs::remove_dir_all(&root).ok();
+}
+
+/// Issue #1215, the behavioural half: an external create / change / delete
+/// cycle on an upper-cased `.TCL` must reach the cross-document index, exactly
+/// as a lower-cased one does.
+#[test]
+fn watched_upper_case_extension_round_trips_through_the_index() {
+    use std::time::{Duration, Instant};
+
+    let root = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-upper-ext-{}-{}",
+        std::process::id(),
+        line!()
+    ));
+    std::fs::create_dir_all(&root).expect("mk workspace root");
+    // An open buffer so the session has a document; the watched file itself is
+    // never opened — the whole point is that only the watch event indexes it.
+    let anchor = root.join("anchor.tcl");
+    std::fs::write(&anchor, "set anchor 1\n").expect("write anchor");
+    let mut lsp = Lsp::at_workspace_root(&root);
+    lsp.open_ready(
+        &format!("file://{}", anchor.to_string_lossy()),
+        "set anchor 1\n",
+    );
+
+    let upper = root.join("UPPER.TCL");
+    let upper_uri = format!("file://{}", upper.to_string_lossy());
+    let marker_uris = |lsp: &mut Lsp| -> Vec<String> {
+        lsp.workspace_symbols("upper_marker")
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+            .iter()
+            .filter(|s| s.get("name").and_then(Value::as_str) == Some("upper_marker"))
+            .filter_map(|s| {
+                s.get("location")
+                    .and_then(|l| l.get("uri"))
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            })
+            .collect()
+    };
+    let settle = |lsp: &mut Lsp, want: &[String]| {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            let got = marker_uris(lsp);
+            if got == want {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "expected {want:?} for the UPPER.TCL marker, got {got:?}"
+            );
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    };
+
+    // CREATED.
+    std::fs::write(&upper, "proc upper_marker {} { return 1 }\n").expect("write UPPER.TCL");
+    lsp.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [{ "uri": upper_uri, "type": 1 }] }),
+    );
+    settle(&mut lsp, std::slice::from_ref(&upper_uri));
+
+    // CHANGED — the definition moves out, so the index must drop it.
+    std::fs::write(&upper, "proc other_marker {} { return 1 }\n").expect("rewrite UPPER.TCL");
+    lsp.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [{ "uri": upper_uri, "type": 2 }] }),
+    );
+    settle(&mut lsp, &[]);
+
+    // CREATED again, then DELETED.
+    std::fs::write(&upper, "proc upper_marker {} { return 1 }\n").expect("rewrite UPPER.TCL");
+    lsp.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [{ "uri": upper_uri, "type": 2 }] }),
+    );
+    settle(&mut lsp, std::slice::from_ref(&upper_uri));
+    std::fs::remove_file(&upper).ok();
+    lsp.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [{ "uri": upper_uri, "type": 3 }] }),
+    );
+    settle(&mut lsp, &[]);
+
+    std::fs::remove_dir_all(&root).ok();
+}
+
 /// Regression: a **deleted-while-open** file must stop contributing to the
 /// cross-document index, without losing the buffer.
 ///

@@ -26,7 +26,7 @@ import {
   renderDiagnosticSection,
 } from "../diagnosticAccess";
 import { runAgenticLoop } from "../agenticLoop";
-import { setServerDialect, getActiveDialect, isTclLanguage } from "../../extension";
+import { setSessionDialectOverride, getActiveDialect, isTclLanguage } from "../../extension";
 
 /** Diagnostic codes that represent convertible legacy patterns. */
 const CONVERTIBLE_CODES = new Set([
@@ -66,9 +66,12 @@ export async function handleFindLegacy(ctx: CommandContext): Promise<vscode.Chat
   ctx.response.progress("Scanning for legacy patterns...");
 
   // Ensure dialect is f5-irules
-  const previousDialect = getActiveDialect();
-  if (previousDialect !== "f5-irules") {
-    await setServerDialect("f5-irules");
+  // Pinned as a *session override*, not a configuration push: a push is
+  // re-applied away by the next `workspace/configuration` pull, which can land
+  // at any time, so the pin's lifetime was arbitrary (issue #1217).
+  const pinnedDialect = getActiveDialect() !== "f5-irules";
+  if (pinnedDialect) {
+    await setSessionDialectOverride("f5-irules");
   }
 
   try {
@@ -151,8 +154,9 @@ export async function handleFindLegacy(ctx: CommandContext): Promise<vscode.Chat
       metadata: { command: "find-legacy", count: convertible.length, clean: result.clean },
     };
   } finally {
-    if (previousDialect !== "f5-irules") {
-      await setServerDialect(previousDialect);
+    if (pinnedDialect) {
+      // Clearing restores whatever the configuration resolves to.
+      await setSessionDialectOverride(null);
     }
   }
 }
