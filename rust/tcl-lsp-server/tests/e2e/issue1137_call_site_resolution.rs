@@ -56,7 +56,9 @@ fn locations(result: &Value) -> Vec<(u32, u32)> {
     items
         .iter()
         .filter_map(|loc| {
-            let range = loc.get("range").or_else(|| loc.get("targetSelectionRange"))?;
+            let range = loc
+                .get("range")
+                .or_else(|| loc.get("targetSelectionRange"))?;
             Some((
                 u32::try_from(range["start"]["line"].as_u64()?).ok()?,
                 u32::try_from(range["start"]["character"].as_u64()?).ok()?,
@@ -232,7 +234,6 @@ fn document_symbol_homes_a_qualified_proc_where_hover_says_it_lives() {
         "the outline must agree with hover: {symbols}",
     );
 }
-
 
 #[test]
 fn document_link_never_fabricates_a_target_for_a_computed_source_path() {

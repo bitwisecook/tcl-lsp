@@ -1228,7 +1228,10 @@ impl Analyser {
             let declared_path: &[String] = paths.get(&ns).map_or(&[], Vec::as_slice);
             let (search_ns, search_path): (&str, Vec<&str>) = match implicit_path.split_first() {
                 Some((first, rest)) => (first, rest.to_vec()),
-                None => (ns.as_str(), declared_path.iter().map(String::as_str).collect()),
+                None => (
+                    ns.as_str(),
+                    declared_path.iter().map(String::as_str).collect(),
+                ),
             };
             // Record the full ordered candidate list so a cross-document
             // consumer can re-settle this call against a *workspace-wide*

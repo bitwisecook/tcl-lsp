@@ -313,7 +313,10 @@ fn resolve_source_argument(
 /// Replace every `$name` / `${name}` occurrence in `text` whose name is in
 /// `constants`, leaving unknown ones in place (so the evaluator abstains on
 /// them, as it must).
-fn substitute_constants(text: &str, constants: &std::collections::HashMap<String, String>) -> String {
+fn substitute_constants(
+    text: &str,
+    constants: &std::collections::HashMap<String, String>,
+) -> String {
     if constants.is_empty() || !text.contains('$') {
         return text.to_owned();
     }

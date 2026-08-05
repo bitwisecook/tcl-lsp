@@ -6425,7 +6425,8 @@ mod tests {
     fn tn_a_declared_namespace_still_answers_its_own_block() {
         // TN — the implicit fallback only runs when nothing declares the
         // namespace outright.
-        let src = "namespace eval ::p::q {}\nnamespace eval ::p::q::r {}\nnamespace children ::p::q\n";
+        let src =
+            "namespace eval ::p::q {}\nnamespace eval ::p::q::r {}\nnamespace children ::p::q\n";
         let analysis = analyse(src);
         let locs = definition(src, 2, 20, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");

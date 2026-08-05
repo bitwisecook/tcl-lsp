@@ -676,7 +676,10 @@ mod tests {
             "an implicit parent is not a declaration",
         );
         assert_eq!(
-            texts(src, &namespace_implicit_parent_spans(src, &analysis, "::p::q")),
+            texts(
+                src,
+                &namespace_implicit_parent_spans(src, &analysis, "::p::q")
+            ),
             vec!["::p::q"],
             "the prefix, not the whole `::p::q::r` word",
         );
@@ -690,9 +693,7 @@ mod tests {
             texts(src, &namespace_declaration_spans(&analysis, "::p::q::r")),
             vec!["::p::q::r"],
         );
-        assert!(
-            namespace_implicit_parent_spans(src, &analysis, "::p::q::r").is_empty(),
-        );
+        assert!(namespace_implicit_parent_spans(src, &analysis, "::p::q::r").is_empty(),);
     }
 
     #[test]
@@ -1110,7 +1111,8 @@ mod tests {
     fn fp_a_branch_conditional_target_declares_nothing() {
         // FP guard — which namespace the block creates is a run-time
         // question, so no declaration may be claimed for either candidate.
-        let src = "set ns ::a\nif {$c} { set ns ::b }\nnamespace eval $ns { proc go {} { return 1 } }\n";
+        let src =
+            "set ns ::a\nif {$c} { set ns ::b }\nnamespace eval $ns { proc go {} { return 1 } }\n";
         let analysis = analyse(src);
         assert!(namespace_declaration_spans(&analysis, "::a").is_empty());
         assert!(namespace_declaration_spans(&analysis, "::b").is_empty());

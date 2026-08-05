@@ -2304,9 +2304,7 @@ impl Analyser {
                 )
             })
             .flatten()
-            .filter(|resolved| {
-                !resolved.is_empty() && !crate::naming::is_dynamic_word(resolved)
-            });
+            .filter(|resolved| !resolved.is_empty() && !crate::naming::is_dynamic_word(resolved));
         if let (Some(resolved), Some(tok)) = (resolved_dynamic.as_deref(), arg_tokens.get(1)) {
             // The word is also the block's declaring occurrence of that
             // namespace, which is what lets navigation reach it from a
@@ -2974,12 +2972,7 @@ impl Analyser {
     /// Silently does nothing when the word is not a braced/bare literal the
     /// span arithmetic can trust (`token` absent, or the element offsets fall
     /// outside it).
-    fn record_namespace_path_element_refs(
-        &mut self,
-        raw: &str,
-        token: Option<&Token>,
-        here: &str,
-    ) {
+    fn record_namespace_path_element_refs(&mut self, raw: &str, token: Option<&Token>, here: &str) {
         let Some(token) = token else { return };
         let base = token.span.start() + u32::from(token.content_offset);
         let mut scan = 0usize;
@@ -7637,7 +7630,11 @@ mod tests {
         let mut a = Analyser::new();
         a.handle_namespace_path_command(&["path".to_string()], &[], &[]);
         a.handle_namespace_path_command(&["path".to_string(), "$entries".to_string()], &[], &[]);
-        a.handle_namespace_path_command(&["path".to_string(), "[current_path]".to_string()], &[], &[]);
+        a.handle_namespace_path_command(
+            &["path".to_string(), "[current_path]".to_string()],
+            &[],
+            &[],
+        );
         assert!(a.namespace_paths.is_empty());
     }
 

@@ -5581,12 +5581,10 @@ mod const_dominated_namespace_eval {
         // TN — the irc.tcl per-connection idiom the synthetic domain exists
         // for: nothing constant reaches `$n`, so each occurrence stays its
         // own scope.
-        let src = "proc mk {n} {\n    namespace eval $n {\n        proc go {} { return 1 }\n    }\n}\n";
+        let src =
+            "proc mk {n} {\n    namespace eval $n {\n        proc go {} { return 1 }\n    }\n}\n";
         let names = proc_names(src);
-        assert!(
-            names.iter().any(|n| n.contains("@dynns@")),
-            "{names:?}",
-        );
+        assert!(names.iter().any(|n| n.contains("@dynns@")), "{names:?}",);
     }
 
     #[test]
