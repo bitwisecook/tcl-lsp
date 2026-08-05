@@ -64,6 +64,11 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   when `apply` is reached indirectly through `[list apply {...} $x]`
   (the pkgIndex.tcl `package ifneeded ... [list apply {dir {...}} $dir]`
   idiom), even though a direct `apply {...}` call highlights fine.
+- [kcs-issue-list-built-script-argument-not-analysed.md](kcs-issue-list-built-script-argument-not-analysed.md)
+  — a script argument built with `list` (`uplevel #0 [list upvar #0 A B]`,
+  `namespace eval :: [list source ...]` — both from Tk's own `tk.tcl`) is
+  never walked as the command it provably is, so its declarations are
+  painted as plain words and its variable reads resolve nowhere.
 - [kcs-issue-classes-made-by-a-class-factory-are-invisible.md](kcs-issue-classes-made-by-a-class-factory-are-invisible.md)
   — a class made by a user-defined `TclOO` metaclass, a member whose
   signature arrives through `{*}` expansion, a class named by a `foreach`

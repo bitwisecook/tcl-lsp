@@ -1416,3 +1416,93 @@ mod analysis_level {
         );
     }
 }
+
+// ===========================================================================
+// Issue #1109 — a brace-quoted *name* word inside a command substitution is a
+// literal name, not a substitution.
+//
+// The dead-store keep-alive scan credits every `$x` it can see inside a `[…]`
+// on purpose: an `[expr {$w}]` hides its reads from the brace-aware word
+// scanner, and crediting one too many only ever *silences* a warning.  But a
+// braced word in a registry variable-**name** role is not hidden text — it is
+// the name itself, and the read goes somewhere else entirely.
+//
+// tclsh 9.0.4 and 8.6.16, byte-identical:
+//
+//   proc f {} {set n 1; puts [set {$n}]}
+//   f   ->  can't read "$n": no such variable      (rc 1)
+//
+// The read went to the cell called `$n`, never to `n`; `n` really is assigned
+// and never read, and W220 should say so.
+// ===========================================================================
+mod brace_quoted_name_words {
+    use super::*;
+
+    /// FN before the fix: the `$n` inside `{$n}` was credited as a read of
+    /// `n`, so the genuine dead store went unreported.
+    #[test]
+    fn tp_a_braced_name_word_does_not_credit_the_plain_cell() {
+        assert!(
+            dead_store_vars("proc ::f {} {\n    set n 1\n    puts [set {$n}]\n}").contains("n"),
+            "`[set {{$n}}]` reads the cell called `$n`, so `set n 1` is dead"
+        );
+    }
+
+    /// The `[expr {…}]` over-approximation the helper exists for must survive
+    /// untouched — an FP here is a silenced-then-unsilenced regression.
+    #[test]
+    fn fp_an_expr_brace_still_keeps_its_reads() {
+        for src in [
+            // `expr`'s braces quote an *expression*: the `$w` is a real read.
+            // tclsh: `proc f {} {set w 3; puts [expr {$w}]}; f` -> 3
+            "proc ::f {} {\n    set w 3\n    puts [expr {$w}]\n}",
+            // The same read one level deeper.
+            "proc ::f {} {\n    set w 3\n    puts [list [expr {$w}]]\n}",
+            // A `${…}` reference form, whose content is a name, not a read of
+            // some inner variable.
+            "proc ::f {} {\n    set w 3\n    puts [expr {${w}}]\n}",
+        ] {
+            assert!(
+                !dead_store_vars(src).contains("w"),
+                "a genuine expression read must keep `set w 3` alive: {src:?}"
+            );
+        }
+    }
+
+    /// TN: an *unbraced* name word is an ordinary read and still counts.
+    /// tclsh: `proc f {} {set n 1; puts [set n]}; f` -> 1
+    #[test]
+    fn tn_a_plain_name_word_is_still_a_read() {
+        assert!(
+            !dead_store_vars("proc ::f {} {\n    set n 1\n    puts [set n]\n}").contains("n"),
+            "`[set n]` is a genuine read of `n`"
+        );
+    }
+
+    /// TN: an unresolvable head abstains toward silence — the registry cannot
+    /// say the braced word is a name, so the read stays credited.
+    #[test]
+    fn tn_an_unknown_command_keeps_abstaining() {
+        assert!(
+            !dead_store_vars("proc ::f {} {\n    set n 1\n    puts [nosuchcmd {$n}]\n}")
+                .contains("n"),
+            "nothing proves `{{$n}}` is a name here, so stay silent"
+        );
+    }
+
+    /// The `${…}` name form follows C Tcl 9's `Tcl_ParseVarName`: the name
+    /// runs to the *matching* close brace, counting nested braces and letting
+    /// a backslash consume the next byte.  Scanning to the first `}` truncated
+    /// the name and credited the wrong cell.
+    ///
+    /// tclsh 9.0.4 / 8.6.16: `set {a{b}c} 1; puts [expr {${a{b}c}}]` -> 1
+    #[test]
+    fn tp_a_nested_brace_name_is_read_whole() {
+        let src = "proc ::f {} {\n    set {a{b}c} 1\n    puts [expr {${a{b}c}}]\n}";
+        assert!(
+            !dead_store_vars(src).contains("a{b}c"),
+            "the whole `a{{b}}c` name is read; got {:?}",
+            dead_store_vars(src)
+        );
+    }
+}

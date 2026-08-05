@@ -4671,6 +4671,13 @@ fn collect_script(
             ctx.extra_command,
             deferred_role,
         );
+        // A `[list HEAD …]` sitting in a deferred (script) slot *is* the
+        // command `HEAD …` — Tk's own `uplevel #0 [list upvar #0
+        // ::tk::Priv.$disp ::tk::Priv]`.  Overlay the overrides that command
+        // would get written literally, so its declarations highlight alike
+        // (issue #1138).  `deferred_role` is what keeps inert data
+        // (`set x [list upvar 1 a b]`) out: `list` itself invokes nothing.
+        merge_list_quoted_command_overrides(&seg, ctx, registry, deferred_role, &mut overrides);
         // `my method …` inside a class body resolves against the enclosing
         // class's MRO (the most common `TclOO` dispatch form).
         insert_self_method_overrides(&seg, ctx.classes, ctx.enclosing_class, &mut overrides);
@@ -4747,6 +4754,64 @@ fn collect_script(
                 depth,
             );
         }
+    }
+}
+
+/// Overlay the overrides a `[list HEAD word …]` build would get if the
+/// command it packs had been written literally.
+///
+/// `seg` is the substitution's *own* segmented content (`list upvar #0 A B`),
+/// which the walker reached by recursing into the `[…]`. When its enclosing
+/// slot is a deferred one ([`deferred_role_arg_starts`]) and the build is a
+/// literal one ([`tcl_compiler::script_arg::list_build_effective_command`]),
+/// the effective command `upvar #0 A B` is run through the same override
+/// builder and its results merged.  Every word keeps its real span, so an
+/// overlaid override lands on the user's own text.
+///
+/// First-writer-wins (`or_insert`), matching the rest of the map: an override
+/// the `list` view already claimed for a span is never displaced.
+///
+/// This is the highlighting half of issue #1138 — the analyser's half is
+/// [`tcl_compiler::analyser`]'s body gate, and both ask the *same* predicate
+/// so a shape that navigates cannot fail to highlight.
+fn merge_list_quoted_command_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    ctx: ScriptCtx<'_>,
+    registry: &CommandRegistry,
+    deferred_role: bool,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    if !deferred_role {
+        return;
+    }
+    let Some(built) = tcl_compiler::script_arg::list_build_effective_command(registry, seg) else {
+        return;
+    };
+    let built_args: Vec<&str> = built.texts[1..].iter().map(String::as_str).collect();
+    let built_head = built.texts[0].as_str();
+    let overlay = special_arg_kinds(
+        &built,
+        registry,
+        built_head,
+        // A built command runs as ordinary code, never as a definition-body
+        // member — `[list method foo {} {}]` is not an `oo::define` member
+        // word, so the enclosing grammar must not be applied to it.
+        None,
+        ctx.scoped_env,
+        &built_args,
+        ctx.object_classes,
+        ctx.object_collections,
+        ctx.classes,
+        tcl_dialect::DialectProfile::by_name(ctx.dialect).availability_mask,
+        ctx.extra_var_write,
+        ctx.extra_var_read,
+        ctx.extra_command,
+        // The built command is the invocation itself; nothing further defers
+        // it, so its own arguments are decided fresh at the next `[…]` hop.
+        false,
+    );
+    for (span_start, override_kind) in overlay {
+        overrides.entry(span_start).or_insert(override_kind);
     }
 }
 

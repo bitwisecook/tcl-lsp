@@ -702,12 +702,28 @@ pub fn converge_summaries_with(
     // `callers[Q]` = procedures that directly call `Q`; when `Q`'s summary changes
     // its callers are re-queued. Without a call graph, re-queue everything.
     let callers: Option<HashMap<&str, Vec<&str>>> = interproc.map(|ia| {
+        fn add<'a>(map: &mut HashMap<&'a str, Vec<&'a str>>, callee: &'a str, from: &'a str) {
+            let entry = map.entry(callee).or_default();
+            if !entry.contains(&from) {
+                entry.push(from);
+            }
+        }
         let mut map: HashMap<&str, Vec<&str>> = HashMap::new();
         for (caller, summary) in &ia.procedures {
             for callee in &summary.direct_calls {
-                map.entry(callee.as_str())
-                    .or_default()
-                    .push(caller.as_str());
+                add(&mut map, callee.as_str(), caller.as_str());
+            }
+        }
+        for qname in &proc_names {
+            let Some(fu) = cu.procedures.get(*qname) else {
+                continue;
+            };
+            for callee in resolved_callees(fu, &known) {
+                // `resolved_callees` returns owned names; the map borrows from
+                // `known`'s keys, which outlive it and hold the same strings.
+                if let Some(interned) = known.get(&callee) {
+                    add(&mut map, interned.as_str(), qname.as_str());
+                }
             }
         }
         map

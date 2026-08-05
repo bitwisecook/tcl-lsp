@@ -2202,11 +2202,16 @@ fn hover_text(src: &str, line: u32, character: u32, analysis: &AnalysisResult) -
 
 #[test]
 fn every_variable_provider_resolves_a_brace_literal_cursor_to_the_literal_cell() {
-    // (source, line of `set {$n} 1`, the literal cell's declaration range)
-    for (label, src, decl_line) in [
-        ("plain `n` declared first", BRACE_LITERAL_PLAIN_FIRST, 3u32),
-        ("plain `n` declared after", BRACE_LITERAL_MIX, 1),
-        ("no plain `n` at all", BRACE_LITERAL_ONLY, 1),
+    // (source, line of `set {$n} 1`, line of its `[set {$n}]` read)
+    for (label, src, decl_line, read_line) in [
+        (
+            "plain `n` declared first",
+            BRACE_LITERAL_PLAIN_FIRST,
+            3u32,
+            4u32,
+        ),
+        ("plain `n` declared after", BRACE_LITERAL_MIX, 1, 4),
+        ("no plain `n` at all", BRACE_LITERAL_ONLY, 1, 2),
     ] {
         let analysis = analyse(src);
         // All three columns of the one word: the `{`, the `$`, the `n`.  The
@@ -2235,11 +2240,23 @@ declaration"
                 "{label}: hover at column {col} must name the literal cell; got {hover:?}"
             );
 
+            // Both of the literal cell's own sites: its declaration and the
+            // `[set {$n}]` read.  The read is a registry `VarRead`-role name
+            // word, recorded generically since issue #1108 — before that fix
+            // the cell's reference list held only the declaration, so Find
+            // References under-reported every `[set X]`-shaped read.
+            let read = LspRange {
+                start_line: read_line,
+                start_character: 14,
+                end_line: read_line,
+                end_character: 17,
+            };
             let refs = references(src, "tcl8.6", decl_line, col, &analysis, true);
             assert_eq!(
                 refs,
-                vec![want],
-                "{label}: find-references at column {col} must answer the literal cell"
+                vec![want, read],
+                "{label}: find-references at column {col} must answer the literal cell's \
+own declaration and read"
             );
 
             // Document-highlight resolves `$ref` cursors only — it has no
@@ -2364,4 +2381,147 @@ fn genuinely_inert_dollar_shapes_still_resolve_to_nothing() {
             "{src:?} at ({line},{col}) must stay suppressed"
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// Issue #1108 — a registry `VarRead`-role name word is a navigable use site
+// ---------------------------------------------------------------------------
+//
+// A variable is read by more than `$name`.  tclsh 9.0.4 / 8.6.16, identical:
+//
+//   proc f {} {set m 1; puts [set m]}          ; f  -> 1
+//   proc f {} {set m 1; puts [info exists m]}  ; f  -> 1
+//
+// Both `m` words really do read the cell, so both are reference sites — and
+// a cursor on either must resolve the cell, exactly as a cursor on `$m` does.
+
+/// `puts [set m]` / `puts [info exists m]` — the read is a bare name word.
+const ROLE_READ_SRC: &str = "proc f {} {\n    \
+set m 1\n    \
+puts [set m]\n    \
+puts [info exists m]\n\
+}\n";
+
+#[test]
+fn find_references_reports_var_read_role_name_words() {
+    let analysis = analyse(ROLE_READ_SRC);
+    // Cursor on the `m` of `set m 1`.
+    let refs = references(ROLE_READ_SRC, "tcl8.6", 1, 8, &analysis, true);
+    assert_eq!(
+        ref_lines(&refs),
+        vec![1, 2, 3],
+        "the declaration plus both role-read sites; got {refs:?}"
+    );
+}
+
+#[test]
+fn a_cursor_on_a_role_read_word_resolves_the_cell() {
+    let analysis = analyse(ROLE_READ_SRC);
+    let decl = LspRange {
+        start_line: 1,
+        start_character: 8,
+        end_line: 1,
+        end_character: 9,
+    };
+    // The `m` of `[set m]` (line 2) and of `[info exists m]` (line 3).
+    for (line, col) in [(2u32, 14u32), (3, 22)] {
+        assert_eq!(
+            tcl_lsp_core::definition::definition(ROLE_READ_SRC, line, col, &analysis),
+            vec![decl],
+            "go-to-definition from the role-read word at ({line},{col})"
+        );
+        assert_eq!(
+            ref_lines(&references(
+                ROLE_READ_SRC,
+                "tcl8.6",
+                line,
+                col,
+                &analysis,
+                true
+            )),
+            vec![1, 2, 3],
+            "find-references from the role-read word at ({line},{col})"
+        );
+    }
+}
+
+#[test]
+fn tn_a_value_word_of_the_same_spelling_is_not_a_reference() {
+    // FP guard: only the *name* position counts.  `puts m` prints the literal
+    // string `m` (tclsh: `set m 1; puts m` -> m), so that word is not a read
+    // of the variable and must not join its reference set.
+    let src = "proc f {} {\n    set m 1\n    puts m\n}\n";
+    let analysis = analyse(src);
+    assert_eq!(
+        ref_lines(&references(src, "tcl8.6", 1, 8, &analysis, true)),
+        vec![1],
+        "a plain value word is not a variable reference"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Issue #1138 idx 102 — a read inside a `[list …]`-built script argument
+// ---------------------------------------------------------------------------
+//
+// `::tk::SourceLibFile` in Tk's `library/tk.tcl`:
+//
+//   proc ::tk::SourceLibFile {file} {
+//       namespace eval :: [list source [file join $::tk_library $file.tcl]]
+//   }
+//
+// `$file` is the proc's own parameter.  The `[…]` is evaluated in the proc's
+// frame *before* `namespace eval` enters `::`, so the read is an ordinary use
+// of the parameter — yet hover, go-to-definition and find-references all
+// answered nothing, because the namespace scope had claimed those bytes.
+
+const TK_SOURCE_LIB_FILE: &str = "proc ::tk::SourceLibFile {file} {\n    \
+namespace eval :: [list source [file join $::tk_library $file.tcl]]\n\
+}\n";
+
+#[test]
+fn a_parameter_read_inside_a_list_built_body_navigates() {
+    let analysis = analyse(TK_SOURCE_LIB_FILE);
+    let decl = LspRange {
+        start_line: 0,
+        start_character: 26,
+        end_line: 0,
+        end_character: 30,
+    };
+    let read = LspRange {
+        start_line: 1,
+        start_character: 60,
+        end_line: 1,
+        end_character: 65,
+    };
+    // Cursor on the `file` of `$file`.
+    assert_eq!(
+        tcl_lsp_core::definition::definition(TK_SOURCE_LIB_FILE, 1, 62, &analysis),
+        vec![decl],
+        "go-to-definition must reach the `{{file}}` parameter"
+    );
+    assert_eq!(
+        references(TK_SOURCE_LIB_FILE, "tcl8.6", 1, 62, &analysis, true),
+        vec![decl, read],
+        "find-references must report the declaration and the read"
+    );
+    let hover =
+        hover_text(TK_SOURCE_LIB_FILE, 1, 62, &analysis).expect("hover must resolve the parameter");
+    assert!(
+        hover.contains("**Variable** `file`"),
+        "hover names the parameter, not the `file` command; got {hover:?}"
+    );
+}
+
+#[test]
+fn the_parameter_declaration_hovers_as_a_variable_not_the_file_command() {
+    // The second bug in the same three lines: `file` is also a registry
+    // command name, and the parameter *declaration* used to hover as that
+    // command's documentation.
+    let analysis = analyse(TK_SOURCE_LIB_FILE);
+    let hover = hover_text(TK_SOURCE_LIB_FILE, 0, 27, &analysis)
+        .expect("hover must resolve the parameter declaration");
+    assert!(
+        hover.contains("**Variable** `file`"),
+        "a parameter-list word is a declaration, not a command; got {hover:?}"
+    );
 }

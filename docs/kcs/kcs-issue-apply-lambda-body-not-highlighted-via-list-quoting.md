@@ -466,6 +466,9 @@ differential audit's finding **idx 0** (georgtree/argparse), which found the
 ## Related
 
 - [KCS index](README.md)
+- [a script argument built with `list` is not analysed as a script](kcs-issue-list-built-script-argument-not-analysed.md)
+  — the same `[list …]` idiom in an ordinary `Body` slot rather than a
+  lambda-literal one (issue #1138)
 - [subcommand script body not highlighted](kcs-issue-subcommand-script-body-not-highlighted.md)
 - [Command registry design doc](../design/compiler/command-registry.md)
 - [Semantic Tokens feature](features/kcs-feature-semantic-tokens.md)

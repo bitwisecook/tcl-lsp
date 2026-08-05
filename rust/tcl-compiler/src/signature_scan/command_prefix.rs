@@ -369,24 +369,34 @@ pub(crate) fn list_quoted_command_segment(
         return None;
     }
     let seg = segs.pop()?;
+    list_build_is_literal(registry, &seg).then_some(seg)
+}
+
+/// Whether an already-segmented command is a call to a
+/// [`tcl_registry::Traits::BUILDS_COMMAND_PREFIX`] command (`list`) whose own
+/// first argument is a literal, resolvable bareword.
+///
+/// Split out of [`list_quoted_command_segment`] so
+/// [`crate::script_arg::list_build_effective_command`] applies exactly the
+/// same guard to a segment it already holds, rather than re-deriving one.
+pub(crate) fn list_build_is_literal(registry: &CommandRegistry, seg: &SegmentedCommand) -> bool {
     if seg.texts.len() < 2 {
-        return None;
+        return false;
     }
     if !registry.get(&seg.texts[0]).is_some_and(|s| {
         s.traits
             .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
     }) {
-        return None;
+        return false;
     }
-    let head_tok = *seg.argv.get(1)?;
+    let Some(head_tok) = seg.argv.get(1) else {
+        return false;
+    };
     if head_tok.kind != TokenType::Esc
         || head_tok.in_quote
         || seg.single_token_word.get(1) != Some(&true)
     {
-        return None;
+        return false;
     }
-    if looks_unresolvable(seg.texts.get(1)?) {
-        return None;
-    }
-    Some(seg)
+    seg.texts.get(1).is_some_and(|t| !looks_unresolvable(t))
 }
