@@ -794,6 +794,114 @@ fn tn_cross_file_self_unexport_leaves_the_instance_method_dispatchable() {
     );
 }
 
+// Issue #1168 — suppression must reach the declaring document too.
+
+/// TP: the suppression direction of the class-side channel, queried from the
+/// **declaring document itself**.  `decl.tcl` declares and dispatches a
+/// class-side `cm`; `flip.tcl` `self unexport`s it.  The in-document provider
+/// resolves `C cm` from its local tables, so before the fix the cross-file
+/// flip suppressed the member for every document *except* the one declaring
+/// the class — exactly where the author is navigating.
+///
+/// Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
+///
+/// ```tcl
+/// oo::class create C { self { method cm {} { return 1 } } }
+/// oo::define C { self unexport cm }
+/// C cm    ;# -> unknown method "cm": must be create, destroy or new
+/// ```
+#[test]
+fn tp_cross_file_self_unexport_suppresses_in_the_declaring_document() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    let src = concat!(
+        "oo::class create C {\n",
+        "    self { method cm {} { return 1 } }\n",
+        "}\n",
+        "C cm\n",
+    );
+    let flip = unique_uri("tcl");
+    lsp.open_ready(&flip, "oo::define C { self unexport cm }\n");
+    lsp.open_ready(&decl, src);
+    assert!(
+        locations(&lsp.definition(&decl, 3, 3)).is_empty(),
+        "a cross-file `self unexport` must suppress the declaring document's own dispatch",
+    );
+    // Hover shares the tier order, so it must decline at the same site.
+    assert!(
+        hover_text(&lsp.hover(&decl, 3, 3)).is_empty(),
+        "hover must not describe a member the visibility union suppresses",
+    );
+}
+
+/// TP: a cross-file `self deletemethod` tombstone suppresses the declaring
+/// document's dispatch the same way (the member is gone, not merely
+/// unexported).
+#[test]
+fn tp_cross_file_self_deletemethod_suppresses_in_the_declaring_document() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    let src = concat!(
+        "oo::class create C {\n",
+        "    self { method cm {} { return 1 } }\n",
+        "}\n",
+        "C cm\n",
+    );
+    let flip = unique_uri("tcl");
+    lsp.open_ready(&flip, "oo::define C { self deletemethod cm }\n");
+    lsp.open_ready(&decl, src);
+    assert!(
+        locations(&lsp.definition(&decl, 3, 3)).is_empty(),
+        "a cross-file `self deletemethod` must suppress the declaring document's own dispatch",
+    );
+}
+
+/// TN (CRITICAL FP guard): with no cross-file flip in view, the declaring
+/// document's own `C cm` must keep resolving — the gate abstains without
+/// positive suppression evidence.
+#[test]
+fn tn_declaring_document_dispatch_survives_without_suppressing_evidence() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(
+        &decl,
+        concat!(
+            "oo::class create C {\n",
+            "    self { method cm {} { return 1 } }\n",
+            "}\n",
+            "C cm\n",
+        ),
+    );
+    assert!(
+        !locations(&lsp.definition(&decl, 3, 3)).is_empty(),
+        "the declaring document's class-side dispatch must keep resolving",
+    );
+}
+
+/// TN (CRITICAL FP guard): the gate is class-side only — an identically-named
+/// *instance* method dispatched from the declaring document must survive the
+/// class-side flip (the two sides never share a visibility record).
+#[test]
+fn tn_declaring_document_instance_dispatch_survives_a_class_side_flip() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    let src = concat!(
+        "oo::class create C {\n",
+        "    method cm {} { return 1 }\n",
+        "    self { method cm {} { return 2 } }\n",
+        "}\n",
+        "set o [C new]\n",
+        "$o cm\n",
+    );
+    let flip = unique_uri("tcl");
+    lsp.open_ready(&flip, "oo::define C { self unexport cm }\n");
+    lsp.open_ready(&decl, src);
+    assert!(
+        !locations(&lsp.definition(&decl, 5, 4)).is_empty(),
+        "an instance `$o cm` in the declaring document must survive a class-side unexport",
+    );
+}
+
 // Issue #1121 — the renamed destination is a navigable member.
 
 /// TP: `renamemethod old new` makes `new` a real member carrying `old`'s body

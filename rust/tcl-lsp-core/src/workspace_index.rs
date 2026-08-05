@@ -2065,6 +2065,47 @@ impl WorkspaceIndex {
         self.dispatch_chain(receiver_class, method, access, MemberSide::ClassObject)
     }
 
+    /// Whether the workspace's **class-side visibility union** leaves no
+    /// dispatchable implementation of `method` on `class_q`'s own command
+    /// under `access` — the *suppression* half of the class-side channel,
+    /// consulted by the in-document tier before it answers for a class its
+    /// own document declares (issue #1168).
+    ///
+    /// The revival direction already crossed files: a `self export` written
+    /// next door reaches every query through
+    /// [`Self::class_method_dispatch_chain`].  Suppression did not reach the
+    /// *declaring* document, because its in-document provider resolves the
+    /// member locally and returns before the workspace chain runs — so a
+    /// cross-file `self unexport Cm` / `self deletemethod Cm` suppressed
+    /// `C Cm` for every document except the one the author is editing.  This
+    /// predicate is the missing consultation, and it is deliberately a thin
+    /// reading of the same chain fold the cross-file tier resolves through —
+    /// one decision function, so the two tiers cannot diverge (the
+    /// established `exported_at_import_site` pattern).
+    ///
+    /// `false` is an abstention as well as a "not suppressed": a class the
+    /// index holds no record of, or whose hierarchy the shared linearisation
+    /// declines (cycle / budget), yields no suppression evidence, and the
+    /// in-document answer stands.  The chain itself carries the standing
+    /// unordered-cross-file caveat — any exporting record keeps the member
+    /// dispatchable — so an unordered flip pair abstains toward answering.
+    #[must_use]
+    pub fn class_member_dispatch_suppressed(
+        &self,
+        class_q: &str,
+        method: &str,
+        access: MethodAccess,
+    ) -> bool {
+        if !self.classes().any(|c| c.qualified_name == class_q) {
+            return false;
+        }
+        if self.class_linearisation(class_q).is_empty() {
+            return false;
+        }
+        self.class_method_dispatch_chain(class_q, method, access)
+            .is_empty()
+    }
+
     /// The one dispatch-chain walk both sides go through — see
     /// [`Self::method_dispatch_chain`] for the rules and
     /// [`Self::class_method_dispatch_chain`] for what the class side changes.
@@ -3725,6 +3766,50 @@ mod tests {
             ["file:///b.tcl"],
             "the superclass's own `m` must still provide the dispatch entry",
         );
+    }
+
+    #[test]
+    fn class_member_suppression_reads_the_same_chain_as_resolution() {
+        // Issue #1168 — the predicate the in-document tier consults before
+        // answering for a class its own document declares.  Oracle for the
+        // suppressing shape (tclsh 9.0.4 / 8.6.14, byte-identical):
+        //   a.tcl  oo::class create ::C { self { method cm {} { return 1 } } }
+        //   b.tcl  oo::define ::C { self unexport cm }
+        //   ::C cm  ->  unknown method "cm": must be create, destroy or new
+        let a = analyse("oo::class create ::C { self { method cm {} { return 1 } } }\n");
+        let b = analyse("oo::define ::C { self unexport cm }\n");
+        let e = analyse("oo::define ::C { self export cm }\n");
+        let d = analyse("oo::define ::C { self deletemethod cm }\n");
+
+        // TP: a cross-file `self unexport` suppresses the external dispatch.
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert!(index.class_member_dispatch_suppressed("::C", "cm", MethodAccess::External));
+        // …but the member is only unexported: internal dispatch still lands.
+        assert!(!index.class_member_dispatch_suppressed("::C", "cm", MethodAccess::Internal));
+
+        // TP: a cross-file `self deletemethod` suppresses both accesses — the
+        // member is gone, not merely unexported.
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///d.tcl", &d)]);
+        assert!(index.class_member_dispatch_suppressed("::C", "cm", MethodAccess::External));
+        assert!(index.class_member_dispatch_suppressed("::C", "cm", MethodAccess::Internal));
+
+        // TN (abstention): with only the declaring record in view there is no
+        // suppressing evidence, and the in-document answer must stand.
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
+        assert!(!index.class_member_dispatch_suppressed("::C", "cm", MethodAccess::External));
+
+        // TN (export-wins union): an exporting record anywhere keeps the
+        // member dispatchable — the standing unordered-cross-file caveat.
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///e.tcl", &e),
+        ]);
+        assert!(!index.class_member_dispatch_suppressed("::C", "cm", MethodAccess::External));
+
+        // TN (abstention): a class the index holds no record of yields no
+        // suppression evidence at all.
+        assert!(!index.class_member_dispatch_suppressed("::Ghost", "cm", MethodAccess::External));
     }
 
     #[test]
