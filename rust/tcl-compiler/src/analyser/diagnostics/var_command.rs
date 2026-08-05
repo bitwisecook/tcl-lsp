@@ -520,7 +520,10 @@ impl Analyser {
         site: &crate::analyser::state::VarCommandSite,
         class_names: &HashSet<String>,
     ) -> Option<super::types::Diagnostic> {
-        if site.argc != 0 || class_names.is_empty() {
+        if site.argc != 0
+            || class_names.is_empty()
+            || self.site_in_child_interp(site.cmd_span.start())
+        {
             return None;
         }
         let all_tcloo = class_names.iter().all(|cls| {
@@ -536,6 +539,51 @@ impl Analyser {
             code: DiagCode::E001,
             span: site.cmd_span,
             message: format!("'{}' requires a method", site.var_name),
+            severity: Severity::Error,
+            fixes: Vec::new(),
+        })
+    }
+
+    /// **E001** (`TclOO` form) for a command-substitution head: a bare
+    /// `[Dog new]` — or `[make]` where the lattice proves `make` an
+    /// object-returning factory — invoked with no method word at all
+    /// (issue #1200).
+    ///
+    /// Same failure and same gates as
+    /// [`Self::e001_for_bare_object_dispatch`]: `TclOO`'s per-object
+    /// dispatcher rejects a zero-word invocation before any method lookup
+    /// (tclsh 9.0.4: `wrong # args: should be "::oo::Obj… method ?arg
+    /// ...?"`, `-errorcode {TCL WRONGARGS}`), so an `unknown` handler
+    /// cannot save it.  Fires only when the produced class is locally
+    /// known **and** a genuine `TclOO` metaclass — snit / itcl dispatchers
+    /// and external classes abstain, exactly as on the `$var` path.  The
+    /// class identity comes from the type lattice / object-handle facts,
+    /// never from a spelling match on the head.
+    fn e001_for_bare_cmd_dispatch(
+        &self,
+        site: &crate::analyser::state::CmdCommandSite,
+        class_name: Option<&str>,
+    ) -> Option<super::types::Diagnostic> {
+        if self.site_in_child_interp(site.cmd_span.start()) {
+            return None;
+        }
+        let class_qn = self.canonicalise_class_name(class_name?);
+        let is_tcloo =
+            self.result.all_classes.get(&class_qn).is_some_and(|cd| {
+                super::validity::is_tcloo_metaclass(self.registry, &cd.metaclass)
+            });
+        if !is_tcloo {
+            return None;
+        }
+        let inner = site.cmd_text.trim();
+        let inner = inner
+            .strip_prefix('[')
+            .and_then(|w| w.strip_suffix(']'))
+            .map_or(inner, str::trim);
+        Some(super::types::Diagnostic {
+            code: DiagCode::E001,
+            span: site.cmd_span,
+            message: format!("'{inner}' requires a method"),
             severity: Severity::Error,
             fixes: Vec::new(),
         })
@@ -740,6 +788,20 @@ impl Analyser {
         live.then_some(hop.target)
     }
 
+    /// Whether the dispatch site at `off` runs inside a **child
+    /// interpreter's** evaluation body (the analyser's synthetic `@interp@…`
+    /// scope domain — issue #945 faults 7–8).  The object classes the E001
+    /// gates vouch for live in the *main* interpreter's command table; a
+    /// child interpreter has its own, in which the class command does not
+    /// exist at all (`interp create sub; interp eval sub {[Dog new]}` fails
+    /// `invalid command name "Dog"` in the child — a different error the
+    /// unresolved-command machinery owns), so the `TclOO` zero-word E001
+    /// abstains there rather than assert main-interp object semantics.
+    fn site_in_child_interp(&self, off: u32) -> bool {
+        crate::analyser::scope::command_resolution_namespace_at(&self.result.global_scope, off)
+            .contains("@interp@")
+    }
+
     /// Whether `qualified` names a class that is still live at `call_off`
     /// — shared by the constructor-recognition sites (`[Cls new]` direct
     /// calls and `set x [Cls new]` variable assignments alike), which
@@ -753,8 +815,18 @@ impl Analyser {
     }
 
     /// The object classes `site`'s receiver may hold that are still live
-    /// *at this dispatch*, out of everything
-    /// [`Self::aggregate_object_types`] recorded for the variable.
+    /// *at this dispatch*: everything [`Self::aggregate_object_types`]
+    /// recorded for the variable, unioned with the object-type lattice's
+    /// scope-keyed binding for the same name at the same offset
+    /// ([`crate::object_types::ObjectHandleFacts::classes_in_scope`]).
+    ///
+    /// The lattice read is what keeps this diagnostic and the LSP's
+    /// navigation from disagreeing on one document (issues #1143 / #994): a
+    /// handle the lattice can type — e.g. `set b [$a make]`, the
+    /// method-return edge — must never draw the W307 "cannot statically
+    /// analyze" warning hover and go-to-definition contradict.  Only the
+    /// *scoped* map is read (never the scope-blind union), so a same-named
+    /// variable in an unrelated proc cannot enable a false W308/E001 here.
     ///
     /// A class deleted before the dispatch cannot answer it, so its method
     /// table says nothing about the call; a class deleted only afterwards is
@@ -767,12 +839,17 @@ impl Analyser {
         all_object_types: &std::collections::HashMap<String, HashSet<String>>,
         site: &crate::analyser::state::VarCommandSite,
     ) -> HashSet<String> {
-        let Some(names) = all_object_types.get(&site.var_name) else {
-            return HashSet::new();
-        };
-        names
-            .iter()
-            .filter(|cls| self.class_live_by_name_for_call(cls, site.cmd_span.start()))
+        let call_off = site.cmd_span.start();
+        let lattice = self
+            .result
+            .object_handle_facts
+            .classes_in_scope(call_off, &site.var_name);
+        all_object_types
+            .get(&site.var_name)
+            .into_iter()
+            .chain(lattice)
+            .flatten()
+            .filter(|cls| self.class_live_by_name_for_call(cls, call_off))
             .cloned()
             .collect()
     }
@@ -1387,58 +1464,23 @@ impl Analyser {
                 continue;
             }
 
-            // ``[Dog new]`` / ``[Dog create
-            // name]`` produce an Object whose class is ``Dog``.
-            // The registry lookup for the bare class name
-            // returns Overdefined (the class isn't a built-in
-            // command) so we recognise the constructor pattern
-            // explicitly here — ``known_class new/create`` maps to
-            // ``TclType.OBJECT`` with the class name attached.
-            let mut class_qn = self.canonicalise_class_name(head);
-            // Renamed/deleted with no re-establishment fails the call (issue #1010).
-            let off = site.cmd_span.start();
-            let mut head_is_known_class =
-                self.class_live_for_call(&class_qn, off) || self.class_live_for_call(head, off);
-            // …but a `rename`/`interp alias` can make a *different* written
-            // name reach the class, and the constructor call is then perfectly
-            // ordinary (issue #1049). Resolve to the canonical name so the
-            // object type carries the identity the method tables are keyed by.
-            if !head_is_known_class
-                && let Some(reached) = self.class_reachable_by_indirection(head, off)
-            {
-                class_qn = reached;
-                head_is_known_class = true;
-            }
-            let is_constructor_call = head_is_known_class
-                && arg_strs
-                    .first()
-                    .is_some_and(|sub| matches!(*sub, "new" | "create"));
-
-            // Look up the return type via the registry.  When
-            // the head is a user proc / class, fall back to
-            // ``Overdefined`` (matches the registry behaviour
-            // for unknown commands).
-            let ret_type = if is_constructor_call {
-                crate::types::TypeLattice::object_of(class_qn.clone())
-            } else {
-                // The constructor case is already handled inline above using the
-                // analyser's authoritative class set, so the registry fallback
-                // only needs to recognise registered built-ins here — pass an
-                // empty class set / root namespace.
-                crate::type_infer::return_type_for_command(
-                    registry,
-                    head,
-                    &arg_strs,
-                    &std::collections::HashSet::new(),
-                    "::",
-                )
-            };
+            let ret_type =
+                self.cmd_head_return_type(head, &arg_strs, site.cmd_span.start(), registry);
 
             // ``Object`` return type — suppress W307; if the
-            // class is known, validate the method (W308).
+            // class is known, validate the method (W308), and a dispatch
+            // with *no* method word at all is the unconditional `TclOO`
+            // "wrong # args" failure (E001 — issue #1200).
             let is_object = ret_type.kind() == crate::types::TypeKind::Known
                 && matches!(ret_type.tcl_type(), Some(tcl_registry::TclType::Object));
             if is_object {
+                if site.method_name.is_none() {
+                    if let Some(diag) = self.e001_for_bare_cmd_dispatch(site, ret_type.class_name())
+                    {
+                        self.result.diagnostics.push(diag);
+                    }
+                    continue;
+                }
                 if !self.disabled_diagnostics.contains("W308")
                     && let (Some(method), Some(class_name)) =
                         (site.method_name.as_ref(), ret_type.class_name().as_ref())
@@ -1473,6 +1515,66 @@ impl Analyser {
             });
         }
         self.cmd_command_sites = cmd_sites;
+    }
+
+    /// The type a `[head args…]` command-substitution head produces, for the
+    /// `[cmd] method` dispatch checks.
+    ///
+    /// `[Dog new]` / `[Dog create name]` produce an Object whose class is
+    /// `Dog` — the registry lookup for a bare class name returns Overdefined
+    /// (the class isn't a built-in command), so the constructor pattern is
+    /// recognised against the analyser's own class set, including a class
+    /// reached through `rename` / `interp alias` indirection (issue #1049)
+    /// and excluding one renamed or deleted away with no re-establishment
+    /// (issue #1010).  A user factory proc the object-type lattice proved
+    /// object-returning (`ObjectHandleFacts::returns_object`) types the head
+    /// from the same fact the navigation consumers read — keeping
+    /// `[make] bark` off the W307 path and giving the bare `[make]` case its
+    /// E001 (issues #1200 / #994).  Everything else falls back to the
+    /// registry's return type for built-ins (Overdefined for unknown
+    /// commands).
+    fn cmd_head_return_type(
+        &self,
+        head: &str,
+        arg_strs: &[&str],
+        off: u32,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> crate::types::TypeLattice {
+        let mut class_qn = self.canonicalise_class_name(head);
+        let mut head_is_known_class =
+            self.class_live_for_call(&class_qn, off) || self.class_live_for_call(head, off);
+        if !head_is_known_class
+            && let Some(reached) = self.class_reachable_by_indirection(head, off)
+        {
+            class_qn = reached;
+            head_is_known_class = true;
+        }
+        let is_constructor_call = head_is_known_class
+            && arg_strs
+                .first()
+                .is_some_and(|sub| matches!(*sub, "new" | "create"));
+        if is_constructor_call {
+            return crate::types::TypeLattice::object_of(class_qn);
+        }
+        if let Some(factory_class) = self
+            .result
+            .object_handle_facts
+            .returns_object
+            .get(&format!("::{}", head.trim_start_matches("::")))
+        {
+            return crate::types::TypeLattice::object_of(factory_class.clone());
+        }
+        // The constructor case is handled above using the analyser's
+        // authoritative class set, so the registry fallback only needs to
+        // recognise registered built-ins — pass an empty class set / root
+        // namespace.
+        crate::type_infer::return_type_for_command(
+            registry,
+            head,
+            arg_strs,
+            &std::collections::HashSet::new(),
+            "::",
+        )
     }
 
     /// W250 — instantiating an `oo::abstract` class.

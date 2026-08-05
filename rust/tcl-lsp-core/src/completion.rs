@@ -377,6 +377,16 @@ fn subcommand_arg_value_completion(
 /// surrounding command's [`CommandRegistry`] spec.  Returns `None` when the
 /// cursor isn't inside a recognised command context (so the caller falls
 /// through to plain command + proc completion).
+/// The `(receiver, is_dollar)` pair a command head presents to the
+/// method-completion gate: a `$var` instance variable, or a plain bareword
+/// instance-command name (a Tk widget path, or `CLASS create NAME`).
+/// Substituted / decorated heads are neither.
+fn dispatch_receiver_of(cmd: &str) -> Option<(String, bool)> {
+    strip_instance_var(cmd)
+        .map(|v| (v, true))
+        .or_else(|| (!cmd.is_empty() && !cmd.contains(['$', '['])).then(|| (cmd.to_owned(), false)))
+}
+
 fn context_aware_completions(
     source: &str,
     line: u32,
@@ -399,18 +409,19 @@ fn context_aware_completions(
     // (`created_instance_commands`), not merely because some unrelated
     // variable of the same name happens to hold an object elsewhere
     // (issue #927).
-    if word_idx == 1 {
-        let receiver = strip_instance_var(&cmd).map(|v| (v, true)).or_else(|| {
-            (!cmd.is_empty() && !cmd.contains(['$', '['])).then(|| (cmd.clone(), false))
-        });
-        if let Some((recv, is_dollar)) = receiver
-            && let Some(class_q) =
-                crate::definition::receiver_instance_class(analysis, &recv, is_dollar)
-        {
-            let bucket = crate::definition::receiver_method_bucket(analysis, &recv, is_dollar);
-            if let Some(items) = method_completions(analysis, registry, class_q, bucket, partial) {
-                return Some(items);
-            }
+    let line_index = tcl_lexer::LineIndex::new(source);
+    if word_idx == 1
+        && let Some((recv, is_dollar)) = dispatch_receiver_of(&cmd)
+        && let Some(class_q) = crate::definition::receiver_instance_class_at(
+            analysis,
+            &recv,
+            is_dollar,
+            crate::definition::byte_offset_at(&line_index, source, line, character),
+        )
+    {
+        let bucket = crate::definition::receiver_method_bucket(analysis, &recv, is_dollar);
+        if let Some(items) = method_completions(analysis, registry, class_q, bucket, partial) {
+            return Some(items);
         }
     }
 
@@ -418,7 +429,6 @@ fn context_aware_completions(
     // the ensemble operations of a scoped command (`top ` → `set`/`get`/`enable`
     // /…) complete at word index 1.  Checked before the registry lookup because
     // a scoped head (`top`) is not a registered command.
-    let line_index = tcl_lexer::LineIndex::new(source);
     if word_idx == 1
         && let Some(env) = scoped_env_at(analysis, source, line, character, &line_index)
         && let Some(scoped) = env.command(&cmd)
@@ -2112,18 +2122,17 @@ fn fuzzy_command_fallback(
     // `$var`-vs-bareword gate that branch applies (issue #927).
     if let Some((cmd, word_idx)) = command_context_on_line(source, line, character)
         && word_idx == 1
+        && let Some((recv, is_dollar)) = dispatch_receiver_of(&cmd)
+        && let Some(class_q) = crate::definition::receiver_instance_class_at(
+            analysis,
+            &recv,
+            is_dollar,
+            crate::definition::byte_offset_at(line_index, source, line, character),
+        )
     {
-        let receiver = strip_instance_var(&cmd).map(|v| (v, true)).or_else(|| {
-            (!cmd.is_empty() && !cmd.contains(['$', '['])).then(|| (cmd.clone(), false))
-        });
-        if let Some((recv, is_dollar)) = receiver
-            && let Some(class_q) =
-                crate::definition::receiver_instance_class(analysis, &recv, is_dollar)
-        {
-            let bucket = crate::definition::receiver_method_bucket(analysis, &recv, is_dollar);
-            if let Some(methods) = method_items(analysis, registry, class_q, bucket) {
-                universe.extend(methods);
-            }
+        let bucket = crate::definition::receiver_method_bucket(analysis, &recv, is_dollar);
+        if let Some(methods) = method_items(analysis, registry, class_q, bucket) {
+            universe.extend(methods);
         }
     }
     universe.extend(proc_completions(analysis, "", &usage));

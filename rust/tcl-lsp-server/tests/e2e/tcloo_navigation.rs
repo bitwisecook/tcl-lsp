@@ -341,6 +341,53 @@ fn tp_method_lens_click_and_count_match_find_all_references() {
     );
 }
 
+/// TP (issue #994 C5b / #1143): a receiver typed only by the compiler's
+/// object-type lattice — `set b [$a make]`, the method-return edge — must be
+/// seen identically by Find All References, the code lens, and rename.
+/// Before the unification these keyed off the weaker `instance_classes` map
+/// and missed the site that hover / semantic tokens already resolved.
+/// tclsh9.0-verified: `[$a make]` returns the `B` instance, so `$b greet`
+/// dispatches `::B::greet`.
+#[test]
+fn tp_lattice_typed_receiver_agrees_across_references_lens_and_rename() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create A { method make {} { return [B new] } }\n\
+         oo::class create B {\n    method greet {} { return \"hi\" }\n}\n\
+         set a [A new]\n\
+         set b [$a make]\n\
+         $b greet\n",
+    );
+
+    // Cursor on `greet`'s declaration (line 2, col 11).
+    let refs = lsp.references(&uri, 2, 11, false);
+    let ref_sites = all_location_lines(&refs);
+    assert!(
+        ref_sites.contains(&(uri.clone(), 6)),
+        "Find All References must reach the lattice-typed `$b greet`: {refs:?}"
+    );
+
+    let command = resolve_lens_on_line(&mut lsp, &uri, 2);
+    let lens_sites = all_location_lines(&lens_locations(&command));
+    assert_eq!(
+        lens_sites, ref_sites,
+        "the lens click must open exactly what Find All References returns: {command:?}"
+    );
+    assert_eq!(
+        command["title"],
+        expected_title(ref_sites.len()),
+        "the lens count must match: {command:?}"
+    );
+
+    let edits = rename_edits(&lsp.rename(&uri, 2, 11, "salute"));
+    assert!(
+        edit_lines(&edits, &uri).contains(&6),
+        "rename must rewrite the lattice-typed call site too: {edits:?}"
+    );
+}
+
 /// TN: a method with genuinely no references anywhere still reads
 /// "0 references" and opens nothing — the cross-file layer must not invent
 /// sites for a member nobody calls.

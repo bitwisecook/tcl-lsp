@@ -541,7 +541,8 @@ fn instance_method_definition(
             ));
         }
     }
-    let class_q = receiver_instance_class(analysis, &inst, is_dollar)?;
+    let cursor = byte_offset_at(line_index, source, line, character);
+    let class_q = receiver_instance_class_at(analysis, &inst, is_dollar, cursor)?;
     let bucket = receiver_method_bucket(analysis, &inst, is_dollar);
     // External `$obj m` / `CLASS m`: the C-faithful dispatch entry — the
     // first exported implementation on the receiver's linearisation
@@ -1106,6 +1107,53 @@ pub(crate) fn receiver_instance_class<'a>(
         .map(|cd| &cd.qualified_name)
 }
 
+/// [`receiver_instance_class`] plus the compiler's object-type lattice as the
+/// fallback for a `$var` receiver — issue #994's consumer unification (C5b).
+///
+/// `instance_classes` answers first, exactly as before.  When it has no
+/// binding, a **singleton** class in the lattice's scope-keyed map
+/// ([`ObjectHandleFacts::by_scope`], read through `classes_in_scope` at the
+/// dispatch site's own `offset`) resolves the receiver — the same sound map
+/// the compiler's W307 / W308 / E001 emitters consult, so definition,
+/// references, rename, hover, completion, and the code lens can no longer
+/// disagree with the diagnostics (or with each other) about one document.
+/// A multi-class binding abstains: every consumer of this accessor edits or
+/// navigates, and a guess there is a wrong edit, not a missed one.
+///
+/// [`ObjectHandleFacts::by_scope`]: tcl_compiler::object_types::ObjectHandleFacts
+pub(crate) fn receiver_instance_class_at<'a>(
+    analysis: &'a AnalysisResult,
+    receiver: &str,
+    is_dollar: bool,
+    offset: u32,
+) -> Option<&'a String> {
+    if let Some(class) = receiver_instance_class(analysis, receiver, is_dollar) {
+        return Some(class);
+    }
+    if !is_dollar {
+        return None;
+    }
+    lattice_singleton_class(analysis, receiver, offset)
+}
+
+/// The one class the object-type lattice's scope-keyed map binds `receiver`
+/// to in the scope containing `offset`, or `None` when there is no binding or
+/// the binding is ambiguous (multi-class).  The lattice's "no evidence is not
+/// proof of absence" contract carries over verbatim.
+pub(crate) fn lattice_singleton_class<'a>(
+    analysis: &'a AnalysisResult,
+    receiver: &str,
+    offset: u32,
+) -> Option<&'a String> {
+    let classes = analysis
+        .object_handle_facts
+        .classes_in_scope(offset, receiver)?;
+    if classes.len() != 1 {
+        return None;
+    }
+    classes.iter().next()
+}
+
 /// Which [`MethodBucket`] `receiver` reaches, given how
 /// [`receiver_instance_class`] resolved it (issue #923 idx 120):
 /// recomputes that function's own first condition (the *instance* path —
@@ -1120,10 +1168,15 @@ pub(crate) fn receiver_method_bucket(
     receiver: &str,
     is_dollar: bool,
 ) -> MethodBucket {
-    let is_instance_path = analysis
-        .instance_classes
-        .get(receiver)
-        .is_some_and(|_| is_dollar || analysis.created_instance_commands.contains(receiver));
+    // A `$var` receiver is always an *instance* dispatch: a variable holds an
+    // object handle read at run time, never the class's own written command
+    // name — so the bucket does not depend on which map resolved its class
+    // (`instance_classes` or the object-type lattice's scoped fallback in
+    // [`receiver_instance_class_at`]).  A bare receiver reaches the instance
+    // bucket only through a `CLASS create NAME` object-command binding.
+    let is_instance_path = is_dollar
+        || (analysis.instance_classes.contains_key(receiver)
+            && analysis.created_instance_commands.contains(receiver));
     if is_instance_path {
         MethodBucket::Instance
     } else {
@@ -3663,6 +3716,28 @@ mod tests {
         let locs2 = definition(src, 2, 10, &analysis);
         assert_eq!(locs2.len(), 1, "{locs2:?}");
         assert_eq!(locs2[0].start_line, 0, "{locs2:?}");
+    }
+
+    #[test]
+    fn definition_resolves_a_method_return_captured_dispatch() {
+        // Issue #1143's definition half: hover/definition resolved the
+        // producing `[$a make]` call, but go-to-definition on the consuming
+        // `$b greet` answered nothing because `instance_classes` never bound
+        // `b`.  The lattice's scope-keyed singleton now resolves it through
+        // the same accessor every dispatch consumer reads.
+        let src = "oo::class create A { method make {} { return [B new] } }\n\
+                   oo::class create B { method greet {} { return \"hi\" } }\n\
+                   set a [A new]\n\
+                   set b [$a make]\n\
+                   $b greet\n";
+        let analysis = analyse(src);
+        // Cursor on `greet` at the `$b greet` call site (line 4, col 4).
+        let locs = definition(src, 4, 4, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "must resolve to ::B::greet's declaration: {locs:?}"
+        );
     }
 
     // namespace-aware proc resolution (C Tcl `Tcl_FindCommand` order)

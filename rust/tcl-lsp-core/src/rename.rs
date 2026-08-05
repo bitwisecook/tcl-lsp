@@ -273,7 +273,7 @@ pub fn prepare_rename(
     if let Some((inst, method, is_dollar)) =
         crate::definition::instance_method_at_cursor(source, line, character)
         && let Some(class_q) =
-            crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
+            crate::definition::receiver_instance_class_at(analysis, &inst, is_dollar, cursor_offset)
         && let Some(class_def) = analysis.all_classes.get(class_q)
     {
         let member = class_def
@@ -449,8 +449,12 @@ pub fn rename_with_diagnosis(
     if let Some((inst, method, is_dollar)) =
         crate::definition::instance_method_at_cursor(source, line, character)
         && method == word
-        && let Some(class_q) =
-            crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
+        && let Some(class_q) = crate::definition::receiver_instance_class_at(
+            analysis,
+            &inst,
+            is_dollar,
+            crate::definition::byte_offset_at(&line_index, source, line, character),
+        )
         && let Some(edits) = rename_method_in_class(
             source,
             dialect,
@@ -813,7 +817,7 @@ pub fn method_target_with_access_in_workspace(
         // External `$obj method` — resolve `$obj`'s class.  Always
         // instance-context too: a classmethod is never reached via `$obj`.
         if let Some(class_q) =
-            crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
+            crate::definition::receiver_instance_class_at(analysis, &inst, is_dollar, cursor)
         {
             return Some((class_q.clone(), method, false, MethodAccess::External));
         }
@@ -1856,6 +1860,54 @@ mod tests {
             result.replace_range(start..end, new_text);
         }
         result
+    }
+
+    #[test]
+    fn rename_rewrites_a_method_return_captured_dispatch_site() {
+        // Issue #994 C5b / #1143: `b` is typed only by the object-type
+        // lattice's method-return edge, so before the unification renaming
+        // `greet` refused (untracked-receiver hazard on `$b greet`) even
+        // though hover/definition resolved the site.  Now the site is a
+        // proven ::B dispatch: the rename proceeds and rewrites it.
+        let src = "oo::class create A { method make {} { return [B new] } }\n\
+                   oo::class create B { method greet {} { return \"hi\" } }\n\
+                   set a [A new]\n\
+                   set b [$a make]\n\
+                   $b greet\n";
+        let analysis = analyse(src);
+        // Cursor on the `greet` declaration (line 1, col 29).
+        let edits = rename(src, "tcl", 1, 29, "salute", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&1), "declaration edit missing: {edits:?}");
+        assert!(
+            lines.contains(&4),
+            "the lattice-typed `$b greet` call site must be rewritten: {edits:?}"
+        );
+        let result = apply_edits(src, &edits);
+        assert!(
+            result.contains("$b salute") && result.contains("method salute"),
+            "applied rename must leave a consistent document:\n{result}"
+        );
+    }
+
+    #[test]
+    fn rename_still_refuses_on_a_genuinely_untracked_receiver() {
+        // The refusal gate stays honest: a `$x greet` whose receiver has no
+        // binding in either map is still the idx-79 untracked-receiver
+        // hazard, so the rename must refuse (empty edit set) rather than
+        // leave the site pointing at a dead name.
+        let src = "oo::class create B { method greet {} { return \"hi\" } }\n\
+                   proc use {x} { $x greet }\n\
+                   set b [B new]\n\
+                   $b greet\n";
+        let analysis = analyse(src);
+        // `x` is a proc parameter — the lattice has no caller to type it
+        // from, so it stays untracked.
+        let edits = rename(src, "tcl", 0, 28, "salute", &analysis, None);
+        assert!(
+            edits.is_empty(),
+            "an untracked `$x greet` dispatch must keep refusing the rename: {edits:?}"
+        );
     }
 
     #[test]

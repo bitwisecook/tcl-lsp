@@ -7,8 +7,8 @@ semantic tokens, go-to-definition, find-references, rename safety, the
 W307 / W308 diagnostics, and the optimiser's devirtualisation.
 
 Issue #994 is the unification this doc records the shape of; the staged
-landing is C5a (this carrier, no consumer), C5b (the five dispatch
-consumers plus tokens), C5c (the cross-document index facts of #1099).
+landing is C5a (this carrier, no consumer), C5b (the dispatch consumers —
+**landed**, see §4), C5c (the cross-document index facts of #1099).
 Cost measurement for C5a: `experiments/object_lattice/RESULTS.md`.
 
 ## §0 — Four maps, four different keys
@@ -60,8 +60,16 @@ The owner is *where the name lives*, which for each VTA edge is:
 | seed (harvest) | `set c [Chart new]` | the harvesting unit |
 | aliasing | `set b $a` | the assigning unit |
 | proc return | `set q [make]` | the assigning unit |
+| method return (#1143) | `set b [$a make]` | the assigning unit |
 | proc parameter | `connect $p` → `dev` | the **callee** (`::connect`) |
 | constructor parameter | `Wrap new $p` → `inner` | the **constructor** (`::Wrap::<constructor>`) |
+
+The method-return edge fires only for a *directly-declared* method of a
+receiver class the lattice already tracks, whose own inferred return type
+names an object class (`::A::make` → `::B`), and only for a bareword method
+word — a computed member (`[$a $m]`) proves nothing.  A receiver class that
+merely inherits the method resolves nothing (the lattice carries no MRO),
+so the edge abstains there.
 
 …with one override: a name that is a **class instance variable** is owned
 by the **class**, unioned across its methods. That union is not a
@@ -190,6 +198,47 @@ the pre-fast-path walk available so the unit test can pin the equality, and
 - It does not make the fixpoint cleverer. On 66,827 lines of real TclOO the
   four propagation edges fired 3 times against 86 harvest seeds; the value
   is in the carrier being shared, not in the propagation.
+
+## §4 — The C5b consumers (landed)
+
+The consumer half of #994.  Every dispatch consumer now reads the lattice
+through **one** accessor pair in `tcl-lsp-core/src/definition.rs`:
+
+- `receiver_instance_class_at(analysis, receiver, is_dollar, offset)` —
+  `instance_classes` first (behaviour-preserving), then, for a `$var`
+  receiver only, `lattice_singleton_class`: the **singleton** class
+  `by_scope` binds the name to in the scope containing `offset`.  A
+  multi-class binding abstains — every caller edits or navigates, so a
+  guess is a wrong edit, not a missed one.
+- Consumers: go-to-definition (`instance_method_definition`), hover,
+  completion (both the prefix and fuzzy paths), find-references
+  (`instance_method_references`), prepare-rename / rename
+  (`method_target_with_access` and the `$obj method` rename tier).
+
+Two scan-shaped consumers read the same fact per site rather than per
+cursor:
+
+- The `$v method` call-site scan (`find_obj_method_call_sites`) matches a
+  site when `instance_classes` binds `v` **or** its `by_scope` singleton at
+  the site's own offset is a class whose instances dispatch the method
+  (`lattice_dispatch_family`).  Find References, rename edits, the code
+  lens count, and the lens click all go through this one scanner.
+- The rename refusal gate (`rename_safety::dispatch_hazard`) resolves an
+  otherwise-untracked receiver through the same singleton: in-family →
+  covered by the scan (no hazard); provably another class → no hazard;
+  absent or multi-class → the untracked-receiver refusal stands.
+
+On the compiler side the same facts feed the diagnostics, which is what
+pins the "tokens and navigation can never disagree with W307" invariant
+(issues #1143, #1200):
+
+- `live_classes_at_dispatch` (W307 / W308 / E001 for `$var` heads) unions
+  the SSA-typed classes with `classes_in_scope` at the dispatch offset —
+  scoped map only, never the union.
+- `emit_cmd_command_diagnostics` types a `[make]` head from
+  `returns_object`, and a bare object-producing substitution head with no
+  method word is E001 (`e001_for_bare_cmd_dispatch`) under the same
+  locally-known-TclOO gate as the `$var` form.
 
 ## See also
 

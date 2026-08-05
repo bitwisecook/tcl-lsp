@@ -200,8 +200,9 @@ pub fn code_lenses(
         // uses — `references::method_references_for_class` — so the lens
         // title and the peek can never drift (issue #864).  That resolver
         // counts both intra-class `my method` dispatch and external
-        // `$obj method` call sites (via `instance_classes` type tracking),
-        // plus the call sites of any subclass that inherits this definition.
+        // `$obj method` call sites (via `instance_classes` plus the
+        // object-type lattice's scoped facts — issue #994 C5b), plus the
+        // call sites of any subclass that inherits this definition.
         emit_class_member_lenses(
             source,
             dialect,
@@ -226,7 +227,8 @@ pub fn code_lenses(
 /// the lens title and the peek can never drift.  The method/classmethod
 /// resolver covers intra-class `my method` dispatch, external `$obj method`
 /// sites (resolved through the analyser's `instance_classes` variable-type
-/// tracking), and the call sites of any subclass that inherits (does not
+/// tracking plus the object-type lattice's scope-keyed facts — issue #994
+/// C5b), and the call sites of any subclass that inherits (does not
 /// override) this definition.
 ///
 /// Each lens carries a `{class}::method::{name}` / `{class}::classmethod::{name}`
@@ -523,6 +525,28 @@ mod tests {
         assert_eq!(lenses.len(), 1);
         // `greet` starts at column 5 (after `proc `).
         assert_eq!(lenses[0].range.start_character, 5);
+    }
+
+    #[test]
+    fn method_lens_counts_a_method_return_captured_dispatch_site() {
+        // Issue #994 C5b: the lens count comes from the same resolver Find
+        // References uses, so a `$b greet` site typed only by the lattice's
+        // method-return edge must be counted too.
+        let src = "oo::class create A { method make {} { return [B new] } }\n\
+                   oo::class create B { method greet {} { return \"hi\" } }\n\
+                   set a [A new]\n\
+                   set b [$a make]\n\
+                   $b greet\n";
+        let analysis = analyse(src);
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let greet = lenses
+            .iter()
+            .find(|l| l.qname.contains("::method::greet"))
+            .expect("greet method lens");
+        assert_eq!(
+            greet.command_title, "1 reference",
+            "the lattice-typed `$b greet` site must be counted: {lenses:?}"
+        );
     }
 
     // class lenses

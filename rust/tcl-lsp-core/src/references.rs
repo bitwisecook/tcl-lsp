@@ -987,18 +987,15 @@ fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     // (issue #923 idx 34: find-references at a `my duplListCheck` call site
     // returned nothing at all, because `analysis.instance_classes` has no
     // entry named `my`).
+    let line_index_local = tcl_lexer::LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&line_index_local, source, line, character);
     let (class_q, external) =
-        match crate::definition::receiver_instance_class(analysis, &inst, is_dollar) {
+        match crate::definition::receiver_instance_class_at(analysis, &inst, is_dollar, cursor) {
             Some(class_q) => (class_q.clone(), true),
-            None if crate::definition::is_self_dispatch_keyword(&inst) => {
-                let line_index_local = tcl_lexer::LineIndex::new(source);
-                let cursor =
-                    crate::definition::byte_offset_at(&line_index_local, source, line, character);
-                (
-                    crate::definition::enclosing_class_at(analysis, cursor)?.to_owned(),
-                    false,
-                )
-            }
+            None if crate::definition::is_self_dispatch_keyword(&inst) => (
+                crate::definition::enclosing_class_at(analysis, cursor)?.to_owned(),
+                false,
+            ),
             None => return None,
         };
     // The class that actually *declares* the implementation this call
@@ -2231,6 +2228,41 @@ fn dispatch_receivers<'a>(
     (var_set, receivers)
 }
 
+/// The classes whose instances dispatch `class_q`'s copy of `method`, for the
+/// object-type-lattice half of the `$v method` scan (issue #994 C5b):
+/// `class_q` itself plus every class that *inherits* (does not override) the
+/// definition — the same inheritance rule as `dispatch_receivers`' `var_set`.
+///
+/// A `$v` site whose lattice binding (`by_scope`, resolved at the site's own
+/// offset) is a **singleton** in this set is a call site of the method even
+/// when the analyser's `instance_classes` walk never bound `v` — a handle
+/// that flowed through an alias, a proc return, a proc/constructor parameter,
+/// or a `$var method` return.  Empty for a classmethod (never dispatched on
+/// an instance) and when the document has no lattice bindings at all.
+fn lattice_dispatch_family(
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+    is_classmethod: bool,
+) -> FxHashSet<String> {
+    if is_classmethod || analysis.object_handle_facts.by_scope.is_empty() {
+        return FxHashSet::default();
+    }
+    let hierarchy = analysis.class_hierarchy();
+    let mut family: FxHashSet<String> = FxHashSet::default();
+    for classes in analysis.object_handle_facts.by_scope.values() {
+        for c in classes {
+            if family.contains(c) {
+                continue;
+            }
+            if c == class_q || hierarchy.method_target(c, method) == Some(class_q) {
+                family.insert(c.clone());
+            }
+        }
+    }
+    family
+}
+
 /// [`find_obj_method_call_sites`], plus `extra_cmd_names` — bare command
 /// names to treat as valid classmethod-dispatch heads for `method`
 /// regardless of what this document's own `analysis.all_classes` knows.
@@ -2280,7 +2312,8 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
         (class_q, method, is_classmethod),
         extra_cmd_names,
     );
-    if var_set.is_empty() && !receivers.has_any() {
+    let lattice_family = lattice_dispatch_family(analysis, class_q, method, is_classmethod);
+    if var_set.is_empty() && lattice_family.is_empty() && !receivers.has_any() {
         return out;
     }
     let mut seen: FxHashSet<(u32, u32)> = out.iter().map(|s| (s.start(), s.end())).collect();
@@ -2289,6 +2322,7 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
         dialect,
         analysis,
         var_set: &var_set,
+        lattice_family: &lattice_family,
         receivers: &receivers,
         method,
         var_receivers_in_scope: true,
@@ -2554,11 +2588,16 @@ struct ObjMethodScan<'a> {
     dialect: &'a str,
     analysis: &'a AnalysisResult,
     var_set: &'a FxHashSet<&'a str>,
+    /// [`lattice_dispatch_family`] — the classes a `$v` receiver's
+    /// scope-keyed lattice binding must singleton-resolve to for the site to
+    /// count when `var_set` has no entry for it (issue #994 C5b).
+    lattice_family: &'a FxHashSet<String>,
     receivers: &'a CommandReceivers,
     method: &'a str,
     /// `false` once the scan has descended through a frame-shifting region
     /// ([`frame_shifted_dispatch_regions`]), where a `$var` receiver's bare
     /// name no longer names the enclosing frame's variable — so `var_set`
+    /// (and the lattice lookup, which resolves the same frame's names)
     /// stops matching while `receivers` (ordinary commands, resolvable from
     /// any frame) keep going.
     var_receivers_in_scope: bool,
@@ -2576,7 +2615,22 @@ impl ObjMethodScan<'_> {
     /// Whether this context can still match anything — a frame-shifted scan
     /// with no command receivers to look for has nothing left to do.
     fn has_receivers(&self) -> bool {
-        self.receivers.has_any() || (self.var_receivers_in_scope && !self.var_set.is_empty())
+        self.receivers.has_any()
+            || (self.var_receivers_in_scope
+                && !(self.var_set.is_empty() && self.lattice_family.is_empty()))
+    }
+
+    /// Whether the `$var` receiver `name` at `offset` dispatches the method:
+    /// bound by the analyser's `instance_classes` walk (`var_set`), or
+    /// singleton-resolved by the object-type lattice's scope-keyed map to a
+    /// class in [`Self::lattice_family`].  The singleton requirement keeps
+    /// the scan inside the rename-grade soundness bar: a multi-class binding
+    /// abstains rather than rewrite a site it cannot prove.
+    fn var_receiver_matches(&self, name: &str, offset: u32) -> bool {
+        self.var_set.contains(name)
+            || (!self.lattice_family.is_empty()
+                && crate::definition::lattice_singleton_class(self.analysis, name, offset)
+                    .is_some_and(|c| self.lattice_family.contains(c)))
     }
 
     /// Whether the bare-word head `raw` at `offset` names a receiver whose
@@ -2655,7 +2709,8 @@ fn scan_obj_method_region(
                 let raw = &source[h_start..h_end];
                 let receiver_matches = if head.kind == TokenType::Var {
                     ctx.var_receivers_in_scope
-                        && strip_var_decoration(raw).is_some_and(|name| ctx.var_set.contains(name))
+                        && strip_var_decoration(raw)
+                            .is_some_and(|name| ctx.var_receiver_matches(name, head.span.start()))
                 } else {
                     // A bare-word object command (`rex bark`) or class command
                     // (`Factory make`).  Both receiver sets hold only plain
@@ -3422,6 +3477,66 @@ mod tests {
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&5), "winning wrapper decl missing: {refs:?}");
         assert!(lines.contains(&8), "call site missing: {refs:?}");
+    }
+
+    #[test]
+    fn references_reach_a_method_return_captured_dispatch_site() {
+        // Issue #994 C5b / #1143: `b` is typed only by the object-type
+        // lattice (`set b [$a make]`, the method-return edge) — the
+        // analyser's `instance_classes` never binds it, so before the
+        // unification Find References on `greet` missed the `$b greet` site
+        // that semantic tokens and hover already resolved.
+        let src = "oo::class create A { method make {} { return [B new] } }\n\
+                   oo::class create B { method greet {} { return \"hi\" } }\n\
+                   set a [A new]\n\
+                   set b [$a make]\n\
+                   $b greet\n";
+        let analysis = analyse(src);
+        assert!(
+            !analysis.instance_classes.contains_key("b"),
+            "premise: the analyser walk alone must not bind `b` \
+             (instance_classes: {:?})",
+            analysis.instance_classes
+        );
+        // Cursor on the `greet` declaration (line 1, col 29).
+        let refs = references(src, "tcl", 1, 29, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(
+            lines.contains(&4),
+            "the lattice-typed `$b greet` call site is missing: {refs:?}"
+        );
+        // …and from the call site itself, the declaration answers back.
+        let refs = references(src, "tcl", 4, 4, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(
+            lines.contains(&1),
+            "references from the call site must reach the declaration: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_skip_a_same_named_untyped_variable_in_another_scope() {
+        // FP guard for the lattice half of the scan: the lattice types `b`
+        // inside `::mk` only (`by_scope`); a same-named integer in `::other`
+        // must not become a reference — the scope-keyed map is exactly what
+        // stops the bare-name collision.
+        let src = "oo::class create A { method make {} { return [B new] } }\n\
+                   oo::class create B { method greet {} { return \"hi\" } }\n\
+                   proc mk {} { set a [A new]\n  set b [$a make]\n  $b greet }\n\
+                   proc other {} { set b 7\n  $b greet }\n";
+        let analysis = analyse(src);
+        // Cursor on the `greet` declaration (line 1, col 29).
+        let refs = references(src, "tcl", 1, 29, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(
+            lines.contains(&4),
+            "the lattice-typed site inside ::mk is missing: {refs:?}"
+        );
+        assert!(
+            !lines.contains(&6),
+            "::other's `b` is an untyped integer; its `$b greet` must not be \
+             a reference: {refs:?}"
+        );
     }
 
     #[test]

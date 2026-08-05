@@ -466,7 +466,18 @@ fn dispatch_hazard(
             let Some(receiver) = strip_var_decoration(head_text) else {
                 return;
             };
-            match analysis.instance_classes.get(receiver) {
+            // The receiver's class binding: the analyser's `instance_classes`
+            // walk first, then the object-type lattice's scope-keyed map — a
+            // **singleton** there is the same sound fact the reference scan
+            // rewrites through (issue #994 C5b), so a site the scan covers is
+            // no hazard and a site provably of a *different* class is not
+            // either.  A multi-class or absent lattice binding stays the
+            // untracked-receiver refusal: widening an abstention into "not
+            // family" would silence the gate that keeps this rename honest.
+            let bound_class = analysis.instance_classes.get(receiver).or_else(|| {
+                crate::definition::lattice_singleton_class(analysis, receiver, head.span.start())
+            });
+            match bound_class {
                 // Receiver bound to a class: only a computed member word is
                 // a hazard, and only when that class's dispatch really can
                 // reach the member being renamed.
