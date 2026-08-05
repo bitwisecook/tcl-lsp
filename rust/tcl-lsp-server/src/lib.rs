@@ -17075,9 +17075,7 @@ fn is_skipped_scan_dir(path: &Path) -> bool {
 /// find-references / rename-safety silently missed them (finding idx 10 /
 /// idx 27) — even though opening the file directly worked fine, since that
 /// path doesn't go through this filter at all.
-const TCL_SOURCE_EXTENSIONS: &[&str] = &[
-    "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl", "test",
-];
+use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
 
 /// `true` when `path` has a Tcl-family source extension the analyser
 /// can usefully index, so the startup workspace scan picks
@@ -17124,30 +17122,12 @@ fn tcl_source_glob() -> String {
 /// changes produced no watch event, so the index only caught up on the next
 /// full scan or an explicit open (issue #1215).
 ///
-/// Brace-expanding the casings (`{tcl,TCL}`) does not fix it — `Upper.Tcl` is
-/// neither — but a per-character class does, exactly and with no watcher
-/// noise: `[]` character ranges are part of the LSP `GlobPattern` grammar
-/// (and of VS Code's own glob matcher), so this stays one precise
-/// registration rather than a broad `**/*` watch filtered server-side.
-///
-/// The set is the same one [`is_tcl_source`] case-folds, so the watcher and
-/// the predicate now agree by construction.
+/// The set is the same one [`is_tcl_source`] case-folds, and the pattern is
+/// built by the registry so the VS Code activation glob
+/// (`cargo xtask gen-vscode-package`) is the same string by construction
+/// (issue #1242).
 fn tcl_source_watch_glob() -> String {
-    let alternatives: Vec<String> = TCL_SOURCE_EXTENSIONS
-        .iter()
-        .map(|ext| {
-            ext.chars()
-                .map(|c| {
-                    if c.is_ascii_alphabetic() {
-                        format!("[{}{}]", c.to_ascii_lowercase(), c.to_ascii_uppercase())
-                    } else {
-                        c.to_string()
-                    }
-                })
-                .collect::<String>()
-        })
-        .collect();
-    format!("**/*.{{{}}}", alternatives.join(","))
+    tcl_registry::dialects::tcl_source_glob_any_case()
 }
 
 /// Iteratively walk `root`, appending the paths of Tcl source

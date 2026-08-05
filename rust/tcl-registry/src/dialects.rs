@@ -314,6 +314,62 @@ pub fn detect_dialect_directive(source: &str) -> Option<&'static str> {
 /// signature line without scanning a large file.
 pub const DETECT_SCAN_BYTES: usize = 8192;
 
+/// Every filename extension that names a Tcl-family **source** file the
+/// toolchain indexes and analyses.
+///
+/// The single source of truth for that set. The LSP server's workspace scan,
+/// watched-file filter and rename filter read it; the `tcl` CLI's directory
+/// discovery reads it; and `cargo xtask gen-vscode-package` generates the VS
+/// Code extension's `workspaceContains` activation glob from it. Each of those
+/// used to keep its own list and two of the three had drifted — the activation
+/// glob named nine of the twelve (issue #1242).
+///
+/// Lower-case by convention; every consumer compares case-insensitively (a
+/// glob consumer folds case per character, since `workspaceContains` matches
+/// case-sensitively on Linux — issue #1215).
+///
+/// This is deliberately **not** the same question as
+/// [`dialect_from_extension`], which maps an extension to a *dialect* and
+/// covers vendor extensions (`.sdc`, `.do`, `.xdc`) that are Tcl but are not
+/// project source we index.
+pub const TCL_SOURCE_EXTENSIONS: &[&str] = &[
+    "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl", "test",
+];
+
+/// The `**/*.{…}` glob naming exactly [`TCL_SOURCE_EXTENSIONS`], written so it
+/// matches **any casing** — `**/*.{[tT][cC][lL],…}`.
+///
+/// Glob consumers that have no case-insensitivity option match against the
+/// platform file system: case-insensitively on Windows and macOS,
+/// case-**sensitively** on Linux. That is true of LSP
+/// `workspace/didChangeWatchedFiles` registrations (issue #1215) and of VS
+/// Code's `workspaceContains` activation events (issue #1242) alike, so both
+/// build their glob here.
+///
+/// Brace-expanding the casings (`{tcl,TCL}`) does not fix it — `Upper.Tcl` is
+/// neither — but a per-character class does, exactly and with no extra
+/// matches: `[]` ranges are part of the LSP `GlobPattern` grammar and of VS
+/// Code's own glob matcher, so this stays one precise pattern rather than a
+/// broad `**/*` filtered afterwards.
+#[must_use]
+pub fn tcl_source_glob_any_case() -> String {
+    let alternatives: Vec<String> = TCL_SOURCE_EXTENSIONS
+        .iter()
+        .map(|ext| {
+            ext.chars()
+                .map(|c| {
+                    if c.is_ascii_alphabetic() {
+                        format!("[{}{}]", c.to_ascii_lowercase(), c.to_ascii_uppercase())
+                    } else {
+                        c.to_string()
+                    }
+                })
+                .collect::<String>()
+        })
+        .collect();
+    format!("**/*.{{{}}}", alternatives.join(","))
+}
+
 /// The dialect implied by a filename extension, or `None` when the extension
 /// is generic (`.tcl`) or unknown — in which case content heuristics decide.
 #[must_use]
