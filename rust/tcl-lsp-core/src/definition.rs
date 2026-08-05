@@ -4690,8 +4690,8 @@ mod tests {
     /// revokes nothing, so the alias keeps resolving.
     ///
     /// `namespace forget ::src::$name` really does remove the alias when
-    /// `$name` is `p` (oracle for the literal spelling is
-    /// [`Self::a_forget_after_the_import_stops_resolving_the_alias`]) — but
+    /// `$name` is `p` (oracle for the literal spelling is on
+    /// `a_forget_after_the_import_stops_resolving_the_alias`) — but
     /// nothing static says what `$name` holds, and the pattern is a *glob*, so
     /// a guess would have to be either "revokes `p`" or "revokes everything".
     /// Both silently drop references the program still has, which is the one
