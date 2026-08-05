@@ -55,7 +55,7 @@ pub mod end_offset;
 pub mod expr_simplify;
 pub mod helpers;
 pub mod manager;
-mod method_barrier;
+pub(crate) mod method_barrier;
 pub mod pattern_recognition;
 pub mod profiles;
 pub mod propagation;

@@ -1020,7 +1020,7 @@ fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // anyway.
     let barrier = ctx
         .registry
-        .map(|registry| super::method_barrier::compute(cu, registry));
+        .map(|registry| super::method_barrier::compute(&cu.ir_module, registry));
     // Sorted so the emitted rewrite order is deterministic across runs
     // (`ir_module.methods` is a `HashMap`).
     let mut qnames: Vec<&String> = cu.ir_module.methods.keys().collect();

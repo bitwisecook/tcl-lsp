@@ -380,48 +380,11 @@ pub fn reaches_caller_frame(body: &Script, params: &[String]) -> bool {
     !info.is_empty() || !info.unnameable_local_aliases.is_empty()
 }
 
-/// Whether the module supplies **incomplete evidence** about what a `my` /
-/// `next` / object dispatch out of a method body can do to that body's frame
-/// — the whole-module gate shared by the optimiser's method-body propagation
-/// barrier (issue #1097) and the CFG builder's method-dispatch widening
-/// (issue #1177).
-///
-/// A *proc* callee is modelled per call site through
-/// [`super::detect_upvar_procs`]'s table; a **method** reached through `my`,
-/// `next`, or an object dispatch is never in that table, because the
-/// dispatch does not name its target statically.  So the answer has to come
-/// from whole-module evidence, and the governing rule is: *when the evidence
-/// is incomplete, widen to abstention.*  Two sources make it incomplete:
-///
-/// * a method body that can reach its caller's frame
-///   ([`reaches_caller_frame`] — `upvar` whatever the dynamism of either
-///   side, an `uplevel` script, an unplaceable level);
-/// * a redefined method (the lowering keeps only the *first* body, so the
-///   replacement is invisible to every scan — including this one).
-///
-/// Scoped to the whole module rather than per class on purpose: `my`
-/// dispatches along the MRO and through mixins, so a caller-frame-reaching
-/// method in *any* class is potentially reachable from a method body whose
-/// class relationship this analysis does not compute (oracle for the mixin
-/// shape, tclsh 9.0.4 / 8.6.16: a `Utility` mixin's `method NameProcess
-/// {args obj} {upvar 1 name name; …}` reached via `my NameProcess …` really
-/// does create `name` in the calling constructor's frame).  Per-callee
-/// precision through the member tables / MRO composes later (issue #1164).
-#[must_use]
-pub fn module_method_dispatch_evidence_is_incomplete(module: &crate::ir::Module) -> bool {
-    if !module.redefined_methods.is_empty() {
-        return true;
-    }
-    module
-        .methods
-        .values()
-        .any(|m| reaches_caller_frame(&m.body, &m.params))
-}
-
 /// The synthetic frame-effect entries that widen every `TclOO` self-dispatch
-/// site (`my …`, `next` / `nextto`) in a **method-body** CFG, used when
-/// [`module_method_dispatch_evidence_is_incomplete`] says a dispatch may
-/// reach the calling method's frame (issue #1177).
+/// site (`my …`, `next` / `nextto`) in a **method-body** CFG, used for
+/// exactly the methods the per-method dispatch barrier bars
+/// (`crate::optimiser::method_barrier` — a dispatch surface that meets a
+/// caller-frame-reaching or unanalysable class; issues #1177, #1164).
 ///
 /// Each entry maps a dispatch keyword to a summary with
 /// [`UpvarInfo::has_unresolvable_caller_target`] set — the call site then
