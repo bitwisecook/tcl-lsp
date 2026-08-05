@@ -16,16 +16,23 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `accept` — accept the packet, optionally a byte count (`accept ?N?`).
+//! `next` — the explicit, non-terminal continuation outcome for handler
+//! composition (issue #1204). A handler that ends a path with `next` yields no
+//! decision, so the next handler in priority order runs; if every handler on a
+//! path yields `next`, the event's declared default verdict applies.
+//!
+//! `next` is a verdict for lowering purposes (it ends the handler's program by
+//! returning a reserved continuation sentinel), but the composition model reads
+//! that sentinel as "continue the chain" rather than a packet decision. It is
+//! valid in every program type.
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
-    const OP: BpfOpSpec =
-        BpfOpSpec::verdict(BpfVerdictKind::Accept, BpfProgTypeSet::SocketFilterOnly);
+    const OP: BpfOpSpec = BpfOpSpec::verdict(BpfVerdictKind::Next, BpfProgTypeSet::All);
     CommandSpec {
-        name: "accept",
+        name: "next",
         dialects: Some(DialectSet::BPF),
-        arity: Arity::new(0, 1),
+        arity: Arity::exact(0),
         bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }

@@ -1,0 +1,34 @@
+# Handler composition (issue #1204): two XDP handlers compose deterministically.
+#
+# Priority 10 (the "deny" handler) runs first. It drops traffic to TCP port 22
+# and otherwise yields `next` — the explicit, non-terminal continuation — so the
+# chain proceeds. Priority 20 (the "audit" handler) counts every surviving packet
+# in a shared array map and lets it pass.
+#
+# Because a terminal verdict stops the chain, a blocked port is decided by the
+# deny handler alone; everything else is decided by the audit handler. If both
+# handlers yielded `next`, the XDP event's default verdict (pass) would apply.
+#
+#   bpf-tcl check samples/bpf-tcl/compose-deny-audit.bpftcl
+#   bpf-tcl plan  samples/bpf-tcl/compose-deny-audit.bpftcl --name demo
+
+attach xdp eth0
+
+when XDP priority 10 {
+  setbuf p ctx
+  pktlen n p
+  if {$n < 38} { next }
+  load16 dport p 36 be
+  if {$dport == 22} { drop }
+  next
+}
+
+when XDP priority 20 {
+  setbuf p ctx
+  map seen array 4 8 4
+  setint k 0
+  map_get c seen {$k}
+  setint c1 {$c + 1}
+  map_set seen {$k} {$c1}
+  pass
+}

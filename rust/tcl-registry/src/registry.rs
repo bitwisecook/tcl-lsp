@@ -451,6 +451,14 @@ impl CommandRegistry {
             .and_then(|v| v.last())
     }
 
+    /// The typed BPF-Tcl lowering descriptor for `name`, when `name` is a
+    /// BPF-dialect command (see [`crate::bpf_op`]).  The BPF-Tcl front-end
+    /// dispatches on this — never on the command name.
+    #[must_use]
+    pub fn bpf_op(&self, name: &str) -> Option<&'static crate::bpf_op::BpfOpSpec> {
+        self.get(name).and_then(|s| s.bpf_op)
+    }
+
     /// Look up a command spec filtered by dialect, picking the
     /// **most-specific** visible spec (`best_visible` — §5.3's single
     /// selection rule).

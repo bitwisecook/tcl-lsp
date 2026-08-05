@@ -17,14 +17,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `field` — declare a header field inside a `profile` body
-//! (`field NAME OFFSET WIDTHBITS`).
+//! (`field NAME OFFSET WIDTHBITS ?be|le|native?`; the byte order defaults to
+//! `be` — network order).
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
+    const OP: BpfOpSpec = BpfOpSpec::framework(BpfDeclKind::Field);
     CommandSpec {
         name: "field",
         dialects: Some(DialectSet::BPF),
-        arity: Arity::exact(3),
+        // NAME OFFSET WIDTHBITS ?be|le|native?
+        arity: Arity::new(3, 4),
+        bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }
 }

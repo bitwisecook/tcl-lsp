@@ -489,6 +489,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Per-command WASM emitter. No specialisations exist yet.",
     ),
     f(
+        "bpf_op",
+        "BPF-Tcl lowering descriptor",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "Some(&bpf_op::XDP_PASS)",
+        },
+        "Typed BPF-Tcl lowering descriptor; the BPF front-end dispatches on this, never on the command name.",
+    ),
+    f(
         "analyser_hook",
         "Analyser hook",
         HOOKS,

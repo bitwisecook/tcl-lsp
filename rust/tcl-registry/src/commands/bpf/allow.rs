@@ -21,10 +21,12 @@
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
+    const OP: BpfOpSpec = BpfOpSpec::framework(BpfDeclKind::Allow);
     CommandSpec {
         name: "allow",
         dialects: Some(DialectSet::BPF),
         arity: Arity::at_least(1),
+        bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }
 }

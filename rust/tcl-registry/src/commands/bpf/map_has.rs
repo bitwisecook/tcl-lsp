@@ -16,16 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `accept` — accept the packet, optionally a byte count (`accept ?N?`).
+//! `map_has` — key-presence test (`map_has DST NAME {KEY}`): `DST` becomes 1
+//! when the key is present, 0 when absent — the way to distinguish a missing
+//! key from a stored zero (`map_get` folds both to 0).
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
-    const OP: BpfOpSpec =
-        BpfOpSpec::verdict(BpfVerdictKind::Accept, BpfProgTypeSet::SocketFilterOnly);
+    const OP: BpfOpSpec = BpfOpSpec::gated(BpfOpKind::MapHas, BpfEffects::MAP_READ);
     CommandSpec {
-        name: "accept",
+        name: "map_has",
         dialects: Some(DialectSet::BPF),
-        arity: Arity::new(0, 1),
+        arity: Arity::exact(3),
         bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }

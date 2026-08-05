@@ -474,6 +474,15 @@ pub struct CommandSpec {
     /// Lowering hook ID (index into compiler's dispatch table).
     pub lowering_hook: Option<LoweringHookId>,
 
+    /// Typed BPF-Tcl lowering descriptor — `Some` on every command of the
+    /// BPF dialect, describing the core operation or framework declaration
+    /// the command stands for (scalar width, packet-load width, map role,
+    /// verdict family + compatible program types, effect classification).
+    /// The BPF-Tcl front-end (`bpf-tcl-ir`) and its capability policy
+    /// dispatch on this descriptor, never on the command name — see
+    /// [`crate::bpf_op`].  `None` for every non-BPF command.
+    pub bpf_op: Option<&'static crate::bpf_op::BpfOpSpec>,
+
     /// `TclVM` bytecode codegen hook ID — picks the per-command
     /// emitter inside `tcl_compiler::codegen::emitter::bytecoded`
     /// (the path that matches C Tcl 9's bytecode output).
@@ -957,6 +966,7 @@ impl CommandSpec {
         const_fold: None,
         const_fold_versioned: None,
         lowering_hook: None,
+        bpf_op: None,
         codegen_hook: None,
         inline_codegen_hook: None,
         wasm_codegen_hook: None,
