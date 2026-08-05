@@ -1180,6 +1180,15 @@ file; this call falls through to the 'unknown' handler."
             if matches!(use_site.kind, UseKind::PhiIncoming) {
                 continue;
             }
+            // A `UseClass::Quoted` use is carried only by a brace-quoted word
+            // the statement does not substitute (`puts {$y}` prints `$y` and
+            // reads nothing). The use exists so liveness stays conservative
+            // about a word that may be evaluated later; it is not a read
+            // here, so it can never be read-*before*-set (issues #1142,
+            // #1237).
+            if use_site.class == crate::ssa::UseClass::Quoted {
+                continue;
+            }
             // An after-loop read of a variable the loop body defines on every
             // iteration is not read-before-set (see
             // `UndefSuppression::loop_entry_only_undef`): we assume a may-run
@@ -1345,7 +1354,12 @@ file; this call falls through to the 'unknown' handler."
             let Some(cfg_block) = fu.cfg.blocks.get(&bn) else {
                 continue;
             };
-            let Some(crate::cfg::Terminator::Return { value, expr, .. }) = &cfg_block.terminator
+            let Some(crate::cfg::Terminator::Return {
+                value,
+                expr,
+                braced,
+                ..
+            }) = &cfg_block.terminator
             else {
                 continue;
             };
@@ -1368,8 +1382,11 @@ file; this call falls through to the 'unknown' handler."
             // substitutions + nested `[...]`) and any parsed expr. The
             // return value is a single already-extracted word, not a
             // script, so it scans in value-body mode.
+            // A **braced** value is literal — `return {$y}` returns the two
+            // characters `$y` and reads nothing — so it contributes no reads
+            // at all (`UseClass::Quoted`; issue #1237).
             let mut reads: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-            if let Some(v) = value {
+            if let Some(v) = value.as_ref().filter(|_| !*braced) {
                 reads.extend(scanner.scan_word(v, registry));
             }
             if let Some(e) = expr {
@@ -1560,6 +1577,11 @@ file; this call falls through to the 'unknown' handler."
             };
             for (idx, s) in ssa_block.statements.iter().enumerate() {
                 for &sym in s.uses.keys() {
+                    // A quoted (unevaluated brace-word) mention is not a read
+                    // here — see `emit_read_before_set_diagnostics`.
+                    if s.quoted_uses.contains(&sym) {
+                        continue;
+                    }
                     let name = fu.ssa.var_name(sym);
                     if reported.contains(name) {
                         continue;

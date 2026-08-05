@@ -39,7 +39,6 @@ use crate::sccp::cfg_order;
 use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
 use crate::types::{TypeKind, TypeLattice, TypeShape};
 
-use super::graph::loop_body_blocks;
 use super::span::{def_range_map, phi_span};
 use super::thunking::{
     DefSpanLookup, destructure_foreach_blocks, empty_value_versions, per_loop_body_types,
@@ -238,22 +237,22 @@ pub(crate) fn find_phi_shimmers(
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
     executable_blocks: &HashSet<BlockId>,
+    loop_blocks: &HashSet<String>,
 ) -> Vec<ShimmerWarning> {
-    let loop_blocks = loop_body_blocks(cfg);
     let def_map = def_range_map(ssa);
     let empty_by_name = empty_value_versions(ssa);
     let destructure = destructure_foreach_blocks(cfg);
     // The phi pass uses the *function-wide* loop-body type map (unlike the
     // per-loop S102 thunking pass), built from the whole loop-block set.
     let loop_body_types =
-        per_loop_body_types("", &loop_blocks, &destructure, ssa, types, &empty_by_name);
+        per_loop_body_types("", loop_blocks, &destructure, ssa, types, &empty_by_name);
     let array_syms = super::thunking::array_element_symbols(cfg, ssa);
     let ctx = PhiCtx {
         cfg,
         ssa,
         types,
         empty_by_name: &empty_by_name,
-        loop_blocks: &loop_blocks,
+        loop_blocks,
         loop_body_types: &loop_body_types,
         def_map: &def_map,
         destructure: &destructure,
@@ -299,7 +298,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let warnings = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let warnings = find_phi_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
+        );
         // Both 1 and 2 are Int — no Shimmered phi expected.
         for w in &warnings {
             if w.command == "<phi>" {
@@ -322,7 +327,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let warnings = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let warnings = find_phi_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
+        );
         assert!(
             !warnings.iter().any(|w| w.variable == "r"),
             "accumulator must not phi-shimmer: {warnings:?}"
@@ -334,7 +345,13 @@ mod tests {
     fn phi_shimmers_empty_source() {
         let cu = CompilationUnit::build_for("", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let _ = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let _ = find_phi_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
+        );
     }
 
     /// Array elements collapse onto one SSA symbol, so a phi over `arr` merges
@@ -350,7 +367,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let warnings = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let warnings = find_phi_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
+        );
         assert!(
             !warnings.iter().any(|w| w.variable == "arr"),
             "array-element conflation must not phi-shimmer: {warnings:?}"
@@ -367,7 +390,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let warnings = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let warnings = find_phi_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
+        );
         assert!(
             warnings.iter().any(|w| w.variable == "y"),
             "plain scalar merge must still phi-shimmer: {warnings:?}"
@@ -384,7 +413,13 @@ mod tests {
                    else { set v 7 }\n}\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let warnings = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let warnings = find_phi_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
+        );
         let w = warnings
             .iter()
             .find(|w| w.variable == "v" && w.in_loop)
@@ -414,7 +449,13 @@ mod tests {
         let src = "set cond [gets stdin]\nif {$cond} { set x 1 } else { set x \"hi\" }\nputs $x";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let warnings = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let warnings = find_phi_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
+        );
         let w = warnings
             .iter()
             .find(|w| w.variable == "x")
@@ -442,7 +483,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let warnings = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let warnings = find_phi_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
+        );
         let merge = warnings.iter().find(|w| w.variable == "x");
         assert!(
             merge.is_some(),

@@ -34,7 +34,7 @@
 use std::collections::HashMap;
 
 use crate::cfg::{Function as CfgFunction, Terminator};
-use crate::ssa::{SsaFunction, Version};
+use crate::ssa::{SsaFunction, UseClass, Version};
 
 /// How a variable definition was produced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -82,6 +82,11 @@ pub struct UseSite {
     pub variable: String,
     /// For `PhiIncoming`: the phi's defined version.
     pub phi_version: Version,
+    /// Whether the name is carried only by a brace-quoted word this statement
+    /// does not substitute ([`UseClass::Quoted`]). The use is real for
+    /// liveness — the text may be evaluated later — but is not a read *here*,
+    /// so read-before-set must not claim it (issues #1142, #1237).
+    pub class: UseClass,
 }
 
 /// SSA value key: `(variable name, version)`.
@@ -237,6 +242,7 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
                         statement_index: -1,
                         variable: phi_var.clone(),
                         phi_version: phi.version,
+                        class: UseClass::Substituted,
                     },
                 );
             }
@@ -246,6 +252,11 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
         for (idx, stmt) in block.statements.iter().enumerate() {
             for (sym, ver) in &stmt.uses {
                 let key = (ssa.var_name(*sym).to_owned(), *ver);
+                let class = if stmt.quoted_uses.contains(sym) {
+                    UseClass::Quoted
+                } else {
+                    UseClass::Substituted
+                };
                 add_use(
                     &mut chains,
                     entry_name,
@@ -256,6 +267,7 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
                         statement_index: i32::try_from(idx).unwrap_or(i32::MAX),
                         variable: String::new(),
                         phi_version: 0,
+                        class,
                     },
                 );
             }
@@ -272,16 +284,36 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
     DefUseResult { chains }
 }
 
-/// Variable names a terminator reads: a `Branch` condition's vars, or a
-/// `return $x` value's reads.  The latter is recorded so an earlier
-/// overwritten store is a real dead store, not a "truly unused" var.
-fn terminator_read_vars(terminator: Option<&Terminator>) -> Vec<String> {
+/// Variable names a terminator reads, with each name's [`UseClass`]: a
+/// `Branch` condition's vars, or a `return $x` value's reads.  The latter is
+/// recorded so an earlier overwritten store is a real dead store, not a
+/// "truly unused" var.
+///
+/// A **braced** return value is literal — `return {$y}` returns the two
+/// characters `$y` — so its names are [`UseClass::Quoted`]: kept as uses (the
+/// string may still be `eval`-ed by the caller) but never a read here.
+/// tclsh-proof: tclsh8.6.14 — `proc f {} { return {$y} }; puts [f]` prints
+/// `$y` with `y` undefined.
+fn terminator_read_vars(terminator: Option<&Terminator>) -> Vec<(String, UseClass)> {
     match terminator {
-        Some(Terminator::Branch { condition, .. }) => {
-            condition.vars_element_qualified().into_iter().collect()
-        }
-        Some(Terminator::Return { value, expr, .. }) => {
-            let mut set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        Some(Terminator::Branch { condition, .. }) => condition
+            .vars_element_qualified()
+            .into_iter()
+            .map(|n| (n, UseClass::Substituted))
+            .collect(),
+        Some(Terminator::Return {
+            value,
+            expr,
+            braced,
+            ..
+        }) => {
+            let mut set: std::collections::BTreeMap<String, UseClass> =
+                std::collections::BTreeMap::new();
+            let value_class = if *braced {
+                UseClass::Quoted
+            } else {
+                UseClass::Substituted
+            };
             if let Some(v) = value {
                 set.extend(
                     crate::var_refs::scan_var_ref_forms_braced(v)
@@ -290,12 +322,19 @@ fn terminator_read_vars(terminator: Option<&Terminator>) -> Vec<String> {
                         // reads the variable called `$n` — so its `$` must
                         // survive canonicalisation (issue #1078).
                         .map(|(n, braced)| {
-                            crate::naming::element_var_name_braced(&n, braced).to_string()
+                            (
+                                crate::naming::element_var_name_braced(&n, braced).to_string(),
+                                value_class,
+                            )
                         }),
                 );
             }
             if let Some(e) = expr {
-                set.extend(e.vars_element_qualified());
+                set.extend(
+                    e.vars_element_qualified()
+                        .into_iter()
+                        .map(|n| (n, UseClass::Substituted)),
+                );
             }
             set.into_iter().collect()
         }
@@ -346,7 +385,7 @@ fn add_terminator_uses(
     block: &crate::ssa::SsaBlock,
     cfg_block: &crate::cfg::Block,
 ) {
-    for var_name in terminator_read_vars(cfg_block.terminator.as_ref()) {
+    for (var_name, class) in terminator_read_vars(cfg_block.terminator.as_ref()) {
         let fanned: Vec<String> = ssa
             .var_names()
             .iter()
@@ -374,6 +413,7 @@ fn add_terminator_uses(
                     statement_index: -1,
                     variable: String::new(),
                     phi_version: 0,
+                    class,
                 },
             );
         }
@@ -443,6 +483,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         }
     }
 
@@ -472,6 +513,7 @@ mod tests {
             uses: u,
             defs: d,
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         }
     }
 

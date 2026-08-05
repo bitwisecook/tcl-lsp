@@ -1697,3 +1697,63 @@ fn tn_a_dynamic_list_head_keeps_todays_behaviour() {
         "an unresolvable head must not produce a declaration: {b:?}"
     );
 }
+
+/// Issue #1243 — the first command of a BOM'd Tcl 9 file must be tokenised as
+/// if the mark were not there: it is the script prologue `source` strips, not
+/// part of the command name.
+///
+/// tclsh-proof: tclsh8.6.14 rejects a BOM'd first command
+/// (`invalid command name "<BOM>proc"`), which is why the skip is Tcl 9 only.
+#[test]
+fn tcl9_leading_bom_is_not_part_of_the_first_command_token() {
+    let src = "\u{FEFF}proc greet {} { return 1 }\n";
+    let toks = decode(src, "tcl9.0");
+    let head = toks
+        .iter()
+        .find(|t| t.line == 0 && t.ttype == "keyword")
+        .unwrap_or_else(|| panic!("no keyword token on line 0: {toks:?}"));
+    assert_eq!(
+        (head.character, head.length),
+        (1, u32::try_from("proc".len()).expect("fits")),
+        "the head token starts after the mark and spans `proc` alone: {toks:?}",
+    );
+    // The whole stream matches the mark-less file, shifted by the mark's one
+    // UTF-16 unit — nothing else about the tokenisation changes.
+    let plain = decode(&src["\u{FEFF}".len()..], "tcl9.0");
+    let shifted: Vec<(u32, u32, u32, &str, u32)> = plain
+        .iter()
+        .map(|t| {
+            (
+                t.line,
+                if t.line == 0 {
+                    t.character + 1
+                } else {
+                    t.character
+                },
+                t.length,
+                t.ttype.as_str(),
+                t.mods,
+            )
+        })
+        .collect();
+    let actual: Vec<(u32, u32, u32, &str, u32)> = toks
+        .iter()
+        .map(|t| (t.line, t.character, t.length, t.ttype.as_str(), t.mods))
+        .collect();
+    assert_eq!(actual, shifted, "BOM'd tokens = mark-less tokens, shifted");
+}
+
+/// TN control — Tcl 8.x's `source` does **not** strip the mark, so the first
+/// command really is named `<BOM>proc` there and must not be highlighted as
+/// the `proc` keyword.
+#[test]
+fn tcl86_leading_bom_stays_part_of_the_first_command_token() {
+    let src = "\u{FEFF}proc greet {} { return 1 }\n";
+    let toks = decode(src, "tcl8.6");
+    assert!(
+        !toks
+            .iter()
+            .any(|t| t.line == 0 && t.character == 1 && t.ttype == "keyword"),
+        "8.x keeps the mark in the command name: {toks:?}",
+    );
+}

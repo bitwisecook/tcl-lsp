@@ -90,8 +90,11 @@ fn scan_when_context(
     depth: u32,
 ) -> Option<String> {
     let mut best = None;
-    let cmds =
-        segment_commands_with_offset_and_config(text, base, LexerConfig::for_dialect(dialect));
+    let cmds = segment_commands_with_offset_and_config(
+        text,
+        base,
+        LexerConfig::for_file_dialect(dialect).at_depth(depth),
+    );
     for cmd in &cmds {
         if cmd.texts.first().map(String::as_str) != Some("when") || cmd.texts.len() < 2 {
             continue;
@@ -144,8 +147,11 @@ fn collect_when_events(
     if MAX_WHEN_SCAN_DEPTH.exceeded(depth) {
         return;
     }
-    let cmds =
-        segment_commands_with_offset_and_config(text, base, LexerConfig::for_dialect(dialect));
+    let cmds = segment_commands_with_offset_and_config(
+        text,
+        base,
+        LexerConfig::for_file_dialect(dialect).at_depth(depth),
+    );
     for cmd in &cmds {
         if cmd.texts.first().map(String::as_str) == Some("when") && cmd.texts.len() >= 2 {
             out.push(cmd.texts[1].to_uppercase());

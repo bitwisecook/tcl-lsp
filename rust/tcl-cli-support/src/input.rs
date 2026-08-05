@@ -22,15 +22,15 @@
 use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 
-/// Source file extensions the CLI accepts.
+/// Source file extensions the CLI accepts — the registry's single list, shared
+/// with the LSP server's workspace scan and the VS Code activation glob.
 ///
 /// `test` is the standard `tcltest` suite-file extension — `tcl check
 /// path/to/tests/` skipped a project's whole test suite without it, the CLI
 /// twin of the workspace-scan gap in issue #923 differential-audit findings
-/// idx 10 / idx 27.
-const SOURCE_SUFFIXES: &[&str] = &[
-    "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "test",
-];
+/// idx 10 / idx 27. The CLI's own copy had additionally drifted from the
+/// server's by `exp` / `apl` (issue #1242).
+use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS as SOURCE_SUFFIXES;
 
 /// Directory names skipped during recursive discovery.
 const SKIP_DIRECTORY_NAMES: &[&str] = &[

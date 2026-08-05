@@ -2112,6 +2112,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         }
     }
 
@@ -2194,6 +2195,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         });
         let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
         let escaping: HashSet<String> = HashSet::new();
@@ -2403,6 +2405,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
 
         let mut values = HashMap::new();
@@ -2457,6 +2460,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         };
         let mut values = HashMap::new();
         values.insert(
@@ -2503,6 +2507,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         }
     }
 
@@ -2642,6 +2647,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         }
     }
 
@@ -2791,6 +2797,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         }
     }
 

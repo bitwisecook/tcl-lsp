@@ -60,6 +60,49 @@ idioms for a single exact name: `[info vars X] ne ""`,
 (`info globals` is not used — it proves the *global* exists, not the bare-`$X`
 local — and glob patterns are not statically decidable.)
 
+## Braces are not substitution
+
+A word wrapped in braces is passed through exactly as written — Tcl performs
+no `$` substitution inside it — so the names it mentions are not read there:
+
+```tcl
+puts {$y}              ;# prints the two characters $y; not flagged
+puts {set y 1; puts $y}  ;# prints the line; not flagged
+mydefiner ::a::b {optlist} {set y 1; return $y}   ;# not flagged
+```
+
+That holds for any command the analyser knows: `puts`, `string match`,
+`lsort -command`, and every other command in its registry say what each
+argument is, and none of them substitutes a braced one.
+
+Two shapes are the exception, because the command really does evaluate the
+braced word against *your* variables: an expression (`expr {$a + $b}`,
+`if {$a} …`) and a body that shares your frame (`if`, `while`, `foreach`,
+`catch`). Those are read normally and still flagged.
+
+A command the analyser does **not** know — one of your own procedures, or a
+definer from a library it has no description of — is the middle case. Its
+braced argument might be a script, and if the procedure passes it on to
+something that runs it with `uplevel`, it runs in your frame:
+
+```tcl
+proc wrapper {script} { real_worker $script }   ;# real_worker uplevels it
+wrapper { puts $myf }                            ;# flagged: myf is never set
+```
+
+so a read there is still reported. The exception is a name the braced word
+sets itself — that is the script's own variable whichever frame it ends up
+in, and it is not flagged:
+
+```tcl
+mydefiner ::a::b {optlist} { set y 1; return $y }   ;# not flagged
+```
+
+A braced mention does still count as *use* for
+[`W211`](kcs-diagnostic-w211-variable-set-not-used.md) and
+[`W220`](kcs-diagnostic-w220-dead-store.md): the text may be evaluated later,
+so the assignment feeding it is not reported dead.
+
 ## Variables set inside a loop
 
 A variable assigned inside a loop body and read *after* the loop is **not**

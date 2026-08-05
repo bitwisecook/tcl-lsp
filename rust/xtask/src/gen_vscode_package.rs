@@ -26,6 +26,11 @@
 //! hand-written sections (`General`, `Features`, `Runtime Validation`, `AI`, …)
 //! round-trip untouched and only the `Formatting — *` / `Diagnostics — *` /
 //! `Optimiser` sections change.
+//!
+//! The `workspaceContains:` activation glob is generated the same way, from
+//! `tcl_registry::dialects::TCL_SOURCE_EXTENSIONS` — the same list the server
+//! indexes and watches — so the manifest cannot drift from the extension set
+//! again (issue #1242).
 
 use std::process::ExitCode;
 
@@ -448,10 +453,45 @@ fn rebuild() -> Result<String> {
 
     groups.splice(first..=last, regenerated);
 
+    set_workspace_contains(&mut manifest)?;
+
     // Stock `serde_json` 2-space pretty-printing is byte-identical to the
     // committed manifest (a `to_string_pretty` round-trip is a no-op on the
     // hand-written sections), so no custom serialiser is needed.
     Ok(serde_json::to_string_pretty(&manifest)? + "\n")
+}
+
+/// The one `workspaceContains:` activation event, naming exactly the
+/// extensions the server indexes, case-folded per character.
+///
+/// `workspaceContains` decides whether the extension activates on a workspace
+/// **scan** — without it a workspace whose only Tcl files are `.impl` / `.exp`
+/// / `.apl`, or upper-cased on Linux, gets no index and no workspace symbols
+/// until a file is opened (`onLanguage:` covers only the opened-file path).
+fn workspace_contains_event() -> String {
+    format!(
+        "workspaceContains:{}",
+        tcl_registry::dialects::tcl_source_glob_any_case()
+    )
+}
+
+/// Replace the manifest's `workspaceContains:` activation event with the
+/// generated one, leaving the hand-written `onLanguage:` /
+/// `onChatParticipant:` entries in place and in order.
+fn set_workspace_contains(manifest: &mut Value) -> Result<()> {
+    let events = manifest
+        .get_mut("activationEvents")
+        .and_then(Value::as_array_mut)
+        .context("activationEvents is not an array")?;
+    let generated = Value::String(workspace_contains_event());
+    match events.iter().position(|e| {
+        e.as_str()
+            .is_some_and(|s| s.starts_with("workspaceContains:"))
+    }) {
+        Some(idx) => events[idx] = generated,
+        None => events.push(generated),
+    }
+    Ok(())
 }
 
 /// Write (or, with `check`, verify) the regenerated `package.json`.
@@ -752,6 +792,7 @@ fn fmt_group_docstrings() -> (&'static str, Vec<FmtSetting>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Write as _;
 
     /// Drift guard: the committed manifest's `tclLsp.*` sections must equal what
     /// the registries render (and every other section round-trips untouched).
@@ -765,6 +806,30 @@ mod tests {
             rebuild().expect("rebuild"),
             "{PACKAGE_JSON} generated sections are stale — run `cargo xtask gen-vscode-package`"
         );
+    }
+
+    /// The activation glob names **every** indexed extension, and does so
+    /// case-insensitively — the two ways the hand-written glob had drifted
+    /// (issue #1242: nine of twelve, single-cased).
+    #[test]
+    fn workspace_contains_event_covers_every_indexed_extension_in_any_case() {
+        let event = workspace_contains_event();
+        for ext in tcl_registry::dialects::TCL_SOURCE_EXTENSIONS {
+            let mut folded = String::new();
+            for c in ext.chars() {
+                let _ = write!(
+                    folded,
+                    "[{}{}]",
+                    c.to_ascii_lowercase(),
+                    c.to_ascii_uppercase()
+                );
+            }
+            assert!(
+                event.contains(&folded),
+                "activation glob omits {ext} (expected {folded}): {event}"
+            );
+        }
+        assert!(event.starts_with("workspaceContains:**/*.{"));
     }
 
     #[test]

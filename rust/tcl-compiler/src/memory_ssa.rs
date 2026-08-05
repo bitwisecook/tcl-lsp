@@ -932,6 +932,7 @@ mod tests {
                 uses: HashMap::new(),
                 defs: HashMap::new(),
                 may_defs: std::collections::HashSet::new(),
+                quoted_uses: std::collections::HashSet::new(),
             });
         }
         let entry = BlockId(0);
@@ -1059,6 +1060,7 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         });
         let mut defs = HashMap::new();
         defs.insert(shared, 1);
@@ -1067,6 +1069,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         });
         let mut uses = HashMap::new();
         uses.insert(shared, 1);
@@ -1075,6 +1078,7 @@ mod tests {
             uses,
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         });
 
         ssa.blocks.insert(
@@ -1123,6 +1127,7 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         });
         let mut defs1 = HashMap::new();
         defs1.insert(shared, 1);
@@ -1131,6 +1136,7 @@ mod tests {
             uses: HashMap::new(),
             defs: defs1,
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         });
         let mut uses = HashMap::new();
         uses.insert(shared, 1);
@@ -1141,6 +1147,7 @@ mod tests {
             uses,
             defs: defs2,
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         });
         ssa.blocks.insert(
             entry,

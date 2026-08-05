@@ -1708,6 +1708,7 @@ mod tests {
             uses: HashMap::new(),
             defs: defs.iter().map(|&(n, v)| (ssa.intern_var(n), v)).collect(),
             may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
         }
     }
 

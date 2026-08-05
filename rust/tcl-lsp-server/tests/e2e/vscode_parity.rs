@@ -319,14 +319,16 @@ fn test_folding_toggle_suppresses_ranges() {
             .is_some_and(|a| !a.is_empty())
     );
     // foldingRange is a plain request with nothing to block on, so it can race
-    // ahead of the async didChangeConfiguration apply. Don't poll the effective
-    // config — instead wait for the message that proves the toggle landed: a
-    // config change reschedules every open doc, so the server re-publishes this
-    // document's diagnostics *after* applying the config. Waiting for that
-    // publish orders the folding request behind the apply.
+    // ahead of the async didChangeConfiguration apply. The barrier is the
+    // effective config itself: `foldingRange` reads the same resolved config
+    // `getEffectiveConfig` reports, so once that reports the feature off, a
+    // later request cannot observe it on. (A version-1 republish is *not* a
+    // barrier here: under the coalesced config reload an early reschedule can
+    // publish before the pulled config lands.)
     lsp.clear_notifications();
-    lsp.apply_configuration(json!({ "features": { "folding": false } }));
-    lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(15));
+    lsp.apply_configuration_settle(json!({ "features": { "folding": false } }), &uri, |c| {
+        c.get("features").and_then(|f| f.get("folding")) == Some(&Value::Bool(false))
+    });
     // `null`, never an empty array (issue #1122): VS Code's sticky-scroll
     // model provider accepts a non-null folding model as valid and terminal,
     // so an authoritative empty set would leave sticky scroll permanently
