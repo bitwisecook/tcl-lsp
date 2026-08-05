@@ -1264,9 +1264,11 @@ fn instance_vars_declared_in_a_later_definition_block_bar_propagation() {
 
 #[test]
 fn a_redefined_method_bars_propagation() {
-    // FP guard, finding 2.  The lowering keeps the *first* body and records
-    // only the name in `redefined_methods`, so the replacement — which reaches
-    // its caller's frame — is invisible to every body scan.  Oracle:
+    // FP guard, finding 2 — now answered from the RETAINED replacement
+    // body (issue #1166): the lowering keeps the *first* body in
+    // `methods` and every replacement in `redefined_methods`, so the
+    // caller-frame scan reads them all and this replacement — which
+    // reaches its caller's frame — still bars.  Oracle:
     //
     //   oo::class create D { method helper {} {}
     //                        method m {} {set x 1; my helper; puts $x} }
@@ -1275,18 +1277,52 @@ fn a_redefined_method_bars_propagation() {
     let src = "oo::class create D {\n    method helper {} {}\n    method m {} { set x 1\n        my helper\n        puts $x }\n}\noo::define D { method helper {} { upvar 1 x y\n    set y 2 } }\n";
     assert!(
         o100(src).is_empty(),
-        "a redefined method must bar propagation, got {:?}",
+        "a caller-frame-reaching replacement must bar propagation, got {:?}",
         o100(src),
     );
-    // Scoped to the whole module, not to the redefined method's own class:
-    // `my` dispatches along the MRO, so a replaced method in a *superclass* is
-    // reachable from a subclass body and a per-class switch would miss it.
+    // `my` dispatches along the MRO, so a replaced method in a *superclass*
+    // is reachable from a subclass body — it must bar the subclass too.
     let cross_class = "oo::class create B {\n    method helper {} {}\n}\noo::class create C {\n    superclass B\n    method m {} { set x 1\n        my helper\n        puts $x }\n}\noo::define B { method helper {} { upvar 1 x y\n    set y 2 } }\n";
     assert!(
         o100(cross_class).is_empty(),
         "a superclass redefinition must bar propagation too, got {:?}",
         o100(cross_class),
     );
+}
+
+#[test]
+fn a_benign_redefinition_no_longer_bars_propagation() {
+    // TP (issue #1166's precision win): every retained body of the
+    // redefined `helper` is caller-frame-clean, so method-local
+    // propagation stays on — the union of bodies over-approximates
+    // whichever is live at dispatch time, and none of them can touch
+    // `m`'s locals.  Oracle (tclsh 9.0.4): `[D create d1] m` prints `1`
+    // whichever helper body is live.
+    let src = "oo::class create D {\n    method helper {} { return a }\n    method m {} { set x 1\n        my helper\n        puts $x }\n}\noo::define D { method helper {} { return b } }\n";
+    let r = o100(src);
+    assert!(
+        r.contains(&"1".to_string()),
+        "a caller-frame-clean redefinition must not bar propagation, got {r:?}",
+    );
+}
+
+#[test]
+fn an_unreadable_oo_member_bars_propagation() {
+    // FP guard — a dynamic member BODY is a method whose code no scan can
+    // read: it may `upvar 1` into any dispatcher's frame, so the barrier
+    // must widen exactly as it does for a caller-frame-reaching body.
+    let src = "oo::class create D {\n    method helper {} $body\n    method m {} { set x 1\n        my helper\n        puts $x }\n}\n";
+    assert!(
+        o100(src).is_empty(),
+        "an unreadable member body must bar propagation, got {:?}",
+        o100(src),
+    );
+    // Same for a dynamic member NAME (any method may have been replaced),
+    // and for a dynamic class word on the definition itself.
+    let dyn_name = "oo::class create D {\n    method m {} { set x 1\n        my helper\n        puts $x }\n    method $n {} { upvar 1 x y\n        set y 2 }\n}\n";
+    assert!(o100(dyn_name).is_empty(), "got {:?}", o100(dyn_name));
+    let dyn_class = "oo::class create D {\n    method m {} { set x 1\n        my helper\n        puts $x }\n}\noo::define $cls { method helper {} { upvar 1 x y\n    set y 2 } }\n";
+    assert!(o100(dyn_class).is_empty(), "got {:?}", o100(dyn_class));
 }
 
 #[test]
@@ -1312,16 +1348,193 @@ fn a_substituted_upvar_source_counts_as_a_caller_frame_alias() {
     // A dynamic source that is *not* a parameter (the `has_unresolvable_
     // caller_target` route) and a dynamic *local* side (`upvar 1 x $dst`,
     // which the resolvable-buckets summary drops outright) both count.
+    // The guarded miscompile is `$x` in `m` folding to `1`; the per-method
+    // barrier (issue #1164) legitimately still propagates `helper`'s OWN
+    // harmless local (`set n x; upvar 1 $n b` → `upvar 1 x b`, identical
+    // behaviour) — helper dispatches nothing, so nothing can alias its
+    // frame.
     for shape in [
         "oo::class create E {\n    method helper {} { set n x\n        upvar 1 $n b\n        set b 2 }\n    method m {} { set x 1\n        my helper\n        puts $x }\n}\n",
         "oo::class create E {\n    method helper {dst} { upvar 1 x $dst\n        set $dst 2 }\n    method m {} { set x 1\n        my helper q\n        puts $x }\n}\n",
     ] {
         assert!(
-            o100(shape).is_empty(),
-            "got {:?} for {shape:?}",
+            !o100(shape).contains(&"1".to_string()),
+            "the dispatcher's `$x` must not fold: got {:?} for {shape:?}",
             o100(shape)
         );
     }
+}
+
+// ===========================================================================
+// Issue #1134 — SCCP feeds registry const-fold results back into the value
+// lattice, so multi-statement fold chains close instead of stopping after
+// one hop.  Oracle for the headline chain (tclsh 9.0.4, run while
+// authoring): inside an instance method of `::ticklecharts::Gauge`,
+// `set base [self class]; set ns [namespace qualifiers $base]` leaves
+// `ns == ::ticklecharts` and `${ns}::setdef …` really dispatches there.
+// ===========================================================================
+
+#[test]
+fn sccp_closes_the_two_hop_self_class_chain_in_a_method() {
+    // TP — the exact residual from PR #1131: the O129 rewrite of
+    // `[self class]` used to be a *suggestion*, so `base` was never a
+    // lattice constant and the second hop never folded.  With the lattice
+    // fold (issue #1134) both hops fold and the `$ns` use propagates.
+    let src = "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        set base [self class]\n        set ns [namespace qualifiers $base]\n        puts $ns\n    }\n}\n";
+    let r = o100(src);
+    assert!(
+        r.contains(&"::ticklecharts".to_string()),
+        "the chained `$ns` must propagate as ::ticklecharts, got {r:?}",
+    );
+}
+
+#[test]
+fn sccp_closes_a_fold_chain_in_a_plain_proc() {
+    // TP — not method-specific (the issue notes the identical shape in
+    // procs): `[namespace qualifiers …]` folds into the lattice, so the
+    // `$ns` use downstream propagates (O100).
+    let src = "proc ::f {} {\n    set ns [namespace qualifiers ::tc::X]\n    puts $ns\n}\n";
+    let r = o100(src);
+    assert!(
+        r.contains(&"::tc".to_string()),
+        "the folded `$ns` must propagate, got {r:?}",
+    );
+    // TP — and a further hop through `expr` (the lattice's own expr fold
+    // picks the folded constant up at this statement's use version).
+    let src = "proc ::g {} {\n    set n [string totitle abc]\n    set m [string length $n]\n    puts $m\n}\n";
+    let r = o100(src);
+    assert!(
+        r.contains(&"3".to_string()),
+        "the second hop must see the folded first hop, got {r:?}",
+    );
+}
+
+#[test]
+fn sccp_lattice_fold_declines_on_an_untrusted_head() {
+    // FP guard — a module-level `rename namespace …` unbinds the head from
+    // its builtin semantics; neither hop may fold and `$ns` must not
+    // propagate a manufactured value.
+    let src = "rename namespace ns_orig\nproc ::f {} {\n    set ns [namespace qualifiers ::tc::X]\n    puts $ns\n}\n";
+    assert!(
+        o100(src).is_empty(),
+        "a rebound head must not enter the lattice, got {:?}",
+        o100(src),
+    );
+}
+
+#[test]
+fn sccp_lattice_fold_declines_on_a_branch_dependent_argument() {
+    // TN — `$q`'s versions disagree at the join, so the substitution's
+    // argument is not a lattice constant on the joined path and the fold
+    // abstains rather than picking a branch.
+    let src = "proc ::f {c} {\n    set q ::a::X\n    if {$c} { set q ::b::X }\n    set ns [namespace qualifiers $q]\n    puts $ns\n}\n";
+    let folded: Vec<String> = o100(src)
+        .into_iter()
+        .filter(|r| r == "::a" || r == "::b")
+        .collect();
+    assert!(
+        folded.is_empty(),
+        "a branch-dependent argument must not fold, got {folded:?}",
+    );
+}
+
+#[test]
+fn sccp_lattice_fold_stays_out_of_class_side_frames() {
+    // TN — `[self class]` in a `self method` raises (tclsh 9.0.4), so the
+    // chain must not fold there: `oo_frame_for` declines class-side
+    // methods and the lattice fold inherits that abstention.
+    let src = "oo::class create ::ticklecharts::Gauge {\n    self method m {} {\n        set base [self class]\n        set ns [namespace qualifiers $base]\n        puts $ns\n    }\n}\n";
+    assert!(
+        o100(src).is_empty(),
+        "a class-side frame must not fold the chain, got {:?}",
+        o100(src),
+    );
+}
+
+// ===========================================================================
+// Issue #1164 — the method-dispatch barrier is PER-METHOD, keyed by actual
+// reachability of the invalidating fact: one caller-frame-reaching helper
+// bars only the methods whose dispatches (transitively, across hierarchy
+// components and through called procs) can reach it — no longer the whole
+// module.
+// ===========================================================================
+
+#[test]
+fn an_unrelated_class_keeps_propagation_despite_a_classvar_helper_elsewhere() {
+    // TP — the classvar idiom: `::Util::cv` reaches its caller's frame, so
+    // methods hierarchy-related to `::Util` are barred. `::Plain` is
+    // unrelated — no superclass/mixin connects them — and its own
+    // dispatches (`my getv`) stay inside its own component, so its
+    // method-local constant still propagates.
+    let src = "oo::class create ::Util {\n    method cv {name} { upvar 2 $name v\n        set v 0 }\n    method use {} { set a 5\n        my cv a\n        puts $a }\n}\noo::class create ::Plain {\n    method getv {} { return g }\n    method m {} { set v 42\n        my getv\n        puts $v }\n}\n";
+    let r = o100(src);
+    assert!(
+        r.contains(&"42".to_string()),
+        "the unrelated class must keep method-local propagation, got {r:?}",
+    );
+    assert!(
+        !r.contains(&"5".to_string()),
+        "the helper's own class must stay barred, got {r:?}",
+    );
+}
+
+#[test]
+fn a_subclass_of_the_bad_class_is_still_barred() {
+    // FP guard — `::Sub` relates to `::Util` via `superclass`, so its
+    // instance may resolve `my cv` to the caller-frame-reaching helper;
+    // its methods must stay barred.
+    let src = "oo::class create ::Util {\n    method cv {name} { upvar 1 $name v\n        set v 0 }\n}\noo::class create ::Sub {\n    superclass ::Util\n    method m {} { set x 7\n        my cv x\n        puts $x }\n}\n";
+    assert!(
+        !o100(src).contains(&"7".to_string()),
+        "a hierarchy-related class must stay barred, got {:?}",
+        o100(src),
+    );
+}
+
+#[test]
+fn a_dynamic_object_dispatch_bars_the_dispatching_method() {
+    // FP guard — `$obj go` may dispatch to ANY object, including one of
+    // the bad class, so the dispatching method is barred even though its
+    // own class is unrelated.
+    let src = "oo::class create ::Util {\n    method cv {name} { upvar 1 $name v\n        set v 0 }\n}\noo::class create ::Plain {\n    method m {obj} { set x 3\n        $obj cv x\n        puts $x }\n}\n";
+    assert!(
+        !o100(src).contains(&"3".to_string()),
+        "a dynamic-receiver dispatch must bar, got {:?}",
+        o100(src),
+    );
+}
+
+#[test]
+fn a_proc_mediated_dispatch_bars_the_calling_method() {
+    // FP guard — the method calls a plain proc which performs the dynamic
+    // dispatch on its behalf; the callee's dispatch surface is inherited
+    // through the proc call graph, so the method is still barred.
+    let src = "oo::class create ::Util {\n    method cv {name} { upvar 2 $name v\n        set v 0 }\n}\nproc ::poke {obj} { $obj cv x }\noo::class create ::Plain {\n    method m {obj} { set x 3\n        ::poke $obj\n        puts $x }\n}\n";
+    assert!(
+        !o100(src).contains(&"3".to_string()),
+        "a proc-mediated dispatch must bar, got {:?}",
+        o100(src),
+    );
+}
+
+#[test]
+fn a_class_command_dispatch_reaches_that_component() {
+    // FP guard — `::Util create u` dispatches ::Util's constructor, whose
+    // component contains the bad helper; the creating method is barred.
+    let src = "oo::class create ::Util {\n    constructor {} { upvar 2 x v\n        set v 0 }\n}\noo::class create ::Plain {\n    method m {} { set x 3\n        ::Util create u\n        puts $x }\n}\n";
+    assert!(
+        !o100(src).contains(&"3".to_string()),
+        "a class-command dispatch must reach the bad component, got {:?}",
+        o100(src),
+    );
+    // TN — and a method of ::Plain that performs NO dispatch at all keeps
+    // its locals even in the same module.
+    let with_quiet = "oo::class create ::Util {\n    method cv {n} { upvar 1 $n v\n        set v 0 }\n}\noo::class create ::Plain {\n    method quiet {} { set y 9\n        puts $y }\n}\n";
+    assert!(
+        o100(with_quiet).contains(&"9".to_string()),
+        "a dispatch-free method is never barred, got {:?}",
+        o100(with_quiet),
+    );
 }
 
 #[test]

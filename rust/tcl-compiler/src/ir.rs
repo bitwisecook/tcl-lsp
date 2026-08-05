@@ -857,6 +857,21 @@ impl MethodKind {
     }
 }
 
+/// Whole-module evidence about OO definitions the lowering could not
+/// statically model, grouped so consumers widen on exactly the right
+/// axis (issues #1164 / #1166).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct OoDefinitionEvidence {
+    /// An `oo::class create` / `oo::define` targeted a class whose name
+    /// is dynamic (`oo::define $cls { … }`): *any* class's methods may
+    /// have been touched, so whole-module OO evidence is incomplete.
+    pub dynamic_target: bool,
+    /// A class-reference member carried a dynamic word (`superclass $b`):
+    /// that class's ancestry is unknown, so hierarchy-scoped analysis
+    /// must fall back to whole-module widening.
+    pub dynamic_class_relations: bool,
+}
+
 /// A top-level module: procedures + top-level script.
 ///
 /// This is the only mutable IR type — it accumulates procedures and
@@ -906,12 +921,38 @@ pub struct Module {
     pub lambda_body_units: std::collections::BTreeSet<String>,
     /// Procedure names that were defined more than once.
     pub redefined_procedures: std::collections::HashSet<String>,
-    /// `TclOO` method qnames defined more than once (a later
-    /// `oo::define` / in-body redefinition replaces the body at
-    /// runtime). Method purity is forced impure for these — we can't
-    /// prove which body a given dispatch runs, so the O126 `my
-    /// <method>` deletion gate must stay conservative.
-    pub redefined_methods: std::collections::HashSet<String>,
+    /// `TclOO` methods defined more than once (a later `oo::define` /
+    /// in-body redefinition replaces the body at runtime), keyed by
+    /// method qname. [`Self::methods`] keeps the *first* body
+    /// (last-definition-wins stays with the navigation layer); each
+    /// **replacement** body is retained here in definition order (issue
+    /// #1166), so analysis consumers — the SCCP method-dispatch barrier,
+    /// O126 method purity — can scan every body a dispatch may run
+    /// instead of abstaining on the mere fact of redefinition. The union
+    /// of bodies over-approximates whichever is live at dispatch time,
+    /// so scanning all of them is sound where scanning one is not.
+    pub redefined_methods: std::collections::HashMap<String, Vec<MethodDef>>,
+    /// Class qnames with a member definition the lowering could not
+    /// statically model — a dynamic member name (`method $n …`) or a
+    /// dynamic member body (`method m {} $body`) inside an `oo::class` /
+    /// `oo::define` block. Any method of such a class may have been
+    /// (re)defined with an unknown body, so per-class analysis
+    /// (purity, the method-dispatch propagation barrier) must abstain
+    /// for the whole class.
+    pub oo_unanalysed_classes: std::collections::HashSet<String>,
+    /// Whole-module OO-definition evidence flags — see
+    /// [`OoDefinitionEvidence`].
+    pub oo_evidence: OoDefinitionEvidence,
+    /// Class-hierarchy relation declarations captured from `oo::class` /
+    /// `oo::define` bodies: `(declaring class qname, written related-class
+    /// word)` for each argument of a member whose registry grammar marks
+    /// every argument as a class reference
+    /// ([`tcl_registry::definer::MemberRefKind::Class`] — `superclass`,
+    /// `mixin`). The written word is kept as written; consumers resolve it
+    /// against the module's class set conservatively (issue #1164: the
+    /// method-dispatch propagation barrier scopes itself to
+    /// hierarchy-connected classes instead of the whole module).
+    pub class_relations: Vec<(String, String)>,
     /// `namespace import` directives captured at lowering time —
     /// `(context_namespace, absolute_pattern)` pairs. Future codegen
     /// passes pattern-match each against the final

@@ -523,6 +523,20 @@ pub struct Analyser {
     /// outside an active analysis run; handlers that need the
     /// registry must check `self.registry.is_some()`.
     pub registry: Option<&'static tcl_registry::CommandRegistry>,
+    /// Lazily-built whole-module command-mutation trust oracle for the
+    /// constant command-substitution fold (issue #1132). The analyser's own
+    /// `renamed_commands` is flow-sensitive — populated only up to the
+    /// current point of the walk — which is NOT a sound trust source for
+    /// folding (a `rename` buried in a proc body later in the file can fire
+    /// before an earlier `set`'s consumer runs). This oracle is the same
+    /// whole-module, flow-insensitive
+    /// [`crate::command_binding::scan_module_command_mutations`] scan the
+    /// optimiser's O129 fold gates on, built on first demand (the fold is
+    /// attempted only for a `set VAR [cmd …]` whose head could actually
+    /// fold — see [`crate::const_subst::head_may_fold`]) and cached for the
+    /// rest of the run. `None` = not built yet this run.
+    pub(super) command_trust:
+        Option<std::sync::Arc<crate::command_binding::ModuleCommandMutations>>,
     /// The "known command" universe for unclosed-delimiter recovery: the
     /// active registry's names plus every proc / class / command-alias the
     /// document itself defines. Populated alongside `registry` at the top
@@ -929,6 +943,7 @@ impl Analyser {
             interp_var_bindings: HashMap::new(),
             unresolved_commands_emitted: false,
             registry: None,
+            command_trust: None,
             recovery_known_commands: super::utils::RecoveryKnownCommands::default(),
             deep_param_traits: false,
             stub_overlay: None,
@@ -1917,8 +1932,41 @@ impl Analyser {
     /// starts from a clean slate.  Called at the end of every
     /// public entry point (``analyse`` / ``analyse_chunked`` /
     /// ``analyse_commands``).
+    /// The whole-module command-mutation trust oracle for constant
+    /// command-substitution folding (issue #1132), built lazily on first
+    /// demand and cached for the rest of this run — see the
+    /// [`Self::command_trust`] field doc for why the flow-sensitive
+    /// `renamed_commands` map cannot serve here. Returns `None` when no
+    /// registry is active (no fold can run then anyway).
+    ///
+    /// Cost note: building the oracle lowers the whole document once
+    /// ([`crate::lowering::lower_to_ir_with_dialect`] +
+    /// [`crate::command_binding::scan_module_command_mutations`]). Callers
+    /// gate the first call behind [`crate::const_subst::head_may_fold`], so
+    /// a document with no foldable `set VAR [cmd …]` never pays it.
+    pub(super) fn whole_file_command_trust(
+        &mut self,
+    ) -> Option<std::sync::Arc<crate::command_binding::ModuleCommandMutations>> {
+        if let Some(trust) = &self.command_trust {
+            return Some(std::sync::Arc::clone(trust));
+        }
+        let registry = self.registry?;
+        let module = crate::lowering::lower_to_ir_with_dialect(
+            &self.source,
+            registry,
+            self.lexer_config(),
+            &self.result.dialect,
+        );
+        let trust = std::sync::Arc::new(crate::command_binding::scan_module_command_mutations(
+            &module, registry,
+        ));
+        self.command_trust = Some(std::sync::Arc::clone(&trust));
+        Some(trust)
+    }
+
     pub(super) fn clear_run_state(&mut self) {
         self.registry = None;
+        self.command_trust = None;
         self.seed_namespace_key = None;
         self.seed_scope_path.clear();
         self.recovery_known_commands.clear();

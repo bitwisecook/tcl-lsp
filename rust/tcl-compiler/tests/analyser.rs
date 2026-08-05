@@ -4791,3 +4791,229 @@ mod class_factories {
         );
     }
 }
+
+// ===========================================================================
+// Constant command-substitution `set` RHS folding — issue #1132.
+//
+// The analyser's constant lattice folds `set VAR [cmd …]` through the
+// registry `const_fold` / frame-fact engine (`crate::const_subst`), so the
+// `${ns}::setdef` navigation chain resolves when `ns` was assigned a
+// constant command substitution rather than a bare literal.
+//
+// C-Tcl ground truth (tclsh 9.0.4, run while authoring): `namespace
+// qualifiers ::tc::X` → `::tc`; inside an instance method of `::tc::Chart`
+// the full chain really dispatches (`set ns [namespace qualifiers [self
+// class]]; ${ns}::setdef x y` → `::tc::setdef` runs); inside a `self
+// method`, `self class` raises `method not defined by a class`; inside a
+// `classmethod` it answers the internal `::oo::ObjN:: oo ::delegate` class,
+// never the written one.
+// ===========================================================================
+mod const_cmd_subst_set_rhs {
+    use super::*;
+    use tcl_compiler::analyser::AnalysisResult;
+
+    fn analysis(src: &str, dialect: &str) -> AnalysisResult {
+        Analyser::new().analyse(src, dialect)
+    }
+
+    fn resolutions_of(r: &AnalysisResult, head_contains: &str) -> Vec<String> {
+        r.command_invocations
+            .iter()
+            .filter(|inv| inv.name.contains(head_contains))
+            .filter_map(|inv| inv.resolved_qualified_name.clone())
+            .collect()
+    }
+
+    #[test]
+    fn a_constant_namespace_qualifiers_rhs_folds_and_resolves_the_head() {
+        // TP — the probe shape from issue #1132: zero OO involvement, a
+        // plain proc, a constant `[namespace qualifiers …]` RHS.
+        let src = concat!(
+            "namespace eval tc { proc setdef {a b} { return 1 } }\n",
+            "proc user {} {\n",
+            "    set ns [namespace qualifiers ::tc::X]\n",
+            "    ${ns}::setdef x y\n",
+            "}\n",
+        );
+        let r = analysis(src, "tcl8.6");
+        assert_eq!(
+            resolutions_of(&r, "${ns}"),
+            ["::tc::setdef"],
+            "the folded constant must drive head resolution"
+        );
+    }
+
+    #[test]
+    fn a_self_class_chain_folds_inside_an_instance_method() {
+        // TP — the ticklecharts idiom one level removed: `set ns
+        // [namespace qualifiers [self class]]` inside an instance method
+        // of `::tc::Chart` (issue #923 idx 44's full mechanic).
+        let src = concat!(
+            "namespace eval tc { proc setdef {a b} { return 1 } }\n",
+            "oo::class create ::tc::Chart {\n",
+            "    method go {} {\n",
+            "        set ns [namespace qualifiers [self class]]\n",
+            "        ${ns}::setdef x y\n",
+            "    }\n",
+            "}\n",
+        );
+        let r = analysis(src, "tcl9.0");
+        assert_eq!(
+            resolutions_of(&r, "${ns}"),
+            ["::tc::setdef"],
+            "the frame-fact fold must feed the constant lattice"
+        );
+    }
+
+    #[test]
+    fn a_class_side_method_abstains_from_the_self_class_fold() {
+        // FP guard (issue #1132 design constraint 2): `self class` never
+        // answers the written class in a class-side frame (tclsh 9.0.4:
+        // raises in a `self method`; answers the internal delegate class
+        // in a `classmethod`) — folding it would invent a value. The head
+        // must stay unresolved-as-written.
+        for member in ["classmethod go {}", "self method go {}"] {
+            let src = format!(
+                concat!(
+                    "namespace eval tc {{ proc setdef {{a b}} {{ return 1 }} }}\n",
+                    "oo::class create ::tc::Chart {{\n",
+                    "    {} {{\n",
+                    "        set ns [namespace qualifiers [self class]]\n",
+                    "        ${{ns}}::setdef x y\n",
+                    "    }}\n",
+                    "}}\n",
+                ),
+                member
+            );
+            let r = analysis(&src, "tcl9.0");
+            assert_eq!(
+                resolutions_of(&r, "${ns}"),
+                ["::${ns}::setdef"],
+                "{member}: a class-side frame must not fold [self class]"
+            );
+        }
+    }
+
+    #[test]
+    fn a_later_rename_of_the_folding_head_blocks_the_fold() {
+        // FP guard (issue #1132 design constraint 3): the trust oracle is
+        // whole-module — a `rename` AFTER the `set`, buried inside a proc
+        // body, still unbinds `namespace` from its builtin semantics
+        // before some later call can run. The mid-walk `renamed_commands`
+        // map cannot see it; the fold must still decline.
+        let src = concat!(
+            "namespace eval tc { proc setdef {a b} { return 1 } }\n",
+            "proc user {} {\n",
+            "    set ns [namespace qualifiers ::tc::X]\n",
+            "    ${ns}::setdef x y\n",
+            "}\n",
+            "proc sabotage {} { rename namespace nsx }\n",
+        );
+        let r = analysis(src, "tcl8.6");
+        assert_eq!(
+            resolutions_of(&r, "${ns}"),
+            ["::${ns}::setdef"],
+            "a whole-module rename of the head must block the fold"
+        );
+    }
+
+    #[test]
+    fn a_shadowing_proc_definition_blocks_the_fold() {
+        // FP guard — a user `proc namespace …` anywhere in the module
+        // shadows the builtin, so `[namespace qualifiers …]` no longer has
+        // builtin semantics (flow-insensitive: cross-proc call order is
+        // not statically known).
+        let src = concat!(
+            "namespace eval tc { proc setdef {a b} { return 1 } }\n",
+            "proc user {} {\n",
+            "    set ns [namespace qualifiers ::tc::X]\n",
+            "    ${ns}::setdef x y\n",
+            "}\n",
+            "proc namespace {args} { return ::evil }\n",
+        );
+        let r = analysis(src, "tcl8.6");
+        assert_eq!(
+            resolutions_of(&r, "${ns}"),
+            ["::${ns}::setdef"],
+            "a shadowed builtin must not const-fold"
+        );
+    }
+
+    #[test]
+    fn a_branch_dependent_argument_abstains() {
+        // TN — the substitution's `$q` argument has no dominating constant
+        // (two branch values), so the fold must abstain rather than pick
+        // the last-written branch.
+        let src = concat!(
+            "namespace eval a { proc go {} { return 1 } }\n",
+            "namespace eval b { proc go {} { return 1 } }\n",
+            "proc user {c} {\n",
+            "    set q ::a::X\n",
+            "    if {$c} { set q ::b::X }\n",
+            "    set ns [namespace qualifiers $q]\n",
+            "    ${ns}::go\n",
+            "}\n",
+        );
+        let r = analysis(src, "tcl8.6");
+        assert_eq!(
+            resolutions_of(&r, "${ns}"),
+            ["::${ns}::go"],
+            "a branch-dependent argument must not fold"
+        );
+    }
+
+    #[test]
+    fn per_item_path_folds_and_abstains_identically_to_the_whole_file_walk() {
+        // The per-item (incremental) path analyses each proc body in
+        // ISOLATION — it cannot see a `rename` elsewhere in the file, so
+        // the shell attaches a whole-file trust snapshot to every deferred
+        // body with a fold candidate (`DeferredBody::command_trust`).
+        // Both directions must match the whole-file walk byte-for-byte:
+        // the TP still folds, the FP still abstains.
+        let tp = concat!(
+            "namespace eval tc { proc setdef {a b} { return 1 } }\n",
+            "proc user {} {\n",
+            "    set ns [namespace qualifiers ::tc::X]\n",
+            "    ${ns}::setdef x y\n",
+            "}\n",
+        );
+        let fp = concat!(
+            "namespace eval tc { proc setdef {a b} { return 1 } }\n",
+            "proc user {} {\n",
+            "    set ns [namespace qualifiers ::tc::X]\n",
+            "    ${ns}::setdef x y\n",
+            "}\n",
+            "proc sabotage {} { rename namespace nsx }\n",
+        );
+        for (src, expected) in [(tp, "::tc::setdef"), (fp, "::${ns}::setdef")] {
+            let whole = analysis(src, "tcl8.6");
+            let per_item = Analyser::new().analyse_per_item(src, "tcl8.6");
+            assert_eq!(
+                resolutions_of(&whole, "${ns}"),
+                [expected],
+                "whole-file walk for {src:?}"
+            );
+            assert_eq!(
+                resolutions_of(&per_item, "${ns}"),
+                resolutions_of(&whole, "${ns}"),
+                "per-item must match the whole-file walk for {src:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_dominating_constant_argument_folds_through_the_lattice() {
+        // TP — the substitution reads a `$q` that IS a dominating
+        // constant; the fold chains through the constant lattice.
+        let src = concat!(
+            "namespace eval tc { proc setdef {a b} { return 1 } }\n",
+            "proc user {} {\n",
+            "    set q ::tc::X\n",
+            "    set ns [namespace qualifiers $q]\n",
+            "    ${ns}::setdef x y\n",
+            "}\n",
+        );
+        let r = analysis(src, "tcl8.6");
+        assert_eq!(resolutions_of(&r, "${ns}"), ["::tc::setdef"]);
+    }
+}
