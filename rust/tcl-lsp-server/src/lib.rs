@@ -31,6 +31,7 @@
 #![forbid(unsafe_code)]
 
 pub mod config_ini;
+pub mod uri_norm;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::ControlFlow;
@@ -6119,7 +6120,7 @@ impl Backend {
         let mut resolved = None;
         let mut analysed = Vec::new();
         for path in files {
-            let Some(target_uri) = Uri::from_file_path(&path) else {
+            let Some(target_uri) = canonical_file_uri(&path) else {
                 continue;
             };
             let Some(target_doc) = self.read_document(&target_uri).await else {
@@ -10967,7 +10968,7 @@ impl Backend {
             tasks.spawn(async move {
                 let _permit = permit;
                 tokio::task::spawn_blocking(move || {
-                    let uri = Uri::from_file_path(&path)?;
+                    let uri = canonical_file_uri(&path)?;
                     if open.contains(&uri) {
                         return None;
                     }
@@ -16346,15 +16347,39 @@ fn compute_inherited_requires(
     out
 }
 
+/// The URI for a file path, in the **one canonical form** both sides of the
+/// protocol use (issue #1214).
+///
+/// Every URI the server constructs for itself goes through here — the workspace
+/// scan, the `source` / autoload cross-file resolver, the entry-point resolver.
+/// Client-sent URIs are put into the same form at the transport boundary
+/// ([`uri_norm::normalise_uris_in_params`]), so a file the server found on disk
+/// and the same file open in the editor are the same string.  Without that,
+/// they are two documents to everything keyed by URI: find-references,
+/// workspace symbols, and rename each see one file twice.
+///
+/// The canonicalisation is `ls_types`' own `from_file_path` plus
+/// [`uri_norm::canonical_uri_string`], whose whole job is the one place the two
+/// implementations disagree: `from_file_path` upper-cases a Windows drive
+/// letter, `vscode-uri`'s `URI.file()` lower-cases it.
+#[must_use]
+pub fn canonical_file_uri<P: AsRef<Path>>(path: P) -> Option<Uri> {
+    let raw = Uri::from_file_path(path)?;
+    match uri_norm::canonical_uri_string(raw.as_str()) {
+        std::borrow::Cow::Borrowed(_) => Some(raw),
+        std::borrow::Cow::Owned(canonical) => Uri::from_str(&canonical).ok(),
+    }
+}
+
 /// Resolve a literal `source` path written in `parent_uri` to the child
 /// document's URI string, keyed the same way the workspace index keys
-/// documents (`Uri::from_file_path`).  `None` for a non-`file:` URI or an
+/// documents ([`canonical_file_uri`]).  `None` for a non-`file:` URI or an
 /// unmappable path.
 fn resolve_source_uri(parent_uri: &str, raw_path: &str) -> Option<String> {
     let parent = Uri::from_str(parent_uri).ok()?;
     let parent_path = parent.to_file_path()?;
     let child = tcl_lsp_core::source_graph::resolve_source_target(parent_path.as_ref(), raw_path);
-    Uri::from_file_path(&child).map(|u| u.as_str().to_owned())
+    canonical_file_uri(&child).map(|u| u.as_str().to_owned())
 }
 
 /// [`resolve_source_uri`] extended with the M9 stage-9.2 computed-path tier:
@@ -16372,7 +16397,7 @@ fn resolve_source_edge(parent_uri: &str, raw_path: &str, is_literal: bool) -> Op
     let folded =
         tcl_compiler::auto_path_eval::evaluate_auto_path_expr(raw_path, parent_path.to_str())?;
     let child = tcl_lsp_core::source_graph::resolve_source_target(parent_path.as_ref(), &folded);
-    Uri::from_file_path(&child).map(|u| u.as_str().to_owned())
+    canonical_file_uri(&child).map(|u| u.as_str().to_owned())
 }
 
 /// Resolve a configured entry-point path (relative to `folder_root`, or
@@ -16384,7 +16409,7 @@ fn entry_point_uri(entry: &str, folder_root: Option<&Path>) -> Option<String> {
     } else {
         tcl_lsp_core::source_graph::resolve_under(folder_root?, entry)
     };
-    Uri::from_file_path(&path).map(|u| u.as_str().to_owned())
+    canonical_file_uri(&path).map(|u| u.as_str().to_owned())
 }
 
 /// The package name a W120 says is missing, read from its quick-fix

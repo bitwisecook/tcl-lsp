@@ -561,7 +561,10 @@ impl Lsp {
         }
     }
 
-    fn spawn(config: Value) -> Self {
+    /// Spawn the server **without** the `initialize` handshake, so a caller can
+    /// drive `initialize` itself — e.g. with a deliberately malformed folder
+    /// URI.
+    pub fn spawn(config: Value) -> Self {
         let bin = env!("CARGO_BIN_EXE_tcl-lsp-server");
 
         // Isolate the server from the developer machine's config/cache so a

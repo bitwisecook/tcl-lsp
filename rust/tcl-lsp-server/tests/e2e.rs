@@ -61,6 +61,8 @@ mod issue1001;
 mod issue1088_namespace_symbols;
 #[path = "e2e/issue1122_sticky_scroll.rs"]
 mod issue1122_sticky_scroll;
+#[path = "e2e/issue1214_uri_canonicalisation.rs"]
+mod issue1214_uri_canonicalisation;
 #[path = "e2e/issue923_class_refs.rs"]
 mod issue923_class_refs;
 #[path = "e2e/issue923_crossdoc.rs"]

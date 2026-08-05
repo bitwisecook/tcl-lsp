@@ -272,3 +272,96 @@ fn document_symbol_ranges_stay_inside_the_document() {
         assert_symbol_ranges_in_bounds(&mut lsp, &uri, &text, &label);
     }
 }
+
+/// A script whose top level is control flow, not definitions — the case the
+/// outline model has nothing to say about and the folding model must carry.
+///
+/// The `switch` is the shape from issue #1216: its arms are a single
+/// clause-list argument, so before that fix the only fold covering a line
+/// inside an arm was the whole `switch` block and the sticky bar pinned the
+/// `switch` header rather than the arm's own pattern line.
+const CONTROL_FLOW_SCRIPT: &str = concat!(
+    "foreach item $items {\n",              // 0
+    "    if {[string match a* $item]} {\n", // 1
+    "        puts first\n",                 // 2
+    "        puts second\n",                // 3
+    "    }\n",                              // 4
+    "    switch -glob -- $item {\n",        // 5
+    "        \"admin*\" {\n",               // 6
+    "            puts denied\n",            // 7
+    "            puts logged\n",            // 8
+    "            puts done\n",              // 9
+    "        }\n",                          // 10
+    "        default {\n",                  // 11
+    "            puts allowed\n",           // 12
+    "            puts logged\n",            // 13
+    "            puts done\n",              // 14
+    "        }\n",                          // 15
+    "    }\n",                              // 16
+    "}\n",                                  // 17
+);
+
+/// The chain of folds VS Code's sticky widget would stack for a viewport whose
+/// top line is 0-based `line`, outermost first, after applying its 1.105
+/// candidate filter (`endLineNumber > startLineNumber + 1`, in 1-based Monaco
+/// lines) — the same replication the extension's own sticky-scroll suite uses.
+fn sticky_chain(ranges: &[Value], line: i64, lines: i64) -> Vec<(i64, i64)> {
+    let mut covering: Vec<(i64, i64)> = ranges
+        .iter()
+        .filter_map(|r| Some((r["startLine"].as_i64()?, r["endLine"].as_i64()?)))
+        // collectSyntaxRanges converts to 1-based and drops out-of-bounds …
+        .map(|(s, e)| (s + 1, e + 1))
+        .filter(|&(s, e)| e > s && e <= lines)
+        // … then the candidate filter drops anything spanning no more than its
+        // own header line plus one.
+        .filter(|&(s, e)| e > s + 1)
+        .filter(|&(s, e)| line + 1 >= s && line < e)
+        .collect();
+    covering.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
+    covering
+}
+
+#[test]
+fn a_control_flow_script_pins_the_innermost_block_it_is_scrolled_into() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, CONTROL_FLOW_SCRIPT);
+    let result = lsp.folding_range(&uri);
+    let ranges = result.as_array().expect("folding ranges").clone();
+    let lines = line_count(CONTROL_FLOW_SCRIPT);
+
+    // Inside the `admin*` arm: the chain must reach the arm itself, not stop
+    // at the enclosing `switch`.
+    let chain = sticky_chain(&ranges, 8, lines);
+    assert_eq!(
+        chain.first().copied(),
+        Some((1, 17)),
+        "the outer foreach must be the outermost pinned block: {result}"
+    );
+    assert_eq!(
+        chain.last().copied(),
+        Some((7, 10)),
+        "the `admin*` arm must be the innermost pinned block: {result}"
+    );
+
+    // Inside the `default` arm: same, for the other arm.
+    let chain = sticky_chain(&ranges, 13, lines);
+    assert_eq!(
+        chain.last().copied(),
+        Some((12, 15)),
+        "the `default` arm must be the innermost pinned block: {result}"
+    );
+
+    // Inside the `if` body: the chain reaches the `if`, and the `switch` — a
+    // sibling, not an ancestor — is not in it.
+    let chain = sticky_chain(&ranges, 3, lines);
+    assert_eq!(
+        chain.last().copied(),
+        Some((2, 4)),
+        "the `if` body must be the innermost pinned block: {result}"
+    );
+    assert!(
+        !chain.iter().any(|&(s, _)| s == 6),
+        "a sibling switch must not be pinned: {chain:?}"
+    );
+}

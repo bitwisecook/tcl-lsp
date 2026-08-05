@@ -27,9 +27,48 @@
 #![forbid(unsafe_code)]
 
 use tcl_lsp_server::Backend;
+use tcl_lsp_server::uri_norm::normalise_uris_in_params;
 use tower::ServiceExt as _;
-use tower_lsp_server::jsonrpc::Response;
+use tower_lsp_server::jsonrpc::{Request, Response};
 use tower_lsp_server::{LspService, Server};
+
+/// Put every URI in an incoming message into the one canonical form, before it
+/// is deserialised.
+///
+/// The single boundary at which client-sent URIs meet the ones the server
+/// constructs for itself (`tcl_lsp_server::canonical_file_uri`) — issue #1214.
+/// Two jobs:
+///
+/// * **Accept-then-normalise.** Some `JetBrains`- and Neovim-style clients send a
+///   folder URI with the spaces left raw. That is not a valid URI, so `Uri`'s
+///   `Deserialize` rejects it and the whole `initialize` fails — the session
+///   never starts. Repairing it here means such a client is accepted.
+/// * **Canonicalise.** A client that upper-cases a Windows drive letter (or
+///   lower-cases its percent-escapes) would otherwise spell a file differently
+///   from the way the workspace scan spells it, and everything keyed by URI —
+///   find-references, workspace symbols, rename — would see one file as two.
+///
+/// Here rather than in each handler because there is one of it and sixty of
+/// them, and because the document store must key on the same spelling a later
+/// request looks up. Inert for a conforming client: a VS Code message comes
+/// through byte-for-byte unchanged.
+fn normalise_request_uris(request: Request) -> Request {
+    let (method, id, params) = request.into_parts();
+    let params = params.map(|mut p| {
+        normalise_uris_in_params(&mut p);
+        p
+    });
+    let builder = Request::build(method);
+    let builder = match id {
+        Some(id) => builder.id(id),
+        None => builder,
+    };
+    let builder = match params {
+        Some(params) => builder.params(params),
+        None => builder,
+    };
+    builder.finish()
+}
 
 /// Inject `typeHierarchyProvider` into the serialised `initialize` response.
 ///
@@ -91,10 +130,13 @@ async fn serve() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
     let (service, socket) = LspService::new(Backend::new);
-    // Wrap the service so every outgoing response passes through the
-    // type-hierarchy capability shim (a no-op for all but `initialize`).
-    let service =
-        service.map_response(|resp: Option<Response>| resp.map(inject_type_hierarchy_provider));
+    // Wrap the service so every incoming message passes through the URI
+    // canonicalisation shim (a no-op for a conforming client) and every
+    // outgoing response through the type-hierarchy capability shim (a no-op for
+    // all but `initialize`).
+    let service = service
+        .map_request(normalise_request_uris)
+        .map_response(|resp: Option<Response>| resp.map(inject_type_hierarchy_provider));
     // INVARIANT (no lost diagnostics under a slow client): the diagnostics
     // delivery path relies on this transport being *bounded and
     // backpressured*. `tower-lsp-server` 0.23 gives the `Client` a bounded
