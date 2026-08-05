@@ -34,6 +34,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-command",
@@ -42,6 +43,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-width",
@@ -50,6 +52,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-bg",
@@ -58,6 +61,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-background",
@@ -66,6 +70,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-activebackground",
@@ -74,6 +79,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-troughcolor",
@@ -82,6 +88,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-relief",
@@ -90,6 +97,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-borderwidth",
@@ -98,6 +106,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-elementborderwidth",
@@ -106,6 +115,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-jump",
@@ -114,6 +124,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-activerelief",
@@ -122,6 +133,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -130,6 +142,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -138,6 +151,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightbackground",
@@ -146,6 +160,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightcolor",
@@ -154,6 +169,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightthickness",
@@ -162,6 +178,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-repeatdelay",
@@ -170,6 +187,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-repeatinterval",
@@ -178,6 +196,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

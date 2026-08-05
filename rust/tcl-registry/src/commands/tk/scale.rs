@@ -34,6 +34,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-to",
@@ -42,6 +43,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-variable",
@@ -50,6 +52,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-orient",
@@ -58,6 +61,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-resolution",
@@ -66,6 +70,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-tickinterval",
@@ -74,6 +79,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-label",
@@ -82,6 +88,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-length",
@@ -90,6 +97,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-width",
@@ -98,6 +106,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-sliderlength",
@@ -106,6 +115,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-sliderrelief",
@@ -114,6 +124,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-showvalue",
@@ -122,6 +133,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-digits",
@@ -130,6 +142,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-bigincrement",
@@ -138,6 +151,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-command",
@@ -146,6 +160,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-state",
@@ -154,6 +169,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-font",
@@ -162,6 +178,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-bg",
@@ -170,6 +187,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-fg",
@@ -178,6 +196,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-troughcolor",
@@ -186,6 +205,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-activebackground",
@@ -194,6 +214,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightbackground",
@@ -202,6 +223,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightcolor",
@@ -210,6 +232,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightthickness",
@@ -218,6 +241,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-relief",
@@ -226,6 +250,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-borderwidth",
@@ -234,6 +259,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -242,6 +268,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -250,6 +277,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-repeatdelay",
@@ -258,6 +286,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-repeatinterval",
@@ -266,6 +295,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

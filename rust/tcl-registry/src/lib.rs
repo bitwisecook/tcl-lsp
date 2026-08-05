@@ -50,6 +50,7 @@
 
 #![deny(missing_docs)]
 
+pub mod abbrev;
 pub mod arg_role;
 pub mod arity;
 pub mod base_objects;
@@ -99,6 +100,7 @@ pub mod version;
 /// `use crate::prelude::*;` in each command file brings in all the
 /// types needed to construct a `CommandSpec`.
 pub mod prelude {
+    pub use crate::abbrev::{KeywordMatch, KeywordTable, PrefixMatching};
     pub use crate::arg_role::{AppendedArity, ArgRole};
     pub use crate::arity::Arity;
     pub use crate::body_kind::BodyKind;

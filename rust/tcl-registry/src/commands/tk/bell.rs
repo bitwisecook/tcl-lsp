@@ -34,6 +34,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-nice",
@@ -42,6 +43,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

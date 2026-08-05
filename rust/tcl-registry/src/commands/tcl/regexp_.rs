@@ -79,6 +79,7 @@ const fn flag(name: &'static str, detail: &'static str) -> OptionSpec {
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     }
 }
 
@@ -138,6 +139,7 @@ const REGEXP_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     flag(
         "-about",

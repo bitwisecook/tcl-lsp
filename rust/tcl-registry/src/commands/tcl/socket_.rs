@@ -27,6 +27,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-myport",
@@ -35,6 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-async",
@@ -43,6 +45,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-server",
@@ -52,6 +55,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-reuseaddr",
@@ -60,6 +64,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-reuseport",
@@ -68,6 +73,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

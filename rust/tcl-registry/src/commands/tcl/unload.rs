@@ -59,6 +59,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-keeplibrary",
@@ -67,6 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "--",
@@ -75,6 +77,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

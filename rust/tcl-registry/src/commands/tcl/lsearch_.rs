@@ -49,6 +49,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-ascii",
@@ -57,6 +58,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     // `-bisect` first appears in the Tcl 8.6 manpage — absent from both
     // the 8.4 and 8.5 option lists.
@@ -67,6 +69,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL86_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-decreasing",
@@ -75,6 +78,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-dictionary",
@@ -83,6 +87,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-exact",
@@ -91,6 +96,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-glob",
@@ -99,6 +105,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-increasing",
@@ -107,6 +114,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     // `-index`, `-nocase`, `-subindices` were added to `lsearch` in Tcl 8.5
     // (absent from the 8.4 manpage's option list).
@@ -117,6 +125,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-inline",
@@ -125,6 +134,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-integer",
@@ -133,6 +143,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-nocase",
@@ -141,6 +152,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-not",
@@ -149,6 +161,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-real",
@@ -157,6 +170,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-regexp",
@@ -165,6 +179,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-sorted",
@@ -173,6 +188,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-start",
@@ -181,6 +197,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     // `lsearch -stride` is Tcl 9.0-only, TIP 351 (tclsh8.6 rejects it with
     // "bad option -stride"; the 8.6 `lsort -stride` is the separate TIP 326).
@@ -195,6 +212,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-subindices",
@@ -203,6 +221,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     // NOTE: `lsearch` does NOT declare `--` in its option table.
     // This keeps W304 (missing-option-terminator) silent for

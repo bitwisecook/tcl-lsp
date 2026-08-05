@@ -45,6 +45,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-aaaa",
@@ -53,6 +54,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-ptr",
@@ -61,6 +63,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-txt",
@@ -69,6 +72,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-mx",
@@ -77,6 +81,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

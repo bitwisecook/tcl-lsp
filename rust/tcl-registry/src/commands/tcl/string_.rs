@@ -954,6 +954,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-length",
@@ -966,6 +967,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -988,6 +990,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-length",
@@ -1000,6 +1003,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -1149,6 +1153,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-failindex",
@@ -1161,6 +1166,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -1263,6 +1269,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 dialects: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         arg_types: &[
@@ -1318,6 +1325,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 dialects: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         ..SubCommand::DEFAULT

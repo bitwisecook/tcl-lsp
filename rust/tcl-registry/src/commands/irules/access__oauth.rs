@@ -45,6 +45,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-payload",
@@ -53,6 +54,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-key",
@@ -61,6 +63,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-alg",
@@ -69,6 +72,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-ignore-cert-expiry",
@@ -77,6 +81,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

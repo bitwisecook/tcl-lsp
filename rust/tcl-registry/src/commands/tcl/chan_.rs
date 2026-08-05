@@ -165,6 +165,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-buffering",
@@ -178,6 +179,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-buffersize",
@@ -186,6 +188,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-encoding",
@@ -194,6 +197,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-eofchar",
@@ -202,6 +206,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-translation",
@@ -214,6 +219,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-profile",
@@ -227,6 +233,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     // Socket / terminal channel-type options, all Tcl 9.0+ (TIPs 344 and
     // 160). Settable only on the matching channel type; documented on
@@ -239,6 +246,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-keepalive",
@@ -247,6 +255,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-inputmode",
@@ -260,6 +269,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 
@@ -272,6 +282,7 @@ const COPY_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-command",
@@ -280,6 +291,7 @@ const COPY_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 
@@ -291,6 +303,7 @@ const PUTS_OPTIONS: &[OptionSpec] = &[OptionSpec {
     dialects: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
 }];
 
 /// `chan read`'s `-nonewline` flag.
@@ -301,6 +314,7 @@ const READ_OPTIONS: &[OptionSpec] = &[OptionSpec {
     dialects: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
 }];
 
 /// `chan close`'s `direction` positional argument (index 1) — Tcl 8.6+
@@ -827,6 +841,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-buffering",
@@ -835,6 +850,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-buffersize",
@@ -843,6 +859,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-encoding",
@@ -851,6 +868,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-eofchar",
@@ -859,6 +877,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-profile",
@@ -867,6 +886,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-translation",
@@ -875,6 +895,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

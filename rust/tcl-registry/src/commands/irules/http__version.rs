@@ -82,6 +82,7 @@ pub const fn spec() -> CommandSpec {
                 dialects: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         side_effects: &[SideEffect {

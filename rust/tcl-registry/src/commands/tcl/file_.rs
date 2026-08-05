@@ -86,6 +86,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -94,6 +95,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -127,6 +129,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -135,6 +138,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -272,6 +276,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-hard",
@@ -280,6 +285,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -462,6 +468,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -470,6 +477,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

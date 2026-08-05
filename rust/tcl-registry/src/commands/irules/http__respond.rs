@@ -65,6 +65,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-content",
@@ -73,6 +74,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-ifile",
@@ -81,6 +83,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-noserver",
@@ -89,6 +92,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-reset",
@@ -97,6 +101,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

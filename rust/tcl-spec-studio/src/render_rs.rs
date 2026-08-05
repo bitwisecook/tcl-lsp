@@ -485,6 +485,9 @@ fn option_expr(entry: &Value, indent: &str) -> String {
     if let Some(lifecycle) = lifecycle_expr(entry) {
         parts.push(format!("{inner}lifecycle: {lifecycle},"));
     }
+    if let Some(min_abbrev) = entry["min_abbrev"].as_u64() {
+        parts.push(format!("{inner}min_abbrev: Some({min_abbrev}),"));
+    }
     format!(
         "{indent}OptionSpec {{\n{}\n{inner}..OptionSpec::DEFAULT\n{indent}}},",
         parts.join("\n")
@@ -670,6 +673,7 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "taintColour" => "TaintColour",
         "dialects" => "DialectSet",
         "defaultFormFirstWord" => "DefaultFormFirstWord",
+        "prefixMatching" => "PrefixMatching",
         _ => "Unknown",
     }
 }

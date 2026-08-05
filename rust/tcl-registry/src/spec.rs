@@ -22,6 +22,7 @@
 //! compiler, analyser, formatter, LSP, and codegen need to know about
 //! a Tcl command. One file per command, one `CommandSpec` per file.
 
+use crate::abbrev::{Keyword, KeywordMatch, KeywordTable, PrefixMatching};
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
 use crate::body_kind::BodyKind;
@@ -456,6 +457,15 @@ pub struct CommandSpec {
 
     /// Subcommands (for `dict`, `string`, `info`, etc.).
     pub subcommands: &'static [SubCommand],
+
+    /// Whether this command's keyword tables ([`Self::subcommands`] and
+    /// [`Self::options`]) honour unique-prefix abbreviation.  The default,
+    /// [`PrefixMatching::Enabled`], is C Tcl's `Tcl_GetIndexFromObj`
+    /// behaviour (`string le` ⇒ `string length`).  Set
+    /// [`PrefixMatching::Strict`] for a table whose C side opts out
+    /// (`TCL_INDEX_STRICT`); the analyser applies the same override for a
+    /// script-level ensemble it saw configured with `-prefixes 0`.
+    pub prefix_matching: PrefixMatching,
 
     /// Whether unknown subcommands are accepted (for dialect packs).
     pub allow_unknown_subcommands: bool,
@@ -926,6 +936,36 @@ pub struct CommandSpec {
 /// unconditionally, so purely positional commands/subcommands are
 /// untouched. Dialect-agnostic — callers that need dialect gating (e.g. an
 /// option added in a later Tcl release) should filter `options` first.
+/// Build an option [`KeywordTable`] from an option iterator, applying the
+/// dialect and lifecycle filters and including declared aliases (Tcl's own
+/// option table holds them, so `-bd` prefix-matches exactly like
+/// `-borderwidth`).
+fn option_table_from<'a>(
+    options: impl Iterator<Item = &'a OptionSpec>,
+    dialect: Option<DialectSet>,
+    parent_dialects: Option<DialectSet>,
+    package_version: Option<&str>,
+    prefix_matching: PrefixMatching,
+) -> KeywordTable<'static> {
+    let mut keywords: Vec<Keyword<'static>> = Vec::new();
+    for opt in options {
+        if !opt.supports_dialect(dialect, parent_dialects)
+            || !opt.available_for_version(package_version)
+        {
+            continue;
+        }
+        for name in std::iter::once(opt.name).chain(opt.aliases.iter().copied()) {
+            if !keywords.iter().any(|k| k.name == name) {
+                keywords.push(Keyword {
+                    name,
+                    min_abbrev: opt.min_abbrev,
+                });
+            }
+        }
+    }
+    KeywordTable::from_keywords(keywords, prefix_matching)
+}
+
 fn leading_option_word_count(options: &[OptionSpec], args: &[&str]) -> usize {
     if options.is_empty() {
         return 0;
@@ -1006,6 +1046,7 @@ impl CommandSpec {
         var_elements_effect: None,
         arg_types: &[],
         subcommands: &[],
+        prefix_matching: PrefixMatching::Enabled,
         allow_unknown_subcommands: false,
         default_form_first_word: None,
         hover: None,
@@ -1142,6 +1183,93 @@ impl CommandSpec {
             .unwrap_or_default()
     }
 
+    /// This command's subcommand keyword table, filtered to what exists for
+    /// `dialect` and `package_version`.
+    ///
+    /// The table is what [`crate::abbrev`] resolves against, so an
+    /// abbreviated word is judged against exactly the keywords that exist at
+    /// the target release — a prefix unique in 8.5 can be ambiguous in 8.6.
+    ///
+    /// `prefix_override` lets a caller force [`PrefixMatching::Strict`] for a
+    /// call site the analyser saw configured with
+    /// `namespace ensemble … -prefixes 0`; `None` uses the declared
+    /// [`Self::prefix_matching`].
+    #[must_use]
+    pub fn subcommand_table(
+        &self,
+        dialect: Option<DialectSet>,
+        package_version: Option<&str>,
+        prefix_override: Option<PrefixMatching>,
+    ) -> KeywordTable<'static> {
+        let parent = self.dialects;
+        KeywordTable::from_keywords(
+            self.subcommands
+                .iter()
+                .filter(|sub| match (dialect, sub.dialects.or(parent)) {
+                    (Some(want), Some(have)) => have.intersects(want),
+                    _ => true,
+                })
+                .filter(|sub| sub.available_for_version(package_version))
+                .map(|sub| Keyword {
+                    name: sub.name,
+                    min_abbrev: sub.min_abbrev,
+                }),
+            prefix_override.unwrap_or(self.prefix_matching),
+        )
+    }
+
+    /// This command's option keyword table (canonical spellings and declared
+    /// aliases), filtered to what exists for `dialect` and `package_version`.
+    #[must_use]
+    pub fn option_table(
+        &self,
+        dialect: Option<DialectSet>,
+        package_version: Option<&str>,
+        prefix_override: Option<PrefixMatching>,
+    ) -> KeywordTable<'static> {
+        option_table_from(
+            self.options
+                .iter()
+                .chain(self.command_forms.iter().flat_map(|f| f.options.iter())),
+            dialect,
+            self.dialects,
+            package_version,
+            prefix_override.unwrap_or(self.prefix_matching),
+        )
+    }
+
+    /// Resolve a subcommand *word* — exact, abbreviated, ambiguous, or
+    /// unknown — against this command's table for `dialect` and
+    /// `package_version`.
+    ///
+    /// This is the one entry point every consumer uses, so the analyser,
+    /// semantic tokens, hover, completion, signature help, the formatter, and
+    /// the minifier cannot drift apart on what an abbreviation means.
+    #[must_use]
+    pub fn resolve_subcommand_word(
+        &self,
+        word: &str,
+        dialect: Option<DialectSet>,
+        package_version: Option<&str>,
+        prefix_override: Option<PrefixMatching>,
+    ) -> KeywordMatch<'static> {
+        self.subcommand_table(dialect, package_version, prefix_override)
+            .resolve(word)
+    }
+
+    /// Resolve an option word against this command's option table.
+    #[must_use]
+    pub fn resolve_option_word(
+        &self,
+        word: &str,
+        dialect: Option<DialectSet>,
+        package_version: Option<&str>,
+        prefix_override: Option<PrefixMatching>,
+    ) -> KeywordMatch<'static> {
+        self.option_table(dialect, package_version, prefix_override)
+            .resolve(word)
+    }
+
     /// Resolve a subcommand word to its [`SubCommand`], accepting a unique
     /// non-empty prefix the way Tcl's ensemble dispatch (`Tcl_GetIndexFromObj`)
     /// does: `string le` ⇒ `length`, `info ex` ⇒ `exists`. An exact match
@@ -1179,21 +1307,26 @@ impl CommandSpec {
         word: &str,
         avail: impl Fn(&SubCommand) -> bool,
     ) -> Option<&SubCommand> {
-        if word.is_empty() {
-            return None;
-        }
-        if let Some(exact) = self.subcommands.iter().find(|s| s.name == word && avail(s)) {
-            return Some(exact);
-        }
-        let mut hits = self
-            .subcommands
+        // One matcher for the whole codebase: build the visible table and ask
+        // `crate::abbrev`. `Ambiguous` and `Unknown` both collapse to `None`
+        // here because this accessor's contract is "the subcommand or
+        // nothing"; callers that need to tell the two apart (the ambiguity
+        // diagnostic, the formatter's expansion) use
+        // [`Self::resolve_subcommand_word`] instead.
+        let table = KeywordTable::from_keywords(
+            self.subcommands
+                .iter()
+                .filter(|s| avail(s))
+                .map(|s| Keyword {
+                    name: s.name,
+                    min_abbrev: s.min_abbrev,
+                }),
+            self.prefix_matching,
+        );
+        let canonical = table.resolve(word).unique()?;
+        self.subcommands
             .iter()
-            .filter(|s| s.name.starts_with(word) && avail(s));
-        let first = hits.next()?;
-        if hits.next().is_some() {
-            return None; // ambiguous prefix
-        }
-        Some(first)
+            .find(|s| s.name == canonical && avail(s))
     }
 
     /// Return static arg role for a given index, if declared.
@@ -1548,6 +1681,16 @@ pub struct SubCommand {
     /// Per-subcommand options.
     pub options: &'static [OptionSpec],
 
+    /// Documented minimum abbreviation length for this subcommand's own
+    /// name, when the command promises a longer minimum than uniqueness
+    /// alone requires.  `None` = uniqueness is the only constraint.
+    pub min_abbrev: Option<u8>,
+
+    /// Whether this subcommand's own keyword tables
+    /// ([`Self::sub_subcommands`] and [`Self::options`]) honour
+    /// unique-prefix abbreviation.
+    pub prefix_matching: PrefixMatching,
+
     /// Enumerable positional-argument values, keyed by 0-based
     /// argument index *after* the subcommand word.  Drives
     /// value completion — e.g. `string is <class>` declares
@@ -1761,6 +1904,8 @@ impl SubCommand {
         analyser_hook: None,
         command_table_effect: None,
         options: &[],
+        min_abbrev: None,
+        prefix_matching: PrefixMatching::Enabled,
         arg_values: &[],
         versioned_arg_values: &[],
         subcommand_forms: &[],
@@ -1816,6 +1961,40 @@ impl SubCommand {
     #[must_use]
     pub fn lifecycle_state(&self, package_version: Option<&str>) -> LifecycleState {
         self.lifecycle.state_at(package_version)
+    }
+
+    /// This subcommand's option keyword table, filtered to what exists for
+    /// `dialect` and `package_version`. See
+    /// [`CommandSpec::option_table`].
+    #[must_use]
+    pub fn option_table(
+        &self,
+        dialect: Option<DialectSet>,
+        package_version: Option<&str>,
+        prefix_override: Option<PrefixMatching>,
+    ) -> KeywordTable<'static> {
+        option_table_from(
+            self.options
+                .iter()
+                .chain(self.subcommand_forms.iter().flat_map(|f| f.options.iter())),
+            dialect,
+            self.dialects,
+            package_version,
+            prefix_override.unwrap_or(self.prefix_matching),
+        )
+    }
+
+    /// Resolve an option word against this subcommand's option table.
+    #[must_use]
+    pub fn resolve_option_word(
+        &self,
+        word: &str,
+        dialect: Option<DialectSet>,
+        package_version: Option<&str>,
+        prefix_override: Option<PrefixMatching>,
+    ) -> KeywordMatch<'static> {
+        self.option_table(dialect, package_version, prefix_override)
+            .resolve(word)
     }
 
     /// Whether an enumerable positional argument value exists at

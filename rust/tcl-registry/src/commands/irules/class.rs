@@ -36,6 +36,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-value",
@@ -44,6 +45,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -52,6 +54,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-index",
@@ -60,6 +63,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-element",
@@ -68,6 +72,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-nocase",
@@ -76,6 +81,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -84,6 +90,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -104,6 +111,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-value",
@@ -112,6 +120,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -120,6 +129,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-index",
@@ -128,6 +138,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-element",
@@ -136,6 +147,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-nocase",
@@ -144,6 +156,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -152,6 +165,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -180,6 +194,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -188,6 +203,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -196,6 +212,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -240,6 +257,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-list",
@@ -248,6 +266,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -256,6 +275,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -276,6 +296,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-list",
@@ -284,6 +305,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -292,6 +314,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -318,6 +341,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -326,6 +350,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -334,6 +359,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -388,6 +414,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-value",
@@ -396,6 +423,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -404,6 +432,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-index",
@@ -412,6 +441,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-element",
@@ -420,6 +450,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-nocase",
@@ -428,6 +459,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-list",
@@ -436,6 +468,7 @@ pub const fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

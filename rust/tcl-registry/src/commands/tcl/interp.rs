@@ -157,6 +157,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -165,6 +166,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -193,6 +195,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -201,6 +204,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -232,6 +236,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 dialects: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         ..SubCommand::DEFAULT
@@ -330,6 +335,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-namespace",
@@ -344,6 +350,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Namespace in which to invoke the hidden command. Ignored if -global is also given.",
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -352,6 +359,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Marks the end of switches, so hiddenCmdName may itself start with -.",
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -392,6 +400,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-granularity",
@@ -400,6 +409,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-milliseconds",
@@ -408,6 +418,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-seconds",
@@ -416,6 +427,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-value",
@@ -424,6 +436,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

@@ -166,6 +166,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 dialects: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         ..SubCommand::DEFAULT
@@ -197,6 +198,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 dialects: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         analyser_hook: Some(crate::hooks::AnalyserHookId::PackageRequire),

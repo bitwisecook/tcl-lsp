@@ -18,6 +18,7 @@
 
 //! Documentation and completion metadata for LSP features.
 
+use crate::abbrev::Keyword;
 use crate::arg_role::{AppendedArity, ArgRole};
 use crate::body_kind::BodyKind;
 use crate::dialects::DialectSet;
@@ -370,6 +371,12 @@ pub struct OptionSpec {
     /// resolved from `package require` — orthogonal to `dialects` (which
     /// gates on the Tcl *core* version).
     pub lifecycle: Lifecycle,
+    /// Documented minimum abbreviation length for this option, when the
+    /// command promises a longer minimum than uniqueness alone requires.
+    /// `None` (the norm) means Tcl's `Tcl_GetIndexFromObj` rule applies:
+    /// **any** unique prefix resolves (`lsearch -noc` ⇒ `-nocase`).  See
+    /// [`crate::abbrev`].
+    pub min_abbrev: Option<u8>,
 }
 
 impl OptionSpec {
@@ -381,7 +388,17 @@ impl OptionSpec {
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     };
+
+    /// This option as a [`Keyword`] for abbreviation resolution.
+    #[must_use]
+    pub const fn as_keyword(&self) -> Keyword<'static> {
+        Keyword {
+            name: self.name,
+            min_abbrev: self.min_abbrev,
+        }
+    }
 
     /// Whether this option consumes a following value (any arity ≥ 1).
     #[must_use]
@@ -654,6 +671,7 @@ mod tests {
             dialects: None,
             aliases: &[],
             lifecycle: Lifecycle::UNSPECIFIED,
+            min_abbrev: None,
         };
         // No parent: always available.
         assert!(opt.supports_dialect(Some(DialectSet::TCL84), None));
@@ -676,6 +694,7 @@ mod tests {
             dialects: Some(DialectSet::TCL86_PLUS),
             aliases: &[],
             lifecycle: Lifecycle::UNSPECIFIED,
+            min_abbrev: None,
         };
         assert!(opt.supports_dialect(Some(DialectSet::TCL86), Some(DialectSet::ALL_TCL)));
         assert!(opt.supports_dialect(Some(DialectSet::TCL90), Some(DialectSet::ALL_TCL)));
@@ -694,6 +713,7 @@ mod tests {
             dialects: Some(DialectSet::TCL90),
             aliases: &[],
             lifecycle: Lifecycle::UNSPECIFIED,
+            min_abbrev: None,
         };
         assert!(opt.supports_dialect(None, Some(DialectSet::TCL90)));
     }

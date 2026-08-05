@@ -63,6 +63,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-nocommands",
@@ -71,6 +72,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-novariables",
@@ -79,6 +81,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     // Tcl 9.1 adds positive forms that enable *only* the named
     // substitution, defaulting every other kind off. Positive and negated
@@ -90,6 +93,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL91),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-commands",
@@ -98,6 +102,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL91),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-variables",
@@ -106,6 +111,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL91),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

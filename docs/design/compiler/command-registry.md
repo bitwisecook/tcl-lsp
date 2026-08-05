@@ -810,6 +810,58 @@ module.
 W304 ("use `--` before dynamic pattern") is derived automatically via
 `CommandRegistry.resolve_option_terminator()`.
 
+### Keyword abbreviations -- one resolver for every prefix spelling
+
+Tcl's `Tcl_GetIndexFromObj` dispatch accepts **any unique prefix** of a
+keyword-table entry, so `string le` is `string length` and `lsearch -noc` is
+`lsearch -nocase`. `tcl_registry::abbrev` models this once; no consumer
+carries its own matcher.
+
+**Derived, not authored.** The minimal unique abbreviation is a pure
+function of the table, so nothing is hand-written. Two facts *are* declared,
+because they cannot be derived:
+
+| Fact | Where | Meaning |
+|---|---|---|
+| `prefix_matching: PrefixMatching` | `CommandSpec`, `SubCommand` | `Enabled` (default, `Tcl_GetIndexFromObj`) or `Strict` (`TCL_INDEX_STRICT`) |
+| `min_abbrev: Option<u8>` | `SubCommand`, `OptionSpec` | Documented minimum abbreviation length, when longer than uniqueness requires |
+
+**One resolution API.** `CommandSpec::resolve_subcommand_word`,
+`CommandSpec::resolve_option_word`, and `SubCommand::resolve_option_word`
+build a `KeywordTable` filtered by dialect and lifecycle, then return a
+three-valued `KeywordMatch`:
+
+| Outcome | Meaning |
+|---|---|
+| `Unique(canonical)` | Resolves to exactly one keyword. Everything downstream — arity, arg roles, side-effect traits, safe-interp hiding, version gates — treats it exactly as the canonical spelling. |
+| `Ambiguous(candidates)` | Prefixes more than one keyword. A guaranteed runtime error in real Tcl; the candidate set is what the user needs. |
+| `Unknown` | Prefixes nothing. The pre-existing unknown-keyword path. |
+
+An exact spelling always wins over a prefix (`string trim` is `trim`, not
+ambiguous with `trimleft`). In a **strict** table an abbreviation is
+`Unknown`, never `Ambiguous` — the user's error is an unknown keyword.
+
+`prefix_override` on each entry point lets the analyser force `Strict` at a
+call site it saw configured with `namespace ensemble … -prefixes 0`.
+
+**Version ranges matter twice**: the table contents change between releases,
+and a word is safely `Unique` for a *range* only when it resolves to the same
+keyword in **every** version of it. `abbrev::resolve_over_versions` enforces
+that — `string c` was `compare` in 8.5 but is ambiguous once 8.6.2 added
+`cat`, so it is `Ambiguous` for an 8.5–8.6 target.
+
+**Booleans are a built-in table.** `abbrev::boolean_table` holds
+`true/false/yes/no/on/off/0/1` and reproduces `Tcl_GetBoolean` exactly,
+including `o` being the one ambiguous boolean prefix.
+`abbrev::resolve_boolean` returns the denoted value.
+
+**Command names are never prefix-matched.** `str length` is a genuine unknown
+command. This machinery is only for keyword tables.
+
+`KeywordTable::minimal_unique_prefix` is the emitter's side of the same data:
+the shortest legal spelling of a keyword, respecting `min_abbrev` and
+returning `None` for a strict table.
+
 ### Lifecycle -- one contract for every versioned entity
 
 `tcl_registry::lifecycle::Lifecycle` is the *only* way a registry entity

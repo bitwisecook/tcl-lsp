@@ -207,6 +207,7 @@ pub fn spec() -> CommandSpec {
                 dialects: Some(DialectSet::TCL85_PLUS),
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         hover: Some(HoverSnippet {

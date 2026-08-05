@@ -56,6 +56,7 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-map",
@@ -64,6 +65,7 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-parameters",
@@ -72,6 +74,7 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::TCL86_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-prefixes",
@@ -80,6 +83,7 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-subcommands",
@@ -88,6 +92,7 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-unknown",
@@ -96,6 +101,7 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 
@@ -140,6 +146,7 @@ static WHICH_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-variable",
@@ -148,6 +155,7 @@ static WHICH_OPTIONS: &[OptionSpec] = &[
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 
@@ -184,6 +192,7 @@ static EXPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
     dialects: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
 }];
 
 /// `namespace import`'s only flag — present unchanged in the synopsis of
@@ -195,6 +204,7 @@ static IMPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
     dialects: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
 }];
 
 /// `namespace delete ?namespace namespace ...?` — every positional word names

@@ -114,6 +114,7 @@ pub fn spec() -> CommandSpec {
                     dialects: Some(DialectSet::TCL86_PLUS),
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-lazy",
@@ -122,6 +123,7 @@ pub fn spec() -> CommandSpec {
                     dialects: Some(DialectSet::TCL86_PLUS),
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -130,6 +132,7 @@ pub fn spec() -> CommandSpec {
                     dialects: Some(DialectSet::TCL86_PLUS),
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

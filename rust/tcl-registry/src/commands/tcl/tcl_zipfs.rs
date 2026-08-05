@@ -99,6 +99,7 @@ static LIST_OPTIONS: [OptionSpec; 2] = [
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-regexp",
@@ -107,6 +108,7 @@ static LIST_OPTIONS: [OptionSpec; 2] = [
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

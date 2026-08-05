@@ -32,6 +32,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::EXPECT),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-noexit",
@@ -40,6 +41,7 @@ const OPTIONS: &[OptionSpec] = &[
         dialects: Some(DialectSet::EXPECT),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

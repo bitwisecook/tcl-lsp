@@ -84,6 +84,7 @@ pub fn spec() -> CommandSpec {
                     dialects: Some(DialectSet::TCL90_PLUS),
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-ignorestderr",
@@ -92,6 +93,7 @@ pub fn spec() -> CommandSpec {
                     dialects: Some(DialectSet::TCL85_PLUS),
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-keepnewline",
@@ -100,6 +102,7 @@ pub fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -108,6 +111,7 @@ pub fn spec() -> CommandSpec {
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

@@ -83,6 +83,7 @@ static PROFILE_OPTIONS: [OptionSpec; 1] = [OptionSpec {
     dialects: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
 }];
 
 /// One `unicode to<form>` normalization subcommand: `?-profile profile? string`

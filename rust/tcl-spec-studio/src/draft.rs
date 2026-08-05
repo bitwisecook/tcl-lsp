@@ -267,6 +267,7 @@ fn option_spec(opt: &OptionSpec) -> (Value, bool) {
             "introduced_version": opt_str(opt.lifecycle.introduced),
             "deprecated_version": opt_str(opt.lifecycle.deprecated),
             "retired_version": opt_str(opt.lifecycle.retired),
+            "min_abbrev": opt_index(opt.min_abbrev),
             "value": value,
         }),
         complete,
@@ -528,6 +529,11 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         options.push(json_value);
     }
     d.insert("options".into(), Value::Array(options));
+    d.insert("min_abbrev".into(), opt_index(sub.min_abbrev));
+    d.insert(
+        "prefix_matching".into(),
+        json!(catalogue::variant_name(&sub.prefix_matching)),
+    );
     d.insert("arg_values".into(), arg_value_map(sub.arg_values));
     d.insert(
         "versioned_arg_values".into(),
@@ -709,6 +715,10 @@ fn command_docs(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "allow_unknown_subcommands".into(),
         json!(spec.allow_unknown_subcommands),
+    );
+    d.insert(
+        "prefix_matching".into(),
+        json!(catalogue::variant_name(&spec.prefix_matching)),
     );
     d.insert(
         "default_form_first_word".into(),
