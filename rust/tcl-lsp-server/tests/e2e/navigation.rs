@@ -226,7 +226,7 @@ fn references_link_the_call_site_word_and_the_caller_frame_read() {
 
 // -- Literal caller-frame targets (issue #923 audit idx 22 / issue #1139) --
 
-/// The SpiceGenTcl shape, minimised to its proc half: the callee spells the
+/// The `SpiceGenTcl` shape, minimised to its proc half: the callee spells the
 /// caller-frame name **in its own body** (`upvar name name`), so no
 /// call-site word carries it.  tclsh 9.0.4: `build` returns `W1`.
 const LITERAL_TARGET_SRC: &str = "\

@@ -340,111 +340,22 @@ impl CfgBuilder {
     /// ([`Self::init_written_names`]) can ask what a statement writes without
     /// recording the statement twice.
     fn upvar_invalidated(&self, mut stmt: Statement) -> Vec<Statement> {
-        // 0. A callee whose `upvar` caller-side name is unresolvable
-        //    (`upvar 1 $computed x`) can write ANY caller variable, and a
-        //    callee that runs an unreadable script at the global frame
-        //    (`uplevel #0 $body`, issue #1198) can write or read ANY
-        //    global/namespace name — no per-name def list is sound for
-        //    either, so widen the call site with an opaque barrier after
-        //    the call (SCCP/propagation widen every tracked value at a
+        // 0. A callee whose caller-frame effect cannot be enumerated per
+        //    name widens the call site with an opaque barrier after the
+        //    call (SCCP/propagation widen every tracked value at a
         //    `Statement::Barrier`), instead of trusting the
         //    under-approximate `caller_side_defs` / `names`.
-        if let Statement::Call { command, span, .. } = &stmt {
-            let unresolvable_upvar = self
-                .upvar_procs
-                .get(command.as_str())
-                .is_some_and(|info| info.has_unresolvable_caller_target);
-            let opaque_global = self
-                .global_write_procs
-                .get(command.as_str())
-                .is_some_and(|info| info.opaque_global_frame);
-            if unresolvable_upvar || opaque_global {
-                let reason = if unresolvable_upvar {
-                    format!("{command} upvar-aliases a dynamic caller variable")
-                } else {
-                    format!("{command} runs an unreadable script at the global frame")
-                };
-                let barrier = Statement::Barrier {
-                    span: *span,
-                    reason,
-                    command: command.clone(),
-                    canonical_command: None,
-                    args: Vec::new(),
-                    tokens: None,
-                };
-                return vec![stmt, barrier];
-            }
+        if let Some(barrier) = self.opaque_call_barrier(&stmt) {
+            return vec![stmt, barrier];
         }
 
-        // 1. Direct-call extras: command is a known upvar proc / a proc that
-        //    writes outer-scope names.  Extras are merged as DEFS only; the
-        //    "the callee may also *read* the aliased cell" half is recorded
-        //    on [`crate::cfg::Function::alias_observed_vars`] by
-        //    [`Self::record_alias_observed`] (a read here would fabricate
-        //    read-before-set uses — a false W210 — for the pure out-param
-        //    shape).
-        let direct_extras: Vec<String> = match &stmt {
-            Statement::Call { command, args, .. } => {
-                let mut extras = self
-                    .upvar_procs
-                    .get(command.as_str())
-                    .map(|info| {
-                        let params: &[String] = self
-                            .proc_params
-                            .get(command.as_str())
-                            .map_or(&[][..], Vec::as_slice);
-                        info.caller_side_defs(args, params)
-                    })
-                    .unwrap_or_default();
-                if let Some(info) = self.global_write_procs.get(command.as_str()) {
-                    for name in &info.names {
-                        if !extras.contains(name) {
-                            extras.push(name.clone());
-                        }
-                    }
-                }
-                extras
-            }
-            _ => Vec::new(),
-        };
+        // 1. Direct-call extras: command is a known upvar proc / a proc
+        //    that writes outer-scope names.
+        let direct_extras = self.direct_call_extras(&stmt);
 
         // 2. Embedded-substitution extras: walk text for
         //    `[upvar_proc arg]` / `[global_write_proc arg]` substitutions.
-        let texts: Vec<&str> = match &stmt {
-            Statement::AssignValue { value, .. } if value.contains('[') => vec![value.as_str()],
-            Statement::Call { args, .. } => args
-                .iter()
-                .filter(|a| a.contains('['))
-                .map(String::as_str)
-                .collect(),
-            _ => Vec::new(),
-        };
-        let mut embedded_extras: Vec<String> = Vec::new();
-        let mut embedded_opaque_global = false;
-        for text in texts {
-            for d in self.upvar_defs_from_text(text) {
-                if !embedded_extras.contains(&d) {
-                    embedded_extras.push(d);
-                }
-            }
-            let (global_defs, opaque) = self.global_write_defs_from_text(text);
-            embedded_opaque_global |= opaque;
-            for d in global_defs {
-                if !embedded_extras.contains(&d) {
-                    embedded_extras.push(d);
-                }
-            }
-            // A var-mutating builtin inside a command substitution
-            // (`set y [append x b]`, `[incr x]`, `[lset l …]`) writes its target
-            // variable as a side effect; record it so copy / constant
-            // propagation (O100) does not propagate a stale value past the
-            // mutation (FP-OPT-06).
-            for d in Self::builtin_write_defs_from_text(text) {
-                if !embedded_extras.contains(&d) {
-                    embedded_extras.push(d);
-                }
-            }
-        }
+        let (embedded_extras, embedded_opaque_global) = self.embedded_subst_extras(&stmt);
 
         if direct_extras.is_empty() && embedded_extras.is_empty() && !embedded_opaque_global {
             return vec![stmt];
@@ -508,6 +419,117 @@ impl CfgBuilder {
         }
         out.push(stmt);
         out
+    }
+
+    /// The opaque widening barrier for a direct call whose callee's
+    /// caller-frame effect has no sound per-name def list: a callee whose
+    /// `upvar` caller-side name is unresolvable (`upvar 1 $computed x`) can
+    /// write ANY caller variable, and a callee that runs an unreadable
+    /// script at the global frame (`uplevel #0 $body`, issue #1198) can
+    /// write or read ANY global/namespace name.
+    fn opaque_call_barrier(&self, stmt: &Statement) -> Option<Statement> {
+        let Statement::Call { command, span, .. } = stmt else {
+            return None;
+        };
+        let unresolvable_upvar = self
+            .upvar_procs
+            .get(command.as_str())
+            .is_some_and(|info| info.has_unresolvable_caller_target);
+        let opaque_global = self
+            .global_write_procs
+            .get(command.as_str())
+            .is_some_and(|info| info.opaque_global_frame);
+        if !unresolvable_upvar && !opaque_global {
+            return None;
+        }
+        let reason = if unresolvable_upvar {
+            format!("{command} upvar-aliases a dynamic caller variable")
+        } else {
+            format!("{command} runs an unreadable script at the global frame")
+        };
+        Some(Statement::Barrier {
+            span: *span,
+            reason,
+            command: command.clone(),
+            canonical_command: None,
+            args: Vec::new(),
+            tokens: None,
+        })
+    }
+
+    /// The direct-call half of [`Self::upvar_invalidated`]: the caller-side
+    /// names a known upvar proc / global-writing proc defines at this call.
+    /// Extras are merged as DEFS only; the "the callee may also *read* the
+    /// aliased cell" half is recorded on
+    /// [`crate::cfg::Function::alias_observed_vars`] by
+    /// [`Self::record_alias_observed`] (a read here would fabricate
+    /// read-before-set uses — a false W210 — for the pure out-param shape).
+    fn direct_call_extras(&self, stmt: &Statement) -> Vec<String> {
+        let Statement::Call { command, args, .. } = stmt else {
+            return Vec::new();
+        };
+        let mut extras = self
+            .upvar_procs
+            .get(command.as_str())
+            .map(|info| {
+                let params: &[String] = self
+                    .proc_params
+                    .get(command.as_str())
+                    .map_or(&[][..], Vec::as_slice);
+                info.caller_side_defs(args, params)
+            })
+            .unwrap_or_default();
+        if let Some(info) = self.global_write_procs.get(command.as_str()) {
+            for name in &info.names {
+                if !extras.contains(name) {
+                    extras.push(name.clone());
+                }
+            }
+        }
+        extras
+    }
+
+    /// The embedded-substitution half of [`Self::upvar_invalidated`]: the
+    /// caller-side defs contributed by `[…]` substitutions in the
+    /// statement's argument words (or an assignment's value), plus whether
+    /// any embedded callee runs an unreadable script at the global frame.
+    fn embedded_subst_extras(&self, stmt: &Statement) -> (Vec<String>, bool) {
+        let texts: Vec<&str> = match stmt {
+            Statement::AssignValue { value, .. } if value.contains('[') => vec![value.as_str()],
+            Statement::Call { args, .. } => args
+                .iter()
+                .filter(|a| a.contains('['))
+                .map(String::as_str)
+                .collect(),
+            _ => Vec::new(),
+        };
+        let mut embedded_extras: Vec<String> = Vec::new();
+        let mut embedded_opaque_global = false;
+        for text in texts {
+            for d in self.upvar_defs_from_text(text) {
+                if !embedded_extras.contains(&d) {
+                    embedded_extras.push(d);
+                }
+            }
+            let (global_defs, opaque) = self.global_write_defs_from_text(text);
+            embedded_opaque_global |= opaque;
+            for d in global_defs {
+                if !embedded_extras.contains(&d) {
+                    embedded_extras.push(d);
+                }
+            }
+            // A var-mutating builtin inside a command substitution
+            // (`set y [append x b]`, `[incr x]`, `[lset l …]`) writes its
+            // target variable as a side effect; record it so copy / constant
+            // propagation (O100) does not propagate a stale value past the
+            // mutation (FP-OPT-06).
+            for d in Self::builtin_write_defs_from_text(text) {
+                if !embedded_extras.contains(&d) {
+                    embedded_extras.push(d);
+                }
+            }
+        }
+        (embedded_extras, embedded_opaque_global)
     }
 
     /// Every command word a statement invokes: its own head, plus the head

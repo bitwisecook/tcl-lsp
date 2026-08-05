@@ -45,6 +45,17 @@ use super::state::Analyser;
 use super::types::{DefinedSymbol, ProcDef};
 use super::utils::{param_name_spans_for_token, parse_param_list};
 
+/// The three per-proc facts [`Analyser::infer_proc_param_traits`] derives from
+/// one view of a proc body: the per-parameter trait map, the caller-frame
+/// parameter names ([`super::types::ProcDef::caller_frame_params`]), and the
+/// literal caller-frame targets
+/// ([`super::types::ProcDef::caller_frame_literals`], name → written-through-alias).
+type ProcParamFacts = (
+    std::collections::HashMap<String, std::collections::HashSet<super::types::ProcArgTrait>>,
+    std::collections::HashSet<String>,
+    std::collections::HashMap<String, bool>,
+);
+
 /// Tcl *library* procedures (defined in init.tcl / auto.tcl / history.tcl /
 /// package.tcl / word.tcl) that are script-defined and documented as
 /// user-replaceable — redefining one is the supported overlay idiom, not
@@ -1040,11 +1051,7 @@ impl Analyser {
         &self,
         params: &[crate::signature_scan::types::ParamDef],
         body_text: &str,
-    ) -> (
-        std::collections::HashMap<String, std::collections::HashSet<super::types::ProcArgTrait>>,
-        std::collections::HashSet<String>,
-        std::collections::HashMap<String, bool>,
-    ) {
+    ) -> ProcParamFacts {
         let Some(registry) = self.registry else {
             return (
                 std::collections::HashMap::new(),
