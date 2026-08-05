@@ -124,9 +124,7 @@ fn assert_schema_covers(spec_fields: &[String], schema_keys: &[&str], what: &str
         .iter()
         .filter(|k| {
             !spec_fields.iter().any(|f| f == *k)
-                && !spec_fields
-                    .iter()
-                    .any(|f| expansion_of(f).contains(k))
+                && !spec_fields.iter().any(|f| expansion_of(f).contains(k))
         })
         .collect();
     assert!(

@@ -77,6 +77,7 @@ object DiagnosticCatalog {
         DiagnosticDef("W142", "warning", "W142: Command invalid in its current lexical/dispatch cont...", true),
         DiagnosticDef("W143", "warning", "W143: Direct call into a private ::tcl:: implementation na...", true),
         DiagnosticDef("W144", "warning", "W144: Command/subcommand/option/argument value is deprecat...", true),
+        DiagnosticDef("W145", "warning", "W145: Ambiguous keyword abbreviation", true),
         DiagnosticDef("W200", "warning", "W200: exec result not captured or binary format modifier r...", true),
         DiagnosticDef("W201", "warning", "W201: Manual path concatenation", true),
         DiagnosticDef("W230", "warning", "W230: Constant list index out of range", true),

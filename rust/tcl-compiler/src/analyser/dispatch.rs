@@ -31,6 +31,7 @@
 use std::collections::{BTreeSet, HashMap};
 
 use tcl_registry::ProfileQueries;
+use tcl_registry::abbrev::{Keyword, KeywordMatch, KeywordTable, PrefixMatching};
 use tcl_registry::prelude::OptionSpec;
 use tcl_registry::scoped::ScopedCommand;
 use tcl_registry::{ArgRole, Arity, CommandRegistry, Traits};
@@ -76,6 +77,11 @@ pub struct CommandSig {
     /// shows the expected shape, not just the counts. `None` when the
     /// spec declares no synopsis.
     pub synopsis: Option<&'static str>,
+
+    /// Documented minimum abbreviation length for this subcommand's own
+    /// name, from [`tcl_registry::SubCommand::min_abbrev`]. `None` (the norm)
+    /// = uniqueness is the only constraint on an abbreviated spelling.
+    pub min_abbrev: Option<u8>,
 }
 
 /// Signature for a command that dispatches on a subcommand word.
@@ -108,9 +114,37 @@ pub struct SubcommandSig {
     /// [`tcl_registry::CommandSpec::default_form_first_word`]. `None` =
     /// every first word must be a known subcommand.
     pub default_form_first_word: Option<tcl_registry::DefaultFormFirstWord>,
+    /// Whether this ensemble's dispatch honours unique-prefix abbreviation,
+    /// from [`tcl_registry::CommandSpec::prefix_matching`] — `Strict` for a
+    /// `TCL_INDEX_STRICT` table.
+    pub prefix_matching: PrefixMatching,
 }
 
 impl SubcommandSig {
+    /// This signature's subcommand words as a [`KeywordTable`].
+    ///
+    /// The map already holds only the dialect-available subcommands, so the
+    /// table is dialect-correct and prefix uniqueness matches the profile.
+    #[must_use]
+    pub fn keyword_table(&self) -> KeywordTable<'_> {
+        KeywordTable::from_keywords(
+            self.subcommands.iter().map(|(name, sig)| Keyword {
+                name: name.as_str(),
+                min_abbrev: sig.min_abbrev,
+            }),
+            self.prefix_matching,
+        )
+    }
+
+    /// Resolve a subcommand word three-valued — unique, ambiguous, or
+    /// unknown — through the shared registry abbreviation API, so the
+    /// analyser cannot drift from what the registry, formatter, and minifier
+    /// think an abbreviation means.
+    #[must_use]
+    pub fn resolve_word(&self, word: &str) -> KeywordMatch<'_> {
+        self.keyword_table().resolve(word)
+    }
+
     /// Resolve a subcommand word to its canonical [`CommandSig`], accepting a
     /// unique non-empty prefix the way Tcl's `Tcl_GetIndexFromObj` ensemble
     /// dispatch does (`string le` ⇒ `length`). An exact match wins; an
@@ -118,21 +152,8 @@ impl SubcommandSig {
     /// subcommands are in the map, so prefix resolution is dialect-correct.
     #[must_use]
     pub fn resolve(&self, word: &str) -> Option<&CommandSig> {
-        if word.is_empty() {
-            return None;
-        }
-        if let Some(exact) = self.subcommands.get(word) {
-            return Some(exact);
-        }
-        let mut hits = self
-            .subcommands
-            .iter()
-            .filter(|(name, _)| name.starts_with(word));
-        let (_, first) = hits.next()?;
-        if hits.next().is_some() {
-            return None; // ambiguous prefix
-        }
-        Some(first)
+        let canonical = self.resolve_word(word).unique()?;
+        self.subcommands.get(canonical)
     }
 
     /// Whether `word` resolves to a known subcommand (exact or unique prefix).
@@ -219,6 +240,7 @@ pub fn signature_for_command(
                     leading_options,
                     leading_option_specs,
                     synopsis: sub.primary_synopsis(),
+                    min_abbrev: sub.min_abbrev,
                 },
             );
         }
@@ -227,6 +249,7 @@ pub fn signature_for_command(
             allow_unknown: spec.allow_unknown_subcommands,
             subcommand_required: spec.arity.min > 0,
             default_form_first_word: spec.default_form_first_word,
+            prefix_matching: spec.prefix_matching,
         }));
     }
 
@@ -248,6 +271,9 @@ pub fn signature_for_command(
         leading_options,
         leading_option_specs,
         synopsis: spec.primary_synopsis(),
+        // A command name is never prefix-matched, so a simple command's
+        // signature carries no abbreviation floor.
+        min_abbrev: None,
     }))
 }
 
@@ -285,6 +311,7 @@ pub fn signature_for_command_any_dialect(
                     leading_options,
                     leading_option_specs,
                     synopsis: sub.primary_synopsis(),
+                    min_abbrev: sub.min_abbrev,
                 },
             );
         }
@@ -293,6 +320,7 @@ pub fn signature_for_command_any_dialect(
             allow_unknown: spec.allow_unknown_subcommands,
             subcommand_required: spec.arity.min > 0,
             default_form_first_word: spec.default_form_first_word,
+            prefix_matching: spec.prefix_matching,
         }));
     }
     let arg_roles = spec
@@ -313,6 +341,9 @@ pub fn signature_for_command_any_dialect(
         leading_options,
         leading_option_specs,
         synopsis: spec.primary_synopsis(),
+        // A command name is never prefix-matched, so a simple command's
+        // signature carries no abbreviation floor.
+        min_abbrev: None,
     }))
 }
 
@@ -344,6 +375,7 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
                     leading_options: BTreeSet::new(),
                     leading_option_specs: Vec::new(),
                     synopsis: sub.primary_synopsis(),
+                    min_abbrev: sub.min_abbrev,
                 },
             );
         }
@@ -353,6 +385,8 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
             subcommand_required: scoped.arity.min > 0,
             // Scoped ensembles declare no non-subcommand default form.
             default_form_first_word: None,
+            // Scoped ensembles dispatch like any other Tcl ensemble.
+            prefix_matching: PrefixMatching::Enabled,
         });
     }
     CommandSignature::Simple(CommandSig {
@@ -367,6 +401,7 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
             .hover
             .as_ref()
             .and_then(|h| h.synopsis.iter().copied().find(|s| !s.is_empty())),
+        min_abbrev: None,
     })
 }
 

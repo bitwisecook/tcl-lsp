@@ -3324,3 +3324,115 @@ mod script_concatenation {
         assert!(!fires(src, D, "E003"), "{:?}", codes(src, D));
     }
 }
+
+// W145 — ambiguous keyword abbreviation (issue #1234).
+//
+// tclsh ground truth (8.6.16):
+//   `string l abc`   → unknown or ambiguous subcommand "l": must be
+//                      bytelength, cat, compare, equal, first, index, is,
+//                      last, length, …
+//   `string le abc`  → 3            (unique prefix of `length`)
+//   `string trim " x "` → x         (exact spelling beats the prefix it shares)
+//   `namespace ensemble create -command ::e -subcommands {alpha} -prefixes 0`
+//   then `::e al`    → unknown subcommand "al": must be alpha
+mod ambiguous_abbreviation {
+    use super::*;
+
+    #[test]
+    fn an_ambiguous_subcommand_prefix_fires_and_names_the_candidates() {
+        let ds = of_code("string l abc", D, "W145");
+        assert_eq!(ds.len(), 1, "{:?}", codes("string l abc", D));
+        assert!(ds[0].0.contains("'l'"), "{:?}", ds[0].0);
+        assert!(ds[0].0.contains("'last'"), "{:?}", ds[0].0);
+        assert!(ds[0].0.contains("'length'"), "{:?}", ds[0].0);
+        // The ambiguity diagnostic replaces the unknown-subcommand guess.
+        assert!(!fires("string l abc", D, "W001"));
+    }
+
+    #[test]
+    fn one_quick_fix_per_candidate_all_requiring_review() {
+        let fixes = Analyser::new()
+            .analyse("string l abc", D)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.to_string() == "W145")
+            .flat_map(|d| d.fixes.clone())
+            .collect::<Vec<_>>();
+        assert!(fixes.len() >= 2, "{fixes:?}");
+        let texts: Vec<&str> = fixes.iter().map(|f| f.new_text.as_str()).collect();
+        assert!(texts.contains(&"last"), "{texts:?}");
+        assert!(texts.contains(&"length"), "{texts:?}");
+        for fix in &fixes {
+            assert_eq!(
+                fix.safety,
+                tcl_compiler::irules_checks::FixSafety::RequiresReview,
+                "an ambiguity fix is a manual pick, never auto-applied"
+            );
+        }
+    }
+
+    #[test]
+    fn unique_prefixes_and_exact_spellings_stay_clean() {
+        // TN: unique prefix, full spelling, and an exact word that is also a
+        // proper prefix of longer siblings.
+        for src in [
+            "string le $s",
+            "string length $s",
+            "string trim $s",
+            "string last a abc",
+            "info exists x",
+            "info ex x",
+        ] {
+            assert!(!fires(src, D, "W145"), "{src}: {:?}", codes(src, D));
+        }
+    }
+
+    #[test]
+    fn an_ambiguous_option_prefix_fires() {
+        let src = "lsearch -a {a b} a";
+        let ds = of_code(src, D, "W145");
+        assert_eq!(ds.len(), 1, "{:?}", codes(src, D));
+        assert!(ds[0].0.contains("'-all'"), "{:?}", ds[0].0);
+        assert!(ds[0].0.contains("'-ascii'"), "{:?}", ds[0].0);
+    }
+
+    #[test]
+    fn a_unique_option_prefix_stays_clean() {
+        assert!(!fires("lsearch -noc {a b} a", D, "W145"));
+        assert!(!fires("lsearch -nocase {a b} a", D, "W145"));
+    }
+
+    #[test]
+    fn dynamic_and_expanded_words_abstain() {
+        for src in [
+            "string $sub abc",
+            "string [pick] abc",
+            "string {*}$words abc",
+            "lsearch {*}$opts {a b} a",
+        ] {
+            assert!(!fires(src, D, "W145"), "{src}: {:?}", codes(src, D));
+        }
+    }
+
+    #[test]
+    fn a_prefixes_0_ensemble_abstains() {
+        // The file turns prefix matching off for this ensemble, so `al` is a
+        // plain unknown subcommand — never an ambiguity.
+        let src = "namespace eval ::e {\n\
+                   proc alpha {} { return 1 }\n\
+                   proc alias {} { return 2 }\n\
+                   namespace ensemble create -command ::e -subcommands {alpha alias} -prefixes 0\n\
+                   }\n\
+                   ::e al\n";
+        assert!(!fires(src, D, "W145"), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn a_data_word_that_happens_to_be_a_prefix_is_not_a_keyword_position() {
+        // FP guard: the ambiguous-looking word sits in a value position, not
+        // a keyword one.
+        for src in ["set l abc", "puts l", "lappend xs l"] {
+            assert!(!fires(src, D, "W145"), "{src}: {:?}", codes(src, D));
+        }
+    }
+}

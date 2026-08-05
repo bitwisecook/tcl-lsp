@@ -143,6 +143,7 @@ class TclLspSettingsPanel {
     private val diagW142 = JBCheckBox("W142: Command invalid in its current lexical/dispatch cont...")
     private val diagW143 = JBCheckBox("W143: Direct call into a private ::tcl:: implementation na...")
     private val diagW144 = JBCheckBox("W144: Command/subcommand/option/argument value is deprecat...")
+    private val diagW145 = JBCheckBox("W145: Ambiguous keyword abbreviation")
     private val diagW200 = JBCheckBox("W200: exec result not captured or binary format modifier r...")
     private val diagW201 = JBCheckBox("W201: Manual path concatenation")
     private val diagW230 = JBCheckBox("W230: Constant list index out of range")
@@ -386,9 +387,9 @@ class TclLspSettingsPanel {
             diagW120, diagW121, diagW122, diagW124, diagW125, diagW126,
             diagW127, diagW128, diagW129, diagW135, diagW136, diagW137,
             diagW138, diagW139, diagW140, diagW141, diagW142, diagW143,
-            diagW144, diagW200, diagW201, diagW230, diagW231, diagW232,
-            diagW233, diagW240, diagW241, diagW250, diagW308, diagW314,
-            diagW315,
+            diagW144, diagW145, diagW200, diagW201, diagW230, diagW231,
+            diagW232, diagW233, diagW240, diagW241, diagW250, diagW308,
+            diagW314, diagW315,
         ).forEach { diagWarnPanel.add(it) }
         builder.addComponent(diagWarnPanel)
 
@@ -606,6 +607,7 @@ class TclLspSettingsPanel {
             diagW142.isSelected != s.diagnosticW142 ||
             diagW143.isSelected != s.diagnosticW143 ||
             diagW144.isSelected != s.diagnosticW144 ||
+            diagW145.isSelected != s.diagnosticW145 ||
             diagW200.isSelected != s.diagnosticW200 ||
             diagW201.isSelected != s.diagnosticW201 ||
             diagW230.isSelected != s.diagnosticW230 ||
@@ -851,6 +853,7 @@ class TclLspSettingsPanel {
         s.diagnosticW142 = diagW142.isSelected
         s.diagnosticW143 = diagW143.isSelected
         s.diagnosticW144 = diagW144.isSelected
+        s.diagnosticW145 = diagW145.isSelected
         s.diagnosticW200 = diagW200.isSelected
         s.diagnosticW201 = diagW201.isSelected
         s.diagnosticW230 = diagW230.isSelected
@@ -1113,6 +1116,7 @@ class TclLspSettingsPanel {
         diagW142.isSelected = s.diagnosticW142
         diagW143.isSelected = s.diagnosticW143
         diagW144.isSelected = s.diagnosticW144
+        diagW145.isSelected = s.diagnosticW145
         diagW200.isSelected = s.diagnosticW200
         diagW201.isSelected = s.diagnosticW201
         diagW230.isSelected = s.diagnosticW230

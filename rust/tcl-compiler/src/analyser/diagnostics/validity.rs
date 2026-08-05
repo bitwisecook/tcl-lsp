@@ -163,6 +163,44 @@ fn widened_word_span(tok: tcl_lexer::Token, source: &str) -> tcl_lexer::Span {
 /// it names a real subcommand of the resolved ensemble — split out of
 /// [`Analyser::emit_w001_unknown_subcommand`] to keep that function under
 /// the line-count lint.
+/// Which option table an option scan runs against, and how its dispatch
+/// treats abbreviated spellings.
+struct OptionScanContext {
+    /// The resolved option table (command-level, or the subcommand's).
+    options: &'static [tcl_registry::hover::OptionSpec],
+    /// Dialect set the options inherit when they declare none.
+    parent_dialects: Option<tcl_registry::prelude::DialectSet>,
+    /// First argument index the scan starts at (1 past a subcommand word).
+    start_idx: usize,
+    /// The resolved subcommand name, for messages.
+    sub_name: Option<&'static str>,
+    /// Whether abbreviations resolve in this table.
+    prefix_matching: tcl_registry::abbrev::PrefixMatching,
+}
+
+/// The dialect-available options (canonical spellings plus declared aliases)
+/// as a [`tcl_registry::abbrev::KeywordTable`], for abbreviation resolution.
+///
+/// Tcl's own option table holds the aliases, so `-bd` prefix-matches exactly
+/// like `-borderwidth`.
+fn option_keyword_table(
+    options: &'static [tcl_registry::hover::OptionSpec],
+    available: impl Fn(&tcl_registry::hover::OptionSpec) -> bool,
+    prefix_matching: tcl_registry::abbrev::PrefixMatching,
+) -> tcl_registry::abbrev::KeywordTable<'static> {
+    tcl_registry::abbrev::KeywordTable::from_keywords(
+        options.iter().filter(|opt| available(opt)).flat_map(|opt| {
+            std::iter::once(opt.name)
+                .chain(opt.aliases.iter().copied())
+                .map(move |name| tcl_registry::abbrev::Keyword {
+                    name,
+                    min_abbrev: opt.min_abbrev,
+                })
+        }),
+        prefix_matching,
+    )
+}
+
 fn shape_exempt_from_w001(sig: &super::dispatch::SubcommandSig, first_arg: &str) -> bool {
     // A command may declare a *default* form selected by a first word of a
     // particular value shape rather than a subcommand — `after` dispatches
@@ -752,10 +790,25 @@ impl Analyser {
         if shape_exempt_from_w001(&sig, first_arg) {
             return;
         }
-        // Accept a unique-prefix abbreviation (`string le` ⇒ `length`), the way
-        // Tcl's ensemble dispatch does, so valid abbreviations don't trip W001.
-        if sig.is_known(first_arg) {
-            return;
+        // Resolve the word through the shared registry abbreviation API
+        // (#1231): a unique prefix (`string le` ⇒ `length`) is legal and must
+        // not trip W001; an ambiguous one (`string l`) is a guaranteed
+        // runtime error with its own diagnostic (W145) rather than an
+        // "unknown subcommand" guess.
+        match sig.resolve_word(first_arg) {
+            tcl_registry::abbrev::KeywordMatch::Unique(_) => return,
+            tcl_registry::abbrev::KeywordMatch::Ambiguous(candidates) => {
+                let candidates: Vec<String> = candidates.iter().map(|s| (*s).to_string()).collect();
+                self.emit_w145_ambiguous_abbreviation(
+                    cmd_name,
+                    first_arg,
+                    &candidates,
+                    cmd_tok,
+                    arg_tokens,
+                );
+                return;
+            }
+            tcl_registry::abbrev::KeywordMatch::Unknown => {}
         }
         // The subcommand is unknown *in the active dialect* — before
         // reporting it as nonexistent, check whether it exists in some
@@ -781,6 +834,25 @@ impl Analyser {
         {
             return;
         }
+        self.push_w001_unknown_subcommand(
+            cmd_name, first_arg, &sig, cmd_tok, arg_tokens, scope_path,
+        );
+    }
+
+    /// Queue the W001 verdict for a genuinely unknown subcommand word, with
+    /// its "did you mean…?" suffix and matching quick fix.
+    ///
+    /// Split out of [`Self::emit_w001_unknown_subcommand`], which is all
+    /// abstention checks up to this point.
+    fn push_w001_unknown_subcommand(
+        &mut self,
+        cmd_name: &str,
+        first_arg: &str,
+        sig: &super::dispatch::SubcommandSig,
+        cmd_tok: tcl_lexer::Token,
+        arg_tokens: &[tcl_lexer::Token],
+        scope_path: &[usize],
+    ) {
         let ns = self.command_resolution_namespace(scope_path);
         let enforce_order = !self.scope_path_in_proc_body(scope_path);
         let mut message = format!("Unknown subcommand '{first_arg}' for '{cmd_name}'");
@@ -822,6 +894,63 @@ impl Analyser {
                 fixes,
             },
         ));
+    }
+
+    /// **W145.** The subcommand word prefixes more than one subcommand, so
+    /// the call is a guaranteed runtime error (`string l` →
+    /// `unknown or ambiguous subcommand "l"` in real tclsh).
+    ///
+    /// The message quotes the *matching* candidates rather than the whole
+    /// table — that is what the user needs to disambiguate — and offers one
+    /// `RequiresReview` quick fix per candidate, since the tool cannot know
+    /// which was meant.
+    ///
+    /// Abstains when the file configured this ensemble with
+    /// `namespace ensemble … -prefixes 0`: prefix matching is off there, so
+    /// the word is a plain unknown subcommand and W001 owns it.  A strict
+    /// registry table never produces `Ambiguous` in the first place.
+    fn emit_w145_ambiguous_abbreviation(
+        &mut self,
+        cmd_name: &str,
+        word: &str,
+        candidates: &[String],
+        cmd_tok: tcl_lexer::Token,
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if self.prefixless_ensembles.contains(cmd_name)
+            || self
+                .prefixless_ensembles
+                .contains(&format!("::{}", cmd_name.trim_start_matches(':')))
+        {
+            return;
+        }
+        let span = match arg_tokens.first() {
+            Some(sub_tok) => subcommand_content_span(*sub_tok),
+            None => cmd_tok.span,
+        };
+        let listed = candidates
+            .iter()
+            .map(|c| format!("'{c}'"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let fixes: Vec<super::types::CodeFix> = candidates
+            .iter()
+            .map(|candidate| super::types::CodeFix {
+                span,
+                new_text: candidate.clone(),
+                description: format!("Expand to '{cmd_name} {candidate}'"),
+                // The tool cannot know which candidate was meant, so this is
+                // never auto-applied by Fix All.
+                safety: crate::irules_checks::FixSafety::RequiresReview,
+            })
+            .collect();
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::W145,
+            span,
+            message: format!("Ambiguous abbreviation '{word}' for '{cmd_name}': matches {listed}."),
+            severity: Severity::Warning,
+            fixes,
+        });
     }
 
     /// Whether `cmd_name subcommand_name …` is a call into an ensemble
@@ -3071,6 +3200,66 @@ before this value so it is treated as data, not an option."
         (tcl_lexer::Span::new(span_start, span_end), span_end)
     }
 
+    /// Resolve which option table an option scan should use for this call,
+    /// and how its dispatch treats prefixes.
+    ///
+    /// `None` = abstain: the registry does not know the command, the call has
+    /// no arguments, an ensemble's subcommand word is dynamic or
+    /// `{*}`-expanded, the subcommand does not resolve, or the resolved table
+    /// is empty.
+    fn option_scan_context(
+        &self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_expand: &[bool],
+    ) -> Option<OptionScanContext> {
+        let registry = self.registry?;
+        if args.is_empty() || arg_tokens.is_empty() {
+            return None;
+        }
+        let spec = registry.get(cmd_name)?;
+        // A `-prefixes 0` ensemble in this file turns prefix matching off for
+        // its option table too, so abbreviations there are plain unknown
+        // options rather than ambiguities.
+        let prefix_matching = if self.prefixless_ensembles.contains(cmd_name) {
+            tcl_registry::abbrev::PrefixMatching::Strict
+        } else {
+            spec.prefix_matching
+        };
+        let (options, parent_dialects, start_idx, sub_name) = if spec.subcommands.is_empty() {
+            (spec.options, spec.dialects, 0usize, None)
+        } else {
+            // Ensemble-shaped: index 0 is always the subcommand word.  A
+            // `{*}`-expanded or substituted word resolves to an unknown name
+            // at runtime; abstain rather than guess.
+            if arg_expand.first().copied().unwrap_or(false) {
+                return None;
+            }
+            if arg_tokens
+                .first()
+                .is_some_and(|tok| has_substitution(&args[0], tok))
+            {
+                return None;
+            }
+            let sub =
+                spec.resolve_subcommand_for_dialect(&args[0], self.profile.availability_mask)?;
+            (
+                sub.options,
+                sub.dialects.or(spec.dialects),
+                1usize,
+                Some(sub.name),
+            )
+        };
+        (!options.is_empty()).then_some(OptionScanContext {
+            options,
+            parent_dialects,
+            start_idx,
+            sub_name,
+            prefix_matching,
+        })
+    }
+
     /// **W004.** Emit "Command option is not available in the active
     /// dialect" warning for option-bearing commands invoked with an
     /// option whose registry entry restricts it to a dialect that
@@ -3115,47 +3304,16 @@ before this value so it is treated as data, not an option."
         arg_expand: &[bool],
         scope_path: &[usize],
     ) {
-        let Some(registry) = self.registry else {
+        let Some(context) = self.option_scan_context(cmd_name, args, arg_tokens, arg_expand) else {
             return;
         };
-        if args.is_empty() || arg_tokens.is_empty() {
-            return;
-        }
-        let Some(spec) = registry.get(cmd_name) else {
-            return;
-        };
-
-        let (options, parent_dialects, start_idx, sub_name) = if spec.subcommands.is_empty() {
-            (spec.options, spec.dialects, 0usize, None)
-        } else {
-            // Ensemble-shaped: index 0 is always the subcommand word.  A
-            // `{*}`-expanded or substituted word resolves to an unknown name
-            // at runtime; abstain rather than guess.
-            if arg_expand.first().copied().unwrap_or(false) {
-                return;
-            }
-            if arg_tokens
-                .first()
-                .is_some_and(|tok| has_substitution(&args[0], tok))
-            {
-                return;
-            }
-            let Some(sub) =
-                spec.resolve_subcommand_for_dialect(&args[0], self.profile.availability_mask)
-            else {
-                return;
-            };
-            (
-                sub.options,
-                sub.dialects.or(spec.dialects),
-                1usize,
-                Some(sub.name),
-            )
-        };
-
-        if options.is_empty() {
-            return;
-        }
+        let OptionScanContext {
+            options,
+            parent_dialects,
+            start_idx,
+            sub_name,
+            prefix_matching,
+        } = context;
 
         let mut i = start_idx;
         while i < args.len() {
@@ -3222,8 +3380,72 @@ in the active dialect ({}).",
                 i += 1 + opt.value_word_count(args, i);
                 continue;
             }
+            // No exact spelling or declared alias: the word may still be an
+            // abbreviation. A unique prefix is legal and is left to the
+            // canonical-option handling above once resolved; an ambiguous one
+            // is a guaranteed runtime error (W145, issue #1234).
+            let table = option_keyword_table(
+                options,
+                |opt| self.profile.is_option_available(opt, parent_dialects),
+                prefix_matching,
+            );
+            match table.resolve(arg) {
+                tcl_registry::abbrev::KeywordMatch::Ambiguous(candidates)
+                    if i < arg_tokens.len() =>
+                {
+                    let candidates: Vec<String> =
+                        candidates.iter().map(|s| (*s).to_string()).collect();
+                    let span = arg_tokens[i].span;
+                    self.emit_w145_ambiguous_option(cmd_name, sub_name, arg, &candidates, span);
+                }
+                tcl_registry::abbrev::KeywordMatch::Unique(canonical) => {
+                    // A unique abbreviation consumes exactly what the
+                    // canonical option consumes.
+                    if let Some(opt) = options.iter().find(|o| o.name == canonical) {
+                        i += 1 + opt.value_word_count(args, i);
+                        continue;
+                    }
+                }
+                _ => {}
+            }
             i += 1;
         }
+    }
+
+    /// **W145** at an option word. Same contract as the subcommand form:
+    /// name the matching candidates and offer one manual-pick fix each.
+    fn emit_w145_ambiguous_option(
+        &mut self,
+        cmd_name: &str,
+        sub_name: Option<&str>,
+        word: &str,
+        candidates: &[String],
+        span: tcl_lexer::Span,
+    ) {
+        let sub_suffix = sub_name.map_or(String::new(), |n| format!(" {n}"));
+        let listed = candidates
+            .iter()
+            .map(|c| format!("'{c}'"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let fixes: Vec<super::types::CodeFix> = candidates
+            .iter()
+            .map(|candidate| super::types::CodeFix {
+                span,
+                new_text: candidate.clone(),
+                description: format!("Expand to '{candidate}'"),
+                safety: crate::irules_checks::FixSafety::RequiresReview,
+            })
+            .collect();
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::W145,
+            span,
+            message: format!(
+                "Ambiguous abbreviation '{word}' for '{cmd_name}{sub_suffix}': matches {listed}."
+            ),
+            severity: Severity::Warning,
+            fixes,
+        });
     }
 
     /// Build the "remove option" fix for a W004 candidate: deletes the flag

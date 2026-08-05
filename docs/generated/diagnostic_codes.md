@@ -56,6 +56,7 @@
 | W142 | warning | Command invalid in its current lexical/dispatch context (e.g. `return` with arguments directly inside an iRules event body). | ✓ |
 | W143 | warning | Direct call into a private `::tcl::` implementation namespace (e.g. `::tcl::dict::create`) — use the public ensemble command instead (`dict create`). | ✓ |
 | W144 | warning | Command/subcommand/option/argument value is deprecated at the resolved package version — still available, but the registry records a deprecating release. | ✓ |
+| W145 | warning | Ambiguous keyword abbreviation — the prefix matches more than one subcommand or option, which is a runtime error in Tcl. | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |
