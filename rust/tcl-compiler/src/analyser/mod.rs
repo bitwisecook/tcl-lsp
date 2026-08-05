@@ -77,9 +77,10 @@ pub use item_tree::{FileDecls, Item, ItemId, ItemKind, ItemSig, ItemTree};
 // core light) can share it. Re-exported here so `tcl_compiler::analyser::…`
 // callers are unchanged.
 pub use scope::{
-    VariableAliasLink, command_resolution_namespace_at, innermost_scope_is_oo_method_frame,
-    innermost_scope_reaches_oo_helpers, lookup_var_by_qualified_name, lookup_var_in_namespace,
-    namespace_variables, qualified_name_for_var_decl, variable_alias_links,
+    VariableAliasLink, command_resolution_namespace_at, implicit_command_namespace_path_at,
+    innermost_scope_is_oo_method_frame, innermost_scope_reaches_oo_helpers,
+    lookup_var_by_qualified_name, lookup_var_in_namespace, namespace_variables,
+    qualified_name_for_var_decl, variable_alias_links,
 };
 pub use snapshot::AnalyserSnapshot;
 pub use state::{Analyser, NonAsciiMode};

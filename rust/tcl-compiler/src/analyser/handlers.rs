@@ -2082,6 +2082,29 @@ impl Analyser {
             }
             _ => "::".to_string(),
         };
+        // That element is also a first-class *reference* to the namespace it
+        // names, not merely a semantic input (issue #1113 item 4): it sits
+        // inside an `ArgRole::LambdaLiteral` word, which no whole-word role
+        // reaches, so the identity is recorded here, where the element has
+        // already been split. Non-declaring — `apply` looks the namespace up,
+        // it does not create it (tclsh 8.6.16 / 9.0.4: `apply {{} {} ::nope}`
+        // fails `namespace "::nope" not found`).
+        if let Some((ns_tok, ns_text)) = elements.get(2)
+            && body_ns != "::"
+            && !crate::naming::is_dynamic_word(ns_text)
+        {
+            let span = tcl_lexer::Span::new(
+                ns_tok.span.start() + u32::from(ns_tok.content_offset),
+                ns_tok.span.end(),
+            );
+            if span.start() < span.end() {
+                self.result.namespace_refs.push(super::types::NamespaceRef {
+                    qualified_name: body_ns.clone(),
+                    span,
+                    declares: false,
+                });
+            }
+        }
 
         let params = parse_param_list(params_text);
         let body_text: std::sync::Arc<str> = std::sync::Arc::from(body_text);
@@ -2215,6 +2238,7 @@ impl Analyser {
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
+        arg_single: &[bool],
         scope_path: &[usize],
     ) -> bool {
         if args.len() < 2 {
@@ -2260,13 +2284,49 @@ impl Analyser {
         // the same written text). Mirrors `interp eval`'s dynamic-path
         // handling a few hooks below, which is conservatively isolated the
         // same way rather than merged by raw text.
-        let scope_name = if crate::naming::is_dynamic_word(&ns_name) {
-            match arg_tokens.get(1) {
+        //
+        // A computed target whose value is **constant-dominated** is not
+        // dynamic in any way that matters: `set ns ::app; namespace eval $ns
+        // { … }` creates `::app` on every run, so the block's procs really do
+        // home to `::app::…` and the block really is a declaring site for
+        // `::app`. That case is settled through the same identity-resolution
+        // helper the command head (issue #923 idx 44), `source`, `rename`, and
+        // `oo::define`'s target word already use — one lattice answers "what
+        // does this word name" everywhere, and its dominance requirement keeps
+        // a branch-conditional binding out (issue #1113 item 3).
+        let resolved_dynamic = crate::naming::is_dynamic_word(&ns_name)
+            .then(|| {
+                self.resolve_dynamic_word(
+                    &ns_name,
+                    arg_tokens.get(1).copied(),
+                    arg_single.get(1).copied().unwrap_or(false),
+                    scope_path,
+                )
+            })
+            .flatten()
+            .filter(|resolved| {
+                !resolved.is_empty() && !crate::naming::is_dynamic_word(resolved)
+            });
+        if let (Some(resolved), Some(tok)) = (resolved_dynamic.as_deref(), arg_tokens.get(1)) {
+            // The word is also the block's declaring occurrence of that
+            // namespace, which is what lets navigation reach it from a
+            // `namespace children ::app` elsewhere — the whole-word role scan
+            // in `record_namespace_name_refs` skips dynamic words, so the
+            // identity is recorded here, where it has just been settled.
+            let here = self.command_resolution_namespace(scope_path);
+            self.result.namespace_refs.push(super::types::NamespaceRef {
+                qualified_name: crate::naming::qualify(&here, resolved),
+                span: tok.span,
+                declares: true,
+            });
+        }
+        let scope_name = match resolved_dynamic {
+            Some(resolved) => resolved,
+            None if crate::naming::is_dynamic_word(&ns_name) => match arg_tokens.get(1) {
                 Some(tok) => self.mint_synthetic_offset_name("@dynns@", tok.span.start()),
                 None => ns_name.clone(),
-            }
-        } else {
-            ns_name
+            },
+            None => ns_name,
         };
 
         let path = scope_path.to_vec();
@@ -2854,7 +2914,22 @@ impl Analyser {
     /// [`tcl_registry::hooks::AnalyserHookId::NamespacePath`] (stamped
     /// on `namespace`'s `path` subcommand); `args[0]` is still the
     /// subcommand word.
-    pub fn handle_namespace_path_command(&mut self, args: &[String], scope_path: &[usize]) {
+    ///
+    /// The argument is a *list* of namespace names inside one word, so each
+    /// element is additionally recorded as a
+    /// [`NamespaceRef`](super::types::NamespaceRef) at its own source span
+    /// (issue #1113 item 2). Whole-word `ArgRole`s cannot express that — the
+    /// word as a whole is not one namespace name — so the split happens here,
+    /// where the semantics are already modelled, using the shared Tcl list
+    /// grammar rather than a second scanner. That is also what makes a braced
+    /// element (`namespace path {{my ns} ::b}`) come out right, which the
+    /// previous `split_whitespace` did not.
+    pub fn handle_namespace_path_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
         if args.len() != 2 {
             return;
         }
@@ -2876,8 +2951,62 @@ impl Analyser {
             return;
         }
         let ns = self.command_resolution_namespace(scope_path);
-        let entries = args[1].split_whitespace().map(str::to_string).collect();
+        let Ok(elements) = tcl_syntax::list::split_list(&args[1]) else {
+            // A malformed list (an unbalanced brace) is not a path Tcl would
+            // accept either; record nothing rather than half of one.
+            return;
+        };
+        let entries: Vec<String> = elements.iter().map(|e| e.to_string()).collect();
+        self.record_namespace_path_element_refs(&args[1], arg_tokens.get(1), &ns);
         self.namespace_paths.insert(ns, entries);
+    }
+
+    /// Record one [`NamespaceRef`](super::types::NamespaceRef) per element of
+    /// a `namespace path {…}` list, at the element's own source span.
+    ///
+    /// Non-declaring: a path entry *refers* to a namespace, it does not
+    /// create one (tclsh 8.6.16 / 9.0.4: `namespace path ::nope` fails
+    /// `namespace "::nope" not found`, so the name must already exist).
+    /// Rooting follows the ordinary relative rule — a relative entry is
+    /// current-namespace-relative only, which is what
+    /// `command_resolution_candidates` already assumes.
+    ///
+    /// Silently does nothing when the word is not a braced/bare literal the
+    /// span arithmetic can trust (`token` absent, or the element offsets fall
+    /// outside it).
+    fn record_namespace_path_element_refs(
+        &mut self,
+        raw: &str,
+        token: Option<&Token>,
+        here: &str,
+    ) {
+        let Some(token) = token else { return };
+        let base = token.span.start() + u32::from(token.content_offset);
+        let mut scan = 0usize;
+        while let Ok(Some(el)) = tcl_syntax::list::find_element(raw, scan) {
+            let (start, end) = (el.value.start, el.value.end);
+            if el.next <= scan {
+                break;
+            }
+            scan = el.next;
+            let Some(text) = raw.get(start..end) else {
+                continue;
+            };
+            if text.is_empty() || crate::naming::is_dynamic_word(text) {
+                continue;
+            }
+            let Ok(start_u32) = u32::try_from(start) else {
+                continue;
+            };
+            let Ok(end_u32) = u32::try_from(end) else {
+                continue;
+            };
+            self.result.namespace_refs.push(super::types::NamespaceRef {
+                qualified_name: crate::naming::qualify(here, text),
+                span: tcl_lexer::Span::new(base + start_u32, base + end_u32),
+                declares: false,
+            });
+        }
     }
 
     /// Handle `uplevel #0 { body }`: the script runs in the global
@@ -7488,12 +7617,12 @@ mod tests {
     #[test]
     fn handle_namespace_path_records_and_replaces() {
         let mut a = Analyser::new();
-        a.handle_namespace_path_command(&["path".to_string(), "::u ::v".to_string()], &[]);
+        a.handle_namespace_path_command(&["path".to_string(), "::u ::v".to_string()], &[], &[]);
         assert_eq!(
             a.namespace_paths.get("::").map(Vec::as_slice),
             Some(&["::u".to_string(), "::v".to_string()][..]),
         );
-        a.handle_namespace_path_command(&["path".to_string(), "inner".to_string()], &[]);
+        a.handle_namespace_path_command(&["path".to_string(), "inner".to_string()], &[], &[]);
         assert_eq!(
             a.namespace_paths.get("::").map(Vec::as_slice),
             Some(&["inner".to_string()][..]),
@@ -7506,9 +7635,9 @@ mod tests {
     #[test]
     fn handle_namespace_path_skips_query_and_dynamic_forms() {
         let mut a = Analyser::new();
-        a.handle_namespace_path_command(&["path".to_string()], &[]);
-        a.handle_namespace_path_command(&["path".to_string(), "$entries".to_string()], &[]);
-        a.handle_namespace_path_command(&["path".to_string(), "[current_path]".to_string()], &[]);
+        a.handle_namespace_path_command(&["path".to_string()], &[], &[]);
+        a.handle_namespace_path_command(&["path".to_string(), "$entries".to_string()], &[], &[]);
+        a.handle_namespace_path_command(&["path".to_string(), "[current_path]".to_string()], &[], &[]);
         assert!(a.namespace_paths.is_empty());
     }
 
@@ -7524,7 +7653,7 @@ mod tests {
                 crate::analyser::types::ScopeKind::Namespace,
                 "outer",
             ));
-        a.handle_namespace_path_command(&["path".to_string(), "::helpers".to_string()], &[0]);
+        a.handle_namespace_path_command(&["path".to_string(), "::helpers".to_string()], &[], &[0]);
         assert_eq!(
             a.namespace_paths.get("::outer").map(Vec::as_slice),
             Some(&["::helpers".to_string()][..]),
@@ -8568,6 +8697,7 @@ mod tests {
                 str_tok(span(19, 35)),
             ],
             &[],
+            &[],
         );
         assert!(handled);
         assert_eq!(a.result.global_scope.children.len(), 1);
@@ -8588,6 +8718,7 @@ mod tests {
                 esc_tok(span(15, 18)),
                 str_tok(span(19, 35)),
             ],
+            &[],
             &[],
         );
         assert_eq!(
@@ -8617,6 +8748,7 @@ mod tests {
                 str_tok(span(21, 37)),
             ],
             &[],
+            &[],
         );
         assert_eq!(a.result.global_scope.children[0].name, "@dynns@15");
     }
@@ -8633,6 +8765,7 @@ mod tests {
                 esc_tok(span(15, 18)),
                 str_tok(span(19, 35)),
             ],
+            &[],
             &[],
         );
         assert_eq!(a.result.global_scope.children[0].name, "ns1");

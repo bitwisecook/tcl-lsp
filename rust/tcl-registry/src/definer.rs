@@ -440,6 +440,24 @@ pub struct DefinitionBodyGrammar {
     /// `type` / `selfns` / `options`, a widget's `win` / `hull`).  Consumed by
     /// the analyser's read-before-set / stray-dispatch suppression.
     pub implicit_vars: &'static [&'static str],
+    /// The **implicit `namespace path`** every member body of this class
+    /// system runs with — namespaces a bare command word resolves through
+    /// after the body's own current namespace and before global, exactly as
+    /// a written `namespace path` would.
+    ///
+    /// `TclOO` puts `::oo::Helpers` there unconditionally (tclsh 8.6.16 and
+    /// 9.0.4: inside any method body `namespace path` is `::oo::Helpers`, so
+    /// a bare `callback` reaches `::oo::Helpers::callback` — the documented
+    /// "TclOO Tricks" idiom — before `::callback`).  snit and itcl member
+    /// bodies run in the type / class namespace with no injected path, so
+    /// theirs is empty.
+    ///
+    /// This is the data half of [`crate::Traits::TclooMethodContext`]: that
+    /// trait says *which words* only resolve in such a frame, this says
+    /// *where* a frame looks.  Consumed by the analyser's invocation
+    /// candidate-list finalisation (issue #1137), so no consumer spells
+    /// `::oo::Helpers` itself.
+    pub member_body_namespace_path: &'static [&'static str],
 }
 
 impl DefinitionBodyGrammar {
@@ -567,7 +585,16 @@ pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::TclOo,
     members: TCLOO_MEMBERS,
     implicit_vars: &[],
+    member_body_namespace_path: TCLOO_MEMBER_BODY_NAMESPACE_PATH,
 };
+
+/// The `namespace path` a `TclOO` member body runs with — see
+/// [`DefinitionBodyGrammar::member_body_namespace_path`].
+///
+/// Exposed on its own so a consumer holding only the analyser's
+/// "this frame resolves like a `TclOO` method body" flag (rather than the
+/// whole grammar) still reads the path from registry data.
+pub const TCLOO_MEMBER_BODY_NAMESPACE_PATH: &[&str] = &["::oo::Helpers"];
 
 // ---------------------------------------------------------------------------
 // snit — `snit::type` / `snit::widget` / `snit::widgetadaptor` bodies.
@@ -608,6 +635,7 @@ pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Snit,
     members: SNIT_MEMBERS,
     implicit_vars: &["self", "selfns", "type", "options"],
+    member_body_namespace_path: &[],
 };
 
 // ---------------------------------------------------------------------------
@@ -654,6 +682,7 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Itcl,
     members: ITCL_MEMBERS,
     implicit_vars: &["this"],
+    member_body_namespace_path: &[],
 };
 
 #[cfg(test)]
