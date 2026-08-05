@@ -1669,8 +1669,7 @@ impl Analyser {
             return false;
         }
 
-        let raw_name = &args[0];
-        let name_tok = arg_tokens[0];
+        let (raw_name, name_tok) = (&args[0], arg_tokens[0]);
         let resolved_name = self
             .resolve_dynamic_word(
                 raw_name,
@@ -1684,7 +1683,6 @@ impl Analyser {
         let simple = crate::naming::key_tail(&qualified).to_string();
         let name_span = name_tok.span;
         let body_tok = arg_tokens[2];
-        let body_span = body_tok.span;
 
         self.emit_w113_proc_shadows_builtin(&resolved_name, &qualified, name_span);
         self.emit_w314_no_absolute_name(raw_name, name_span);
@@ -1716,7 +1714,7 @@ impl Analyser {
             // one.
             params_computed: false,
             name_span,
-            body_span,
+            body_span: body_tok.span,
             doc,
             param_traits,
             caller_frame_params,
@@ -1741,7 +1739,7 @@ impl Analyser {
                     .expect("scope_path resolved when registering proc must still resolve");
                 let mut child =
                     super::types::Scope::new(super::types::ScopeKind::Proc, scope_name.clone());
-                child.body_span = Some(body_span);
+                child.body_span = Some(body_tok.span);
                 parent.children.push(child);
                 parent.children.len() - 1
             };
