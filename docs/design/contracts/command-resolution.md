@@ -285,10 +285,23 @@ not change the rule, and must not grow bespoke resolution logic. Every
 - Command names held in **variables** (`set cmd helper; $cmd …`) are
   statically undecidable and stay unresolved (pinned by LSP tests as a
   documented limitation).
-- **`interp eval` bodies** are walked in the parent interpreter's
-  context (for the injection diagnostics); a child interpreter's
-  separate command table is not modelled, so name bindings inside those
-  scripts are approximate.
+- **`interp eval` bodies** get their own synthetic
+  `@interp@<path>[#<epoch>]` scope domain, so definitions made inside one
+  (`proc`, `oo::class`, variables) never merge into the parent namespace
+  and two evals into two different children never merge with each other.
+  Command-table *mutations* written inside such a body — `rename`, and an
+  `interp alias` with an empty (`{}`) interpreter path, both of which act on
+  "the interpreter I am running in" — are likewise scoped to that child:
+  `rename` abstains from the file-wide rename/deletion maps rather than
+  making the parent's own builtin look deleted, and an empty-path
+  `interp alias` homes under the child's domain
+  (tclsh 9.0.4-verified in both directions; issue #1141's flaw class).
+  What is still approximate: the *content* of a child's command table is
+  not modelled as a separate universe, so a diagnostic that would depend on
+  a rename having happened **inside** the child is not emitted at all
+  (silence, never a wrong answer).  A dynamic (`interp eval $handle {…}`)
+  target that cannot be resolved to a tracked interpreter keeps its own
+  domain but is marked unresolved, and consumers widen across it.
 - **`source` call-site namespaces** are not propagated cross-file: the
   static model analyses each file as its own global-rooted unit, so a
   file sourced inside `namespace eval` is not re-homed (cross-file

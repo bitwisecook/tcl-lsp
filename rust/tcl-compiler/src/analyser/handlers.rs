@@ -2599,6 +2599,22 @@ impl Analyser {
         }
     }
 
+    /// The `::`-rooted prefix that qualifies a name into the interpreter
+    /// domain the walk is currently inside: empty at the top level (the main
+    /// interpreter), `::@interp@<path>[#<epoch>]` inside a child's eval body.
+    ///
+    /// Concatenate it with an already-`::`-rooted name (`::foo` →
+    /// `::@interp@c::foo`) or use it as the namespace half of a join. It is
+    /// what command-table facts (`interp alias`, alias deletion) written with
+    /// an *empty* interpreter path must be keyed by: an empty path means "the
+    /// interpreter this command runs in", which is the child inside a
+    /// `child eval { … }` body, not the main interpreter.
+    pub(super) fn current_interp_domain_prefix(&self) -> String {
+        self.interp_path_stack
+            .last()
+            .map_or_else(String::new, |frame| format!("::{}", frame.domain))
+    }
+
     /// The synthetic namespace name for an interpreter domain: the
     /// current epoch of `key` is folded in so a deleted-and-recreated
     /// interpreter never shares its predecessor's definitions.
@@ -2641,7 +2657,10 @@ impl Analyser {
     /// cross-domain alias (unchanged conservative behaviour).
     fn resolve_alias_domain_prefix(&self, path: &str, scope_path: &[usize]) -> Option<String> {
         if matches!(path, "" | "{}") {
-            return Some(String::new());
+            // The empty path is *this* interpreter — which is the child when
+            // the command is written inside a child's eval body, not always
+            // the main one.
+            return Some(self.current_interp_domain_prefix());
         }
         let key = if crate::naming::is_dynamic_word(path) {
             self.resolve_dynamic_interp_path(path, scope_path)?
@@ -4181,13 +4200,25 @@ impl Analyser {
         if let Some(deleted) = crate::alias::detect_interp_alias_delete(args) {
             // Deleting an alias destroys the command object, so every
             // `namespace import` edge pointing at it dies too (issue #1103).
+            // An empty srcPath means the interpreter this command *runs in*,
+            // so inside a child's eval body the deletion homes under that
+            // child's domain rather than the parent's command table.
+            let deleted = format!("{}{deleted}", self.current_interp_domain_prefix());
             self.result
                 .destroyed_commands
                 .insert(deleted.clone(), offset);
             self.deleted_commands.insert(deleted, offset);
             return;
         }
-        if let Some((qualified, target_cmd, prepended)) = detect_interp_alias(args) {
+        // The `interp alias {} A {} B` fast path homes both names at the
+        // global root, which is only right in the main interpreter: inside a
+        // child's eval body `{}` names *that child*. There, fall through to
+        // the domain-aware branch below, which qualifies both sides through
+        // `resolve_alias_domain_prefix` exactly as the explicit-path form
+        // already does (issue #1141's flaw class).
+        if self.interp_path_stack.is_empty()
+            && let Some((qualified, target_cmd, prepended)) = detect_interp_alias(args)
+        {
             self.record_interp_alias(qualified, target_cmd, prepended, offset);
             return;
         }
@@ -4451,6 +4482,22 @@ impl Analyser {
                 }
                 self.interpreters.insert(new_interp_key, state);
             }
+        }
+        // A `rename` inside a child interpreter's eval body mutates *that*
+        // interpreter's command table, never this one's — `interp create c;
+        // c eval { rename puts myputs }` leaves the parent's `puts` intact
+        // and gives the parent no `myputs` at all (tclsh 9.0.4-verified).
+        // Recording it in the file-wide command-table maps made the parent's
+        // own later `puts` call look like a call to a deleted builtin and drew
+        // a W123 on it — the same "state that is really per-interpreter kept
+        // in one flat file-wide map" flaw issue #1141 fixed for the Tk widget
+        // hierarchy. Abstain rather than model a second command table: a
+        // missed diagnostic inside the child beats a false accusation in the
+        // parent. (The interpreter-handle migration above is unaffected — it
+        // keys through `qualified_interp_key`, which is already relative to
+        // the enclosing frame.)
+        if !self.interp_path_stack.is_empty() {
+            return false;
         }
         // A rename nested inside a control-flow body may not run at all, so it
         // is not evidence that `OLD` is gone. Recording it anyway produced a
@@ -7437,6 +7484,79 @@ mod tests {
             !candidates("tcl8.4").iter().any(|c| c == "::mymod::helper"),
             "8.4 has no path tier, so it must not: {:?}",
             candidates("tcl8.4"),
+        );
+    }
+
+    /// A command-table mutation inside a child interpreter's eval body
+    /// belongs to *that* interpreter (issue #1141's flaw class, found while
+    /// auditing for other per-interpreter state kept in flat file-wide maps).
+    ///
+    /// tclsh 9.0.4, verified: after `interp create c; c eval { rename puts
+    /// myputs }` the parent's `puts` still works, the parent has no `myputs`,
+    /// the child has `myputs` and no `puts`; and `c eval { rename set {} }`
+    /// leaves the parent's `set` alone.
+    #[test]
+    fn rename_inside_a_child_body_does_not_touch_the_parent_command_table() {
+        let src = "interp create c\nc eval { rename puts myputs }\nputs hi\n";
+        let r = Analyser::new().analyse(src, "tcl8.6");
+        assert!(
+            r.renamed_commands.is_empty(),
+            "a child's rename must not enter the parent's rename map: {:?}",
+            r.renamed_commands
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.message.contains("'puts'")),
+            "the parent's own `puts` is still a live builtin: {:?}",
+            r.diagnostics
+                .iter()
+                .map(|d| (d.code.to_string(), d.message.clone()))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    /// The same rename written in the parent still records normally — the
+    /// guard narrows the fact to its interpreter, it does not disable it.
+    #[test]
+    fn rename_in_the_parent_still_records_the_command_move() {
+        let src = "interp create c\nrename puts myputs\n";
+        let r = Analyser::new().analyse(src, "tcl8.6");
+        assert_eq!(
+            r.renamed_commands.get("::myputs").map(String::as_str),
+            Some("::puts"),
+            "{:?}",
+            r.renamed_commands
+        );
+    }
+
+    /// `interp alias {} A {} B` inside a child's eval body creates the alias
+    /// in the *child* (an empty srcPath is "the interpreter I am running
+    /// in"), so it must home under that child's `@interp@` domain rather than
+    /// at the parent's global root.
+    #[test]
+    fn empty_path_interp_alias_inside_a_child_body_homes_in_that_child() {
+        let src = "interp create c\nc eval { interp alias {} shout {} puts }\n";
+        let r = Analyser::new().analyse(src, "tcl8.6");
+        assert!(
+            !r.command_aliases.contains_key("::shout"),
+            "the parent gained no alias: {:?}",
+            r.command_aliases.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            r.command_aliases.contains_key("::@interp@c::shout"),
+            "the child's alias homes under its own domain: {:?}",
+            r.command_aliases.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// The same alias written at the top level is unchanged.
+    #[test]
+    fn empty_path_interp_alias_at_top_level_still_homes_globally() {
+        let src = "interp alias {} shout {} puts\n";
+        let r = Analyser::new().analyse(src, "tcl8.6");
+        assert!(
+            r.command_aliases.contains_key("::shout"),
+            "{:?}",
+            r.command_aliases.keys().collect::<Vec<_>>()
         );
     }
 
