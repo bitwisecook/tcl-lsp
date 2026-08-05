@@ -137,7 +137,8 @@ const fn flag(name: &'static str, detail: &'static str) -> OptionSpec {
         detail,
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     }
 }
 
@@ -188,7 +189,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Character index into string to start matching at. Tcl 8.4 accepts only a plain non-negative integer; Tcl 8.5 and later accept the fuller index syntax used by string index (e.g. end, end-N). ^ no longer anchors to the string's real start there, though \\A still does; index is clamped to the string's bounds.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     // `regsub -command` is Tcl 9.0+ (TIP 463): absent from the fetched
     // 8.4/8.5/8.6 manpages' switch lists, present — identically worded —
@@ -199,7 +201,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Treat subSpec as a command prefix (a non-empty list) instead of a substitution template: & and \\n lose their special meaning. The whole match, then each capturing subexpression's match (like regexp -inline), are appended to the prefix, and the completed list is evaluated as a Tcl command whose result becomes the replacement text. Invoked once per match with -all, otherwise at most once; any error or exception from the callback becomes an error from regsub itself.",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     flag(
         "--",

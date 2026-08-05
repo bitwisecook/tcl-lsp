@@ -78,7 +78,8 @@ const fn flag(name: &'static str, detail: &'static str) -> OptionSpec {
         detail,
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     }
 }
 
@@ -137,7 +138,8 @@ const REGEXP_OPTIONS: &[OptionSpec] = &[
         detail: "Character index into string to start matching at. Tcl 8.4 accepts only a plain non-negative integer; Tcl 8.5 and later accept the fuller index syntax used by string index (e.g. end, end-N). ^ no longer anchors to the string's real start there, though \\A still does; -indices results stay relative to the whole string, and index is clamped to the string's bounds.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     flag(
         "-about",

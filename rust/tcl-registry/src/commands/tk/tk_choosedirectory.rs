@@ -33,7 +33,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Initial directory to display.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-mustexist",
@@ -41,7 +42,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the user must select an existing directory.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-parent",
@@ -49,7 +51,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Parent window for the dialogue.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-title",
@@ -57,7 +60,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Title string for the dialogue window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-command",
@@ -65,7 +69,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Command prefix invoked when the dialog closes; the chosen directory is appended (macOS).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-message",
@@ -73,7 +78,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Message displayed in the dialog (macOS).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

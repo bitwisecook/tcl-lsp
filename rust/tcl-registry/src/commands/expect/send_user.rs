@@ -25,7 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Send without translation.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "--",
@@ -33,7 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "End of options.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

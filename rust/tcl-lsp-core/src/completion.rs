@@ -1599,7 +1599,19 @@ fn switch_completions(
 /// even when iRules isn't in scope, so we keep it local instead.
 fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
     let reg = tcl_registry::events::EventRegistry::build();
-    let mut names: Vec<&str> = reg.all_event_names().into_iter().collect();
+    // Lifecycle rule (#1210): completion omits *retired* events and keeps
+    // deprecated ones, labelled with their deprecating release. The target is
+    // the axis default (the D5 oldest-supported release) since this entry
+    // point carries no resolved BIG-IP version.
+    let target = tcl_dialect::VersionKey::BigipVersion.default_version();
+    let mut names: Vec<&str> = reg
+        .all_event_names()
+        .into_iter()
+        .filter(|name| {
+            reg.event_lifecycle(name)
+                .is_none_or(|life| life.available_at(target))
+        })
+        .collect();
     names.sort_unstable();
     let FilteredCandidates {
         candidates: names,
@@ -1615,8 +1627,8 @@ fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
                 if !p.implied_profiles.is_empty() {
                     parts.push(format!("Profiles: {}", p.implied_profiles.join(", ")));
                 }
-                if p.deprecated {
-                    parts.push("Deprecated".to_string());
+                if let Some(release) = p.lifecycle().deprecated {
+                    parts.push(format!("Deprecated as of BIG-IP {release}"));
                 }
                 parts.join("\n\n")
             });

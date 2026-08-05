@@ -130,7 +130,8 @@ const CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Insert the slave so that it occupies the nth row in the grid.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-column",
@@ -138,7 +139,8 @@ const CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Insert the slave so that it occupies the nth column in the grid.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-rowspan",
@@ -146,7 +148,8 @@ const CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Insert the slave so that it occupies n rows in the grid.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-columnspan",
@@ -154,7 +157,8 @@ const CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Insert the slave so that it occupies n columns in the grid.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-sticky",
@@ -162,7 +166,8 @@ const CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies which edges of the cell the slave sticks to (combination of n, s, e, w).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-padx",
@@ -170,7 +175,8 @@ const CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies external horizontal padding for the slave.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-pady",
@@ -178,7 +184,8 @@ const CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies external vertical padding for the slave.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-ipadx",
@@ -186,7 +193,8 @@ const CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies internal horizontal padding for the slave.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-ipady",
@@ -194,7 +202,8 @@ const CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies internal vertical padding for the slave.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-in",
@@ -202,7 +211,8 @@ const CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Insert the slave into the specified master window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 
@@ -218,7 +228,8 @@ const ROWCOLUMN_CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Relative weight for apportioning extra space (columnconfigure/rowconfigure).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-minsize",
@@ -226,7 +237,8 @@ const ROWCOLUMN_CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Minimum size of the column or row (columnconfigure/rowconfigure).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-pad",
@@ -234,7 +246,8 @@ const ROWCOLUMN_CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Extra padding for the largest slave (columnconfigure/rowconfigure).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-uniform",
@@ -242,7 +255,8 @@ const ROWCOLUMN_CONFIGURE_OPTIONS: &[OptionSpec] = &[
         detail: "Group columns/rows for uniform sizing (columnconfigure/rowconfigure).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 
@@ -256,7 +270,8 @@ const SLAVES_OPTIONS: &[OptionSpec] = &[
         detail: "Insert the slave so that it occupies the nth row in the grid.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-column",
@@ -264,7 +279,8 @@ const SLAVES_OPTIONS: &[OptionSpec] = &[
         detail: "Insert the slave so that it occupies the nth column in the grid.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 
@@ -283,7 +299,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Insert the slave so that it occupies the nth row in the grid.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-column",
@@ -291,7 +308,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Insert the slave so that it occupies the nth column in the grid.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-rowspan",
@@ -299,7 +317,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Insert the slave so that it occupies n rows in the grid.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-columnspan",
@@ -307,7 +326,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Insert the slave so that it occupies n columns in the grid.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-sticky",
@@ -315,7 +335,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies which edges of the cell the slave sticks to (combination of n, s, e, w).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-padx",
@@ -323,7 +344,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies external horizontal padding for the slave.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-pady",
@@ -331,7 +353,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies external vertical padding for the slave.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-ipadx",
@@ -339,7 +362,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies internal horizontal padding for the slave.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-ipady",
@@ -347,7 +371,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies internal vertical padding for the slave.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-in",
@@ -355,7 +380,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Insert the slave into the specified master window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-weight",
@@ -363,7 +389,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Relative weight for apportioning extra space (columnconfigure/rowconfigure).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-minsize",
@@ -371,7 +398,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Minimum size of the column or row (columnconfigure/rowconfigure).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-pad",
@@ -379,7 +407,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Extra padding for the largest slave (columnconfigure/rowconfigure).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-uniform",
@@ -387,7 +416,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Group columns/rows for uniform sizing (columnconfigure/rowconfigure).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

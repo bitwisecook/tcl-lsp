@@ -190,7 +190,7 @@ const OPTIONS: &[OptionSpec] = &[
         // common unversioned `package require tcltest` leaves the floor
         // unknown, so also gate by Tcl core version (tcltest 2.5 ships with
         // 8.6) to hide the option under 8.4 / 8.5.
-        min_version: Some("2.5"),
+        lifecycle: Lifecycle::introduced_in("2.5"),
         dialects: Some(DialectSet::TCL86_PLUS),
         ..OptionSpec::DEFAULT
     },

@@ -18,6 +18,74 @@
 
 //! `connect` iRules command.
 use crate::prelude::*;
+/// The command's option table, hoisted out of the spec literal so the
+/// builder stays inside the line budget.
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-protocol",
+        value: OptionValue::value("PROTO"),
+        detail: "IP protocol (default TCP).",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-myaddr",
+        value: OptionValue::value("IP_ADDR"),
+        detail: "Source address for the connection.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-myport",
+        value: OptionValue::value("PORT"),
+        detail: "Source port for the connection.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-timeout",
+        value: OptionValue::value("MSEC"),
+        detail: "Time in ms to wait for connection.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-idle",
+        value: OptionValue::value("SEC"),
+        detail: "Idle timeout in seconds (default 300).",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-tos",
+        value: OptionValue::value("TOS"),
+        detail: "IP TOS value.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-status",
+        value: OptionValue::value("VARIABLE"),
+        detail: "Save connection status into variable.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+];
+
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "connect",
@@ -50,66 +118,7 @@ pub const fn spec() -> CommandSpec {
             synopsis: "connect ?options? destination",
             dialects: None,
         }],
-        options: const {
-            &[
-                OptionSpec {
-                    name: "-protocol",
-                    value: OptionValue::value("PROTO"),
-                    detail: "IP protocol (default TCP).",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-myaddr",
-                    value: OptionValue::value("IP_ADDR"),
-                    detail: "Source address for the connection.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-myport",
-                    value: OptionValue::value("PORT"),
-                    detail: "Source port for the connection.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-timeout",
-                    value: OptionValue::value("MSEC"),
-                    detail: "Time in ms to wait for connection.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-idle",
-                    value: OptionValue::value("SEC"),
-                    detail: "Idle timeout in seconds (default 300).",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-tos",
-                    value: OptionValue::value("TOS"),
-                    detail: "IP TOS value.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-status",
-                    value: OptionValue::value("VARIABLE"),
-                    detail: "Save connection status into variable.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-            ]
-        },
+        options: OPTIONS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: false,

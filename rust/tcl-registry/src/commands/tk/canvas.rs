@@ -271,7 +271,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Desired width of the canvas in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-height",
@@ -279,7 +280,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Desired height of the canvas in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-bg",
@@ -287,7 +289,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Shorthand for -background.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-background",
@@ -295,7 +298,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Background colour of the canvas.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-relief",
@@ -303,7 +307,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-borderwidth",
@@ -311,7 +316,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the border around the canvas.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-bd",
@@ -319,7 +325,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Shorthand for -borderwidth.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-scrollregion",
@@ -327,7 +334,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Bounding box of the total scrollable area (left top right bottom).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-xscrollcommand",
@@ -335,7 +343,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Command prefix for communicating with horizontal scrollbars.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-yscrollcommand",
@@ -343,7 +352,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Command prefix for communicating with vertical scrollbars.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-xscrollincrement",
@@ -351,7 +361,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Horizontal scrolling increment in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-yscrollincrement",
@@ -359,7 +370,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Vertical scrolling increment in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-confine",
@@ -367,7 +379,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether scrolling is confined to the scroll region.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-selectbackground",
@@ -375,7 +388,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Background colour for selected items.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-selectborderwidth",
@@ -383,7 +397,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the border around selected items.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-selectforeground",
@@ -391,7 +406,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Foreground colour for selected items.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-insertbackground",
@@ -399,7 +415,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the insertion cursor.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-insertborderwidth",
@@ -407,7 +424,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the border around the insertion cursor.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-insertofftime",
@@ -415,7 +433,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Milliseconds the insertion cursor is off during blinking.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-insertontime",
@@ -423,7 +442,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Milliseconds the insertion cursor is on during blinking.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-insertwidth",
@@ -431,7 +451,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the insertion cursor in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-closeenough",
@@ -439,7 +460,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Proximity threshold for mouse cursor to be considered over an item.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -447,7 +469,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Cursor to display when the mouse is over the canvas.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -455,7 +478,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the canvas accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightbackground",
@@ -463,7 +487,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the highlight region when the canvas does not have focus.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightcolor",
@@ -471,7 +496,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the highlight region when the canvas has focus.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightthickness",
@@ -479,7 +505,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the highlight rectangle drawn around the canvas.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-state",
@@ -487,7 +514,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Modifies the default state of the canvas where state may be set to one of: normal, disabled, or hidden.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

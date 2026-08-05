@@ -134,6 +134,7 @@ use tcl_compiler::ssa::Version;
 use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::{BinOp, ExprNode, UnaryOp, parse_expr};
 use tcl_lexer::{Lexer, SourceMap, Span, Token, TokenType};
+use tcl_registry::abbrev::{KeywordTable, PrefixMatching};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 /// Depth cap for [`minify_body`]'s recursion over nested control-flow
@@ -539,6 +540,23 @@ pub fn minify_tcl_aggressive(
     isolated: bool,
     registry: &CommandRegistry,
 ) -> MinifyResult {
+    minify_tcl_aggressive_with(source, dialect, isolated, registry, true)
+}
+
+/// [`minify_tcl_aggressive`] with the keyword-abbreviation phase (#1230)
+/// switchable.
+///
+/// `abbreviations = false` is the CLI's `--no-abbreviations`: abbreviated
+/// output is correct but harder to eyeball-diff, so the emitter can be turned
+/// off without giving up the rest of the tier.
+#[must_use]
+pub fn minify_tcl_aggressive_with(
+    source: &str,
+    dialect: &str,
+    isolated: bool,
+    registry: &CommandRegistry,
+    abbreviations: bool,
+) -> MinifyResult {
     let original_length = source.len();
 
     // Phase 1: apply the optimiser's semantic-preserving rewrites.
@@ -582,13 +600,20 @@ pub fn minify_tcl_aggressive(
     let (renamed, str_aliases) = alias_string_literals(&renamed, &mut claimed_names);
     symbol_map.string_aliases = str_aliases;
 
+    // Phase 2.8: emit unique-prefix keyword abbreviations.
+    let (renamed, abbrev_count) = if abbreviations {
+        abbreviate_keywords(&renamed, dialect, registry)
+    } else {
+        (renamed, 0)
+    };
+
     // Phase 3: minify whitespace.
     let minified = minify_body(&renamed, dialect, registry, 0);
 
     MinifyResult {
         source: minified,
         symbol_map,
-        optimisations_applied: opt_count + fold_count,
+        optimisations_applied: opt_count + fold_count + abbrev_count,
         original_length,
     }
 }
@@ -1551,6 +1576,245 @@ fn alias_repeated_commands(
             .push(inv.range.start() as usize);
     }
     alias_by_uses(source, &order, &uses, claimed)
+}
+
+/// Phase 2.8: emit unique-prefix keyword abbreviations (#1230).
+///
+/// Tcl's `Tcl_GetIndexFromObj` accepts any unique prefix of an ensemble
+/// subcommand or an `-option`, and `Tcl_GetBoolean` any unique prefix of a
+/// boolean word, so `string equal -nocase` can be written `string eq -noc` —
+/// a pure length win on top of whitespace stripping, and exactly what
+/// hand-minified iRules already do, but done correctly.
+///
+/// Every abbreviation is computed by the registry
+/// ([`tcl_registry::abbrev`]); the minifier never pattern-matches a command
+/// name. Two safety rules make the rewrite observationally invisible:
+///
+/// * **Version-range safety.** A prefix unique today can become ambiguous
+///   when a later release adds a keyword (`string cat` in 8.6.2 shortened
+///   what `string c…` could mean). The abbreviation is computed against the
+///   target dialect's table *and every later core-Tcl table*, so minified
+///   output stays correct if it is later run on a newer interpreter.
+/// * **Only dispatch-consumed words.** A subcommand or option word is
+///   consumed by dispatch and never observable as a string. Boolean *values*
+///   are not abbreviated here at all: `set flag true` is a value-definition
+///   site whose bytes may be observed (`eq "true"`, a `switch` arm, `string
+///   length`), and the minifier has no proof otherwise.
+///
+/// Abstains on strict tables, dynamic and `{*}`-expanded words, and anything
+/// the registry does not resolve `Unique`.
+fn abbreviate_keywords(source: &str, dialect: &str, registry: &CommandRegistry) -> (String, usize) {
+    let mut edits: Vec<Edit> = Vec::new();
+    let mut stack: Vec<(String, u32)> = vec![(source.to_owned(), 0)];
+    let later = later_core_registries(dialect);
+    while let Some((text, base)) = stack.pop() {
+        let sm = SourceMap::new(&text);
+        let Ok(tokens) = Lexer::new(&text).tokenise_all() else {
+            continue;
+        };
+        for command in command_word_runs(&sm, &tokens) {
+            // Recurse into braced/bracketed words so nested scripts get the
+            // same treatment.
+            for word in &command {
+                if matches!(word.kind, TokenType::Str | TokenType::Cmd) {
+                    let inner = sm.token_text(word.token);
+                    if inner.len() >= 3 {
+                        stack.push((inner.to_owned(), base + word.token.span.start() + 1));
+                    }
+                }
+            }
+            abbreviate_command(&command, registry, &later, base, &mut edits);
+        }
+    }
+    if edits.is_empty() {
+        return (source.to_owned(), 0);
+    }
+    let count = edits.len();
+    (apply_edits(source, edits), count)
+}
+
+/// One word of a command, with the token it came from.
+struct CommandWord {
+    token: Token,
+    kind: TokenType,
+    text: String,
+    /// The word is a substitution / expansion — never rewritten.
+    dynamic: bool,
+}
+
+/// Split a token stream into per-command word runs.
+fn command_word_runs(sm: &SourceMap, tokens: &[Token]) -> Vec<Vec<CommandWord>> {
+    let mut out: Vec<Vec<CommandWord>> = Vec::new();
+    let mut current: Vec<CommandWord> = Vec::new();
+    let mut expand_next = false;
+    for tok in tokens {
+        match tok.kind {
+            TokenType::Eof => break,
+            TokenType::Eol => {
+                if !current.is_empty() {
+                    out.push(std::mem::take(&mut current));
+                }
+                expand_next = false;
+            }
+            TokenType::Sep => {}
+            TokenType::Expand => expand_next = true,
+            kind => {
+                let dynamic =
+                    expand_next || matches!(kind, TokenType::Var | TokenType::Cmd | TokenType::Str);
+                current.push(CommandWord {
+                    token: *tok,
+                    kind,
+                    text: sm.token_text(*tok).to_owned(),
+                    dynamic,
+                });
+                expand_next = false;
+            }
+        }
+    }
+    if !current.is_empty() {
+        out.push(current);
+    }
+    out
+}
+
+/// The core-Tcl registries for every release *after* `dialect`, so a prefix
+/// that a later Tcl makes ambiguous is never emitted.
+fn later_core_registries(dialect: &str) -> Vec<&'static CommandRegistry> {
+    const CORE_ORDER: &[&str] = &["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"];
+    let Some(pos) = CORE_ORDER.iter().position(|d| *d == dialect) else {
+        return Vec::new();
+    };
+    CORE_ORDER[pos + 1..]
+        .iter()
+        .map(|d| tcl_registry::registry_for_dialect(d))
+        .collect()
+}
+
+/// Shorten every abbreviable keyword word of one command.
+fn abbreviate_command(
+    words: &[CommandWord],
+    registry: &CommandRegistry,
+    later: &[&'static CommandRegistry],
+    base: u32,
+    edits: &mut Vec<Edit>,
+) {
+    let Some(head) = words.first() else { return };
+    if head.dynamic || head.kind != TokenType::Esc {
+        return;
+    }
+    let Some(spec) = registry.get(&head.text) else {
+        return;
+    };
+    let args = &words[1..];
+    let mut subcommand: Option<&'static str> = None;
+    let mut start = 0usize;
+    if !spec.subcommands.is_empty() {
+        let Some(word) = args.first() else { return };
+        if word.dynamic || word.kind != TokenType::Esc {
+            return;
+        }
+        let Some(canonical) = spec
+            .resolve_subcommand_word(&word.text, None, None, None)
+            .unique()
+        else {
+            return;
+        };
+        let tables = keyword_tables(&head.text, TableScope::Subcommands, registry, later);
+        if let Some(short) = shortest_spelling(&tables, canonical)
+            && short.len() < word.text.len()
+        {
+            push_word_edit(word, base, short, edits);
+        }
+        subcommand = Some(canonical);
+        start = 1;
+    }
+    let scope = subcommand.map_or(TableScope::CommandOptions, TableScope::SubcommandOptions);
+    let option_tables = keyword_tables(&head.text, scope, registry, later);
+    if option_tables.iter().all(KeywordTable::is_empty) {
+        return;
+    }
+    for word in &args[start.min(args.len())..] {
+        if word.text == "--" {
+            break;
+        }
+        if word.dynamic || word.kind != TokenType::Esc || !word.text.starts_with('-') {
+            continue;
+        }
+        let Some(canonical) = option_tables
+            .first()
+            .and_then(|t| t.names().find(|n| *n == word.text))
+        else {
+            continue;
+        };
+        if let Some(short) = shortest_spelling(&option_tables, canonical)
+            && short.len() < word.text.len()
+        {
+            push_word_edit(word, base, short, edits);
+        }
+    }
+}
+
+fn push_word_edit(word: &CommandWord, base: u32, short: &str, edits: &mut Vec<Edit>) {
+    let start = (base + word.token.span.start()) as usize;
+    edits.push((start, word.text.len(), short.to_owned()));
+}
+
+/// The keyword tables for `cmd` in the target registry followed by every
+/// later core-Tcl registry — the subcommand table when `subcommand` is
+/// `None`, otherwise that subcommand's option table.
+///
+/// The target's table is always first; the rest are what the version-range
+/// check consults. A later release that no longer carries the command (or
+/// the subcommand) contributes an empty table, which can never vouch for a
+/// prefix, so the abbreviation is abandoned.
+fn keyword_tables(
+    cmd: &str,
+    scope: TableScope<'_>,
+    registry: &CommandRegistry,
+    later: &[&'static CommandRegistry],
+) -> Vec<KeywordTable<'static>> {
+    let table_for = |reg: &CommandRegistry| -> KeywordTable<'static> {
+        let empty = KeywordTable::new(std::iter::empty(), PrefixMatching::Enabled);
+        let Some(spec) = reg.get(cmd) else {
+            return empty;
+        };
+        match scope {
+            TableScope::Subcommands => spec.subcommand_table(None, None, None),
+            TableScope::CommandOptions => spec.option_table(None, None, None),
+            TableScope::SubcommandOptions(name) => spec
+                .subcommands
+                .iter()
+                .find(|s| s.name == name)
+                .map_or(empty, |sub| sub.option_table(None, None, None)),
+        }
+    };
+    std::iter::once(table_for(registry))
+        .chain(later.iter().map(|reg| table_for(reg)))
+        .collect()
+}
+
+/// Which keyword table of a command [`keyword_tables`] should build.
+#[derive(Debug, Clone, Copy)]
+enum TableScope<'a> {
+    /// The ensemble's subcommand words.
+    Subcommands,
+    /// The command's own option words (a command with no subcommands).
+    CommandOptions,
+    /// The named subcommand's option words.
+    SubcommandOptions(&'a str),
+}
+
+/// The shortest spelling of `canonical` that resolves to it in **every**
+/// table, or `None` when no abbreviation is safe across the whole range.
+fn shortest_spelling(
+    tables: &[KeywordTable<'static>],
+    canonical: &'static str,
+) -> Option<&'static str> {
+    let short = tables.first()?.minimal_unique_prefix(canonical)?;
+    tables[1..]
+        .iter()
+        .all(|t| t.resolve(short).unique() == Some(canonical))
+        .then_some(short)
 }
 
 /// Phase 2.6: alias repeated literal arguments (`-normalized` → `$a`).
@@ -3678,7 +3942,11 @@ mod tests {
         // require every run to produce the same intact output.
         let registry = CommandRegistry::build_default();
         let src = "namespace eval a {\n    proc dup {arg} { set collidevar [expr {$arg + 1}]; return $collidevar }\n}\nnamespace eval b {\n    proc dup {collidevar} { return $collidevar }\n}\n";
-        let expected = "namespace eval a {proc dup {a} {set b [expr {$a+1}];return $b}};namespace eval b {proc dup {a} {return $a}}";
+        // `namespace ev` is the aggressive tier's keyword abbreviation
+        // (#1230): `ev` is the minimal unique prefix of `eval` in the
+        // `namespace` table.  tclsh-proof (8.6.16): `namespace ev a { proc
+        // dup {x} { return $x } }` then `a::dup 7` -> 7.
+        let expected = "namespace ev a {proc dup {a} {set b [expr {$a+1}];return $b}};namespace ev b {proc dup {a} {return $a}}";
         for _ in 0..32 {
             let res = minify_tcl_aggressive(src, "tcl8.6", false, &registry);
             assert_eq!(res.source, expected, "collision corrupted the output");
@@ -3984,5 +4252,102 @@ mod tests {
             "apply {{x y} {\n    return [expr {$x + $y}]\n}} 1 2",
             "apply {{x y} {return [expr {$x+$y}]}} 1 2",
         );
+    }
+
+    // Keyword abbreviations (#1230).
+    //
+    // tclsh ground truth (8.6.16): `string le abc` → `3`, `string eq a a` → `1`,
+    // `lsearch -noc {A b} a` → `0`; `string l abc` → `unknown or ambiguous
+    // subcommand "l"`, so an ambiguous prefix must never be emitted.
+    mod abbreviations {
+        use super::*;
+
+        fn aggressive(src: &str) -> String {
+            let registry = tcl_registry::registry_for_dialect("tcl8.6");
+            minify_tcl_aggressive(src, "tcl8.6", false, registry).source
+        }
+
+        fn aggressive_no_abbrev(src: &str) -> String {
+            let registry = tcl_registry::registry_for_dialect("tcl8.6");
+            minify_tcl_aggressive_with(src, "tcl8.6", false, registry, false).source
+        }
+
+        #[test]
+        fn subcommand_words_shorten_to_their_minimal_unique_prefix() {
+            let out = aggressive("puts [string length $x]\n");
+            assert!(out.contains("string le "), "{out}");
+            assert!(!out.contains("string length"), "{out}");
+        }
+
+        // tclsh-proof (8.6.16): `string equal -n ABC abc` -> 1 -- `-n` is the
+        // minimal unique prefix in `string equal`'s two-option table
+        // (`-nocase`, `-length`).
+        #[test]
+        fn option_words_shorten_too() {
+            let out = aggressive("puts [string equal -nocase $a $b]\n");
+            assert!(out.contains("-n "), "{out}");
+            assert!(!out.contains("-nocase"), "{out}");
+        }
+
+        #[test]
+        fn the_emitter_can_be_turned_off() {
+            let out = aggressive_no_abbrev("puts [string length $x]\n");
+            assert!(out.contains("string length"), "{out}");
+        }
+
+        #[test]
+        fn a_keyword_with_no_shorter_unique_spelling_is_left_alone() {
+            // `trim` is a proper prefix of `trimleft`/`trimright`, so it can only
+            // be written in full.
+            let out = aggressive("puts [string trim $x]\n");
+            assert!(out.contains("string trim"), "{out}");
+        }
+
+        #[test]
+        fn dynamic_and_expanded_words_are_never_abbreviated() {
+            for src in ["puts [string $sub $x]\n", "puts [string {*}$words $x]\n"] {
+                let out = aggressive(src);
+                assert!(!out.contains("string le"), "{src} -> {out}");
+            }
+        }
+
+        #[test]
+        fn command_names_are_never_abbreviated() {
+            // Tcl does not prefix-match command names.
+            let out = aggressive("puts hello\n");
+            assert!(out.contains("puts"), "{out}");
+            assert!(!out.contains("put "), "{out}");
+        }
+
+        #[test]
+        fn a_boolean_value_definition_keeps_its_bytes() {
+            // `set flag true` is a value-definition site: `$flag` may later meet
+            // `eq "true"`, so `t` and `true` are not interchangeable.
+            let out = aggressive("set flag true\nputs $flag\n");
+            assert!(out.contains("true"), "{out}");
+        }
+
+        #[test]
+        fn a_prefix_a_later_release_makes_ambiguous_is_not_emitted_for_an_older_target() {
+            // `string compare` is `co` in 8.5 but `string cat` (8.6.2) collides
+            // at `c`; the emitter checks every later core-Tcl table, so whatever
+            // it emits must still resolve to `compare` under 9.0.
+            let registry = tcl_registry::registry_for_dialect("tcl8.5");
+            let out =
+                minify_tcl_aggressive("puts [string compare $a $b]\n", "tcl8.5", false, registry)
+                    .source;
+            let emitted = out.split_whitespace().find(|w| "compare".starts_with(*w));
+            if let Some(word) = emitted {
+                let t90 = tcl_registry::registry_for_dialect("tcl9.0")
+                    .get("string")
+                    .expect("string in 9.0")
+                    .subcommand_table(None, None, None);
+                assert_eq!(
+                    t90.resolve(word).unique(),
+                    Some("compare"),
+                    "emitted {word:?} is not `compare` under Tcl 9.0: {out}"
+                );
+            }
+        }
     }
 }

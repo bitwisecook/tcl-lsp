@@ -25,7 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specify epoch seconds instead of current time.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-format",
@@ -33,7 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "strftime-style format string.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-gmt",
@@ -41,7 +43,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Use GMT instead of local time.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

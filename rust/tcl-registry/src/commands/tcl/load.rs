@@ -113,7 +113,8 @@ pub fn spec() -> CommandSpec {
                     detail: "Exports every symbol in the shared library for global use by other loaded libraries, instead of resolving them privately to this library. Ignored (not an error) on platforms that don't support it.",
                     dialects: Some(DialectSet::TCL86_PLUS),
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-lazy",
@@ -121,7 +122,8 @@ pub fn spec() -> CommandSpec {
                     detail: "Delays the actual loading of symbols in the library until they are first used, instead of resolving them all immediately. Ignored (not an error) on platforms that don't support it.",
                     dialects: Some(DialectSet::TCL86_PLUS),
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -129,7 +131,8 @@ pub fn spec() -> CommandSpec {
                     detail: "Marks the end of the options; needed if fileName begins with - and a prefix argument is also given.",
                     dialects: Some(DialectSet::TCL86_PLUS),
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

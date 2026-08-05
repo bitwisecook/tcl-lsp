@@ -3262,9 +3262,30 @@ impl Analyser {
                         );
                     }
                 }
+                "-prefixes" => self.record_ensemble_prefixes(value, ensemble_key.as_deref()),
                 _ => {}
             }
             i += 1 + spec.value_word_count(opts, i);
+        }
+    }
+
+    /// Record a `namespace ensemble … -prefixes 0` configuration.
+    ///
+    /// `-prefixes 0` turns off this ensemble's `Tcl_GetIndexFromObj` prefix
+    /// matching, so an abbreviated subcommand word there is a plain
+    /// unknown-subcommand error rather than an abbreviation. Keyed by the
+    /// ensemble's resolved command name so the abbreviation machinery (W145,
+    /// the formatter's expansion) abstains on it.
+    ///
+    /// tclsh-proof (8.6.16): `namespace ensemble create -command ::e
+    /// -subcommands {alpha} -prefixes 0` then `::e al` →
+    /// `unknown subcommand "al": must be alpha`; without `-prefixes 0` the
+    /// same call succeeds.
+    fn record_ensemble_prefixes(&mut self, value: Option<&String>, ensemble_key: Option<&str>) {
+        if let (Some(value), Some(key)) = (value, ensemble_key)
+            && matches!(tcl_registry::abbrev::resolve_boolean(value), Some(false))
+        {
+            self.prefixless_ensembles.insert(key.to_owned());
         }
     }
 

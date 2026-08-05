@@ -73,8 +73,15 @@ struct EventEntry {
     common: bool,
     #[serde(skip_serializing_if = "is_false")]
     hot: bool,
-    #[serde(skip_serializing_if = "is_false")]
-    deprecated: bool,
+    // Lifecycle metadata is carried through rather than flattened to a
+    // boolean: `retiredVersion` is the exclusive first release without the
+    // event, so a consumer can distinguish "deprecated" from "gone".
+    #[serde(rename = "introducedVersion", skip_serializing_if = "Option::is_none")]
+    introduced_version: Option<&'static str>,
+    #[serde(rename = "deprecatedVersion", skip_serializing_if = "Option::is_none")]
+    deprecated_version: Option<&'static str>,
+    #[serde(rename = "retiredVersion", skip_serializing_if = "Option::is_none")]
+    retired_version: Option<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -150,7 +157,9 @@ fn vscode_irule_events_catalog(events: &EventRegistry) -> EventDetailsCatalog {
                 description: events.description(name).map(str::to_owned),
                 common: props.is_some_and(|p| p.common),
                 hot: props.is_some_and(|p| p.hot),
-                deprecated: props.is_some_and(|p| p.deprecated),
+                introduced_version: props.and_then(|p| p.lifecycle.introduced),
+                deprecated_version: props.and_then(|p| p.lifecycle.deprecated),
+                retired_version: props.and_then(|p| p.lifecycle.retired),
             }
         })
         .collect();

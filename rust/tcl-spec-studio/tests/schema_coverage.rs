@@ -80,10 +80,38 @@ fn default_initialiser_fields(source: &str, after_marker: &str) -> Vec<String> {
     fields
 }
 
+/// Spec fields the studio deliberately edits as several separate keys.
+///
+/// `lifecycle` is one `Lifecycle` value on the spec but three independent
+/// releases in the form (#1210), so the schema names them separately and the
+/// draft carries all three. Everything else is one field, one key.
+const EXPANDED_FIELDS: &[(&str, &[&str])] = &[(
+    "lifecycle",
+    &[
+        "introduced_version",
+        "deprecated_version",
+        "retired_version",
+    ],
+)];
+
+fn expansion_of(field: &str) -> &'static [&'static str] {
+    EXPANDED_FIELDS
+        .iter()
+        .find(|(name, _)| *name == field)
+        .map_or(&[], |(_, keys)| *keys)
+}
+
 fn assert_schema_covers(spec_fields: &[String], schema_keys: &[&str], what: &str) {
     let missing: Vec<&String> = spec_fields
         .iter()
-        .filter(|f| !schema_keys.contains(&f.as_str()))
+        .filter(|f| {
+            let expanded = expansion_of(f);
+            if expanded.is_empty() {
+                !schema_keys.contains(&f.as_str())
+            } else {
+                !expanded.iter().all(|k| schema_keys.contains(k))
+            }
+        })
         .collect();
     assert!(
         missing.is_empty(),
@@ -94,7 +122,10 @@ fn assert_schema_covers(spec_fields: &[String], schema_keys: &[&str], what: &str
 
     let extra: Vec<&&str> = schema_keys
         .iter()
-        .filter(|k| !spec_fields.iter().any(|f| f == *k))
+        .filter(|k| {
+            !spec_fields.iter().any(|f| f == *k)
+                && !spec_fields.iter().any(|f| expansion_of(f).contains(k))
+        })
         .collect();
     assert!(
         extra.is_empty(),

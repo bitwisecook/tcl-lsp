@@ -33,7 +33,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Text to display in the label.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-textvariable",
@@ -41,7 +42,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Variable whose value is used as the label text.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-image",
@@ -49,7 +51,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Image to display in the label.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-compound",
@@ -57,7 +60,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "How to display image relative to text.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-width",
@@ -65,7 +69,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Desired width of the label.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-anchor",
@@ -73,7 +78,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "How the text or image is positioned within the widget.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-justify",
@@ -81,7 +87,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "How to justify multiple lines of text.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-wraplength",
@@ -89,7 +96,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Maximum line length for word wrapping.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-style",
@@ -97,7 +105,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Style to use for the widget.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-class",
@@ -105,7 +114,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Widget class name for option-database lookups.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -113,7 +123,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Cursor to display when the pointer is over the widget.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -121,7 +132,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the widget accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-padding",
@@ -129,7 +141,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Internal padding around the widget content.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-underline",
@@ -137,7 +150,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Index of the character to underline for mnemonic activation.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-relief",
@@ -145,7 +159,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Border relief style for the label.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-font",
@@ -153,7 +168,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Font to use for the label text.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-foreground",
@@ -161,7 +177,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Foreground colour for the label text.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-background",
@@ -169,7 +186,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Background colour for the label.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 
@@ -193,7 +211,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         required_package: Some("Tk"),
-        min_version: Some("8.5"),
+        lifecycle: Lifecycle::introduced_in("8.5"),
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,

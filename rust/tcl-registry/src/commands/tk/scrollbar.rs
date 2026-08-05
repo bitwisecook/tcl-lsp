@@ -33,7 +33,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Orientation of the scrollbar: horizontal or vertical.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-command",
@@ -41,7 +42,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Command prefix to invoke when the scrollbar is moved (`moveto frac` appends 2, `scroll n units|pages` appends 3).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-width",
@@ -49,7 +51,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Desired narrow dimension of the scrollbar in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-bg",
@@ -57,7 +60,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Shorthand for -background.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-background",
@@ -65,7 +69,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Background colour of the scrollbar.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-activebackground",
@@ -73,7 +78,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Background colour when the mouse is over the scrollbar elements.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-troughcolor",
@@ -81,7 +87,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the trough area behind the slider.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-relief",
@@ -89,7 +96,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-borderwidth",
@@ -97,7 +105,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the border around the scrollbar.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-elementborderwidth",
@@ -105,7 +114,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the borders around the internal elements of the scrollbar.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-jump",
@@ -113,7 +123,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether to delay updates until the mouse button is released.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-activerelief",
@@ -121,7 +132,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Relief to use for the active element of the scrollbar.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -129,7 +141,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Cursor to display when the mouse is over the scrollbar.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -137,7 +150,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the scrollbar accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightbackground",
@@ -145,7 +159,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the highlight region when the scrollbar does not have focus.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightcolor",
@@ -153,7 +168,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the highlight region when the scrollbar has focus.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightthickness",
@@ -161,7 +177,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the highlight rectangle drawn around the scrollbar.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-repeatdelay",
@@ -169,7 +186,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Milliseconds before auto-repeat begins when an arrow is held.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-repeatinterval",
@@ -177,7 +195,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Milliseconds between auto-repeat invocations.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

@@ -48,7 +48,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 detail: "Session ID.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         side_effects: &[SideEffect {
@@ -73,7 +74,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 detail: "Session ID.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         side_effects: &[SideEffect {

@@ -47,7 +47,8 @@ const fn vopt(name: &'static str, detail: &'static str) -> OptionSpec {
         detail,
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     }
 }
 
@@ -55,7 +56,7 @@ const fn vopt(name: &'static str, detail: &'static str) -> OptionSpec {
 const fn vopt_since(
     name: &'static str,
     detail: &'static str,
-    min_version: &'static str,
+    introduced: &'static str,
 ) -> OptionSpec {
     OptionSpec {
         name,
@@ -63,7 +64,8 @@ const fn vopt_since(
         detail,
         dialects: None,
         aliases: &[],
-        min_version: Some(min_version),
+        lifecycle: Lifecycle::introduced_in(introduced),
+        min_abbrev: None,
     }
 }
 
@@ -75,7 +77,8 @@ const fn eopt(name: &'static str, detail: &'static str, values: &'static [ArgVal
         detail,
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     }
 }
 

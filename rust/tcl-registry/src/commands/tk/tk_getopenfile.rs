@@ -33,7 +33,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Default extension to append if the user does not type one.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-filetypes",
@@ -41,7 +42,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "List of file type patterns to display in the filter.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-initialdir",
@@ -49,7 +51,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Initial directory to display.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-initialfile",
@@ -57,7 +60,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Initial file name to populate in the dialogue.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-multiple",
@@ -65,7 +69,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Allow the user to select multiple files.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-parent",
@@ -73,7 +78,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Parent window for the dialogue.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-title",
@@ -81,7 +87,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Title string for the dialogue window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-typevariable",
@@ -89,7 +96,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Variable to store the selected file type.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-command",
@@ -97,7 +105,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Command prefix invoked when the dialog closes; the chosen file is appended (macOS).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-message",
@@ -105,7 +114,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Message displayed in the dialog (macOS).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

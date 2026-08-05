@@ -67,7 +67,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the above field for the event (generate).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-borderwidth",
@@ -75,7 +76,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the border width for the event (generate).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-button",
@@ -83,7 +85,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the button number for a ButtonPress or ButtonRelease event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-count",
@@ -91,7 +94,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the count field for the event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-data",
@@ -99,7 +103,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies user data for a virtual event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-delta",
@@ -107,7 +112,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the delta field for a MouseWheel event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-detail",
@@ -115,7 +121,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the detail field for the event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-focus",
@@ -123,7 +130,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the focus field for the event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-height",
@@ -131,7 +139,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the height field for the event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-keycode",
@@ -139,7 +148,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the keycode field for the event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-keysym",
@@ -147,7 +157,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the keysym field for the event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-mode",
@@ -155,7 +166,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the mode field for the event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-override",
@@ -163,7 +175,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the override-redirect field.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-place",
@@ -171,7 +184,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the place field for the event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-root",
@@ -179,7 +193,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the root field for the event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-rootx",
@@ -187,7 +202,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the x-coordinate relative to the root window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-rooty",
@@ -195,7 +211,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the y-coordinate relative to the root window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-sendevent",
@@ -203,7 +220,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the send-event field.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-serial",
@@ -211,7 +229,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the serial number field.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-state",
@@ -219,7 +238,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the state field for the event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-subwindow",
@@ -227,7 +247,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the sub-window field.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-time",
@@ -235,7 +256,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the time field for the event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-warp",
@@ -243,7 +265,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies whether the screen pointer should be warped.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-width",
@@ -251,7 +274,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the width field for the event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-when",
@@ -259,7 +283,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies when the event is processed.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-x",
@@ -267,7 +292,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the x field for the event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-y",
@@ -275,7 +301,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the y field for the event.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

@@ -169,7 +169,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether I/O on the channel may block the process indefinitely. Must be a proper boolean; channels are blocking by default. Placing a channel in nonblocking mode affects gets, read, puts, flush, and close, and requires an active Tcl event loop (vwait, or Tcl_DoOneEvent) to drive it.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-buffering",
@@ -182,7 +183,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "full, line, or none — see the value list for the per-mode default.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-buffersize",
@@ -190,7 +192,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Integer buffer size in bytes for buffers subsequently allocated for this channel. Tcl 8.4 and 8.5 require a value between 10 and 1,000,000; Tcl 8.6 lowers the minimum to 1; the Tcl 9.0/9.1 documentation states only the 1,000,000-byte ceiling, without restating a minimum.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-encoding",
@@ -198,7 +201,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Character encoding used to convert the channel's bytes to/from Tcl's internal string representation for reading and writing, e.g. shiftjis for a Japanese file. Defaults to the platform- and locale-dependent system encoding (see encoding system). Tcl 8.5/8.6's chan.n documents binary itself as a legal special encoding-name value for pure-binary data (matching fconfigure.n's own recommendation in every 8.4-8.6 source); Tcl 9.0's chan.n drops binary from its -encoding description (listing only \"the named encodings returned by encoding names\") and recommends iso8859-1 for binary data instead — see the binary -translation value below for the same shift.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-eofchar",
@@ -206,7 +210,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "A character that signals end-of-file when encountered on input. Tcl 8.5 onward documents an acceptable range of \\x01–\\x7f (setting a value outside it is an error); Tcl 8.4's documentation states no such range restriction. Tcl 8.4 through 8.6 document that the character is also written on output when the channel closes, and that the default is the empty string everywhere except Windows file reads, where it defaults to Control-Z (\\x1a); Tcl 9.0/9.1's chan.n (fconfigure.n itself is a stub for those two versions) narrows the description to input-signalling only, stating simply that the default is 'no special end of file character marker' without restating the output-write behaviour or the Windows exception. Tcl 8.4 through 8.6 additionally accept a {inChar outChar} two-element list to set independent input/output eofchars on a read-write channel, returned as a two-element list when queried; Tcl 9.0 removed the two-element form — only a single value is accepted and it applies to both directions.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-translation",
@@ -218,7 +223,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "End-of-line translation mode; also accepts a {inTranslation outTranslation} two-element list to set input and output translation independently on a read-write channel (returned as a two-element list when queried). See the value list for per-mode behaviour and defaults.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-profile",
@@ -231,7 +237,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Encoding profile controlling how conversion errors on this channel's -encoding are handled (see PROFILES in encoding(n)). Defaults to strict.",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     // Socket / terminal channel-type options, Tcl 9.0+. Settable only on
     // the matching channel type; documented on socket.n / open.n rather
@@ -243,7 +250,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "TCP_NODELAY on a socket channel (Tcl 9.0+, TIP 344): disables Nagle's algorithm so small writes are sent immediately instead of being coalesced and delayed. Boolean value. Documented on socket(n).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-keepalive",
@@ -251,7 +259,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "SO_KEEPALIVE on a socket channel (Tcl 9.0+, TIP 344): enables periodic keepalive probes on an otherwise idle connection. Boolean value. Documented on socket(n).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-inputmode",
@@ -264,7 +273,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Interactive input mode of a serial channel (Unix) or a console channel (Windows stdin/stdout) — Tcl 9.0+. Setting it to anything other than normal arranges for the terminal/console to be automatically reset when the channel is closed. Documented on open(n).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

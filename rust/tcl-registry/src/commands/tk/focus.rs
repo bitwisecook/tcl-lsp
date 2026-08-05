@@ -33,7 +33,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Return the focus window on the display of the given window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-force",
@@ -41,7 +42,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Set the focus to the window even if the application does not currently have focus.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-lastfor",
@@ -49,7 +51,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Return the name of the most recent window to have the input focus among the window's top-level.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

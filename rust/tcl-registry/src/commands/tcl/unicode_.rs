@@ -82,7 +82,8 @@ static PROFILE_OPTIONS: [OptionSpec; 1] = [OptionSpec {
     detail: "Profile controlling how the command reacts to invalid or ill-formed Unicode data in string; must be strict or replace, defaulting to strict when omitted.",
     dialects: None,
     aliases: &[],
-    min_version: None,
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
 }];
 
 /// One `unicode to<form>` normalization subcommand: `?-profile profile? string`

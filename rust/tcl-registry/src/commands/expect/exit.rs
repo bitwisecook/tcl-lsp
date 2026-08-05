@@ -31,7 +31,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Register a handler to run at exit.",
         dialects: Some(DialectSet::EXPECT),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-noexit",
@@ -39,7 +40,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Prepare for exit without exiting.",
         dialects: Some(DialectSet::EXPECT),
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

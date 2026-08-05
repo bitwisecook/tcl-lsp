@@ -25,7 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Wait for the specified spawn id.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-nowait",
@@ -33,7 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Non-blocking wait.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

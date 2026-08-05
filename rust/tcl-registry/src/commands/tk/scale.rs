@@ -33,7 +33,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Starting value of the range (a real number).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-to",
@@ -41,7 +42,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Ending value of the range (a real number).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-variable",
@@ -49,7 +51,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Name of a variable linked to the scale's current value.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-orient",
@@ -57,7 +60,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Orientation of the scale: horizontal or vertical.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-resolution",
@@ -65,7 +69,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Resolution (step size) for the scale value.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-tickinterval",
@@ -73,7 +78,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Spacing between numerical tick marks displayed along the scale.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-label",
@@ -81,7 +87,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Text label to display alongside the scale.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-length",
@@ -89,7 +96,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Desired long dimension of the scale in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-width",
@@ -97,7 +105,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Desired narrow dimension of the trough in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-sliderlength",
@@ -105,7 +114,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Length of the slider along the long dimension in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-sliderrelief",
@@ -113,7 +123,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Relief of the slider: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-showvalue",
@@ -121,7 +132,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether to display the current value next to the slider.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-digits",
@@ -129,7 +141,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Number of significant digits for the scale value.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-bigincrement",
@@ -137,7 +150,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Large increment used for Control-arrow key bindings.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-command",
@@ -145,7 +159,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Tcl command prefix invoked when the scale value changes (the new value is appended).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-state",
@@ -153,7 +168,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "State of the scale: normal, active, or disabled.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-font",
@@ -161,7 +177,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Font to use for the label and value display.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-bg",
@@ -169,7 +186,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Shorthand for -background.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-fg",
@@ -177,7 +195,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Shorthand for -foreground.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-troughcolor",
@@ -185,7 +204,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the trough area.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-activebackground",
@@ -193,7 +213,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Background colour when the slider is active (mouse over).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightbackground",
@@ -201,7 +222,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the highlight region when the scale does not have focus.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightcolor",
@@ -209,7 +231,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the highlight region when the scale has focus.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightthickness",
@@ -217,7 +240,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the highlight rectangle drawn around the scale.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-relief",
@@ -225,7 +249,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-borderwidth",
@@ -233,7 +258,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the border around the scale.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -241,7 +267,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Cursor to display when the mouse is over the scale.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -249,7 +276,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the scale accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-repeatdelay",
@@ -257,7 +285,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Milliseconds before auto-repeat begins when trough is held.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-repeatinterval",
@@ -265,7 +294,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Milliseconds between auto-repeat invocations.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

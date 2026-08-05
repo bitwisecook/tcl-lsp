@@ -25,7 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Suppress echoing of the command.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-console",
@@ -33,7 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Redirect console output to spawn.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-ignore",
@@ -41,7 +43,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Ignore the named signal in the spawned process.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-leaveopen",
@@ -49,7 +52,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Leave the file descriptor open.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-pty",
@@ -57,7 +61,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Open a pty for the process.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-nottycopy",
@@ -65,7 +70,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Do not copy tty modes.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-nottyinit",
@@ -73,7 +79,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Do not initialise the tty.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-open",
@@ -81,7 +88,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Use an already-open file id.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-trap",
@@ -89,7 +97,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Enable signal trapping.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

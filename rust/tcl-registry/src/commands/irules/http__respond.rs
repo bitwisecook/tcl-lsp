@@ -64,7 +64,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Protocol version on the synthesised response.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-content",
@@ -72,7 +73,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Response body content.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-ifile",
@@ -80,7 +82,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Serve the response body from an iFile object.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-noserver",
@@ -88,7 +91,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Suppress the auto-injected `Server` response header.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-reset",
@@ -96,7 +100,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Reset the connection after sending the response.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

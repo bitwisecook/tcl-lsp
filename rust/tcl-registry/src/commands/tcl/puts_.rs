@@ -115,7 +115,8 @@ pub fn spec() -> CommandSpec {
                 detail: "Suppress the newline puts normally appends after string.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         hover: Some(HoverSnippet {

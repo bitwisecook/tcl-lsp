@@ -44,7 +44,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Key generation algorithm.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-len",
@@ -52,7 +53,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Key length (must be multiple of 8).",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-exp",
@@ -60,7 +62,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Exponent (for RSA).",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-passphrase",
@@ -68,7 +71,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Passphrase for key derivation.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-salt",
@@ -76,7 +80,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Binary salt.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-salthex",
@@ -84,7 +89,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Hex-encoded salt.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-rounds",
@@ -92,7 +98,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Rounds for PBKDF2.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

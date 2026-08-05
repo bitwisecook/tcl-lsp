@@ -332,7 +332,7 @@ fn describe(
         d.insert("required_package".into(), json!(package));
         notes.push(format!("gated on `package require {package}`"));
         if let Some(version) = version {
-            d.insert("min_version".into(), json!(version));
+            d.insert("introduced_version".into(), json!(version));
         }
     }
 
@@ -409,7 +409,9 @@ pub fn import_package(files: &[SourceFile], dialect: &str) -> Import {
                 .notes
                 .push(format!("gated on `package require {package}`"));
             if let Some(version) = &out.version {
-                inferred.draft.insert("min_version".into(), json!(version));
+                inferred
+                    .draft
+                    .insert("introduced_version".into(), json!(version));
             }
         }
         out.commands.push(inferred);
@@ -541,7 +543,7 @@ mod tests {
         assert_eq!(import.package.as_deref(), Some("mypkg"));
         let go = find(&import, "mypkg::go");
         assert_eq!(go.draft["required_package"], json!("mypkg"));
-        assert_eq!(go.draft["min_version"], json!("1.2"));
+        assert_eq!(go.draft["introduced_version"], json!("1.2"));
     }
 
     #[test]

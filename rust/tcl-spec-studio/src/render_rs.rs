@@ -370,6 +370,35 @@ fn unfilled_option_hooks(draft: &Value) -> Vec<&str> {
         .collect()
 }
 
+/// Render a `Lifecycle` constructor from a draft's three lifecycle keys, or
+/// `None` when the draft declares no lifecycle release at all (the
+/// `..DEFAULT` field is then simply omitted).
+fn lifecycle_expr(entry: &Value) -> Option<String> {
+    let release = |key: &str| entry[key].as_str().filter(|v| !v.is_empty());
+    let introduced = release("introduced_version");
+    let deprecated = release("deprecated_version");
+    let retired = release("retired_version");
+    if introduced.is_none() && deprecated.is_none() && retired.is_none() {
+        return None;
+    }
+    let mut expr = match introduced {
+        Some(v) => format!("Lifecycle::introduced_in({})", rust_string(v)),
+        None => match deprecated {
+            Some(v) => format!("Lifecycle::deprecated_in({})", rust_string(v)),
+            None => "Lifecycle::UNSPECIFIED".to_owned(),
+        },
+    };
+    if introduced.is_some()
+        && let Some(v) = deprecated
+    {
+        expr = format!("{expr}.deprecated_from({})", rust_string(v));
+    }
+    if let Some(v) = retired {
+        expr = format!("{expr}.retired_from({})", rust_string(v));
+    }
+    Some(expr)
+}
+
 fn option_expr(entry: &Value, indent: &str) -> String {
     let inner = format!("{indent}    ");
     let mut parts = vec![format!(
@@ -453,11 +482,11 @@ fn option_expr(entry: &Value, indent: &str) -> String {
     if !aliases.is_empty() {
         parts.push(format!("{inner}aliases: {},", str_slice(aliases)));
     }
-    if let Some(version) = entry["min_version"].as_str() {
-        parts.push(format!(
-            "{inner}min_version: Some({}),",
-            rust_string(version)
-        ));
+    if let Some(lifecycle) = lifecycle_expr(entry) {
+        parts.push(format!("{inner}lifecycle: {lifecycle},"));
+    }
+    if let Some(min_abbrev) = entry["min_abbrev"].as_u64() {
+        parts.push(format!("{inner}min_abbrev: Some({min_abbrev}),"));
     }
     format!(
         "{indent}OptionSpec {{\n{}\n{inner}..OptionSpec::DEFAULT\n{indent}}},",
@@ -644,6 +673,7 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "taintColour" => "TaintColour",
         "dialects" => "DialectSet",
         "defaultFormFirstWord" => "DefaultFormFirstWord",
+        "prefixMatching" => "PrefixMatching",
         _ => "Unknown",
     }
 }

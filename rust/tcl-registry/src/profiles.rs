@@ -23,6 +23,8 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::lifecycle::Lifecycle;
+
 /// Metadata for an F5 profile type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProfileSpec {
@@ -38,11 +40,10 @@ pub struct ProfileSpec {
     pub conflicts: &'static [&'static str],
     /// Profile capabilities (e.g. `"sni"`, `"cipher"`, `"cert"`).
     pub capabilities: &'static [&'static str],
-    /// The BIG-IP release that introduced this profile type, when
-    /// explicitly known; `None` inherits the axis baseline (BIG-IP 15.0).
-    pub bigip_min_version: Option<&'static str>,
-    /// The last BIG-IP release providing it; `None` = still present.
-    pub bigip_max_version: Option<&'static str>,
+    /// Introduction / deprecation / retirement releases of this profile type
+    /// on the `BIG-IP` release axis. An absent introducing release inherits
+    /// the axis baseline (BIG-IP 15.0).
+    pub lifecycle: Lifecycle,
 }
 
 impl ProfileSpec {
@@ -56,9 +57,16 @@ impl ProfileSpec {
         requires: &[],
         conflicts: &[],
         capabilities: &[],
-        bigip_min_version: None,
-        bigip_max_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     };
+
+    /// The profile type's lifecycle with the `BIG-IP` axis baseline filled in
+    /// for an absent introducing release.
+    #[must_use]
+    pub fn lifecycle(&self) -> Lifecycle {
+        self.lifecycle
+            .with_baseline(tcl_dialect::VersionKey::BigipVersion.baseline_version())
+    }
 }
 
 /// iRules protocol command namespace availability.
@@ -97,27 +105,20 @@ pub struct ProfileRegistry {
 }
 
 impl ProfileRegistry {
-    /// The BIG-IP version range of profile type `name` (explicit data,
-    /// absent minimum inheriting the BIG-IP 15.0 baseline). `None` for an
-    /// unknown profile type.
+    /// The lifecycle of profile type `name` on the BIG-IP release axis
+    /// (explicit data, absent introducing release inheriting the BIG-IP 15.0
+    /// baseline). `None` for an unknown profile type.
     #[must_use]
-    pub fn profile_version_range(
-        &self,
-        name: &str,
-    ) -> Option<(Option<&'static str>, Option<&'static str>)> {
-        let spec = self.get_profile(name)?;
-        let min = spec
-            .bigip_min_version
-            .or(tcl_dialect::VersionKey::BigipVersion.baseline_version());
-        Some((min, spec.bigip_max_version))
+    pub fn profile_lifecycle(&self, name: &str) -> Option<Lifecycle> {
+        Some(self.get_profile(name)?.lifecycle())
     }
 
     /// Whether profile type `name` exists at BIG-IP `version` per the
     /// declared data (baseline semantics).
     #[must_use]
     pub fn profile_available_at(&self, name: &str, version: &str) -> bool {
-        self.profile_version_range(name)
-            .is_some_and(|(min, max)| crate::version::within_range(version, min, max))
+        self.profile_lifecycle(name)
+            .is_some_and(|life| life.available_at(Some(version)))
     }
 
     /// Build the profile registry from static data.
@@ -405,8 +406,7 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
-            bigip_min_version: Some("21.1.0"),
-            ..ProfileSpec::DEFAULT
+            lifecycle: Lifecycle::introduced_in("21.1.0"),
         },
         ProfileSpec {
             name: "ANTIFRAUD",

@@ -626,6 +626,14 @@ pub struct DefinitionBodyGrammar {
     /// candidate-list finalisation (issue #1137), so no consumer spells
     /// `::oo::Helpers` itself.
     pub member_body_namespace_path: &'static [&'static str],
+
+    /// Type-level members every definer of this family provides without the
+    /// body declaring them — snit gives every type an `info` and a `destroy`
+    /// typemethod.  `create` is deliberately **not** listed: `Type create
+    /// inst` is a construction, not a typemethod call, and a consumer
+    /// distinguishing the two must keep them apart.  Empty for families with
+    /// no such built-ins.
+    pub builtin_type_methods: &'static [&'static str],
 }
 
 impl DefinitionBodyGrammar {
@@ -635,6 +643,13 @@ impl DefinitionBodyGrammar {
         // `members` is `&'static`, so the borrow can be handed back as static.
         let idx = self.members.iter().position(|m| m.keyword == keyword)?;
         Some(&self.members[idx])
+    }
+
+    /// Whether `name` is a type-level member this family provides without
+    /// the body declaring it (see [`Self::builtin_type_methods`]).
+    #[must_use]
+    pub fn is_builtin_type_method(&self, name: &str) -> bool {
+        self.builtin_type_methods.contains(&name)
     }
 
     /// Whether `keyword` is a recognised member sub-keyword.
@@ -760,6 +775,9 @@ pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     members: TCLOO_MEMBERS,
     implicit_vars: &[],
     member_body_namespace_path: TCLOO_MEMBER_BODY_NAMESPACE_PATH,
+    // TclOO's class-level surface is `oo::define`/`oo::objdefine`, not a set
+    // of built-in typemethods on the class command.
+    builtin_type_methods: &[],
 };
 
 /// The `namespace path` a `TclOO` member body runs with — see
@@ -811,6 +829,9 @@ pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     members: SNIT_MEMBERS,
     implicit_vars: &["self", "selfns", "type", "options"],
     member_body_namespace_path: &[],
+    // snit(n): "Every snit type has the following type methods: create,
+    // info, destroy."  `create` is left out — see the field's doc comment.
+    builtin_type_methods: &["info", "destroy"],
 };
 
 /// The definition-body grammar for snit `widget` / `widgetadaptor`: the same
@@ -825,6 +846,9 @@ pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // own generated type namespace, not an implicit helper path (#1137's
     // `::oo::Helpers` fact is TclOO-only).
     member_body_namespace_path: &[],
+    // snit(n): "Every snit type has the following type methods: create,
+    // info, destroy."  `create` is left out — see the field's doc comment.
+    builtin_type_methods: &["info", "destroy"],
 };
 
 // ---------------------------------------------------------------------------
@@ -872,6 +896,9 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     members: ITCL_MEMBERS,
     implicit_vars: &["this"],
     member_body_namespace_path: &[],
+    // [incr Tcl] class commands expose `::itcl::class` introspection rather
+    // than built-in typemethods on the class command itself.
+    builtin_type_methods: &[],
 };
 
 #[cfg(test)]

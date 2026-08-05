@@ -71,7 +71,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Disable prefix matching — string must exactly equal a table element.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-message",
@@ -79,7 +80,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Replace \"option\" in the generated error message with this text.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-error",
@@ -87,7 +89,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Control error handling: {} returns \"\" on no match instead of erroring.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

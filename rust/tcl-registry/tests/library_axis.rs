@@ -45,7 +45,7 @@ fn introduced_in_big_ip_prose_matches_min_version_data() {
                 });
                 if let Some(version) = prose_version {
                     assert_eq!(
-                        spec.min_version,
+                        spec.lifecycle.introduced,
                         Some(version),
                         "{}: prose says introduced in {version}, data must agree",
                         spec.name
@@ -62,7 +62,7 @@ fn introduced_in_big_ip_prose_matches_min_version_data() {
                     && DialectProfile::by_name(dialect).is_ambient_package(pkg)
                 {
                     assert_eq!(
-                        spec.min_version, None,
+                        spec.lifecycle.introduced, None,
                         "{}: an F5-surface min_version needs its introduction stated \
                          in the hover prose (the data lock is bidirectional)",
                         spec.name
@@ -92,11 +92,11 @@ fn introduced_in_big_ip_subcommand_prose_matches_min_version_data() {
                 Some(rest[..end].trim_end_matches('.'))
             });
             assert_eq!(
-                prose_version, sub.min_version,
+                prose_version, sub.lifecycle.introduced,
                 "{} {}: introduction prose and min_version must agree",
                 spec.name, sub.name
             );
-            if sub.min_version.is_some() {
+            if sub.lifecycle.introduced.is_some() {
                 assert!(
                     profile.keyed_pin_for(spec).is_some(),
                     "{} {}: a versioned iRules subcommand needs the keyed BIG-IP axis",
@@ -114,14 +114,14 @@ fn bigip_21_1_irules_subcommands_and_values_are_versioned() {
     let c3d = reg.get("SSL::c3d").expect("SSL::c3d spec");
     for name in ["cert_lifespan", "cert_start_date"] {
         let sub = c3d.resolve_subcommand(name).expect("21.1 C3D subcommand");
-        assert_eq!(sub.min_version, Some("21.1.0"));
+        assert_eq!(sub.lifecycle.introduced, Some("21.1.0"));
         assert!(!sub.available_for_version(Some("21.0.0")));
         assert!(sub.available_for_version(Some("21.1.0")));
     }
 
     let persist = reg.get("persist").expect("persist spec");
     let mcp = persist.resolve_subcommand("mcp").expect("persist mcp");
-    assert_eq!(mcp.min_version, Some("21.1.0"));
+    assert_eq!(mcp.lifecycle.introduced, Some("21.1.0"));
     assert!(!mcp.available_for_version(Some("21.0.0")));
     assert!(mcp.available_for_version(Some("21.1.0")));
     for operation in ["add", "lookup", "delete"] {
@@ -142,7 +142,7 @@ fn keyed_default_floor_gates_the_f5_surface() {
     let reg = registry_for_dialect("f5-irules");
     let irules = DialectProfile::irules();
     let spec = reg.get("HTTP2::header").expect("HTTP2::header spec");
-    assert_eq!(spec.min_version, Some("16.1.0"));
+    assert_eq!(spec.lifecycle.introduced, Some("16.1.0"));
 
     let default_floor = irules.library_floor_default("f5-irules-cmds");
     assert_eq!(default_floor, Some("16.1.0"), "D5 oldest-supported default");
@@ -192,7 +192,7 @@ fn hosted_pins_supply_tracking_floors() {
         .iter()
         .find(|o| o.name == "-placeholder")
         .expect("entry -placeholder is declared");
-    assert_eq!(placeholder.min_version, Some("8.7"));
+    assert_eq!(placeholder.lifecycle.introduced, Some("8.7"));
     assert!(!placeholder.available_for_version(Some("8.6")));
     assert!(placeholder.available_for_version(Some("9.0")));
 }

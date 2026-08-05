@@ -220,7 +220,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Desired width of the text widget in characters.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-height",
@@ -228,7 +229,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Desired height of the text widget in lines.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-wrap",
@@ -236,7 +238,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Line wrapping mode: none, char, or word.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-state",
@@ -244,7 +247,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "State of the text widget: normal or disabled.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-font",
@@ -252,7 +256,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Font to use for text in the widget.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-bg",
@@ -260,7 +265,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Shorthand for -background.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-fg",
@@ -268,7 +274,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Shorthand for -foreground.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-relief",
@@ -276,7 +283,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-spacing1",
@@ -284,7 +292,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Extra space above each line of text, in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-spacing2",
@@ -292,7 +301,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Extra space between display lines within a logical line, in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-spacing3",
@@ -300,7 +310,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Extra space below each line of text, in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-tabs",
@@ -308,7 +319,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Tab stop positions and alignment for the text widget.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-insertbackground",
@@ -316,7 +328,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the insertion cursor.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-insertborderwidth",
@@ -324,7 +337,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the border around the insertion cursor.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-insertofftime",
@@ -332,7 +346,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Milliseconds the insertion cursor is off during blinking.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-insertontime",
@@ -340,7 +355,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Milliseconds the insertion cursor is on during blinking.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-insertwidth",
@@ -348,7 +364,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the insertion cursor in screen units.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-selectbackground",
@@ -356,7 +373,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Background colour for selected text.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-selectborderwidth",
@@ -364,7 +382,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the border around selected text.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-selectforeground",
@@ -372,7 +391,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Foreground colour for selected text.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-xscrollcommand",
@@ -380,7 +400,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Command prefix for communicating with horizontal scrollbars.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-yscrollcommand",
@@ -388,7 +409,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Command prefix for communicating with vertical scrollbars.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-exportselection",
@@ -396,7 +418,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the selection is exported to the X selection.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-setgrid",
@@ -404,7 +427,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether this widget controls the resizing grid for its toplevel.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-padx",
@@ -412,7 +436,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Extra horizontal padding inside the text widget.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-pady",
@@ -420,7 +445,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Extra vertical padding inside the text widget.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-undo",
@@ -428,7 +454,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the undo mechanism is active.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-maxundo",
@@ -436,7 +463,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Maximum number of compound undo actions on the undo stack.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-autoseparators",
@@ -444,7 +472,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether undo separators are inserted automatically.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -452,7 +481,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Cursor to display when the mouse is over the text widget.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -460,7 +490,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Whether the text widget accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightbackground",
@@ -468,7 +499,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the highlight region when the widget does not have focus.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightcolor",
@@ -476,7 +508,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Colour of the highlight region when the widget has focus.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-highlightthickness",
@@ -484,7 +517,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Width of the highlight rectangle drawn around the widget.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-blockcursor",
@@ -492,7 +526,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies a boolean that says whether the blinking insertion cursor should be drawn as a character-sized.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-endline",
@@ -500,7 +535,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies an integer line index representing the line of the underlying textual data store that should be.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-inactiveselectbackground",
@@ -508,7 +544,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the colour to use for the selection (the sel tag) when the window does not have the input focus. If.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-insertunfocussed",
@@ -516,7 +553,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: ".",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-startline",
@@ -524,7 +562,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies an integer line index representing the first line of the underlying textual data store that should.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-tabstyle",
@@ -532,7 +571,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies how to interpret the relationship between tab stops on a line and tabs in the text of that line.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

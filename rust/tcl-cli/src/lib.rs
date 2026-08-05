@@ -176,14 +176,17 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             compact,
             symbol_map,
             aggressive,
+            no_abbreviations,
             isolated,
             colour,
         } => commands::transform::run_minify(
             input,
-            *compact,
             symbol_map.as_deref(),
-            *aggressive,
-            *isolated,
+            commands::transform::MinifyOptions {
+                tier: commands::transform::MinifyTier::from_flags(*compact, *aggressive),
+                abbreviations: !*no_abbreviations,
+                isolated: *isolated,
+            },
             colour,
         ),
         Command::RegistryDump {

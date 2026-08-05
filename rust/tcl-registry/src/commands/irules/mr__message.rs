@@ -56,7 +56,8 @@ pub const fn spec() -> CommandSpec {
                 detail: "Option -count.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         side_effects: &[SideEffect {

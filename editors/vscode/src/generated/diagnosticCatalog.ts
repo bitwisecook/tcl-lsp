@@ -260,7 +260,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W139",
     section: "warning",
     description:
-      "Command/option removed at the resolved package version (present only in earlier releases).",
+      "Command/option retired at the resolved package version — the retiring release is exclusive, so the item is gone from that release onward.",
     defaultEnabled: true,
   },
   {
@@ -289,6 +289,20 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     section: "warning",
     description:
       "Direct call into a private `::tcl::` implementation namespace (e.g. `::tcl::dict::create`) — use the public ensemble command instead (`dict create`).",
+    defaultEnabled: true,
+  },
+  {
+    code: "W144",
+    section: "warning",
+    description:
+      "Command/subcommand/option/argument value is deprecated at the resolved package version — still available, but the registry records a deprecating release.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W145",
+    section: "warning",
+    description:
+      "Ambiguous keyword abbreviation — the prefix matches more than one subcommand or option, which is a runtime error in Tcl.",
     defaultEnabled: true,
   },
   {

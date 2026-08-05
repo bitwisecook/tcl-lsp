@@ -44,7 +44,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Suspend until end-of-line received.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-peek",
@@ -52,7 +53,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Return data but leave it buffered.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-timeout",
@@ -60,7 +62,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Time in ms to wait for data.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-status",
@@ -68,7 +71,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Save recv status into variable.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

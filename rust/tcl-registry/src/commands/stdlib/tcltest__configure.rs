@@ -258,7 +258,7 @@ const OPTIONS: &[OptionSpec] = &[
         // package floor (an explicit `package require tcltest 2.6`) and the
         // core version (2.6 is bundled only from 9.1), matching how `-errorCode`
         // gates on 2.5 / 8.6.
-        min_version: Some("2.6"),
+        lifecycle: Lifecycle::introduced_in("2.6"),
         dialects: Some(DialectSet::TCL91),
         ..OptionSpec::DEFAULT
     },

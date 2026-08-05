@@ -123,6 +123,83 @@ fn switch_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// change with no syntactic or behavioural effect, which this spec keeps
 /// spelled "string" for continuity with every other version's
 /// forms/hover text.
+/// `switch`'s option table, hoisted out of the spec literal so the
+/// builder stays inside the line budget.
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-exact",
+        value: OptionValue::flag(),
+        detail: "Exact string compare mode. This is the default.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-glob",
+        value: OptionValue::flag(),
+        detail: "Glob-style pattern mode, as implemented by `string match`.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-integer",
+        value: OptionValue::flag(),
+        detail: "Integer comparison mode: string and every pattern (other than a trailing default) must be a valid integer, or switch raises an error. Cannot be combined with -nocase.",
+        dialects: Some(DialectSet::TCL91),
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-regexp",
+        value: OptionValue::flag(),
+        detail: "Regular expression pattern mode.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-nocase",
+        value: OptionValue::flag(),
+        detail: "Case-insensitive matching. Not supported together with -integer (Tcl 9.1+).",
+        dialects: Some(DialectSet::TCL85_PLUS),
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-matchvar",
+        value: OptionValue::value("varName"),
+        detail: "Store the list of matched substrings here — element 0 is the overall match, each later element a capturing group (only legal with -regexp); an empty list when a default branch runs.",
+        dialects: Some(DialectSet::TCL85_PLUS),
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-indexvar",
+        value: OptionValue::value("varName"),
+        detail: "Store the list of matched substring start/end index pairs here, parallel to -matchvar (only legal with -regexp); an empty list when a default branch runs.",
+        dialects: Some(DialectSet::TCL85_PLUS),
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "--",
+        value: OptionValue::flag(),
+        detail: "End of options: the next word is always the subject string, even if it starts with -.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "switch",
@@ -159,74 +236,7 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver: Some(switch_arg_roles),
         lowering_hook: Some(crate::hooks::LoweringHookId::Switch),
         return_type: Some(TclType::String),
-        options: const {
-            &[
-                OptionSpec {
-                    name: "-exact",
-                    value: OptionValue::flag(),
-                    detail: "Exact string compare mode. This is the default.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-glob",
-                    value: OptionValue::flag(),
-                    detail: "Glob-style pattern mode, as implemented by `string match`.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-integer",
-                    value: OptionValue::flag(),
-                    detail: "Integer comparison mode: string and every pattern (other than a trailing default) must be a valid integer, or switch raises an error. Cannot be combined with -nocase.",
-                    dialects: Some(DialectSet::TCL91),
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-regexp",
-                    value: OptionValue::flag(),
-                    detail: "Regular expression pattern mode.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-nocase",
-                    value: OptionValue::flag(),
-                    detail: "Case-insensitive matching. Not supported together with -integer (Tcl 9.1+).",
-                    dialects: Some(DialectSet::TCL85_PLUS),
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-matchvar",
-                    value: OptionValue::value("varName"),
-                    detail: "Store the list of matched substrings here — element 0 is the overall match, each later element a capturing group (only legal with -regexp); an empty list when a default branch runs.",
-                    dialects: Some(DialectSet::TCL85_PLUS),
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-indexvar",
-                    value: OptionValue::value("varName"),
-                    detail: "Store the list of matched substring start/end index pairs here, parallel to -matchvar (only legal with -regexp); an empty list when a default branch runs.",
-                    dialects: Some(DialectSet::TCL85_PLUS),
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "--",
-                    value: OptionValue::flag(),
-                    detail: "End of options: the next word is always the subject string, even if it starts with -.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-            ]
-        },
+        options: OPTIONS,
         hover: Some(HoverSnippet {
             summary: "Pattern-based branching on a subject string.",
             synopsis: &[

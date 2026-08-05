@@ -18,9 +18,11 @@
 
 //! Documentation and completion metadata for LSP features.
 
+use crate::abbrev::Keyword;
 use crate::arg_role::{AppendedArity, ArgRole};
 use crate::body_kind::BodyKind;
 use crate::dialects::DialectSet;
+use crate::lifecycle::{Lifecycle, LifecycleState};
 
 /// Short hover content derived from man pages or vendor docs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -362,12 +364,19 @@ pub struct OptionSpec {
     /// value-arity, and option lookup treat an alias exactly like `name`;
     /// completion offers only the canonical `name`.
     pub aliases: &'static [&'static str],
-    /// Minimum *package* version that introduced this option, as a dotted Tcl
-    /// version string (e.g. `entry -placeholder` needs Tk `8.7`).  `None`
-    /// means "present in every version of the owning package".  Gated against
-    /// the version resolved from `package require` — orthogonal to `dialects`
-    /// (which gates on the Tcl *core* version).
-    pub min_version: Option<&'static str>,
+    /// Introduction / deprecation / retirement releases of this option on its
+    /// owning *package*'s version axis (e.g. `entry -placeholder` is
+    /// introduced in Tk `8.7`).  [`Lifecycle::UNSPECIFIED`] means "present in
+    /// every version of the owning package".  Gated against the version
+    /// resolved from `package require` — orthogonal to `dialects` (which
+    /// gates on the Tcl *core* version).
+    pub lifecycle: Lifecycle,
+    /// Documented minimum abbreviation length for this option, when the
+    /// command promises a longer minimum than uniqueness alone requires.
+    /// `None` (the norm) means Tcl's `Tcl_GetIndexFromObj` rule applies:
+    /// **any** unique prefix resolves (`lsearch -noc` ⇒ `-nocase`).  See
+    /// [`crate::abbrev`].
+    pub min_abbrev: Option<u8>,
 }
 
 impl OptionSpec {
@@ -378,8 +387,18 @@ impl OptionSpec {
         detail: "",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     };
+
+    /// This option as a [`Keyword`] for abbreviation resolution.
+    #[must_use]
+    pub const fn as_keyword(&self) -> Keyword<'static> {
+        Keyword {
+            name: self.name,
+            min_abbrev: self.min_abbrev,
+        }
+    }
 
     /// Whether this option consumes a following value (any arity ≥ 1).
     #[must_use]
@@ -549,14 +568,17 @@ impl OptionSpec {
     ///
     /// *`package_version`* is the guaranteed-available floor derived from a
     /// `package require` (see [`crate::version::requirement_lower_bound`]).
-    /// `None` (no version constraint known) is permissive; an option with no
-    /// `min_version` is always available.
+    /// `None` (no version constraint known) is permissive; an option with an
+    /// unspecified lifecycle is always available.
     #[must_use]
     pub fn available_for_version(&self, package_version: Option<&str>) -> bool {
-        match (self.min_version, package_version) {
-            (Some(min), Some(have)) => crate::version::meets_min(have, min),
-            _ => true,
-        }
+        self.lifecycle.available_at(package_version)
+    }
+
+    /// This option's lifecycle state at the resolved *`package_version`*.
+    #[must_use]
+    pub fn lifecycle_state(&self, package_version: Option<&str>) -> LifecycleState {
+        self.lifecycle.state_at(package_version)
     }
 }
 
@@ -648,7 +670,8 @@ mod tests {
             detail: "",
             dialects: None,
             aliases: &[],
-            min_version: None,
+            lifecycle: Lifecycle::UNSPECIFIED,
+            min_abbrev: None,
         };
         // No parent: always available.
         assert!(opt.supports_dialect(Some(DialectSet::TCL84), None));
@@ -670,7 +693,8 @@ mod tests {
             detail: "",
             dialects: Some(DialectSet::TCL86_PLUS),
             aliases: &[],
-            min_version: None,
+            lifecycle: Lifecycle::UNSPECIFIED,
+            min_abbrev: None,
         };
         assert!(opt.supports_dialect(Some(DialectSet::TCL86), Some(DialectSet::ALL_TCL)));
         assert!(opt.supports_dialect(Some(DialectSet::TCL90), Some(DialectSet::ALL_TCL)));
@@ -688,7 +712,8 @@ mod tests {
             detail: "",
             dialects: Some(DialectSet::TCL90),
             aliases: &[],
-            min_version: None,
+            lifecycle: Lifecycle::UNSPECIFIED,
+            min_abbrev: None,
         };
         assert!(opt.supports_dialect(None, Some(DialectSet::TCL90)));
     }

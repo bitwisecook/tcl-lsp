@@ -964,7 +964,13 @@ fn sweep_event_command_legality_consistent() {
     );
 
     for event in &all_events {
-        let listed = reg.valid_irules_commands_for_event(event, &events, &profiles, None);
+        // Version-aware "known": an event retired before the default target
+        // release (the classic pre-10.0 XML parser set) is correctly reported
+        // unknown *there*, so it is checked at a release inside its own
+        // lifetime instead. Everything else uses the permissive `None`.
+        let lifecycle = events.event_lifecycle(event).expect("listed event");
+        let target = lifecycle.retired.and(lifecycle.introduced);
+        let listed = reg.valid_irules_commands_for_event(event, &events, &profiles, target);
         // Listing is sorted + unique (the accessor sorts).
         let mut sorted = listed.clone();
         sorted.sort_unstable();
@@ -981,7 +987,7 @@ fn sweep_event_command_legality_consistent() {
         }
 
         // event_info agrees with the listing on known-ness and count.
-        let info = reg.event_info(event, &events, &profiles, None);
+        let info = reg.event_info(event, &events, &profiles, target);
         assert!(info.known, "{event}: listed event reports known=false");
         assert_eq!(
             info.event,
@@ -1480,5 +1486,134 @@ fn sweep_dialect_catalogue() {
     assert!(
         junk.get("HTTP::header").is_none(),
         "junk fallback is plain Tcl"
+    );
+}
+
+/// Every declared lifecycle in every registry — commands, subcommands,
+/// options, versioned argument values, iRules events, and BIG-IP profile
+/// types — must order its releases legally (#1210).
+///
+/// Bad ordering (`deprecated < introduced`, `retired < deprecated`, …) is
+/// unrepresentable downstream: `state_at` would report a state the data
+/// cannot actually reach, so it is rejected here rather than at a consumer.
+///
+/// registry-metadata: structural invariants over registry data, not C-Tcl
+/// facts.
+#[test]
+fn sweep_lifecycle_ordering_is_valid_everywhere() {
+    let check = |what: &str, lifecycle: tcl_registry::lifecycle::Lifecycle| {
+        assert_eq!(lifecycle.validate(), Ok(()), "{what}: {lifecycle:?}");
+    };
+
+    for &dname in LOADABLE_DIALECTS {
+        let reg = registry_for_dialect(dname);
+        let names: Vec<String> = reg.command_names().map(ToOwned::to_owned).collect();
+        for name in &names {
+            let Some(spec) = reg.get(name) else { continue };
+            check(&format!("{dname}/{name}"), spec.lifecycle);
+            for opt in spec.options {
+                check(&format!("{dname}/{name} {}", opt.name), opt.lifecycle);
+            }
+            for sub in spec.subcommands {
+                let path = format!("{dname}/{name} {}", sub.name);
+                check(&path, sub.lifecycle);
+                for opt in sub.options {
+                    check(&format!("{path} {}", opt.name), opt.lifecycle);
+                }
+                for gate in sub.versioned_arg_values {
+                    check(&format!("{path} = {}", gate.value), gate.lifecycle);
+                }
+            }
+        }
+    }
+
+    let events = EventRegistry::build();
+    for event in events.all_event_names() {
+        check(event, events.event_lifecycle(event).expect("known event"));
+    }
+
+    let profiles = ProfileRegistry::build();
+    for name in profiles.all_profile_names() {
+        check(
+            name,
+            profiles.profile_lifecycle(name).expect("known profile"),
+        );
+    }
+}
+
+/// The lifecycle seed cases from #1210: each of the four states is reachable
+/// and independently observable on real registry data.
+///
+/// f5-dialect: the event/profile releases are F5 facts, not tclsh.
+#[test]
+fn sweep_lifecycle_seed_cases() {
+    use tcl_registry::lifecycle::LifecycleState;
+
+    let events = EventRegistry::build();
+
+    // Classic XML parser events: introduced 9.0.3, deprecated *and* retired
+    // at 10.0.0 — retirement is exclusive, so 9.4.8 still has them.
+    let xml = events
+        .event_lifecycle("XML_BEGIN_DOCUMENT")
+        .expect("classic XML event");
+    assert_eq!(xml.state_at(Some("9.0.2")), LifecycleState::NotIntroduced);
+    assert_eq!(xml.state_at(Some("9.4.8")), LifecycleState::Available);
+    assert_eq!(xml.state_at(Some("10.0.0")), LifecycleState::Retired);
+
+    // XML_CONTENT_BASED_ROUTING is *not* part of the retired classic set.
+    let cbr = events
+        .event_lifecycle("XML_CONTENT_BASED_ROUTING")
+        .expect("CBR event");
+    assert_eq!(cbr.introduced, Some("10.2.0"));
+    assert_eq!(cbr.retired, None);
+    assert_eq!(cbr.state_at(Some("17.1.0")), LifecycleState::Available);
+
+    // AUTH_*: deprecated but still present, so deprecated and retired are
+    // independently testable states.
+    for event in [
+        "AUTH_ERROR",
+        "AUTH_FAILURE",
+        "AUTH_SUCCESS",
+        "AUTH_WANTCREDENTIAL",
+    ] {
+        let life = events.event_lifecycle(event).expect("AUTH event");
+        assert_eq!(life.introduced, Some("9.0.0"), "{event}");
+        assert_eq!(life.deprecated, Some("9.4.0"), "{event}");
+        assert_eq!(life.retired, None, "{event}");
+        assert_eq!(life.state_at(Some("17.1.0")), LifecycleState::Deprecated);
+        assert!(events.event_available_at(event, "17.1.0"), "{event}");
+    }
+
+    // QOE_PARSE_DONE: deprecated in 15.0.0, never retired.
+    let qoe = events.event_lifecycle("QOE_PARSE_DONE").expect("QoE event");
+    assert_eq!(qoe.introduced, Some("11.5.0"));
+    assert_eq!(qoe.deprecated, Some("15.0.0"));
+    assert_eq!(qoe.retired, None);
+    assert_eq!(qoe.state_at(Some("14.1.0")), LifecycleState::Available);
+
+    // AIMCP profile: introduced in BIG-IP 21.1, no deprecation or retirement.
+    let profiles = ProfileRegistry::build();
+    let aimcp = profiles.profile_lifecycle("AIMCP").expect("AIMCP profile");
+    assert_eq!(aimcp.introduced, Some("21.1.0"));
+    assert_eq!(aimcp.deprecated, None);
+    assert_eq!(aimcp.retired, None);
+    assert!(!profiles.profile_available_at("AIMCP", "17.1.0"));
+    assert!(profiles.profile_available_at("AIMCP", "21.1.0"));
+
+    // A Tk command and option carry the same shape on the package axis.
+    let tk = registry_for_dialect("tcl9.0");
+    let ttk_button = tk.get("ttk::button").expect("ttk::button");
+    assert_eq!(ttk_button.lifecycle.introduced, Some("8.5"));
+    assert!(!ttk_button.available_for_version(Some("8.4")));
+    let entry = tk.get("entry").expect("entry");
+    let placeholder = entry
+        .options
+        .iter()
+        .find(|o| o.name == "-placeholder")
+        .expect("entry -placeholder");
+    assert_eq!(placeholder.lifecycle.introduced, Some("8.7"));
+    assert_eq!(
+        placeholder.lifecycle_state(Some("8.6")),
+        LifecycleState::NotIntroduced
     );
 }

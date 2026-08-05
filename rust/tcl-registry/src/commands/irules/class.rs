@@ -35,7 +35,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return all matches.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-value",
@@ -43,7 +44,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return value instead of name.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -51,7 +53,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return name.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-index",
@@ -59,7 +62,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return index.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-element",
@@ -67,7 +71,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return full element.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-nocase",
@@ -75,7 +80,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Case-insensitive comparison.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -83,7 +89,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -103,7 +110,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return all matches.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-value",
@@ -111,7 +119,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return value instead of name.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -119,7 +128,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return name.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-index",
@@ -127,7 +137,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return index.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-element",
@@ -135,7 +146,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return full element.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-nocase",
@@ -143,7 +155,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Case-insensitive comparison.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -151,7 +164,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -179,7 +193,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return value instead of name.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -187,7 +202,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return name.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -195,7 +211,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -239,7 +256,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Case-insensitive comparison.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-list",
@@ -247,7 +265,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return value always as a list.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -255,7 +274,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -275,7 +295,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Case-insensitive comparison.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-list",
@@ -283,7 +304,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return value always as a list.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -291,7 +313,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -317,7 +340,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return value instead of name.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -325,7 +349,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "Return name.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -333,7 +358,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     detail: "",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },
@@ -387,7 +413,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Return all matches.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-value",
@@ -395,7 +422,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Return value instead of name.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -403,7 +431,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Return name.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-index",
@@ -411,7 +440,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Return index.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-element",
@@ -419,7 +449,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Return full element.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-nocase",
@@ -427,7 +458,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Case-insensitive comparison.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-list",
@@ -435,7 +467,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Return value always as a list.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

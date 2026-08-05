@@ -102,7 +102,8 @@ macro_rules! opt {
             detail: $detail,
             dialects: None,
             aliases: &[],
-            min_version: None,
+            lifecycle: Lifecycle::UNSPECIFIED,
+            min_abbrev: None,
         }
     };
 }

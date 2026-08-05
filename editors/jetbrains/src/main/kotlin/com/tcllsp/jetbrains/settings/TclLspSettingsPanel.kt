@@ -137,11 +137,13 @@ class TclLspSettingsPanel {
     private val diagW136 = JBCheckBox("W136: Option requires a newer package version than the res...")
     private val diagW137 = JBCheckBox("W137: Argument value requires a newer Tcl version than the...")
     private val diagW138 = JBCheckBox("W138: Format/scan conversion requires a newer Tcl version ...")
-    private val diagW139 = JBCheckBox("W139: Command/option removed at the resolved package versi...")
+    private val diagW139 = JBCheckBox("W139: Command/option retired at the resolved package version")
     private val diagW140 = JBCheckBox("W140: interp eval / interp subcommand targets an interpret...")
     private val diagW141 = JBCheckBox("W141: Option value fails a declared shape/content check (e...")
     private val diagW142 = JBCheckBox("W142: Command invalid in its current lexical/dispatch cont...")
     private val diagW143 = JBCheckBox("W143: Direct call into a private ::tcl:: implementation na...")
+    private val diagW144 = JBCheckBox("W144: Command/subcommand/option/argument value is deprecat...")
+    private val diagW145 = JBCheckBox("W145: Ambiguous keyword abbreviation")
     private val diagW200 = JBCheckBox("W200: exec result not captured or binary format modifier r...")
     private val diagW201 = JBCheckBox("W201: Manual path concatenation")
     private val diagW230 = JBCheckBox("W230: Constant list index out of range")
@@ -385,8 +387,9 @@ class TclLspSettingsPanel {
             diagW120, diagW121, diagW122, diagW124, diagW125, diagW126,
             diagW127, diagW128, diagW129, diagW135, diagW136, diagW137,
             diagW138, diagW139, diagW140, diagW141, diagW142, diagW143,
-            diagW200, diagW201, diagW230, diagW231, diagW232, diagW233,
-            diagW240, diagW241, diagW250, diagW308, diagW314, diagW315,
+            diagW144, diagW145, diagW200, diagW201, diagW230, diagW231,
+            diagW232, diagW233, diagW240, diagW241, diagW250, diagW308,
+            diagW314, diagW315,
         ).forEach { diagWarnPanel.add(it) }
         builder.addComponent(diagWarnPanel)
 
@@ -603,6 +606,8 @@ class TclLspSettingsPanel {
             diagW141.isSelected != s.diagnosticW141 ||
             diagW142.isSelected != s.diagnosticW142 ||
             diagW143.isSelected != s.diagnosticW143 ||
+            diagW144.isSelected != s.diagnosticW144 ||
+            diagW145.isSelected != s.diagnosticW145 ||
             diagW200.isSelected != s.diagnosticW200 ||
             diagW201.isSelected != s.diagnosticW201 ||
             diagW230.isSelected != s.diagnosticW230 ||
@@ -847,6 +852,8 @@ class TclLspSettingsPanel {
         s.diagnosticW141 = diagW141.isSelected
         s.diagnosticW142 = diagW142.isSelected
         s.diagnosticW143 = diagW143.isSelected
+        s.diagnosticW144 = diagW144.isSelected
+        s.diagnosticW145 = diagW145.isSelected
         s.diagnosticW200 = diagW200.isSelected
         s.diagnosticW201 = diagW201.isSelected
         s.diagnosticW230 = diagW230.isSelected
@@ -1108,6 +1115,8 @@ class TclLspSettingsPanel {
         diagW141.isSelected = s.diagnosticW141
         diagW142.isSelected = s.diagnosticW142
         diagW143.isSelected = s.diagnosticW143
+        diagW144.isSelected = s.diagnosticW144
+        diagW145.isSelected = s.diagnosticW145
         diagW200.isSelected = s.diagnosticW200
         diagW201.isSelected = s.diagnosticW201
         diagW230.isSelected = s.diagnosticW230

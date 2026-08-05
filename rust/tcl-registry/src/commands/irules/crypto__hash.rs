@@ -46,7 +46,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Hash algorithm.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-ctx",
@@ -54,7 +55,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Context variable for multi-step operations.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-final",
@@ -62,7 +64,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Finalize context-based operation.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

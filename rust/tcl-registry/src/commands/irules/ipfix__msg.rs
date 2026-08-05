@@ -43,7 +43,8 @@ pub const fn spec() -> CommandSpec {
                 detail: "Position index for duplicate field types.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         side_effects: &[SideEffect {

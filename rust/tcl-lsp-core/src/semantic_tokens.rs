@@ -5325,39 +5325,13 @@ fn scan_loop_vars(
     if MAX_TOKEN_RECURSION.exceeded(depth) {
         return;
     }
+    let registry = tcl_registry::registry_for_dialect(dialect);
     for seg in segment_commands_with_offset_and_config(
         text,
         base_offset,
         tcl_lexer::LexerConfig::for_file_dialect(dialect).at_depth(depth),
     ) {
-        let texts = &seg.texts;
-        // `dict for {k v} $coll body` / `dict map {k v} $coll body` — the value
-        // variable (second word of the pair) iterates the dict's values.
-        if texts.first().map(String::as_str) == Some("dict")
-            && matches!(texts.get(1).map(String::as_str), Some("for" | "map"))
-            && texts.len() >= 5
-            && let Some(classes) = object_handle_name(&texts[3]).and_then(|c| collections.get(c))
-            && let Some(valvar) = texts[2].split_whitespace().nth(1)
-        {
-            bind_loop_var(handles, valvar, classes);
-        }
-        // `foreach VARS LIST ?VARS LIST …? BODY` / `lmap …` — every variable of
-        // a group iterating an object collection is an element.
-        if matches!(texts.first().map(String::as_str), Some("foreach" | "lmap")) && texts.len() >= 4
-        {
-            let pairs = &texts[1..texts.len() - 1];
-            let mut i = 0;
-            while i + 1 < pairs.len() {
-                if let Some(classes) =
-                    object_handle_name(&pairs[i + 1]).and_then(|c| collections.get(c))
-                {
-                    for v in pairs[i].split_whitespace() {
-                        bind_loop_var(handles, v, classes);
-                    }
-                }
-                i += 2;
-            }
-        }
+        bind_loop_vars_for_call(&seg.texts, registry, collections, handles);
         // Recurse into braced-script words (loop bodies, proc / method / class
         // bodies, `namespace eval` blocks, `if`/`switch` arms, …) and into
         // `[…]` command substitutions (a loop can be `return [dict map …]`).
@@ -5417,18 +5391,80 @@ fn augment_snit_handles(
     scan_snit_handles(source, source, 0, dialect, classes, object_classes, 0);
 }
 
-/// Whether `name` is a type-command call (typemethod) on snit class `class` —
-/// snit's built-in `info` / `destroy`, or a declared `typemethod` anywhere in
-/// the MRO.  `create` is deliberately excluded: `Type create inst` *is* a
-/// construction.
-fn class_declares_typemethod(hierarchy: &ClassHierarchy, class: &str, name: &str) -> bool {
-    matches!(name, "info" | "destroy")
+/// Whether `name` is a type-command call (typemethod) on class `class` — one
+/// of the built-in typemethods the class's definer family provides, or a
+/// declared `typemethod` anywhere in the MRO.
+///
+/// The built-in set is registry data
+/// ([`DefinitionBodyGrammar::builtin_type_methods`]), not a spelling list
+/// here: snit gives every type `info` and `destroy`, and a future definer
+/// family declares its own. `create` is deliberately not in that set —
+/// `Type create inst` *is* a construction, not a typemethod call.
+///
+/// [`DefinitionBodyGrammar::builtin_type_methods`]: tcl_registry::definer::DefinitionBodyGrammar::builtin_type_methods
+fn class_declares_typemethod(
+    hierarchy: &ClassHierarchy,
+    registry: &CommandRegistry,
+    class: &str,
+    name: &str,
+) -> bool {
+    let builtin = hierarchy
+        .classes
+        .get(class)
+        .and_then(|cd| registry.get(&cd.metaclass))
+        .and_then(|spec| spec.definition_body)
+        .is_some_and(|grammar| grammar.is_builtin_type_method(name));
+    builtin
         || class_mro(hierarchy, class).iter().any(|c| {
             hierarchy
                 .classes
                 .get(c)
                 .is_some_and(|cd| cd.class_methods.contains_key(name))
         })
+}
+
+/// Bind every loop variable of one call that iterates a known object
+/// collection (issue #1185).
+///
+/// Registry-driven, with no command spelling anywhere: the
+/// [`ArgRole::LoopVarList`] indices come from the registry
+/// (`foreach`/`lmap`'s repeated `(start 0, stride 2)` layout, `dict for` /
+/// `dict map` / `array for`'s static role tables), and the iterated
+/// collection is always the word after the variable list. `::`-qualified and
+/// aliased spellings therefore classify exactly like bare ones.
+///
+/// The variable-list shape follows the collection's declared argument type:
+/// a `Dict` collection binds a `{keyVar valueVar}` pair whose *value*
+/// variable holds the element, and anything else binds every variable in the
+/// group.
+fn bind_loop_vars_for_call(
+    texts: &[String],
+    registry: &CommandRegistry,
+    collections: &ObjectClassMap,
+    handles: &mut ObjectClassMap,
+) {
+    let Some(name) = texts.first() else { return };
+    let refs: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
+    for idx in registry.arg_indices_for_role(name, &refs, tcl_registry::ArgRole::LoopVarList) {
+        let (Some(var_list), Some(collection)) = (refs.get(idx), refs.get(idx + 1)) else {
+            continue;
+        };
+        let Some(classes) = object_handle_name(collection).and_then(|c| collections.get(c)) else {
+            continue;
+        };
+        let keyed = registry
+            .arg_type_hint(name, &refs, idx + 1)
+            .is_some_and(|hint| hint.expected == Some(tcl_registry::types::TclType::Dict));
+        if keyed {
+            if let Some(value_var) = var_list.split_whitespace().nth(1) {
+                bind_loop_var(handles, value_var, classes);
+            }
+        } else {
+            for var in var_list.split_whitespace() {
+                bind_loop_var(handles, var, classes);
+            }
+        }
+    }
 }
 
 /// Recursive worker for [`augment_snit_handles`].
@@ -5444,6 +5480,7 @@ fn scan_snit_handles(
     if MAX_TOKEN_RECURSION.exceeded(depth) {
         return;
     }
+    let registry = tcl_registry::registry_for_dialect(dialect);
     for seg in segment_commands_with_offset_and_config(
         text,
         base_offset,
@@ -5484,7 +5521,10 @@ fn scan_snit_handles(
                     // not a (non-`create`) typemethod call on the type.
                     && args
                         .first()
-                        .is_some_and(|a| a == "create" || !class_declares_typemethod(hierarchy, &class, a))
+                        .is_some_and(|a| {
+                            a == "create"
+                                || !class_declares_typemethod(hierarchy, registry, &class, a)
+                        })
                 {
                     handles.entry(texts[1].clone()).or_default().insert(class);
                 }
@@ -9623,6 +9663,62 @@ mod tests {
             &bare_kinds[..],
             "{qualified} classified its arguments differently from {head}"
         );
+    }
+
+    /// The loop-variable-list scan (issue #1185 residual 2) is registry-driven,
+    /// so a `::`-qualified head classifies exactly like the bare one.
+    ///
+    /// tclsh-proof (9.0.4): `::foreach {a b} {1 2} { puts $a }` and
+    /// `::dict for {k v} {a 1} { puts $v }` run identically to their bare forms —
+    /// `namespace which -command ::foreach` is `::foreach`.
+    #[test]
+    fn qualified_loop_headers_classify_like_the_bare_form() {
+        let r = reg();
+        for (bare, head, qualified) in [
+            ("foreach {a b} {1 2} { puts $a }\n", "foreach", "::foreach"),
+            ("lmap x {1 2} { expr {$x} }\n", "lmap", "::lmap"),
+            ("dict for {k v} {a 1} { puts $v }\n", "dict", "::dict"),
+            ("dict map {k v} {a 1} { set v }\n", "dict", "::dict"),
+        ] {
+            assert_qualified_matches_bare(bare, head, qualified, &r);
+        }
+    }
+
+    /// The loop-variable binding pass reads the registry's own
+    /// `ArgRole::LoopVarList` indices, so every loop header it understands is
+    /// one the registry declares — not a `foreach` / `lmap` / `dict for`
+    /// spelling list in the walker.
+    #[test]
+    fn loop_var_list_roles_come_from_the_registry() {
+        let r = reg();
+        let roles = |cmd: &str, args: &[&str]| {
+            r.arg_indices_for_role(cmd, args, tcl_registry::ArgRole::LoopVarList)
+        };
+        // `foreach VARS LIST ?VARS LIST …? BODY`: the repeated (start 0,
+        // stride 2) layout marks every variable-list word.
+        assert_eq!(roles("foreach", &["{a b}", "$l", "{}"]), vec![0]);
+        assert_eq!(
+            roles("foreach", &["{a}", "$l", "{b}", "$m", "{}"]),
+            vec![0, 2]
+        );
+        assert_eq!(roles("lmap", &["x", "$l", "{}"]), vec![0]);
+        // `dict for {k v} $d body` marks its pair at index 1 (after the
+        // subcommand word), and the collection at index 2 is declared a Dict —
+        // which is what tells the binder this is a key/value pair rather than
+        // a free variable list.
+        assert_eq!(roles("dict", &["for", "{k v}", "$d", "{}"]), vec![1]);
+        assert_eq!(roles("dict", &["map", "{k v}", "$d", "{}"]), vec![1]);
+        assert_eq!(
+            r.arg_type_hint("dict", &["for", "{k v}", "$d", "{}"], 2)
+                .and_then(|h| h.expected),
+            Some(tcl_registry::types::TclType::Dict)
+        );
+        // A `::`-qualified head resolves to the same spec, so it reports the
+        // same roles — the point of issue #1185.
+        assert_eq!(roles("::foreach", &["{a b}", "$l", "{}"]), vec![0]);
+        assert_eq!(roles("::dict", &["for", "{k v}", "$d", "{}"]), vec![1]);
+        // A command with no loop-variable list reports none.
+        assert!(roles("puts", &["hi"]).is_empty());
     }
 
     #[test]

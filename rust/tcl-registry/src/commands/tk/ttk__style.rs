@@ -145,7 +145,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         required_package: Some("Tk"),
-        min_version: Some("8.5"),
+        lifecycle: Lifecycle::introduced_in("8.5"),
         warn_missing_import: false,
         forms: FORMS,
         side_effects: SIDE_EFFECTS,

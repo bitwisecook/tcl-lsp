@@ -206,7 +206,8 @@ pub fn spec() -> CommandSpec {
                 detail: "The character encoding of fileName's contents. Added in Tcl 8.5 — Tcl 8.4's source has no -encoding option. When omitted, Tcl 8.5 and 8.6 assume the platform's system encoding (see encoding system); Tcl 9.0 and 9.1 instead always assume utf-8.",
                 dialects: Some(DialectSet::TCL85_PLUS),
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         hover: Some(HoverSnippet {

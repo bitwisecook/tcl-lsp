@@ -18,6 +18,83 @@
 
 //! `CRYPTO::encrypt` iRules command.
 use crate::prelude::*;
+/// The command's option table, hoisted out of the spec literal so the
+/// builder stays inside the line budget.
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-alg",
+        value: OptionValue::value("ALG"),
+        detail: "Encryption algorithm.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-ctx",
+        value: OptionValue::value("CTX_VAR"),
+        detail: "Context variable for multi-step operations.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-final",
+        value: OptionValue::flag(),
+        detail: "Finalize context-based operation.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-key",
+        value: OptionValue::value("KEY"),
+        detail: "Binary key.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-keyhex",
+        value: OptionValue::value("KEY_HEX"),
+        detail: "Hex-encoded key.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-iv",
+        value: OptionValue::value("IV"),
+        detail: "Initialization vector (binary).",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-ivhex",
+        value: OptionValue::value("IV_HEX"),
+        detail: "Initialization vector (hex).",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-padding",
+        value: OptionValue::value("PADDING"),
+        detail: "Padding mode (pkcs, oaep, none).",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+];
+
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CRYPTO::encrypt",
@@ -36,74 +113,7 @@ pub const fn spec() -> CommandSpec {
             synopsis: "CRYPTO::encrypt (('-padding' (pkcs | oaep | none) )",
             dialects: None,
         }],
-        options: const {
-            &[
-                OptionSpec {
-                    name: "-alg",
-                    value: OptionValue::value("ALG"),
-                    detail: "Encryption algorithm.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-ctx",
-                    value: OptionValue::value("CTX_VAR"),
-                    detail: "Context variable for multi-step operations.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-final",
-                    value: OptionValue::flag(),
-                    detail: "Finalize context-based operation.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-key",
-                    value: OptionValue::value("KEY"),
-                    detail: "Binary key.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-keyhex",
-                    value: OptionValue::value("KEY_HEX"),
-                    detail: "Hex-encoded key.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-iv",
-                    value: OptionValue::value("IV"),
-                    detail: "Initialization vector (binary).",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-ivhex",
-                    value: OptionValue::value("IV_HEX"),
-                    detail: "Initialization vector (hex).",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-padding",
-                    value: OptionValue::value("PADDING"),
-                    detail: "Padding mode (pkcs, oaep, none).",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-            ]
-        },
+        options: OPTIONS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::Unknown,
             reads: true,

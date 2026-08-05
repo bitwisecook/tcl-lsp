@@ -25,7 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Send to the specified spawn id.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-raw",
@@ -33,7 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Send without any translation.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-null",
@@ -41,7 +43,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Send null characters.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-break",
@@ -49,7 +52,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Send a break condition.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-s",
@@ -57,7 +61,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Send slowly (obey send_slow parameters).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-h",
@@ -65,7 +70,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Send as if a human were typing (obey send_human parameters).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "--",
@@ -73,7 +79,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "End of options.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

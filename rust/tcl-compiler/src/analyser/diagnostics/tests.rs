@@ -1527,11 +1527,16 @@ fn w001_accepts_unique_prefix_subcommand_abbreviations() {
         has_code("string zzz $s", "tcl8.6", "W001"),
         "an unknown subcommand must still fire W001"
     );
-    // An ambiguous prefix (`string t` → tolower/totitle/toupper/trim…) is not a
-    // valid abbreviation and remains flagged.
+    // An ambiguous prefix (`string t` → tolower/totitle/toupper/trim…) is not
+    // a valid abbreviation. Since #1234 it gets its own diagnostic naming the
+    // candidate set (W145) instead of the unknown-subcommand guess (W001).
     assert!(
-        has_code("string t $s", "tcl8.6", "W001"),
-        "an ambiguous prefix must still fire W001"
+        has_code("string t $s", "tcl8.6", "W145"),
+        "an ambiguous prefix must fire W145"
+    );
+    assert!(
+        !has_code("string t $s", "tcl8.6", "W001"),
+        "W145 replaces the W001 guess for an ambiguous prefix"
     );
 }
 

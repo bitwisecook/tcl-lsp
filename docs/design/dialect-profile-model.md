@@ -220,7 +220,7 @@ pub struct DialectProfile {
     /// tmLanguage). Deliberately wider than availability_mask; see §10.
     pub grammar_union: DialectSet,
 
-    // ---- versioned libraries (reuses spec.rs min_version + available_for_version) ----
+    // ---- versioned libraries (reuses spec.rs Lifecycle + available_for_version) ----
     pub libraries: &'static [LibraryPin],
     pub bigip_version: Option<&'static str>, // F5 command-surface library key
     pub tool_version:  Option<&'static str>, // EDA vendor-tool library key
@@ -475,7 +475,7 @@ milestone (§12, Milestone 5) with review, **not** folded into the W123 fix.
 ## 6. The granularity ladder — the argument-DSL rung (NEW, owner requirement)
 
 Dialect gating today reaches **command → subcommand → option** depth only.
-Verified: `version_gate.rs` (W135/W136) records a `min_version` at the command
+Verified: `version_gate.rs` (W135/W136/W139/W144) records a `Lifecycle` at the command
 head and at each option token, checked against the resolved `package require`
 **floor** (`version_gate.rs:19-116`). It never descends into an argument's
 mini-language.
@@ -533,7 +533,7 @@ Milestone 7 is scheduled after Milestone 1, not before.
 `sig`=signature_base, `rt`=runtime_base, `oct`=leading_zero_is_octal,
 `ens`=has_fixed_ensembles, `ops`=operators_as_commands,
 `mask`=availability_mask (precise), `ceil`=version_ceiling. Libraries reuse
-`spec.rs` `min_version` + `available_for_version` — **no parallel version
+`spec.rs` `Lifecycle` + `available_for_version` — **no parallel version
 machinery**.
 
 | Profile | sig | rt | oct | tcloo | ens | ops | mask (precise) | ceil | disabled | Libraries |
@@ -879,7 +879,7 @@ under `f5-irules` post-retag.
 - **Stage 6.1 — wire the versioned-library axis.**
   `bigip_version`/`tool_version`/`sdc_version` into `library_version` →
   `available_for_version` (**default = OLDEST supported version**, §7.1/§14).
-  Backfill F5/library `CommandSpec`s with `required_package`+`min_version` =
+  Backfill F5/library `CommandSpec`s with `required_package`+`lifecycle.introduced` =
   introducing BIG-IP/tool version (`spec.rs`, `commands/tk/mod.rs`,
   `commands/tcllib/mod.rs`).
 - **Stage 6.2 — first-class vendor profiles.** Add `load_dialect` arms + the new
@@ -1041,7 +1041,7 @@ entry points: `supports_dialect`, `get_for_dialect`, `resolve_spec`,
 `expr_grammar_base_version`, `from_dialect`, `LexerConfig::for_dialect`,
 `registry_for_dialect`, `leading_zero_is_octal`, `is_irules`,
 `has_fixed_ensembles`, `NON_IRULES_OPERATORS`, `parse_expr`, `resolve_dialect`,
-`detect_dialect`, `available_for_version`, `min_version`, `special_var`,
+`detect_dialect`, `available_for_version`, `lifecycle`, `special_var`,
 `available_in`, `dialects: tag`, `mathfunc`/`math_func_ceiling`.
 
 **Milestone legend** (full detail in §12; `Phase N` in the draft → `Milestone

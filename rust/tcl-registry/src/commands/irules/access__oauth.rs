@@ -44,7 +44,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Raw data for JOSE header section.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-payload",
@@ -52,7 +53,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Raw data for JWS payload.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-key",
@@ -60,7 +62,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "JWK object for signing.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-alg",
@@ -68,7 +71,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Signing algorithm.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-ignore-cert-expiry",
@@ -76,7 +80,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Allow expired certificate.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

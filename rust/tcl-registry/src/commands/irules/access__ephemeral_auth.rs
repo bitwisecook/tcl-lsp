@@ -47,7 +47,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Option -user.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-auth_cfg",
@@ -55,7 +56,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Option -auth_cfg.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-sid",
@@ -63,7 +65,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Option -sid.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-password",
@@ -71,7 +74,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Option -password.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-protocol",
@@ -79,7 +83,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Option -protocol.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

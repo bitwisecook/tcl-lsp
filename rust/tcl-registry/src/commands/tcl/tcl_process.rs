@@ -138,7 +138,8 @@ static STATUS_OPTIONS: [OptionSpec; 2] = [
         detail: "Block until status is available for pids (or, if pids is omitted, for every tracked subprocess) instead of polling once and returning immediately.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "--",
@@ -146,7 +147,8 @@ static STATUS_OPTIONS: [OptionSpec; 2] = [
         detail: "Marks the end of switches; the following argument is treated as pids even if it starts with -.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

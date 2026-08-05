@@ -82,7 +82,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies which side of the master the slave will be packed against.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-fill",
@@ -90,7 +91,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "If a slave's parcel is larger than its requested dimensions, this option may be used to stretch the slave.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-expand",
@@ -98,7 +100,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies whether the slave should be expanded to consume extra space in its master.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-anchor",
@@ -106,7 +109,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Anchor must be a valid anchor position: n, ne, e, se, s, sw, w, nw, or center.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-padx",
@@ -114,7 +118,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies how much external horizontal padding to leave on each side of the slave.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-pady",
@@ -122,7 +127,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies how much external vertical padding to leave on each side of the slave.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-ipadx",
@@ -130,7 +136,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies how much internal horizontal padding to leave on each side of the slave.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-ipady",
@@ -138,7 +145,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies how much internal vertical padding to leave on each side of the slave.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-in",
@@ -146,7 +154,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Insert the slave at the end of the packing order for the master window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-before",
@@ -154,7 +163,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Insert the slave before the window given by other in the packing order.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-after",
@@ -162,7 +172,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Insert the slave after the window given by other in the packing order.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

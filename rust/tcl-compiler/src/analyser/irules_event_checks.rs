@@ -130,10 +130,13 @@ fn is_hot_event(event: &str) -> bool {
     event_registry().get_props(event).is_some_and(|p| p.hot)
 }
 
-fn is_deprecated_event(event: &str) -> bool {
+/// Whether `event` is deprecated at `target` — the unified lifecycle rule:
+/// deprecation applies only while the event is still available, so a retired
+/// event reports as retired (IRULE1002), never as deprecated.
+fn is_deprecated_event(event: &str, target: Option<&str>) -> bool {
     event_registry()
         .get_props(event)
-        .is_some_and(|p| p.deprecated)
+        .is_some_and(|p| p.is_deprecated(target))
 }
 
 /// Maps a command name to the argument index that names the written
@@ -468,15 +471,20 @@ impl Analyser {
                     .map(str::to_owned)
             });
             if let Some(target) = target
-                && !event_registry().event_available_at(event_name, &target)
+                && let Some(lifecycle) = event_registry().event_lifecycle(event_name)
+                && !lifecycle.available_at(Some(&target))
             {
-                let (min, max) = event_registry()
-                    .event_version_range(event_name)
-                    .unwrap_or((None, None));
-                let range = match (min, max) {
-                    (Some(min), Some(max)) => format!("BIG-IP {min} through {max}"),
+                // Retirement is exclusive: `retired: 10.0.0` means the event
+                // is gone *from* 10.0.0, so the surviving range ends one
+                // release earlier and is described as "before" it.
+                let range = match (lifecycle.introduced, lifecycle.retired) {
+                    (Some(min), Some(retired)) => {
+                        format!("BIG-IP {min} up to (not including) {retired}")
+                    }
                     (Some(min), None) => format!("BIG-IP {min} and later"),
-                    (None, Some(max)) => format!("BIG-IP releases up to {max}"),
+                    (None, Some(retired)) => {
+                        format!("BIG-IP releases before {retired}")
+                    }
                     (None, None) => "an unknown BIG-IP range".to_owned(),
                 };
                 self.result.diagnostics.push(Diagnostic {
@@ -560,13 +568,22 @@ impl Analyser {
         let (Some(event_name), Some(tok)) = (args.first(), arg_tokens.first()) else {
             return;
         };
-        if !is_deprecated_event(event_name) {
+        let target = self.library_versions.bigip_version.clone().or_else(|| {
+            tcl_dialect::VersionKey::BigipVersion
+                .default_version()
+                .map(str::to_owned)
+        });
+        if !is_deprecated_event(event_name, target.as_deref()) {
             return;
         }
+        let since = event_registry()
+            .event_lifecycle(event_name)
+            .and_then(|life| life.deprecated)
+            .map_or_else(String::new, |release| format!(" as of BIG-IP {release}"));
         self.result.diagnostics.push(Diagnostic {
             code: DiagCode::Irule1003,
             span: tok.span,
-            message: format!("'{event_name}' event is deprecated."),
+            message: format!("'{event_name}' event is deprecated{since}."),
             severity: Severity::Warning,
             fixes: Vec::new(),
         });

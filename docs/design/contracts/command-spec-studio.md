@@ -153,7 +153,7 @@ each `proc` into a draft:
 | `arg_roles` | `ProcArgTrait` from [proc-arg-trait inference](proc-arg-traits.md), deep pass enabled |
 | `traits` | the same trait observations |
 | `hover`, `forms` | the `proc`'s doc comment and parameter list |
-| `required_package`, `min_version` | `package provide` |
+| `required_package`, `introduced_version` | `package provide` |
 
 `ProcArgTrait::DynamicNameLocal` maps to **no** role: it is callee-local, so
 passing a literal does not consume the caller's variable and marking it

@@ -166,7 +166,8 @@ pub fn spec() -> CommandSpec {
                     detail: "Search for files matching the patterns starting in the given directory, so a directory name containing glob-sensitive characters need not be quoted. Cannot be combined with -path.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-join",
@@ -174,7 +175,8 @@ pub fn spec() -> CommandSpec {
                     detail: "Join the pattern arguments, after option processing, into a single pattern using directory separators, instead of matching each pattern independently.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-nocomplain",
@@ -182,7 +184,8 @@ pub fn spec() -> CommandSpec {
                     detail: "Return an empty list instead of raising an error when no files match. In Tcl 8.4 through 8.6 this switch is required to avoid that error; from Tcl 9.0 (TIP 637) an empty result is never an error by default, so the switch is still accepted but has no effect.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-path",
@@ -190,7 +193,8 @@ pub fn spec() -> CommandSpec {
                     detail: "Search for files whose name begins with the given path prefix and whose remainder matches the patterns — useful for finding files that share a root name but differ in extension. Cannot be combined with -directory.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-tails",
@@ -198,7 +202,8 @@ pub fn spec() -> CommandSpec {
                     detail: "Return only the part of each matched name that follows the last directory named by -directory or -path, instead of the full path.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-types",
@@ -211,7 +216,8 @@ pub fn spec() -> CommandSpec {
                     detail: "Filter matches against typeList, a Tcl list combining two vocabularies: Unix find-style kind letters (b/c/d/f/l/p/s), of which a match need satisfy only one, and permission words (r/w/x/readonly/hidden), of which a match must satisfy all. From Tcl 8.5, legacy macOS type/creator codes are also accepted.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -219,7 +225,8 @@ pub fn spec() -> CommandSpec {
                     detail: "Marks the end of switches. The argument following this one will be treated as a pattern even if it starts with -.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

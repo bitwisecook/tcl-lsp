@@ -48,7 +48,8 @@ pub const fn spec() -> CommandSpec {
                 detail: "Option -message.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         side_effects: &[SideEffect {

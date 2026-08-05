@@ -65,7 +65,28 @@ In addition to compact mode:
 
 11. Runs optimiser rewrites first (constant folding, dead-code cleanup, etc.) before compaction/minification.
 12. Applies command/argument/string aliasing passes for repeated literals.
-13. Applies dialect-aware ensemble subcommand abbreviation during rendering.
+13. Emits unique-prefix keyword abbreviations for subcommand and `-option`
+    words (`string equal -nocase` becomes `string e -n`), unless
+    `--no-abbreviations` is given.
+
+Abbreviation is registry-driven — the minifier never pattern-matches a
+command name — and obeys two safety rules:
+
+- **Version-range safety.** A prefix that is unique today can become
+  ambiguous when a later release adds a keyword (`string cat`, added in
+  8.6.2, shortened what `string c…` could mean). The emitted spelling must
+  resolve to the same keyword in the target dialect's table *and* in every
+  later core-Tcl table, so minified output stays correct if it is later run
+  on a newer interpreter.
+- **Only dispatch-consumed words.** A subcommand or `-option` word is
+  consumed by dispatch and is never observable as a string. Boolean *values*
+  are never abbreviated: `set flag true` is a value-definition site whose
+  bytes may be observed (`eq "true"`, a `switch` arm, `string length`), and
+  the minifier has no proof otherwise.
+
+Strict tables, dynamic words, `{*}`-expanded words, and command names (Tcl
+never prefix-matches those) are left alone. Pass `--no-abbreviations` when
+the output has to be eyeball-diffable.
 
 **Aggressive mode is not frame-transparent.**  The aliasing passes inject `set alias value` preambles: these create real Tcl variables that are visible to `info vars`, fire variable traces, and would collide with a same-named variable that exists only in the hosting interpreter (one set before the minified script is sourced).  The alias generators avoid every name visible in the script itself — compacted shorts, every analysed or SSA-known variable name, and every `$name` reference — so a collision with a name that appears anywhere in the script cannot happen.  Use basic or compact mode when the script must not add variables.
 

@@ -83,7 +83,8 @@ const CLEAR_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the display for the selection operation.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-selection",
@@ -91,7 +92,8 @@ const CLEAR_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies which named selection to operate on (default: PRIMARY).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 
@@ -103,7 +105,8 @@ const GET_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the display for the selection operation.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-selection",
@@ -111,7 +114,8 @@ const GET_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies which named selection to operate on (default: PRIMARY).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-type",
@@ -119,7 +123,8 @@ const GET_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the form in which the selection is to be returned.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 
@@ -132,7 +137,8 @@ const HANDLE_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies which named selection to operate on (default: PRIMARY).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-type",
@@ -140,7 +146,8 @@ const HANDLE_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the form in which the selection is to be returned.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-format",
@@ -148,7 +155,8 @@ const HANDLE_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the representation format for the selection data.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 
@@ -161,7 +169,8 @@ const OWN_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the display for the selection operation.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-selection",
@@ -169,7 +178,8 @@ const OWN_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies which named selection to operate on (default: PRIMARY).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-command",
@@ -177,7 +187,8 @@ const OWN_OPTIONS: &[OptionSpec] = &[
         detail: "Specifies a Tcl script to run when the selection is claimed by another window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 
@@ -196,7 +207,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the display for the selection operation.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-selection",
@@ -204,7 +216,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies which named selection to operate on (default: PRIMARY).",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-type",
@@ -212,7 +225,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the form in which the selection is to be returned.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-format",
@@ -220,7 +234,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies the representation format for the selection data.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
     OptionSpec {
         name: "-command",
@@ -228,7 +243,8 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Specifies a Tcl script to run when the selection is claimed by another window.",
         dialects: None,
         aliases: &[],
-        min_version: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
     },
 ];
 

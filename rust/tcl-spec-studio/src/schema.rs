@@ -400,6 +400,17 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Accept a subcommand word that is not declared, without a W001 warning.",
     ),
     f(
+        "prefix_matching",
+        "Prefix matching",
+        SUBS,
+        FieldKind::Enum {
+            catalogue: "prefixMatching",
+            optional: false,
+        },
+        "Whether this command's keyword tables accept unique-prefix \
+         abbreviations (`Tcl_GetIndexFromObj`) or only exact spellings.",
+    ),
+    f(
         "default_form_first_word",
         "Default-form first word",
         SUBS,
@@ -768,18 +779,25 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Tcllib package providing the command, for per-document activation.",
     ),
     f(
-        "min_version",
-        "Minimum package version",
+        "introduced_version",
+        "Introduced in",
         AVAILABILITY,
         FieldKind::OptText,
         "Dotted version of the owning package that introduced the command.",
     ),
     f(
-        "max_version",
-        "Maximum package version",
+        "deprecated_version",
+        "Deprecated in",
         AVAILABILITY,
         FieldKind::OptText,
-        "Last package version that still provides the command.",
+        "First package version where the command still exists but should warn.",
+    ),
+    f(
+        "retired_version",
+        "Retired in",
+        AVAILABILITY,
+        FieldKind::OptText,
+        "First package version without the command (exclusive upper bound).",
     ),
     f(
         "warn_missing_import",
@@ -1167,6 +1185,25 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Option flags declared on this subcommand.",
     ),
     f(
+        "min_abbrev",
+        "Minimum abbreviation",
+        OPTS,
+        FieldKind::OptIndex,
+        "Documented minimum abbreviation length for this subcommand's name, \
+         when longer than uniqueness alone requires. Unset = uniqueness only.",
+    ),
+    f(
+        "prefix_matching",
+        "Prefix matching",
+        OPTS,
+        FieldKind::Enum {
+            catalogue: "prefixMatching",
+            optional: false,
+        },
+        "Whether this subcommand's own keyword tables accept unique-prefix \
+         abbreviations or only exact spellings.",
+    ),
+    f(
         "arg_values",
         "Argument values",
         OPTS,
@@ -1200,18 +1237,25 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Dialect membership. Unset inherits the parent command's set.",
     ),
     f(
-        "min_version",
-        "Minimum package version",
+        "introduced_version",
+        "Introduced in",
         AVAILABILITY,
         FieldKind::OptText,
         "Dotted version of the owning package that introduced the subcommand.",
     ),
     f(
-        "max_version",
-        "Maximum package version",
+        "deprecated_version",
+        "Deprecated in",
         AVAILABILITY,
         FieldKind::OptText,
-        "Last package version that still provides the subcommand.",
+        "First package version where the subcommand still exists but should warn.",
+    ),
+    f(
+        "retired_version",
+        "Retired in",
+        AVAILABILITY,
+        FieldKind::OptText,
+        "First package version without the subcommand (exclusive upper bound).",
     ),
     f(
         "safe_on_uninit",
@@ -1449,6 +1493,10 @@ pub fn catalogues() -> Value {
         "dialects": entries(catalogue::DIALECTS),
         "defaultFormFirstWord": json!([
             { "key": "Integer", "doc": "an integer first word selects the default form" }
+        ]),
+        "prefixMatching": json!([
+            { "key": "Enabled", "doc": "any unique prefix resolves (Tcl_GetIndexFromObj)" },
+            { "key": "Strict", "doc": "only the exact spelling resolves (TCL_INDEX_STRICT)" }
         ]),
         "appendedArity": json!([
             { "key": "Exactly", "doc": "exactly N arguments are appended" },

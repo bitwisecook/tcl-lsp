@@ -165,7 +165,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 detail: "Restricts the match to exactly the given version — a single version word, not a requirement list. Equivalent to `package present package version-version`; since present never loads, an exact version that has not already been provided is a hard error, not an attempt to load it.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         ..SubCommand::DEFAULT
@@ -196,7 +197,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 detail: "Restricts the match to exactly the given version — a single version word, not a requirement list. Equivalent to `package require package version-version`; a different already-provided version is a hard error.",
                 dialects: None,
                 aliases: &[],
-                min_version: None,
+                lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
             }]
         },
         analyser_hook: Some(crate::hooks::AnalyserHookId::PackageRequire),

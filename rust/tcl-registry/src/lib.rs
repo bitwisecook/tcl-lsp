@@ -50,6 +50,7 @@
 
 #![deny(missing_docs)]
 
+pub mod abbrev;
 pub mod arg_role;
 pub mod arity;
 pub mod base_objects;
@@ -72,6 +73,7 @@ pub mod forms;
 pub mod frame_effect;
 pub mod hooks;
 pub mod hover;
+pub mod lifecycle;
 pub mod mathfunc;
 pub mod patterns;
 pub mod presentation;
@@ -98,6 +100,7 @@ pub mod version;
 /// `use crate::prelude::*;` in each command file brings in all the
 /// types needed to construct a `CommandSpec`.
 pub mod prelude {
+    pub use crate::abbrev::{KeywordMatch, KeywordTable, PrefixMatching};
     pub use crate::arg_role::{AppendedArity, ArgRole};
     pub use crate::arity::Arity;
     pub use crate::body_kind::BodyKind;
@@ -124,6 +127,7 @@ pub mod prelude {
         ArgValue, FormKind, FormSpec, HoverSnippet, IntegerDomain, OptionArg, OptionArity,
         OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome,
     };
+    pub use crate::lifecycle::{Lifecycle, LifecycleState};
     pub use crate::patterns::{FormatType, PatternType};
     pub use crate::presentation::ArgPresentation;
     pub use crate::repeated::RepeatedArgLayout;

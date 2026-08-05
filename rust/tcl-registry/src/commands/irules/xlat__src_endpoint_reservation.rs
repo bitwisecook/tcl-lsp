@@ -48,7 +48,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Skip creation of persist entry.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-dslite",
@@ -56,7 +57,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "DS-Lite local and remote endpoint.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-pool",
@@ -64,7 +66,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Specify pool for endpoint reservation.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-translation-loose",
@@ -72,7 +75,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Hint data; command won't fail if hints can't be used.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
                 OptionSpec {
                     name: "-translation-strict",
@@ -80,7 +84,8 @@ pub const fn spec() -> CommandSpec {
                     detail: "Hint data; command fails if hints can't be used.",
                     dialects: None,
                     aliases: &[],
-                    min_version: None,
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
                 },
             ]
         },

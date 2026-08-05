@@ -1102,20 +1102,46 @@ fn render_lambda_literal_arg(
     }
 }
 
-/// Append a plain word argument (with optional expression
-/// wrapping).  Returns `false` when nothing was emitted (an
-/// all-continuation artifact), so the caller leaves the brace
-/// chain untouched.
-fn append_word_arg(
-    sm: &SourceMap,
-    args: &[CommandArg],
-    i: usize,
-    expr_args: &[usize],
-    config: &FormatterConfig,
+/// Everything `append_word_arg` needs about the argument it is emitting,
+/// beyond the mutable output buffer.
+struct WordArgContext<'a> {
+    sm: &'a SourceMap<'a>,
+    args: &'a [CommandArg],
+    /// Index of the argument being emitted.
+    index: usize,
+    /// Argument indices the registry marked `ArgRole::Expr`.
+    expr_args: &'a [usize],
+    config: &'a FormatterConfig,
     indent_level: usize,
-    parts: &mut Vec<String>,
-) -> bool {
+    /// Canonical replacement text for this word (#1232 / #1233), if any.
+    keyword_rewrite: Option<&'a str>,
+}
+
+/// Append a plain word argument (with optional expression wrapping).
+/// Returns `false` when nothing was emitted (an all-continuation artifact),
+/// so the caller leaves the brace chain untouched.
+fn append_word_arg(ctx: &WordArgContext<'_>, parts: &mut Vec<String>) -> bool {
+    let WordArgContext {
+        sm,
+        args,
+        index: i,
+        expr_args,
+        config,
+        indent_level,
+        keyword_rewrite,
+    } = *ctx;
     let arg = &args[i];
+    // A keyword rewrite (#1232 abbreviation expansion, #1233 boolean form)
+    // replaces the whole word. It is only ever computed for a plain, static,
+    // unbraced, unquoted keyword word, so there are no delimiters to preserve
+    // and no expression/body handling to run.
+    if let Some(text) = keyword_rewrite {
+        if !parts.is_empty() {
+            parts.push(" ".to_owned());
+        }
+        parts.push(text.to_owned());
+        return true;
+    }
     let mut raw = reconstruct_arg(sm, arg, config.enforce_braced_variables);
     if raw.contains('\n') {
         // Keep whitespace before the backslash only for a quoted string, where
@@ -1166,6 +1192,49 @@ fn append_word_arg(
     true
 }
 
+/// The keyword rewrites (#1232 abbreviation expansion, #1233 boolean form)
+/// that apply to this command, keyed by argument index.
+///
+/// Only plain `Word` arguments that are neither braced nor quoted are
+/// eligible: a braced or quoted word's bytes are data the author chose to
+/// delimit, and a `Body`/`ParamList`/`Keyword`/`LambdaLiteral` argument is
+/// not a keyword-table position at all. Everything else — the dialect gate,
+/// the strictness flag, ambiguity, dynamic words — is decided by
+/// [`super::keywords::rewrites_for_command`].
+fn keyword_rewrites_for(
+    cmd: &ParsedCommand,
+    registry: &CommandRegistry,
+    config: &FormatterConfig,
+) -> std::collections::HashMap<usize, String> {
+    if !config.expand_abbreviations && config.boolean_form == super::config::BooleanForm::Preserve {
+        return std::collections::HashMap::new();
+    }
+    // `cmd.args[0]` is the command *name*; the keyword machinery indexes
+    // arguments from the first word after it.
+    let words: Vec<String> = cmd.args.iter().skip(1).map(|a| a.text.clone()).collect();
+    let dynamic: Vec<bool> = cmd
+        .args
+        .iter()
+        .skip(1)
+        .map(|a| {
+            a.kind != ArgKind::Word
+                || a.is_braced
+                || a.is_quoted
+                || a.tokens
+                    .iter()
+                    .any(|t| matches!(t.kind, TokenType::Var | TokenType::Cmd | TokenType::Expand))
+        })
+        .collect();
+    // The registry handed to the formatter is already the document's
+    // dialect pack, so no further dialect intersection is applied here;
+    // passing `None` keeps every declared keyword a candidate, which can only
+    // make a prefix *less* unique — the conservative direction.
+    super::keywords::rewrites_for_command(registry, None, config, &cmd.name, &words, &dynamic)
+        .into_iter()
+        .map(|r| (r.index + 1, r.text))
+        .collect()
+}
+
 /// Reconstruct a single command as formatted text.
 fn reconstruct_command(
     sm: &SourceMap,
@@ -1180,6 +1249,7 @@ fn reconstruct_command(
     }
 
     let expr_args = identify_expr_args(cmd, registry);
+    let keyword_rewrites = keyword_rewrites_for(cmd, registry, config);
     let spec_traits = registry.get(&cmd.name).map(|s| s.traits);
     let never_inline = spec_traits.is_some_and(|t| t.contains(Traits::NEVER_INLINE_BODY));
 
@@ -1242,12 +1312,15 @@ fn reconstruct_command(
             }
             _ => {
                 if append_word_arg(
-                    sm,
-                    &cmd.args,
-                    i,
-                    &expr_args,
-                    config,
-                    indent_level,
+                    &WordArgContext {
+                        sm,
+                        args: &cmd.args,
+                        index: i,
+                        expr_args: &expr_args,
+                        config,
+                        indent_level,
+                        keyword_rewrite: keyword_rewrites.get(&i).map(String::as_str),
+                    },
                     &mut parts,
                 ) {
                     in_brace_chain = false;
