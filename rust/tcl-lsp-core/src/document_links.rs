@@ -162,7 +162,7 @@ pub fn document_links_in_context(
     for seg in segment_commands_with_offset_and_config(
         source,
         0,
-        tcl_lexer::LexerConfig::for_dialect(dialect),
+        tcl_lexer::LexerConfig::for_file_dialect(dialect),
     ) {
         if seg.texts.is_empty() {
             continue;

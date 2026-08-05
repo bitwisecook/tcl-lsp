@@ -3038,7 +3038,7 @@ fn definition_body_regions_naming(
     let commands = segment_commands_with_offset_and_config(
         source,
         0,
-        tcl_lexer::LexerConfig::for_dialect(dialect),
+        tcl_lexer::LexerConfig::for_file_dialect(dialect),
     );
     let qualified = tcl_syntax::naming::normalise_qualified_name(&class_def.qualified_name);
     let mut regions: Vec<(usize, usize)> = Vec::new();

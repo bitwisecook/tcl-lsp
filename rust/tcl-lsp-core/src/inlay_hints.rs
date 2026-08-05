@@ -169,7 +169,7 @@ pub fn inlay_hints(
         let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
             source,
             0,
-            tcl_lexer::LexerConfig::for_dialect(dialect),
+            tcl_lexer::LexerConfig::for_file_dialect(dialect),
         );
         for seg in &segments {
             if seg.texts.is_empty() || seg.argv.is_empty() {
@@ -574,7 +574,7 @@ fn collect_format_string_hints(
     let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
         source,
         0,
-        tcl_lexer::LexerConfig::for_dialect(dialect),
+        tcl_lexer::LexerConfig::for_file_dialect(dialect),
     );
     for seg in &segments {
         for (idx, kind) in format_args(seg, registry) {

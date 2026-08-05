@@ -3078,7 +3078,7 @@ fn infer_var_type_and_taint(
         tcl_compiler::compilation_unit::UnitBuildOptions {
             registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::for_dialect(profile.name),
+            config: tcl_lexer::LexerConfig::for_file_dialect(profile.name),
             dialect: profile.name,
             external_call_sites: None,
         },

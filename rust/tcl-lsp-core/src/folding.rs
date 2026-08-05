@@ -129,7 +129,7 @@ pub fn folding_ranges(
         original_source: source,
         seen: &mut seen,
         ranges: &mut ranges,
-        config: tcl_lexer::LexerConfig::for_dialect(dialect),
+        config: tcl_lexer::LexerConfig::for_file_dialect(dialect),
     };
     collect_body_folds(
         source, 0, 0, None, // top-level body is not inside a definition body
@@ -345,6 +345,8 @@ struct FoldCtx<'a> {
     seen: &'a mut FxHashSet<(u32, u32)>,
     ranges: &'a mut Vec<FoldingRange>,
     /// Dialect lexer config so body re-segmentation honours `{*}` / `}{`.
+    /// Whole-file lexer config; nested body slices take
+    /// [`tcl_lexer::LexerConfig::at_depth`] of it.
     config: tcl_lexer::LexerConfig,
 }
 
@@ -364,7 +366,14 @@ fn collect_body_folds(
     if MAX_FOLD_DEPTH.exceeded(depth) {
         return;
     }
-    let commands = segment_commands_with_offset_and_config(body_source, base_offset, ctx.config);
+    // The whole-file lexer rule (which may skip a leading byte-order mark)
+    // applies at the top level only — a mark at the head of a *nested* body
+    // slice is ordinary data (issue #1243).
+    let commands = segment_commands_with_offset_and_config(
+        body_source,
+        base_offset,
+        ctx.config.at_depth(depth),
+    );
     for cmd in &commands {
         if cmd.argv.is_empty() {
             continue;

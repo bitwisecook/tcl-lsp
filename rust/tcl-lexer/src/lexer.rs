@@ -269,6 +269,43 @@ impl LexerConfig {
             ..Self::from_grammar(grammar)
         }
     }
+
+    /// [`Self::for_dialect`] for the entry point that lexes a **whole file** —
+    /// the by-name twin of [`Self::for_file_grammar`].
+    ///
+    /// Every LSP provider that re-segments the raw document text has such an
+    /// entry point, and each must use this one rather than
+    /// [`Self::for_dialect`]: otherwise a leading mark lexes into the first
+    /// word, so the first command's semantic token spans the mark, its body
+    /// fold is lost (the marked name resolves to no registry command), and its
+    /// document links / inlay hints / references miss (issue #1243).
+    #[must_use]
+    pub fn for_file_dialect(dialect: &str) -> Self {
+        Self::for_file_grammar(tcl_dialect::DialectProfile::by_name(dialect).grammar)
+    }
+
+    /// This config demoted to a **nested** re-lex: identical, except a leading
+    /// byte-order mark is ordinary content again.
+    ///
+    /// A whole-file config may skip a mark at byte 0 because that is the
+    /// script's prologue; a mark at the head of a nested body slice, an `eval`
+    /// argument, or a VM string is data. A provider that threads one config
+    /// through its own body recursion calls this below the top level, so the
+    /// file rule cannot leak into a nested slice (issue #1243).
+    #[must_use]
+    pub fn nested(self) -> Self {
+        Self {
+            leading_bom: LeadingBom::Content,
+            ..self
+        }
+    }
+
+    /// [`Self::nested`] applied everywhere but the top level of a provider's
+    /// own body recursion — the shape those providers all want, stated once.
+    #[must_use]
+    pub fn at_depth(self, depth: u32) -> Self {
+        if depth == 0 { self } else { self.nested() }
+    }
 }
 
 /// Errors produced by the Tcl lexer.

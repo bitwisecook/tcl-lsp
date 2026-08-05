@@ -4618,7 +4618,7 @@ fn collect_script(
     for seg in segment_commands_with_offset_and_config(
         text,
         base_offset,
-        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
+        tcl_lexer::LexerConfig::for_file_dialect(ctx.dialect).at_depth(depth),
     ) {
         if seg.argv.is_empty() {
             continue;
@@ -5191,7 +5191,7 @@ fn imported_command_aliases(
     for seg in segment_commands_with_offset_and_config(
         source,
         0,
-        tcl_lexer::LexerConfig::for_dialect(dialect),
+        tcl_lexer::LexerConfig::for_file_dialect(dialect),
     ) {
         if seg.texts.len() < 3 || seg.texts[0] != "namespace" || seg.texts[1] != "import" {
             continue;
@@ -5328,7 +5328,7 @@ fn scan_loop_vars(
     for seg in segment_commands_with_offset_and_config(
         text,
         base_offset,
-        tcl_lexer::LexerConfig::for_dialect(dialect),
+        tcl_lexer::LexerConfig::for_file_dialect(dialect).at_depth(depth),
     ) {
         let texts = &seg.texts;
         // `dict for {k v} $coll body` / `dict map {k v} $coll body` — the value
@@ -5447,7 +5447,7 @@ fn scan_snit_handles(
     for seg in segment_commands_with_offset_and_config(
         text,
         base_offset,
-        tcl_lexer::LexerConfig::for_dialect(dialect),
+        tcl_lexer::LexerConfig::for_file_dialect(dialect).at_depth(depth),
     ) {
         let texts = &seg.texts;
         match texts.first().map(String::as_str) {

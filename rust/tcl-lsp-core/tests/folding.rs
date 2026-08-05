@@ -210,3 +210,51 @@ fn itcl_method_bodies_fold() {
         "the itcl `public method` body must fold: {r:?}",
     );
 }
+
+// Issue #1243 — a leading UTF-8 byte-order mark is a *file* prologue under
+// Tcl 9 (`source` strips it), but ordinary data at the head of a nested body
+// slice. Every provider that re-segments the raw document must draw that split
+// at its own top level.
+//
+// tclsh-proof: tclsh8.6.14 rejects a BOM'd first command
+// (`invalid command name "<BOM>proc"`), which is why the skip is Tcl 9 only.
+
+/// The first command of a BOM'd Tcl 9 file still gets its body fold: the mark
+/// must not lex into the command name (which would resolve to no registry
+/// command, so no `ArgRole::Body` and no fold).
+#[test]
+fn tcl9_leading_bom_does_not_suppress_the_first_body_fold() {
+    let registry = registry_for_dialect("tcl9.0");
+    let src = "\u{FEFF}proc greet {} {\n    return hi\n}\n";
+    let with_bom: Vec<FoldingRange> = folding_ranges(src, "tcl9.0", registry)
+        .into_iter()
+        .filter(|r| r.kind == FoldKind::Region)
+        .collect();
+    let plain: Vec<FoldingRange> = folding_ranges(&src["\u{FEFF}".len()..], "tcl9.0", registry)
+        .into_iter()
+        .filter(|r| r.kind == FoldKind::Region)
+        .collect();
+    assert_eq!(
+        with_bom, plain,
+        "a BOM'd Tcl 9 file folds exactly like the same file without the mark",
+    );
+    assert!(!with_bom.is_empty(), "the proc body is a region fold");
+}
+
+/// TN control — a mark at the head of a **nested** body is data, not a
+/// prologue, so the inner command keeps the mark in its name and draws no
+/// inner fold. The outer proc's own fold is unaffected.
+#[test]
+fn a_bom_inside_a_nested_body_is_data() {
+    let registry = registry_for_dialect("tcl9.0");
+    let src = "proc outer {} {\n    \u{FEFF}proc inner {} {\n        return 1\n    }\n}\n";
+    let regions: Vec<FoldingRange> = folding_ranges(src, "tcl9.0", registry)
+        .into_iter()
+        .filter(|r| r.kind == FoldKind::Region)
+        .collect();
+    assert_eq!(
+        regions.len(),
+        1,
+        "only the outer proc folds — the marked inner head is not `proc`; got {regions:?}",
+    );
+}
