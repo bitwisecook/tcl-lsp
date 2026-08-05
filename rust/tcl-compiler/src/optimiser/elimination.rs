@@ -39,6 +39,7 @@
 
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
+use tcl_lexer::TokenType;
 
 use tcl_registry::CommandRegistry;
 
@@ -1059,7 +1060,7 @@ pub(crate) fn collect_rmw_hidden_reads(
         // safe for the dead-store / unused suppression: it only ever silences a
         // warning, matching the analyser's correctness-first (err-toward-silence)
         // bias.
-        out.extend(dollar_reads_in_cmd_subs(word));
+        out.extend(dollar_reads_in_cmd_subs(word, registry));
     };
     let mut terminator_values: Vec<String> = Vec::new();
     for block in fu.cfg.blocks.values() {
@@ -1115,50 +1116,135 @@ pub(crate) fn collect_rmw_hidden_reads(
 /// suppresses `$`-substitution), yet `expr` (and `if`/`while`/…) re-evaluate
 /// that text as an expression where the `$var` is a genuine read. Returns the
 /// bare variable names (no `$`).
-fn dollar_reads_in_cmd_subs(word: &str) -> Vec<String> {
-    let bytes = word.as_bytes();
+///
+/// Deliberately over-approximating — crediting a read only ever *silences* a
+/// dead-store / unused-variable warning — with **one** exception, which is
+/// where the over-approximation was not conservative but simply wrong: a
+/// brace-quoted word the registry puts in a variable-**name** role
+/// ([`tcl_registry::ArgRole::names_variable`]).  `[set {$n}]` reads the cell
+/// whose name is the two characters `$n`; it never reads `n`, so crediting
+/// `n` masked a W220 real tclsh confirms (`proc f {} {set n 1; puts [set
+/// {$n}]}` — `n` is assigned and never read; 9.0.4 / 8.6.16 alike report
+/// `can't read "$n": no such variable`, proving the read went to the other
+/// cell).  Issue #1109.
+///
+/// Everything else keeps abstaining toward silence: an `[expr {…}]` brace, a
+/// word that merely *contains* a substitution, an unresolvable head.
+fn dollar_reads_in_cmd_subs(word: &str, registry: &CommandRegistry) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
-    let mut depth: i32 = 0;
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'[' => depth += 1,
-            b']' => depth = (depth - 1).max(0),
-            b'$' if depth > 0 => {
-                let mut j = i + 1;
-                if j < bytes.len() && bytes[j] == b'{' {
-                    // ${name with anything}
-                    j += 1;
-                    let start = j;
-                    while j < bytes.len() && bytes[j] != b'}' {
-                        j += 1;
-                    }
-                    if j > start {
-                        out.push(word[start..j].to_string());
-                    }
-                    i = j.saturating_add(1);
-                    continue;
-                }
-                // $name / $ns::name / $arr(idx)
-                let start = j;
-                while j < bytes.len()
-                    && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_' || bytes[j] == b':')
-                {
-                    j += 1;
-                }
-                if j > start {
-                    // Bare scalar / namespaced name (the array-base name is the
-                    // tracked dead-store key; the `(idx)` suffix is dropped).
-                    out.push(word[start..j].to_string());
-                }
-                i = j;
+    push_substituted_script_reads(word, registry, &mut out, 0);
+    out
+}
+
+/// Recursion cap for the descent through nested `[…]` substitutions.
+const MAX_SUBST_DEPTH: u32 = 32;
+
+/// Find each `[…]` substitution in an already-extracted **value word** and
+/// hand its inner script to [`push_script_dollar_reads`].
+fn push_substituted_script_reads(
+    text: &str,
+    registry: &CommandRegistry,
+    out: &mut Vec<String>,
+    depth: u32,
+) {
+    if depth >= MAX_SUBST_DEPTH || !text.contains('[') {
+        return;
+    }
+    for inner in crate::var_refs::command_subst_texts(text) {
+        push_script_dollar_reads(&inner, registry, out, depth + 1);
+    }
+}
+
+/// Every `$name` appearing in one command substitution's script, minus the
+/// words the registry proves are *literal* variable names.
+fn push_script_dollar_reads(
+    script: &str,
+    registry: &CommandRegistry,
+    out: &mut Vec<String>,
+    depth: u32,
+) {
+    for cmd in crate::segmenter::segment_commands_with_offset(script, 0) {
+        let literal_names: HashSet<usize> =
+            crate::var_refs::variable_name_role_words(&cmd, registry)
+                .into_iter()
+                .filter(|w| w.braced_literal)
+                .map(|w| w.word_index)
+                .collect();
+        for (i, text) in cmd.texts.iter().enumerate() {
+            if literal_names.contains(&i) {
                 continue;
             }
-            _ => {}
+            let is_substitution = cmd.argv.get(i).is_some_and(|t| t.kind == TokenType::Cmd)
+                && cmd.single_token_word.get(i) == Some(&true);
+            if is_substitution {
+                // A nested substitution is a fresh script — descend so its own
+                // name words are recognised rather than byte-scanned.
+                let inner = text
+                    .strip_prefix('[')
+                    .and_then(|t| t.strip_suffix(']'))
+                    .unwrap_or(text);
+                push_script_dollar_reads(inner, registry, out, depth + 1);
+            } else {
+                scan_dollar_names(text, out);
+                push_substituted_script_reads(text, registry, out, depth);
+            }
         }
-        i += 1;
     }
-    out
+}
+
+/// Push every `$name` / `${name}` / `$arr(idx)` spelled in `text`, whatever
+/// quoting surrounds it — the deliberate over-approximation.
+///
+/// The `${…}` form follows C Tcl 9's `Tcl_ParseVarName` exactly
+/// (`generic/tclParse.c`): the name runs to the **matching** close brace, with
+/// inner `{`/`}` counted as a nesting pair and a backslash consuming the byte
+/// after it, so `${a{b}c}` names `a{b}c` and `${a\}b}` names `a\}b`. Scanning
+/// to the *first* `}` truncated both. An unterminated `${…}` is a parse error
+/// in C (`missing close-brace for variable name`), never a read; the trailing
+/// text is still credited so a mid-edit buffer cannot turn a suppression into
+/// a spurious warning.
+fn scan_dollar_names(text: &str, out: &mut Vec<String>) {
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'$' {
+            i += 1;
+            continue;
+        }
+        let mut j = i + 1;
+        if bytes.get(j) == Some(&b'{') {
+            j += 1;
+            let start = j;
+            let mut brace_depth: u32 = 0;
+            while j < bytes.len() && (brace_depth > 0 || bytes[j] != b'}') {
+                match bytes[j] {
+                    b'{' => brace_depth += 1,
+                    b'}' => brace_depth = brace_depth.saturating_sub(1),
+                    b'\\' if j + 1 < bytes.len() => j += 1,
+                    _ => {}
+                }
+                j += 1;
+            }
+            if j > start {
+                out.push(text[start..j].to_string());
+            }
+            i = j.saturating_add(1);
+            continue;
+        }
+        // $name / $ns::name / $arr(idx)
+        let start = j;
+        while j < bytes.len()
+            && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_' || bytes[j] == b':')
+        {
+            j += 1;
+        }
+        if j > start {
+            // Bare scalar / namespaced name (the array-base name is the
+            // tracked dead-store key; the `(idx)` suffix is dropped).
+            out.push(text[start..j].to_string());
+        }
+        i = j.max(i + 1);
+    }
 }
 
 /// Scan every CFG block for scope-alias commands (`global`, `variable`,

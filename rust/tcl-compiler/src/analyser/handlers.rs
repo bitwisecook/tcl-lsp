@@ -2210,9 +2210,21 @@ impl Analyser {
         if let Some(ns_tok) = arg_tokens.get(1) {
             self.emit_w314_unaddressable_namespace(&ns_name, ns_tok.span);
         }
-        let body_span = arg_tokens.get(2).map(|t| t.span);
-        let body_text = args.get(2).cloned();
+        // The scope's `body_span` is what offset-keyed lookups resolve
+        // *against* the namespace frame, so it may only cover text that runs
+        // in that frame.  A literal `{…}` block does.  A `[…]` substitution
+        // does **not**: Tcl evaluates it in the *calling* frame and hands
+        // `namespace eval` the resulting value, so `namespace eval ::
+        // [list source [file join $::tk_library $file.tcl]]` (Tk's
+        // `::tk::SourceLibFile`) reads the proc's own `$file` parameter
+        // before the namespace is entered at all.  Claiming those bytes for
+        // the namespace made the scope-chain lookup stop there and answer
+        // nothing for that read (issue #1138 idx 102).
         let body_tok = arg_tokens.get(2).copied();
+        let body_span = body_tok
+            .filter(|t| t.kind == TokenType::Str)
+            .map(|t| t.span);
+        let body_text = args.get(2).cloned();
         // `namespace eval $ns [list namespace unknown $handler]` — the
         // list-wrapped installer idiom `analyse_body`'s literal-`{...}`
         // -only gate below never sees (issue #923 idx 110).
@@ -2894,7 +2906,16 @@ impl Analyser {
             }
             _ => return false,
         };
-        if body_tok.kind != TokenType::Str {
+        // A literal `{…}` block, or a script *built* with `list` — the latter
+        // is not dynamic (`uplevel #0 [list upvar #0 A B]` runs exactly one
+        // deterministic command, tclsh-identical to the braced spelling), so
+        // it opens the same frame scope (issue #1138).  Any other shape falls
+        // through to the generic recursion.
+        if body_tok.kind != TokenType::Str
+            && !self.registry.is_some_and(|r| {
+                crate::script_arg::list_quoted_script_command(r, body_tok, &body_text).is_some()
+            })
+        {
             return false;
         }
 
@@ -2908,7 +2929,14 @@ impl Analyser {
             // can distinguish the `#0` global frame (resolve outward) from a
             // non-`#0` unknown caller frame (abstain outward).
             let mut child = super::types::Scope::new(super::types::ScopeKind::Uplevel, level_word);
-            child.body_span = Some(body_tok.span);
+            // Only a literal `{…}` block may claim the token bytes as the
+            // frame's `body_span` — same rule as `namespace eval` above.  A
+            // `[list …]` build substitutes its elements in the *calling*
+            // frame before `uplevel` changes frames, so an offset-keyed
+            // lookup on (say) `$file` in `uplevel #0 [list source [file join
+            // $file]]` must keep resolving lexically to the proc's own
+            // parameter, not stop at this frame (issue #1138).
+            child.body_span = (body_tok.kind == TokenType::Str).then_some(body_tok.span);
             parent.children.push(child);
             parent.children.len() - 1
         };

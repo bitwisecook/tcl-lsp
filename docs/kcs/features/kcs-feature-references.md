@@ -122,6 +122,49 @@ When nothing binds the name, Find All References returns nothing rather than
 falling back to a command or method of the same name — a `$`-led token can
 only ever be the variable.
 
+### Variable-name arguments
+
+A variable is read by more than `$name`. Any command whose registry spec puts
+an argument in a variable-**read** role reads the cell that word names, and
+those words are reference sites too:
+
+```tcl
+proc f {} {
+    set m 1
+    puts [set m]           ;# prints 1 — a real read of m
+    puts [info exists m]   ;# prints 1 — also a real read
+}
+```
+
+Find All References on `m` returns the declaration and both bare `m` words,
+and a cursor placed on either of them answers the same set. Nothing here is
+`set`-specific — the roles come from the registry, so `array get`, `unset`, a
+dialect command, or one added tomorrow all contribute the moment their spec
+declares the position. A value word of the same spelling is not a reference:
+`puts m` prints the literal string `m`.
+
+Braces make the word a *literal* name rather than a substitution: `set {$n} 1`
+and `[set {$n}]` write and read the variable whose name is the two characters
+`$n`, which Tcl keeps strictly apart from `n` (`set {$n} v; info exists {$n}`
+→ 1, `info exists n` → 0). The two cells have separate reference sets, and a
+cursor anywhere in `{$n}` — the brace, the `$`, or the `n` — answers the
+literal cell's.
+
+A read written inside a script argument **built with `list`** counts as well,
+attributed to the frame that really performs it. In Tk's own
+`::tk::SourceLibFile`:
+
+```tcl
+proc ::tk::SourceLibFile {file} {
+    namespace eval :: [list source [file join $::tk_library $file.tcl]]
+}
+```
+
+`$file` is the proc's own parameter — the `[…]` is evaluated in the proc's
+frame before `namespace eval` enters `::` — so it is listed with the
+parameter's declaration. See
+[a script argument built with `list` is not analysed as a script](../kcs-issue-list-built-script-argument-not-analysed.md).
+
 ### Namespace names
 
 A namespace is a symbol in its own right. Asking for references from the
@@ -166,6 +209,11 @@ that reason.
   to Definition, Hover, and Find References all answer through)
 - `rust/tcl-compiler/src/analyser/oo.rs` (`record_member_command_references` —
   `superclass` / `mixin` / `inherit` / `forward` as command references)
+- `rust/tcl-compiler/src/var_refs.rs` (`variable_name_role_words` — the one
+  answer to "which words of this command are variable names?", shared by the
+  analyser's reference recorder and the dead-store suppressor)
+- `rust/tcl-compiler/src/analyser/scope.rs` (`collect_name_role_reads` — the
+  single site that records a `VarRead`-role word as a reference)
 
 ## Failure modes
 
@@ -224,6 +272,14 @@ that reason.
 
 ## Test anchors
 
+- `rust/tcl-compiler/tests/analyser.rs` (`var_read_role_references` — the
+  TP/FP/TN matrix for variable-name-argument reads;
+  `list_quoted_script_arguments` — reads and declarations inside a
+  `[list …]`-built script argument)
+- `rust/tcl-lsp-core/tests/references_rename.rs`
+  (`find_references_reports_var_read_role_name_words`,
+  `a_cursor_on_a_role_read_word_resolves_the_cell`,
+  `a_parameter_read_inside_a_list_built_body_navigates`)
 - `rust/tcl-lsp-core/tests/references_residual.rs`
 - `rust/tcl-lsp-core/tests/name_resolution.rs` (`my_method_dispatch`,
   `obj_method_dispatch`, `next_dispatch`, `classmethod_dispatch` —

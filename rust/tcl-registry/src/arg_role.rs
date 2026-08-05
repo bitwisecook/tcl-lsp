@@ -241,6 +241,50 @@ impl ArgRole {
             | Self::Keyword => false,
         }
     }
+
+    /// Whether an argument in this role **is** a variable name — the word's
+    /// own text names a cell the command reads or writes, rather than being a
+    /// value, a script, a pattern, or a command reference.
+    ///
+    /// The one place that answers this question, so the consumers that need
+    /// it cannot drift apart: the analyser's reference recorder (a `VarRead`
+    /// word is a genuine use site of the named cell — `puts [set m]` /
+    /// `info exists m` read `m` exactly as `$m` does), the dead-store
+    /// suppressor's command-substitution scan (a **braced** word in this role
+    /// is a *literal* name, so a `$x` inside it is part of that name and not
+    /// a read of `x` — issue #1109), and the cursor resolver that answers
+    /// which cell a brace-quoted name word denotes (issue #1108).
+    ///
+    /// [`Self::LoopVarList`] is deliberately excluded: that word is a *list*
+    /// of names, not one name, so a consumer must split it before it has a
+    /// variable name at all. The match is exhaustive on purpose — a new role
+    /// that names a variable fails to compile until someone decides.
+    #[must_use]
+    pub const fn names_variable(self) -> bool {
+        match self {
+            Self::VarWrite | Self::VarRead => true,
+            Self::Body
+            | Self::Expr
+            | Self::LambdaLiteral
+            | Self::CommandPrefix
+            | Self::CommandName
+            | Self::CommandNameProbe
+            | Self::LoopVarList
+            | Self::ParamList
+            | Self::Name
+            | Self::Pattern
+            | Self::Option
+            | Self::Value
+            | Self::Subcommand
+            | Self::OptionTerminator
+            | Self::FormatString
+            | Self::ScanFormat
+            | Self::Channel
+            | Self::Index
+            | Self::NamespaceName
+            | Self::Keyword => false,
+        }
+    }
 }
 
 /// How many arguments a command appends to a [`ArgRole::CommandPrefix`]

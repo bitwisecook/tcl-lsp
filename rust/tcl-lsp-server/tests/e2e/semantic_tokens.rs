@@ -2020,3 +2020,56 @@ fn test_expect_clause_list_patterns_and_bodies() {
         "`set timeout 30` must bind a variable, not a keyword: {tokens:?}",
     );
 }
+
+/// Issue #1138 idx 100: Tk's `library/tk.tcl:289` builds its `upvar` with
+/// `list` — `uplevel #0 [list upvar #0 ::tk::Priv.$disp ::tk::Priv]` — and
+/// declares the same cell as a plain `variable ::tk::Priv` on the next line.
+/// A 3-way comparison on tclsh 9.0.4 / 8.6.16 (direct `upvar`, braced
+/// `uplevel {upvar …}`, `uplevel [list upvar …]`) shows the three are
+/// functionally identical, yet only the `[list …]` form — the one Tk uses —
+/// was painted as a namespace word instead of a variable declaration.
+#[test]
+fn test_list_built_upvar_declares_its_local_like_the_literal_spelling() {
+    let mut lsp = Lsp::tcl();
+    let leg = legend(&lsp);
+    let mods = modifiers(&lsp);
+    let src = concat!(
+        "proc f {disp} {\n",
+        "    uplevel #0 [list upvar #0 ::tk::Priv.$disp ::tk::Priv]\n",
+        "    variable ::tk::Priv\n",
+        "}\n",
+    );
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &leg, &uri);
+    let decl_bit = modifier_bit(&mods, "declaration");
+    let at = |line: i64| {
+        tokens
+            .iter()
+            .find(|t| t.line == line && covered(src, t) == "::tk::Priv")
+            .unwrap_or_else(|| panic!("no `::tk::Priv` token on line {line}: {tokens:?}"))
+    };
+    let built = at(1);
+    let literal = at(2);
+    assert_eq!(
+        (built.ttype.as_str(), built.modifiers & decl_bit != 0),
+        ("variable", true),
+        "the built `upvar`'s local is a variable declaration: {built:?}"
+    );
+    assert_eq!(
+        (built.ttype.as_str(), built.modifiers),
+        (literal.ttype.as_str(), literal.modifiers),
+        "both spellings of the same declaration must agree: {tokens:?}"
+    );
+
+    // FP guard: `list` invokes nothing, so the same words in a *value* slot
+    // declare nothing.  tclsh: `set x [list upvar 1 a b]; info exists b` -> 0.
+    let value_src = "proc g {} {\n    set x [list upvar 1 a b]\n}\n";
+    let value_uri = open_doc(&mut lsp, value_src);
+    let value_tokens = typed(&mut lsp, &leg, &value_uri);
+    assert!(
+        !value_tokens.iter().any(|t| covered(value_src, t) == "b"
+            && t.ttype == "variable"
+            && t.modifiers & decl_bit != 0),
+        "a value slot must not declare anything: {value_tokens:?}"
+    );
+}

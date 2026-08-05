@@ -140,6 +140,13 @@ impl Analyser {
     /// invocations.
     pub(super) fn analyse_body(&mut self, body_text: &str, body_tok: Token, scope_path: &[usize]) {
         if body_tok.kind != TokenType::Str {
+            // A script argument *built* with `list` rather than written as a
+            // literal `{…}` block is not dynamic — `uplevel #0 [list upvar #0
+            // ::tk::Priv.$disp ::tk::Priv]` (Tk's own `library/tk.tcl`)
+            // evaluates exactly one deterministic command. Walk it, so its
+            // declarations and reads stop being invisible (issue #1138).
+            // Everything else keeps the opaque-barrier behaviour.
+            self.analyse_list_quoted_body(body_tok, body_text, scope_path);
             return;
         }
         self.body_depth += 1;
@@ -278,6 +285,57 @@ impl Analyser {
             cmd_idx += 1 + consumed;
         }
         self.body_depth -= 1;
+    }
+
+    /// Walk a script argument that was **built** with `list` instead of
+    /// written as a literal `{…}` block.
+    ///
+    /// The shape test is
+    /// [`crate::script_arg::list_quoted_script_command`] — the one predicate
+    /// for "is this `[…]` a statically known command?", shared with the LSP's
+    /// declaration highlighting so the two cannot disagree.  Only that shape
+    /// is walked; every other `[…]` body stays the opaque barrier it was.
+    ///
+    /// The resolved command is dispatched at `scope_path`, exactly as the
+    /// same command written literally would be, so `uplevel #0 [list upvar #0
+    /// A B]` declares `B` in the uplevel frame and `namespace eval NS [list
+    /// set v 1]` declares `v` in `NS`.  Its `$var` reads are recorded too;
+    /// they were already recorded once, in the *enclosing* scope, by the
+    /// command-substitution walk — correctly, since a `list` element is
+    /// substituted in the building frame before the script ever runs — and
+    /// `VarDef::push_reference` drops the repeat.
+    ///
+    /// Returns `true` when a command was walked.
+    fn analyse_list_quoted_body(
+        &mut self,
+        body_tok: Token,
+        body_text: &str,
+        scope_path: &[usize],
+    ) -> bool {
+        let Some(registry) = self.registry else {
+            return false;
+        };
+        let Some(cmd) =
+            crate::script_arg::list_quoted_script_command(registry, body_tok, body_text)
+        else {
+            return false;
+        };
+        self.body_depth += 1;
+        if MAX_BODY_DEPTH.exceeded(self.body_depth) {
+            self.body_depth -= 1;
+            return false;
+        }
+        self.presubstituted_args = true;
+        self.process_command(
+            &cmd.texts,
+            &cmd.argv,
+            &cmd.single_token_word,
+            &[],
+            scope_path,
+        );
+        self.record_arg_var_reads(&cmd, scope_path);
+        self.body_depth -= 1;
+        true
     }
 
     /// Returns `true` when `cmd_name` is hidden in the enclosing safe
@@ -634,6 +692,9 @@ impl Analyser {
         if argv_texts.is_empty() || arg_tokens_in.is_empty() {
             return;
         }
+        // See `AnalyserState::presubstituted_args`: taken (and reset) so only
+        // *this* command level skips the substitution re-walks below.
+        let presubstituted_args = std::mem::take(&mut self.presubstituted_args);
         let cmd_name = argv_texts[0].as_str();
         // Safe-interpreter visibility gate (issue #945 fault 7): a command
         // hidden in the enclosing safe interpreter never executes — see
@@ -741,7 +802,9 @@ impl Analyser {
             // Walk every argument's source slice for ``[cmd ...]``
             // substitutions and record each nested head as its own
             // ``CommandInvocation``.
-            self.record_nested_invocations_from_args(cmd_name, args, arg_tokens_in, scope_path);
+            if !presubstituted_args {
+                self.record_nested_invocations_from_args(cmd_name, args, arg_tokens_in, scope_path);
+            }
 
             // Record `ArgRole::CommandPrefix` callback heads (`lsort -command
             // myCompare`, `trace add … cb`) as command invocations too, so
@@ -766,21 +829,16 @@ impl Analyser {
             self.record_namespace_name_references(cmd_name, args, arg_tokens, scope_path);
 
             // Run the per-command syntactic checks on commands nested inside
-            // ``[…]`` substitutions — the main walk never descends a
-            // substitution (it treats `[cmd …]` as a value), so a command
-            // like `set fh [open "|$cmd" r]` or `set x [string index abc 99]`
+            // ``[…]`` substitutions (bare-`Cmd` args *and* braced-expr args)
+            // — the main walk never descends a substitution (it treats
+            // `[cmd …]` as a value), so a command like `set fh [open "|$cmd"
+            // r]`, `set x [string index abc 99]` or `if { [matchclass …] }`
             // would otherwise escape the security / bounds / arity / style
-            // families entirely.  Re-runs the per-command checks on each
-            // descended substitution command.
-            self.run_nested_command_diagnostics(arg_tokens_in, scope_path);
-
-            // Run the per-command syntactic + EXPR checks on commands nested
-            // inside a ``[…]`` substitution of a *braced expression*
-            // argument (`if { [matchclass …] }`, `while { [done $x] }`).
-            // The bare-`Cmd` walk above never enters a braced `Str` expr
-            // arg, so those substitution commands would otherwise escape
-            // every per-command check (IRULE2001/2002, W100, …).
-            self.run_nested_expr_diagnostics(cmd_name, args, arg_tokens, scope_path);
+            // families (IRULE2001/2002, W100, …) entirely.
+            if !presubstituted_args {
+                self.run_nested_command_diagnostics(arg_tokens_in, scope_path);
+                self.run_nested_expr_diagnostics(cmd_name, args, arg_tokens, scope_path);
+            }
 
             // Record variable-as-command and
             // command-substitution-as-command call sites so the
