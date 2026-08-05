@@ -122,6 +122,7 @@ class StringCommand(CommandDef):
 |-------|------|---------|---------|
 | `arg_roles` | `dict[int, ArgRole]` | `{}` | Static arg roles: `BODY`, `EXPR`, `VAR_NAME`, `VAR_READ`, `PATTERN`, etc. |
 | `arg_role_resolver` | `ArgRoleResolver \| None` | `None` | Dynamic arg-role resolution for variable-layout commands (if, try, switch) |
+| `arg_presentation` | `&[(u8, ArgPresentation)]` | `&[]` | Formatter layout override per argument index -- see [ArgPresentation](#argpresentation----how-a-formatter-lays-an-argument-out) |
 | `clause_shape_check` | `ClauseShapeChecker \| None` | `None` | Validates a clause-chain shape a plain `min..=max` arity can't express (if's `elseif`/`else` chain -- see `tcl_registry::clause_shape`); the compiler dispatches on the hook's presence, not the command name |
 | `arg_types` | `dict[int, ArgTypeHint]` | `{}` | Per-argument type expectations (e.g. `INT`, `LIST`).  Drives shimmer detection |
 | `return_type` | `TclType \| None` | `None` | Return type of the command |
@@ -342,6 +343,65 @@ role fails to compile until someone decides which side it falls on:
 `LOOP_VAR_LIST` is deliberately outside `names_variable()`: that word is a
 *list* of names, not one name, so a consumer must split it before it holds a
 variable name at all.
+
+### ArgPresentation -- how a formatter lays an argument out
+
+`ArgRole` says what an argument **is**. `arg_presentation` (a
+`&'static [(u8, ArgPresentation)]` on both `CommandSpec` and `SubCommand`)
+says how a *formatter* should lay it out. The two are deliberately separate
+facts, because two arguments can share a semantic role and still want
+different presentation.
+
+`for start test next body` is the case that forced the split. All three of
+`start`, `next`, and `body` are Tcl scripts and carry `ArgRole::Body` --
+every analysis consumer must keep walking them. But conventional Tcl keeps
+`start` and `next` on the `for` header line and expands only `body`:
+
+```tcl
+for {set i 0} {$i < 3} {incr i} {
+    puts $i
+}
+```
+
+Erasing the semantic distinction would break the walkers; keeping a
+`name == "for"` branch in the formatter is exactly the command-specific
+knowledge the registry contract forbids. So `for` declares the layout
+preference as data instead:
+
+```rust
+arg_presentation: &[
+    (0, ArgPresentation::InlineScript),
+    (2, ArgPresentation::InlineScript),
+],
+```
+
+| Variant | Meaning |
+|---|---|
+| `BlockScript` | expanded onto its own indented lines, opening brace left on the command line (K&R). The **default** for every `Body` argument |
+| `InlineScript` | kept on the command's own line, however long -- `for`'s `start` / `next` |
+
+Only overrides are declared, so a spec with nothing unusual to say leaves
+the field empty. Consumers ask
+`CommandRegistry::arg_presentation(name, args, index)`, which resolves
+through the same `get` path as every other query -- so `::for` answers
+identically to `for` -- and returns `BlockScript` for a command the registry
+does not know.
+
+**Limits.** `ArgPresentation` describes layout preference only; it carries no
+line-width, alignment, or comment policy (those are `FormatterConfig`), and
+it cannot make a *non*-body argument expand. The enum is `#[non_exhaustive]`:
+it is the extension point for further presentation facts, and a consumer must
+keep working when a new variant arrives.
+
+**Structural keywords are not a presentation fact.** `if`'s `then` /
+`elseif` / `else` and `try`'s `on` / `trap` / `finally` already carry
+`ArgRole::Keyword` at the positions the C-Tcl-shaped clause walk puts them,
+so the formatter reads that role directly rather than scanning argument
+*values* for those words. The difference is observable: in
+`if {1} {a} else then` the trailing `then` sits in the else-branch **body**
+slot -- tclsh 8.6 and 9.0.4 run `a` and treat `then` as that branch's script
+-- so it is a body word, not a keyword, and only a positional answer gets
+that right.
 
 `Traits.BUILDS_COMMAND_PREFIX` (set on `list` only, not `concat`) marks a
 command whose result, when its own first argument is a literal command name,

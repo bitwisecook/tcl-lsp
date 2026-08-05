@@ -345,7 +345,30 @@ fn parse_commands(
 
 // Body / expr / param-list argument identification
 
-/// Mark body / keyword / param-list arguments in place.
+/// Mark body / keyword / param-list arguments in place, entirely from
+/// registry data.
+///
+/// Every classification here comes from the command's spec, so no command
+/// name appears (issue #1186):
+///
+/// * **Bodies** are the [`ArgRole::Body`] positions the spec (or its dynamic
+///   resolver) reports — for `if` and `try` that is the C-Tcl-shaped clause
+///   walk, which knows where a body may legally sit and is the same walk that
+///   drives the E004 shape diagnostic.
+/// * **Block vs inline** comes from [`tcl_registry::ArgPresentation`]: a body
+///   argument is expanded onto its own lines unless the spec declares it
+///   `InlineScript`, which is how `for`'s `start` and
+///   `next` scripts stay on the header line.
+/// * **Structural keywords** are the [`ArgRole::Keyword`] positions the same
+///   resolvers report. That is *structural*, not textual: a data word that
+///   merely spells `else` is not a keyword unless the grammar puts a keyword
+///   there, and `if {1} {a} else then` correctly treats the trailing `then`
+///   as the else-branch body, not a keyword.
+/// * **Parameter lists** and **lambda literals** are their own roles.
+///
+/// Because the lookup goes through the registry, the explicitly-global
+/// spellings (`::if`, `::for`, `::try`) resolve to the same grammar as their
+/// bare forms — a false negative the old literal name comparisons had.
 fn identify_body_args(cmd: &mut ParsedCommand, registry: &CommandRegistry) {
     // {*}-expanded command word: dynamic identity, skip.
     if cmd
@@ -362,22 +385,17 @@ fn identify_body_args(cmd: &mut ParsedCommand, registry: &CommandRegistry) {
     // `cmd.args` is released before the role-driven mutation below.
     let arg_texts: Vec<String> = cmd.args.iter().skip(1).map(|a| a.text.clone()).collect();
 
-    // Formatter-specific `for` override: only the main body (arg 3)
-    // expands; init / next stay inline.
-    if name == "for" && arg_texts.len() >= 4 {
-        if cmd.args[4].is_braced {
-            cmd.args[4].kind = ArgKind::Body;
-        }
-        return;
-    }
-
     let refs: Vec<&str> = arg_texts.iter().map(String::as_str).collect();
     let body_indices = registry.arg_indices_for_role(&name, &refs, ArgRole::Body);
+    let keyword_indices = registry.arg_indices_for_role(&name, &refs, ArgRole::Keyword);
     let param_indices = registry.arg_indices_for_role(&name, &refs, ArgRole::ParamList);
     let lambda_indices = registry.arg_indices_for_role(&name, &refs, ArgRole::LambdaLiteral);
     for idx in body_indices {
         let actual = idx + 1; // +1 for the command-name slot.
-        if actual < cmd.args.len() && cmd.args[actual].is_braced {
+        if actual < cmd.args.len()
+            && cmd.args[actual].is_braced
+            && registry.arg_presentation(&name, &refs, idx).is_block()
+        {
             cmd.args[actual].kind = ArgKind::Body;
         }
     }
@@ -388,18 +406,13 @@ fn identify_body_args(cmd: &mut ParsedCommand, registry: &CommandRegistry) {
         }
     }
 
-    // Structural keywords.
-    if name == "if" {
-        for arg in cmd.args.iter_mut().skip(1) {
-            if matches!(arg.text.as_str(), "then" | "else" | "elseif") {
-                arg.kind = ArgKind::Keyword;
-            }
-        }
-    } else if name == "try" {
-        for arg in cmd.args.iter_mut().skip(1) {
-            if matches!(arg.text.as_str(), "finally" | "on" | "trap") {
-                arg.kind = ArgKind::Keyword;
-            }
+    // Structural keywords (`then` / `elseif` / `else`, `on` / `trap` /
+    // `finally`, `control::do`'s `while`/`until`) — by grammar position, not
+    // by word value.
+    for idx in keyword_indices {
+        let actual = idx + 1;
+        if actual < cmd.args.len() {
+            cmd.args[actual].kind = ArgKind::Keyword;
         }
     }
 
@@ -1930,6 +1943,133 @@ mod tests {
             "foreach i {1 2 3} {\nputs $i\n}\n",
             "foreach i {1 2 3} {\n    puts $i\n}\n",
         );
+    }
+
+    // Issue #1186 — the formatting engine holds no `if` / `try` / `for`
+    // name checks; every layout decision comes from the registry.
+
+    /// TP / FN — C Tcl resolves the absolute global spelling to the same
+    /// command (`namespace which -command ::if` → `::if`), so `::if`,
+    /// `::for`, and `::try` must format exactly like their bare forms. The
+    /// old `name == "if"` comparisons simply did not fire for them.
+    #[test]
+    fn qualified_control_flow_formats_like_the_bare_form() {
+        for (bare, qualified) in [
+            ("if {$x} then {\nputs yes\n} else {\nputs no\n}\n", "::if"),
+            ("for {set i 0} {$i < 3} {incr i} {\nputs $i\n}\n", "::for"),
+            (
+                "try {\nrisky\n} on error {msg opts} {\nputs $msg\n}\n",
+                "::try",
+            ),
+            ("while {$x} {\nincr x\n}\n", "::while"),
+        ] {
+            let head = bare.split_whitespace().next().expect("a head word");
+            let qualified_src = bare.replacen(head, qualified, 1);
+            let want = fmt(bare).replacen(head, qualified, 1);
+            assert_eq!(
+                fmt(&qualified_src),
+                want,
+                "{qualified} formatted differently from {head}"
+            );
+        }
+    }
+
+    /// TP — `for`'s `start` and `next` scripts stay inline while only `body`
+    /// expands. That preference is now registry data
+    /// (`arg_presentation: InlineScript`), not a formatter branch.
+    #[test]
+    fn for_keeps_start_and_next_inline() {
+        check(
+            "for {set i 0} {$i < 3} {incr i} {\nputs $i\n}\n",
+            "for {set i 0} {$i < 3} {incr i} {\n    puts $i\n}\n",
+        );
+    }
+
+    /// TP — every `if` clause shape: implicit and explicit `then`, repeated
+    /// `elseif`, and the bare implicit-else body.
+    #[test]
+    fn every_if_clause_shape_formats() {
+        check(
+            "if {$a} {\nx\n} elseif {$b} then {\ny\n} elseif {$c} {\nz\n} else {\nw\n}\n",
+            "if {$a} {\n    x\n} elseif {$b} then {\n    y\n} elseif {$c} {\n    z\n} else {\n    w\n}\n",
+        );
+        // Implicit else — the trailing bare body is still a body.
+        check(
+            "if {$a} {\nx\n} {\ny\n}\n",
+            "if {$a} {\n    x\n} {\n    y\n}\n",
+        );
+    }
+
+    /// TP — every `try` handler shape.
+    #[test]
+    fn every_try_handler_shape_formats() {
+        let out =
+            fmt("try {\na\n} on error {m o} {\nb\n} trap {POSIX} {m o} {\nc\n} finally {\nd\n}\n");
+        assert!(out.contains("} on error {m o} {"), "{out}");
+        assert!(out.contains("} trap {POSIX} {m o} {"), "{out}");
+        assert!(out.contains("} finally {"), "{out}");
+    }
+
+    /// FP guard — a *data* word that merely spells a keyword is not one. The
+    /// old scan matched by word value across every argument, so `puts else`
+    /// and `lappend l on trap` had their words retyped as keywords. The
+    /// registry answers by grammar position instead, so nothing fires for a
+    /// command whose spec declares no keyword there.
+    #[test]
+    fn keyword_lookalike_data_words_are_not_keywords() {
+        check("puts else\n", "puts else\n");
+        check("lappend l on trap finally\n", "lappend l on trap finally\n");
+        // A user proc named `if` in a *namespace* is a different command
+        // entirely — `ns::if` does not resolve to the built-in (only the
+        // absolute global `::if` does), so its braced argument is left as a
+        // plain word rather than reformatted as a control-flow body.
+        check("ns::if {$a} {\nx\n}\n", "ns::if {$a} {\nx\n}\n");
+    }
+
+    /// FP guard — `if {1} {a} else then`: the trailing `then` sits in the
+    /// else-branch **body** slot, so the grammar walk gives it the body role,
+    /// not `Keyword` (verified against tclsh 8.6 / 9.0.4, which run `a` and
+    /// treat `then` as the else-branch script). The old value-matching scan
+    /// retyped it as a keyword wherever it appeared.
+    #[test]
+    fn then_in_the_else_body_slot_is_not_a_keyword() {
+        let registry = CommandRegistry::build_default();
+        let keywords =
+            registry.arg_indices_for_role("if", &["1", "a", "else", "then"], ArgRole::Keyword);
+        assert_eq!(
+            keywords,
+            vec![2],
+            "only the real `else` at index 2 is a keyword"
+        );
+        // And formatting stays a fixed point over the shape.
+        let once = fmt("if {1} {a} else then\n");
+        assert_eq!(fmt(&once), once, "{once}");
+    }
+
+    /// TN — a dynamic command head (`{*}$cmd`) has no resolvable identity, so
+    /// the engine leaves it alone entirely.
+    #[test]
+    fn dynamic_head_is_left_alone() {
+        check(
+            "{*}$cmd {$x} {\nputs hi\n}\n",
+            "{*}$cmd {$x} {\nputs hi\n}\n",
+        );
+    }
+
+    /// TN — an incomplete/malformed clause must stay semantics-preserving and
+    /// idempotent rather than being reshaped into a guess.
+    #[test]
+    fn malformed_clauses_stay_stable_and_idempotent() {
+        for src in [
+            "if {$a}\n",
+            "if {$a} {\nx\n} elseif\n",
+            "try\n",
+            "for {set i 0} {$i < 3}\n",
+        ] {
+            let once = fmt(src);
+            let twice = fmt(&once);
+            assert_eq!(once, twice, "not idempotent for {src:?}:\n{once}\n{twice}");
+        }
     }
 
     #[test]

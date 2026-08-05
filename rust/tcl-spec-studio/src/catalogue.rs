@@ -112,6 +112,18 @@ pub const BODY_KINDS: &[Variant] = &[
     ),
 ];
 
+/// [`ArgPresentation`] — how a formatter lays an argument out.
+pub const ARG_PRESENTATIONS: &[Variant] = &[
+    v(
+        "BlockScript",
+        "expanded onto its own indented lines (the default for a body argument)",
+    ),
+    v(
+        "InlineScript",
+        "kept on the command's own line — `for`'s start / next scripts",
+    ),
+];
+
 /// [`StorageType`] — the container a written variable is inferred to hold.
 pub const STORAGE_TYPES: &[Variant] = &[
     v("Dict", "the target variable holds a dict"),
@@ -1028,6 +1040,7 @@ mod tests {
             ARG_ROLES,
             TCL_TYPES,
             BODY_KINDS,
+            ARG_PRESENTATIONS,
             STORAGE_TYPES,
             BYTE_ARRAY_EFFECTS,
             COMMAND_TABLE_EFFECTS,

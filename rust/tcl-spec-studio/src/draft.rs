@@ -42,6 +42,7 @@ use tcl_registry::hooks::ArgTypeHint;
 use tcl_registry::hover::{
     ArgValue, FormSpec, HoverSnippet, IntegerDomain, OptionArity, OptionSpec, OptionValue,
 };
+use tcl_registry::presentation::ArgPresentation;
 use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::{CommandSpec, SubCommand, SubSubCommand};
 use tcl_registry::taint::{SetterConstraint, TaintColour};
@@ -137,6 +138,15 @@ fn role_map(entries: &[(u8, ArgRole)]) -> Value {
         entries
             .iter()
             .map(|(i, role)| json!({ "index": i, "role": catalogue::variant_name(role) }))
+            .collect(),
+    )
+}
+
+fn presentation_map(entries: &[(u8, ArgPresentation)]) -> Value {
+    Value::Array(
+        entries
+            .iter()
+            .map(|(i, p)| json!({ "index": i, "presentation": catalogue::variant_name(p) }))
             .collect(),
     )
 }
@@ -405,6 +415,10 @@ fn subcommand_identity(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) 
     d.insert("hover".into(), hover(sub.hover));
     d.insert("arg_roles".into(), role_map(sub.arg_roles));
     d.insert(
+        "arg_presentation".into(),
+        presentation_map(sub.arg_presentation),
+    );
+    d.insert(
         "arg_role_resolver".into(),
         lost.expr("arg_role_resolver", sub.arg_role_resolver.is_some()),
     );
@@ -605,6 +619,10 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert("dialects".into(), dialects(spec.dialects));
     d.insert("arity".into(), arity(spec.arity));
     d.insert("arg_roles".into(), role_map(spec.arg_roles));
+    d.insert(
+        "arg_presentation".into(),
+        presentation_map(spec.arg_presentation),
+    );
     d.insert(
         "arg_role_resolver".into(),
         lost.expr("arg_role_resolver", spec.arg_role_resolver.is_some()),

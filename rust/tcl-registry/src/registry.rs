@@ -1380,6 +1380,58 @@ impl CommandRegistry {
         out
     }
 
+    /// How a formatter should **present** argument `index` of a call to
+    /// `name` — the layout fact that refines the argument's semantic
+    /// [`ArgRole`] (issue #1186).
+    ///
+    /// Returns the declared override, or [`ArgPresentation::BlockScript`]
+    /// (the default) when the spec says nothing. `for`'s `start` and `next`
+    /// scripts answer [`ArgPresentation::InlineScript`], which is how the
+    /// formatting engine keeps them on the header line without a
+    /// `name == "for"` branch.
+    ///
+    /// Resolves through [`Self::get`], so the explicitly-global spelling
+    /// `::for` answers identically to the bare `for` — the false negative
+    /// the formatter's literal name comparison had. A command the registry
+    /// does not know (a user proc, a dynamic head) answers the default,
+    /// which is what leaves such a call formatted like any other command.
+    ///
+    /// `args` is the post-name argument list, in the same shape
+    /// [`Self::arg_indices_for_role`] takes (subcommand first), so a
+    /// subcommand-dispatching call resolves against the subcommand's own
+    /// table with the same `+1` offset.
+    #[must_use]
+    pub fn arg_presentation(
+        &self,
+        name: &str,
+        args: &[&str],
+        index: usize,
+    ) -> crate::presentation::ArgPresentation {
+        use crate::presentation::ArgPresentation;
+        let Some(spec) = self.get(name) else {
+            return ArgPresentation::default();
+        };
+        // A dispatching subcommand owns the positions after its own word.
+        if !spec.subcommands.is_empty()
+            && let Some(sub) = args.first().and_then(|word| spec.resolve_subcommand(word))
+            && index > 0
+            && let Ok(sub_index) = u8::try_from(index - 1)
+        {
+            return sub
+                .arg_presentation
+                .iter()
+                .find(|(i, _)| *i == sub_index)
+                .map_or_else(ArgPresentation::default, |(_, p)| *p);
+        }
+        let Ok(idx) = u8::try_from(index) else {
+            return ArgPresentation::default();
+        };
+        spec.arg_presentation
+            .iter()
+            .find(|(i, _)| *i == idx)
+            .map_or_else(ArgPresentation::default, |(_, p)| *p)
+    }
+
     /// The declared roles of the argument positions a call has **not**
     /// filled — the optional trailing words a caller could still append.
     ///
@@ -2522,6 +2574,50 @@ mod tests {
         let kw = reg.arg_indices_for_role("try", &args, ArgRole::Keyword);
         // on@1, finally@5
         assert_eq!(kw, vec![1, 5], "{kw:?}");
+    }
+
+    /// Issue #1186 — `for`'s three script arguments share the semantic
+    /// [`ArgRole::Body`], and the *presentation* fact is what separates the
+    /// trailing body (block-expanded) from `start` / `next` (inline).
+    #[test]
+    fn for_declares_inline_presentation_for_start_and_next() {
+        use crate::presentation::ArgPresentation;
+        let reg = CommandRegistry::build_default();
+        let args = ["{set i 0}", "{$i < 3}", "{incr i}", "{puts $i}"];
+        // Semantics unchanged: all three scripts are still bodies.
+        assert_eq!(
+            reg.arg_indices_for_role("for", &args, ArgRole::Body),
+            vec![0, 2, 3]
+        );
+        // Presentation splits them.
+        assert_eq!(
+            reg.arg_presentation("for", &args, 0),
+            ArgPresentation::InlineScript
+        );
+        assert_eq!(
+            reg.arg_presentation("for", &args, 2),
+            ArgPresentation::InlineScript
+        );
+        assert_eq!(
+            reg.arg_presentation("for", &args, 3),
+            ArgPresentation::BlockScript
+        );
+        assert!(reg.arg_presentation("for", &args, 3).is_block());
+        // The absolute global spelling resolves to the same spec.
+        assert_eq!(
+            reg.arg_presentation("::for", &args, 0),
+            ArgPresentation::InlineScript
+        );
+        // A command with nothing to say answers the block default, and so
+        // does one the registry does not know at all.
+        assert_eq!(
+            reg.arg_presentation("while", &["{$x}", "{body}"], 1),
+            ArgPresentation::BlockScript
+        );
+        assert_eq!(
+            reg.arg_presentation("no::such::command", &["{a}"], 0),
+            ArgPresentation::BlockScript
+        );
     }
 
     // -- Option-value roles (Phase 1) ------------------------------------

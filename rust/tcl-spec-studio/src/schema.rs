@@ -76,6 +76,8 @@ pub enum FieldKind {
     RoleMap,
     /// `&'static [(u8, AppendedArity)]` — command-prefix positions.
     PrefixMap,
+    /// `&'static [(u8, ArgPresentation)]` — formatter layout overrides.
+    PresentationMap,
     /// `&'static [(u8, ArgTypeHint)]`.
     ArgTypeMap,
     /// `&'static [(u8, &'static [ArgValue])]`.
@@ -123,6 +125,7 @@ impl FieldKind {
             Self::Arity => "arity",
             Self::RoleMap => "roleMap",
             Self::PrefixMap => "prefixMap",
+            Self::PresentationMap => "presentationMap",
             Self::ArgTypeMap => "argTypeMap",
             Self::ArgValueMap => "argValueMap",
             Self::Options => "options",
@@ -287,6 +290,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(my_resolver)",
         },
         "Callback assigning roles from the actual argument list; wins over `arg_roles`.",
+    ),
+    f(
+        "arg_presentation",
+        "Argument presentation",
+        ARGS,
+        FieldKind::PresentationMap,
+        "Formatter layout override per 0-based argument index; body arguments are block-expanded unless declared inline.",
     ),
     f(
         "frame_effect",
@@ -973,6 +983,13 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Callback assigning roles from the actual argument list.",
     ),
     f(
+        "arg_presentation",
+        "Argument presentation",
+        ARGS,
+        FieldKind::PresentationMap,
+        "Formatter layout override per index, counted after the subcommand word.",
+    ),
+    f(
         "command_prefixes",
         "Command-prefix positions",
         ARGS,
@@ -1394,6 +1411,7 @@ pub fn catalogues() -> Value {
         "argRole": entries(catalogue::ARG_ROLES),
         "tclType": entries(catalogue::TCL_TYPES),
         "bodyKind": entries(catalogue::BODY_KINDS),
+        "argPresentation": entries(catalogue::ARG_PRESENTATIONS),
         "storageType": entries(catalogue::STORAGE_TYPES),
         "byteArrayEffect": entries(catalogue::BYTE_ARRAY_EFFECTS),
         "commandTableEffect": entries(catalogue::COMMAND_TABLE_EFFECTS),
