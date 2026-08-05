@@ -472,6 +472,47 @@ fn test_already_formatted_is_stable() {
     }
 }
 
+/// Issue #1196 — formatting must never change a proc's arity. C Tcl 9
+/// collapses the backslash-newline in a pre-pass before the parameter word is
+/// list-parsed (even inside braces), so this proc has two required
+/// parameters; the old formatter emitted `{a\ b}`, which is one *optional*
+/// parameter `a` defaulting to `b`.
+#[test]
+fn test_formatting_preserves_proc_arity_across_backslash_newline() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc f {a\\\n b} {return}\n");
+    let formatted = full_text(&lsp.formatting(&uri, 4, true)).expect("formatting produced no edit");
+    assert!(
+        formatted.contains("proc f {a b} {"),
+        "arity-changing reflow: {formatted:?}"
+    );
+    assert!(
+        !formatted.contains("a\\ b"),
+        "two parameters fused into one defaulted parameter: {formatted:?}"
+    );
+}
+
+/// Issue #1196 — the same document formatted twice is a fixed point, and the
+/// escaped-space form (genuinely one element) keeps its identity.
+#[test]
+fn test_formatting_param_lists_are_idempotent() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc f {a\\ b   {c 1}   d} {return}\n");
+    let once = full_text(&lsp.formatting(&uri, 4, true)).expect("formatting produced no edit");
+    assert!(
+        once.contains("proc f {{a b} {c 1} d} {"),
+        "escaped-space element lost: {once:?}"
+    );
+
+    let uri2 = unique_uri("tcl");
+    lsp.open_ready(&uri2, &once);
+    if let Some(twice) = full_text(&lsp.formatting(&uri2, 4, true)) {
+        assert_eq!(twice, once, "formatting is not idempotent");
+    }
+}
+
 #[test]
 fn test_range_formatting_returns_edits() {
     let mut lsp = Lsp::tcl();

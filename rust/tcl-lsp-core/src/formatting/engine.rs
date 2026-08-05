@@ -187,42 +187,34 @@ fn reconstruct_arg(sm: &SourceMap, arg: &CommandArg, braced_vars: bool) -> Strin
     }
 }
 
-/// Normalise whitespace in a braced parameter list, joining
-/// top-level elements with single spaces.
+/// Re-render a parameter list's interior text with single-space separators,
+/// wrapped back in `{…}`.
+///
+/// A parameter list **is** a Tcl list, so it is parsed and re-rendered through
+/// the shared `tcl_syntax::list` implementation (`Tcl_SplitList` +
+/// `Tcl_Merge`) rather than scanned by hand. The hand-rolled scan this
+/// replaced split on whitespace and balanced braces only, so it silently
+/// changed a proc's **arity**: `proc f {a\<newline> b}` has two required
+/// parameters in C Tcl 9 (the backslash-newline is collapsed to a space by
+/// the script pre-pass *before* the word is list-parsed), but re-emitting the
+/// pieces joined by a space produced `{a\ b}` — one *optional* parameter `a`
+/// defaulting to `b` (issue #1196).
+///
+/// Two shared pieces do the work, in the order C Tcl applies them:
+///
+/// 1. [`tcl_syntax::backslash::collapse_brace_continuations_str`] — the
+///    script-level `\<newline>` pre-pass, which applies even inside braces.
+/// 2. [`tcl_syntax::list::normalise_spacing`] — the list split/merge.
+///
+/// A list that does not parse (an unmatched brace or quote — routine while a
+/// signature is being typed) has no canonical rendering, so the original text
+/// is preserved verbatim.
 fn normalise_param_list(text: &str) -> String {
-    let bytes = text.as_bytes();
-    let n = bytes.len();
-    let mut elements: Vec<&str> = Vec::new();
-    let mut i = 0;
-    while i < n {
-        match bytes[i] {
-            b' ' | b'\t' | b'\n' | b'\r' => {
-                i += 1;
-            }
-            b'{' => {
-                let start = i;
-                let mut level = 1;
-                i += 1;
-                while i < n && level > 0 {
-                    match bytes[i] {
-                        b'{' => level += 1,
-                        b'}' => level -= 1,
-                        _ => {}
-                    }
-                    i += 1;
-                }
-                elements.push(&text[start..i]);
-            }
-            _ => {
-                let start = i;
-                while i < n && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-                    i += 1;
-                }
-                elements.push(&text[start..i]);
-            }
-        }
+    let collapsed = tcl_syntax::backslash::collapse_brace_continuations_str(text);
+    match tcl_syntax::list::normalise_spacing(&collapsed) {
+        Ok(rendered) => format!("{{{rendered}}}"),
+        Err(_) => format!("{{{text}}}"),
     }
-    format!("{{{}}}", elements.join(" "))
 }
 
 // Command parsing
@@ -1946,6 +1938,93 @@ mod tests {
             "proc f {a    b   c} {\nreturn\n}\n",
             "proc f {a b c} {\n    return\n}\n",
         );
+    }
+
+    /// Issue #1196 — the regression this fix exists for. C Tcl 9 collapses the
+    /// backslash-newline in a pre-pass *before* the parameter word is
+    /// list-parsed (even inside braces), so `proc f {a\<newline> b}` has the
+    /// two required parameters `a` and `b`:
+    ///
+    /// ```text
+    /// % proc f {a\
+    ///  b} {return}
+    /// % list [llength [info args f]] [info args f]
+    /// 2 {a b}
+    /// ```
+    ///
+    /// The old hand-rolled scanner emitted `{a\ b}` — one *optional*
+    /// parameter `a` defaulting to `b`, a silent arity change.
+    #[test]
+    fn param_list_backslash_newline_preserves_arity() {
+        let out = fmt("proc f {a\\\n b} {return}\n");
+        assert!(
+            out.starts_with("proc f {a b} {"),
+            "backslash-newline changed the parameter list:\n{out}"
+        );
+        assert!(
+            !out.contains(r"a\ b"),
+            "two parameters were fused into one defaulted parameter:\n{out}"
+        );
+        // The parsed signature agrees: two params, neither defaulted.
+        let params = tcl_compiler::signature_scan::params::parse_param_list("a b");
+        assert_eq!(params.len(), 2);
+        assert!(params.iter().all(|p| !p.has_default));
+    }
+
+    /// FP guard — an *escaped space* really is one element (parameter `a`
+    /// defaulting to `b`), and must stay one element. The renderer re-quotes
+    /// it canonically as `{a b}`, which C Tcl reads identically.
+    #[test]
+    fn param_list_escaped_space_stays_one_parameter() {
+        let out = fmt("proc f {a\\ b c} {return}\n");
+        assert!(
+            out.starts_with("proc f {{a b} c} {"),
+            "escaped-space spec lost its element identity:\n{out}"
+        );
+        let params = tcl_compiler::signature_scan::params::parse_param_list("{a b} c");
+        assert_eq!(params.len(), 2);
+        assert_eq!(params[0].name, "a");
+        assert_eq!(params[0].default_value.as_deref(), Some("b"));
+    }
+
+    /// TN — a parameter list that is not a well-formed Tcl list (mid-edit
+    /// unmatched brace) has no canonical rendering, so the source is
+    /// preserved verbatim rather than rewritten into something else.
+    #[test]
+    fn param_list_malformed_preserved_verbatim() {
+        // `a "b` is a brace-balanced word, so the formatter sees it as the
+        // parameter list — but it is not a well-formed *list* (unmatched
+        // quote), so there is nothing safe to re-render.
+        let out = fmt("proc f {a \"b} {return}\n");
+        assert!(
+            out.contains("{a \"b}"),
+            "malformed parameter list was rewritten:\n{out}"
+        );
+    }
+
+    /// Structure-preserving cases: defaults, nested braces, `args`, empty
+    /// defaults, and Unicode all survive a format round-trip, and formatting
+    /// is idempotent.
+    #[test]
+    fn param_list_shapes_round_trip_and_are_idempotent() {
+        for src in [
+            "proc f {a {b 1} c} {return}\n",
+            "proc f {args} {return}\n",
+            "proc f {{a {}} args} {return}\n",
+            "proc f {{opts {-x 1 -y 2}}} {return}\n",
+            "proc f {naïve {héllo wörld}} {return}\n",
+            "proc f {a\\\r\n b} {return}\n",
+        ] {
+            let once = fmt(src);
+            let twice = fmt(&once);
+            assert_eq!(once, twice, "not idempotent for {src:?}:\n{once}\n{twice}");
+        }
+        // Defaults keep their element boundaries.
+        assert!(fmt("proc f {a   {b 1}   c} {return}\n").starts_with("proc f {a {b 1} c} {"));
+        // A nested-brace default is one element, braces intact.
+        assert!(fmt("proc f {{opts {-x 1}}} {return}\n").starts_with("proc f {{opts {-x 1}}} {"));
+        // CRLF continuations behave exactly like LF ones.
+        assert!(fmt("proc f {a\\\r\n b} {return}\n").starts_with("proc f {a b} {"));
     }
 
     #[test]
