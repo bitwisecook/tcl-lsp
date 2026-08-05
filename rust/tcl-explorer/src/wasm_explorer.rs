@@ -48,11 +48,12 @@ use crate::formatters::range_dict;
 const BLOCK_VOID: u8 = 0x40;
 
 /// Build the structured explorer entries for `module`: a synthetic `(module)`
-/// header carrying imports + data segments, followed by one entry per function
-/// with its resolved instruction stream.
+/// header carrying imports, types + data segments, followed by one entry per
+/// function with its resolved instruction stream.
 #[must_use]
 pub fn wasm_to_explorer_json(module: &WasmModule, li: &LineIndex, source: &str) -> Vec<Value> {
     let num_imports = module.imports.len();
+    let total_instr: usize = module.functions.iter().map(|f| f.body.len()).sum();
 
     let module_header = json!({
         "name": "(module)",
@@ -63,6 +64,8 @@ pub fn wasm_to_explorer_json(module: &WasmModule, li: &LineIndex, source: &str) 
         "locals": [],
         "sourceRange": Value::Null,
         "instrCount": 0,
+        "totalInstrCount": total_instr,
+        "functionCount": module.functions.len(),
         "instructions": [],
         "imports": module
             .imports
@@ -73,6 +76,19 @@ pub fn wasm_to_explorer_json(module: &WasmModule, li: &LineIndex, source: &str) 
                 "name": imp.name,
                 "typeIdx": imp.type_idx,
                 "funcIdx": i,
+            }))
+            .collect::<Vec<_>>(),
+        // The type section as the module would emit it — see the
+        // `types` field of docs/design/contracts/wasm-explorer-view.md.
+        // Omitting it broke the GUI's module header outright (issue #1182).
+        "types": module
+            .type_section()
+            .iter()
+            .enumerate()
+            .map(|(index, (params, results))| json!({
+                "index": index,
+                "params": params.iter().map(|p| p.wat_name()).collect::<Vec<_>>(),
+                "results": results.iter().map(|r| r.wat_name()).collect::<Vec<_>>(),
             }))
             .collect::<Vec<_>>(),
         "dataSegments": module
@@ -552,6 +568,82 @@ mod tests {
             entries[1]["instrCount"],
             entries[1]["instructions"].as_array().unwrap().len()
         );
+    }
+
+    /// Issue #1182: the GUI's `renderWasmModuleHeader` reads
+    /// `entry.imports.length`, `entry.types.length` and
+    /// `entry.dataSegments.length` unconditionally, so every field the
+    /// contract (`docs/design/contracts/wasm-explorer-view.md`) declares on
+    /// the `(module)` header must actually be emitted as an array. A missing
+    /// `types` threw a `TypeError` mid-render, which left the WASM tab empty
+    /// *and* wedged the compile spinner (issue #1183).
+    #[test]
+    fn module_header_carries_every_contract_field() {
+        let entries = wasm_entries("proc add {a b} { expr {$a + $b} }\nputs [add 1 2]");
+        let header = &entries[0];
+        assert_eq!(header["kind"], "module");
+        for field in ["imports", "types", "dataSegments", "instructions"] {
+            assert!(
+                header[field].is_array(),
+                "module header field `{field}` must be an array, got {}",
+                header[field]
+            );
+        }
+        for field in ["instrCount", "totalInstrCount", "functionCount"] {
+            assert!(
+                header[field].is_u64(),
+                "module header field `{field}` must be a number, got {}",
+                header[field]
+            );
+        }
+        // The header's counters describe the whole module, not the (empty)
+        // header body: `instrCount` stays 0 so tab badges don't double-count.
+        assert_eq!(header["instrCount"], 0);
+        let total: u64 = entries
+            .iter()
+            .skip(1)
+            .map(|f| f["instrCount"].as_u64().unwrap())
+            .sum();
+        assert_eq!(header["totalInstrCount"].as_u64().unwrap(), total);
+        assert_eq!(
+            header["functionCount"].as_u64().unwrap(),
+            entries.len() as u64 - 1
+        );
+    }
+
+    #[test]
+    fn module_types_cover_imports_and_defined_functions() {
+        // Every import's `typeIdx` must index into the emitted `types` list,
+        // and each type entry carries WAT type names the GUI can print.
+        let entries = wasm_entries("proc add {a b} { expr {$a + $b} }\nputs [add 1 2]");
+        let header = &entries[0];
+        let types = header["types"].as_array().unwrap();
+        assert!(!types.is_empty(), "a module with imports has types");
+        for (i, t) in types.iter().enumerate() {
+            assert_eq!(t["index"].as_u64().unwrap(), i as u64);
+            assert!(t["params"].is_array());
+            assert!(t["results"].is_array());
+            for name in t["params"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .chain(t["results"].as_array().unwrap())
+            {
+                assert!(
+                    ["i32", "i64", "f32", "f64"].contains(&name.as_str().unwrap()),
+                    "unexpected WAT type name {name}"
+                );
+            }
+        }
+        for imp in header["imports"].as_array().unwrap() {
+            let idx = usize::try_from(imp["typeIdx"].as_u64().unwrap()).unwrap();
+            assert!(
+                idx < types.len(),
+                "import {} points at type {idx}, but only {} types are emitted",
+                imp["name"],
+                types.len()
+            );
+        }
     }
 
     #[test]

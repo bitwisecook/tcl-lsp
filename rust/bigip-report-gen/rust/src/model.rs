@@ -1790,6 +1790,15 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>, 
         crate::forensics::collect_forensics(files, &rule_slice),
     );
 
+    // Offline security-posture findings (Security tab): default credentials,
+    // SNMP/password-policy weaknesses, plaintext secrets, exposed private
+    // keys, and shell-access review. See `crate::security` for the rule
+    // table, the crypt verification it relies on, and the documented limits.
+    device.insert(
+        "security".into(),
+        crate::security::collect_security(source, files),
+    );
+
     // Tag every displayed object with its partition (from the full path) and
     // collect the device's partition set, so the report can filter to a
     // partition while always keeping shared /Common objects visible.
@@ -1859,6 +1868,15 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>, 
         .and_then(J::as_array)
         .map_or(0, Vec::len);
     counts.insert("secrets".into(), J::from(secret_total));
+    // The Security tab's badge is the count of *actionable* findings
+    // (confirmed / could-not-inspect) — clear/not-applicable results still
+    // populate the tab (positive assurance) but don't inflate the badge.
+    let security_actionable = device
+        .get("security")
+        .and_then(|s| s.get("actionable"))
+        .and_then(J::as_u64)
+        .unwrap_or(0);
+    counts.insert("security".into(), J::from(security_actionable));
     let apm_total = device
         .get("apmProfiles")
         .and_then(J::as_array)

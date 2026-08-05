@@ -55,3 +55,43 @@ pub enum Width {
     /// 32-bit (4 bytes).
     B32,
 }
+
+impl Width {
+    /// The width in bytes.
+    #[must_use]
+    pub fn bytes(self) -> u32 {
+        match self {
+            Width::B8 => 1,
+            Width::B16 => 2,
+            Width::B32 => 4,
+        }
+    }
+}
+
+/// How the bytes of a multi-byte packet field are interpreted.
+///
+/// `Native` is the host order of whatever executes the program — an explicit,
+/// temporary compatibility mode for synthetic test packets. Real network
+/// headers are `Big` (network order); profile fields default to it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ByteOrder {
+    /// Host byte order (compatibility mode; not meaningful for real packets).
+    Native,
+    /// Big-endian — network order.
+    Big,
+    /// Little-endian.
+    Little,
+}
+
+impl ByteOrder {
+    /// Parse the DSL byte-order word (`be`, `le`, `native`).
+    #[must_use]
+    pub fn parse(word: &str) -> Option<Self> {
+        match word {
+            "be" | "big" => Some(ByteOrder::Big),
+            "le" | "little" => Some(ByteOrder::Little),
+            "native" => Some(ByteOrder::Native),
+            _ => None,
+        }
+    }
+}

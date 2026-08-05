@@ -20,10 +20,12 @@
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
+    const OP: BpfOpSpec = BpfOpSpec::gated(BpfOpKind::MapGet, BpfEffects::MAP_READ);
     CommandSpec {
         name: "map_get",
         dialects: Some(DialectSet::BPF),
         arity: Arity::exact(3),
+        bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }
 }

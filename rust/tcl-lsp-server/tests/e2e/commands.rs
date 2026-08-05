@@ -48,21 +48,94 @@ fn source(result: &Value) -> &str {
 // -- TestDocumentTransforms ----------------------------------------------
 
 #[test]
-fn fix_all_safe_issues_clears_w100() {
+fn fix_all_safe_issues_braces_a_substitution_free_expression() {
+    // TP: nothing substitutes in `abs(-2)`, so `expr` receives the same
+    // string braced or not — the class of repair the bulk pass exists for.
+    // The assertion is on the returned *source*, not on the `applied` code
+    // list, so a fix that reports itself but rewrites the wrong bytes fails.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "if $a { puts yes }\nset n [expr $x + 1]\n");
+    lsp.open_ready(&uri, "set n [expr abs(-2)]\n");
     let result = lsp.execute_command("tcl-lsp.fixAllSafeIssues", json!([uri]));
     assert!(!result.is_null());
-    assert!(
-        source(&result).contains("if {$a} { puts yes }"),
-        "{}",
-        source(&result)
-    );
+    assert_eq!(source(&result), "set n [expr {abs(-2)}]\n");
     assert_eq!(
         applied_codes(&result),
         std::collections::BTreeSet::from(["W100".to_owned()])
     );
+}
+
+#[test]
+fn fix_all_safe_issues_leaves_a_substituted_expression_alone() {
+    // FP, and the reason issue #1195 was filed.  Under C Tcl 9.0.3 this
+    // program prints `5`: `$a` substitutes to the string `$x`, and `expr`
+    // substitutes *that* to 3.  Bracing makes it an error, so the bulk pass
+    // must not do it — the individually-named "Brace expr for safety and
+    // performance" action still offers it.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set a {$x}\nset x 3\nset b 2\nputs [expr $a + $b]\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.fixAllSafeIssues", json!([uri]));
+    assert!(!result.is_null());
+    assert_eq!(source(&result), src, "the source must come back untouched");
+    assert!(!applied_codes(&result).contains("W100"), "{result:?}");
+}
+
+#[test]
+fn fix_all_safe_issues_leaves_a_numeric_string_comparison_alone() {
+    // FP: `expr {"1" == "01"}` is 1 (numeric coercion) and
+    // `expr {"1" eq "01"}` is 0 (string comparison).  W110's advice is
+    // sound; applying it unattended changes results.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "puts [expr {\"1\" == \"01\"}]\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.fixAllSafeIssues", json!([uri]));
+    assert!(!result.is_null());
+    assert_eq!(source(&result), src);
+    assert!(!applied_codes(&result).contains("W110"), "{result:?}");
+}
+
+#[test]
+fn fix_all_safe_issues_reports_the_safety_class_it_applied() {
+    // The `applied` entries name *why* each fix qualified, so a caller need
+    // not trust the command's name for that.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set n [expr abs(-2)]\n");
+    let result = lsp.execute_command("tcl-lsp.fixAllSafeIssues", json!([uri]));
+    let applied = result.get("applied").and_then(Value::as_array).unwrap();
+    assert!(!applied.is_empty());
+    for entry in applied {
+        assert_eq!(
+            entry.get("safety").and_then(Value::as_str),
+            Some("semantics-equivalent"),
+            "{entry:?}"
+        );
+    }
+}
+
+#[test]
+fn fix_all_safe_issues_respects_a_disabled_diagnostic() {
+    // TN: a diagnostic the user turned off is never analysed, so its fixes
+    // cannot be applied in bulk either.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set n [expr abs(-2)]\n";
+    lsp.apply_configuration_settle(
+        json!({ "diagnostics": { "W100": false } }),
+        &uri,
+        |config| {
+            config["disabled_diagnostics"]
+                .as_array()
+                .is_some_and(|codes| codes.iter().any(|code| code == "W100"))
+        },
+    );
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.fixAllSafeIssues", json!([uri]));
+    assert!(!result.is_null());
+    assert_eq!(source(&result), src);
 }
 
 #[test]
@@ -150,6 +223,63 @@ fn optimise_document_does_not_eliminate_a_branch_guarded_by_a_cross_procedural_t
         .and_then(Value::as_array)
         .is_some_and(|arr| arr.iter().any(|o| o.get("code") == Some(&json!("O107"))));
     assert!(!fired_o107, "expected no O107, got: {result:?}");
+}
+
+#[test]
+fn minify_preserves_switch_hash_pattern_arm() {
+    // Issue #1197: a braced `switch` case list is a Tcl LIST, not a script —
+    // `#` is an ordinary pattern there, never a comment.  tclsh 9.0.4:
+    // `switch # { # {puts matched} default {puts default} }` prints
+    // `matched`; the pre-fix minifier deleted the `#` arm and the minified
+    // script printed `default`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "switch # {\n    # {puts matched}\n    default {puts default}\n}\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.minifyDocument", json!([uri, false, false, false]));
+    assert!(!result.is_null());
+    let out = source(&result);
+    assert!(
+        out.contains("# {puts matched}"),
+        "the `#` arm must survive: {out}"
+    );
+    assert!(out.contains("default {puts default}"), "{out}");
+}
+
+#[test]
+fn minify_default_tier_adds_no_alias_variables() {
+    // Issue #1194: the default tier must stay frame-transparent — the former
+    // template deduplication injected a `set a {…}` preamble that clobbered
+    // any live variable `a` (observable via `puts [set a]`, traces, and
+    // `info vars`).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "puts \"very long dynamic value $x here\"\nputs \"very long dynamic value $x here\"\nputs \"very long dynamic value $x here\"\nputs [set a]\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.minifyDocument", json!([uri, false, false, false]));
+    assert!(!result.is_null());
+    let out = source(&result);
+    assert!(!out.contains("subst"), "no template aliasing: {out}");
+    assert!(!out.starts_with("set "), "no alias preamble: {out}");
+    assert!(out.contains("puts [set a]"), "{out}");
+}
+
+#[test]
+fn minify_compact_preserves_public_proc_names_and_array_keys() {
+    // Issues #1192/#1193: non-isolated compact keeps procedure names (public
+    // command identities — `info procs`, `rename`, external callers) and
+    // never rewrites array member keys (Tcl data — `array get` observes
+    // them).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc longprocedure {} {\n    set arr(longmember) 1\n    return [array get arr]\n}\nputs [info procs longprocedure]\nputs [longprocedure]\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.minifyDocument", json!([uri, true, false, false]));
+    assert!(!result.is_null());
+    let out = source(&result);
+    assert!(out.contains("proc longprocedure"), "{out}");
+    assert!(out.contains("info procs longprocedure"), "{out}");
+    assert!(out.contains("arr(longmember)"), "{out}");
 }
 
 #[test]
@@ -296,14 +426,16 @@ fn core_commands_are_advertised() {
 #[test]
 fn minify_compact_round_trip() {
     // Compact renaming shortens identifiers and reports the reverse map, so a name
-    // in the minified source resolves back to the original.
+    // in the minified source resolves back to the original.  Proc renaming
+    // needs `isolated` (the 4th argument): a proc name is a public command
+    // identity the non-isolated tier must preserve (issue #1193).
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(
         &uri,
         "proc addNumbers {a b} { return [expr {$a + $b}] }\naddNumbers 1 2\n",
     );
-    let result = lsp.execute_command("tcl-lsp.minifyDocument", json!([uri, true, false, false]));
+    let result = lsp.execute_command("tcl-lsp.minifyDocument", json!([uri, true, false, true]));
     assert!(!result.is_null());
     let minified = result
         .get("minifiedLength")

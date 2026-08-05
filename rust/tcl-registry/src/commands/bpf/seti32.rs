@@ -20,10 +20,13 @@
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
+    const OP: BpfOpSpec =
+        BpfOpSpec::structural(BpfOpKind::ScalarSet(BpfScalarWidth::I32SignExtended));
     CommandSpec {
         name: "seti32",
         dialects: Some(DialectSet::BPF),
         arity: Arity::exact(2),
+        bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }
 }

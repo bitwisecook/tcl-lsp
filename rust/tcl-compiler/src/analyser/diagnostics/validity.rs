@@ -269,6 +269,9 @@ got {nargs_min}{usage_suffix}"
                     span: tcl_lexer::Span::new(ex.delete_from, ex.span.end()),
                     new_text: String::new(),
                     description: "Remove surplus argument(s)".to_string(),
+                    // E003: deleting the surplus words assumes they were the mistake
+                    // rather than a missing option that would have consumed them.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 }],
             ),
             None => (span, Vec::new()),
@@ -803,6 +806,8 @@ impl Analyser {
                 span,
                 new_text: (*best).to_string(),
                 description: format!("Replace with '{best}'"),
+                // W001: an edit-distance guess at the intended subcommand.
+                safety: crate::irules_checks::FixSafety::RequiresReview,
             });
         }
         self.pending_arity.push((
@@ -2306,6 +2311,9 @@ impl Analyser {
                     span: tcl_lexer::Span::new(start, end),
                     new_text: format!("{{{slice}}}"),
                     description: "Merge trailing words into the if body".to_string(),
+                    // E004: merging the trailing words into the body is one reading of
+                    // a malformed `if`; a missing `elseif` keyword is another.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 }]
             }
             ClauseShapeError::MissingExpr {
@@ -2357,6 +2365,8 @@ impl Analyser {
             span: tcl_lexer::Span::new(start, end),
             new_text: String::new(),
             description: "Remove incomplete trailing clause".to_string(),
+            // E004: deleting the dangling clause discards written code.
+            safety: crate::irules_checks::FixSafety::RequiresReview,
         }]
     }
 
@@ -2457,6 +2467,9 @@ impl Analyser {
             span: fix_span,
             new_text: fix_text,
             description: "Insert '--' option terminator".to_string(),
+            // W304: `--` stops the following word being read as an option,
+            // which is the whole point — a call that meant it as one changes.
+            safety: crate::irules_checks::FixSafety::BehaviourHardening,
         }];
         let diag_span = tcl_lexer::Span::new(tok.span.start(), diag_end);
         // Suppress unused-warning on the rare path where `cmd_tok`
@@ -2549,6 +2562,9 @@ impl Analyser {
             span: first.span,
             new_text: format!("-- {slice}"),
             description: "Insert '--' so the following words are variable names".to_string(),
+            // W217: as W304 — `--` re-reads the following words as variable
+            // names rather than options.
+            safety: crate::irules_checks::FixSafety::BehaviourHardening,
         }];
         self.result.diagnostics.push(super::types::Diagnostic {
             code: DiagCode::W217,
@@ -2687,6 +2703,12 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
                 span: cmd_tok.span,
                 new_text: replacement.to_string(),
                 description: format!("Replace with '{replacement}'"),
+                // IRULE2002: offered only when the registry marks the replacement
+                // `deprecated_replacement_drop_in` — its contract is that the
+                // replacement takes the deprecated command's argument list unchanged,
+                // so swapping the head is a pure re-spelling. A replacement that
+                // restructures arguments carries no fix at all (see the `else` arm).
+                safety: crate::irules_checks::FixSafety::SemanticsEquivalent,
             }]
         } else {
             Vec::new()
@@ -2761,6 +2783,9 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
                     span: cmd_tok.span,
                     description: format!("Replace with '{suggestion}'"),
                     new_text: suggestion,
+                    // W143: the public spelling is inferred from the private one; the
+                    // private implementation need not behave identically to the ensemble.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 }]
             }
             _ => Vec::new(),
@@ -2899,6 +2924,11 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
                     span: tcl_lexer::Span::new(cmd_tok.span.start(), end),
                     new_text,
                     description: "Replace with 'class match'".to_string(),
+                    // IRULE2001: the rewrite restructures the argument list (it supplies
+                    // the `equals` operator the two-word `matchclass` form defaults to) —
+                    // exactly the case the registry's `deprecated_replacement_drop_in`
+                    // contract excludes from mechanical swapping.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 }]
             })
             .unwrap_or_default();
@@ -3214,6 +3244,9 @@ in the active dialect ({}).",
             span: tcl_lexer::Span::new(flag_tok.span.start(), end),
             new_text: String::new(),
             description: format!("Remove '{arg}'"),
+            // W004: deleting an option the active dialect lacks drops whatever
+            // the author wanted it to do.
+            safety: crate::irules_checks::FixSafety::RequiresReview,
         }]
     }
 
@@ -3343,6 +3376,9 @@ in the active dialect ({}).",
                         "Rewrite to a form supported by dialect '{}'",
                         self.dialect()
                     ),
+                    // W003: the older-dialect spelling of an operator is rarely exact —
+                    // `lt` compares as strings where `<` coerces numerically.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 });
             }
             self.result.diagnostics.push(super::types::Diagnostic {

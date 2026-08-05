@@ -20,10 +20,12 @@
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
+    const OP: BpfOpSpec = BpfOpSpec::structural(BpfOpKind::LoopMacro);
     CommandSpec {
         name: "loop",
         dialects: Some(DialectSet::BPF),
         arity: Arity::exact(3),
+        bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }
 }

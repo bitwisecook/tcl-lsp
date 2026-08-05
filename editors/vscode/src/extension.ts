@@ -1186,21 +1186,28 @@ async function minifyDocument(): Promise<void> {
       },
       {
         label: "Minify + Compact Names",
-        description: "Also shorten variable and proc names",
+        description: "Also shorten local variable names (proc names stay — public identities)",
         compact: true,
         aggressive: false,
         isolated: false,
       },
       {
+        label: "Minify + Compact Names (Isolated)",
+        description: "Self-contained script: also shorten proc names and global variables",
+        compact: true,
+        aggressive: false,
+        isolated: true,
+      },
+      {
         label: "Aggressive",
-        description: "Optimise, compact names, and minify for maximum compression",
+        description: "Optimise, compact, and alias for maximum compression (adds helper variables)",
         compact: false,
         aggressive: true,
         isolated: false,
       },
       {
         label: "Aggressive + Isolated",
-        description: "Maximum compression — also compact global-scope variable names",
+        description: "Maximum compression — also compact proc names and global-scope variables",
         compact: false,
         aggressive: true,
         isolated: true,
@@ -1456,7 +1463,14 @@ async function fixAllSafeIssues(): Promise<void> {
   const result = (await client.sendRequest("workspace/executeCommand", {
     command: "tcl-lsp.fixAllSafeIssues",
     arguments: [uri],
-  })) as { source: string; applied: Array<{ code: string; description: string }> } | null;
+  })) as {
+    // `safety` is the fix's classification (issue #1195). Only
+    // `semantics-equivalent` fixes reach this list — the server applies
+    // nothing else in bulk — so it is reported for traceability rather than
+    // filtered on here.
+    source: string;
+    applied: Array<{ code: string; description: string; safety: string }>;
+  } | null;
 
   if (!result || !result.applied || result.applied.length === 0) {
     window.showInformationMessage("No safe auto-fixes available.");

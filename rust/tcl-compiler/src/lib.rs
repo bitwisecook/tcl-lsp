@@ -99,6 +99,7 @@ pub mod command_binding;
 pub mod compilation_unit;
 pub mod compiler_checks;
 pub mod connection_scope;
+pub mod const_subst;
 pub mod dataflow_graph;
 pub mod dead_stores;
 pub mod def_use;

@@ -180,6 +180,10 @@ pub(crate) struct CfgBuilder {
     /// [`crate::dynamic_names::dynamic_name_barrier`] folds into the
     /// function's blindness lattice.
     caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier,
+    /// Caller-frame names a callee may touch through an `upvar` alias or
+    /// `uplevel` write — see [`CfgBuilder::record_alias_observed`].  Drained
+    /// into [`crate::cfg::Function::alias_observed_vars`].
+    alias_observed_vars: std::collections::BTreeSet<String>,
     /// Current `lower_script` recursion depth, bounded by [`MAX_LOWER_DEPTH`]
     /// so deeply-nested bodies cannot overflow the stack.
     depth: u32,
@@ -231,6 +235,7 @@ impl CfgBuilder {
             last_terminal_block: None,
             inline_eval_spans: Vec::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
+            alias_observed_vars: std::collections::BTreeSet::new(),
             depth: 0,
         }
     }
@@ -268,7 +273,48 @@ impl CfgBuilder {
     /// needed, just the literal name list.
     fn apply_upvar_invalidation(&mut self, stmt: Statement) -> Vec<Statement> {
         self.record_caller_frame_barrier(&stmt);
+        self.record_alias_observed(&stmt);
         self.upvar_invalidated(stmt)
+    }
+
+    /// Record every caller-frame name a callee invoked by `stmt` may touch
+    /// through an `upvar` alias or an `uplevel` write, so the dead-store /
+    /// unused-assignment passes never delete a store such a callee can
+    /// observe (`set callervar 5; get` where `get` runs `upvar 1 callervar
+    /// m; return $m` — issue #1193's upvar differential).  The names land on
+    /// [`crate::cfg::Function::alias_observed_vars`]; recording them as
+    /// *reads* on the call statement instead would fabricate
+    /// read-before-set uses (a false W210) for the pure out-param shape.
+    fn record_alias_observed(&mut self, stmt: &Statement) {
+        if self.upvar_procs.is_empty() {
+            return;
+        }
+        if let Statement::Call { command, args, .. } = stmt
+            && let Some(info) = self.upvar_procs.get(command.as_str())
+        {
+            let params: &[String] = self
+                .proc_params
+                .get(command.as_str())
+                .map_or(&[][..], Vec::as_slice);
+            self.alias_observed_vars
+                .extend(info.caller_side_defs(args, params));
+        }
+        let texts: Vec<&str> = match stmt {
+            Statement::AssignValue { value, .. }
+            | Statement::Return {
+                value: Some(value), ..
+            } if value.contains('[') => vec![value.as_str()],
+            Statement::Call { args, .. } => args
+                .iter()
+                .filter(|a| a.contains('['))
+                .map(String::as_str)
+                .collect(),
+            _ => Vec::new(),
+        };
+        for text in texts {
+            self.alias_observed_vars
+                .extend(self.upvar_defs_from_text(text));
+        }
     }
 
     /// Whole-frame blindness the statement's calls impose on *this*
@@ -318,7 +364,12 @@ impl CfgBuilder {
         }
 
         // 1. Direct-call extras: command is a known upvar proc / a proc that
-        //    writes outer-scope names.
+        //    writes outer-scope names.  Extras are merged as DEFS only; the
+        //    "the callee may also *read* the aliased cell" half is recorded
+        //    on [`crate::cfg::Function::alias_observed_vars`] by
+        //    [`Self::record_alias_observed`] (a read here would fabricate
+        //    read-before-set uses — a false W210 — for the pure out-param
+        //    shape).
         let direct_extras: Vec<String> = match &stmt {
             Statement::Call { command, args, .. } => {
                 let mut extras = self
@@ -864,6 +915,7 @@ impl CfgBuilder {
             .collect();
         func.inline_eval_spans = std::mem::take(&mut self.inline_eval_spans);
         func.caller_frame_barrier = self.caller_frame_barrier;
+        func.alias_observed_vars = std::mem::take(&mut self.alias_observed_vars);
         func
     }
 
@@ -1074,6 +1126,37 @@ impl CfgBuilder {
                     expr,
                     braced,
                 } => {
+                    // `return [upvar_proc …]` invokes the callee before the
+                    // frame unwinds, so its caller-frame aliases must be
+                    // widened here exactly as for a plain call — otherwise
+                    // the feeding store in THIS frame looks dead and
+                    // O109/O126 deletes it (`set callervar 5; return [get]`
+                    // where `get` upvar-reads `callervar` — issue #1193's
+                    // upvar differential).  Same synthetic-call shape as
+                    // `upvar_invalidated`'s non-Call host path; the "may be
+                    // read by the callee" half lands on
+                    // `alias_observed_vars` via `record_alias_observed`.
+                    self.record_alias_observed(stmt);
+                    if let Some(v) = value.as_deref()
+                        && v.contains('[')
+                    {
+                        let extras = self.upvar_defs_from_text(v);
+                        if !extras.is_empty() {
+                            let synthetic = Statement::Call {
+                                span: *span,
+                                command: "<upvar-invalidate>".to_string(),
+                                canonical_command: None,
+                                args: Vec::new(),
+                                defs: extras,
+                                reads: Vec::new(),
+                                reads_own_defs: false,
+                                safe_on_uninit: false,
+                                tokens: None,
+                                foreach_groups: None,
+                            };
+                            self.block_mut(&current).statements.push(synthetic);
+                        }
+                    }
                     self.block_mut(&current).terminator = Some(Terminator::Return {
                         value: value.clone(),
                         span: Some(*span),

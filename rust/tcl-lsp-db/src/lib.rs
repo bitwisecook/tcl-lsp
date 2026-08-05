@@ -1012,6 +1012,23 @@ pub struct ItemBodyKey<'db> {
     /// Class instance variables pre-bound in a method body (empty for procs).
     #[returns(ref)]
     pub class_variables: Vec<String>,
+    /// The constant command-substitution fold context (issue #1132): the
+    /// whole-file command-mutation trust snapshot the shell attached for a
+    /// body with a fold candidate, paired with the instance-side `TclOO`
+    /// defining class (`[self class]`'s answer) when the body is such a
+    /// method — mirrors
+    /// [`tcl_compiler::analyser::per_item::DeferredBody::command_trust`] /
+    /// `oo_defining_class`. One field because the class fact is only ever
+    /// consumed under a trust snapshot (no snapshot ⇒ the fold distrusts
+    /// everything and never reads the class). Part of the key so a `rename`
+    /// appearing (or disappearing) anywhere in the file re-analyses exactly
+    /// the bodies whose folds it could affect; `None` (no candidate) keeps
+    /// the key untouched by unrelated renames.
+    #[returns(ref)]
+    pub fold_ctx: Option<(
+        Arc<tcl_compiler::command_binding::CommandTrustSnapshot>,
+        Option<String>,
+    )>,
     /// Snapshot of the enclosing safe-interpreter visibility context (issue
     /// #1001 follow-up) — mirrors [`tcl_compiler::analyser::per_item::DeferredBody::safe_interp_ctx`]
     /// exactly (same flattened, sorted-`Vec` shape, for the same reason: a
@@ -1037,6 +1054,10 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
     // The isolated analysis works at offset 0 and ignores `body_tok` / scope
     // path (the aggregator supplies the real position when grafting), so a
     // placeholder token is fine.
+    let (command_trust, oo_defining_class) = match key.fold_ctx(db) {
+        Some((trust, class)) => (Some(Arc::clone(trust)), class.clone()),
+        None => (None, None),
+    };
     let body = DeferredBody {
         body_text: Arc::clone(key.body_text(db)),
         body_tok: tcl_lexer::Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, 0)),
@@ -1047,6 +1068,8 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
         scope_name: key.scope_name(db).clone(),
         params: key.params(db).clone(),
         class_variables: key.class_variables(db).clone(),
+        command_trust,
+        oo_defining_class,
         safe_interp_ctx: key.safe_interp_ctx(db).clone(),
     };
     let disabled: HashSet<String> = key.disabled(db).iter().cloned().collect();
@@ -2178,7 +2201,10 @@ pub fn function_optimisations<'db>(
         body_units: HashMap::new(),
         lambda_body_units: std::collections::BTreeSet::new(),
         redefined_procedures: redefined,
-        redefined_methods: HashSet::new(),
+        redefined_methods: HashMap::new(),
+        oo_unanalysed_classes: HashSet::new(),
+        oo_evidence: tcl_compiler::ir::OoDefinitionEvidence::default(),
+        class_relations: Vec::new(),
         namespace_imports: Vec::new(),
         namespace_exports: Vec::new(),
         // Always empty/false here — the caller (`memoised_module_optimisations`)
@@ -2353,7 +2379,29 @@ fn solve_optimisations<'db>(
     // is usually tiny.  Run the passes on a top-level-only unit — `procedures`
     // empty so only the top-level is optimised, `interproc` retained so the
     // top-level's O103 calls resolve — producing absolute-span raw optimisations.
-    let top_unit = CompilationUnit {
+    let top_unit = top_level_only_unit(cu, redefined);
+    for mut opt in tcl_compiler::optimiser::optimise_unit_raw(&top_unit, registry, dialect_opt) {
+        if let Some(g) = opt.group {
+            opt.group = Some(group_base + g);
+        }
+        raw.push(opt);
+    }
+
+    tcl_compiler::optimiser::finalise_optimisations(&raw, cu, registry, dialect_opt)
+}
+
+/// The top-level-only [`CompilationUnit`] [`solve_optimisations`] runs the
+/// passes over: `procedures` empty so only the top-level is optimised,
+/// `interproc` / `caller_scope` retained so the top-level's O103 calls
+/// resolve against the same boundary / cross-file facts the whole-module
+/// build resolved. Trace facts are copied from the real module (the
+/// `has_trace_facts` fallback means this path only runs when there are
+/// none, but copy the real values rather than asserting that by omission).
+fn top_level_only_unit(
+    cu: &CompilationUnit,
+    redefined: &std::collections::HashSet<String>,
+) -> CompilationUnit {
+    CompilationUnit {
         source: cu.source.clone(),
         ir_module: tcl_compiler::ir::Module {
             source: cu.source.clone(),
@@ -2363,16 +2411,12 @@ fn solve_optimisations<'db>(
             body_units: HashMap::new(),
             lambda_body_units: std::collections::BTreeSet::new(),
             redefined_procedures: redefined.clone(),
-            redefined_methods: HashSet::new(),
+            redefined_methods: HashMap::new(),
+            oo_unanalysed_classes: HashSet::new(),
+            oo_evidence: tcl_compiler::ir::OoDefinitionEvidence::default(),
+            class_relations: Vec::new(),
             namespace_imports: Vec::new(),
             namespace_exports: Vec::new(),
-            // Copied from the real whole-module facts (unlike the per-proc
-            // offset-0 unit above, this top-level-only unit is built
-            // straight from `cu`, so there is no salsa-caching reason to
-            // default these — and the `has_trace_facts` fallback above
-            // means this path only runs at all when the module has none,
-            // but copy the real values rather than asserting that by
-            // omission).
             traced_commands: cu.ir_module.traced_commands.clone(),
             has_dynamic_trace: cu.ir_module.has_dynamic_trace,
             traced_variables: cu.ir_module.traced_variables.clone(),
@@ -2388,19 +2432,8 @@ fn solve_optimisations<'db>(
         body_units: HashMap::new(),
         interproc: cu.interproc.clone(),
         connection_scope: None,
-        // Carried from the real unit: the top-level's own O103 folds must
-        // read the same boundary / cross-file facts the whole-module build
-        // resolved, not a fresh empty scope.
         caller_scope: cu.caller_scope.clone(),
-    };
-    for mut opt in tcl_compiler::optimiser::optimise_unit_raw(&top_unit, registry, dialect_opt) {
-        if let Some(g) = opt.group {
-            opt.group = Some(group_base + g);
-        }
-        raw.push(opt);
     }
-
-    tcl_compiler::optimiser::finalise_optimisations(&raw, cu, registry, dialect_opt)
 }
 
 /// Interned identity of the dialect-varying [`tcl_lexer::LexerConfig`] fields,
@@ -2515,6 +2548,9 @@ pub fn file_analysis_incremental(
             body.is_method,
             body.oo_global_resolution,
             body.class_variables.clone(),
+            body.command_trust
+                .clone()
+                .map(|trust| (trust, body.oo_defining_class.clone())),
             body.safe_interp_ctx.clone(),
             dialect.clone(),
             disabled_vec.clone(),
@@ -2999,6 +3035,7 @@ mod tests {
                 false,
                 Vec::new(),
                 None,
+                None,
                 "tcl8.6".to_owned(),
                 Vec::new(),
                 NonAsciiMode::Default,
@@ -3020,6 +3057,7 @@ mod tests {
             false,
             false,
             Vec::new(),
+            None,
             None,
             "tcl8.6".to_owned(),
             Vec::new(),

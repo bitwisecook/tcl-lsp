@@ -33,13 +33,31 @@
 //! decide a `pack`/`grid` conflict, so it accumulates per-parent usage and
 //! is decided in the same flush.
 //!
-//! The per-command accumulation is itself gated on a cheap
-//! [`tk_possibly_active`] precheck (`tk` dialect, or the source mentions
-//! `package` / `require` / `Tk`).  The incremental per-item analysis
-//! path ([`Analyser::analyse_per_item_with`]) falls back to full
-//! [`Analyser::analyse`] when [`tk_possibly_active`] holds, so Tk's
+//! Two distinct questions are involved, and conflating them was issue #1188:
+//!
+//! - **Is Tk active?** — the authoritative, *exact* fact: the `tk` dialect, or
+//!   a `package require Tk` that the registry's
+//!   [`PackageRequire`](tcl_registry::hooks::AnalyserHookId::PackageRequire)
+//!   hook recorded into `result.package_requires` during the walk.  This is
+//!   [`Analyser::has_tk_require`] + `tk_dialect`, and it is the *only* gate on
+//!   whether any TK diagnostic is emitted.
+//! - **Is it worth accumulating?** — a pure performance precheck
+//!   ([`tk_checks_could_apply`]), run before the walk to skip the per-command
+//!   widget/geometry bookkeeping on a document that cannot possibly be Tk.
+//!   It is a deliberately loose *necessary* condition (over-approximating is
+//!   free: whatever it buffers is discarded by the flush unless the exact
+//!   activation fact holds), so it can never change a diagnostic.
+//!
+//! The incremental per-item analysis path
+//! ([`Analyser::analyse_per_item_with`]) falls back to full
+//! [`Analyser::analyse`] once Tk is **exactly** known to be active, so Tk's
 //! whole-file accumulator (which an isolated proc body cannot see) never
-//! diverges from full analysis.
+//! diverges from full analysis.  Before #1188 that fallback was driven by the
+//! precheck instead — three independent substring searches for `package`,
+//! `require`, and `Tk`, matching anywhere in the file including comments,
+//! strings, and generated data — which forced a whole-file re-analysis on
+//! every keystroke for 27.7% of the tcllib corpus's source lines, ~78% of them
+//! false positives.
 //!
 //! Diagnostic codes:
 //!
@@ -69,16 +87,28 @@ pub(super) struct TkGeometryUsage {
 /// Tk geometry-manager commands.
 const GEOMETRY_COMMANDS: &[&str] = &["pack", "grid", "place"];
 
-/// Cheap precheck for whether Tk diagnostics could apply to this document:
-/// the analysis dialect is `tk`, or the source mentions `package` /
-/// `require` / `Tk` (so a `package require Tk` — however the lexer splits
-/// its words — is not missed).  Used both to gate the per-command
-/// accumulation and to force the incremental per-item path back to full
-/// analysis for Tk documents.
+/// The package name whose presence activates the TK checks.  The single
+/// source of truth for both halves of the gate: the `package require` name
+/// [`Analyser::has_tk_require`] looks for, and the `CommandSpec`
+/// [`required_package`](tcl_registry::CommandSpec::required_package) that
+/// makes a registry command a Tk widget command
+/// ([`Analyser::is_widget_command`]).
+pub(super) const TK_PACKAGE: &str = "Tk";
+
+/// Cheap **necessary** condition for the per-command Tk accumulation to be
+/// worth running at all — *not* the activation decision (see the module docs).
+///
+/// Activation requires either the `tk` dialect or a statically-resolvable
+/// `package require Tk`, and the latter cannot exist in a source that never
+/// contains the literal package name.  So this is sound: it never returns
+/// `false` for a document that goes on to activate.  It over-approximates
+/// freely — a `Tk` inside a comment, a string, or generated data trips it —
+/// which costs only a registry lookup per command, because
+/// [`Analyser::flush_tk_geometry_diagnostics`] discards everything the walk
+/// buffered unless the exact activation fact holds.
 #[must_use]
-pub(super) fn tk_possibly_active(source: &str, dialect: &str) -> bool {
-    dialect == "tk"
-        || (source.contains("package") && source.contains("require") && source.contains("Tk"))
+pub(super) fn tk_checks_could_apply(source: &str, dialect: &str) -> bool {
+    dialect == "tk" || source.contains(TK_PACKAGE)
 }
 
 /// Return `true` if `name` is a Tk geometry-manager command.
@@ -133,7 +163,7 @@ impl Analyser {
     fn is_widget_command(&self, name: &str) -> bool {
         self.registry.is_some_and(|r| {
             r.get(name).is_some_and(|s| {
-                s.creates_instance_at.is_some() && s.required_package == Some("Tk")
+                s.creates_instance_at.is_some() && s.required_package == Some(TK_PACKAGE)
             })
         })
     }
@@ -151,7 +181,7 @@ impl Analyser {
         arg_tokens: &[Token],
         cmd_tok: Token,
     ) {
-        if !self.tk_possibly_active {
+        if !self.tk_accumulation_enabled {
             return;
         }
 
@@ -259,6 +289,8 @@ impl Analyser {
                     span,
                     new_text: (*best).to_string(),
                     description: format!("Replace with '{best}'"),
+                    // TK1003: an edit-distance guess at the intended option.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 });
             }
             self.tk_pending_diags.push(Diagnostic {
@@ -271,12 +303,39 @@ impl Analyser {
         }
     }
 
-    /// Whether the file declared `package require Tk`.
-    fn has_tk_require(&self) -> bool {
+    /// Whether the walk recorded a statically-resolvable `package require Tk`.
+    ///
+    /// The exact activation fact, and the *only* input (besides the `tk`
+    /// dialect) that decides whether a TK diagnostic is emitted.  It reads
+    /// `result.package_requires`, which is populated generically by
+    /// [`Analyser::handle_package_require`](super::state::Analyser) under the
+    /// registry's [`PackageRequire`](tcl_registry::hooks::AnalyserHookId::PackageRequire)
+    /// hook — so a `-exact` flag, a trailing version constraint, line
+    /// continuations, a `package require` nested in a `namespace eval` / `if` /
+    /// proc body, and comments, strings, and regexes that merely *mention* the
+    /// words are all handled by the ordinary command walk rather than by a
+    /// bespoke scanner here.
+    ///
+    /// Two documented limits, both inherited from the walk rather than added
+    /// here, so per-item and full analysis still agree exactly:
+    ///
+    /// - a **dynamic** name (`package require [set p]`) is recorded verbatim
+    ///   and cannot match; likewise a `package` reached after a `rename` or
+    ///   hidden in a safe interpreter is not a resolvable `package require`;
+    /// - `::package require Tk` does not match either, because
+    ///   `resolve_analyser_hook_call` deliberately refuses a `::`-qualified
+    ///   spelling of a bareword global command (pinned by issue #923), so no
+    ///   `package_requires` entry is recorded for it at all — a pre-existing
+    ///   false negative of the whole-file walk, not one this gate introduced.
+    ///
+    /// `pub(super)`: [`Analyser::analyse_per_item_with`](super::state::Analyser)
+    /// consults the same fact post-walk to decide whether the incremental path
+    /// must hand off to a full analysis (issue #1188).
+    pub(super) fn has_tk_require(&self) -> bool {
         self.result
             .package_requires
             .iter()
-            .any(|pr| pr.name == "Tk")
+            .any(|pr| pr.name == TK_PACKAGE)
     }
 
     /// Post-walk flush of all TK diagnostics.  Emits the buffered TK1002 /

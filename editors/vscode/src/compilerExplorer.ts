@@ -97,6 +97,7 @@ export function openCompilerExplorer(): void {
       filename?: string;
       lineno?: number;
       colno?: number;
+      panes?: string[];
     }) => {
       console.log(`[compiler-explorer] webview message: ${msg.type}`);
       if (msg.type === "ready") {
@@ -127,6 +128,11 @@ export function openCompilerExplorer(): void {
         if (msg.stack) {
           console.error(msg.stack);
         }
+      } else if (msg.type === "renderError") {
+        // One or more panes threw while rendering a result. The webview
+        // still shows the other tabs and clears its spinner; surface the
+        // detail here so the failure is diagnosable rather than silent.
+        console.error(`[compiler-explorer] pane render failure: ${msg.message ?? "unknown"}`);
       } else if (msg.type === "scriptError") {
         console.error(
           `[compiler-explorer] webview script error: ${msg.message ?? "unknown"} (${msg.filename ?? ""}:${msg.lineno ?? 0}:${msg.colno ?? 0})`,

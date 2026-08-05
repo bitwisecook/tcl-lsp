@@ -28,12 +28,16 @@
  * `index.html`'s `new Worker('worker.js')` and `explorer-core.js` are
  * unchanged.
  *
- * Protocol (unchanged from the Pyodide worker):
+ * Protocol (unchanged from the Pyodide worker, plus `ready.meta`):
  *   main → worker:  { type: "compile", source: string, dialect: string }
  *   worker → main:  { type: "result", data: <serialised JSON> }
  *   worker → main:  { type: "error", error: string, traceback?: string }
- *   worker → main:  { type: "ready" }
+ *   worker → main:  { type: "ready", meta?: <serialised meta JSON> }
  *   worker → main:  { type: "status", message: string }
+ *
+ * `ready.meta` carries the explorer `meta` block (dialect list, view table,
+ * severities). It needs no compile, so the GUI can fill its dialect dropdown
+ * as soon as the module loads instead of waiting for a first result.
  */
 
 /* global importScripts, wasm_bindgen */
@@ -52,7 +56,18 @@ async function init() {
   await wasm_bindgen(baseUrl + "tcl_explorer_wasm_bg.wasm");
 
   ready = true;
-  postMessage({ type: "ready" });
+  postMessage({ type: "ready", meta: readMeta() });
+}
+
+// The `meta` block, or null when the module predates the `meta` export (the
+// GUI then keeps its hard-coded dialect fallback until the first result).
+function readMeta() {
+  if (typeof wasm_bindgen.meta !== "function") return null;
+  try {
+    return JSON.parse(wasm_bindgen.meta());
+  } catch {
+    return null;
+  }
 }
 
 function compile(source, dialect) {

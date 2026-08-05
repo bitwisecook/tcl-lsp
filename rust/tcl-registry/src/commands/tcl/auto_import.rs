@@ -53,7 +53,9 @@ pub fn spec() -> CommandSpec {
             // Auto-loads (and imports) the commands matching `pattern`
             // from whichever unit the auto-index names, so another unit's
             // script runs in this interpreter.
-            | Traits::LOADS_EXTERNAL_UNIT,
+            | Traits::LOADS_EXTERNAL_UNIT
+            // Imports commands matched by their spelled names.
+            | Traits::REFLECTS_COMMAND_NAMES,
         // `auto_import pattern` — exactly one argument, unchanged across
         // every documented release, Tcl library.n 8.4 through 9.1.
         arity: Arity::exact(1),

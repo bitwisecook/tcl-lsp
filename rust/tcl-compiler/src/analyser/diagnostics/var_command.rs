@@ -476,6 +476,8 @@ impl Analyser {
                     span: fix_span,
                     new_text: (*best).to_string(),
                     description: format!("Replace with '{best}'"),
+                    // W308: an edit-distance guess at the intended method.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
                 });
             }
         }

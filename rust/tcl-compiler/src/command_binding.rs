@@ -568,6 +568,35 @@ impl ModuleCommandMutations {
         !self.names.contains(&nqn(command_name))
     }
 
+    /// The everything-is-untrusted lattice top: `trusts` /
+    /// `trusts_proc_binding` answer `false` for every name. The sound
+    /// stand-in when a consumer has **no whole-module view at all** (the
+    /// analyser's isolated per-item body pass, issue #1132) — folding with
+    /// builtin semantics is then never permitted.
+    #[must_use]
+    pub fn distrust_all() -> Self {
+        Self {
+            names: std::collections::HashSet::new(),
+            rebound: std::collections::HashSet::new(),
+            dynamic: true,
+        }
+    }
+
+    /// A canonical, hashable snapshot of this summary — see
+    /// [`CommandTrustSnapshot`].
+    #[must_use]
+    pub fn snapshot(&self) -> CommandTrustSnapshot {
+        let mut untrusted_builtins: Vec<String> = self.names.iter().cloned().collect();
+        untrusted_builtins.sort_unstable();
+        let mut rebound: Vec<String> = self.rebound.iter().cloned().collect();
+        rebound.sort_unstable();
+        CommandTrustSnapshot {
+            untrusted_builtins,
+            rebound,
+            dynamic: self.dynamic,
+        }
+    }
+
     /// True when `proc_name` can still be trusted to denote the module
     /// procedure it was declared as at an arbitrary later call site — i.e.
     /// its bare name was never the subject of a later `rename` (as the old
@@ -588,6 +617,31 @@ impl ModuleCommandMutations {
             return false;
         }
         !self.rebound.contains(&nqn(proc_name))
+    }
+}
+
+/// A canonical (sorted), hashable form of [`ModuleCommandMutations`], so
+/// the whole-module trust fact can ride inside a memoisation key — the
+/// analyser's per-item body pass carries it on each deferred body whose
+/// text could fold a command substitution (issue #1132), keeping the
+/// isolated fragment memo sound when a `rename` elsewhere in the file
+/// appears or disappears.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CommandTrustSnapshot {
+    untrusted_builtins: Vec<String>,
+    rebound: Vec<String>,
+    dynamic: bool,
+}
+
+impl CommandTrustSnapshot {
+    /// Rebuild the queryable summary this snapshot was taken from.
+    #[must_use]
+    pub fn to_mutations(&self) -> ModuleCommandMutations {
+        ModuleCommandMutations {
+            names: self.untrusted_builtins.iter().cloned().collect(),
+            rebound: self.rebound.iter().cloned().collect(),
+            dynamic: self.dynamic,
+        }
     }
 }
 

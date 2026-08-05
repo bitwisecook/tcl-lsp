@@ -866,32 +866,37 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top
 	fi; \
 	if [ -f "$(ROOT)Cargo.toml" ]; then \
 		echo "==> Checking top-level Rust workspace (fmt + clippy)"; \
-		cd $(ROOT) && cargo fmt --all --check && \
-			cargo clippy --workspace --all-targets -- -D warnings; \
+		cd $(ROOT); \
+		cargo fmt --all --check; \
+		cargo clippy --workspace --all-targets -- -D warnings; \
 	fi; \
 	if [ -f "$(ZED_DIR)/Cargo.toml" ]; then \
 		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2 + host tests)"; \
-		cd $(ZED_DIR) && cargo fmt --all --check && \
-			cargo clippy --target wasm32-wasip2 --all-targets -- -D warnings && \
-			cargo test --lib; \
+		cd $(ZED_DIR); \
+		cargo fmt --all --check; \
+		cargo clippy --target wasm32-wasip2 --all-targets -- -D warnings; \
+		cargo test --lib; \
 	fi; \
 	if [ -f "$(EXPLORER_WASM_DIR)/Cargo.toml" ] && \
 			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
 		echo "==> Checking tcl-explorer-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
-		cd $(EXPLORER_WASM_DIR) && cargo fmt --all --check && \
-			cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+		cd $(EXPLORER_WASM_DIR); \
+		cargo fmt --all --check; \
+		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
 	fi; \
 	if [ -f "$(ROOT)rust/tcl-vm-wasm/Cargo.toml" ] && \
 			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
 		echo "==> Checking tcl-vm-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
-		cd $(ROOT)rust/tcl-vm-wasm && cargo fmt --all --check && \
-			cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+		cd $(ROOT)rust/tcl-vm-wasm; \
+		cargo fmt --all --check; \
+		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
 	fi; \
 	if [ -f "$(ROOT)rust/tcl-spec-studio-wasm/Cargo.toml" ] && \
 			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
 		echo "==> Checking tcl-spec-studio-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
-		cd $(ROOT)rust/tcl-spec-studio-wasm && cargo fmt --all --check && \
-			cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+		cd $(ROOT)rust/tcl-spec-studio-wasm; \
+		cargo fmt --all --check; \
+		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
 	fi
 
 # Supply-chain audit for the Rust workspace: RustSec advisories, license

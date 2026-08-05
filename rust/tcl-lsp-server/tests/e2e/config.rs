@@ -31,7 +31,7 @@
 //! directions), so it is exercised explicitly here via a second
 //! `apply_configuration_settle` back to the enabled state.
 
-use crate::common::{Lsp, unique_uri};
+use crate::common::{Lsp, scaled_timeout, unique_uri};
 
 use serde_json::{Value, json};
 
@@ -392,7 +392,7 @@ fn diagnostic_severity_override_relevels_a_diagnostic() {
     // unchanged, only the published severity moves. Poll the deterministic pull
     // path until the re-pulled config takes effect.
     lsp.apply_configuration(json!({ "diagnosticSeverity": { "W211": "warning" } }));
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + scaled_timeout(Duration::from_secs(10));
     let mut diags = lsp.pull_diagnostics(&uri);
     while severity_of(&diags, "W211") != Some(2) && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(100));
@@ -406,7 +406,7 @@ fn diagnostic_severity_override_relevels_a_diagnostic() {
 
     // Reset to default (empty override) and confirm it returns to Hint.
     lsp.apply_configuration(json!({ "diagnosticSeverity": {} }));
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + scaled_timeout(Duration::from_secs(10));
     let mut diags = lsp.pull_diagnostics(&uri);
     while severity_of(&diags, "W211") != Some(4) && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(100));
@@ -432,7 +432,7 @@ fn diagnostic_severity_override_is_per_code() {
 
     // Override only W211 → error (1); W220 must keep its emitted Hint (4).
     lsp.apply_configuration(json!({ "diagnosticSeverity": { "W211": "error" } }));
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + scaled_timeout(Duration::from_secs(10));
     let mut diags = lsp.pull_diagnostics(&uri);
     while severity_of(&diags, "W211") != Some(1) && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(100));

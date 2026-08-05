@@ -89,12 +89,25 @@ pub fn normalise_lone_cr(source: &str) -> Cow<'_, str> {
 /// `line_starts[i]` for `i > 0` is the byte immediately after the `i`-th
 /// `\n`. Offsets past the last newline resolve to the final line.
 ///
-/// Cheap to clone: the backing storage is a `Box<[u32]>`, so cloning
-/// is one allocation plus a byte copy. Future chunks may switch to
-/// `Arc<[u32]>` if genuine sharing turns up in profiles.
+/// **Free to clone**: the backing storage is an `Arc<[u32]>`, so a clone is a
+/// reference-count bump — no allocation, no byte copy — and every clone shares
+/// one allocation.
+///
+/// It was a `Box<[u32]>` (one allocation plus a byte copy per clone) until the
+/// sharing this anticipated turned up in profiles: `tcl-lsp-server`'s
+/// `read_document` hands every in-flight LSP request its own snapshot of the
+/// open document, so `R` concurrent requests against an `L`-line document each
+/// copied `4L` bytes of line index (issue #1184). `filetypes.tcl` alone is
+/// 85,040 lines — 332 KiB of index — per request.
+///
+/// Nothing here is shared *mutably*: every mutation ([`Self::apply_edit`])
+/// builds a fresh `Vec` and replaces the handle wholesale, so an outstanding
+/// clone keeps the pre-edit index it was given rather than observing a
+/// half-applied edit. That is what makes an in-flight request safe to finish
+/// against the revision it started on.
 #[derive(Debug, Clone)]
 pub struct LineIndex {
-    line_starts: Box<[u32]>,
+    line_starts: std::sync::Arc<[u32]>,
 }
 
 impl LineIndex {
@@ -134,7 +147,7 @@ impl LineIndex {
             }
         }
         Self {
-            line_starts: starts.into_boxed_slice(),
+            line_starts: starts.into(),
         }
     }
 
@@ -186,7 +199,7 @@ impl LineIndex {
             i += 1;
         }
         Self {
-            line_starts: starts.into_boxed_slice(),
+            line_starts: starts.into(),
         }
     }
 
@@ -237,7 +250,7 @@ impl LineIndex {
             next.push(u32::try_from(shifted).expect("shifted offset fits u32"));
             i += 1;
         }
-        self.line_starts = next.into_boxed_slice();
+        self.line_starts = next.into();
     }
 
     /// Whether `source` contains a *lone* `\r` — a `\r` not immediately
@@ -261,6 +274,20 @@ impl LineIndex {
             .iter()
             .enumerate()
             .any(|(i, &b)| b == b'\r' && bytes.get(i + 1) != Some(&b'\n'))
+    }
+
+    /// Whether `self` and `other` are clones sharing **one** backing
+    /// allocation, rather than two indices that merely hold equal offsets.
+    ///
+    /// This is the sharing contract itself, not a debugging aid: consumers that
+    /// hand one index to many concurrent readers ([`LineIndex`]'s own doc
+    /// comment, and `tcl-lsp-server`'s document snapshots — issue #1184) depend
+    /// on a clone costing a reference-count bump, and a silent regression to a
+    /// copy-per-clone is invisible to any equality-based assertion. Comparing
+    /// identity is the only way to pin it.
+    #[must_use]
+    pub fn shares_storage_with(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.line_starts, &other.line_starts)
     }
 
     /// Number of lines in the index. Always ≥ 1 for any `LineIndex`
@@ -939,5 +966,49 @@ mod tests {
             idx.position_at_utf16(7, src),
             Utf16Position::new(1, Utf16Col::new(0), 7)
         );
+    }
+    #[test]
+    fn clone_shares_one_backing_allocation() {
+        // The sharing contract (issue #1184): a clone is a reference-count
+        // bump, not a copy, so many concurrent readers of one document's index
+        // hold one allocation between them rather than one each.
+        let idx = LineIndex::new_lsp("a\nb\nc\n");
+        let snapshots: Vec<LineIndex> = (0..32).map(|_| idx.clone()).collect();
+        for snap in &snapshots {
+            assert!(
+                idx.shares_storage_with(snap),
+                "clone must share the original's storage"
+            );
+        }
+        // Two indices built independently are equal line-for-line but must NOT
+        // report sharing — otherwise the assertion above would be vacuous.
+        let independent = LineIndex::new_lsp("a\nb\nc\n");
+        assert_eq!(independent.line_count(), idx.line_count());
+        assert!(!idx.shares_storage_with(&independent));
+    }
+
+    #[test]
+    fn apply_edit_leaves_outstanding_clones_on_the_old_revision() {
+        // Build-and-swap, not mutate-in-place: an index handed to an in-flight
+        // reader before an edit must keep describing the text that reader was
+        // given, so it can never resolve a position against the wrong offsets.
+        let mut idx = LineIndex::new_lsp("one\ntwo\nthree\n");
+        let snapshot = idx.clone();
+        let before: Vec<u32> = (0..snapshot.line_count())
+            .map(|l| snapshot.line_start(u32::try_from(l).expect("small")))
+            .collect();
+
+        // Insert two lines at the very start of the document.
+        idx.apply_edit(0, 0, "zero\nhalf\n");
+
+        assert!(
+            !idx.shares_storage_with(&snapshot),
+            "an edit must install new storage, never write through the shared one"
+        );
+        let after: Vec<u32> = (0..snapshot.line_count())
+            .map(|l| snapshot.line_start(u32::try_from(l).expect("small")))
+            .collect();
+        assert_eq!(after, before, "the snapshot observed a mutation");
+        assert_eq!(idx.line_count(), snapshot.line_count() + 2);
     }
 }

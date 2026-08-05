@@ -2615,6 +2615,10 @@ fn w213_span_and_fix(
             span: tcl_lexer::Span::new(at, at),
             new_text: " -nocomplain".to_string(),
             description: "Add '-nocomplain' to unset".to_string(),
+            // W213: `-nocomplain` stops `unset` raising on a missing variable.
+            // Suppressing that error is the point of the fix, and a program
+            // relying on it (a `catch`ed probe) observes the change.
+            safety: crate::irules_checks::FixSafety::BehaviourHardening,
         }]
     });
     (diag_span, fixes)

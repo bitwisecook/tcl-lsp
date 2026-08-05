@@ -497,6 +497,9 @@ impl Analyser {
                             body_text: body.clone(),
                             body_tok: tok,
                             params_tok: None,
+                            // A class-level init script is not a method
+                            // frame at all — `self` raises there.
+                            class_side: true,
                         });
                     }
                 }
@@ -753,6 +756,19 @@ impl Analyser {
         } else {
             format!("{class_qualified}::{}", mb.name)
         };
+        // Instance-side `TclOO` method of a statically-named class:
+        // `[self class]` answers the defining class in this frame, so
+        // record the fact for the constant command-substitution fold
+        // (issue #1132). `oo_global_resolution` is exactly the
+        // `TclOO`-family gate (snit / itcl walkers pass `false`);
+        // class-side members abstain (`self class` never answers the
+        // written class there); a synthetic key (`::@objdefine@…`) is
+        // not a class name.
+        let oo_defining_class = (oo_global_resolution
+            && !mb.class_side
+            && !class_qualified.is_empty()
+            && !class_qualified.contains('@'))
+        .then(|| class_qualified.to_owned());
         let Some(method_idx) = ({
             scope_at_mut(&mut self.result.global_scope, scope_path).map(|parent| {
                 let mut child = Scope::new(ScopeKind::Method, method_qn.clone());
@@ -764,6 +780,7 @@ impl Analyser {
                 // resolvable (tclsh 9.0.4 inside a constructor: `link zzz`
                 // returns `::oo::ObjN::zzz`).
                 child.oo_method_frame = oo_global_resolution;
+                child.oo_defining_class.clone_from(&oo_defining_class);
                 parent.children.push(child);
                 parent.children.len() - 1
             })
@@ -831,6 +848,10 @@ impl Analyser {
                 // declaration spans; the graft keeps the shell's span, so
                 // the deferred body pass only needs the names.
                 class_variables: class_variables.to_vec(),
+                // Attached later by `fill_deferred_bodies` for bodies with a
+                // fold candidate (issue #1132).
+                command_trust: None,
+                oo_defining_class,
                 safe_interp_ctx,
             });
         } else {
@@ -1186,6 +1207,9 @@ impl Analyser {
                 body_text,
                 body_tok: bt,
                 params_tok,
+                // snit / itcl members are not `TclOO` frames — no
+                // `[self class]` fact may be derived from them.
+                class_side: true,
             };
             // snit / itcl seed vars are mostly grammar-injected implicits with no
             // source declaration token; an empty span map makes `walk_method_body`
@@ -1759,6 +1783,13 @@ struct CollectedMethodBody {
     /// parameter's definition span at its name (issue #727). `None` for
     /// `destructor` (no parameter list).
     params_tok: Option<Token>,
+    /// True for a **class-side** member (`classmethod`, `self method`) —
+    /// and for any collected body that is not a real instance-side method
+    /// invocation frame (class `initialise` scripts, `property` accessor
+    /// bodies). Gates [`super::types::Scope::oo_defining_class`]: `[self
+    /// class]` *raises* in a class-side frame, so no defining-class fact may
+    /// be recorded for one (issue #1132).
+    class_side: bool,
 }
 
 /// Recognise a method-defining subcommand in a class body and return its body
@@ -1789,13 +1820,19 @@ fn collect_method_body(
     // `method`/`classmethod`/`constructor`/`destructor` keyword — its
     // returned slices start right after the *effective* keyword either
     // way, wrapper word included, so no `+ 1` shift is needed below.
-    let (keyword, texts, argv, _modifier) = unwrap_wrapper_member(grammar, texts, argv)?;
+    let (keyword, texts, argv, modifier) = unwrap_wrapper_member(grammar, texts, argv)?;
     if !matches!(
         keyword,
         "method" | "classmethod" | "constructor" | "destructor"
     ) {
         return None;
     }
+    // `classmethod` and `self method` define on the class object — a
+    // class-side frame, where `[self class]` never answers the written
+    // class (tclsh 9.0.4: it raises "method not defined by a class" in a
+    // `self method`, and answers the internal `::oo::ObjN:: oo ::delegate`
+    // class in a `classmethod`).
+    let class_side = keyword == "classmethod" || modifier == "self";
     let member = grammar.member(keyword)?;
     let body_idx = member.indices_for(ArgRole::Body).next()?;
     let params_idx = member.indices_for(ArgRole::ParamList).next();
@@ -1818,6 +1855,7 @@ fn collect_method_body(
         body_text,
         body_tok,
         params_tok,
+        class_side,
     })
 }
 
@@ -2541,6 +2579,11 @@ fn collect_property_accessor_bodies(
                         body_text: texts[i + 1].clone(),
                         body_tok: tok,
                         params_tok: None,
+                        // Conservative: a `property` accessor body is a
+                        // 9.0+ `oo::configurable` surface this analysis has
+                        // not pinned `[self class]` behaviour for — abstain
+                        // from the defining-class fact rather than guess.
+                        class_side: true,
                     });
                 }
                 i += 2;

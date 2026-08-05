@@ -255,6 +255,43 @@ pub fn sccp(
     sccp_with_extra_escaping(cfg, ssa, param_constants, policy, &HashSet::new(), trace)
 }
 
+/// Inputs for folding a pure-builtin command substitution **during lattice
+/// evaluation** (issue #1134): the registry `const_fold` callbacks are pure
+/// functions of constant argument words, so an `AssignValue` RHS like
+/// `[namespace qualifiers $base]` whose `$base` is a lattice constant folds
+/// to a lattice constant itself — the folded value re-enters the lattice and
+/// multi-statement chains (`set base [self class]; set ns [namespace
+/// qualifiers $base]`) close under SCCP's ordinary fixpoint.
+///
+/// Termination is SCCP's own: the fold is a deterministic function of the
+/// use versions' lattice values, which only ever move down the lattice
+/// (`Unknown → Const → Overdefined`), and nested-substitution recursion is
+/// bounded by the engine's structural depth cap
+/// (`crate::const_subst`).
+///
+/// Only supplied by callers holding the whole-module command-mutation trust
+/// fact ([`crate::command_binding::ModuleCommandMutations`]) — a renamed /
+/// aliased / shadowed head must never fold with builtin semantics. The
+/// shared per-unit lattice (`crate::compilation_unit`) is built **without**
+/// it (its memoisation key does not carry the mutation fact); the optimiser
+/// propagation pass re-runs SCCP with it when a function contains a
+/// command-substitution assignment (see
+/// `crate::optimiser::propagation`).
+#[derive(Clone, Copy)]
+pub struct BuiltinFoldInputs<'a> {
+    /// Command / subcommand specs — the fold callbacks live here. Carried
+    /// here (as well as on [`TraceInputs`]) so the statement-evaluation
+    /// helpers need only this one bundle.
+    pub registry: &'a CommandRegistry,
+    /// Whole-module `rename` / `interp alias` / shadowing-`proc` trust scan.
+    pub mutations: &'a crate::command_binding::ModuleCommandMutations,
+    /// Dialect name for versioned folds; `None` for plain Tcl.
+    pub dialect: Option<&'a str>,
+    /// Proven defining class of the enclosing `TclOO` instance-method frame
+    /// (enables `[self class]`-style frame-fact folds); `None` elsewhere.
+    pub defining_class: Option<&'a str>,
+}
+
 /// Registry-driven whole-module trace facts [`sccp`] /
 /// [`sccp_with_extra_escaping`] consult when widening their escaping-set,
 /// bundled into one `Copy` struct to keep those functions' argument count
@@ -300,6 +337,32 @@ pub fn sccp_with_extra_escaping(
     policy: FoldPolicy,
     extra_escaping: &HashSet<String>,
     trace: TraceInputs<'_>,
+) -> SccpResult {
+    sccp_with_builtin_folds(
+        cfg,
+        ssa,
+        param_constants,
+        policy,
+        extra_escaping,
+        trace,
+        None,
+    )
+}
+
+/// Like [`sccp_with_extra_escaping`] but additionally folds pure-builtin
+/// command substitutions during lattice evaluation via the registry
+/// `const_fold` callbacks — see [`BuiltinFoldInputs`] (issue #1134). Passing
+/// `None` is byte-identical to [`sccp_with_extra_escaping`].
+#[must_use]
+#[allow(clippy::implicit_hasher)]
+pub fn sccp_with_builtin_folds(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
+    policy: FoldPolicy,
+    extra_escaping: &HashSet<String>,
+    trace: TraceInputs<'_>,
+    folds: Option<BuiltinFoldInputs<'_>>,
 ) -> SccpResult {
     let preds = compute_predecessors(cfg);
     let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
@@ -383,6 +446,7 @@ pub fn sccp_with_extra_escaping(
                     &escaping,
                     policy,
                     trace.has_dynamic_variable_trace,
+                    folds,
                 );
 
                 // Terminator.
@@ -584,6 +648,7 @@ fn sccp_process_statements(
     escaping: &HashSet<String>,
     policy: FoldPolicy,
     has_dynamic_variable_trace: bool,
+    folds: Option<BuiltinFoldInputs<'_>>,
 ) -> bool {
     let mut changed = false;
     for stmt_ssa in &ssa_block.statements {
@@ -662,12 +727,15 @@ fn sccp_process_statements(
                                 .get(&(var, *prev_ver))
                                 .cloned()
                                 .unwrap_or(LatticeValue::Overdefined);
-                            join(&prev, &evaluate_def(stmt_ssa, &*values, ssa, policy))
+                            join(
+                                &prev,
+                                &evaluate_def_with_folds(stmt_ssa, &*values, ssa, policy, folds),
+                            )
                         }
                         None => LatticeValue::Overdefined,
                     }
                 } else {
-                    evaluate_def(stmt_ssa, &*values, ssa, policy)
+                    evaluate_def_with_folds(stmt_ssa, &*values, ssa, policy, folds)
                 };
             if set_value(values, (var, *ver), &val) {
                 changed = true;
@@ -1105,6 +1173,21 @@ pub fn evaluate_def<S: std::hash::BuildHasher>(
     ssa: &SsaFunction,
     policy: FoldPolicy,
 ) -> LatticeValue {
+    evaluate_def_with_folds(stmt_ssa, values, ssa, policy, None)
+}
+
+/// [`evaluate_def`] with an optional registry builtin-fold context (issue
+/// #1134): when `folds` is supplied, an `AssignValue` command-substitution
+/// RHS additionally consults the registry `const_fold` engine — see
+/// [`BuiltinFoldInputs`]. `None` is byte-identical to [`evaluate_def`].
+#[must_use]
+pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
+    stmt_ssa: &SsaStatement,
+    values: &HashMap<ValueKey, LatticeValue, S>,
+    ssa: &SsaFunction,
+    policy: FoldPolicy,
+    folds: Option<BuiltinFoldInputs<'_>>,
+) -> LatticeValue {
     match &stmt_ssa.statement {
         Statement::AssignConst { value, .. } => LatticeValue::Const(parse_literal_value(value)),
         Statement::AssignExpr { expr, .. } => {
@@ -1118,8 +1201,9 @@ pub fn evaluate_def<S: std::hash::BuildHasher>(
             // Fold when the RHS is either a plain literal
             // (no command substitution), a simple `$var` that
             // resolves to a lattice Const, or a `[cmd args...]`
-            // that try_fold_cmd_subst recognises.
-            fold_assign_value(value, &stmt_ssa.uses, values, ssa, policy)
+            // that try_fold_cmd_subst (or, under `folds`, the registry
+            // const-fold engine) recognises.
+            fold_assign_value(value, &stmt_ssa.uses, values, ssa, policy, folds)
         }
         Statement::Call {
             command,
@@ -1500,7 +1584,8 @@ where
 /// 1. **Plain literal** — no `$` / `[` → `Const(parse_literal_value)`.
 /// 2. **Simple var reference** `$x` / `${x}` → lattice lookup.
 /// 3. **Command substitution** `[cmd args…]` → delegate to
-///    [`try_fold_cmd_subst`].
+///    [`try_fold_cmd_subst`], then (when `folds` is supplied) to the
+///    registry const-fold engine ([`BuiltinFoldInputs`], issue #1134).
 ///
 /// Anything else widens to `Overdefined`.
 fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
@@ -1509,6 +1594,7 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
     policy: FoldPolicy,
+    folds: Option<BuiltinFoldInputs<'_>>,
 ) -> LatticeValue {
     let stripped = value.trim();
     // Plain literal.
@@ -1520,13 +1606,53 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         return resolved;
     }
     // Command substitution.
-    if stripped.starts_with('[')
-        && stripped.ends_with(']')
-        && let Some(lv) = try_fold_cmd_subst(stripped, uses, values, ssa, policy)
-    {
-        return lv;
+    if stripped.starts_with('[') && stripped.ends_with(']') {
+        if let Some(lv) = try_fold_cmd_subst(stripped, uses, values, ssa, policy) {
+            return lv;
+        }
+        // Registry const-fold fallback (issue #1134): the fold's `$var`
+        // words resolve at this statement's use versions, so a folded
+        // value re-enters the lattice and downstream statements see it —
+        // the multi-hop chain the hardcoded arms above cannot close.
+        // Checked AFTER them so single-hop results stay byte-identical.
+        if let Some(f) = folds {
+            let trusts = |name: &str| f.mutations.trusts(name);
+            let lookup = |name: &str| lattice_const_text(name, uses, values, ssa);
+            if let Some(folded) = (crate::const_subst::ConstSubstCtx {
+                registry: f.registry,
+                dialect: f.dialect,
+                defining_class: f.defining_class,
+                trusts: &trusts,
+                lookup_var: &lookup,
+            })
+            .fold_cmd_subst(&stripped[1..stripped.len() - 1])
+            {
+                return LatticeValue::Const(parse_literal_value(&folded));
+            }
+        }
     }
     LatticeValue::Overdefined
+}
+
+/// Resolve `name` to the textual form of its lattice constant at this
+/// statement's use version, or `None` when it is not a single `Const` —
+/// the variable-lookup the registry const-fold engine runs under (see
+/// [`fold_assign_value`]).
+fn lattice_const_text<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+    name: &str,
+    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
+    values: &HashMap<ValueKey, LatticeValue, S2>,
+    ssa: &SsaFunction,
+) -> Option<String> {
+    let sym = ssa.var_symbol(name)?;
+    let ver = uses.get(&sym)?;
+    match values.get(&(sym, *ver))? {
+        LatticeValue::Const(ConstValue::String(s)) => Some(s.clone()),
+        LatticeValue::Const(ConstValue::Int(i)) => Some(i.to_string()),
+        LatticeValue::Const(ConstValue::Bool(b)) => Some(if *b { "1" } else { "0" }.to_owned()),
+        LatticeValue::Const(ConstValue::Float(f)) => Some(f.to_string()),
+        _ => None,
+    }
 }
 
 /// Try to constant-fold a `[cmd args…]` command substitution.
@@ -2033,7 +2159,8 @@ mod tests {
             &ssa,
             &escaping,
             FoldPolicy::default(),
-            false
+            false,
+            None
         ));
         assert_eq!(
             values.get(&(x, 2)),

@@ -49,7 +49,8 @@ pub fn spec() -> CommandSpec {
         // `CmdInfo` row and is absent from the exact C Tcl
         // safe-interpreter hidden-command table documented on
         // `Traits::SAFE_INTERP_HIDDEN` — that trait does not apply here.
-        traits: Traits::OVERRIDABLE_LIBRARY_PROC,
+        // Probes `cmd` as a command / executable identity by name.
+        traits: Traits::OVERRIDABLE_LIBRARY_PROC | Traits::REFLECTS_COMMAND_NAMES,
         // `auto_execok cmd` — exactly one argument; the synopsis is
         // unchanged across every documented release, Tcl library.n
         // 8.4 through 9.1.

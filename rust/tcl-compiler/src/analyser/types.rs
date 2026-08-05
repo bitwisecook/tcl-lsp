@@ -80,7 +80,10 @@ impl ScopeKind {
 /// emitters that know exactly *what* the user should change (E101
 /// inserts a missing ``{``, E103
 /// inserts a missing ``}``, W123 may suggest a similarly-named command, etc.).
-pub use crate::irules_checks::CodeFix;
+/// Each fix carries a [`FixSafety`] classification recording how much the
+/// rewrite changes behaviour; "Fix All Safe Issues" applies only the
+/// provably equivalent ones.
+pub use crate::irules_checks::{CodeFix, FixSafety};
 
 /// Diagnostic emitted by the analyser.
 ///
@@ -1147,6 +1150,23 @@ pub struct Scope {
     /// (`Traits::TCLOO_REQUIRES_METHOD_FRAME`) rather than a second scope
     /// flag.
     pub oo_method_frame: bool,
+    /// The fully-qualified class defining this **instance-side `TclOO`
+    /// method** scope's implementation — the value `[self class]` answers in
+    /// this frame — or `None` everywhere else.
+    ///
+    /// Deliberately `None` for the class-side forms funnelled into the same
+    /// [`ScopeKind::Method`]: in a `self method` body `self class` *raises*
+    /// "method not defined by a class", and in a `classmethod` body it
+    /// answers the internal delegate class (`::oo::ObjN:: oo ::delegate`),
+    /// never the written class — both pinned on tclsh 9.0.4, so neither has
+    /// a statically-foldable value. Also `None` for snit / itcl members
+    /// (not `TclOO`; `self` has different meaning),
+    /// for class-level `initialise` scripts, and for `oo::objdefine`'s
+    /// synthetic per-object records. Consumed by the analyser's constant
+    /// command-substitution fold (issue #1132) so `set ns [namespace
+    /// qualifiers [self class]]` folds only where real Tcl produces that
+    /// value.
+    pub oo_defining_class: Option<String>,
 }
 
 impl Scope {
@@ -1164,6 +1184,7 @@ impl Scope {
             children: Vec::new(),
             oo_global_resolution: false,
             oo_method_frame: false,
+            oo_defining_class: None,
         }
     }
 

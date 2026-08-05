@@ -427,6 +427,41 @@ impl WasmModule {
         func_idx
     }
 
+    /// The module's type section — every interned function signature in
+    /// type-index order, as `(params, results)` pairs.
+    ///
+    /// This is what [`Self::to_bytes`] / [`Self::to_wat`] emit, computed
+    /// without mutating the module: import signatures are interned eagerly by
+    /// [`Self::add_import`], while defined-function signatures are only
+    /// interned when the module is serialised, so reading `self.types`
+    /// directly would under-report on a module that has not been emitted yet.
+    #[must_use]
+    pub fn type_section(&self) -> Vec<(Vec<ValType>, Vec<ValType>)> {
+        let mut types = self.types.clone();
+        for func in &self.functions {
+            let sig = (func.params.clone(), func.results.clone());
+            if !types.contains(&sig) {
+                types.push(sig);
+            }
+        }
+        types
+    }
+
+    /// Intern every defined function's signature into the type section.
+    ///
+    /// Both serialisers need the type section to cover the defined functions
+    /// (imports are interned by [`Self::add_import`] at registration time).
+    fn intern_function_types(&mut self) {
+        let sigs: Vec<(Vec<ValType>, Vec<ValType>)> = self
+            .functions
+            .iter()
+            .map(|f| (f.params.clone(), f.results.clone()))
+            .collect();
+        for (params, results) in &sigs {
+            self.intern_type(params, results);
+        }
+    }
+
     /// Intern a function signature, returning its type-section index.
     fn intern_type(&mut self, params: &[ValType], results: &[ValType]) -> usize {
         if let Some(idx) = self
@@ -453,14 +488,7 @@ impl WasmModule {
     #[must_use]
     pub fn to_bytes(&mut self) -> Vec<u8> {
         // Register every defined function's signature first.
-        let sigs: Vec<(Vec<ValType>, Vec<ValType>)> = self
-            .functions
-            .iter()
-            .map(|f| (f.params.clone(), f.results.clone()))
-            .collect();
-        for (params, results) in &sigs {
-            self.intern_type(params, results);
-        }
+        self.intern_function_types();
 
         let mut sections: Vec<u8> = Vec::new();
 
@@ -611,14 +639,7 @@ impl WasmModule {
     /// Render a human-readable WAT representation.
     #[must_use]
     pub fn to_wat(&mut self) -> String {
-        let sigs: Vec<(Vec<ValType>, Vec<ValType>)> = self
-            .functions
-            .iter()
-            .map(|f| (f.params.clone(), f.results.clone()))
-            .collect();
-        for (params, results) in &sigs {
-            self.intern_type(params, results);
-        }
+        self.intern_function_types();
 
         let mut lines: Vec<String> = vec!["(module".to_owned()];
 
@@ -874,6 +895,28 @@ mod tests {
         );
         // Two distinct signatures => two types.
         assert_eq!(m.types.len(), 2);
+    }
+
+    #[test]
+    fn type_section_matches_the_emitted_type_table() {
+        // `type_section()` is the non-mutating view the explorer reads before
+        // anything has serialised the module. It must already agree with the
+        // table `to_bytes` ends up interning, or the explorer's `(module)`
+        // header under-reports the module's types (issue #1182).
+        let mut m = sample_module();
+        let before = m.type_section();
+        assert_eq!(
+            before.len(),
+            2,
+            "import signature + defined-function signature"
+        );
+        let _ = m.to_bytes();
+        assert_eq!(
+            before, m.types,
+            "type_section() must predict the emitted type section exactly"
+        );
+        // Idempotent: serialising again neither grows nor reorders the table.
+        assert_eq!(m.type_section(), m.types);
     }
 
     #[test]
