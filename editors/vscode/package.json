@@ -3608,6 +3608,27 @@
             "default": false,
             "markdownDescription": "Rewrite unbraced `expr` arguments as braced expressions.",
             "order": 3
+          },
+          "tclLsp.formatting.expandAbbreviations": {
+            "scope": "language-overridable",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "Expand unique-prefix keyword abbreviations to their canonical spellings (`string le` becomes `string length`, `lsearch -noc` becomes `lsearch -nocase`). Ambiguous and unknown words are always left alone.",
+            "order": 4
+          },
+          "tclLsp.formatting.booleanForm": {
+            "scope": "language-overridable",
+            "type": "string",
+            "default": "true/false",
+            "markdownDescription": "Spelling every boolean-consumed word is normalised to. Only consumption sites the registry proves boolean are rewritten, never a value-definition site such as `set flag yes`.",
+            "enum": [
+              "true/false",
+              "yes/no",
+              "on/off",
+              "0/1",
+              "preserve"
+            ],
+            "order": 5
           }
         }
       },

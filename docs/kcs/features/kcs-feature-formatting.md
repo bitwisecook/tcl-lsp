@@ -22,7 +22,42 @@ all-editors, MCP, transform
   - `maxLineLength`, `goalLineLength`
   - `spaceAfterCommentHash`, `trimTrailingWhitespace`, `ensureFinalNewline`
   - `lineEnding` (default `auto`)
+  - `expandAbbreviations` (default `true`), `booleanForm` (default `true/false`)
   - `expandSingleLineBodies`, `blankLinesBetweenProcs`, and more.
+
+### Keyword abbreviations and boolean form
+
+Tcl accepts any unique prefix of an ensemble subcommand or an `-option`, so
+`string le` is `string length` and `lsearch -noc` is `lsearch -nocase`. It
+also accepts `true`, `yes`, `on`, `1` (and their prefixes) wherever a value is
+consumed as a boolean. Both make a file read as several conventions at once,
+so the formatter normalises them.
+
+`tclLsp.formatting.expandAbbreviations` (default `true`) expands unique-prefix
+abbreviations to their canonical spellings:
+
+```tcl
+string le $s          ;# → string length $s
+lsearch -noc -al $x $p ;# → lsearch -nocase -all $x $p
+```
+
+An **ambiguous** prefix is never rewritten — the formatter does not guess.
+`string l $s` keeps its bytes and gets the
+[W145 ambiguity warning](../codes/kcs-diagnostic-w145-ambiguous-abbreviation.md)
+with one quick fix per candidate. Strict tables, ensembles configured with
+`namespace ensemble … -prefixes 0`, dynamic words, and command names (Tcl
+never prefix-matches those) are all left alone.
+
+`tclLsp.formatting.booleanForm` (default `true/false`; also `yes/no`,
+`on/off`, `0/1`, `preserve`) normalises every word the registry proves is
+consumed as a boolean. A **value-definition** site is never rewritten: `set
+flag yes` keeps its bytes, because `$flag` may later be compared with `eq
+"yes"`, matched by a `switch` arm, or written to a log — `true` and `yes` are
+different strings even though both are truthy.
+
+Both rewrites are idempotent, and both apply to whole-document formatting,
+range formatting, and format-on-save alike. A range format only rewrites
+words wholly inside the range.
 
 ### Line endings
 

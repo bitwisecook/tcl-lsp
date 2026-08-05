@@ -74,6 +74,57 @@ pub enum DocstringTagStyle {
     None,
 }
 
+/// Which spelling pair every boolean-consumed word is normalised to
+/// (#1233).
+///
+/// Tcl accepts `true`/`false`, `yes`/`no`, `on`/`off`, `0`/`1`, and any
+/// unique prefix of the word forms, wherever a value is consumed as a
+/// boolean. One global choice is applied everywhere, with no per-context
+/// carve-outs, so a file reads with one convention.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BooleanForm {
+    /// `true` / `false` — the default.
+    #[default]
+    TrueFalse,
+    /// `yes` / `no`.
+    YesNo,
+    /// `on` / `off`.
+    OnOff,
+    /// `1` / `0`.
+    ZeroOne,
+    /// Leave every boolean word's bytes untouched.
+    Preserve,
+}
+
+impl BooleanForm {
+    /// The `(true-spelling, false-spelling)` pair, or `None` for
+    /// [`Self::Preserve`].
+    #[must_use]
+    pub const fn pair(self) -> Option<(&'static str, &'static str)> {
+        match self {
+            Self::TrueFalse => Some(("true", "false")),
+            Self::YesNo => Some(("yes", "no")),
+            Self::OnOff => Some(("on", "off")),
+            Self::ZeroOne => Some(("1", "0")),
+            Self::Preserve => None,
+        }
+    }
+
+    /// Parse the editor-settings spelling (`"true/false"`, `"yes/no"`,
+    /// `"on/off"`, `"0/1"`, `"preserve"`). An unrecognised value falls back
+    /// to the default.
+    #[must_use]
+    pub fn parse(value: &str) -> Self {
+        match value {
+            "yes/no" => Self::YesNo,
+            "on/off" => Self::OnOff,
+            "0/1" => Self::ZeroOne,
+            "preserve" => Self::Preserve,
+            _ => Self::TrueFalse,
+        }
+    }
+}
+
 /// All configurable formatting options.
 ///
 /// This is a flat configuration DTO: every boolean is an independent,
@@ -158,6 +209,17 @@ pub struct FormatterConfig {
     pub docstring_decoration_char: char,
     /// Width of docstring decoration border lines (stub generator).
     pub docstring_decoration_width: usize,
+    /// Expand unique-prefix keyword abbreviations to their canonical
+    /// spellings (`string le` → `string length`, `lsearch -noc` →
+    /// `lsearch -nocase`).  Default `true`.  Ambiguous and unknown words are
+    /// always left alone — the formatter never guesses.  See
+    /// [`super::keywords`].
+    pub expand_abbreviations: bool,
+    /// Which spelling every boolean-consumed word is normalised to.  Default
+    /// [`BooleanForm::TrueFalse`]; [`BooleanForm::Preserve`] turns the
+    /// rewrite off.  Only *consumption* sites the registry proves boolean are
+    /// rewritten — never a value-definition site.
+    pub boolean_form: BooleanForm,
     /// Lexer preset the formatter tokenises with. Carries the dialect's
     /// parsing rules — notably `irules_brace_separator`, which makes an iRule's
     /// `}{` (valid in TMM, e.g. `if {expr}{body}`) parse as two words so the
@@ -195,6 +257,8 @@ impl Default for FormatterConfig {
             docstring_decoration: false,
             docstring_decoration_char: '.',
             docstring_decoration_width: 70,
+            expand_abbreviations: true,
+            boolean_form: BooleanForm::TrueFalse,
             lexer_config: LexerConfig::default(),
         }
     }

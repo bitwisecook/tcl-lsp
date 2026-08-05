@@ -48,6 +48,7 @@
 pub mod config;
 pub mod docstring;
 pub mod engine;
+pub(crate) mod keywords;
 
 pub use config::{
     DocstringStyle, DocstringTagStyle, FormatterConfig, IndentStyle, LINE_ENDING_AUTO,

@@ -15139,6 +15139,7 @@ fn apply_formatting_object(
     {
         cfg.align_comments_to_code = b;
     }
+    apply_keyword_formatting(obj, cfg);
     if let Some(n) = obj.get("blankLinesBetweenProcs").and_then(as_usize) {
         cfg.blank_lines_between_procs = n;
     }
@@ -15149,6 +15150,23 @@ fn apply_formatting_object(
         cfg.max_consecutive_blank_lines = n;
     }
     apply_docstring_formatting(obj, cfg);
+}
+
+/// Read the keyword-normalisation `tclLsp.formatting.*` settings into `cfg`
+/// (#1232 `expandAbbreviations`, #1233 `booleanForm`).
+fn apply_keyword_formatting(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    cfg: &mut core_formatting::FormatterConfig,
+) {
+    if let Some(b) = obj
+        .get("expandAbbreviations")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.expand_abbreviations = b;
+    }
+    if let Some(v) = obj.get("booleanForm").and_then(serde_json::Value::as_str) {
+        cfg.boolean_form = core_formatting::config::BooleanForm::parse(v);
+    }
 }
 
 /// Read the `docstring*` `tclLsp.formatting.*` settings into `cfg`. Kept for

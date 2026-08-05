@@ -596,6 +596,21 @@ fn fmt_group_braces_and_style() -> (&'static str, Vec<FmtSetting>) {
                 description: "Rewrite unbraced `expr` arguments as braced expressions.",
                 ..FmtSetting::DEFAULT
             },
+            FmtSetting {
+                field: "expand_abbreviations",
+                default: json!(true),
+                json_type: "boolean",
+                description: "Expand unique-prefix keyword abbreviations to their canonical spellings (`string le` becomes `string length`, `lsearch -noc` becomes `lsearch -nocase`). Ambiguous and unknown words are always left alone.",
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "boolean_form",
+                default: json!("true/false"),
+                json_type: "string",
+                description: "Spelling every boolean-consumed word is normalised to. Only consumption sites the registry proves boolean are rewritten, never a value-definition site such as `set flag yes`.",
+                enum_values: &["true/false", "yes/no", "on/off", "0/1", "preserve"],
+                ..FmtSetting::DEFAULT
+            },
         ],
     )
 }

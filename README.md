@@ -738,7 +738,8 @@ proc messy {x} {
 
 Capabilities include indentation (spaces or tabs, configurable size),
 brace placement (K&R), expression bracing enforcement, variable
-bracing (`$var` → `${var}`), line-length wrapping, semicolon splitting,
+bracing (`$var` → `${var}`), keyword-abbreviation expansion, boolean-form
+normalisation, line-length wrapping, semicolon splitting,
 single-line body expansion, blank-line normalisation between procs and
 blocks, comment alignment, trailing whitespace trimming, and line-ending
 normalisation (LF/CRLF/CR).
@@ -750,6 +751,11 @@ if $x>0 { ... }           ;# → rewritten to: if {$x > 0} { ... }
 
 # Variable bracing (enforceBracedVariables = true):
 puts $name                 ;# → rewritten to: puts ${name}
+
+# Keyword-abbreviation expansion (expandAbbreviations = true, the default):
+string le $s               ;# → rewritten to: string length $s
+lsearch -noc $x $p         ;# → rewritten to: lsearch -nocase $x $p
+string l $s                ;# ✗ ambiguous — left alone, and reported as W145
 ```
 
 ### Code actions
@@ -2860,6 +2866,8 @@ on the F5 iRules Style Guide):
 | `spaceBetweenBraces` | `true` | Space between consecutive braces (`} {` vs `}{`) |
 | `enforceBracedVariables` | `false` | Rewrite `$var` as `${var}` |
 | `enforceBracedExpr` | `false` | Require braced expressions |
+| `expandAbbreviations` | `true` | Expand unique-prefix keyword abbreviations to canonical spellings |
+| `booleanForm` | `true/false` | Spelling every boolean-consumed word is normalised to (`true/false`, `yes/no`, `on/off`, `0/1`, `preserve`) |
 | `maxLineLength` | `120` | Hard line length limit |
 | `goalLineLength` | `100` | Soft target for line length |
 | `expandSingleLineBodies` | `false` | Force multi-line bodies |
