@@ -203,27 +203,24 @@ fn serialise_children(stmt: &Statement, li: &LineIndex, source: &str) -> Option<
 /// explorer shape (`wasm_explorer::wasm_to_explorer_json` — resolved `call`
 /// targets, paired `br`/`br_if` targets, block-pairing indices, per-instruction
 /// ranges). The synthetic `(module)` entry additionally carries the full WAT
-/// `text` and the module-wide counts the TUI `wasm` view renders, so both the
-/// text renderer and the web GUI read one shape.
+/// `text`, so both the text renderer and the web GUI read one shape; the
+/// module-wide counts (`functionCount` / `totalInstrCount`) and the type
+/// section come from `wasm_to_explorer_json` itself.
 fn serialise_wasm(module: &Module, source: &str) -> Value {
     use tcl_compiler::codegen::wasm::wasm_codegen_module;
 
     let mut wasm = wasm_codegen_module(module, source);
-    let total_instr: usize = wasm.functions.iter().map(|f| f.body.len()).sum();
-    let function_count = wasm.functions.len();
     let wat = wasm.to_wat();
 
     // Rich per-instruction entries (module header first, then functions).
     let li = LineIndex::new(source);
     let mut entries = crate::wasm_explorer::wasm_to_explorer_json(&wasm, &li, source);
 
-    // Augment the synthetic `(module)` header with the WAT text + counts the
-    // TUI renderer needs (it reads `text` on the module entry and
+    // Augment the synthetic `(module)` header with the WAT text the TUI
+    // renderer reads (it reads `text` on the module entry and
     // `name`/`instrCount` on each function entry, both already present).
     if let Some(Value::Object(header)) = entries.first_mut() {
         header.insert("text".to_owned(), Value::String(wat));
-        header.insert("functionCount".to_owned(), json!(function_count));
-        header.insert("totalInstrCount".to_owned(), json!(total_instr));
     }
     Value::Array(entries)
 }

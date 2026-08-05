@@ -397,10 +397,18 @@ fn test_diagnostics_master_switch_clears_all() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     assert!(!lsp.open_ready(&uri, "catch {error e}\n").is_empty()); // non-empty by default
-    lsp.clear_notifications();
+    // A version-tagged `await_diagnostics_version` races here (issue #1135):
+    // the just-opened document's own analysis can still have a later publish
+    // for version 1 in flight (e.g. a converged correction), and a config
+    // change never bumps the document version, so that stale non-empty
+    // publish and the master-off empty one are indistinguishable by
+    // (uri, version) alone. Capture a cursor and key on the server's own
+    // `diagnostics master-off` marker instead — see
+    // `Lsp::await_diagnostics_master_off`.
+    let since = lsp.notification_cursor();
     lsp.apply_configuration(json!({ "features": { "diagnostics": false } }));
     assert_eq!(
-        lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(15)),
+        lsp.await_diagnostics_master_off(&uri, Duration::from_secs(15), since),
         Vec::<Value>::new()
     );
 }

@@ -45,6 +45,7 @@ use crate::common::helpers::*;
 use crate::common::{Lsp, Rng, scaled_timeout, unique_uri};
 
 use serde_json::{Value, json};
+use std::fmt::Write as _;
 use std::time::{Duration, Instant};
 
 // --------------------------------------------------------------------------- #
@@ -794,6 +795,65 @@ fn feature_requests_interleaved_with_edits() {
         lsp.document_symbols(&uri);
         lsp.semantic_tokens(&uri);
     }
+    let fresh = unique_uri("tcl");
+    let text = mirror.text.clone();
+    assert_buffer_equiv(&mut lsp, &uri, version, &fresh, &text);
+}
+
+#[test]
+fn every_snapshot_consumer_stays_correct_while_typing_a_large_document() {
+    // Issue #1184: request handlers no longer receive a deep copy of the
+    // document — they share one immutable text + line-index allocation, taken
+    // under the store lock and released before any `.await`. The sharing is
+    // only safe because each snapshot stays pinned to the revision it was taken
+    // at, so the property to pin here is that *every* major `read_document`
+    // consumer still resolves positions against the buffer it was given, on a
+    // document large enough that a stale index would land on the wrong line.
+    //
+    // The oracle is the same one this suite uses throughout: after the edit
+    // sequence the live buffer must behave identically to a freshly opened
+    // document holding the same final text. A snapshot that had picked up a
+    // half-applied edit — new text with an old line index, or vice versa —
+    // shows up as a token or symbol at the wrong position.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let mut src = String::new();
+    for i in 0..300 {
+        let _ = writeln!(
+            src,
+            "proc helper{i} {{a b}} {{\n    set total [expr {{$a + $b}}]\n    return $total\n}}"
+        );
+    }
+    lsp.open_ready(&uri, &src);
+    let mut mirror = TextMirror::new(&src);
+    let mut rng = Rng::new(1184);
+    let mut version = 1i64;
+
+    for round in 0..12 {
+        let edit = random_edit(&mirror, &mut rng);
+        mirror.apply(&edit);
+        version += 1;
+        lsp.change_document(&uri, version, json!([edit.as_content_change()]));
+        // Fan out across the snapshot consumers named in #1184's test matrix,
+        // rotating so each one lands at a different point in the edit stream.
+        lsp.semantic_tokens(&uri);
+        lsp.document_symbols(&uri);
+        match round % 4 {
+            0 => {
+                lsp.hover(&uri, 1, 8);
+            }
+            1 => {
+                lsp.completion(&uri, 1, 8);
+            }
+            2 => {
+                lsp.definition(&uri, 2, 12);
+            }
+            _ => {
+                lsp.references(&uri, 0, 5, true);
+            }
+        }
+    }
+
     let fresh = unique_uri("tcl");
     let text = mirror.text.clone();
     assert_buffer_equiv(&mut lsp, &uri, version, &fresh, &text);

@@ -170,7 +170,12 @@ pub fn spec() -> CommandSpec {
             // so a module that defines its own `unknown` has callers the
             // interprocedural seed must enumerate from those words rather
             // than from direct calls alone (issue #1044).
-            | Traits::UNRESOLVED_COMMAND_HANDLER,
+            | Traits::UNRESOLVED_COMMAND_HANDLER
+            // The handler receives the unresolved command *name* as data
+            // (and user scripts routinely redefine `unknown` to dispatch on
+            // it), so a program invoking or overriding it observes command
+            // names.
+            | Traits::REFLECTS_COMMAND_NAMES,
         // `cmdName ?arg arg ...?` — at least 1 argument, unbounded
         // above. Identical in every fetched manpage, Tcl 8.4 through
         // 9.1.

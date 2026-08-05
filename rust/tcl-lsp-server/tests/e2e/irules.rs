@@ -27,7 +27,7 @@
 //! uncontaminated.
 
 use crate::common::helpers::*;
-use crate::common::{Lsp, unique_uri};
+use crate::common::{Lsp, scaled_timeout, unique_uri};
 
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -1234,7 +1234,7 @@ const DEEP_MARKER: &str = "IRULE1006";
 fn deep_diags(lsp: &mut Lsp, source: &str) -> Vec<Value> {
     let uri = unique_uri("irule");
     lsp.open_ready_lang(&uri, source, "tcl-irule");
-    let deadline = std::time::Instant::now() + Duration::from_secs(25);
+    let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(25));
     let mut diags = Vec::new();
     while std::time::Instant::now() < deadline {
         diags = lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(25));
@@ -1388,7 +1388,7 @@ fn when_body_is_analysed_under_irules() {
 fn diags_until(lsp: &mut Lsp, source: &str, marker: &str) -> Vec<Value> {
     let uri = unique_uri("irule");
     lsp.open_ready_lang(&uri, source, "tcl-irule");
-    let deadline = std::time::Instant::now() + Duration::from_secs(25);
+    let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(25));
     let mut diags = Vec::new();
     while std::time::Instant::now() < deadline {
         diags = lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(25));

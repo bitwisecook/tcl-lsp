@@ -24,11 +24,13 @@
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
+    const OP: BpfOpSpec = BpfOpSpec::framework(BpfDeclKind::When);
     CommandSpec {
         name: "when",
         dialects: Some(DialectSet::BPF),
         // EVENT BODY  |  EVENT priority N BODY
         arity: Arity::new(2, 4),
+        bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }
 }

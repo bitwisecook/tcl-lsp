@@ -206,6 +206,10 @@ impl Diagnostic {
                 span: w.span,
                 new_text: r.clone(),
                 description: "Rewrite with `file join`".to_string(),
+                // W201: `file join` normalises separators and absolute-path
+                // segments, so the joined result is not always the concatenated
+                // string it replaces.
+                safety: crate::irules_checks::FixSafety::RequiresReview,
             }]
         });
         Self {

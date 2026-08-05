@@ -71,6 +71,16 @@ fn one(i: Insn) -> String {
                 _ => raw(i),
             }
         }
+        0x00 if i.op == 0x18 => {
+            // Wide-immediate load (`lddw`): a pseudo map-fd load carries the
+            // map source register; its immediate is patched by a relocation.
+            if i.src == crate::ebpf::insn::PSEUDO_MAP_FD {
+                format!("r{d} = map_fd(reloc)")
+            } else {
+                format!("r{d} = lddw(imm={})", i.imm)
+            }
+        }
+        0x00 if i.op == 0x00 => format!("<lddw high imm={}>", i.imm),
         0x01 => format!("r{d} = *({} *)(r{s} {:+})", sz(i.op), i.off),
         0x03 => format!("*({} *)(r{d} {:+}) = r{s}", sz(i.op), i.off),
         0x02 => format!("*({} *)(r{d} {:+}) = {}", sz(i.op), i.off, i.imm),

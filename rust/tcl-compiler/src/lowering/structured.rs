@@ -24,7 +24,7 @@
 
 use std::borrow::Cow;
 
-use tcl_lexer::{Lexer, SourceMap, Span, Token, TokenType};
+use tcl_lexer::{Span, Token, TokenType};
 
 use crate::expr_parser::parse_expr;
 use crate::ir::{ForeachIterator, IfClause, Script, Statement, SwitchArm, SwitchMode, TryHandler};
@@ -32,14 +32,8 @@ use crate::lowering_hooks::word_content_base;
 use crate::naming::normalise_var_name;
 use crate::segmenter::SegmentedCommand;
 
-use crate::segmenter::word_piece;
-
 use super::{Lowerer, parse_param_names};
 
-/// Parse a braced switch body into a flat list of word elements.
-///
-/// Tokenises the body text and collects words separated by whitespace/EOL,
-/// merging multi-token words. Returns the element texts in order.
 /// A single pattern/body pair collected by
 /// [`lower_switch`](super::Lowerer::lower_switch) before the
 /// final `SwitchArm` list is built. Factored out to keep the
@@ -52,67 +46,77 @@ struct SwitchPair {
     body_arg_idx: Option<usize>,
 }
 
-/// Split a switch's braced body into its `(element_text,
-/// local_span)` pairs. The span is expressed in the body text's
-/// own offset space — callers relocate it to the full source
-/// buffer by adding the body text's starting offset.
-fn switch_body_elements(body_text: &str) -> Vec<(String, Span)> {
-    let sm = SourceMap::new(body_text);
-    let lexer = Lexer::new(body_text);
-    let Ok(tokens) = lexer.tokenise_all() else {
-        return Vec::new();
-    };
-
-    let mut elements: Vec<(String, Span)> = Vec::new();
-    let mut prev_is_sep = true;
-
-    for &tok in &tokens {
-        match tok.kind {
-            TokenType::Sep | TokenType::Eol | TokenType::Comment => {
-                prev_is_sep = true;
-                continue;
-            }
-            TokenType::Eof => continue,
-            _ => {}
-        }
-
-        let piece = word_piece(&sm, tok);
-        // Token spans for braced / quoted words do not include
-        // the trailing `}` / `"` — the lexer treats the closing
-        // delimiter as an anchor rather than a span member.
-        // Extend `end` by one byte when the source byte at the
-        // current end position is the matching closer, so the
-        // resulting span covers the whole `{…}` / `"…"` word.
-        let tok_span = adjusted_delim_span(body_text, tok);
-        if prev_is_sep {
-            elements.push((piece, tok_span));
-        } else if let Some(last) = elements.last_mut() {
-            last.0.push_str(&piece);
-            last.1 = Span::new(last.1.start(), tok_span.end());
-        } else {
-            elements.push((piece, tok_span));
-        }
-        prev_is_sep = false;
-    }
-
-    elements
+/// One element of a switch's braced case list.
+struct SwitchElement {
+    /// The element's decoded **value** — what C Tcl's list split hands the
+    /// pattern comparison (`Tcl_SplitList` semantics: braced content
+    /// verbatim, backslashes collapsed in bare / quoted elements, so a bare
+    /// `a\ b` pattern is the value `a b`).
+    value: String,
+    /// The element's raw interior text as written (delimiters stripped,
+    /// backslashes untouched) — what a braced body's script lowering reads.
+    raw: String,
+    /// Local span, delimiter-inclusive for `{…}` / `"…"` elements, in the
+    /// body text's own offset space — callers relocate it to the full
+    /// source buffer by adding the body text's starting offset.
+    span: Span,
 }
 
-/// Extend a token's span by one byte when its end lands on a
-/// closing `{}` / `""` delimiter — the lexer stops the span
-/// just before the closer. For all other tokens the span is
-/// returned unchanged.
-fn adjusted_delim_span(source: &str, tok: tcl_lexer::Token) -> Span {
-    if tok.content_offset == 0 {
-        return tok.span;
+/// Split a switch's braced case list into its elements with the central
+/// Tcl **list** grammar ([`tcl_syntax::list::find_element`]).
+///
+/// A braced case list is a list, not a script: C Tcl's
+/// `TclNRSwitchObjCmd` splits it with `TclListObjGetElements`
+/// (`generic/tclCmdMZ.c`), so `#` starts no comment there and `;` is an
+/// ordinary pattern character.  The previous script-lexer implementation
+/// skipped `TokenType::Comment` tokens, silently deleting a valid `#`
+/// pattern and its body (issue #1197 — tclsh 9.0.4: `switch # { #
+/// {puts matched} default {puts default} }` prints `matched`).
+///
+/// Returns `None` when the text is not a well-formed list — the caller
+/// bails the whole `switch` to the runtime command, which reports the
+/// error exactly as C Tcl does.
+fn switch_body_elements(body_text: &str) -> Option<Vec<SwitchElement>> {
+    let bytes = body_text.as_bytes();
+    let mut elements = Vec::new();
+    let mut scan = 0usize;
+    loop {
+        match tcl_syntax::list::find_element(body_text, scan) {
+            Ok(Some(el)) => {
+                let raw = body_text[el.value.clone()].to_owned();
+                let value = if el.literal {
+                    raw.clone()
+                } else {
+                    tcl_lexer::backslash_subst(&raw).into_owned()
+                };
+                let quoted = !el.braced
+                    && el.value.start > 0
+                    && bytes.get(el.value.start - 1) == Some(&b'"');
+                let (start, end) = if el.braced || quoted {
+                    (el.value.start - 1, el.value.end + 1)
+                } else {
+                    (el.value.start, el.value.end)
+                };
+                let local_span = Span::new(
+                    u32::try_from(start).unwrap_or(u32::MAX),
+                    u32::try_from(end).unwrap_or(u32::MAX),
+                );
+                let next = el.next;
+                elements.push(SwitchElement {
+                    value,
+                    raw,
+                    span: local_span,
+                });
+                if next <= scan {
+                    break;
+                }
+                scan = next;
+            }
+            Ok(None) => break,
+            Err(_) => return None,
+        }
     }
-    let end = tok.span.end() as usize;
-    let bytes = source.as_bytes();
-    if end < bytes.len() && matches!(bytes[end], b'}' | b'"') {
-        Span::new(tok.span.start(), tok.span.end() + 1)
-    } else {
-        tok.span
-    }
+    Some(elements)
 }
 
 /// Parse switch options, returning `(first_non_option_index, mode, nocase,
@@ -851,7 +855,11 @@ impl Lowerer<'_> {
             let content_shift = 1_u32; // skip leading `{`
             let body_base = outer_arg_span.start().saturating_add(content_shift);
 
-            let elements = switch_body_elements(body_text);
+            // Not a well-formed Tcl list — bail to the runtime `switch`,
+            // which reports the list error exactly as C Tcl does.
+            let Some(elements) = switch_body_elements(body_text) else {
+                return Self::barrier(seg, "switch case list is not a list");
+            };
             // An empty arm list (`switch x {}`) is a "wrong # args" error, not a
             // no-op — bail to the runtime command, which reports it.
             if elements.is_empty() {
@@ -867,13 +875,16 @@ impl Lowerer<'_> {
             };
             let mut j = 0;
             while j + 1 < elements.len() {
-                let (pat_text, pat_local) = &elements[j];
-                let (body_text_e, body_local) = &elements[j + 1];
+                let pat = &elements[j];
+                let body = &elements[j + 1];
                 pairs.push(SwitchPair {
-                    pattern: pat_text.clone(),
-                    pattern_span: relocate(*pat_local),
-                    body_text: body_text_e.clone(),
-                    body_span: Some(relocate(*body_local)),
+                    // The pattern is the element's decoded list VALUE
+                    // (`a\ b` matches the subject `a b`); the body keeps
+                    // its raw spelling for script lowering.
+                    pattern: pat.value.clone(),
+                    pattern_span: relocate(pat.span),
+                    body_text: body.raw.clone(),
+                    body_span: Some(relocate(body.span)),
                     body_arg_idx: None,
                 });
                 j += 2;

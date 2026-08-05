@@ -29,6 +29,16 @@
 //! (`profile NAME { field … }`). Offsets assume an Ethernet(14) + IPv4(20,
 //! no options) + L4 layout. Other facets (templates, capability, deployment)
 //! layer onto this same `BpfProfileSpec` in later increments.
+//!
+//! Multi-byte fields are read in **network order** (big-endian) by default —
+//! the order real Ethernet/IP/TCP/UDP headers use — so `tcp_dport dport`
+//! matches a realistic packet on a little-endian host. A user field may
+//! opt out with an explicit trailing `le`/`native` word
+//! (`field NAME OFFSET WIDTHBITS ?be|le|native?`); `native` exists only as a
+//! temporary compatibility mode for synthetic host-order test packets.
+//!
+//! A user profile body may contain **only** `field` declarations — anything
+//! else is rejected rather than silently dropped (`RUST_ISSUE_063`).
 
 use tcl_compiler::ir::IfClause;
 use tcl_compiler::lowering::lower_to_ir;
@@ -37,6 +47,7 @@ use tcl_lexer::Span;
 use tcl_registry::registry::CommandRegistry;
 
 use crate::diag::{BpfDiag, BpfError};
+use crate::ty::ByteOrder;
 
 /// A named header field at a fixed packet offset.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,6 +58,8 @@ pub struct FieldDef {
     pub offset: i32,
     /// Width in bits (8, 16, or 32).
     pub width_bits: u8,
+    /// How the field's bytes are interpreted (default: network order).
+    pub order: ByteOrder,
 }
 
 /// A profile: a named bundle of header fields (+ later facets).
@@ -71,6 +84,8 @@ fn field(name: &str, offset: i32, width_bits: u8) -> FieldDef {
         name: name.to_owned(),
         offset,
         width_bits,
+        // Built-in profiles describe real network headers: network order.
+        order: ByteOrder::Big,
     }
 }
 
@@ -184,35 +199,65 @@ fn parse_user_profile(
     let module = lower_to_ir(body, registry);
     let mut fields = Vec::new();
     for stmt in &module.top_level.statements {
-        if let Statement::Call {
+        let Statement::Call {
             command,
             canonical_command,
             args,
             span,
             ..
         } = stmt
-            && canonical_command.as_deref().unwrap_or(command.as_str()) == "field"
-        {
-            // field NAME OFFSET WIDTHBITS
-            if args.len() != 3 {
-                return Err(BpfError::new(
-                    BpfDiag::BadProfile,
-                    *span,
-                    "`field` expects: field NAME OFFSET WIDTHBITS",
-                ));
-            }
-            let offset = args[1].parse::<i32>().map_err(|_| {
-                BpfError::new(BpfDiag::BadInt, *span, "field offset must be an integer")
-            })?;
-            let width_bits = parse_width(&args[2]).ok_or_else(|| {
+        else {
+            // A profile body is a pure declaration list — reject any control
+            // flow or assignment rather than dropping it (RUST_ISSUE_063).
+            return Err(BpfError::new(
+                BpfDiag::BadProfile,
+                stmt.span(),
+                "only `field` declarations are allowed inside a `profile` body",
+            ));
+        };
+        let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
+        if cmd != "field" {
+            return Err(BpfError::new(
+                BpfDiag::BadProfile,
+                *span,
+                format!(
+                    "only `field` declarations are allowed inside a `profile` \
+                     body; `{cmd}` would be silently dropped"
+                ),
+            ));
+        }
+        // field NAME OFFSET WIDTHBITS ?be|le|native?
+        if args.len() < 3 || args.len() > 4 {
+            return Err(BpfError::new(
+                BpfDiag::BadProfile,
+                *span,
+                "`field` expects: field NAME OFFSET WIDTHBITS ?be|le|native?",
+            ));
+        }
+        let offset = args[1].parse::<i32>().map_err(|_| {
+            BpfError::new(BpfDiag::BadInt, *span, "field offset must be an integer")
+        })?;
+        let width_bits = parse_width(&args[2]).ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::BadProfile,
+                *span,
+                "field width must be 8, 16, or 32",
+            )
+        })?;
+        let order = match args.get(3) {
+            // Network order is the default: real headers are big-endian.
+            None => ByteOrder::Big,
+            Some(word) => ByteOrder::parse(word).ok_or_else(|| {
                 BpfError::new(
                     BpfDiag::BadProfile,
                     *span,
-                    "field width must be 8, 16, or 32",
+                    format!("unknown field byte order `{word}` (want be, le, or native)"),
                 )
-            })?;
-            fields.push(field(&args[0], offset, width_bits));
-        }
+            })?,
+        };
+        let mut f = field(&args[0], offset, width_bits);
+        f.order = order;
+        fields.push(f);
     }
     Ok(BpfProfileSpec {
         name: name.to_owned(),
@@ -274,9 +319,14 @@ fn expand_script(
                         16 => "load16",
                         _ => "load32",
                     };
+                    let order = match f.order {
+                        ByteOrder::Big => "be",
+                        ByteOrder::Little => "le",
+                        ByteOrder::Native => "native",
+                    };
                     out.push(synth_call(
                         load,
-                        &[&args[0], "__pkt", &f.offset.to_string()],
+                        &[&args[0], "__pkt", &f.offset.to_string(), order],
                         *span,
                     ));
                 } else {

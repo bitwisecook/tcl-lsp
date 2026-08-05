@@ -382,8 +382,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // An ensemble publishes its namespace's commands under a single
         // dispatching command name (and `-map` can redirect a subcommand
         // to an arbitrary prefix), so the mapped commands acquire callers
-        // that need not appear in this file at all.
-        traits: Traits::EXPORTS_COMMAND,
+        // that need not appear in this file at all.  The map / dispatch
+        // machinery also holds command names as data, so a program using
+        // ensembles observes command names (REFLECTS_COMMAND_NAMES).
+        traits: Traits::EXPORTS_COMMAND.union(Traits::REFLECTS_COMMAND_NAMES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -456,13 +458,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceExport),
         // Publishes this namespace's commands for another unit to
         // `namespace import`, so the exported names have callers this file
-        // does not contain.
-        traits: Traits::EXPORTS_COMMAND,
+        // does not contain.  The export patterns match commands by their
+        // spelled names, so those names are observable data
+        // (REFLECTS_COMMAND_NAMES).
+        traits: Traits::EXPORTS_COMMAND.union(Traits::REFLECTS_COMMAND_NAMES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "forget",
-        traits: Traits::FIRE_AND_FORGET_TEARDOWN,
+        // Removes imported commands matched by spelled name / pattern.
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN.union(Traits::REFLECTS_COMMAND_NAMES),
         arity: Arity::any(),
         detail: "Removes previously imported commands from a namespace.",
         synopsis: "namespace forget ?pattern pattern ...?",
@@ -482,6 +487,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "import",
+        // Imports commands by their spelled names / patterns.
+        traits: Traits::REFLECTS_COMMAND_NAMES,
         arity: Arity::any(),
         // The bare (no-pattern, no-flag) query form — "returns the list of
         // commands in the current namespace that have been imported from
@@ -540,6 +547,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "origin",
+        // Resolves an imported command's original spelled name.
+        traits: Traits::REFLECTS_COMMAND_NAMES,
         arity: Arity::exact(1),
         detail: "Returns the fully-qualified name of the original command.",
         synopsis: "namespace origin command",
@@ -595,6 +604,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "unknown",
+        // Installs a handler that receives unresolved command names.
+        traits: Traits::REFLECTS_COMMAND_NAMES,
         arity: Arity::new(0, 1),
         detail: "Sets or returns the unknown command handler for the current namespace.",
         synopsis: "namespace unknown ?script?",
@@ -653,6 +664,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "which",
+        // Looks a command up by its spelled name.
+        traits: Traits::REFLECTS_COMMAND_NAMES,
         // Exactly one trailing `name`; the two leading flags are declared in
         // `WHICH_OPTIONS`, so the arity check skips them before counting.
         // Verified against tclsh 9.0: 0 args and >1 positional both error.

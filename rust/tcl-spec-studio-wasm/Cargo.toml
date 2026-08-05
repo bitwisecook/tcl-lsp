@@ -23,6 +23,26 @@
 # wasm-bindgen's generated glue needs `unsafe`, which the workspace
 # `unsafe_code = "forbid"` lint bans, and it targets wasm32 with its own
 # lockfile. Built via `make spec-studio-wasm`; see build-wasm.sh.
+#
+# The empty `[workspace]` table below is load-bearing, not decorative: with
+# no workspace table of its own, cargo walks *up* the directory tree looking
+# for an ancestor manifest with `[workspace]` to attach to. That is normally
+# harmless because this crate's path is on the root workspace's `exclude`
+# list — except inside a git worktree checked out under the main checkout's
+# directory (e.g. `<main>/.claude/worktrees/<name>/rust/tcl-spec-studio-wasm`,
+# the standard layout for this repo's parallel agent worktrees): cargo keeps
+# walking past the worktree root and finds the *main checkout's* top-level
+# Cargo.toml. The exclude match is a path comparison relative to that
+# manifest's own directory, so the worktree-relative path
+# (`.claude/worktrees/<name>/rust/tcl-spec-studio-wasm`) does not match the
+# listed `rust/tcl-spec-studio-wasm`, and cargo errors with "current package
+# believes it's in a workspace when it's not" — `make check-rust` then fails
+# in every worktree, before and after any code change (issue #1136). An
+# empty `[workspace]` table makes this manifest a workspace root in its own
+# right, so the search never looks further up, in the main checkout or in
+# any worktree.
+[workspace]
+
 [package]
 name = "tcl-spec-studio-wasm"
 # This crate is `exclude`d from the root workspace, so it cannot inherit

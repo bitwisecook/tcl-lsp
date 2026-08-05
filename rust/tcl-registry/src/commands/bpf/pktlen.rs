@@ -20,10 +20,12 @@
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
+    const OP: BpfOpSpec = BpfOpSpec::gated(BpfOpKind::PacketLen, BpfEffects::PKT_READ);
     CommandSpec {
         name: "pktlen",
         dialects: Some(DialectSet::BPF),
         arity: Arity::exact(2),
+        bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT
     }
 }

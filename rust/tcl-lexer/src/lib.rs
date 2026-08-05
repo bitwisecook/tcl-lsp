@@ -28,7 +28,8 @@
 //!   source-mapping layer. Every positional entity holds a bare
 //!   [`Span`] and asks a [`SourceMap`] for text or positions on
 //!   demand.
-//! - [`word_closer_offset`], [`word_end_position`] — source-aware
+//! - [`word_closer_offset`], [`word_end_position`],
+//!   [`word_append_offset`] — source-aware
 //!   authoritative closer accessors for delimited word tokens, derived
 //!   from the lexer's content geometry (correct for empty `{}` / `[]` /
 //!   `""` and backslash-bearing quoted words).
@@ -62,7 +63,7 @@ pub use highlight::{
 };
 pub use lexer::{LexError, LexWarning, Lexer, LexerConfig};
 pub use line_index::{LineIndex, normalise_lone_cr};
-pub use ranges::{word_closer_offset, word_end_position};
+pub use ranges::{word_append_offset, word_closer_offset, word_end_position};
 pub use source_map::SourceMap;
 pub use span::Span;
 pub use structural_index::{

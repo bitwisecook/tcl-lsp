@@ -218,23 +218,85 @@ fn test_w003_no_fix_when_operator_nested_in_larger_expression() {
     );
 }
 
+/// The W302 quick-fix actions the server offers for `source`.
+///
+/// The cursor sits on the `catch` keyword — where the diagnostic anchors and
+/// where an editor's lightbulb is invoked — which is precisely the position
+/// the broken anchor derived its (wrong) insertion point from.
+fn w302_actions(lsp: &mut Lsp, uri: &str, source: &str) -> Value {
+    let diags = lsp.open_ready(uri, source);
+    let w302 = with_code(&diags, "W302");
+    assert!(!w302.is_empty(), "expected a W302 diagnostic: {diags:?}");
+    code_actions_only(lsp, uri, range((0, 0), (0, 4)), json!(w302), &["quickfix"])
+}
+
 #[test]
-fn test_w302_adds_result_capture_actions() {
+fn test_w302_result_capture_action_applies_after_the_body() {
+    // Issue #1190: the actions used to insert the right text at the wrong
+    // place, producing `catch result {error oops}` — C Tcl then evaluates
+    // the script `result` (completion code 1, `invalid command name
+    // "result"`) and stores it in a variable named `error oops`.  Asserting
+    // the *applied document* is what catches that; the old assertions
+    // checked only the inserted string and that the range was zero-width,
+    // both of which the broken fix satisfied.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let diags = lsp.open_ready(&uri, "catch {error oops}\n");
-    let w302 = with_code(&diags, "W302");
-    assert!(!w302.is_empty());
-    let actions = code_actions_only(
-        &mut lsp,
-        &uri,
-        range((0, 0), (0, 4)),
-        json!(w302),
-        &["quickfix"],
+    let source = "catch {error oops}\n";
+    let actions = w302_actions(&mut lsp, &uri, source);
+    assert_fix_applies(
+        &actions,
+        source,
+        "Add catch result variable(s)",
+        "catch {error oops} result\n",
     );
-    let snippets = new_texts(&actions);
-    assert!(snippets.iter().any(|s| s == " result"));
-    assert!(snippets.iter().any(|s| s == " result opts"));
+    assert_fix_applies(
+        &actions,
+        source,
+        "Add catch result + options variable(s)",
+        "catch {error oops} result options\n",
+    );
+}
+
+#[test]
+fn test_w302_result_capture_action_applies_after_a_multiline_body() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let source = "catch {\n    error oops\n}\n";
+    let actions = w302_actions(&mut lsp, &uri, source);
+    assert_fix_applies(
+        &actions,
+        source,
+        "Add catch result variable(s)",
+        "catch {\n    error oops\n} result\n",
+    );
+}
+
+#[test]
+fn test_w302_result_capture_action_keeps_a_trailing_comment() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let source = "catch {error oops} ;# best effort\n";
+    let actions = w302_actions(&mut lsp, &uri, source);
+    assert_fix_applies(
+        &actions,
+        source,
+        "Add catch result variable(s)",
+        "catch {error oops} result ;# best effort\n",
+    );
+}
+
+#[test]
+fn test_w302_result_capture_action_does_not_overshoot_an_empty_body() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let source = "catch {}\n";
+    let actions = w302_actions(&mut lsp, &uri, source);
+    assert_fix_applies(
+        &actions,
+        source,
+        "Add catch result variable(s)",
+        "catch {} result\n",
+    );
 }
 
 #[test]
@@ -446,6 +508,124 @@ fn test_extract_proc_snippets() {
     assert!(snippets.iter().any(|s| s.contains("extracted_proc $value")));
 }
 
+/// The `refactor.extract` actions named "Extract selection into proc" for a
+/// selection of `source`, requested through the real server.
+fn extract_proc_actions(lsp: &mut Lsp, uri: &str, from: (u32, u32), to: (u32, u32)) -> Vec<Value> {
+    let actions = code_actions_only(lsp, uri, range(from, to), json!([]), &["refactor.extract"]);
+    kinds(&actions, "refactor.extract")
+        .into_iter()
+        .filter(|a| action_title(a) == "Extract selection into proc")
+        .collect()
+}
+
+#[test]
+fn test_extract_proc_carries_a_caller_write_through_upvar() {
+    // Issue #1201's reproducer.  The original prints `1` then `after=1`; the
+    // old shape moved the `set x 1` into a proc *local*, so the caller kept
+    // its old value and printed `after=0`.  The generated proc now takes the
+    // variable by name and re-binds it with `upvar 1`, so the assignment
+    // lands back in the caller's frame.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set x 0\nset x 1\nputs $x\nputs \"after=$x\"\n");
+    let extract = extract_proc_actions(&mut lsp, &uri, (1, 0), (3, 0));
+    assert_eq!(extract.len(), 1, "{extract:?}");
+    let snippets = new_texts(&json!(extract));
+    assert!(
+        snippets.iter().any(|s| s.contains("upvar 1 $xName x")),
+        "the write must reach the caller's frame: {snippets:?}"
+    );
+    assert!(
+        snippets.iter().any(|s| s.trim_end() == "extracted_proc x"),
+        "the call passes the variable's name, not its value: {snippets:?}"
+    );
+}
+
+#[test]
+fn test_extract_proc_refuses_a_selection_containing_return() {
+    // `return` acts on the call frame: inside a new proc it would return from
+    // that proc rather than from the enclosing one.  Refused with a reason.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc f {} {\n    set x 1\n    return $x\n}\n");
+    let extract = extract_proc_actions(&mut lsp, &uri, (2, 0), (3, 0));
+    assert_eq!(extract.len(), 1, "{extract:?}");
+    let reason = extract[0]
+        .get("disabled")
+        .and_then(|d| d.get("reason"))
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| panic!("expected a refusal reason: {:?}", extract[0]));
+    assert!(reason.contains("call frame"), "{reason}");
+}
+
+#[test]
+fn test_extract_proc_refuses_a_selection_inside_a_namespace_eval() {
+    // The extracted proc would be created in a different namespace from the
+    // one the moved code ran in.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "namespace eval app {\n    set x 1\n    puts $x\n}\n");
+    let extract = extract_proc_actions(&mut lsp, &uri, (2, 0), (3, 0));
+    assert_eq!(extract.len(), 1, "{extract:?}");
+    let reason = extract[0]
+        .get("disabled")
+        .and_then(|d| d.get("reason"))
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| panic!("expected a refusal reason: {:?}", extract[0]));
+    assert!(reason.contains("namespace"), "{reason}");
+}
+
+#[test]
+fn test_inline_proc_binds_a_declared_default() {
+    // C Tcl 9 prints `hello world`: the omitted argument takes the parameter's
+    // declared default.  The old textual splice emitted `puts "hello $name"`,
+    // which errors on an unset variable (issue #1199).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let source = "proc greet {{name world}} { puts $name }\ngreet\n";
+    lsp.open_ready(&uri, source);
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((1, 1), (1, 1)),
+        json!([]),
+        &["refactor.inline"],
+    );
+    let inline = kinds(&actions, "refactor.inline");
+    assert_eq!(inline.len(), 1, "{actions:?}");
+    assert!(
+        new_texts(&json!(inline)).iter().any(|s| s == "puts world"),
+        "the default must bind: {inline:?}"
+    );
+}
+
+#[test]
+fn test_inline_proc_refuses_a_braced_argument_with_a_reason() {
+    // `greet {a b}` passes the *value* `a b`.  Splicing the written word made
+    // the body print the braces, so the transform refuses and explains.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc greet {name} { puts \"hello $name\" }\ngreet {a b}\n",
+    );
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((1, 1), (1, 1)),
+        json!([]),
+        &["refactor.inline"],
+    );
+    let inline = kinds(&actions, "refactor.inline");
+    assert_eq!(inline.len(), 1, "{actions:?}");
+    let reason = inline[0]
+        .get("disabled")
+        .and_then(|d| d.get("reason"))
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| panic!("expected a refusal reason: {:?}", inline[0]));
+    assert!(reason.contains("plain word"), "{reason}");
+}
+
 #[test]
 fn test_extract_proc_attaches_rename_command() {
     let mut lsp = Lsp::tcl();
@@ -458,7 +638,13 @@ fn test_extract_proc_attaches_rename_command() {
         json!([]),
         &["refactor.extract"],
     );
-    let extract = kinds(&actions, "refactor.extract");
+    // The extract-*proc* action carries the rename; extract-variable shares
+    // the `refactor.extract` kind, so select by title rather than by index.
+    let extract: Vec<Value> = kinds(&actions, "refactor.extract")
+        .into_iter()
+        .filter(|a| action_title(a) == "Extract selection into proc")
+        .collect();
+    assert_eq!(extract.len(), 1, "{actions:?}");
     let cmd = extract[0].get("command").cloned().unwrap_or(Value::Null);
     assert!(!cmd.is_null());
     assert_eq!(
@@ -473,7 +659,10 @@ fn test_extract_proc_attaches_rename_command() {
     let line = args[0].as_i64().unwrap();
     let start = args[1].as_i64().unwrap();
     let end = args[2].as_i64().unwrap();
-    assert_eq!(line, 0);
+    // The definition is inserted above the selection (line 1), not at line 0:
+    // placing it at the top of the file would put it before any `package
+    // require` / `namespace` prologue (issue #1201).
+    assert_eq!(line, 1);
     assert_eq!(start, i64::try_from("proc ".len()).unwrap());
     assert_eq!(end, start + i64::try_from("extracted_proc".len()).unwrap());
 }
@@ -500,7 +689,12 @@ fn test_inline_proc_available() {
 }
 
 #[test]
-fn test_inline_proc_skips_returning_proc() {
+fn test_inline_proc_refuses_a_returning_proc_with_a_reason() {
+    // `return` acts on the call frame: inlined into the caller it would
+    // return from the *caller*, not from the proc.  The action is surfaced
+    // greyed out with LSP's `disabled.reason` rather than silently omitted,
+    // so the user can tell "cannot be done here" from "is broken"
+    // (issue #1199).
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "proc wrap {x} { return $x }\nwrap value\n");
@@ -511,7 +705,18 @@ fn test_inline_proc_skips_returning_proc() {
         json!([]),
         &["refactor.inline"],
     );
-    assert!(kinds(&actions, "refactor.inline").is_empty());
+    let inline = kinds(&actions, "refactor.inline");
+    assert_eq!(inline.len(), 1, "{actions:?}");
+    let reason = inline[0]
+        .get("disabled")
+        .and_then(|d| d.get("reason"))
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| panic!("expected a refusal reason: {:?}", inline[0]));
+    assert!(reason.contains("call frame"), "{reason}");
+    assert!(
+        new_texts(&json!(inline)).is_empty(),
+        "a refused action carries no edits: {inline:?}"
+    );
 }
 
 // -- TestExprRefactorActions ---------------------------------------------
@@ -1083,6 +1288,91 @@ fn test_w120_no_insert_fix_when_require_present() {
             .any(|t| t == "Add 'package require Tk'"),
         "{actions:?}"
     );
+}
+
+// The evidence-gated fuzzy package suggestion (issue #1191).
+//
+// This action changes what the interpreter loads and runs the package's
+// initialisation code, so the server must offer it only over a *command
+// head* that resolution could not satisfy. It used to fire on any
+// identifier-shaped word under the cursor, including one inside a comment or
+// a string.
+
+/// The quickfix titles the server offers at `position` in `source`, with the
+/// published diagnostics fed back as context — the exact flow an editor's
+/// lightbulb drives.
+fn quickfix_titles_at(source: &str, position: (u32, u32)) -> Vec<String> {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, source);
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range(position, position),
+        json!(diags),
+        &["quickfix"],
+    );
+    titles(&actions)
+}
+
+#[test]
+fn test_package_suggestion_offered_on_an_unresolved_command_head() {
+    // `http` names a registered package and `http::fetchall` resolves to
+    // nothing, so the suggestion is evidence-backed.
+    let offered = quickfix_titles_at("http::fetchall $url\n", (0, 3));
+    assert!(
+        offered.iter().any(|t| t == "Add 'package require http'"),
+        "{offered:?}"
+    );
+}
+
+#[test]
+fn test_package_suggestion_not_offered_inside_a_comment() {
+    let offered = quickfix_titles_at("# see http::fetchall for details\n", (0, 10));
+    assert!(
+        !offered
+            .iter()
+            .any(|t| t.starts_with("Add 'package require")),
+        "a comment is not a call site: {offered:?}"
+    );
+}
+
+#[test]
+fn test_package_suggestion_not_offered_inside_a_string() {
+    let offered = quickfix_titles_at("set example \"http::fetchall\"\n", (0, 16));
+    assert!(
+        !offered
+            .iter()
+            .any(|t| t.starts_with("Add 'package require")),
+        "quoted data is not a call site: {offered:?}"
+    );
+}
+
+#[test]
+fn test_package_suggestion_not_offered_on_an_argument_word() {
+    let offered = quickfix_titles_at("dict set docs command http::fetchall\n", (0, 25));
+    assert!(
+        !offered
+            .iter()
+            .any(|t| t.starts_with("Add 'package require")),
+        "an argument word is not a call site: {offered:?}"
+    );
+}
+
+#[test]
+fn test_package_suggestion_not_offered_on_a_local_definition() {
+    // The file defines the very command a package would provide, both at the
+    // `proc` name word and at the later call.
+    let source = "proc http::fetchall {url} {}\nhttp::fetchall http://x\n";
+    for position in [(0u32, 8u32), (1, 3)] {
+        let offered = quickfix_titles_at(source, position);
+        assert!(
+            !offered
+                .iter()
+                .any(|t| t.starts_with("Add 'package require")),
+            "locally defined at {position:?}: {offered:?}"
+        );
+    }
 }
 
 /// W123: the unknown-command did-you-mean suggestion carries a replacement

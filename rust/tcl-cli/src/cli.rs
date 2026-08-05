@@ -401,16 +401,22 @@ pub enum Command {
     Minify {
         #[command(flatten)]
         input: InputArgs,
-        /// Compact variable and proc names to short identifiers.
+        /// Compact proc-local variable and parameter names to short
+        /// identifiers (procedure names only with --isolated — they are
+        /// public command identities).
         #[arg(long)]
         compact: bool,
         /// Write the symbol map (original -> compacted names) to FILE.
         #[arg(long = "symbol-map", value_name = "FILE")]
         symbol_map: Option<PathBuf>,
-        /// Maximum compression: run all optimiser passes, then compact + minify.
+        /// Maximum compression: run all optimiser passes, then compact +
+        /// alias + minify. NOT frame-transparent: injects helper variables
+        /// observable via `info vars` and variable traces.
         #[arg(long)]
         aggressive: bool,
-        /// Treat the script as self-contained — also compact global-scope names.
+        /// Assert the script is self-contained (no external callers or
+        /// reflection over it) — also compact procedure names and
+        /// global-scope variables.
         #[arg(long)]
         isolated: bool,
         #[command(flatten)]

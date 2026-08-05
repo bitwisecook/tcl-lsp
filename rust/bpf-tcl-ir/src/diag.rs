@@ -56,6 +56,14 @@ pub enum BpfDiag {
     StrayTopLevel,
     /// Too many values for the 512-byte eBPF stack.
     StackOverflow,
+    /// A handler path can fall off the end without an explicit verdict.
+    MissingVerdict,
+    /// A malformed `map` declaration (bad kind, size, capacity, or
+    /// concurrency word), or a map access incompatible with the declaration.
+    BadMap,
+    /// Two handlers of the same event share a priority — an ambiguous, non
+    /// deterministic composition order (issue #1204).
+    AmbiguousComposition,
     /// An internal invariant failure (a compiler bug, not user error).
     Internal,
 }
@@ -79,6 +87,9 @@ impl BpfDiag {
             BpfDiag::CapabilityDenied => "BPF012",
             BpfDiag::BadAttach => "BPF013",
             BpfDiag::StrayTopLevel => "BPF014",
+            BpfDiag::MissingVerdict => "BPF015",
+            BpfDiag::BadMap => "BPF016",
+            BpfDiag::AmbiguousComposition => "BPF017",
             BpfDiag::Internal => "BPF999",
         }
     }

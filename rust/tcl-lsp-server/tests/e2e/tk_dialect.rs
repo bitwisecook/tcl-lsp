@@ -33,6 +33,8 @@
 //! server. The Tk-availability gating is driven by `# tcl-dialect:` directives
 //! in ordinary `tcl`-language documents (not a `tk` language id).
 
+use std::fmt::Write as _;
+
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -106,11 +108,14 @@ fn ttk_widget_absent_in_iapps() {
     assert!(!labels.contains("ttk::button"), "{labels:?}");
 }
 
+// -- Tk activation gating, end to end (issue #1188) ----------------------
+//
+// The gate decides whether a document abandons per-body memoisation for a
+// whole-file re-analysis on *every keystroke*, so it must be exactly right in
+// both directions: a false positive is a large, permanent latency cost, a false
+// negative silently drops the TK diagnostics.
+
 /// The TK diagnostic codes published for `src`.
-///
-/// Duplicated from the Tk-activation-gating suite (issue #1188, its own PR)
-/// so this branch stands alone; whichever lands second folds the two copies
-/// into one.
 fn tk_codes(lsp: &mut Lsp, uri: &str, src: &str) -> Vec<String> {
     lsp.open_ready(uri, src)
         .iter()
@@ -118,6 +123,129 @@ fn tk_codes(lsp: &mut Lsp, uri: &str, src: &str) -> Vec<String> {
         .filter(|c| c.starts_with("TK"))
         .map(str::to_owned)
         .collect()
+}
+
+/// **FP** — a document that merely *mentions* `package`, `require`, and `Tk`
+/// (in a comment, in a string, and via `package require Tcl`) publishes no TK
+/// diagnostics, even though it is full of Tk-shaped commands.
+#[test]
+fn words_mentioning_tk_do_not_activate_tk_diagnostics() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let codes = tk_codes(
+        &mut lsp,
+        &uri,
+        "# tcl-dialect: tcl8.6\n\
+         package require Tcl 8.6\n\
+         set doc \"Tcl/Tk script text executable\"\n\
+         # a stray mention: package require Tk\n\
+         frame .outer.inner\n\
+         pack .top.a\n\
+         grid .top.b\n",
+    );
+    assert!(
+        codes.is_empty(),
+        "no TK diagnostic may fire without a real `package require Tk`: {codes:?}"
+    );
+}
+
+/// **FP** — `package provide Tk` declares this file *is* part of Tk; it does
+/// not load Tk into the interpreter, so it must not activate either.
+#[test]
+fn package_provide_tk_does_not_activate_tk_diagnostics() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let codes = tk_codes(
+        &mut lsp,
+        &uri,
+        "# tcl-dialect: tcl8.6\npackage provide Tk 8.6\nframe .outer.inner\n",
+    );
+    assert!(codes.is_empty(), "{codes:?}");
+}
+
+/// **TP** — a real `package require Tk` still publishes the checks that need
+/// whole-file state: TK1002's parent existence, and a TK1001 geometry conflict
+/// spanning a proc body, which an isolated body cannot see.
+#[test]
+fn real_package_require_tk_still_publishes_whole_file_tk_checks() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let codes = tk_codes(
+        &mut lsp,
+        &uri,
+        "# tcl-dialect: tcl8.6\n\
+         package require Tk\n\
+         frame .top\n\
+         frame .missing.child\n\
+         proc build {} {\n\
+         pack .top.a\n\
+         grid .top.b\n\
+         }\n",
+    );
+    assert!(
+        codes.iter().any(|c| c == "TK1002"),
+        "the non-existent parent must still be reported: {codes:?}"
+    );
+    assert!(
+        codes.iter().any(|c| c == "TK1001"),
+        "a pack/grid conflict inside a proc body must still flush: {codes:?}"
+    );
+}
+
+/// **FN** — a `package require Tk` reached only inside a procedure body is
+/// still a load, and must activate: the case the post-body half of the gate
+/// exists for.
+#[test]
+fn package_require_tk_inside_a_body_still_activates() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let codes = tk_codes(
+        &mut lsp,
+        &uri,
+        "# tcl-dialect: tcl8.6\n\
+         proc setup {} { package require Tk }\n\
+         setup\n\
+         frame .missing.child\n",
+    );
+    assert!(codes.iter().any(|c| c == "TK1002"), "{codes:?}");
+}
+
+/// **FP, at scale** — a large generated document with no `package require Tk`
+/// publishes no TK diagnostics and keeps answering requests: the `filetypes.tcl`
+/// shape that used to be forced onto a whole-file re-analysis, per keystroke,
+/// by the word `Tk` appearing in generated data.
+#[test]
+fn large_generated_non_tk_document_stays_clean_and_responsive() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let mut src = String::from("# tcl-dialect: tcl8.6\npackage require Tcl 8.6\n");
+    src.push_str("proc classify {kind} {\n");
+    for i in 0..2000 {
+        let _ = writeln!(
+            src,
+            "    if {{$kind eq \"k{i}\"}} {{ return \"Tcl/Tk script text executable\" }}"
+        );
+    }
+    src.push_str("    return unknown\n}\n");
+    // A full debug-build analysis of a 2000-branch proc is legitimately tens
+    // of seconds on a loaded two-core CI runner: pass the large-document
+    // backstop `open_ready_timeout` exists for instead of betting
+    // DEFAULT_TIMEOUT covers it (its doc comment is about exactly this test
+    // shape).  Load scaling still applies on top.
+    let codes: Vec<String> = lsp
+        .open_ready_timeout(&uri, &src, std::time::Duration::from_mins(3))
+        .iter()
+        .filter_map(|d| d.get("code").and_then(serde_json::Value::as_str))
+        .filter(|c| c.starts_with("TK"))
+        .map(str::to_owned)
+        .collect();
+    assert!(codes.is_empty(), "{codes:?}");
+    // Still serving: a completion resolves rather than timing out.
+    let labels = completion_labels(&lsp.completion(&uri, 1, 7));
+    assert!(
+        !labels.is_empty(),
+        "server stopped answering after the open"
+    );
 }
 
 // Per-interpreter Tk hierarchies, end to end (issue #1141).

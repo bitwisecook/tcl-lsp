@@ -348,15 +348,17 @@ fn minify_is_idempotent_on_already_minified_source() {
 // ===========================================================================
 
 #[test]
-fn minify_compact_renames_proc_everywhere_and_preserves_result() {
+fn minify_compact_isolated_renames_proc_everywhere_and_preserves_result() {
     // tclsh (8.6 + 9.0): original `proc fact {n} {…}; puts [fact 5]` -> 120.
-    // The compact tier renames `fact`->`a` at the DECLARATION, the RECURSIVE
-    // self-call, and the top-level call. The renamed program
+    // Under `isolated` (proc names are public identities in the non-isolated
+    // tier — issue #1193) the compact tier renames `fact`->`a` at the
+    // DECLARATION, the RECURSIVE self-call, and the top-level call. The
+    // renamed program
     // `proc a {n} {if {$n<=1} {return 1};return [expr {$n*[a [expr {$n-1}]]}]};
     // puts [a 5]` -> 120 (verified identical) — all three sites bind to the
     // one renamed proc, so the value is unchanged.
     let src = "proc fact {n} {\n    if {$n <= 1} { return 1 }\n    return [expr {$n * [fact [expr {$n - 1}]]}]\n}\nputs [fact 5]\n";
-    let (out, map) = minify_tcl_compact(src, "tcl8.6", false, registry());
+    let (out, map) = minify_tcl_compact(src, "tcl8.6", true, registry());
     assert_eq!(
         out,
         "proc a {n} {if {$n<=1} {return 1};return [expr {$n*[a [expr {$n-1}]]}]};puts [a 5]",
@@ -369,6 +371,18 @@ fn minify_compact_renames_proc_everywhere_and_preserves_result() {
 }
 
 #[test]
+fn minify_compact_non_isolated_keeps_proc_names() {
+    // Issue #1193: without `isolated`, a proc name is a PUBLIC command
+    // identity — external callers, `info procs`, `rename`, and `unknown`
+    // can observe or invoke it — so it must survive verbatim.
+    let src = "proc fact {n} {\n    if {$n <= 1} { return 1 }\n    return [expr {$n * [fact [expr {$n - 1}]]}]\n}\nputs [fact 5]\n";
+    let (out, map) = minify_tcl_compact(src, "tcl8.6", false, registry());
+    assert!(out.contains("proc fact"), "{out:?}");
+    assert!(out.contains("[fact 5]"), "{out:?}");
+    assert!(map.procs.is_empty(), "{:?}", map.procs);
+}
+
+#[test]
 fn minify_compact_renames_local_var_at_def_and_read() {
     // tclsh (8.6 + 9.0): `proc add {a b} {set sum [expr {$a+$b}];return $sum};
     // puts [add 2 3]` -> 5; the compact rename
@@ -378,7 +392,7 @@ fn minify_compact_renames_local_var_at_def_and_read() {
     // params `a`/`b` are already 1 char, so they are left alone.)
     let src =
         "proc add {a b} {\n    set sum [expr {$a + $b}]\n    return $sum\n}\nputs [add 2 3]\n";
-    let (out, map) = minify_tcl_compact(src, "tcl8.6", false, registry());
+    let (out, map) = minify_tcl_compact(src, "tcl8.6", true, registry());
     assert_eq!(
         out,
         "proc a {a b} {set c [expr {$a+$b}];return $c};puts [a 2 3]",
