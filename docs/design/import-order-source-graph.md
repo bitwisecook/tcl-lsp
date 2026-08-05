@@ -174,7 +174,62 @@ fn has_run(&self, event: (uri, at, enclosing_body), query: (uri, at, enclosing_b
 ```
 
 — `None` meaning "no static order", which is what the existing `at: None`
-event encoding already expresses. Every current caller then keeps its shape:
-`ExportEvent::at` / `AliasEvent::at` become `Some(_)` in strictly more cases,
-the shared decision functions are untouched, and the abstention table in §1
+event encoding already expresses.
+
+### 6.1 `has_run` alone is not enough — the fold needs *comparability*
+
+That predicate answers the gate, but it is only half of what the shared
+decision functions do, and the other half is why `ExportEvent::at` /
+`AliasEvent::at` cannot simply "become `Some(_)` in more cases".
+
+Both functions are **latest-wins folds**, not filters:
+
+- `namespace_import::exported_at_import_site` keeps two running maxima — the
+  latest visible `-clear` and the latest visible matching pattern — and
+  answers `latest_match > cleared_through`;
+- `namespace_import::alias_live_at` does the same with the latest install and
+  the latest removal.
+
+Both maxima are over a *single* `u32` because every ordered event today lives
+in one document. Two events in different documents that `has_run` both admits
+still have to be ranked against **each other**, and a partial order gives no
+`max`. Feeding cross-document events into the current fold with their own
+file's offsets is exactly the bug PR #1115's finding 1 removed (a forget
+revoking an import because its local offset happened to be larger). So the
+event key has to change shape, not just its `Option`-ness: the order needs
+
+```rust
+fn cmp_run(&self, a: (uri, at, enclosing_body), b: (uri, at, enclosing_body)) -> Option<Ordering>
+```
+
+with `None` — incomparable — folding to "abstain toward answering", the same
+direction `at: None` takes now. `has_run` is then `cmp_run(event, query)`
+against the existing body-leniency rule, so one relation serves both.
+
+### 6.2 The shape that makes `cmp_run` total where it matters
+
+A `source` graph is not merely a partial order over documents — it is a
+**flattened execution sequence**, which is what makes the comparison
+tractable. Sourcing a file inlines its whole body at the `source` statement's
+position, so the DFS of the source forest *is* the run order, and two events
+are comparable whenever they sit in one tree:
+
+- lift each event to its root-ward path `[(root, at₀), (child₁, at₁), …]`,
+  where `atᵢ` is the offset of the `source` statement that entered the next
+  document;
+- take the deepest common document, and compare the two paths' next entries
+  there with the rule already in use for one document
+  (`indirection::in_effect_within` for gating, `namespace_import::load_order`
+  for conflicts);
+- abstain (`None`) when the two events have different roots, when any edge on
+  either path fails the §3.3 soundness gates, or when a document is reachable
+  by two paths — a re-sourced file has no unique position and must not get
+  one.
+
+This keeps the whole order behind one relation and needs no numeric flattening
+(no rank arithmetic to invalidate per generation): the paths are `O(depth)`,
+and depth is the `source` nesting of a real project.
+
+Every current caller then keeps its shape, the shared decision functions gain
+their comparator instead of assuming one, and the abstention table in §1
 shrinks without a second rule appearing anywhere.

@@ -4686,6 +4686,41 @@ mod tests {
         }
     }
 
+    /// FN guard pinning issue #1116 item 5: a **dynamic** forget pattern
+    /// revokes nothing, so the alias keeps resolving.
+    ///
+    /// `namespace forget ::src::$name` really does remove the alias when
+    /// `$name` is `p` (oracle for the literal spelling is
+    /// [`Self::a_forget_after_the_import_stops_resolving_the_alias`]) — but
+    /// nothing static says what `$name` holds, and the pattern is a *glob*, so
+    /// a guess would have to be either "revokes `p`" or "revokes everything".
+    /// Both silently drop references the program still has, which is the one
+    /// direction this family never takes: a removal that cannot be proved is
+    /// not applied. The literal prefix (`::src::`) narrows the *source* but
+    /// not the name, so it decides nothing on its own.
+    ///
+    /// The scanner-side twin of this abstention is
+    /// `signature_scan::handlers::handle_namespace_forget_skips_dynamic_patterns`;
+    /// this pins the consequence a consumer actually sees.
+    #[test]
+    fn a_dynamic_forget_pattern_revokes_nothing() {
+        let dynamic = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::$name\n}\n";
+        let analysis = analyse(dynamic);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::src::p"),
+            "a dynamic forget pattern must not revoke on a guess: {hit:?}"
+        );
+        // Control — the same source with the pattern written literally does
+        // revoke, so the difference is the substitution and nothing else.
+        let literal = dynamic.replace("::src::$name", "::src::p");
+        let analysis = analyse(&literal);
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX).is_none(),
+            "the literal spelling of the same forget still revokes"
+        );
+    }
+
     #[test]
     fn a_simple_forget_pattern_removes_the_alias_too() {
         // TN — `Tcl_ForgetImport`'s unqualified branch: the pattern is matched
