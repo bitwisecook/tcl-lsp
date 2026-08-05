@@ -28,11 +28,10 @@
 //!
 //! Subcommand coverage:
 //!
-//! - ``superclass <names>`` — assigns ``ClassDef::superclasses``.
-//! - ``mixin ?-append? <names>`` — assigns ``ClassDef::mixins``
-//!   (the ``-append`` flag is consumed and ignored —
-//!   class-hierarchy state machines belong to the workspace
-//!   index, not the per-file analyser).
+//! - ``superclass ?-op? <names>`` — folds into ``ClassDef::superclasses``
+//!   through the registry slot spec (default ``-set``; issue #1169).
+//! - ``mixin ?-op? <names>`` — folds into ``ClassDef::mixins`` the same
+//!   way (default ``-set``).
 //! - ``method NAME PARAMS BODY`` — adds to ``ClassDef::methods``.
 //! - ``classmethod NAME PARAMS BODY`` — adds to
 //!   ``ClassDef::class_methods``.
@@ -41,8 +40,10 @@
 //! - ``destructor BODY`` — sets ``ClassDef::destructor``.
 //! - ``forward NAME ?TARGET ARGS?`` — adds to ``methods`` with
 //!   ``kind = "forward"``.
-//! - ``variable <names>`` — assigns ``ClassDef::variables``.
-//! - ``filter <names>`` — assigns ``ClassDef::filters``.
+//! - ``variable ?-op? <names>`` — folds into ``ClassDef::variables``
+//!   (slot default ``-append`` with dedup; issue #1169).
+//! - ``filter ?-op? <names>`` — folds into ``ClassDef::filters``
+//!   (slot default ``-append``, duplicates kept).
 //! - ``export <names>`` / ``unexport <names>`` — extends the
 //!   matching ``HashSet`` field.
 //! - ``property NAME ?-get BODY? ?-set BODY? ?-kind K?`` —
@@ -112,13 +113,12 @@ struct MemberForm<'a> {
     visibility: &'a str,
 }
 
-/// The snit definer being parsed: its member grammar plus whether it is a
-/// `widget` / `widgetadaptor` (which injects the extra `win` / `hull` instance
-/// variables).  Bundled to keep [`Analyser::parse_snit_definition_body`] under
-/// the argument limit.
+/// The snit definer being parsed.  Which implicit variables its member
+/// bodies see — including the widget-only `win` / `hull` pair — comes from
+/// the grammar's own `implicit_vars` (`snit::widget` / `widgetadaptor` carry
+/// `SNIT_WIDGET_GRAMMAR`), so no consumer matches the definer's name suffix.
 struct SnitDefiner {
     grammar: &'static DefinitionBodyGrammar,
-    is_widget: bool,
 }
 
 /// Whether `member` is a pure variable/component *declaration* — it names a
@@ -905,7 +905,6 @@ impl Analyser {
         // **W314** — the class name has no absolute written form (#934).
         self.emit_w314_no_absolute_name(raw_name, name_span);
         let body_tok = arg_tokens[1];
-        let is_widget = cmd_name.ends_with("widget") || cmd_name.ends_with("widgetadaptor");
         let doc = std::mem::take(&mut self.last_comment);
         let mut class = ClassDef {
             name: simple.clone(),
@@ -917,7 +916,7 @@ impl Analyser {
             ..Default::default()
         };
         if !body.is_empty() {
-            let definer = SnitDefiner { grammar, is_widget };
+            let definer = SnitDefiner { grammar };
             self.parse_snit_definition_body(
                 body, body_tok, &mut class, &qualified, scope_path, &definer,
             );
@@ -959,15 +958,11 @@ impl Analyser {
         );
 
         // The variables snit injects into every member body come from the
-        // definer's registry grammar (`implicit_vars`); a widget adds `win` /
-        // `hull` on top.
+        // definer's registry grammar (`implicit_vars`); the widget grammar's
+        // list already includes the widget-only `win` / `hull` pair.
         let implicit_vars = grammar.implicit_vars;
         let mut instance_vars: Vec<String> =
             implicit_vars.iter().map(|s| (*s).to_string()).collect();
-        if definer.is_widget {
-            instance_vars.push("win".to_string());
-            instance_vars.push("hull".to_string());
-        }
         let mut type_vars: Vec<String> = SNIT_TYPE_IMPLICIT
             .iter()
             .map(|s| (*s).to_string())
@@ -1009,12 +1004,16 @@ impl Analyser {
 
         // Record the *explicit* instance + type variables on the class —
         // method-scope seeding and the W307 dispatch-source suppression both
-        // read `ClassDef::variables`.  The grammar's implicit scalars
-        // (`self`/`selfns`/`type`/`options`) and the type-implicit `type` are
-        // filtered; a widget's injected `win`/`hull` are kept.
+        // read `ClassDef::variables`.  The base grammar's implicit scalars
+        // (`self`/`selfns`/`type`/`options` — `SNIT_GRAMMAR.implicit_vars`,
+        // shared by every snit definer) and the type-implicit `type` are
+        // filtered; a widget's injected `win`/`hull` (the extra names its
+        // own grammar adds on top of the base set) are kept — they are real
+        // per-instance variables worth surfacing on the class record.
+        let base_implicits = tcl_registry::definer::SNIT_GRAMMAR.implicit_vars;
         class_def.variables = instance_vars
             .iter()
-            .filter(|v| !implicit_vars.contains(&v.as_str()))
+            .filter(|v| !base_implicits.contains(&v.as_str()))
             .chain(
                 type_vars
                     .iter()
@@ -2153,11 +2152,11 @@ fn apply_sided_member_effects(
 ) {
     retract_named_members(member, names, arg_tokens, class_def, side);
     apply_visibility_member(member, names, class_def, side);
-    apply_filter_member(keyword, names, class_def, side);
+    apply_filter_member(member, keyword, names, class_def, side);
 }
 
-/// `filter f…` / `self filter f…` — record the named methods as this side's
-/// method filters.
+/// `filter f…` / `self filter f…` — fold the call into this side's
+/// method-filter slot.
 ///
 /// The two sides are separate slots that intercept different dispatches (see
 /// [`ClassDef::filters`] and [`ClassDef::class_filters`] for the oracle), so
@@ -2168,10 +2167,17 @@ fn apply_sided_member_effects(
 /// `ClassDef` field a member routes to* is analyser-local semantics the registry
 /// deliberately does not model — the same judgement as the `superclass` /
 /// `mixin` / `variable` arms of [`apply_oo_subcommand`]. What the registry does
-/// decide is that `filter` neither retracts nor flips visibility
+/// decide is *what the word does to the slot* ([`MemberSpec::slot`], issue
+/// #1169): `filter a; filter b` leaves both live (`-append` default —
+/// tclsh 9.0.4 / 8.6.16: `info class filters` → `a b`), and the explicit
+/// `-set` / `-clear` / `-prepend` / `-remove` / `-appendifnew` operations
+/// fold through [`tcl_registry::definer::SlotSpec::apply`] — the same fold
+/// every other slot consumer uses, so they cannot diverge.  The registry
+/// also decides that `filter` neither retracts nor flips visibility
 /// ([`MemberSpec::retraction`] / [`MemberSpec::visibility_effect`] are both
 /// `None` for it), which is why the two calls above leave it alone.
 fn apply_filter_member(
+    member: &MemberSpec,
     keyword: &str,
     names: &[String],
     class_def: &mut ClassDef,
@@ -2180,7 +2186,22 @@ fn apply_filter_member(
     if keyword != "filter" {
         return;
     }
-    *side.filter_list(class_def) = names.to_vec();
+    apply_slot_member(Some(member), names, side.filter_list(class_def));
+}
+
+/// Fold one slot-member call (`filter` / `superclass` / `mixin` /
+/// `variable`) into `list` through the member's registry [`SlotSpec`]
+/// (issue #1169) — the one place the analyser applies slot semantics, so
+/// the instance / class-object filter slots, the superclass list, the mixin
+/// list, and the declared-variable slot all take the identical fold.
+///
+/// A member with no slot spec (defensive fallback only — every `TclOO` slot
+/// word carries one) keeps the pre-#1169 assignment reading.
+fn apply_slot_member(member: Option<&MemberSpec>, args: &[String], list: &mut Vec<String>) {
+    match member.and_then(|m| m.slot) {
+        Some(slot) => slot.apply(list, args),
+        None => *list = args.to_vec(),
+    }
 }
 
 /// `self method NAME ARGS BODY` / `self classmethod NAME ARGS BODY`
@@ -2421,16 +2442,18 @@ pub(super) fn apply_oo_subcommand(
         // methods, MRO).  The navigable *references* to those base classes are
         // recorded separately as `command_invocations` by
         // `record_member_command_references`, so no per-name span is kept here.
+        //
+        // Both are slots (issue #1169): a bare list applies the slot's
+        // C-pinned default operation — `-set` for `superclass` / `mixin`
+        // (so the plain spelling still replaces), `-append` and friends
+        // fold through the shared registry fold instead of being dropped
+        // or, worse, recorded as class names.  tclsh 9.0.4:
+        // `superclass A` then `superclass -append B` → `::A ::B`.
         "superclass" => {
-            class_def.superclasses = sub_args.to_vec();
+            apply_slot_member(member, sub_args, &mut class_def.superclasses);
         }
         "mixin" => {
-            // Skip ``-append`` and similar flags.
-            class_def.mixins = sub_args
-                .iter()
-                .filter(|a| !a.starts_with('-'))
-                .cloned()
-                .collect();
+            apply_slot_member(member, sub_args, &mut class_def.mixins);
         }
         "method" => {
             if let Some(mut md) = member
@@ -2475,7 +2498,13 @@ pub(super) fn apply_oo_subcommand(
             // rather than per-call). A second `variable` statement in the
             // same class body must not silently discard the names the
             // first one declared (issue #923 idx 32, main audit wave).
-            class_def.variables.extend(sub_args.iter().cloned());
+            //
+            // "Additive" because the class `variable` word is a slot whose
+            // default operation is `-append` (with dedup — tclsh 9.0.4:
+            // `variable a; variable a b` → `a b`); the explicit `-set` /
+            // `-clear` / `-remove` operations fold through the same
+            // registry fold as every other slot (issue #1169).
+            apply_slot_member(member, sub_args, &mut class_def.variables);
         }
         // `filter` has no arm of its own: it is one of the sided member effects
         // above ([`apply_filter_member`]), so the unwrapped and `self` spellings
@@ -2717,6 +2746,143 @@ mod tests {
         let argv = [tok((0, 5)), tok((6, 13)), tok((14, 18)), tok((19, 23))];
         apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert_eq!(cd.mixins, vec!["::M1", "::M2"]);
+    }
+
+    /// Apply a sequence of definition-body words to one class — the shape
+    /// slot folding (issue #1169) is about: later words must fold into,
+    /// not overwrite, earlier slot state.
+    fn apply_words(cd: &mut super::ClassDef, calls: &[&[&str]]) {
+        for words in calls {
+            let texts: Vec<String> = words.iter().map(|s| (*s).to_string()).collect();
+            let argv: Vec<tcl_lexer::Token> = words.iter().map(|_| tok((0, 1))).collect();
+            apply_oo_subcommand(tcloo(), &texts, &argv, cd);
+        }
+    }
+
+    // ---- issue #1169: slot semantics for filter / superclass / mixin /
+    //      variable (defaults pinned against tclOODefineCmds.c 9.0.4 and
+    //      confirmed live on tclsh 9.0.4) ----
+
+    // TP: `filter a ; filter b` appends — `info class filters` → `a b`,
+    // NOT `b` (the pre-#1169 last-writer-wins reading).
+    #[test]
+    fn filter_slot_appends_across_calls() {
+        let mut cd = class();
+        apply_words(&mut cd, &[&["filter", "a"], &["filter", "b"]]);
+        assert_eq!(cd.filters, vec!["a", "b"]);
+    }
+
+    // TP: the explicit operations fold — `-set` replaces, `-clear` empties,
+    // `-prepend` front-inserts (tclsh 9.0.4: `filter a; filter -prepend b`
+    // → `b a`), `-remove` deletes.
+    #[test]
+    fn filter_slot_explicit_operations_fold() {
+        let mut cd = class();
+        apply_words(&mut cd, &[&["filter", "a", "b"], &["filter", "-set", "x"]]);
+        assert_eq!(cd.filters, vec!["x"]);
+        apply_words(&mut cd, &[&["filter", "-clear"]]);
+        assert!(cd.filters.is_empty());
+        apply_words(&mut cd, &[&["filter", "a"], &["filter", "-prepend", "b"]]);
+        assert_eq!(cd.filters, vec!["b", "a"]);
+        apply_words(&mut cd, &[&["filter", "-remove", "b"]]);
+        assert_eq!(cd.filters, vec!["a"]);
+    }
+
+    // FP guard: an operation word is recognised at argument 0 only —
+    // `filter a -set b` appends three literal items (tclsh 9.0.4), it does
+    // not replace the slot with `b`.
+    #[test]
+    fn filter_slot_op_word_only_recognised_first() {
+        let mut cd = class();
+        apply_words(&mut cd, &[&["filter", "a", "-set", "b"]]);
+        assert_eq!(cd.filters, vec!["a", "-set", "b"]);
+    }
+
+    // TP: `superclass` defaults to `-set` (replace) — the common single
+    // declaration keeps its meaning — and `-append` extends (tclsh 9.0.4:
+    // `superclass A` after `superclass B` → `::B`; `superclass -append A`
+    // → `::B ::A`).
+    #[test]
+    fn superclass_slot_replaces_by_default_and_appends_explicitly() {
+        let mut cd = class();
+        apply_words(&mut cd, &[&["superclass", "::A"], &["superclass", "::B"]]);
+        assert_eq!(cd.superclasses, vec!["::B"]);
+        apply_words(&mut cd, &[&["superclass", "-append", "::A"]]);
+        assert_eq!(cd.superclasses, vec!["::B", "::A"]);
+    }
+
+    // TP: `mixin` defaults to `-set` in 8.6 and 9.0 alike (both C sources
+    // forward `--default-operation` to `-set`; tclsh 9.0.4:
+    // `mixin M1; mixin M2` → `::M2`).
+    #[test]
+    fn mixin_slot_replaces_by_default() {
+        let mut cd = class();
+        apply_words(&mut cd, &[&["mixin", "::M1"], &["mixin", "::M2"]]);
+        assert_eq!(cd.mixins, vec!["::M2"]);
+    }
+
+    // TP: the class `variable` slot appends with dedup (tclsh 9.0.4:
+    // `variable a; variable a b` → `a b`) and folds `-set` / `-remove`.
+    #[test]
+    fn variable_slot_appends_dedups_and_folds_ops() {
+        let mut cd = class();
+        apply_words(&mut cd, &[&["variable", "a"], &["variable", "a", "b"]]);
+        assert_eq!(cd.variables, vec!["a", "b"]);
+        apply_words(&mut cd, &[&["variable", "-remove", "a"]]);
+        assert_eq!(cd.variables, vec!["b"]);
+        apply_words(&mut cd, &[&["variable", "-set", "c"]]);
+        assert_eq!(cd.variables, vec!["c"]);
+    }
+
+    // TN: an unknown leading `-op` aborts the whole definition in real Tcl
+    // (`unknown method "-bogus"`), so the fold must leave the slot state
+    // unchanged rather than record `-bogus`/`x` as filters.
+    #[test]
+    fn unknown_slot_op_leaves_slot_untouched() {
+        let mut cd = class();
+        apply_words(&mut cd, &[&["filter", "a"], &["filter", "-bogus", "x"]]);
+        assert_eq!(cd.filters, vec!["a"]);
+    }
+
+    // TP, full pipeline: the fold carries across definition blocks — the
+    // issue #1169 oracle transcript verbatim (tclsh 9.0.4 and 8.6.16,
+    // byte-identical):
+    //   oo::class create C { filter a; filter b } → info class filters → a b
+    //   oo::define C { filter -set x }            →                    → x
+    //   oo::define C { filter -clear }            →                    → (empty)
+    #[test]
+    fn filter_slot_folds_across_oo_define_blocks() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { filter a\nfilter b }\n\
+             oo::define ::C { filter -set x }\n",
+            "tcl9.0",
+        );
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert_eq!(c.filters, vec!["x"]);
+
+        let mut a2 = Analyser::new();
+        let r2 = a2.analyse(
+            "oo::class create ::C { filter a\nfilter b }\n\
+             oo::define ::C { filter -append c }\n",
+            "tcl9.0",
+        );
+        let c2 = r2.all_classes.get("::C").expect("::C recorded");
+        assert_eq!(c2.filters, vec!["a", "b", "c"]);
+    }
+
+    // The class-object side folds through the same slot spec: `self filter`
+    // appends across calls, and never leaks into the instance slot.
+    #[test]
+    fn class_side_filter_slot_folds_and_stays_sided() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create ::C { self { filter a }\nself { filter b } }\n",
+            "tcl9.0",
+        );
+        let c = r.all_classes.get("::C").expect("::C recorded");
+        assert_eq!(c.class_filters, vec!["a", "b"]);
+        assert!(c.filters.is_empty());
     }
 
     #[test]

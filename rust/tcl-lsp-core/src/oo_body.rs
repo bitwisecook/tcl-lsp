@@ -216,7 +216,7 @@ pub fn member_ref_indices(
     match member.kind {
         MemberKind::Flat => {
             let kind = member.all_args_ref?;
-            Some((kind, (0..args.len()).collect()))
+            Some((kind, (slot_value_start(member, args)..args.len()).collect()))
         }
         // `self mixin M` / itcl `public method …` — resolve through the inner
         // member and shift its indices past the wrapper word.
@@ -281,13 +281,29 @@ fn member_role_indices(
 /// c` form (`all_args_var`) as well as the fixed `arg_roles` layout.
 fn flat_member_indices(member: &MemberSpec, args: &[&str], role: ArgRole) -> Vec<usize> {
     if role == ArgRole::VarWrite && member.all_args_var {
-        (0..args.len()).collect()
+        (slot_value_start(member, args)..args.len()).collect()
     } else {
         member
             .indices_for(role)
             .filter(|&i| i < args.len())
             .collect()
     }
+}
+
+/// The index of the first *value* argument of a slot member call — `1` when
+/// the member is a slot ([`MemberSpec::slot`], issue #1169) and `args[0]` is
+/// an explicit slot-operation word (`variable -set c`, `filter -append f`),
+/// else `0`.  The operation word names no variable / method / class, so the
+/// walker must not paint it as one; a `-word` that is *not* a recognised
+/// operation stays classified as data, exactly as real Tcl treats it past
+/// argument 0.
+fn slot_value_start(member: &MemberSpec, args: &[&str]) -> usize {
+    usize::from(
+        member.slot.is_some()
+            && args
+                .first()
+                .is_some_and(|a| tcl_registry::definer::SlotOp::parse(a).is_some()),
+    )
 }
 
 /// A [`MemberKind::Wrapper`] member (`self method …`, itcl `public method …`)
