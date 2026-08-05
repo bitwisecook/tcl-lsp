@@ -33,3 +33,23 @@ snit::type Cat {
 }
 Cat c
 $c
+
+# TP (issue #1200): a bare TclOO object command produced by command
+# substitution fails "wrong # args" before any method lookup - same
+# zero-word dispatch failure as `$o` above, through a `[...]` head.
+[Dog new]
+
+# TN: with a method word the substitution-head dispatch is clean.
+[Dog new] bark
+
+# TP (issues #1143 / #1200): a handle returned by a `$var`-dispatched
+# method and captured into a variable is typed through the object-type
+# lattice - `$b bark` stays clean (no W307), and a bare `$b` is the same
+# zero-word failure.
+oo::class create Maker {
+    method make {} { return [Dog new] }
+}
+set m [Maker new]
+set b [$m make]
+$b bark
+$b

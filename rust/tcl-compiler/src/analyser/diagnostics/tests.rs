@@ -6354,19 +6354,25 @@ fn w308_namespace_scoped_class_constructor() {
 #[test]
 fn w307_suppressed_for_object_returning_proc_factory() {
     // A proc returning `[Dog new]` is an object factory; a `$o method`
-    // dispatch on its result suppresses W307 (no class is tracked for
-    // factory-return vars, so there is never a W308 either).
-    for method in ["bark", "fly"] {
-        let src = format!(
-            "oo::class create Dog {{ method bark {{}} {{return woof}} }}\n\
-                 proc mk {{}} {{ return [Dog new] }}\nset o [mk]\n$o {method}"
-        );
-        assert!(
-            w30x_codes(&src).is_empty(),
-            "factory-return dispatch must be silent (method {method}); got {:?}",
-            w30x_codes(&src)
-        );
-    }
+    // dispatch on its result suppresses W307.  Since the object-type
+    // lattice's proc-return edge became a W308 input (issues #994 / #1143),
+    // the factory-returned handle also carries its *class*: a known method
+    // stays silent and an unknown one is validated as W308 — the same
+    // answer hover / go-to-definition give for `o`.
+    let known = "oo::class create Dog { method bark {} {return woof} }\n\
+                 proc mk {} { return [Dog new] }\nset o [mk]\n$o bark";
+    assert!(
+        w30x_codes(known).is_empty(),
+        "factory-return dispatch of a declared method must be silent; got {:?}",
+        w30x_codes(known)
+    );
+    let unknown = "oo::class create Dog { method bark {} {return woof} }\n\
+                   proc mk {} { return [Dog new] }\nset o [mk]\n$o fly";
+    assert_eq!(
+        w30x_codes(unknown),
+        vec!["W308".to_owned()],
+        "an unknown method on the factory-typed handle is W308, not W307"
+    );
 }
 
 #[test]
@@ -7150,18 +7156,250 @@ fn tn_e001_bare_dispatch_silent_for_unclassified_variable() {
 }
 
 #[test]
-fn fn_e001_bare_command_substitution_head_not_covered() {
-    // Accepted gap: `[Dog new]` used directly as a command (no
-    // intervening variable) goes through the `[cmd] method` dispatch
-    // site, not the `$var` one — that path has no arity-checking
-    // machinery at all today (`emit_cmd_command_diagnostics` only
-    // validates a *named* method via W308), so extending it to the
-    // bare-call case would be new machinery rather than mirroring an
-    // existing check. Documented false negative, not a silent one.
+fn tp_e001_bare_command_substitution_head() {
+    // Issue #1200 (previously a documented gap): `[Dog new]` used directly
+    // as a command runs `Dog new`, then invokes the produced object with no
+    // method word — tclsh 9.0.3/9.0.4 fail with `wrong # args: should be
+    // "::oo::Obj… method ?arg ...?"` (`-errorcode {TCL WRONGARGS}`).
     let src = "oo::class create Dog { method bark {} { return woof } }\n[Dog new]\n";
     assert!(
+        has_code(src, "tcl", "E001"),
+        "a bare `[Dog new]` command-substitution head must fire E001"
+    );
+}
+
+#[test]
+fn tp_e001_bare_cmd_head_named_constructor_and_alias() {
+    // `[Dog create rex]` returns the object command too, and an
+    // `interp alias` / `rename` reaching the class is the same constructor
+    // (the indirection resolver types it) — both bare uses fail identically.
+    let named = "oo::class create Dog { method bark {} { return woof } }\n[Dog create rex]\n";
+    assert!(
+        has_code(named, "tcl", "E001"),
+        "bare `[Dog create rex]` head must fire E001"
+    );
+    let renamed = "oo::class create Dog { method bark {} { return woof } }\n\
+                   rename Dog Cat\n[Cat new]\n";
+    assert!(
+        has_code(renamed, "tcl", "E001"),
+        "bare `[Cat new]` after `rename Dog Cat` must fire E001"
+    );
+}
+
+#[test]
+fn tp_e001_bare_cmd_head_factory_proc_return() {
+    // The proc-return flow: the lattice proves `make` object-returning
+    // (`ObjectHandleFacts::returns_object`), so a bare `[make]` is the same
+    // zero-word TclOO dispatch failure.
+    let src = "oo::class create Dog { method bark {} { return woof } }\n\
+               proc make {} { return [Dog new] }\n\
+               [make]\n";
+    assert!(
+        has_code(src, "tcl", "E001"),
+        "bare `[make]` on a proven object-returning factory must fire E001"
+    );
+}
+
+#[test]
+fn tn_e001_cmd_head_with_method_word_stays_silent() {
+    // `[Dog new] bark` has a method word — the W308 named-method path, not
+    // E001; a valid method draws nothing at all.
+    let src = "oo::class create Dog { method bark {} { return woof } }\n[Dog new] bark\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        !r.diagnostics
+            .iter()
+            .any(|d| matches!(d.code, DiagCode::E001 | DiagCode::W307)),
+        "`[Dog new] bark` is a well-formed dispatch; got {:?}",
+        r.diagnostics
+    );
+}
+
+#[test]
+fn fn_e001_cmd_head_factory_with_method_word_no_w307() {
+    // The invariant from issue #1143 on the cmd-head shape: the lattice
+    // resolves `[make]`'s class, so `[make] bark` must be validated (and
+    // stay silent), never draw the W307 abstention warning.
+    let src = "oo::class create Dog { method bark {} { return woof } }\n\
+               proc make {} { return [Dog new] }\n\
+               [make] bark\n";
+    assert!(
+        w30x_codes(src).is_empty(),
+        "`[make] bark` resolves through the factory return type; got {:?}",
+        w30x_codes(src)
+    );
+    let bogus = "oo::class create Dog { method bark {} { return woof } }\n\
+                 proc make {} { return [Dog new] }\n\
+                 [make] fly\n";
+    assert!(
+        has_code(bogus, "tcl", "W308"),
+        "`[make] fly` must be validated against ::Dog and fire W308"
+    );
+}
+
+#[test]
+fn tn_e001_cmd_head_non_object_and_unknown_stay_silent() {
+    // A non-object substitution result and a genuinely unknown one must not
+    // fire E001 (the unknown one keeps its ordinary W307 abstention story).
+    for src in [
+        // Known non-object return type.
+        "[string length abc]\n",
+        // Same-named user proc, no TclOO class in sight.
+        "proc Dog {args} { return 1 }\n[Dog new]\n",
+        // Dynamic head — nothing provable.
+        "set h puts\n[$h hello]\n",
+    ] {
+        assert!(
+            !has_code(src, "tcl", "E001"),
+            "`{src}` must not fire the TclOO bare-dispatch E001"
+        );
+    }
+}
+
+#[test]
+fn tn_e001_abstains_inside_a_child_interpreter_body() {
+    // A child interpreter has its own command table: `Dog` does not exist
+    // there, so the real failure is `invalid command name "Dog"` in the
+    // child — main-interp object semantics must not be asserted (E001
+    // abstains, both the cmd-head and the `$var` forms).
+    for src in [
+        "oo::class create Dog { method bark {} { return woof } }\n\
+         interp create sub\n\
+         interp eval sub {[Dog new]}\n",
+        "oo::class create Dog { method bark {} { return woof } }\n\
+         interp create -safe s\n\
+         s eval {[Dog new]}\n",
+        "oo::class create Dog { method bark {} { return woof } }\n\
+         interp create sub\n\
+         interp eval sub {set o [Dog new]\n$o}\n",
+    ] {
+        assert!(
+            !has_code(src, "tcl", "E001"),
+            "`{src}` runs in a child interpreter; E001 must abstain"
+        );
+    }
+}
+
+#[test]
+fn tn_e001_abstains_on_a_deleted_class() {
+    // `rename Dog {}` deletes the class command; `[Dog new]` then fails
+    // `invalid command name` (W123's story), so no bare-dispatch E001.
+    let src = "oo::class create Dog { method bark {} { return woof } }\n\
+               rename Dog {}\n\
+               [Dog new]\n";
+    assert!(
         !has_code(src, "tcl", "E001"),
-        "the `[cmd]`-head bare-dispatch case is a known, documented gap"
+        "a deleted class cannot produce the object; E001 must abstain"
+    );
+}
+
+#[test]
+fn tn_e001_cmd_head_snit_stays_silent() {
+    // snit's generated dispatcher is a different mechanism — same carve-out
+    // as the `$var` path (FP-OBJ-05).
+    let src = "snit::type Dog { method bark {} { return woof } }\n[Dog create t]\n";
+    assert!(
+        !has_code(src, "tcl", "E001"),
+        "bare snit `[Dog create t]` must not fire the TclOO E001"
+    );
+}
+
+#[test]
+fn e001_cmd_head_matches_var_path_under_tcloo_less_dialect() {
+    // Dialect availability is W002's job: under tcl8.4 the `oo::class`
+    // definition itself is flagged (`disabled in the active dialect
+    // profile`), and the dispatch checks keep modelling the TclOO semantics
+    // of the classes the file declares — the `$var` path has always fired
+    // E001 here, and the cmd-head path must agree with it rather than
+    // silently diverge on the same document.
+    let cmd_head = "oo::class create Dog { method bark {} { return woof } }\n[Dog new]\n";
+    let var_path = "oo::class create Dog { method bark {} { return woof } }\n\
+                    set o [Dog new]\n$o\n";
+    assert_eq!(
+        has_code(cmd_head, "tcl8.4", "E001"),
+        has_code(var_path, "tcl8.4", "E001"),
+        "cmd-head and $var bare-dispatch must agree under tcl8.4"
+    );
+    assert!(
+        has_code(cmd_head, "tcl8.4", "W002"),
+        "the definition itself carries the dialect-availability diagnostic"
+    );
+}
+
+#[test]
+fn w307_suppressed_for_method_return_captured_handle() {
+    // Issue #1143: `set b [$a make]` — a handle returned by a
+    // `$var`-dispatched method and captured into a variable.  The lattice's
+    // method-return edge types `b`, so the re-dispatch draws no W307 (the
+    // information hover / go-to-definition already surface).
+    let src = "oo::class create A { method make {} { return [B new] } }\n\
+               oo::class create B { method greet {} { return \"hi\" } }\n\
+               set a [A new]\n\
+               set b [$a make]\n\
+               $b greet\n";
+    assert!(
+        w30x_codes(src).is_empty(),
+        "the method-return-captured handle must suppress W307; got {:?}",
+        w30x_codes(src)
+    );
+}
+
+#[test]
+fn w308_fires_for_bogus_method_on_method_return_captured_handle() {
+    // The positive half of the same edge: once `b` is provably a ::B, an
+    // unknown method is W308 — the diagnostic and hover agree on the class.
+    let src = "oo::class create A { method make {} { return [B new] } }\n\
+               oo::class create B { method greet {} { return \"hi\" } }\n\
+               set a [A new]\n\
+               set b [$a make]\n\
+               $b fly\n";
+    assert_eq!(
+        w30x_codes(src),
+        vec!["W308".to_owned()],
+        "an unknown method on the lattice-typed handle is W308, not W307"
+    );
+}
+
+#[test]
+fn tp_e001_bare_dispatch_on_method_return_captured_handle() {
+    // Issue #1200's variable flow: the same lattice typing makes a bare
+    // `$b` the unconditional TclOO zero-word failure.
+    let src = "oo::class create A { method make {} { return [B new] } }\n\
+               oo::class create B { method greet {} { return \"hi\" } }\n\
+               set a [A new]\n\
+               set b [$a make]\n\
+               $b\n";
+    assert!(
+        has_code(src, "tcl", "E001"),
+        "a bare dispatch on the method-return-typed handle must fire E001"
+    );
+}
+
+#[test]
+fn tn_w307_expanded_runtime_command_list_stays_abstaining() {
+    // The REFUTED SpiceGenTcl shape from issue #1143 (idx 14), kept as the
+    // TN that must stay abstaining: `{*}$element` expands a *runtime-built*
+    // list into the callee inside a method body (SpiceGenTcl's
+    // `buildTopNetlist`).  No W307/W308/E001, and no false resolution.
+    let src = "oo::class create Netlist { method add {e} { return $e } }\n\
+               oo::class create Builder {\n\
+                 method build {cls args} {\n\
+                   set topNetlist [Netlist new]\n\
+                   set element [list $cls new {*}$args]\n\
+                   $topNetlist add [{*}$element]\n\
+                   return $topNetlist\n\
+                 }\n\
+               }\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        !r.diagnostics
+            .iter()
+            .any(|d| matches!(d.code, DiagCode::W307 | DiagCode::W308 | DiagCode::E001)),
+        "the runtime-built `{{*}}$element` dispatch must stay a silent \
+         abstention; got {:?}",
+        r.diagnostics
     );
 }
 

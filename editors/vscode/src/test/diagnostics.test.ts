@@ -832,40 +832,72 @@ suite("Diagnostics", () => {
   // a correct implementation must not flag.
   test("E001 fires for bare `string` and bare TclOO object dispatch only", async () => {
     const uri = getDocUri("diagnostics-e001.tcl");
-    await activate(uri);
+    const doc = await activate(uri);
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
     const diagnostics = await waitForDiagnostics(uri, {
-      predicate: (diags) => diags.filter((d) => codeOf(d) === "E001").length >= 2,
+      predicate: (diags) => diags.filter((d) => codeOf(d) === "E001").length >= 4,
     });
     const e001 = diagnostics.filter((d) => codeOf(d) === "E001");
     assert.strictEqual(
       e001.length,
-      2,
-      `expected exactly two E001s (bare 'string' + bare '$o'), got [${diagnostics.map(codeOf)}]` +
+      4,
+      `expected exactly four E001s (bare 'string', bare '$o', bare '[Dog new]', bare '$b'),` +
+        ` got [${diagnostics.map(codeOf)}]` +
         ` — history/snit false positives would inflate this count`,
     );
     for (const d of e001) {
       assert.strictEqual(d.severity, vscode.DiagnosticSeverity.Error, "E001 should be an error");
     }
 
-    const bareString = e001.find((d) => d.message.includes("string"));
+    const text = doc.getText();
+    // Line of the first occurrence of `needle`; a leading "\n" anchors the
+    // match at a line start (so `[Dog new]` as a whole command is not found
+    // inside `set o [Dog new]`).
+    const lineOf = (needle: string): number => {
+      const idx = text.indexOf(needle);
+      assert.ok(idx >= 0, `fixture must contain ${JSON.stringify(needle)}`);
+      return doc.positionAt(idx + (needle.startsWith("\n") ? 1 : 0)).line;
+    };
+    const e001On = (line: number) => e001.find((d) => d.range.start.line === line);
+
+    const bareString = e001On(lineOf("string"));
     assert.ok(
       bareString,
-      `an E001 message should name 'string', got: ${e001.map((d) => d.message)}`,
+      `an E001 should anchor on the bare 'string' call, got: ${e001.map((d) => d.message)}`,
     );
-    // Tight highlighting: the span must cover only the command word, line 6
-    // (0-indexed) columns 0-6 — no subcommand exists to extend it over.
-    assert.strictEqual(bareString.range.start.line, 6);
+    // Tight highlighting: the span must cover only the command word —
+    // no subcommand exists to extend it over.
     assert.strictEqual(bareString.range.start.character, 0);
-    assert.strictEqual(bareString.range.end.line, 6);
     assert.strictEqual(bareString.range.end.character, 6);
 
-    const bareObject = e001.find((d) => d.message.includes("requires a method"));
+    const bareObject = e001On(lineOf("\n$o\n"));
     assert.ok(
-      bareObject,
-      `an E001 message should report the missing TclOO method, got: ${e001.map((d) => d.message)}`,
+      bareObject && bareObject.message.includes("requires a method"),
+      `an E001 should report the missing TclOO method on bare '$o', got: ${e001.map((d) => d.message)}`,
     );
-    assert.strictEqual(bareObject.range.start.line, 22);
+
+    // Issue #1200: the command-substitution head — `[Dog new]` used bare
+    // as a command — is the same zero-word dispatch failure.
+    const bareCtor = e001On(lineOf("\n[Dog new]\n"));
+    assert.ok(
+      bareCtor && bareCtor.message.includes("requires a method"),
+      `an E001 should fire on the bare '[Dog new]' head, got: ${e001.map((d) => d.message)}`,
+    );
+
+    // Issues #1143/#1200: `b` is typed only by the object-type lattice's
+    // method-return edge (`set b [$m make]`) — the bare `$b` still fires,
+    // and the well-formed `$b bark` right above it must be clean (no W307).
+    const bareLattice = e001On(lineOf("\n$b\n"));
+    assert.ok(
+      bareLattice && bareLattice.message.includes("requires a method"),
+      `an E001 should fire on the lattice-typed bare '$b', got: ${e001.map((d) => d.message)}`,
+    );
+    const dispatchLine = lineOf("$b bark");
+    assert.ok(
+      !diagnostics.some((d) => codeOf(d) === "W307" && d.range.start.line === dispatchLine),
+      `'$b bark' resolves through the lattice and must not draw W307:` +
+        ` ${diagnostics.map((d) => `${codeOf(d)}@${d.range.start.line}`)}`,
+    );
   });
 
   // Issue #832: `autoloadLibrary.tcl` calls two commands the workspace's

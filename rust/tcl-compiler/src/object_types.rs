@@ -225,6 +225,9 @@ pub enum ObjectFlowEdge {
     Alias,
     /// `set A [factoryProc …]`.
     ProcReturn,
+    /// `set A [$obj make …]` — a method-return on an already-typed receiver
+    /// (issue #1143).
+    MethodReturn,
     /// `f $obj` → `f`'s parameter.
     ProcParam,
     /// `C new $obj` → `C`'s constructor parameter.
@@ -246,6 +249,8 @@ pub struct LatticeStats {
     pub alias_bindings: usize,
     /// See [`Self::alias_bindings`].
     pub return_bindings: usize,
+    /// See [`Self::alias_bindings`].
+    pub method_return_bindings: usize,
     /// See [`Self::alias_bindings`].
     pub param_bindings: usize,
     /// See [`Self::alias_bindings`].
@@ -549,6 +554,26 @@ fn returning_procs(cu: &CompilationUnit) -> HashMap<&str, &str> {
         .collect()
 }
 
+/// Method [`FunctionUnit`] key (`::Class::method`) → the class of the object
+/// it returns — the method-return counterpart of [`returning_procs`], behind
+/// the `set b [$a make]` edge (issue #1143).
+///
+/// Direct declarations only: a receiver class that merely *inherits* the
+/// method resolves nothing here (the lattice carries no MRO), so the edge
+/// abstains rather than guess — the module-wide "no evidence ≠ no object"
+/// contract.
+fn returning_methods(cu: &CompilationUnit) -> HashMap<&str, &str> {
+    cu.methods
+        .iter()
+        .filter_map(|(key, fu)| {
+            (fu.return_type.tcl_type() == Some(tcl_registry::TclType::Object))
+                .then_some(fu.return_type.class_name())
+                .flatten()
+                .map(|c| (key.as_str(), c))
+        })
+        .collect()
+}
+
 /// VTA-lite object-flow fixpoint.  Propagates object classes from the seeded
 /// handles along four kinds of type-propagation edge — assignment (aliasing),
 /// proc return, proc parameter, and constructor parameter — until no new class
@@ -580,11 +605,17 @@ fn propagate_object_flow<'a>(
                 .then_some((m.class_name.as_str(), (k.as_str(), m.params.as_slice())))
         })
         .collect();
-    if returns.is_empty() && proc_params.is_empty() && ctor_params.is_empty() {
+    let method_returns = returning_methods(cu);
+    if returns.is_empty()
+        && proc_params.is_empty()
+        && ctor_params.is_empty()
+        && method_returns.is_empty()
+    {
         return;
     }
     let index = FlowIndex {
         returns: returns.clone(),
+        method_returns,
         proc_params,
         ctor_params,
     };
@@ -603,6 +634,7 @@ fn propagate_object_flow<'a>(
             match binding.kind {
                 ObjectFlowEdge::Alias => sink.stats.alias_bindings += 1,
                 ObjectFlowEdge::ProcReturn => sink.stats.return_bindings += 1,
+                ObjectFlowEdge::MethodReturn => sink.stats.method_return_bindings += 1,
                 ObjectFlowEdge::ProcParam => sink.stats.param_bindings += 1,
                 ObjectFlowEdge::CtorParam => sink.stats.ctor_param_bindings += 1,
             }
@@ -643,6 +675,9 @@ fn propagate_object_flow<'a>(
 struct FlowIndex<'a> {
     /// Proc qualified name → returned object class.
     returns: HashMap<&'a str, &'a str>,
+    /// Method [`FunctionUnit`] key (`::Class::method`) → returned object
+    /// class, for the `set b [$a make]` method-return edge (issue #1143).
+    method_returns: HashMap<&'a str, &'a str>,
     /// Proc qualified name → parameter names.
     proc_params: HashMap<&'a str, &'a [String]>,
     /// Class qualified name → (constructor unit key, constructor parameters).
@@ -704,6 +739,7 @@ fn scan_flow_edges(
 ) -> Vec<Binding> {
     let FlowIndex {
         returns,
+        method_returns,
         proc_params,
         ctor_params,
     } = index;
@@ -766,7 +802,10 @@ fn scan_flow_edges(
                                 value,
                             },
                             &resolve_ctor_class,
-                            returns,
+                            ReturnEdges {
+                                procs: returns,
+                                methods: method_returns,
+                            },
                             ctx,
                             &mut bindings,
                         );
@@ -815,14 +854,24 @@ struct AssignSite<'a> {
     value: &'a str,
 }
 
-/// The two edges an assignment can carry — aliasing (`set A $B`) and proc
-/// return (`set A [make …]`) — plus the nested-constructor parameter edge of a
-/// `set W [Class new $obj]` value.  Both assignment edges bind in the
+/// The callee-side return-type maps [`scan_assign_edges`] resolves a
+/// bracketed value's head against: [`FlowIndex::returns`] and
+/// [`FlowIndex::method_returns`].
+#[derive(Clone, Copy)]
+struct ReturnEdges<'a, 'b> {
+    procs: &'b HashMap<&'a str, &'a str>,
+    methods: &'b HashMap<&'a str, &'a str>,
+}
+
+/// The edges an assignment can carry — aliasing (`set A $B`), proc return
+/// (`set A [make …]`), and method return (`set A [$obj make …]`, issue
+/// #1143) — plus the nested-constructor parameter edge of a
+/// `set W [Class new $obj]` value.  The assignment edges bind in the
 /// *assigning* unit; the constructor edge binds in the constructor.
 fn scan_assign_edges(
     site: AssignSite,
     resolve_ctor_class: &impl Fn(&str) -> Option<String>,
-    returns: &HashMap<&str, &str>,
+    returns: ReturnEdges<'_, '_>,
     ctx: ScanContext,
     bindings: &mut Vec<Binding>,
 ) {
@@ -850,8 +899,9 @@ fn scan_assign_edges(
     // qualifier the way `CommandRegistry::get` does.
     let qualified = format!("::{}", cmd.trim_start_matches("::"));
     if let Some(class) = returns
+        .procs
         .get(cmd.as_str())
-        .or_else(|| returns.get(qualified.as_str()))
+        .or_else(|| returns.procs.get(qualified.as_str()))
     {
         // A legitimately cross-scope flow: the source is the *callee's* return
         // type, not a variable read, so there is no scope to confuse and both
@@ -864,6 +914,39 @@ fn scan_assign_edges(
             scoped_classes: classes.scoped,
             kind: ObjectFlowEdge::ProcReturn,
         });
+    }
+    // Method-return edge (issue #1143): `set B [$a make …]` — the receiver's
+    // classes are already tracked, and a directly-declared `::Class::make`
+    // whose own return type names an object class types the captured handle,
+    // exactly like a proc return.  The *receiver* is a variable read in this
+    // unit, so the scope-keyed fact resolves it here (the union fact stays
+    // blind, as for the aliasing edge); the method word must be a plain
+    // bareword — a computed member (`[$a $m]`) proves nothing.
+    if let Some(recv) = deref_arg_var(&cmd)
+        && let Some(method) = args
+            .first()
+            .map(String::as_str)
+            .filter(|m| !m.is_empty() && !m.starts_with(['$', '[', '{', '"']))
+    {
+        let resolve = |classes: &HashSet<String>| -> HashSet<String> {
+            classes
+                .iter()
+                .filter_map(|c| returns.methods.get(format!("{c}::{method}").as_str()))
+                .map(|ret| (*ret).to_owned())
+                .collect()
+        };
+        if let Some(recv_classes) = ctx.out.get(recv).filter(|s| !s.is_empty()) {
+            let union_classes = resolve(recv_classes);
+            if !union_classes.is_empty() {
+                bindings.push(Binding {
+                    owner: site.unit.to_owned(),
+                    name: site.name.to_owned(),
+                    union_classes,
+                    scoped_classes: resolve(&ctx.scoped_classes(recv)),
+                    kind: ObjectFlowEdge::MethodReturn,
+                });
+            }
+        }
     }
     // Constructor-parameter edge for a nested `[Class new …]` / `[Class create …]`.
     emit_ctor_param_bindings(
@@ -1830,6 +1913,85 @@ mod tests {
             vec!["::Pin".to_owned()],
             "the proc-parameter edge reads the argument in ::drive and binds \
              the parameter in ::connect; by_scope={:?}",
+            facts.by_scope
+        );
+    }
+
+    #[test]
+    fn method_return_capture_types_the_handle() {
+        // Issue #1143: `set b [$a make]` — the receiver is already typed and
+        // `::A::make`'s own return type names an object class, so the captured
+        // handle is a ::B in both facts.
+        let (_r, facts) = facts_for(
+            "oo::class create A { method make {} { return [B new] } }\n\
+             oo::class create B { method greet {} { return \"hi\" } }\n\
+             set a [A new]\n\
+             set b [$a make]\n\
+             $b greet\n",
+        );
+        assert_eq!(
+            facts.any_scope.get("b").map(|s| s.contains("::B")),
+            Some(true),
+            "`b` should be a ::B handle via the method-return edge; got {:?}",
+            facts.any_scope
+        );
+        assert_eq!(
+            scoped(&facts, "::top", "b"),
+            vec!["::B".to_owned()],
+            "the method-return edge binds in the assigning unit; by_scope={:?}",
+            facts.by_scope
+        );
+    }
+
+    #[test]
+    fn method_return_edge_abstains_on_computed_member_and_literal_return() {
+        // TN twins of the edge: a computed member word proves nothing, and a
+        // method returning a plain literal types no handle.
+        let (_r, facts) = facts_for(
+            "oo::class create A {\n\
+               method make {} { return [B new] }\n\
+               method name {} { return plain }\n\
+             }\n\
+             oo::class create B {}\n\
+             set a [A new]\n\
+             set m make\n\
+             set b [$a $m]\n\
+             set c [$a name]\n",
+        );
+        assert!(
+            !facts.any_scope.contains_key("b"),
+            "a computed member word must not bind; got {:?}",
+            facts.any_scope
+        );
+        assert!(
+            !facts.any_scope.contains_key("c"),
+            "a literal-returning method must not bind; got {:?}",
+            facts.any_scope
+        );
+    }
+
+    #[test]
+    fn method_return_edge_does_not_import_another_units_receiver() {
+        // The by_scope guard for the new edge: `a` is a ::A only inside
+        // `::mk`; a same-named `a` in `::other` is untyped there, so the
+        // capture in `::other` must not bind in the scope-keyed map (the
+        // union may — its documented imprecision).
+        let (_r, facts) = facts_for(
+            "oo::class create A { method make {} { return [B new] } }\n\
+             oo::class create B {}\n\
+             proc mk {} { set a [A new]\n set b [$a make] }\n\
+             proc other {} { set a 1\n set b [$a make] }\n",
+        );
+        assert_eq!(
+            scoped(&facts, "::mk", "b"),
+            vec!["::B".to_owned()],
+            "the in-unit capture must bind; by_scope={:?}",
+            facts.by_scope
+        );
+        assert!(
+            scoped(&facts, "::other", "b").is_empty(),
+            "::other's `a` is an integer; the scoped fact must not import \
+             ::mk's receiver; by_scope={:?}",
             facts.by_scope
         );
     }

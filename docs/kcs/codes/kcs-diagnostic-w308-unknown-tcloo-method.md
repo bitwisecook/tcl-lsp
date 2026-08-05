@@ -28,6 +28,14 @@ class defines no `method unknown` catch-all — a snit-typed receiver, a
 forwarded method, or an object of an unknown class is left alone to avoid
 false positives.
 
+"Statically known" includes every flow the compiler's object-type lattice
+proves, not just a direct `set p [Point new]` assignment: a handle returned
+by a factory procedure (`set p [mk]`), returned by a method and captured
+(`set b [$a make]`), aliased (`set q $p`), or passed as a procedure or
+constructor parameter. The same facts drive hover, go-to-definition, and
+Find All References, so this warning and those features always agree on the
+receiver's class.
+
 ## Symptoms
 
 - A yellow squiggle (warning) appears under the `$obj method` call, with the

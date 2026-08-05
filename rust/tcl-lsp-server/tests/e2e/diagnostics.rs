@@ -538,6 +538,70 @@ fn history_unknown_subcommand_is_still_w001_not_e001() {
     assert!(!has_code(&diags, "E001"));
 }
 
+#[test]
+fn bare_tcloo_command_substitution_head_is_e001() {
+    // Issue #1200: `[Dog new]` runs the constructor, then invokes the object
+    // command with no method word — tclsh 9.0 fails `wrong # args: should be
+    // "::oo::Obj… method ?arg ...?"` (`-errorcode {TCL WRONGARGS}`).  The
+    // span anchors on the substitution head.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Dog {\n    method bark {} {return woof}\n}\n[Dog new]\n",
+    );
+    assert_eq!(
+        on_line(&diags, "E001").into_iter().collect::<Vec<_>>(),
+        vec![3],
+        "bare `[Dog new]` must be E001 on its own line: {diags:?}"
+    );
+    // A well-formed dispatch through the same head stays clean.
+    let uri2 = unique_uri("tcl");
+    let diags2 = lsp.open_ready(
+        &uri2,
+        "oo::class create Dog {\n    method bark {} {return woof}\n}\n[Dog new] bark\n",
+    );
+    assert!(
+        !has_code(&diags2, "E001") && !has_code(&diags2, "W307"),
+        "`[Dog new] bark` is well-formed: {diags2:?}"
+    );
+}
+
+#[test]
+fn method_return_captured_handle_has_no_w307_and_bare_dispatch_is_e001() {
+    // Issue #1143 + #1200's variable flow, end to end: `set b [$a make]`
+    // types `b` through the lattice's method-return edge, so `$b greet` is
+    // silent (no W307), and a bare `$b` is the zero-word E001.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create A { method make {} { return [B new] } }\n\
+         oo::class create B { method greet {} { return \"hi\" } }\n\
+         set a [A new]\n\
+         set b [$a make]\n\
+         $b greet\n",
+    );
+    assert!(
+        !has_code(&diags, "W307") && !has_code(&diags, "E001"),
+        "the method-return-captured dispatch must be silent: {diags:?}"
+    );
+    let uri2 = unique_uri("tcl");
+    let diags2 = lsp.open_ready(
+        &uri2,
+        "oo::class create A { method make {} { return [B new] } }\n\
+         oo::class create B { method greet {} { return \"hi\" } }\n\
+         set a [A new]\n\
+         set b [$a make]\n\
+         $b\n",
+    );
+    assert_eq!(
+        on_line(&diags2, "E001").into_iter().collect::<Vec<_>>(),
+        vec![4],
+        "the bare `$b` dispatch must be E001: {diags2:?}"
+    );
+}
+
 // -- W002 (disabled-in-dialect command), end to end -----------------------
 
 /// The `(character, character)` span of the first diagnostic carrying `code`
