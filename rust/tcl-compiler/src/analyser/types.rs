@@ -1114,6 +1114,21 @@ pub struct Scope {
     pub name: String,
     /// Body span (braces excluded), `None` for the global scope.
     pub body_span: Option<Span>,
+    /// Span of the word that *names* this scope, when the scope was opened by
+    /// a command that spells its name out — the `NAME` word of `namespace
+    /// eval NAME { … }`.
+    ///
+    /// `None` for scopes with no written name word: the global scope, an
+    /// `interp eval` domain, a synthesised M9 source-seed frame, and proc /
+    /// method scopes (whose name span already travels on the richer
+    /// [`ProcDef::name_span`] / [`MethodDef`] records).
+    ///
+    /// Consumers that must point *at the name* rather than at the body read
+    /// this: the outline's `selectionRange` ("the range that should be
+    /// selected and revealed when this symbol is picked") is the name token
+    /// for every other symbol kind, and a namespace that answered its whole
+    /// body there selected the entire block when clicked (issue #1218).
+    pub name_span: Option<Span>,
     /// Variables defined directly in this scope.
     pub variables: HashMap<String, VarDef>,
     /// Procs defined directly in this scope.
@@ -1186,6 +1201,7 @@ impl Scope {
             kind,
             name: name.into(),
             body_span: None,
+            name_span: None,
             variables: HashMap::new(),
             procs: HashMap::new(),
             classes: HashMap::new(),

@@ -19,10 +19,15 @@
 //! Splitting a `{pattern body pattern body …}` clause list into its clauses.
 //!
 //! `switch { pat body … }` and Expect's `expect { ?-flags? pat body … }` are the
-//! same construct. Two consumers walk it — the semantic-token walker (to type
-//! each element) and the iRules object-reference walker (to find objects named
-//! inside a clause body) — and they must agree on where the clauses are, or the
-//! two disagree about what the code says.
+//! same construct. Several consumers walk it — the semantic-token walker (to
+//! type each element), the iRules object-reference walker (to find objects
+//! named inside a clause body), the reference scanner, and the fold walk (to
+//! give each arm its own folding range) — and they must agree on where the
+//! clauses are, or they disagree about what the code says.
+//!
+//! Two questions, two entry points: [`clause_list_call`] answers *which
+//! argument* holds the list (skipping the command's options and subject
+//! words), and [`split_case_list`] answers *where the clauses are* inside it.
 //!
 //! A clause list is a **list**, not a script: `;` and `#` are ordinary pattern
 //! elements, not a command separator / comment (Tcl's "comments don't work in
@@ -49,6 +54,79 @@ pub struct CaseListShape<'a> {
     pub clause_flags: &'a [&'a str],
     /// Of those, the ones that consume a following value word (`-timeout 5`).
     pub clause_value_flags: &'a [&'a str],
+}
+
+/// How a clause-list command's *call* is shaped ahead of the list itself.
+///
+/// Built from the registry's `CaseListSpec` by the caller, for the same reason
+/// [`CaseListShape`] is: this layer stays free of the registry.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CallShape<'a> {
+    /// Non-option words between the options and the clause list — `switch`'s
+    /// subject string is 1, `expect` has none.
+    pub subject_args: usize,
+    /// The command option that makes every pattern a regex (`switch -regexp`).
+    pub regex_option: Option<&'a str>,
+    /// Command options that consume a following value word (`-matchvar var`),
+    /// so the value is not mistaken for a subject or for the list.
+    pub value_options: &'a [&'a str],
+}
+
+/// Where the single braced clause list sits in a call, when the call is in
+/// that shape at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClauseListCall {
+    /// Index of the clause-list word, 0-based **after** the command name.
+    pub index: usize,
+    /// Whether the command-level regex option was given, so every pattern in
+    /// the list is a regex.
+    pub regexp: bool,
+}
+
+/// Locate the clause-list word of a call whose command carries a clause-list
+/// shape — `switch ?opts? subject { pat body … }`, `expect ?opts? { pat body
+/// … }`.
+///
+/// `args` is the call's words **after** the command name.  Returns `None`
+/// when the call is in the inline `pat body pat body …` form instead (more
+/// than one word remains after the options and subjects), or when no word
+/// remains at all: those bodies are ordinary script arguments the caller's
+/// generic role walk already reaches, and no clause-list unpacking applies.
+///
+/// The option skip is driven entirely by `shape`, never by a command name, so
+/// every clause-list command — present and future — is located identically.
+/// This is the one implementation: the semantic-token walker, the reference
+/// scanner, and the fold walk all read it, and if they disagreed about where
+/// the list is they would disagree about what the code says.
+#[must_use]
+pub fn clause_list_call(args: &[&str], shape: &CallShape<'_>) -> Option<ClauseListCall> {
+    let mut i = 0usize;
+    let mut regexp = false;
+    while i < args.len() {
+        let a = args[i];
+        if shape.regex_option == Some(a) {
+            regexp = true;
+        }
+        if a == "--" {
+            i += 1;
+            break;
+        }
+        if !a.starts_with('-') {
+            break;
+        }
+        i += if shape.value_options.contains(&a) {
+            2
+        } else {
+            1
+        };
+    }
+    i += shape.subject_args;
+    // Exactly one word left: the braced clause list.
+    if i < args.len() && args.len() - i == 1 {
+        Some(ClauseListCall { index: i, regexp })
+    } else {
+        None
+    }
 }
 
 /// One element of a clause list, as byte offsets into the list's *content*.
@@ -174,6 +252,88 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    mod locating_the_list {
+        use super::super::{CallShape, ClauseListCall, clause_list_call};
+
+        const SWITCH_CALL: CallShape<'static> = CallShape {
+            subject_args: 1,
+            regex_option: Some("-regexp"),
+            value_options: &["-matchvar", "-indexvar"],
+        };
+        const EXPECT_CALL: CallShape<'static> = CallShape {
+            subject_args: 0,
+            regex_option: None,
+            value_options: &["-timeout", "-i"],
+        };
+
+        fn call(args: &[&str], shape: &CallShape<'_>) -> Option<ClauseListCall> {
+            clause_list_call(args, shape)
+        }
+
+        #[test]
+        fn plain_switch_finds_the_trailing_list() {
+            assert_eq!(
+                call(&["$x", "{a b}"], &SWITCH_CALL),
+                Some(ClauseListCall {
+                    index: 1,
+                    regexp: false
+                })
+            );
+        }
+
+        #[test]
+        fn options_and_their_values_are_skipped() {
+            assert_eq!(
+                call(
+                    &["-regexp", "-matchvar", "m", "--", "$x", "{a b}"],
+                    &SWITCH_CALL
+                ),
+                Some(ClauseListCall {
+                    index: 5,
+                    regexp: true
+                })
+            );
+        }
+
+        #[test]
+        fn the_inline_pairs_form_is_not_a_clause_list() {
+            assert_eq!(call(&["$x", "a", "{b}", "c", "{d}"], &SWITCH_CALL), None);
+        }
+
+        #[test]
+        fn a_call_with_no_list_word_at_all_is_none() {
+            assert_eq!(call(&["$x"], &SWITCH_CALL), None);
+            assert_eq!(call(&[], &SWITCH_CALL), None);
+        }
+
+        /// `expect` has no subject word, and `-timeout` / `-i` appear as
+        /// *command* options too — stopping the scan on the value word would
+        /// leave two trailing words and hide the list.
+        #[test]
+        fn expect_has_no_subject_and_skips_value_options() {
+            assert_eq!(
+                call(&["-timeout", "5", "{pat body}"], &EXPECT_CALL),
+                Some(ClauseListCall {
+                    index: 2,
+                    regexp: false
+                })
+            );
+        }
+
+        /// A subject that happens to look like a flag is protected by `--`,
+        /// and everything after it is positional.
+        #[test]
+        fn option_terminator_stops_the_option_scan() {
+            assert_eq!(
+                call(&["--", "-weird", "{a b}"], &SWITCH_CALL),
+                Some(ClauseListCall {
+                    index: 2,
+                    regexp: false
+                })
+            );
+        }
     }
 
     #[test]

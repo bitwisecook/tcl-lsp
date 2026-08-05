@@ -5325,3 +5325,73 @@ mod const_cmd_subst_set_rhs {
         assert_eq!(resolutions_of(&r, "${ns}"), ["::tc::setdef"]);
     }
 }
+
+// ===========================================================================
+// Leading byte-order mark (issue #1218).
+// ===========================================================================
+mod leading_bom {
+    use super::{Analyser, analyser_diags, fires};
+
+    /// A file whose first byte is a UTF-8 BOM: Tcl 9's `source` strips it
+    /// before evaluating, so the first command is an ordinary `set` and must
+    /// draw no unresolved-command diagnostic.
+    #[test]
+    fn tcl9_skips_a_leading_bom() {
+        let src = "\u{FEFF}set x 1\nputs $x\n";
+        assert!(
+            !fires(src, "tcl9.0", "W123"),
+            "diagnostics: {:?}",
+            analyser_diags(src, "tcl9.0"),
+        );
+    }
+
+    /// Tcl 8.x's `source` does **not** strip it — such a file really does fail
+    /// with `invalid command name "<BOM>set"`, so the diagnostic stays.
+    #[test]
+    fn tcl86_still_reports_a_leading_bom() {
+        let src = "\u{FEFF}set x 1\nputs $x\n";
+        assert!(
+            fires(src, "tcl8.6", "W123"),
+            "diagnostics: {:?}",
+            analyser_diags(src, "tcl8.6"),
+        );
+    }
+
+    /// The mark is skipped by starting the scan past it, never by rewriting
+    /// the buffer — so every span keeps its true byte offset and the first
+    /// command's own span still points at the real name word.  This is the
+    /// position-maths guarantee: a client that did send the BOM sees line 0
+    /// columns that still land on the text it holds.
+    #[test]
+    fn skipping_the_bom_leaves_byte_offsets_untouched() {
+        let src = "\u{FEFF}proc greet {} { return 1 }\n";
+        let r = Analyser::new().analyse(src, "tcl9.0");
+        let proc = r
+            .global_scope
+            .procs
+            .values()
+            .next()
+            .expect("the proc must be recorded once the BOM is skipped");
+        assert_eq!(
+            proc.name_span.start() as usize,
+            "\u{FEFF}proc ".len(),
+            "name span must be in original-source offsets",
+        );
+        assert_eq!(
+            &src[proc.name_span.start() as usize..proc.name_span.end() as usize],
+            "greet",
+        );
+    }
+
+    /// A BOM that is not at offset 0 is ordinary data in every dialect — the
+    /// skip is a file-prologue rule, not a "U+FEFF is whitespace" rule.
+    #[test]
+    fn a_bom_mid_file_is_not_skipped() {
+        let src = "set x 1\n\u{FEFF}set y 2\n";
+        assert!(
+            fires(src, "tcl9.0", "W123"),
+            "diagnostics: {:?}",
+            analyser_diags(src, "tcl9.0"),
+        );
+    }
+}

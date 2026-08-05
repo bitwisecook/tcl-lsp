@@ -43,10 +43,11 @@ import { getDocUri, activate, waitForDiagnostics } from "./helper";
 // resolves it the same way: drive the same fix through a *different*,
 // runtime-triggerable entry point into the identical code path). Here that
 // entry point is `did_change_watched_files`: creating an on-disk ancestor
-// file that the client's own file-system watcher (registered over
-// `**/*.tcl`) turns into a `workspace/didChangeWatchedFiles` CREATE
-// notification, which reaches the exact same
-// `reschedule_all_open_documents()` call the startup-race fix added.
+// file that the file-system watcher the *server* registers at
+// `initialized` (a case-folded glob over its own Tcl extension set) turns
+// into a `workspace/didChangeWatchedFiles` CREATE notification, which
+// reaches the exact same `reschedule_all_open_documents()` call the
+// startup-race fix added.
 suite("W120 workspace-index reschedule (#829)", () => {
   const callerUri = getDocUri("w120Reschedule/caller.tcl");
   const entryUri = vscode.Uri.file(path.join(path.dirname(callerUri.fsPath), "entry.tcl"));
@@ -88,8 +89,8 @@ suite("W120 workspace-index reschedule (#829)", () => {
 
       // Create the ancestor on disk -- deliberately never opened in the
       // editor -- that `source`s the caller and requires the package. The
-      // client's `**/*.tcl` file-system watcher turns this real disk write
-      // into a `workspace/didChangeWatchedFiles` CREATE notification.
+      // watcher the server registered turns this real disk write into a
+      // `workspace/didChangeWatchedFiles` CREATE notification.
       const entryContent = Buffer.from("package require report\nsource caller.tcl\n", "utf8");
       await vscode.workspace.fs.writeFile(entryUri, entryContent);
 

@@ -21,7 +21,7 @@ import { CommandContext } from "./types";
 import { extractCodeBlock, ensureDocumentOpen } from "./codeUtils";
 import { sendContextualRequest } from "./contextPack";
 import { waitForDiagnostics, formatDiagnosticsForLLM } from "./diagnosticAccess";
-import { setServerDialect, getActiveDialect } from "../extension";
+import { setSessionDialectOverride, getActiveDialect } from "../extension";
 
 const MAX_ITERATIONS = 5;
 const DIAGNOSTIC_WAIT_MS = 5000;
@@ -50,12 +50,13 @@ export async function runAgenticLoop(
   options: AgenticLoopOptions = {},
 ): Promise<AgenticResult> {
   // Keep caller control over dialect. iRules workflows pin to f5-irules,
-  // while general Tcl workflows keep the active dialect.
-  const previousDialect = getActiveDialect();
+  // while general Tcl workflows keep the active dialect. Pinned as a *session
+  // override* rather than a configuration push: a push is undone by the next
+  // `workspace/configuration` pull, which can happen at any time (issue #1217).
   const targetDialect = options.targetDialect;
-  const switchedDialect = !!targetDialect && previousDialect !== targetDialect;
+  const switchedDialect = !!targetDialect && getActiveDialect() !== targetDialect;
   if (switchedDialect) {
-    await setServerDialect(targetDialect);
+    await setSessionDialectOverride(targetDialect);
   }
 
   let currentCode = initialCode;
@@ -128,9 +129,10 @@ export async function runAgenticLoop(
       currentCode = extractedCode;
     }
   } finally {
-    // Restore dialect only when we changed it.
+    // Clearing the override restores whatever the configuration resolves to,
+    // so there is no previous value to remember.
     if (switchedDialect) {
-      await setServerDialect(previousDialect);
+      await setSessionDialectOverride(null);
     }
   }
 

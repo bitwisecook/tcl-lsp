@@ -463,6 +463,12 @@ where
     let remaining = &source[recovery_offset..];
     if !remaining.trim().is_empty() {
         let base = u32::try_from(recovery_offset).expect("recovery_offset fits in u32");
+        // A recovery slice is mid-file, never a file head — a U+FEFF there is
+        // ordinary data, so the file-entry BOM skip must not carry over.
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Content,
+            ..config
+        };
         let recovered = segment_commands_with_offset_and_config(remaining, base, config);
         commands.extend(recovered);
     }

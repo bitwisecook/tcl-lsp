@@ -25,7 +25,7 @@ import {
   categoriseDiagnostics,
   formatDiagnosticsForLLM,
 } from "../diagnosticAccess";
-import { setServerDialect, getActiveDialect, isTclLanguage } from "../../extension";
+import { setSessionDialectOverride, getActiveDialect, isTclLanguage } from "../../extension";
 
 export async function handleDatagroup(ctx: CommandContext): Promise<vscode.ChatResult> {
   // Try active editor first, then resolve from references
@@ -50,9 +50,12 @@ export async function handleDatagroup(ctx: CommandContext): Promise<vscode.ChatR
   ctx.response.progress("Analysing for data-group extraction opportunities...");
 
   // Ensure dialect is f5-irules
-  const previousDialect = getActiveDialect();
-  if (previousDialect !== "f5-irules") {
-    await setServerDialect("f5-irules");
+  // Pinned as a *session override*, not a configuration push: a push is
+  // re-applied away by the next `workspace/configuration` pull, which can land
+  // at any time, so the pin's lifetime was arbitrary (issue #1217).
+  const pinnedDialect = getActiveDialect() !== "f5-irules";
+  if (pinnedDialect) {
+    await setSessionDialectOverride("f5-irules");
   }
 
   try {
@@ -97,8 +100,9 @@ export async function handleDatagroup(ctx: CommandContext): Promise<vscode.ChatR
 
     return { metadata: { command: "datagroup" } };
   } finally {
-    if (previousDialect !== "f5-irules") {
-      await setServerDialect(previousDialect);
+    if (pinnedDialect) {
+      // Clearing restores whatever the configuration resolves to.
+      await setSessionDialectOverride(null);
     }
   }
 }

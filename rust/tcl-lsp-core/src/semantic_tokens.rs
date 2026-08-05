@@ -3173,30 +3173,26 @@ fn insert_case_list_override(
     let Some(spec) = registry.get(&seg.texts[0]).and_then(|s| s.case_list) else {
         return;
     };
-    let mut i = 1;
-    let mut is_regexp = false;
-    while i < seg.texts.len() && seg.texts[i].starts_with('-') {
-        if spec.regex_option == Some(seg.texts[i].as_str()) {
-            is_regexp = true;
-        }
-        if seg.texts[i] == "--" {
-            i += 1;
-            break;
-        }
-        if spec.value_options.contains(&seg.texts[i].as_str()) {
-            i += 1;
-        }
-        i += 1;
-    }
-    // Skip the command's subject words (`switch`'s string; `expect` has none).
-    // The clause list is the final word — the braced-list form only, since the
-    // inline `pat body …` form leaves more than one trailing word.
-    let case_idx = i + usize::from(spec.subject_args);
-    if case_idx == seg.texts.len() - 1
-        && let Some(tok) = seg.argv.get(case_idx)
+    // Where the list sits (and whether the command-level regex option was
+    // given) is `tcl_syntax`'s one implementation, shared with the reference
+    // scanner and the fold walk — three walkers that must agree about where an
+    // arm's body is or they disagree about what the code says.  The braced-list
+    // form only: the inline `pat body …` form leaves more than one trailing
+    // word and `clause_list_call` answers `None` for it.
+    let args: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
+    let shape = tcl_syntax::case_list::CallShape {
+        subject_args: usize::from(spec.subject_args),
+        regex_option: spec.regex_option,
+        value_options: spec.value_options,
+    };
+    let Some(call) = tcl_syntax::case_list::clause_list_call(&args, &shape) else {
+        return;
+    };
+    // `args` is 0-based post-command-name; `seg.texts` / `seg.argv` are 1-based.
+    if let Some(tok) = seg.argv.get(call.index + 1)
         && matches!(tok.kind, TokenType::Str)
     {
-        overrides.insert(tok.span.start(), ArgOverride::CaseList(spec, is_regexp));
+        overrides.insert(tok.span.start(), ArgOverride::CaseList(spec, call.regexp));
     }
 }
 

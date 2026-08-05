@@ -31,6 +31,7 @@
 #![forbid(unsafe_code)]
 
 pub mod config_ini;
+pub mod uri_norm;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::ControlFlow;
@@ -888,6 +889,29 @@ fn next_pull_diag_result_id() -> String {
     static COUNTER: AtomicU64 = AtomicU64::new(1);
     let id = COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("pd-{id}")
+}
+
+/// How long a `workspace/didChangeConfiguration` leader waits before running
+/// the reload, so the rest of a burst folds into the same generation.
+///
+/// Long enough to swallow a settings-editor keystroke burst (VS Code emits one
+/// notification per changed key) and short enough that a single deliberate
+/// toggle still feels immediate.
+const CONFIG_RELOAD_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(150);
+
+/// Coalescing state for the configuration reload (see
+/// [`Backend::coalesced_config_reload`]).
+///
+/// The same leader-and-dirty-flag shape as [`DiagSlot`], and for the same
+/// reason: the flag records only *that* another notification arrived, so the
+/// run always reads the freshest state rather than a snapshot captured when it
+/// was scheduled.
+#[derive(Default)]
+struct ConfigReloadSlot {
+    /// A notification arrived that the running reload has not yet covered.
+    dirty: bool,
+    /// A handler is currently acting as the reload leader.
+    running: bool,
 }
 
 /// Per-URI coalescing-scheduler slot (see [`Backend::diag_slots`]).
@@ -2919,6 +2943,27 @@ pub struct Backend {
     /// `tcl-lsp.getEffectiveConfig` so a caller tracing a surprising dialect can
     /// tell "nobody configured one" from "someone configured exactly this".
     default_dialect_explicit: Mutex<bool>,
+    /// A deliberate, temporary session dialect that outranks
+    /// [`Backend::default_dialect`] and is **immune to configuration**.
+    ///
+    /// The chat commands run a buffer under a fixed dialect (`f5-irules`) and
+    /// restore the previous one afterwards.  They used to do that by pushing a
+    /// `didChangeConfiguration` that rewrote `default_dialect`, so the very next
+    /// `workspace/configuration` pull re-applied the user's configured
+    /// `tclLsp.dialect` and silently reverted the override — its lifetime was
+    /// "until anything touches settings", which is arbitrary (issue #1217).
+    /// Held in its own slot, the override survives every pull and is cleared
+    /// only by the command that set it (`tcl-lsp.setSessionDialect` with a
+    /// `null` argument).
+    ///
+    /// Same *tier* as `default_dialect` — the last-resort fallback, below an
+    /// explicit language id, a BIG-IP basename, and a folder override — so
+    /// setting one changes nothing about which documents it can reach; it only
+    /// changes how long it lasts.
+    session_dialect_override: Mutex<Option<String>>,
+    /// Coalescing state for `workspace/didChangeConfiguration` — see
+    /// [`Backend::coalesced_config_reload`].
+    config_reload: Mutex<ConfigReloadSlot>,
     /// Workspace folder roots received from `initialize` /
     /// `workspace/didChangeWorkspaceFolders`.  Stored as
     /// `Uri` (typically `file://...` directories).
@@ -3745,6 +3790,8 @@ impl Backend {
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             default_dialect_explicit: Mutex::new(false),
+            session_dialect_override: Mutex::new(None),
+            config_reload: Mutex::new(ConfigReloadSlot::default()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
             folder_configs: Mutex::new(Vec::new()),
@@ -4393,8 +4440,21 @@ impl Backend {
     /// 4. The session-wide ``default_dialect`` fallback.
     async fn dialect_for_open(&self, uri: &Uri, language_id: &str, text: &str) -> String {
         let folder_dialects = self.folder_dialect_overrides().await;
-        let default_dialect = self.default_dialect.lock().await.clone();
+        let default_dialect = self.session_dialect().await;
         Self::dialect_for_open_sync(uri, language_id, text, &folder_dialects, &default_dialect)
+    }
+
+    /// The session-wide fallback dialect: the deliberate
+    /// [`Backend::session_dialect_override`] when one is in force, otherwise
+    /// the configured [`Backend::default_dialect`].
+    ///
+    /// The one read point for that tier, so a configuration pull rewriting
+    /// `default_dialect` cannot silently revert an override (issue #1217).
+    async fn session_dialect(&self) -> String {
+        if let Some(over) = self.session_dialect_override.lock().await.clone() {
+            return over;
+        }
+        self.default_dialect.lock().await.clone()
     }
 
     /// Every per-folder dialect override in effect, as the
@@ -4665,7 +4725,7 @@ impl Backend {
             .ok()?;
         let dialect = match self.resolve_folder_dialect(url).await {
             Some(d) => d,
-            None => self.default_dialect.lock().await.clone(),
+            None => self.session_dialect().await,
         };
         Some(DocumentState::new(text, dialect).normalised_for_analysis())
     }
@@ -5173,7 +5233,7 @@ impl Backend {
             return;
         }
         let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
-        let default_dialect = Arc::new(self.default_dialect.lock().await.clone());
+        let default_dialect = Arc::new(self.session_dialect().await);
         let concurrency = std::thread::available_parallelism()
             .map_or(4, std::num::NonZeroUsize::get)
             .min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
@@ -5253,7 +5313,7 @@ impl Backend {
         // a closed/never-opened file still suppresses W123 / drives the arity
         // error in its siblings.
         let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
-        let default_dialect = Arc::new(self.default_dialect.lock().await.clone());
+        let default_dialect = Arc::new(self.session_dialect().await);
         let scanned = Self::scan_disk_file(uri.clone(), folder_dialects, default_dialect).await;
         // Serialise the standalone replacement with source-site reconciliation,
         // then hold `documents` across the still-closed re-check and both
@@ -6060,7 +6120,7 @@ impl Backend {
         let mut resolved = None;
         let mut analysed = Vec::new();
         for path in files {
-            let Some(target_uri) = Uri::from_file_path(&path) else {
+            let Some(target_uri) = canonical_file_uri(&path) else {
                 continue;
             };
             let Some(target_doc) = self.read_document(&target_uri).await else {
@@ -8868,17 +8928,22 @@ impl Backend {
                 Some(doc) => doc.dialect,
                 None => match folder_dialect_for(uri, &folder_overrides) {
                     Some(d) => d,
-                    None => self.default_dialect.lock().await.clone(),
+                    None => self.session_dialect().await,
                 },
             },
-            None => self.default_dialect.lock().await.clone(),
+            None => self.session_dialect().await,
         };
         // Whether a `tclLsp.dialect` was actually configured for this URI — by
         // the folder it sits under, or session-wide — as opposed to the
-        // built-in fallback that a never-configured session reports.
+        // built-in fallback that a never-configured session reports.  A
+        // deliberate session override counts: it is exactly "someone chose this
+        // dialect", and a caller tracing a surprising dialect must be able to
+        // see it (issue #1217).
+        let session_override = self.session_dialect_override.lock().await.clone();
         let dialect_explicitly_set = parsed_uri
             .as_ref()
             .is_some_and(|uri| folder_dialect_for(uri, &folder_overrides).is_some())
+            || session_override.is_some()
             || *self.default_dialect_explicit.lock().await;
         let extra_commands = match &parsed_uri {
             Some(uri) => self.resolved_extra_commands(uri).await,
@@ -8921,6 +8986,10 @@ impl Backend {
             "folder_uri": folder_uri,
             "dialect": dialect,
             "dialect_explicitly_set": dialect_explicitly_set,
+            // The deliberate session override, when one is in force — `null`
+            // otherwise. Observable so a caller (and the e2e suite) can tell a
+            // temporary chat-command override from a configured dialect.
+            "session_dialect_override": session_override,
             "extra_commands": extra_commands,
             "known_folder_uris": known_folders
                 .iter()
@@ -8965,6 +9034,41 @@ impl Backend {
         ))
     }
 
+    /// Handle `tcl-lsp.setSessionDialectOverride`: install (or, with a `null` /
+    /// absent argument, clear) the deliberate session dialect override, then
+    /// re-resolve every open document under it.
+    ///
+    /// Distinct from `tcl-lsp.setDialect`, which rewrites the *configured*
+    /// session default: an override lives in its own slot
+    /// ([`Backend::session_dialect_override`]) that no `workspace/configuration`
+    /// pull touches, so it lasts until the caller clears it rather than until
+    /// the next time anything happens to settings (issue #1217).  That is the
+    /// contract the chat commands need — run this buffer under `f5-irules`,
+    /// then put it back — and the reason they must not push a
+    /// `didChangeConfiguration` to get it.
+    ///
+    /// Returns `{success, dialect}` (`dialect: null` when cleared), or
+    /// `{success: false, error}` for an unknown dialect.
+    async fn set_session_dialect_override_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let requested = args.first().and_then(serde_json::Value::as_str);
+        if let Some(dialect) = requested
+            && !tcl_dialect::available_dialects().contains(&dialect)
+        {
+            return Ok(Some(serde_json::json!({
+                "success": false,
+                "error": format!("unknown dialect: {dialect}"),
+            })));
+        }
+        *self.session_dialect_override.lock().await = requested.map(str::to_owned);
+        self.reresolve_open_document_dialects().await;
+        Ok(Some(
+            serde_json::json!({ "success": true, "dialect": requested }),
+        ))
+    }
+
     /// Handle `tcl-lsp.compilerExplorer`: run the compiler pipeline
     /// (lexer → green tree → IR → CFG → SSA → codegen) on `args[0]` under the
     /// dialect in `args[1]` (default: the session dialect) and return the same
@@ -8984,7 +9088,7 @@ impl Backend {
         }
         let dialect = match args.get(1).and_then(serde_json::Value::as_str) {
             Some(d) => d.to_owned(),
-            None => self.default_dialect.lock().await.clone(),
+            None => self.session_dialect().await,
         };
         // The pipeline is heavy pure-CPU work — run it off the LSP event loop.
         // A parser panic is contained and surfaced as an `{error}` object
@@ -9013,6 +9117,31 @@ impl Backend {
     /// mode + disabled diagnostics) — only the keys the reply carries, so
     /// omitted keys keep their last-applied value.
     async fn pull_and_apply_config(&self) {
+        self.pull_and_apply_config_values().await;
+        // Both applies can move a document's dialect: `apply_global_config`
+        // rewrites the session `default_dialect`, and `apply_folder_configs`
+        // replaces the per-folder `tclLsp.dialect` map.  Every already-open
+        // buffer must be re-resolved against the new state here, at the single
+        // point every pull passes through, rather than at each of the four call
+        // sites (`initialized`, `did_change_configuration`, the workspace-folder
+        // change, and the `.tcl-lsp.ini` watcher) — two of which previously did
+        // not, which is what let a transient session-global dialect stay baked
+        // into open buffers (the pull reverted the global without re-resolving)
+        // and what left a document opened concurrently with `initialized`'s pull
+        // stuck on the pre-config default.
+        //
+        // Outside the pull body on purpose: a client that declines
+        // `workspace/configuration` (or answers with an empty array) still needs
+        // the re-resolve, because the inline `didChangeConfiguration` payload it
+        // *did* send may have changed the session default — the flat MCP-bridge
+        // shape carries the dialect that way and nothing else would apply it.
+        self.reresolve_open_document_dialects().await;
+    }
+
+    /// The pull-and-apply body of [`Self::pull_and_apply_config`], without the
+    /// trailing dialect re-resolve. Returns early when the client declines the
+    /// `workspace/configuration` request.
+    async fn pull_and_apply_config_values(&self) {
         let items = vec![ConfigurationItem {
             scope_uri: None,
             section: Some("tclLsp".to_owned()),
@@ -9097,18 +9226,92 @@ impl Backend {
                 self.apply_folder_configs(parsed).await;
             }
         }
-        // Both applies above can move a document's dialect: `apply_global_config`
-        // rewrites the session `default_dialect`, and `apply_folder_configs`
-        // replaces the per-folder `tclLsp.dialect` map.  Every already-open
-        // buffer must be re-resolved against the new state here, at the single
-        // point every pull passes through, rather than at each of the four call
-        // sites (`initialized`, `did_change_configuration`, the workspace-folder
-        // change, and the `.tcl-lsp.ini` watcher) — two of which previously did
-        // not, which is what let a transient session-global dialect stay baked
-        // into open buffers (the pull reverted the global without re-resolving)
-        // and what left a document opened concurrently with `initialized`'s pull
-        // stuck on the pre-config default.
-        self.reresolve_open_document_dialects().await;
+    }
+
+    /// The whole `didChangeConfiguration` reload pipeline, run **once** for a
+    /// burst of notifications instead of once per notification (issue #1213).
+    ///
+    /// A settings-editor burst of 16 notifications used to produce 32
+    /// `workspace/configuration` batches (one unscoped request plus one scoped
+    /// batch per folder, each time) and re-analyse every open buffer 16 times.
+    ///
+    /// Coalescing is leader-and-dirty-flag rather than a plain trailing
+    /// debounce, because the ordering guarantee matters: the settings the *last*
+    /// notification carried must be pulled, applied, **and** re-resolved, so a
+    /// superseded generation may be dropped only while a later one is
+    /// guaranteed to run the whole pipeline. The first notification of a burst
+    /// becomes the leader and every later one simply marks the state dirty and
+    /// returns; the leader sleeps out the debounce window, then runs the
+    /// pipeline for whatever the burst finally settled on, and loops if another
+    /// notification arrived while it ran.
+    ///
+    /// Callers that must not be debounced (`initialized`, the `.tcl-lsp.ini`
+    /// watcher, a workspace-folder change) call [`Self::pull_and_apply_config`]
+    /// directly — they are one-shot events, not bursts, and start-up must not
+    /// pay the window.
+    async fn coalesced_config_reload(&self) {
+        let lead = {
+            let mut slot = self.config_reload.lock().await;
+            slot.dirty = true;
+            if slot.running {
+                false
+            } else {
+                slot.running = true;
+                true
+            }
+        };
+        if !lead {
+            return;
+        }
+        loop {
+            tokio::time::sleep(CONFIG_RELOAD_DEBOUNCE).await;
+            {
+                let mut slot = self.config_reload.lock().await;
+                if !slot.dirty {
+                    slot.running = false;
+                    return;
+                }
+                // Cleared *before* the run, so a notification that arrives
+                // while it is in flight is seen as a new generation and gets
+                // its own pass — never folded into a run that started before
+                // its settings landed.
+                slot.dirty = false;
+            }
+            self.run_config_reload().await;
+        }
+    }
+
+    /// One generation of the configuration reload: pull, apply, re-resolve
+    /// dialects, re-run diagnostics, and ask the client to refresh the
+    /// on-demand providers.
+    async fn run_config_reload(&self) {
+        self.pull_and_apply_config().await;
+        // The re-pull may have flipped `features.diagnostics`,
+        // `optimiser.enabled`, or the disabled-diagnostics set — none of which
+        // changes a document's dialect (the dialect the re-pull *does* resolve
+        // is re-applied by `pull_and_apply_config`'s own re-resolve).  Re-run
+        // diagnostics for every open buffer so the
+        // new toggles take effect immediately (clearing squiggles when the
+        // master switch goes off, dropping O-codes when the optimiser goes off)
+        // rather than lingering until the next keystroke.
+        self.reschedule_all_open_documents().await;
+        // The same toggles govern closed files that still carry a badge (#865):
+        // a master-switch-off must clear their squiggles too, and a disabled-code
+        // change must re-lint them — the open-document reschedule alone would
+        // leave a closed file's badge frozen at its pre-toggle set.
+        self.reschedule_closed_file_diagnostics().await;
+        // On-demand providers cache their last result client-side and only
+        // re-request on a document edit — a bare config change (e.g. toggling
+        // `features.folding` off) would otherwise leave stale folding ranges /
+        // code lenses on screen.  Ask the client to refresh them.  Best-effort:
+        // a client without refresh support rejects the request, which is
+        // harmless.  `foldingRange/refresh` (LSP 3.18) is not in ls-types, so it
+        // is sent through a locally-defined request type.
+        let _ = self
+            .client
+            .send_request::<FoldingRangeRefreshRequest>(())
+            .await;
+        let _ = self.client.code_lens_refresh().await;
     }
 
     /// Apply the *content* of a pulled `tclLsp` config section (`cfg`) onto the
@@ -9505,7 +9708,7 @@ impl Backend {
             .unwrap_or_default()
             .trim()
             .to_owned();
-        let dialect = self.default_dialect.lock().await.clone();
+        let dialect = self.session_dialect().await;
         let registry = self.registry_for_dialect(&dialect).await;
         let profile = tcl_dialect::DialectProfile::by_name(&dialect);
         let mut subs: Vec<serde_json::Value> = {
@@ -10326,14 +10529,29 @@ impl Backend {
     /// without dynamic-registration support rejects the request; that is
     /// logged and ignored (the startup scan still seeds the index).
     async fn register_file_watchers(&self) {
+        let all_kinds = Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete);
         let registration = Registration {
             id: "tcl-lsp-watched-files".to_owned(),
             method: "workspace/didChangeWatchedFiles".to_owned(),
             register_options: serde_json::to_value(DidChangeWatchedFilesRegistrationOptions {
-                watchers: vec![FileSystemWatcher {
-                    glob_pattern: GlobPattern::String(tcl_source_glob()),
-                    kind: Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete),
-                }],
+                watchers: vec![
+                    FileSystemWatcher {
+                        // Case-folded in the glob itself: watcher registrations
+                        // carry no `ignoreCase` option and VS Code matches them
+                        // case-sensitively on Linux (issue #1215).
+                        glob_pattern: GlobPattern::String(tcl_source_watch_glob()),
+                        kind: all_kinds,
+                    },
+                    FileSystemWatcher {
+                        // The project config the layered settings live-reload
+                        // from ([`is_config_file`]). Registered here rather than
+                        // left to each client's own `synchronize.fileEvents`, so
+                        // the live-reload works in every editor and there is one
+                        // source of truth for what the server watches.
+                        glob_pattern: GlobPattern::String(PROJECT_CONFIG_GLOB.to_owned()),
+                        kind: all_kinds,
+                    },
+                ],
             })
             .ok(),
         };
@@ -10598,7 +10816,7 @@ impl Backend {
         // touching any async mutex.
         let open: HashSet<Uri> = self.documents.lock().await.keys().cloned().collect();
         let folder_dialects = self.folder_dialect_overrides().await;
-        let default_dialect = self.default_dialect.lock().await.clone();
+        let default_dialect = self.session_dialect().await;
         // Inputs for the package-database `auto_path`: the editor's
         // `tclLsp.libraryPaths` (config.ini / .tcl-lsp.ini layers are read from
         // disk in the worker) and the discovered-installation cache.  Per-folder
@@ -10750,7 +10968,7 @@ impl Backend {
             tasks.spawn(async move {
                 let _permit = permit;
                 tokio::task::spawn_blocking(move || {
-                    let uri = Uri::from_file_path(&path)?;
+                    let uri = canonical_file_uri(&path)?;
                     if open.contains(&uri) {
                         return None;
                     }
@@ -11551,19 +11769,12 @@ impl LanguageServer for Backend {
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned);
         if let Some(d) = dialect {
-            let changed = {
-                let mut default = self.default_dialect.lock().await;
-                let was = std::mem::replace(&mut *default, d.clone());
-                was != d
-            };
+            *self.default_dialect.lock().await = d;
             *self.default_dialect_explicit.lock().await = true;
-            // A document's resolved dialect only depends on the session
-            // default as a fallback (an explicit language id / BIG-IP
-            // basename / folder override still wins), so nothing changes
-            // when the default is unchanged.
-            if changed {
-                self.reresolve_open_document_dialects().await;
-            }
+            // No re-resolve here: the coalesced reload below ends with one
+            // (`pull_and_apply_config`'s own, at the single point every pull
+            // passes through), so doing it per notification only multiplied
+            // the re-analyses a settings-editor burst caused (issue #1213).
         }
         // W108 mode + disabled-diagnostics reconfiguration. Existing
         // documents pick the change up on their next analyse (the
@@ -11582,34 +11793,10 @@ impl LanguageServer for Backend {
         // `workspace/configuration`.  Always re-pull so `features.*`, the
         // optimiser switch, and the analyser knobs reflect the latest editor
         // settings — the inline `params.settings` handling above covers the
-        // flat MCP-bridge shape that carries the values directly.
-        self.pull_and_apply_config().await;
-        // The re-pull may have flipped `features.diagnostics`,
-        // `optimiser.enabled`, or the disabled-diagnostics set — none of which
-        // changes a document's dialect (the dialect the re-pull *does* resolve
-        // is re-applied by `pull_and_apply_config`'s own re-resolve).  Re-run
-        // diagnostics for every open buffer so the
-        // new toggles take effect immediately (clearing squiggles when the
-        // master switch goes off, dropping O-codes when the optimiser goes off)
-        // rather than lingering until the next keystroke.
-        self.reschedule_all_open_documents().await;
-        // The same toggles govern closed files that still carry a badge (#865):
-        // a master-switch-off must clear their squiggles too, and a disabled-code
-        // change must re-lint them — the open-document reschedule alone would
-        // leave a closed file's badge frozen at its pre-toggle set.
-        self.reschedule_closed_file_diagnostics().await;
-        // On-demand providers cache their last result client-side and only
-        // re-request on a document edit — a bare config change (e.g. toggling
-        // `features.folding` off) would otherwise leave stale folding ranges /
-        // code lenses on screen.  Ask the client to refresh them.  Best-effort:
-        // a client without refresh support rejects the request, which is
-        // harmless.  `foldingRange/refresh` (LSP 3.18) is not in ls-types, so it
-        // is sent through a locally-defined request type.
-        let _ = self
-            .client
-            .send_request::<FoldingRangeRefreshRequest>(())
-            .await;
-        let _ = self.client.code_lens_refresh().await;
+        // flat MCP-bridge shape that carries the values directly.  Coalesced:
+        // a settings-editor burst is one pull and one re-analysis, not one per
+        // notification (issue #1213).
+        self.coalesced_config_reload().await;
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
@@ -11779,6 +11966,21 @@ impl LanguageServer for Backend {
             // layered config — a live-reload for these files.
             if is_config_file(&change.uri) {
                 config_changed = true;
+                continue;
+            }
+            // Only Tcl sources drive the index.  The server's own registration
+            // is exactly [`tcl_source_watch_glob`], but a client may watch more
+            // broadly through its own `synchronize.fileEvents` (or a `**/*`
+            // config), and a non-Tcl path must not enter the resolution domain
+            // or have diagnostics published against it.  Case-folded by
+            // [`is_tcl_source`], the same predicate the workspace scan uses, so
+            // an `UPPER.TCL` event is kept (issue #1215).  A non-`file` URI has
+            // no path to test and is left to the handlers below.
+            if change
+                .uri
+                .to_file_path()
+                .is_some_and(|path| !is_tcl_source(&path))
+            {
                 continue;
             }
             last_kind.insert(change.uri, change.typ);
@@ -13768,6 +13970,10 @@ impl LanguageServer for Backend {
             "tcl-lsp.exportConfig" => Ok(Some(self.export_config_command().await)),
             "tcl-lsp.listTclInstallations" => Ok(Some(self.list_tcl_installations_command().await)),
             "tcl-lsp.setDialect" => self.set_dialect_command(&params.arguments).await,
+            "tcl-lsp.setSessionDialectOverride" => {
+                self.set_session_dialect_override_command(&params.arguments)
+                    .await
+            }
             "tcl-lsp.compilerExplorer" => self.compiler_explorer_command(&params.arguments).await,
             _ => Ok(None),
         }
@@ -14934,6 +15140,12 @@ fn formatter_config_from(
 /// Whether `uri` names a tcl-lsp config file (`.tcl-lsp.ini` project config or
 /// the user `config.ini`) — a watched-file change to one triggers a config
 /// re-apply.
+/// Watcher glob for the project config file [`is_config_file`] recognises.
+///
+/// The user `config.ini` lives outside the workspace, so no workspace-relative
+/// glob can reach it; it is re-read on the next pull instead.
+const PROJECT_CONFIG_GLOB: &str = "**/.tcl-lsp.ini";
+
 fn is_config_file(uri: &Uri) -> bool {
     let s = uri.as_str();
     s.ends_with("/.tcl-lsp.ini")
@@ -16135,15 +16347,39 @@ fn compute_inherited_requires(
     out
 }
 
+/// The URI for a file path, in the **one canonical form** both sides of the
+/// protocol use (issue #1214).
+///
+/// Every URI the server constructs for itself goes through here — the workspace
+/// scan, the `source` / autoload cross-file resolver, the entry-point resolver.
+/// Client-sent URIs are put into the same form at the transport boundary
+/// ([`uri_norm::normalise_uris_in_params`]), so a file the server found on disk
+/// and the same file open in the editor are the same string.  Without that,
+/// they are two documents to everything keyed by URI: find-references,
+/// workspace symbols, and rename each see one file twice.
+///
+/// The canonicalisation is `ls_types`' own `from_file_path` plus
+/// [`uri_norm::canonical_uri_string`], whose whole job is the one place the two
+/// implementations disagree: `from_file_path` upper-cases a Windows drive
+/// letter, `vscode-uri`'s `URI.file()` lower-cases it.
+#[must_use]
+pub fn canonical_file_uri<P: AsRef<Path>>(path: P) -> Option<Uri> {
+    let raw = Uri::from_file_path(path)?;
+    match uri_norm::canonical_uri_string(raw.as_str()) {
+        std::borrow::Cow::Borrowed(_) => Some(raw),
+        std::borrow::Cow::Owned(canonical) => Uri::from_str(&canonical).ok(),
+    }
+}
+
 /// Resolve a literal `source` path written in `parent_uri` to the child
 /// document's URI string, keyed the same way the workspace index keys
-/// documents (`Uri::from_file_path`).  `None` for a non-`file:` URI or an
+/// documents ([`canonical_file_uri`]).  `None` for a non-`file:` URI or an
 /// unmappable path.
 fn resolve_source_uri(parent_uri: &str, raw_path: &str) -> Option<String> {
     let parent = Uri::from_str(parent_uri).ok()?;
     let parent_path = parent.to_file_path()?;
     let child = tcl_lsp_core::source_graph::resolve_source_target(parent_path.as_ref(), raw_path);
-    Uri::from_file_path(&child).map(|u| u.as_str().to_owned())
+    canonical_file_uri(&child).map(|u| u.as_str().to_owned())
 }
 
 /// [`resolve_source_uri`] extended with the M9 stage-9.2 computed-path tier:
@@ -16161,7 +16397,7 @@ fn resolve_source_edge(parent_uri: &str, raw_path: &str, is_literal: bool) -> Op
     let folded =
         tcl_compiler::auto_path_eval::evaluate_auto_path_expr(raw_path, parent_path.to_str())?;
     let child = tcl_lsp_core::source_graph::resolve_source_target(parent_path.as_ref(), &folded);
-    Uri::from_file_path(&child).map(|u| u.as_str().to_owned())
+    canonical_file_uri(&child).map(|u| u.as_str().to_owned())
 }
 
 /// Resolve a configured entry-point path (relative to `folder_root`, or
@@ -16173,7 +16409,7 @@ fn entry_point_uri(entry: &str, folder_root: Option<&Path>) -> Option<String> {
     } else {
         tcl_lsp_core::source_graph::resolve_under(folder_root?, entry)
     };
-    Uri::from_file_path(&path).map(|u| u.as_str().to_owned())
+    canonical_file_uri(&path).map(|u| u.as_str().to_owned())
 }
 
 /// The package name a W120 says is missing, read from its quick-fix
@@ -16781,19 +17017,50 @@ fn is_tcl_source(path: &Path) -> bool {
 /// The `**/*.{…}` glob naming exactly [`TCL_SOURCE_EXTENSIONS`], for the
 /// LSP registrations that take a glob rather than a predicate.
 ///
-/// Lower-case only.  A glob cannot express "any casing" — brace-expanding to
-/// `{tcl,TCL,…}` would still miss `Upper.Tcl`, so the extension list stays
-/// single-cased and the *predicate* ([`is_tcl_source`]) does the case-folding.
-/// `willRename` / `didRename` close the gap properly via the protocol's own
+/// Lower-case only, and paired with the protocol's own
 /// `FileOperationPatternOptions.ignoreCase` (see
-/// [`rename_file_operation_options`]); `workspace/didChangeWatchedFiles` has no
-/// such option, and VS Code matches watcher globs against the platform file
-/// system — case-insensitively on Windows and macOS, case-**sensitively** on
-/// Linux.  So a residual gap remains: on Linux an oddly-cased `FOO.TCL` that
-/// changes on disk outside the editor is not watched.  It is still scanned,
-/// indexed, and renameable; only the external-change notification is missed.
+/// [`rename_file_operation_options`]) — the `willRename` / `didRename` filters
+/// are the only registrations that carry that option.  Registrations without
+/// it use [`tcl_source_watch_glob`], which folds case in the glob itself.
 fn tcl_source_glob() -> String {
     format!("**/*.{{{}}}", TCL_SOURCE_EXTENSIONS.join(","))
+}
+
+/// The same extension set as [`tcl_source_glob`], written so it matches **any
+/// casing** — `**/*.{[tT][cC][lL],…}`.
+///
+/// `workspace/didChangeWatchedFiles` has no `ignoreCase` option, and VS Code
+/// matches watcher globs against the platform file system: case-insensitively
+/// on Windows and macOS, case-**sensitively** on Linux.  A single-cased glob
+/// therefore missed every external create/change/delete of an `UPPER.TCL` on
+/// Linux — the file was scanned, indexed and renameable, but its on-disk
+/// changes produced no watch event, so the index only caught up on the next
+/// full scan or an explicit open (issue #1215).
+///
+/// Brace-expanding the casings (`{tcl,TCL}`) does not fix it — `Upper.Tcl` is
+/// neither — but a per-character class does, exactly and with no watcher
+/// noise: `[]` character ranges are part of the LSP `GlobPattern` grammar
+/// (and of VS Code's own glob matcher), so this stays one precise
+/// registration rather than a broad `**/*` watch filtered server-side.
+///
+/// The set is the same one [`is_tcl_source`] case-folds, so the watcher and
+/// the predicate now agree by construction.
+fn tcl_source_watch_glob() -> String {
+    let alternatives: Vec<String> = TCL_SOURCE_EXTENSIONS
+        .iter()
+        .map(|ext| {
+            ext.chars()
+                .map(|c| {
+                    if c.is_ascii_alphabetic() {
+                        format!("[{}{}]", c.to_ascii_lowercase(), c.to_ascii_uppercase())
+                    } else {
+                        c.to_string()
+                    }
+                })
+                .collect::<String>()
+        })
+        .collect();
+    format!("**/*.{{{}}}", alternatives.join(","))
 }
 
 /// Iteratively walk `root`, appending the paths of Tcl source
@@ -17032,6 +17299,7 @@ fn build_server_capabilities(
                 "tcl-lsp.exportConfig".to_owned(),
                 "tcl-lsp.listTclInstallations".to_owned(),
                 "tcl-lsp.setDialect".to_owned(),
+                "tcl-lsp.setSessionDialectOverride".to_owned(),
                 "tcl-lsp.compilerExplorer".to_owned(),
             ],
             work_done_progress_options: WorkDoneProgressOptions::default(),
@@ -20693,6 +20961,8 @@ mod tests {
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             default_dialect_explicit: Mutex::new(false),
+            session_dialect_override: Mutex::new(None),
+            config_reload: Mutex::new(ConfigReloadSlot::default()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
             folder_configs: Mutex::new(Vec::new()),
@@ -22266,6 +22536,152 @@ mod tests {
         assert!(
             backend.disabled_diagnostics.lock().await.contains("W211"),
             "W211 should be disabled by the inline settings",
+        );
+    }
+
+    /// Issue #1213: a burst of `didChangeConfiguration` notifications must
+    /// coalesce into a single reload.  The leader is the only handler that runs
+    /// the pipeline; every other notification in the window returns straight
+    /// away after applying its inline settings.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_configuration_burst_coalesces_into_one_reload() {
+        let backend = test_backend();
+        let notify = |dialect: &str| DidChangeConfigurationParams {
+            settings: serde_json::json!({ "dialect": dialect }),
+        };
+        // `tower_lsp_server` drives notifications concurrently
+        // (`buffer_unordered`, see `EditOrder`), so the burst is modelled that
+        // way: one handler becomes the leader and parks for the debounce
+        // window, and the other fifteen land while it is parked.
+        let leader = backend.did_change_configuration(notify("tcl8.4"));
+        let dialects = ["tcl8.5", "tcl8.6", "tcl9.0"];
+        let followers = async {
+            // Let the leader claim the slot before the followers arrive.
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            let start = std::time::Instant::now();
+            for i in 0..15 {
+                backend
+                    .did_change_configuration(notify(dialects[i % dialects.len()]))
+                    .await;
+            }
+            // The whole point: a follower applies its inline settings and
+            // returns — it never waits for a pull, let alone its own window.
+            assert!(
+                start.elapsed() < CONFIG_RELOAD_DEBOUNCE,
+                "followers must not each wait out a debounce window: {:?}",
+                start.elapsed(),
+            );
+            // All fifteen are folded into the single pending generation.
+            let slot = backend.config_reload.lock().await;
+            assert!(slot.running, "exactly one leader owns the reload");
+            assert!(slot.dirty, "the burst is pending for that leader");
+        };
+        tokio::join!(leader, followers);
+
+        // The leader has run the pipeline and retired, and the state it settled
+        // on is the *last* notification's — a superseded generation may be
+        // dropped, the final one never may.
+        {
+            let slot = backend.config_reload.lock().await;
+            assert!(
+                !slot.running,
+                "the leader must retire once the burst drains"
+            );
+            assert!(!slot.dirty);
+        }
+        assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
+    }
+
+    /// The coalescing must not swallow the final generation: after the window
+    /// closes the leader runs the pipeline and retires.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn the_last_generation_of_a_burst_still_runs_to_completion() {
+        let backend = test_backend();
+        for _ in 0..4 {
+            backend
+                .did_change_configuration(DidChangeConfigurationParams {
+                    settings: serde_json::json!({ "dialect": "tcl9.0" }),
+                })
+                .await;
+        }
+        // The leader is still sleeping out its window; wait for it to run and
+        // then retire. `client.configuration` errors fast against the test's
+        // detached socket, so the pipeline completes rather than hanging.
+        let retired = wait_for(|| async {
+            let slot = backend.config_reload.lock().await;
+            !slot.running && !slot.dirty
+        })
+        .await;
+        assert!(retired, "the leader must run the reload and then retire");
+        assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
+    }
+
+    /// Issue #1217: a deliberate session override outranks the configured
+    /// default and — unlike the `didChangeConfiguration` push it replaces —
+    /// survives a configuration pull.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_session_dialect_override_survives_a_config_pull() {
+        let backend = test_backend();
+        backend
+            .set_session_dialect_override_command(&[serde_json::json!("f5-irules")])
+            .await
+            .expect("override command");
+        assert_eq!(backend.session_dialect().await, "f5-irules");
+
+        // A pulled/pushed `tclLsp.dialect` rewrites the *configured* default …
+        backend
+            .apply_global_config(&serde_json::json!({ "dialect": "tcl9.0" }))
+            .await;
+        assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
+        // … and must leave the override in force.
+        assert_eq!(
+            backend.session_dialect().await,
+            "f5-irules",
+            "a config pull must not revert a deliberate session override",
+        );
+
+        // Clearing hands the session back to the configured value.
+        backend
+            .set_session_dialect_override_command(&[])
+            .await
+            .expect("clear command");
+        assert_eq!(backend.session_dialect().await, "tcl9.0");
+    }
+
+    /// An unknown dialect is rejected rather than installed.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_session_dialect_override_rejects_an_unknown_dialect() {
+        let backend = test_backend();
+        let reply = backend
+            .set_session_dialect_override_command(&[serde_json::json!("tcl99")])
+            .await
+            .expect("override command")
+            .expect("a reply");
+        assert_eq!(reply["success"], serde_json::json!(false), "{reply}");
+        assert!(backend.session_dialect_override.lock().await.is_none());
+    }
+
+    /// The override sits in the session-fallback tier, so it reaches a document
+    /// whose dialect is not pinned by anything stronger — and nothing else.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_session_dialect_override_only_reaches_the_fallback_tier() {
+        let backend = test_backend();
+        backend
+            .set_session_dialect_override_command(&[serde_json::json!("f5-irules")])
+            .await
+            .expect("override command");
+        let plain = Uri::from_str("file:///plain.tcl").unwrap();
+        assert_eq!(
+            backend.dialect_for_open(&plain, "", "set x 1\n").await,
+            "f5-irules",
+            "an unpinned document falls back to the override",
+        );
+        // An explicit language id still wins, exactly as it does over the
+        // configured default.
+        assert_eq!(
+            backend.dialect_for_open(&plain, "tcl90", "set x 1\n").await,
+            "tcl9.0",
+            "an explicit language id must still outrank the session tier",
         );
     }
 
@@ -23986,6 +24402,70 @@ mod tests {
         );
         // NEGATIVE control: an extension the scan does not index is absent.
         assert!(!glob.contains("txt"), "{glob}");
+    }
+
+    /// Issue #1215: `workspace/didChangeWatchedFiles` carries no `ignoreCase`
+    /// option and VS Code matches watcher globs case-**sensitively** on Linux,
+    /// so the registration folds case per character instead.
+    #[test]
+    fn watch_glob_matches_every_casing_of_every_indexed_extension() {
+        let glob = tcl_source_watch_glob();
+        for ext in TCL_SOURCE_EXTENSIONS {
+            let folded: String = ext.chars().fold(String::new(), |mut acc, c| {
+                use std::fmt::Write as _;
+                let _ = write!(acc, "[{}{}]", c, c.to_ascii_uppercase());
+                acc
+            });
+            assert!(
+                glob.contains(&folded),
+                "watch glob {glob} omits a case-folded .{ext} ({folded})",
+            );
+            // The single-cased spelling must be gone — that is the bug.
+            assert!(
+                !glob.contains(&format!("{{{ext},")) && !glob.contains(&format!(",{ext},")),
+                "watch glob {glob} still carries a single-cased .{ext}",
+            );
+        }
+        assert!(!glob.contains("txt"), "{glob}");
+        // Exactly one alternative per indexed extension — no broad `**/*`
+        // fallback smuggled in, which would trade correctness for noise.
+        assert_eq!(
+            glob.matches(',').count() + 1,
+            TCL_SOURCE_EXTENSIONS.len(),
+            "{glob}",
+        );
+    }
+
+    /// The registration the server actually sends: the case-folded source glob
+    /// plus the project config file, all three change kinds.
+    #[test]
+    fn watcher_registration_covers_sources_and_project_config() {
+        let opts = DidChangeWatchedFilesRegistrationOptions {
+            watchers: vec![
+                FileSystemWatcher {
+                    glob_pattern: GlobPattern::String(tcl_source_watch_glob()),
+                    kind: Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete),
+                },
+                FileSystemWatcher {
+                    glob_pattern: GlobPattern::String(PROJECT_CONFIG_GLOB.to_owned()),
+                    kind: Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete),
+                },
+            ],
+        };
+        let json = serde_json::to_value(&opts).expect("registration serialises");
+        let watchers = json["watchers"].as_array().expect("watchers array");
+        assert_eq!(watchers.len(), 2, "{json}");
+        assert!(
+            watchers[0]["globPattern"]
+                .as_str()
+                .is_some_and(|g| g.contains("[tT][cC][lL]")),
+            "{json}",
+        );
+        assert_eq!(watchers[1]["globPattern"], PROJECT_CONFIG_GLOB);
+        // `.tcl-lsp.ini` is what the config live-reload branch recognises.
+        assert!(is_config_file(
+            &"file:///w/.tcl-lsp.ini".parse::<Uri>().unwrap()
+        ));
     }
 
     #[test]

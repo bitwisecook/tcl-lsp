@@ -3099,28 +3099,15 @@ fn case_list_clause_body_regions(
     if !case_list.clause_flags.is_empty() {
         return None;
     }
-    let mut i = 0usize;
-    while i < args.len() {
-        let a = args[i];
-        if a == "--" {
-            i += 1;
-            break;
-        }
-        if !a.starts_with('-') {
-            break;
-        }
-        i += if case_list.value_options.contains(&a) {
-            2
-        } else {
-            1
-        };
-    }
-    i += usize::from(case_list.subject_args);
-    if i >= args.len() || args.len() - i != 1 {
-        // Inline pairs shape (or no clause-list argument at all) — not this
-        // function's concern.
-        return None;
-    }
+    // Locating the list is `tcl_syntax`'s one implementation, shared with the
+    // semantic-token walker and the fold walk.  `None` = the inline pairs
+    // shape (or no clause-list argument at all) — not this function's concern.
+    let shape = tcl_syntax::case_list::CallShape {
+        subject_args: usize::from(case_list.subject_args),
+        regex_option: case_list.regex_option,
+        value_options: case_list.value_options,
+    };
+    let i = tcl_syntax::case_list::clause_list_call(args, &shape)?.index;
     // `args` is 0-based post-command-name; `cmd.texts`/`cmd.argv` are
     // 1-based (index 0 is the command name), so the clause-list word is at
     // `i + 1` in both.

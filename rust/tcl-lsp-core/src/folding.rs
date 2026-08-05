@@ -384,6 +384,23 @@ fn collect_body_folds(
                 .arg_indices_for_role(cmd.name(), &args_borrow, ArgRole::Body),
         };
 
+        // A clause-list command (`switch … {pat body …}`, Expect's `expect
+        // {…}`) marks that single trailing word `ArgRole::Body` too, but the
+        // word is a *list* of pattern/body pairs, not a script: re-segmenting
+        // it below would read each `pat body` pair as one bogus command, find
+        // no body role on it, and emit nothing for the arms — only the outer
+        // block folded (issue #1216).  Which word holds the list, and how the
+        // list is shaped, is registry data (`CommandSpec::case_list`), so this
+        // walk names no command.
+        let case_list = ctx
+            .registry
+            .get(cmd.name())
+            .and_then(|s| s.case_list)
+            .and_then(|spec| {
+                tcl_syntax::case_list::clause_list_call(&args_borrow, &call_shape(spec))
+                    .map(|call| (spec, call.index))
+            });
+
         // The grammar the recursion into THIS command's bodies should carry:
         // outer definer bodies switch to their grammar, member bodies switch
         // off, everything else inherits.
@@ -406,6 +423,15 @@ fn collect_body_folds(
                 ctx.seen,
                 ctx.ranges,
             );
+
+            // The clause-list word folds as one block (just emitted), then
+            // each arm's own body folds and is recursed as the script it is.
+            if let Some((spec, case_idx)) = case_list
+                && case_idx == idx
+            {
+                collect_clause_folds(body_tok, spec, depth, ctx);
+                continue;
+            }
 
             // Recurse into the body's content. The lexer's STR span
             // includes the opening ``{``; for closed non-empty bodies
@@ -440,48 +466,142 @@ fn collect_body_folds(
             );
         }
 
-        // `apply {argList body ?ns?} …` (and any future command sharing the
-        // shape) — fold the whole lambda literal as one region, but recurse
-        // only into the real body element (`split_lambda_literal`, issue
-        // #954): the argument-list element is a plain word/list, not code,
-        // so re-segmenting the whole literal as a script previously mis-read
-        // the params word as a command name and never found the real body's
-        // own nested folds.
-        for idx in
-            ctx.registry
-                .arg_indices_for_role(cmd.name(), &args_borrow, ArgRole::LambdaLiteral)
-        {
-            let arg_tokens = cmd.arg_tokens();
-            let Some(&lambda_tok) = arg_tokens.get(idx) else {
-                continue;
-            };
-            if !matches!(lambda_tok.kind, TokenType::Str) {
-                continue;
-            }
-            emit_body_span_fold(
-                lambda_tok.span,
-                ctx.original_source,
-                ctx.line_index,
-                ctx.seen,
-                ctx.ranges,
-            );
-            let Some(elems) = split_lambda_literal(ctx.original_source, lambda_tok) else {
-                continue;
-            };
-            let Some(body_span) = elems.body else {
-                continue;
-            };
-            let (bstart, bend) = (body_span.start() as usize, body_span.end() as usize);
-            if bend <= bstart {
-                continue;
-            }
-            let Some(inner) = ctx.original_source.get(bstart..bend) else {
-                continue;
-            };
-            // The body runs in a fresh, non-OO frame (`apply`'s own scope),
-            // never the enclosing definer's grammar.
-            collect_body_folds(inner, body_span.start(), depth + 1, None, ctx);
+        collect_lambda_folds(cmd, &args_borrow, depth, ctx);
+    }
+}
+
+/// `apply {argList body ?ns?} …` (and any future command sharing the shape) —
+/// fold the whole lambda literal as one region, but recurse only into the real
+/// body element (`split_lambda_literal`, issue #954): the argument-list element
+/// is a plain word/list, not code, so re-segmenting the whole literal as a
+/// script previously mis-read the params word as a command name and never found
+/// the real body's own nested folds.
+fn collect_lambda_folds(
+    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    args: &[&str],
+    depth: u32,
+    ctx: &mut FoldCtx<'_>,
+) {
+    for idx in ctx
+        .registry
+        .arg_indices_for_role(cmd.name(), args, ArgRole::LambdaLiteral)
+    {
+        let arg_tokens = cmd.arg_tokens();
+        let Some(&lambda_tok) = arg_tokens.get(idx) else {
+            continue;
+        };
+        if !matches!(lambda_tok.kind, TokenType::Str) {
+            continue;
         }
+        emit_body_span_fold(
+            lambda_tok.span,
+            ctx.original_source,
+            ctx.line_index,
+            ctx.seen,
+            ctx.ranges,
+        );
+        let Some(elems) = split_lambda_literal(ctx.original_source, lambda_tok) else {
+            continue;
+        };
+        let Some(body_span) = elems.body else {
+            continue;
+        };
+        let (bstart, bend) = (body_span.start() as usize, body_span.end() as usize);
+        if bend <= bstart {
+            continue;
+        }
+        let Some(inner) = ctx.original_source.get(bstart..bend) else {
+            continue;
+        };
+        // The body runs in a fresh, non-OO frame (`apply`'s own scope),
+        // never the enclosing definer's grammar.
+        collect_body_folds(inner, body_span.start(), depth + 1, None, ctx);
+    }
+}
+
+/// The registry's clause-list call shape, in the syntax layer's
+/// registry-free vocabulary.
+fn call_shape(
+    spec: &'static tcl_registry::CaseListSpec,
+) -> tcl_syntax::case_list::CallShape<'static> {
+    tcl_syntax::case_list::CallShape {
+        subject_args: usize::from(spec.subject_args),
+        regex_option: spec.regex_option,
+        value_options: spec.value_options,
+    }
+}
+
+/// Fold every arm of a clause list: one region per arm body, recursing into
+/// each as a script so nested `if` / `foreach` / `proc` blocks inside an arm
+/// fold too.
+///
+/// `list_tok` is the braced clause-list word itself (already folded as one
+/// block by the caller).  The split is [`tcl_syntax::case_list`]'s — the same
+/// one the semantic-token walker and the iRules object walker use, so the
+/// three cannot disagree about where an arm's body is.  It is a **list**
+/// split, not a command segmentation: `;` and `#` are ordinary pattern text
+/// inside a clause list, which is Tcl's "comments don't work in `switch`"
+/// gotcha.
+///
+/// A `-` fall-through body and a single-line arm both fold to nothing — the
+/// shared `end_line > start_line` guard drops them — so no arm-specific
+/// filtering is needed here.
+fn collect_clause_folds(
+    list_tok: tcl_lexer::Token,
+    spec: &'static tcl_registry::CaseListSpec,
+    depth: u32,
+    ctx: &mut FoldCtx<'_>,
+) {
+    let content_start = list_tok.span.start() as usize + list_tok.content_offset as usize;
+    let content_end = list_tok.span.end() as usize;
+    if content_end <= content_start {
+        return;
+    }
+    let Some(inner) = ctx.original_source.get(content_start..content_end) else {
+        return;
+    };
+    let shape = tcl_syntax::case_list::CaseListShape {
+        clause_flags: spec.clause_flags,
+        clause_value_flags: spec.clause_value_flags,
+    };
+    for clause in tcl_syntax::case_list::split_case_list(inner, &shape) {
+        let Some(body) = clause.body else {
+            continue;
+        };
+        // `Element::start` includes the opening `{` and `Element::end` sits
+        // *at* the closing `}` — the lexer's own inner-end convention, so the
+        // span drops straight into the shared emitter.
+        let (abs_start, abs_end) = (content_start + body.start, content_start + body.end);
+        let (Ok(start), Ok(end)) = (u32::try_from(abs_start), u32::try_from(abs_end)) else {
+            continue;
+        };
+        emit_body_span_fold(
+            tcl_lexer::Span::new(start, end),
+            ctx.original_source,
+            ctx.line_index,
+            ctx.seen,
+            ctx.ranges,
+        );
+        // Only a braced arm body is a script whose source slice is what runs;
+        // a bare or quoted one is substituted before the command sees it, so
+        // its text is not the script (the same rule `apply`'s lambda body
+        // follows).
+        if !body.braced {
+            continue;
+        }
+        let inner_start = abs_start + 1;
+        if abs_end <= inner_start {
+            continue;
+        }
+        let Some(arm) = ctx.original_source.get(inner_start..abs_end) else {
+            continue;
+        };
+        let Ok(base) = u32::try_from(inner_start) else {
+            continue;
+        };
+        // An arm body runs in the caller's frame, never a definition-body
+        // grammar of its own.
+        collect_body_folds(arm, base, depth + 1, None, ctx);
     }
 }
 
@@ -742,6 +862,102 @@ mod tests {
         let source = "if {1} {\n    puts \"yes\"\n    puts \"really\"\n}\n";
         let ranges = folding_ranges_default(source, "tcl8.6");
         assert!(!fold_lines(&ranges, FoldKind::Region).is_empty());
+    }
+
+    /// Issue #1216: `switch`'s braced form is a single clause-list argument,
+    /// so the generic body walk saw one block and the individual arms could
+    /// not be folded — and sticky scroll, which rides the folding provider
+    /// for Tcl, pinned only the `switch` header from inside a long arm.
+    #[test]
+    fn switch_arms_each_fold() {
+        let source = concat!(
+            "switch -glob $uri {\n",       // 0
+            "    \"/admin*\" {\n",         // 1
+            "        respond 403\n",       // 2
+            "        log denied\n",        // 3
+            "    }\n",                     // 4
+            "    default {\n",             // 5
+            "        header insert X 1\n", // 6
+            "        log allowed\n",       // 7
+            "    }\n",                     // 8
+            "}\n",                         // 9
+        );
+        let regions = fold_lines(&folding_ranges_default(source, "tcl8.6"), FoldKind::Region);
+        assert!(
+            regions.iter().any(|&(s, _)| s == 0),
+            "the outer switch block must still fold: {regions:?}",
+        );
+        assert!(
+            regions.contains(&(1, 3)),
+            "the `/admin*` arm body must fold: {regions:?}",
+        );
+        assert!(
+            regions.contains(&(5, 7)),
+            "the `default` arm body must fold: {regions:?}",
+        );
+    }
+
+    /// An arm body is a real script: blocks nested inside it fold too.  The
+    /// old walk re-segmented the whole clause list as a script, read
+    /// `pattern body` as one bogus command, and never descended at all.
+    #[test]
+    fn switch_arm_bodies_recurse_into_nested_blocks() {
+        let source = concat!(
+            "switch $x {\n",             // 0
+            "    a {\n",                 // 1
+            "        foreach y $ys {\n", // 2
+            "            puts $y\n",     // 3
+            "            incr n\n",      // 4
+            "        }\n",               // 5
+            "    }\n",                   // 6
+            "}\n",                       // 7
+        );
+        let regions = fold_lines(&folding_ranges_default(source, "tcl8.6"), FoldKind::Region);
+        assert!(
+            regions.contains(&(2, 4)),
+            "the `foreach` inside the arm must fold: {regions:?}",
+        );
+    }
+
+    /// The inline `switch $x pat body pat body` form leaves each body as an
+    /// ordinary script argument the generic role walk already reaches — the
+    /// clause-list unpacking must not disturb it.
+    #[test]
+    fn switch_inline_pair_form_still_folds_each_body() {
+        let source = concat!(
+            "switch $x a {\n",  // 0
+            "    puts one\n",   // 1
+            "    puts two\n",   // 2
+            "} b {\n",          // 3
+            "    puts three\n", // 4
+            "    puts four\n",  // 5
+            "}\n",              // 6
+        );
+        let regions = fold_lines(&folding_ranges_default(source, "tcl8.6"), FoldKind::Region);
+        assert!(regions.contains(&(0, 2)), "{regions:?}");
+        assert!(regions.contains(&(3, 5)), "{regions:?}");
+    }
+
+    /// A `-` fall-through arm shares the *next* arm's body and has none of
+    /// its own, so it contributes no fold; the arm it falls through to still
+    /// does.
+    #[test]
+    fn switch_fallthrough_arm_contributes_no_fold() {
+        let source = concat!(
+            "switch $x {\n",    // 0
+            "    a -\n",        // 1
+            "    b {\n",        // 2
+            "        puts 1\n", // 3
+            "        puts 2\n", // 4
+            "    }\n",          // 5
+            "}\n",              // 6
+        );
+        let regions = fold_lines(&folding_ranges_default(source, "tcl8.6"), FoldKind::Region);
+        assert!(regions.contains(&(2, 4)), "{regions:?}");
+        assert!(
+            !regions.iter().any(|&(s, _)| s == 1),
+            "the `-` fall-through arm must not fold: {regions:?}",
+        );
     }
 
     #[test]

@@ -397,14 +397,13 @@ export async function activate(context: ExtensionContext) {
     ],
     synchronize: {
       configurationSection: "tclLsp",
-      fileEvents: [
-        workspace.createFileSystemWatcher(
-          "**/*.{tcl,tk,itcl,tm,test,irul,irule,iapp,iappimpl,impl}",
-        ),
-        // Project config — the server live-reloads its layered settings when
-        // a workspace `.tcl-lsp.ini` changes.
-        workspace.createFileSystemWatcher("**/.tcl-lsp.ini"),
-      ],
+      // No `fileEvents` watchers here on purpose. The server registers
+      // `workspace/didChangeWatchedFiles` dynamically at `initialized`, naming
+      // its own extension set (case-folded per character, so `UPPER.TCL` is
+      // watched on Linux too) plus `**/.tcl-lsp.ini` for the layered-settings
+      // live-reload. Duplicating that list here gave us two sources of truth
+      // that had already drifted — the client list was missing `.exp` and
+      // `.apl` — and made every watched change arrive twice (issue #1215).
     },
     middleware: {
       handleDiagnostics: (uri, diagnostics, next) =>
@@ -990,13 +989,17 @@ function setActiveDialectLabel(dialect: string): void {
  * Change the **session** dialect: update the local label and push
  * ``tclLsp.dialect`` to the server as a configuration change.
  *
- * Session-global, so this is only for deliberate whole-session switches — the
- * ``tclLsp.selectDialect`` command (which also writes the setting) and the chat
- * commands that run a document under a fixed dialect and restore the previous
- * one afterwards.  It must NOT be used to tell the server about the focused
- * file's dialect: the server detects that per document (``detect_dialect``),
- * and pushing it globally makes one tab's dialect leak into every other open
- * buffer.
+ * Session-global, and a real *configuration* change, so this is only for the
+ * deliberate whole-session switch — the ``tclLsp.selectDialect`` command, which
+ * writes the setting itself and then pushes it here.  It must NOT be used to
+ * tell the server about the focused file's dialect: the server detects that per
+ * document (``detect_dialect``), and pushing it globally makes one tab's
+ * dialect leak into every other open buffer.
+ *
+ * For a *temporary* dialect that must be put back afterwards, use
+ * {@link setSessionDialectOverride} instead — a configuration push is the wrong
+ * tool for that and the next ``workspace/configuration`` pull silently undoes
+ * it (issue #1217).
  */
 export async function setServerDialect(dialect: string): Promise<void> {
   if (activeDialect === dialect) {
@@ -1011,6 +1014,43 @@ export async function setServerDialect(dialect: string): Promise<void> {
   await client.sendNotification("workspace/didChangeConfiguration", {
     settings: { tclLsp: { dialect } },
   });
+}
+
+/**
+ * Install (``dialect``) or clear (``null``) the server's **session dialect
+ * override** — a deliberate, temporary dialect that outranks the configured
+ * one and lasts until it is cleared.
+ *
+ * This is what a flow that runs a buffer under a fixed dialect and puts it back
+ * afterwards needs.  Pushing ``tclLsp.dialect`` as a configuration change
+ * (:{@link setServerDialect}) does not survive: the server re-pulls
+ * ``workspace/configuration`` on all sorts of unrelated events, and the pulled
+ * value overwrites the push, so the override's lifetime was "until anything
+ * touches settings" (issue #1217).  The override lives in its own server-side
+ * slot that no pull touches.
+ *
+ * Clearing restores whatever the configuration currently resolves to, so there
+ * is nothing to save and restore by hand.
+ */
+export async function setSessionDialectOverride(dialect: string | null): Promise<void> {
+  if (!client) {
+    return;
+  }
+  await client.sendRequest("workspace/executeCommand", {
+    command: "tcl-lsp.setSessionDialectOverride",
+    arguments: dialect === null ? [] : [dialect],
+  });
+  // Keep the status bar honest about what the server is actually using. On a
+  // clear, fall back to the focused editor's own detected dialect — the same
+  // answer `applyDialectForDocument` gives — rather than leaving the override's
+  // label behind.
+  const editor = vscode.window.activeTextEditor;
+  setActiveDialectLabel(
+    dialect ??
+      (editor && isTclLanguage(editor.document.languageId)
+        ? detectDialectFromDocument(editor.document)
+        : workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT)),
+  );
 }
 
 /**

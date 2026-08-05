@@ -437,14 +437,29 @@ fn scope_symbols(
         if matches!(child.kind, ScopeKind::Namespace)
             && let Some(span) = child.body_span
         {
-            let ns_range = span_to_range(source, line_index, span);
+            let body_range = span_to_range(source, line_index, span);
             let child_syms = scope_symbols(source, child, line_index, depth + 1);
+            // `selectionRange` is "the range that should be selected and
+            // revealed when this symbol is picked" — the *name*, exactly as
+            // `proc_symbol` does.  A namespace used to answer its whole body
+            // for both ranges, so clicking it in the outline selected the
+            // entire block (issue #1218).  `range` then widens to cover the
+            // name **and** the body, keeping the LSP containment invariant
+            // (`selectionRange` ⊆ `range`) that the narrowing would otherwise
+            // break — the name word sits before the body's opening brace.
+            let (ns_range, selection_range) =
+                child
+                    .name_span
+                    .map_or((body_range, body_range), |name_span| {
+                        let name_range = span_to_range(source, line_index, name_span);
+                        (merge_ranges(name_range, body_range), name_range)
+                    });
             symbols.push(DocumentSymbol {
                 name: child.name.clone(),
                 detail: None,
                 kind: SymbolKind::Namespace,
                 range: ns_range,
-                selection_range: ns_range,
+                selection_range,
                 children: child_syms,
             });
         }
@@ -1627,6 +1642,98 @@ mod tests {
     #[test]
     fn format_param_list_handles_empty_list() {
         assert_eq!(format_param_list(&[]), "()");
+    }
+
+    /// Issue #1218: `namespace eval` used to answer its whole body for
+    /// `selectionRange`, so picking the namespace in the outline selected the
+    /// entire block instead of its name.
+    #[test]
+    fn namespace_selection_range_is_the_name_word() {
+        let source = concat!(
+            "# lead-in\n",
+            "namespace eval ::myns {\n",
+            "    proc helper {} {\n",
+            "        return 1\n",
+            "    }\n",
+            "}\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let ns = find(&symbols, "::myns").expect("namespace symbol");
+        assert_eq!(
+            (
+                ns.selection_range.start_line,
+                ns.selection_range.start_character,
+                ns.selection_range.end_line,
+                ns.selection_range.end_character,
+            ),
+            (1, 15, 1, 21),
+            "selectionRange must span exactly `::myns`, got {:?}",
+            ns.selection_range,
+        );
+        assert_ne!(
+            ns.selection_range, ns.range,
+            "selectionRange must narrow to the name, not repeat the range",
+        );
+        assert!(
+            range_contains(ns.range, ns.selection_range),
+            "range {:?} must contain selection {:?}",
+            ns.range,
+            ns.selection_range,
+        );
+        // `range` covers the name *and* the body — it starts at the name word
+        // (before the body's opening brace) and ends where the body does.
+        assert_eq!(ns.range.start_line, 1);
+        assert_eq!(ns.range.start_character, 15);
+        assert_eq!(ns.range.end_line, 5);
+    }
+
+    /// The containment invariant must hold at every nesting depth, not just
+    /// for a top-level namespace.
+    #[test]
+    fn nested_namespace_selection_ranges_stay_inside_their_ranges() {
+        fn check(symbols: &[DocumentSymbol]) {
+            for sym in symbols {
+                assert!(
+                    range_contains(sym.range, sym.selection_range),
+                    "{}: range {:?} must contain selection {:?}",
+                    sym.name,
+                    sym.range,
+                    sym.selection_range,
+                );
+                check(&sym.children);
+            }
+        }
+        let source = concat!(
+            "namespace eval outer {\n",
+            "    namespace eval inner {\n",
+            "        proc deep {} { return }\n",
+            "    }\n",
+            "}\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        check(&symbols);
+        let outer = find(&symbols, "outer").expect("outer namespace");
+        assert_eq!(
+            (
+                outer.selection_range.start_line,
+                outer.selection_range.start_character,
+                outer.selection_range.end_character,
+            ),
+            (0, 15, 20),
+            "{:?}",
+            outer.selection_range,
+        );
+        let inner = find(&symbols, "inner").expect("inner namespace");
+        assert_eq!(
+            (
+                inner.selection_range.start_line,
+                inner.selection_range.start_character,
+                inner.selection_range.end_character,
+            ),
+            (1, 19, 24),
+            "{:?}",
+            inner.selection_range,
+        );
     }
 
     #[test]

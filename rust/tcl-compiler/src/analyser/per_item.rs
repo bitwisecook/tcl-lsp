@@ -1379,6 +1379,9 @@ fn rebase_scope(s: &mut super::types::Scope, d: u32) {
     if let Some(bs) = &mut s.body_span {
         *bs = shift(*bs, d);
     }
+    if let Some(ns) = &mut s.name_span {
+        *ns = shift(*ns, d);
+    }
     for v in s.variables.values_mut() {
         rebase_vardef(v, d);
     }

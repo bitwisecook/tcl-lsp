@@ -561,7 +561,10 @@ impl Lsp {
         }
     }
 
-    fn spawn(config: Value) -> Self {
+    /// Spawn the server **without** the `initialize` handshake, so a caller can
+    /// drive `initialize` itself — e.g. with a deliberately malformed folder
+    /// URI.
+    pub fn spawn(config: Value) -> Self {
         let bin = env!("CARGO_BIN_EXE_tcl-lsp-server");
 
         // Isolate the server from the developer machine's config/cache so a
@@ -1543,6 +1546,14 @@ impl Lsp {
     /// `didChangeConfiguration` so the server re-pulls. Returns the resolved
     /// config for `""`. Because each test owns its server, there is no shared
     /// state to restore (unlike pytest's `config_session`).
+    /// Change what this client answers `workspace/configuration` with, without
+    /// telling the server.  For tests that drive the notification themselves —
+    /// e.g. a burst, where the point is to count how many pulls the server
+    /// actually makes.
+    pub fn set_config(&mut self, config: Value) {
+        *self.shared.tcllsp_config.lock().unwrap() = config;
+    }
+
     pub fn apply_configuration(&mut self, config: Value) -> Value {
         *self.shared.tcllsp_config.lock().unwrap() = config;
         self.notify(
