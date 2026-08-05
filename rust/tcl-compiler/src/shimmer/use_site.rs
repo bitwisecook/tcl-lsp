@@ -48,7 +48,6 @@ use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 use crate::value_shapes::is_pure_var_ref;
 
-use super::graph::loop_body_blocks;
 use super::hints::{
     ShimmerExpectation, arg_shimmer_expectation, arg_shimmer_type, is_numeric_compatible,
     is_uncommitted_first_conversion,
@@ -70,13 +69,13 @@ pub(crate) fn find_use_site_shimmers(
     executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     values: &HashMap<ValueKey, LatticeValue>,
-    commit_facts: &super::commit::CommitFacts,
+    facts: &super::ShimmerFacts,
 ) -> Vec<ShimmerWarning> {
-    let loop_blocks = loop_body_blocks(cfg);
+    let loop_blocks = &facts.loop_blocks;
     let def_map = def_range_map(ssa);
     // Loop-invariance facts for the S101→S100 downgrade — only needed when
     // the function has at least one loop block.
-    let loop_facts = LoopFacts::compute(cfg, ssa, &loop_blocks, registry);
+    let loop_facts = LoopFacts::compute(cfg, ssa, loop_blocks, registry);
     // Array-base symbols are excluded (FP-SH-13): `normalise_var_name` strips
     // the `(key)` suffix, so `arr(a)` and `arr(b)` share one symbol / version
     // chain. Two individually-stable but different elements then look, at a
@@ -108,7 +107,7 @@ pub(crate) fn find_use_site_shimmers(
         // The committed-intrep walker replays the commit transfer function in
         // step with this walk, so each statement's checks see the state *just
         // before* it executes.
-        let mut commit_walker = commit_facts.walker(&commit_ctx, block_id);
+        let mut commit_walker = facts.commit.walker(&commit_ctx, block_id);
         for ss in &ssa_block.statements {
             let mut ctx = UseSiteCtx {
                 types,
@@ -797,12 +796,15 @@ mod tests {
             types: &fu.types,
             values: &fu.sccp.values,
         };
-        let facts = super::super::commit::compute_commit_facts(
-            &fu.cfg,
-            &ctx,
-            &fu.sccp.executable_blocks,
-            &fu.sccp.executable_edges,
-        );
+        let facts = super::super::ShimmerFacts {
+            commit: super::super::commit::compute_commit_facts(
+                &fu.cfg,
+                &ctx,
+                &fu.sccp.executable_blocks,
+                &fu.sccp.executable_edges,
+            ),
+            loop_blocks: super::super::graph::loop_body_blocks(&fu.cfg),
+        };
         find_use_site_shimmers(
             &fu.cfg,
             &fu.ssa,

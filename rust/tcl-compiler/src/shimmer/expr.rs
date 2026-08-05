@@ -48,7 +48,6 @@ use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 
 use super::ShimmerWarning;
-use super::graph::loop_body_blocks;
 use super::hints::is_uncommitted_first_conversion;
 
 /// Find expression-level shimmer warnings for a function.
@@ -68,10 +67,10 @@ pub(crate) fn find_expr_shimmers(
     executable_blocks: &HashSet<BlockId>,
     values: &HashMap<ValueKey, LatticeValue>,
     registry: &tcl_registry::CommandRegistry,
-    commit_facts: &super::commit::CommitFacts,
+    facts: &super::ShimmerFacts,
 ) -> Vec<ShimmerWarning> {
     let mut out = Vec::new();
-    let loop_blocks = loop_body_blocks(cfg);
+    let loop_blocks = &facts.loop_blocks;
     let commit_ctx = super::commit::CommitCtx {
         registry,
         ssa,
@@ -95,7 +94,7 @@ pub(crate) fn find_expr_shimmers(
         let mut seen: HashSet<(Span, String)> = HashSet::new();
         // The committed-intrep walker replays the commit transfer in step with
         // this walk, so each expr's operands see the state just before it.
-        let mut commit_walker = commit_facts.walker(&commit_ctx, block_id);
+        let mut commit_walker = facts.commit.walker(&commit_ctx, block_id);
 
         // 1. SSA statements: AssignExpr and ExprEval.
         for ss in &ssa_block.statements {
@@ -607,12 +606,15 @@ mod tests {
             types: &fu.types,
             values: &fu.sccp.values,
         };
-        let facts = super::super::commit::compute_commit_facts(
-            &fu.cfg,
-            &ctx,
-            &fu.sccp.executable_blocks,
-            &fu.sccp.executable_edges,
-        );
+        let facts = super::super::ShimmerFacts {
+            commit: super::super::commit::compute_commit_facts(
+                &fu.cfg,
+                &ctx,
+                &fu.sccp.executable_blocks,
+                &fu.sccp.executable_edges,
+            ),
+            loop_blocks: super::super::graph::loop_body_blocks(&fu.cfg),
+        };
         find_expr_shimmers(
             &fu.cfg,
             &fu.ssa,

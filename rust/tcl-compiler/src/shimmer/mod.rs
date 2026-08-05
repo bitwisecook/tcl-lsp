@@ -199,8 +199,10 @@ pub(crate) fn find_shimmer_warnings(
         types,
         values,
     };
-    let commit_facts =
-        commit::compute_commit_facts(cfg, &commit_ctx, executable_blocks, executable_edges);
+    let facts = ShimmerFacts {
+        commit: commit::compute_commit_facts(cfg, &commit_ctx, executable_blocks, executable_edges),
+        loop_blocks: graph::loop_body_blocks(cfg),
+    };
     let mut out = Vec::new();
     out.extend(use_site::find_use_site_shimmers(
         cfg,
@@ -209,9 +211,15 @@ pub(crate) fn find_shimmer_warnings(
         executable_blocks,
         registry,
         values,
-        &commit_facts,
+        &facts,
     ));
-    out.extend(phi::find_phi_shimmers(cfg, ssa, types, executable_blocks));
+    out.extend(phi::find_phi_shimmers(
+        cfg,
+        ssa,
+        types,
+        executable_blocks,
+        &facts.loop_blocks,
+    ));
     out.extend(expr::find_expr_shimmers(
         cfg,
         ssa,
@@ -219,9 +227,24 @@ pub(crate) fn find_shimmer_warnings(
         executable_blocks,
         values,
         registry,
-        &commit_facts,
+        &facts,
     ));
     out
+}
+
+/// Per-function facts the three shimmer sub-passes share, each computed once
+/// per CFG rather than once per pass.
+///
+/// The committed-intrep dataflow is consumed by the use-site and expr
+/// detectors; the cycle-block set by all three (it decides the S100 / S101
+/// in-loop split).  Recomputing the latter per pass is what made a
+/// 2000-branch flat proc take ~69 s before the graph walk became a single
+/// Tarjan pass (issue #1240).
+pub(crate) struct ShimmerFacts {
+    /// Committed-intrep facts — see [`commit::compute_commit_facts`].
+    pub commit: commit::CommitFacts,
+    /// Every block that lies on a cycle — see [`graph::loop_body_blocks`].
+    pub loop_blocks: HashSet<String>,
 }
 
 /// Find every shimmer warning across a whole compilation unit.
