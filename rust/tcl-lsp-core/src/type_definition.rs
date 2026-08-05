@@ -22,9 +22,10 @@
 //! Two receiver shapes:
 //!
 //! - **Variable receiver** (`$obj`) — when the analyser has inferred the
-//!   variable's class (the Rust analyser records this in
-//!   `AnalysisResult::instance_classes`), jump to that `ClassDef`'s
-//!   name span.
+//!   variable's class (`AnalysisResult::instance_classes`, or the
+//!   object-type lattice's scope-keyed singleton via
+//!   [`crate::definition::receiver_instance_class_at`] — issue #994 C5b),
+//!   jump to that `ClassDef`'s name span.
 //! - **Method receiver** — when the cursor sits inside a class body on a
 //!   word that names one of that class's methods, jump to the enclosing
 //!   class's definition (the method's owning *type*).
@@ -48,9 +49,14 @@ pub fn type_definition(
 ) -> Vec<LspRange> {
     let line_index = LineIndex::new(source);
 
-    // 1. Variable receiver: `$obj` with a known instance class.
+    // 1. Variable receiver: `$obj` with a known instance class —
+    //    `instance_classes` first, then the object-type lattice's
+    //    scope-keyed singleton at the cursor, the same accessor precedence
+    //    every dispatch consumer uses (issue #994 C5b).
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        if let Some(class_q) = analysis.instance_classes.get(&var_name)
+        let cursor = byte_offset_at(&line_index, source, line, character);
+        if let Some(class_q) =
+            crate::definition::receiver_instance_class_at(analysis, &var_name, true, cursor)
             && let Some(cd) = find_class(analysis, class_q)
         {
             return vec![span_to_range(source, &line_index, cd.name_span)];
@@ -165,6 +171,23 @@ mod tests {
         let analysis = analyse(src);
         let (l, c) = pos_of(src, "hello", 1);
         assert!(type_definition(src, l, c, &analysis).is_empty());
+    }
+
+    #[test]
+    fn lattice_typed_variable_jumps_to_inferred_class() {
+        // Issue #994 C5b: `b` is typed only by the object-type lattice's
+        // method-return edge; go-to-type-definition must reach ::B like
+        // every other dispatch consumer.
+        let src = "oo::class create A { method make {} { return [B new] } }\n\
+                   oo::class create B { method greet {} { return \"hi\" } }\n\
+                   set a [A new]\n\
+                   set b [$a make]\n\
+                   $b greet\n";
+        let analysis = analyse(src);
+        let (l, c) = pos_of(src, "$b greet", 1);
+        let locs = type_definition(src, l, c + 1, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1, "must land on ::B: {locs:?}");
     }
 
     #[test]

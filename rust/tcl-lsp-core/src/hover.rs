@@ -608,7 +608,7 @@ pub fn hover_with_profile(
     if let Some((inst, method, is_dollar)) =
         crate::definition::instance_method_at_cursor(source, line, character)
         && let Some(class_q) =
-            crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
+            crate::definition::receiver_instance_class_at(analysis, &inst, is_dollar, cursor_offset)
         && let Some(text) = obj_method_hover_text(analysis, class_q, &method, true, registry)
     {
         return Some(Hover::markdown(text));
