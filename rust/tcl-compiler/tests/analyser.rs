@@ -578,6 +578,62 @@ mod list_quoted_script_arguments {
     }
 
     #[test]
+    fn fp_a_list_built_uplevel_body_does_not_claim_the_substitution_bytes() {
+        let src = "proc p {file} {\n    uplevel #0 [list source [file join $file]]\n}\n";
+        let r = Analyser::new().analyse(src, D);
+        let proc_scope = &r.global_scope.children[0];
+        let file_var = proc_scope.variables.get("file").expect("param");
+        let read_off = u32::try_from(src.find("$file").unwrap()).unwrap();
+        assert!(
+            file_var.references.iter().any(|s| s.start() == read_off),
+            "the $file read at {read_off} must attach to the proc param; refs {:?}",
+            file_var.references
+        );
+        let up = scope_named(&r.global_scope, tcl_compiler::analyser::ScopeKind::Uplevel)
+            .expect("uplevel scope opens");
+        assert!(
+            up.body_span.is_none(),
+            "a list-built uplevel body must not claim the substitution bytes: {:?}",
+            up.body_span
+        );
+    }
+
+    #[test]
+    fn fp_a_rewalked_built_body_emits_no_duplicate_diagnostics() {
+        let src = "proc p {} {\n    namespace eval :: [list puts [string index abc 99]]\n}\n";
+        let r = Analyser::new().analyse(src, D);
+        let mut spans: Vec<_> = r
+            .diagnostics
+            .iter()
+            .map(|d| (d.code.as_str().to_owned(), d.span.start(), d.span.end()))
+            .collect();
+        let n = spans.len();
+        spans.sort();
+        spans.dedup();
+        eprintln!(
+            "diags: {:?}",
+            r.diagnostics
+                .iter()
+                .map(|d| (d.code.as_str(), d.span, d.message.clone()))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(n, spans.len(), "duplicate diagnostics from the re-walk");
+    }
+
+    #[test]
+    fn fp_a_nested_subst_in_a_built_body_is_not_rerecorded_in_the_target_scope() {
+        let src = "namespace eval ::app {\n    proc helper {} { return 1 }\n    proc user {} { namespace eval :: [list puts [helper]] }\n}\n";
+        let r = Analyser::new().analyse(src, D);
+        let inv: Vec<_> = r
+            .command_invocations
+            .iter()
+            .filter(|i| i.name.contains("helper"))
+            .collect();
+        eprintln!("helper invocations: {inv:?}");
+        assert!(inv.len() <= 1, "double-recorded invocation: {inv:?}");
+    }
+
+    #[test]
     fn tn_a_dynamic_build_stays_an_opaque_barrier() {
         // `[list $cb inner 1]` names no statically known command, and
         // `[$build …]` is not a list build at all — both keep today's

@@ -307,6 +307,17 @@ pub struct Analyser {
     /// Body-nesting depth — incremented on entry to a braced
     /// body. Used for top-level-only command checks.
     pub body_depth: u32,
+    /// One-shot: the next `process_command` call dispatches a command whose
+    /// argument words are **pre-substituted** `list` elements
+    /// (`analyse_list_quoted_body`).  Its nested `[…]`-substitution walks
+    /// must not run again — they already ran, in the *building* frame, when
+    /// the enclosing command's own walk descended the `[list …]` argument;
+    /// re-running them here would record those substitutions a second time
+    /// under the built script's target scope (`namespace eval :: [list puts
+    /// [helper]]` must not manufacture a `::helper` invocation).  Consumed
+    /// (reset) at the top of `process_command`, so recursion *below* the
+    /// built command — a literal body among its words — behaves normally.
+    pub presubstituted_args: bool,
     /// Whether **E207** (nesting depth exceeds the analysis limit — see
     /// `commands::MAX_BODY_DEPTH`) has already been emitted for this walk.
     /// The depth cap trips once per nested body past the limit — on
@@ -902,6 +913,7 @@ impl Analyser {
             conditional_depth: 0,
             control_flow_body_depth: 0,
             body_depth: 0,
+            presubstituted_args: false,
             e207_emitted: false,
             body_scope_stack: Vec::new(),
             command_aliases: HashMap::new(),

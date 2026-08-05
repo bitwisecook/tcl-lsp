@@ -2770,7 +2770,14 @@ impl Analyser {
             // can distinguish the `#0` global frame (resolve outward) from a
             // non-`#0` unknown caller frame (abstain outward).
             let mut child = super::types::Scope::new(super::types::ScopeKind::Uplevel, level_word);
-            child.body_span = Some(body_tok.span);
+            // Only a literal `{…}` block may claim the token bytes as the
+            // frame's `body_span` — same rule as `namespace eval` above.  A
+            // `[list …]` build substitutes its elements in the *calling*
+            // frame before `uplevel` changes frames, so an offset-keyed
+            // lookup on (say) `$file` in `uplevel #0 [list source [file join
+            // $file]]` must keep resolving lexically to the proc's own
+            // parameter, not stop at this frame (issue #1138).
+            child.body_span = (body_tok.kind == TokenType::Str).then_some(body_tok.span);
             parent.children.push(child);
             parent.children.len() - 1
         };
