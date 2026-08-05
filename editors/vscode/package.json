@@ -43,7 +43,7 @@
     "onChatParticipant:tcl-lsp.irule",
     "onChatParticipant:tcl-lsp.tcl",
     "onChatParticipant:tcl-lsp.tk",
-    "workspaceContains:**/*.{tcl,tk,itcl,tm,test,irul,irule,iapp,iappimpl}"
+    "workspaceContains:**/*.{[tT][cC][lL],[tT][kK],[iI][tT][cC][lL],[tT][mM],[iI][rR][uU][lL],[iI][rR][uU][lL][eE],[iI][aA][pP][pP],[iI][aA][pP][pP][iI][mM][pP][lL],[iI][mM][pP][lL],[eE][xX][pP],[aA][pP][lL],[tT][eE][sS][tT]}"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -5385,7 +5385,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**W315:** Class definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to, or renames onto a name already taken, which aborts the whole definition so no class is created.",
+            "markdownDescription": "**W315:** Class or object definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to (for `oo::objdefine`, on the object's own table), or renames onto a name already taken, which aborts the whole definition.",
             "order": 49
           },
           "tclLsp.diagnosticSeverity.W315": {
@@ -5406,7 +5406,7 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **W315:** Class definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to, or renames onto a name already taken, which aborts the whole definition so no class is created.",
+            "markdownDescription": "Display severity for **W315:** Class or object definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to (for `oo::objdefine`, on the object's own table), or renames onto a name already taken, which aborts the whole definition.",
             "order": 49
           }
         }
