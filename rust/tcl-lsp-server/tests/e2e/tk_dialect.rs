@@ -233,7 +233,7 @@ fn large_generated_non_tk_document_stays_clean_and_responsive() {
     // DEFAULT_TIMEOUT covers it (its doc comment is about exactly this test
     // shape).  Load scaling still applies on top.
     let codes: Vec<String> = lsp
-        .open_ready_timeout(&uri, &src, std::time::Duration::from_secs(180))
+        .open_ready_timeout(&uri, &src, std::time::Duration::from_mins(3))
         .iter()
         .filter_map(|d| d.get("code").and_then(serde_json::Value::as_str))
         .filter(|c| c.starts_with("TK"))
