@@ -496,6 +496,59 @@ fn no_forensics_tab_without_files() {
 }
 
 #[test]
+fn security_tab_flags_default_admin_credential() {
+    // admin/admin, SHA-512-crypt — the flagship default-credential check.
+    //
+    // The *finding* itself never carries the stored hash/salt/candidate (see
+    // `security::tests::no_secret_values_leak_into_the_model` for that
+    // property, checked directly against `collect_security`'s own JSON). This
+    // test can't repeat that assertion against the full rendered document: the
+    // report deliberately re-embeds the entire raw source text verbatim
+    // elsewhere (`configText`, for the in-browser query console) — same as it
+    // always has for `secrets.rs`'s own values — so the hash legitimately
+    // appears in the page regardless of what the Security tab does with it.
+    let scf = "auth user /Common/admin {\n    encrypted-password $6$abcsalt12$xVTHU6Ifw7m21v5IXNpEQM1G/HDajebt/qt8a3FrnxzBmgXWpecsAYQNalE3Oaotb83HDNkXt3gc4TbJMjplv1\n}\n";
+    let opts = RenderOptions {
+        title: "Security".into(),
+        generated_at: String::new(),
+        embed_console: false,
+        ..Default::default()
+    };
+    let html = build_report(&[("x.conf".to_string(), scf.to_string())], &opts).expect("render");
+    assert!(
+        html.contains("data-panel=\"security\""),
+        "security tab/panel present"
+    );
+    assert!(
+        html.contains("BIGIP-SEC-001"),
+        "default-credential rule id embedded"
+    );
+    assert!(
+        html.contains("critical") && html.contains("confirmed"),
+        "confirmed critical finding embedded"
+    );
+}
+
+#[test]
+fn security_tab_present_even_with_no_findings_to_confirm() {
+    // A bare config with nothing to check still shows the tab (positive
+    // assurance / documented limitation), never an alarming false positive.
+    let opts = RenderOptions {
+        title: "Security".into(),
+        generated_at: String::new(),
+        embed_console: false,
+        ..Default::default()
+    };
+    let sources = vec![("x.conf".to_string(), "ltm pool /Common/p { }\n".to_string())];
+    let html = build_report(&sources, &opts).expect("render");
+    assert!(html.contains("data-panel=\"security\""));
+    assert!(
+        !html.contains("\"status\":\"confirmed\""),
+        "nothing confirmed for a bare LTM-only config"
+    );
+}
+
+#[test]
 fn console_can_be_disabled() {
     let sources = vec![load("lab-device-01.ucs")];
     let opts = RenderOptions {

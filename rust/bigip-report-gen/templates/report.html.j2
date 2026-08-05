@@ -209,6 +209,7 @@
     <button class="tab" data-panel="dataGroups">Data Groups <span class="n">{{ d.counts.dataGroups }}</span></button>
     <button class="tab" data-panel="profiles">Profiles <span class="n">{{ d.counts.profiles }}</span></button>
     <button class="tab" data-panel="certificates">SSL Certificates <span class="n">{{ d.counts.certificates }}</span></button>
+    <button class="tab" data-panel="security">Security{% if d.counts.security %} <span class="n">{{ d.counts.security }}</span>{% endif %}</button>
     {% if d.counts.secrets %}<button class="tab" data-panel="secrets">Secrets <span class="n">{{ d.counts.secrets }}</span></button>{% endif %}
     {% if d.counts.apmProfiles %}<button class="tab" data-panel="apm">APM <span class="n">{{ d.counts.apmProfiles }}</span></button>{% endif %}
     {% if d.counts.gtm %}<button class="tab" data-panel="gtm">GTM / DNS <span class="n">{{ d.counts.gtm }}</span></button>{% endif %}
@@ -471,6 +472,37 @@
     </div>
     {% else %}
     <p class="hint">No <code>sys file ssl-cert</code> objects in this config. A UCS backup or a full config save (<code>tmsh save sys config</code>) includes them; a partial <code>bigip.conf</code> that only defines LTM objects may not.</p>
+    {% endif %}
+  </div>
+
+  {#: ---------------- Security ---------------- :#}
+  <div class="panel" data-panel="security">
+    <p class="lm-field-note">A small, high-confidence set of offline security-posture checks — factory/default credentials, SNMP and password-policy weaknesses, plaintext secrets, unprotected private-key material, and shell-access review. Detection is entirely passive: nothing here authenticates to the device or makes a network request, and no password, hash, salt, master key, private key or decrypted secret value is ever shown. <b>Confirmed</b> findings need action; <b>clear</b> means the check ran and found nothing; <b>not applicable</b> means there was nothing to check (e.g. no such account); <b>could not inspect</b> means the material is present but not in a form this generator can verify (see each finding's remediation). A partial <code>bigip.conf</code> with no UCS filestore will show more "not applicable"/"could not inspect" results — this is expected, not a bug.</p>
+    <div class="security-summary">
+      {% for sev in ['critical', 'high', 'medium', 'low', 'info'] %}
+      {% if d.security.counts[sev] %}<span class="tag {% if sev in ['critical', 'high'] %}red{% elif sev == 'medium' %}amber{% else %}blue{% endif %}">{{ d.security.counts[sev] }} {{ sev }}</span>{% endif %}
+      {% endfor %}
+    </div>
+    {% if d.security.findings %}
+    <div class="tablewrap">
+    <table class="grid security-grid">
+      <thead><tr><th>Finding</th><th>Severity</th><th>Status</th><th>Evidence</th><th>Source</th><th>Remediation</th></tr></thead>
+      <tbody>
+      {% for f in d.security.findings %}
+      <tr class="searchable" data-search="{{ f.id }} {{ f.title }} {{ f.source }}">
+        <td class="mono small">{{ f.id }}<div>{{ f.title }}</div></td>
+        <td><span class="tag {% if f.severity in ['critical', 'high'] %}red{% elif f.severity == 'medium' %}amber{% else %}blue{% endif %}">{{ f.severity }}</span></td>
+        <td><span class="tag {% if f.status == 'confirmed' %}red{% elif f.status == 'clear' %}green{% else %}amber{% endif %}">{{ f.status | replace('_', ' ') }}</span></td>
+        <td class="small">{{ f.evidence }}</td>
+        <td class="mono small">{{ f.source }}</td>
+        <td class="small">{{ f.remediation }}{% if f.reference %} <a href="{{ f.reference }}">Reference</a>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="hint">No security findings were produced for this source.</p>
     {% endif %}
   </div>
 

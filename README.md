@@ -1173,6 +1173,17 @@ types introduced across BIG-IP 21.x. The report also maps the detected TMOS
 branch to F5 K5903, showing its first-customer-ship, EoSD, EoTS, and EoL dates
 and warning when a support milestone is within one year or has passed.
 
+The report's **Security** tab runs a small, offline set of high-confidence
+checks — factory/default `root`/`admin` credentials (verified against the
+stored password hash with no platform `crypt(3)` call, so the native, wasm,
+and any future backend agree), default/weak SNMP communities, disabled or
+weak password-policy enforcement, plaintext secrets, unprotected private-key
+material, and non-administrative shell access — and lists each as a
+stable-id, severity-ranked finding with remediation guidance. Detection never
+authenticates to a device or makes a network request, and no password, hash,
+salt, or other secret value ever appears in a finding. See
+[kcs-feature-bigip-report-security-tab.md](docs/kcs/features/kcs-feature-bigip-report-security-tab.md).
+
 ```
 # BIG-IP config file (bigip.conf)
 ltm virtual /Common/my_vs {
