@@ -97,17 +97,22 @@ impl TclVersion {
         }
     }
 
-    /// Does this release satisfy *any* of `requirements` — the answer
-    /// `package vsatisfies [package provide Tcl] REQ ?REQ …?` gives?
+    /// Does this release **definitely** satisfy any of `requirements` — the
+    /// answer `package vsatisfies [package provide Tcl] REQ ?REQ …?` gives on
+    /// every build of the release line?
+    ///
+    /// The decided half of [`Self::satisfies_any_ternary`]: a requirement the
+    /// line's builds disagree about ([`Ternary::Inert`]) is `false` here, so
+    /// this never claims more than the ternary does.  A caller that needs to
+    /// tell "no" from "cannot say" — every consumer that abstains — must ask
+    /// the ternary.
     ///
     /// An empty `requirements` list is `false`: real `package vsatisfies`
     /// rejects it as a wrong-argument-count error, and no caller here has a
     /// meaningful "satisfies nothing" question to ask.
     #[must_use]
     pub fn satisfies_any<S: AsRef<str>>(self, requirements: &[S]) -> bool {
-        requirements
-            .iter()
-            .any(|r| version_satisfies(self.version_string(), r.as_ref()))
+        self.satisfies_any_ternary(requirements) == Ternary::Yes
     }
 
     /// [`Self::satisfies_any`], but [`Ternary::Inert`] when the answer really

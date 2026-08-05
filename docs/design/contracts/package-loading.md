@@ -99,10 +99,11 @@ per-dialect spec packs, never as name-matching in a consumer (see
     `[file join $dir x]`, quoted, and braced path forms are handled
     structurally — not by regex. The differential tests verify the output
     against a real `tclsh`.
-12. `resolve_require(name, version, exact)` (and its `resolve(name, version)`
-    shorthand) returns the implementation files of the single declaration
-    C Tcl's `SelectPackage` would evaluate; `select_provider(…)` returns that
-    whole declaration. The selection rule is
+12. `resolve_require(name, version, exact, prefer)` (and its
+    `resolve(name, version)` shorthand, which takes the default `prefer`)
+    returns the implementation files of the declaration C Tcl's
+    `SelectPackage` would evaluate; `select_provider(…)` returns that whole
+    declaration. The selection rule is
     `tcl_dialect::select_package_version`, a port of `generic/tclPkg.c`, and
     is the *only* version-comparison code in the workspace — the bytecode VM's
     `package vcompare` / `vsatisfies` / `require`, the `pkgIndex.tcl` guard
@@ -131,20 +132,31 @@ per-dialect spec packs, never as name-matching in a consumer (see
       without the alpha padding — so `-exact 2.0` accepts `2.0.0` (it compares
       equal) and rejects `2.0a1`.
 
-    Two bounds, both deliberate and both documented at
+    Two further rules, both documented at
     `PackageResolver::resolve_require`:
 
-    - **`package prefer` state is not tracked.** A document that raises the
-      interpreter preference to `latest` changes the answer only when the best
-      acceptable version is a prerelease *and* a stable one is also
-      acceptable; the state is interpreter-global and evaluation-order
-      dependent, so the default is pinned rather than guessed.
+    - **`package prefer` state is tracked per document** (#1126). `package
+      prefer latest` raises the interpreter's selection mode, and
+      `package_resolver::package_prefer_at(analysis, at)` reports the mode in
+      force at a given `package require`, ordered by
+      `indirection::in_effect` — the same "had this statement already run?"
+      rule the import family uses. The state is a **monotone latch**: the
+      default is `stable`, `package prefer stable` is a no-op from the default
+      and silently ineffective after a raise, so "has a raise already run" is
+      the whole state and only the raise is recorded
+      (`AnalysisResult::package_prefer_latest`). A *conditional* raise and a
+      raise in another document both abstain toward the default — the latter
+      for the same reason every cross-file event abstains, no static load
+      order.
     - **Two providers whose versions compare equal.** C Tcl collapses them
-      into one `ifneeded` entry keeping the *last*-sourced script, and the
-      source order is `glob` order — filesystem order, machine-dependent.
-      This keeps the first-discovered provider (discovery sorts
-      subdirectories by name), which is deterministic and lets a
-      workspace-local copy listed first shadow an installed one.
+      into one `ifneeded` entry keeping the *first*'s version string and the
+      *last*-sourced script, and the source order is `glob` order —
+      filesystem order, machine-dependent. `select_provider` therefore keeps
+      the first-discovered declaration (discovery sorts subdirectories by
+      name), which is deterministic and is the one whose version string C Tcl
+      reports; `resolve_require` returns the **union** of the equal-comparing
+      providers' files, because which script survives is unknowable and
+      naming every candidate file beats betting on a filesystem order.
 
     The comparator's per-pair oracle is pinned as a corpus, not regenerated at
     run time: `rust/tcl-dialect/tests/data/package_version_oracle.txt` (the
