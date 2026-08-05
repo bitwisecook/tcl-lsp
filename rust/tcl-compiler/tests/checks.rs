@@ -3436,3 +3436,61 @@ mod ambiguous_abbreviation {
         }
     }
 }
+
+// Unified event lifecycle (#1210).
+//
+// The three states are independently reportable: an event deprecated but
+// still present draws IRULE1003 naming its deprecating release, while one
+// retired before the target release draws IRULE1002 instead — retirement
+// outranks deprecation, and the surviving range is described with the
+// exclusive upper bound.
+mod event_lifecycle {
+    use super::*;
+
+    #[test]
+    fn a_deprecated_but_present_event_names_its_deprecating_release() {
+        let ds = of_code("when AUTH_SUCCESS {puts hi}", IR, "IRULE1003");
+        assert_eq!(
+            ds.len(),
+            1,
+            "{:?}",
+            codes("when AUTH_SUCCESS {puts hi}", IR)
+        );
+        assert!(ds[0].0.contains("9.4.0"), "{:?}", ds[0].0);
+        // Still available, so it is not reported as retired.
+        assert!(!fires("when AUTH_SUCCESS {puts hi}", IR, "IRULE1002"));
+    }
+
+    #[test]
+    fn a_retired_event_is_reported_retired_not_deprecated() {
+        // The classic XML parser events are gone from BIG-IP 10.0.0, which is
+        // well before any modern target release.
+        let src = "when XML_BEGIN_DOCUMENT {puts hi}";
+        assert!(fires(src, IR, "IRULE1002"), "{:?}", codes(src, IR));
+        assert!(
+            !fires(src, IR, "IRULE1003"),
+            "retirement outranks deprecation: {:?}",
+            codes(src, IR)
+        );
+        let ds = of_code(src, IR, "IRULE1002");
+        assert!(
+            ds[0].0.contains("not including"),
+            "the retiring release is exclusive: {:?}",
+            ds[0].0
+        );
+    }
+
+    #[test]
+    fn a_current_event_draws_neither() {
+        for code in ["IRULE1002", "IRULE1003"] {
+            assert!(!fires("when HTTP_REQUEST {puts hi}", IR, code));
+            // XML_CONTENT_BASED_ROUTING is *not* part of the retired classic
+            // XML set — the flat boolean used to lump it in with them.
+            assert!(
+                !fires("when XML_CONTENT_BASED_ROUTING {puts hi}", IR, code),
+                "{code}: {:?}",
+                codes("when XML_CONTENT_BASED_ROUTING {puts hi}", IR)
+            );
+        }
+    }
+}
