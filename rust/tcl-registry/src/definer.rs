@@ -821,6 +821,10 @@ pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Snit,
     members: SNIT_MEMBERS,
     implicit_vars: &["self", "selfns", "type", "options", "win", "hull"],
+    // Same as SNIT_GRAMMAR: snit resolves member-body barewords through its
+    // own generated type namespace, not an implicit helper path (#1137's
+    // `::oo::Helpers` fact is TclOO-only).
+    member_body_namespace_path: &[],
 };
 
 // ---------------------------------------------------------------------------
