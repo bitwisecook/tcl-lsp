@@ -963,11 +963,29 @@ pub struct ExistenceFrame<'a> {
     pub object_state: Option<&'a HashSet<String>>,
 }
 
+/// The array base name of an existence query written as an element guard —
+/// `Some("Params")` for `Params(key)` (any element spelling, including a
+/// dynamic `Params($k)`), `None` for every other shape.  Only a simple local
+/// base qualifies: a namespaced array (`::env(PATH)`) may be populated
+/// outside the function's view.
+fn array_element_base(var: &str) -> Option<&str> {
+    let (base, rest) = var.split_once('(')?;
+    if base.is_empty() || !rest.ends_with(')') {
+        return None;
+    }
+    base.bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'_')
+        .then_some(base)
+}
+
 /// Fold `[info exists X]` / `[array exists X]`
-/// if-conditions into [`ConstantBranch`] entries for the two
+/// if-conditions into [`ConstantBranch`] entries for the
 /// false-positive-free cases — a parameter always exists (`true`); a
-/// never-defined non-parameter never exists (`false`).  `![info exists
-/// X]` flips the value.
+/// never-defined non-parameter never exists (`false`); an element guard
+/// `X(elem)` on an array this body never touches never exists (`false`,
+/// issue #1173 — the guard is decided on the *array* name, with the same
+/// abstentions as a simple name, so the element key may even be dynamic).
+/// `![info exists X]` flips the value.
 ///
 /// SCCP itself can't fold these (the predicate is an opaque
 /// `ExprNode::Command`, and SCCP has neither parameter nor existence
@@ -1109,34 +1127,60 @@ pub fn existence_constant_branches(
         let Some((var, negated)) = crate::expr_ast::existence_query_var(condition) else {
             continue;
         };
-        // Array elements / namespaced globals may be populated outside
-        // the function's view — only fold simple local names.
-        if var.is_empty() || !var.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
-            continue;
-        }
-        // A scope-alias local's existence tracks the linked variable — never
-        // fold it (see the `aliased` collection above).
-        if aliased.contains(var.as_str()) {
-            continue;
-        }
-        let exists = if frame.params.iter().any(|p| p == &var) {
-            // A literal `unset x` already blocks this; a computed
-            // `unset $n` can name the parameter just as well
-            // (tclsh 9.0.4 / 8.6.14: `proc f {p n} {unset $n; info exists p}`
-            // → `0` for `f hello p`), so the barrier blocks it too.
-            if unset.contains(var.as_str()) || dynamic_names.destroys {
-                continue;
-            }
-            true
-        } else if !defined.contains(&var) {
-            // `set $switch {}` may have defined exactly this name — the
-            // argparse idiom the fold used to call unreachable.
-            if dynamic_names.writes {
+        let exists = if let Some(base) = array_element_base(&var) {
+            // An array-element guard on a never-touched array is provably
+            // false (issue #1173): no element of `a` can exist when nothing
+            // in this barrier-free body ever created `a` — tclsh 9.0.4 /
+            // 8.6.16: `proc f {} { info exists Params(key) }` → 0.  The
+            // decision is about the *array* name alone, so a dynamic element
+            // key (`Params($k)`) folds just as well, and the base takes the
+            // same abstentions as a simple name: scope-alias / instance-state
+            // (`aliased`), a dynamic write that may have created any name,
+            // and any touch of the base — a `set a(x) …` element write, an
+            // `array set` / `upvar`-style whole-array def, either spelling.
+            // A parameter base abstains outright: the parameter itself is a
+            // scalar, and the fold stays strictly one-sided here rather than
+            // reason about unset-and-remake shapes.
+            if aliased.contains(base)
+                || frame.params.iter().any(|p| p == base)
+                || dynamic_names.writes
+                || defined
+                    .iter()
+                    .any(|d| d == base || d.strip_prefix(base).is_some_and(|r| r.starts_with('(')))
+            {
                 continue;
             }
             false
         } else {
-            continue;
+            // Namespaced globals may be populated outside the function's
+            // view — only fold simple local names.
+            if var.is_empty() || !var.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
+                continue;
+            }
+            // A scope-alias local's existence tracks the linked variable —
+            // never fold it (see the `aliased` collection above).
+            if aliased.contains(var.as_str()) {
+                continue;
+            }
+            if frame.params.iter().any(|p| p == &var) {
+                // A literal `unset x` already blocks this; a computed
+                // `unset $n` can name the parameter just as well
+                // (tclsh 9.0.4 / 8.6.14: `proc f {p n} {unset $n; info exists p}`
+                // → `0` for `f hello p`), so the barrier blocks it too.
+                if unset.contains(var.as_str()) || dynamic_names.destroys {
+                    continue;
+                }
+                true
+            } else if !defined.contains(&var) {
+                // `set $switch {}` may have defined exactly this name — the
+                // argparse idiom the fold used to call unreachable.
+                if dynamic_names.writes {
+                    continue;
+                }
+                false
+            } else {
+                continue;
+            }
         };
         let value = exists ^ negated;
         let (true_name, false_name) = (
