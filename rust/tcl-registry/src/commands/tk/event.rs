@@ -126,7 +126,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-focus",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Specifies the focus field for the event.",
         dialects: None,
         aliases: &[],
@@ -171,7 +171,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-override",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Specifies the override-redirect field.",
         dialects: None,
         aliases: &[],
@@ -216,7 +216,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-sendevent",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Specifies the send-event field.",
         dialects: None,
         aliases: &[],
@@ -261,7 +261,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-warp",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Specifies whether the screen pointer should be warped.",
         dialects: None,
         aliases: &[],

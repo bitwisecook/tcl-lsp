@@ -96,7 +96,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-expand",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Specifies whether the slave should be expanded to consume extra space in its master.",
         dialects: None,
         aliases: &[],

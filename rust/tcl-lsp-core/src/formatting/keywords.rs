@@ -41,13 +41,16 @@
 //! * Strict tables are never touched.
 //! * Command names are never touched: Tcl does not prefix-match them.
 //! * A dynamic word (`$sub`, `[pick]`, `{*}`-expanded) abstains.
-//! * A boolean word is rewritten **only** at a consumption site the registry
-//!   proves boolean. A value-definition site (`set flag yes`) keeps its
+//! * A boolean word is rewritten **only** where the registry declares
+//!   [`tcl_registry::ArgRole::Boolean`] — the word is consumed through
+//!   `Tcl_GetBooleanFromObj` and its bytes are never otherwise observable
+//!   (issue #1256). A value-definition site (`set flag yes`) keeps its
 //!   bytes, because `$flag` may later meet `eq "yes"`, a `switch` arm, or a
 //!   log line — `true` and `yes` are different strings even though both are
 //!   truthy.
-//! * `0`/`1` are also valid integers, so a site whose role is
-//!   numeric-or-boolean abstains rather than guess.
+//! * `0`/`1` are also valid integers, so a
+//!   [`tcl_registry::ArgRole::NumericOrBoolean`] position is a distinct
+//!   declared fact and abstains rather than guess.
 //!
 //! Both rewrites are idempotent: a canonical spelling resolves to itself, and
 //! the configured boolean form maps to itself.
@@ -196,7 +199,7 @@ pub(crate) fn rewrites_for_command(
         // a boolean and nothing else.
         if consumed == 1
             && config.boolean_form != BooleanForm::Preserve
-            && option_value_is_boolean(opt)
+            && opt.value_is_boolean()
             && touchable(i + 1)
             && let Some(value) = args.get(i + 1)
             && let Some(text) = canonical_boolean(value, config.boolean_form)
@@ -206,24 +209,6 @@ pub(crate) fn rewrites_for_command(
         i += 1 + consumed;
     }
     out
-}
-
-/// Whether this option's value is consumed *purely* as a boolean.
-///
-/// The signal is the option's own declared value set: a closed set that is
-/// exactly the boolean vocabulary. A set that also admits integers, or an
-/// open value, abstains — `0`/`1` are valid integers too, so a
-/// numeric-or-boolean site must not be rewritten.
-fn option_value_is_boolean(opt: &OptionSpec) -> bool {
-    let values = opt.value_values();
-    if values.is_empty() || opt.value_integer_domain().is_some() {
-        return false;
-    }
-    values
-        .iter()
-        .all(|v| tcl_registry::abbrev::resolve_boolean(v.value).is_some())
-        // A single-valued set is a literal keyword, not a boolean pair.
-        && values.len() >= 2
 }
 
 #[cfg(test)]

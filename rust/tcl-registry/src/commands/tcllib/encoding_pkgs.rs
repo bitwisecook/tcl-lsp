@@ -87,7 +87,7 @@ const YENCODE_OPTS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-crc32",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Whether to append a CRC-32 trailer.",
         ..OptionSpec::DEFAULT
     },

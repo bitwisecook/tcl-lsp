@@ -231,7 +231,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         options: const {
             &[OptionSpec {
                 name: "-frame",
-                value: OptionValue::value("boolean"),
+                value: OptionValue::boolean(),
                 detail: "Enable exact per-command file/line tracking for `info frame` in the target interpreter (slower execution). Given with no value, only reports the current setting. Once turned on, cannot be turned back off.",
                 dialects: None,
                 aliases: &[],

@@ -59,7 +59,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-reuseaddr",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Server sockets only, Tcl 9.0+: whether the kernel may reuse the local address when no socket is actively listening on it (SO_REUSEADDR). True is the default on Windows; the default on other platforms is undocumented.",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
@@ -68,7 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-reuseport",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Server sockets only, Tcl 9.0+: whether multiple sockets may bind the same local address and port (SO_REUSEPORT). The default value is undocumented.",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
