@@ -650,16 +650,76 @@ pub struct WorkspacePackagePrefer {
     pub enclosing_body: Option<Span>,
 }
 
+/// Whether a `package` name argument is a plain literal, so it names one
+/// package statically.
+///
+/// The segmenter reconstructs substituted words with their `${var}` / `[cmd]`
+/// markers preserved, so their absence is reliable evidence — the same test
+/// [`crate::package_resolver::package_requires_in`] applies.
+fn is_literal_name(name: &str) -> bool {
+    !name.is_empty() && !name.contains(['$', '[', '{'])
+}
+
 /// One `package require NAME` declaration recorded in the index.
 ///
 /// Lets a module inherit the requires of the entry file(s) that `source` it,
 /// so the workspace W120 refinement does not flag a command whose package is
 /// required upstream (see [`crate::source_graph`]).
+///
+/// It is also an **ordered statement**: by the time it returns, the package's
+/// files have run.  [`WorkspaceIndex::package_run_edges`] turns that into the
+/// package half of the load order (issue #1279), which is why the position
+/// fields are here and not only on the `source` record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspacePackageRequire {
     /// Document containing the `package require` statement.
     pub uri: String,
     /// Required package name (the `NAME` argument).
+    pub name: String,
+    /// Byte offset of the `package` command word in `uri`'s source.
+    pub at: u32,
+    /// Span of the innermost proc/class body containing the require; `None`
+    /// at load level.  Read by
+    /// [`tcl_compiler::analyser::indirection::in_effect_within`] exactly as
+    /// [`WorkspaceSource::enclosing_body`] is.
+    pub enclosing_body: Option<Span>,
+    /// `true` when the require sits inside a guarded branch (`if` / `catch` /
+    /// `try`) and so may never run — the standard optional-dependency idiom
+    /// `if {[catch {package require Tk}]} { … }`.  It still counts as a
+    /// *declared dependency* for W120, which is why the record is kept rather
+    /// than dropped; it establishes no order.
+    pub conditional: bool,
+}
+
+/// One `package provide NAME` declaration recorded in the index.
+///
+/// The other end of a [`WorkspacePackageRequire`]: the document that, when it
+/// runs, makes the package available.  A `package require` whose name this
+/// resolves to a **single** indexed document is the load order's evidence that
+/// that document had run by the require (issue #1279).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspacePackageProvide {
+    /// Document containing the `package provide` statement.
+    pub uri: String,
+    /// Provided package name (the `NAME` argument).
+    pub name: String,
+    /// Byte offset of the `package` command word in `uri`'s source.
+    pub at: u32,
+}
+
+/// One `package ifneeded NAME VERSION SCRIPT` registration recorded in the
+/// index.
+///
+/// A registration is a statement that the package's loading is *this script's*
+/// business — and the script is arbitrary, runs later, and runs in the global
+/// namespace.  The load order reads the mere existence of one as "which
+/// statements a `package require NAME` runs is not static here" and builds no
+/// package edge for that name (issue #1279, uncertainty 3).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspacePackageIfneeded {
+    /// Document containing the `package ifneeded` statement.
+    pub uri: String,
+    /// Package the load script is registered for.
     pub name: String,
 }
 
@@ -965,6 +1025,8 @@ struct DocumentRecords {
     invocations: Vec<WorkspaceInvocation>,
     sources: Vec<WorkspaceSource>,
     package_requires: Vec<WorkspacePackageRequire>,
+    package_provides: Vec<WorkspacePackageProvide>,
+    package_ifneededs: Vec<WorkspacePackageIfneeded>,
     package_prefers: Vec<WorkspacePackagePrefer>,
     command_links: Vec<WorkspaceCommandLink>,
     glob_imports: Vec<WorkspaceGlobImport>,
@@ -995,6 +1057,8 @@ impl DocumentRecords {
             invocations,
             sources,
             package_requires,
+            package_provides,
+            package_ifneededs,
             package_prefers,
             command_links,
             glob_imports,
@@ -1012,6 +1076,8 @@ impl DocumentRecords {
         invocations.clear();
         sources.clear();
         package_requires.clear();
+        package_provides.clear();
+        package_ifneededs.clear();
         package_prefers.clear();
         command_links.clear();
         glob_imports.clear();
@@ -1196,6 +1262,22 @@ impl DocumentRecords {
             self.package_requires.push(WorkspacePackageRequire {
                 uri: uri.to_owned(),
                 name: pr.name.clone(),
+                at: pr.range.start(),
+                enclosing_body: analysis.innermost_definition_body_span(pr.range.start()),
+                conditional: pr.conditional,
+            });
+        }
+        for pp in &analysis.package_provides {
+            self.package_provides.push(WorkspacePackageProvide {
+                uri: uri.to_owned(),
+                name: pp.name.clone(),
+                at: pp.range.start(),
+            });
+        }
+        for pi in &analysis.package_ifneededs {
+            self.package_ifneededs.push(WorkspacePackageIfneeded {
+                uri: uri.to_owned(),
+                name: pi.name.clone(),
             });
         }
         // Only the unconditional raises: a `package prefer latest` inside an
@@ -1808,33 +1890,119 @@ impl WorkspaceIndex {
         self.export_snapshot = Derived::default();
     }
 
-    /// The `source`-graph load order over this workspace's documents, built at
-    /// most once per [`Self::generation`].
+    /// The load order over this workspace's documents, built at most once per
+    /// [`Self::generation`] from the `source` graph
+    /// ([`Self::set_source_resolver`]) **and** the `package require` graph
+    /// ([`Self::package_run_edges`]).
     ///
-    /// Empty when no resolver is installed (see [`Self::set_source_resolver`])
-    /// or when no `source` statement resolves. A target the resolver cannot
-    /// place — `source $dir/x.tcl` with `$dir` unknown — names no document
-    /// statically and sequences nothing.
+    /// The `source` half is empty when no resolver is installed or when no
+    /// `source` statement resolves: a target the resolver cannot place —
+    /// `source $dir/x.tcl` with `$dir` unknown — names no document statically
+    /// and sequences nothing.  The package half needs **no** resolver: a
+    /// `package require NAME` names its provider through the index's own
+    /// `package provide` records, so it works on a host that installs none
+    /// (issue #1279).
     fn run_order(&self) -> Arc<crate::source_graph::RunOrder> {
         self.run_order.get_or_build(|| {
-            let Some(resolve) = self.source_resolver else {
-                return crate::source_graph::RunOrder::default();
-            };
-            let edges: Vec<crate::source_graph::SourceEdge> = self
-                .sources()
-                .filter_map(|s| {
+            let source_edges = self.source_resolver.into_iter().flat_map(|resolve| {
+                self.sources().filter_map(move |s| {
                     resolve(&s.uri, &s.raw_path, s.is_literal).map(|child| {
-                        crate::source_graph::SourceEdge {
+                        crate::source_graph::RunEdge {
                             parent: s.uri.clone(),
                             child,
                             at: s.range.start(),
                             enclosing_body: s.enclosing_body,
+                            kind: crate::source_graph::RunEdgeKind::Source,
                         }
                     })
                 })
-                .collect();
+            });
+            let edges: Vec<crate::source_graph::RunEdge> =
+                source_edges.chain(self.package_run_edges()).collect();
             crate::source_graph::RunOrder::build(&edges)
         })
+    }
+
+    /// The `package require` half of the load order: one
+    /// [`crate::source_graph::RunEdgeKind::PackageRequire`] edge per require
+    /// site whose package this workspace provably provides (issue #1279,
+    /// design §3.4).
+    ///
+    /// A `package require NAME` that returns has left `NAME` loaded, so the
+    /// providing document's statements have all run — even though the require
+    /// itself may have evaluated nothing.  That is a genuine ordering fact and
+    /// the only one available on package-structured code, where the `source`
+    /// statements that would sequence the same files are written
+    /// `source [file join $dir x.tcl]` inside a `pkgIndex.tcl` and fold to
+    /// nothing.
+    ///
+    /// # The soundness gates
+    ///
+    /// Each drops a require site rather than guessing, and each corresponds to
+    /// one of the three uncertainties the design records:
+    ///
+    /// 1. **`auto_path` is mutable** (design §3.4 / uncertainty 1) — the
+    ///    provider is identified by `package provide`, and the search path
+    ///    that decides *which* copy of a package wins is a runtime value.  So
+    ///    a package **two** indexed documents provide yields no edge at all:
+    ///    with two directories on `auto_path`, their order alone decides which
+    ///    file runs (oracle: tclsh 8.6.14 / 9.0.4, two directories each
+    ///    holding a `mylib2 1.0`, `::lib::p` answers `from A` or `from B`
+    ///    purely by `lappend auto_path` order — and only one of them exports).
+    /// 2. **A package may already be loaded** (uncertainty 2) — handled by the
+    ///    *edge kind*, not by dropping the edge: see
+    ///    [`crate::source_graph::RunEdgeKind::PackageRequire`].
+    /// 3. **`ifneeded` bodies are arbitrary** (uncertainty 3) — a package this
+    ///    workspace registers a `package ifneeded` script for yields no edge.
+    ///    The script is what actually runs, it runs later and in the global
+    ///    namespace, and it may load something else entirely (oracle: one
+    ///    `pkgIndex.tcl` whose body branches on the environment gives
+    ///    `::c::p` → `real` or `stub`, with and without the provider's
+    ///    `namespace export`, for the same `package require`).
+    ///
+    /// Plus the gates the `source` half already applies in spirit: a
+    /// **conditional** require may never run; a **non-literal** package name
+    /// (`package require $pkg`) names nothing statically; and a document that
+    /// requires the package it itself provides is a self-edge, which
+    /// [`crate::source_graph::RunOrder::build`] discards.
+    fn package_run_edges(&self) -> Vec<crate::source_graph::RunEdge> {
+        use std::collections::hash_map::Entry;
+        // name -> the single indexed provider, or `None` once a second one
+        // has been seen (gate 1).
+        let mut provider: std::collections::HashMap<&str, Option<&str>> =
+            std::collections::HashMap::new();
+        for pp in self
+            .package_provides()
+            .filter(|pp| is_literal_name(&pp.name))
+        {
+            match provider.entry(pp.name.as_str()) {
+                Entry::Vacant(slot) => {
+                    slot.insert(Some(pp.uri.as_str()));
+                }
+                Entry::Occupied(mut slot) => {
+                    if *slot.get() != Some(pp.uri.as_str()) {
+                        slot.insert(None);
+                    }
+                }
+            }
+        }
+        // Gate 3: a registered load script owns the package's loading.
+        for pi in self.package_ifneededs() {
+            provider.insert(pi.name.as_str(), None);
+        }
+        self.package_requires()
+            .filter(|pr| !pr.conditional && is_literal_name(&pr.name))
+            .filter_map(|pr| {
+                let child = (*provider.get(pr.name.as_str())?)?;
+                Some(crate::source_graph::RunEdge {
+                    parent: pr.uri.clone(),
+                    child: child.to_owned(),
+                    at: pr.at,
+                    enclosing_body: pr.enclosing_body,
+                    kind: crate::source_graph::RunEdgeKind::PackageRequire,
+                })
+            })
+            .collect()
     }
 
     /// Note a mutation: bump the generation and drop every derived cache.
@@ -2040,6 +2208,18 @@ impl WorkspaceIndex {
         self.docs.iter().flat_map(|doc| doc.package_requires.iter())
     }
 
+    /// Every indexed `package provide NAME` declaration.
+    pub fn package_provides(&self) -> impl Iterator<Item = &WorkspacePackageProvide> {
+        self.docs.iter().flat_map(|doc| doc.package_provides.iter())
+    }
+
+    /// Every indexed `package ifneeded NAME VERSION SCRIPT` registration.
+    pub fn package_ifneededs(&self) -> impl Iterator<Item = &WorkspacePackageIfneeded> {
+        self.docs
+            .iter()
+            .flat_map(|doc| doc.package_ifneededs.iter())
+    }
+
     /// Every indexed unconditional `package prefer latest`.
     pub fn package_prefers(&self) -> impl Iterator<Item = &WorkspacePackagePrefer> {
         self.docs.iter().flat_map(|doc| doc.package_prefers.iter())
@@ -2118,15 +2298,16 @@ impl WorkspaceIndex {
         if self.package_prefers().next().is_none() {
             return false;
         }
-        let edges: Vec<crate::source_graph::SourceEdge> = self
+        let edges: Vec<crate::source_graph::RunEdge> = self
             .sources()
             .filter(|s| s.is_literal)
             .filter_map(|s| {
-                resolve(&s.uri, &s.raw_path).map(|child| crate::source_graph::SourceEdge {
+                resolve(&s.uri, &s.raw_path).map(|child| crate::source_graph::RunEdge {
                     parent: s.uri.clone(),
                     child,
                     at: s.range.start(),
                     enclosing_body: s.enclosing_body,
+                    kind: crate::source_graph::RunEdgeKind::Source,
                 })
             })
             .collect();

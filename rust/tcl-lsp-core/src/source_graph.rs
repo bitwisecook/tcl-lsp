@@ -139,24 +139,74 @@ pub fn ancestor_requires<S: BuildHasher>(
     out
 }
 
-/// One `source` edge, with the execution-order facts a state question needs.
+/// **How** one document enters another's execution — the difference between
+/// a statement that says *exactly* when the child ran and one that only
+/// bounds it (issue #1279).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RunEdgeKind {
+    /// `source CHILD`: the child's whole body is inlined **at this
+    /// statement**.  The position is exact in both directions — everything
+    /// written above the `source` had run when the child loaded, and nothing
+    /// written below it had.
+    #[default]
+    Source,
+    /// `package require P`, with `CHILD` the document that `package provide`s
+    /// `P`: the child had loaded **by** this statement, but not necessarily
+    /// *at* it.
+    ///
+    /// `package require` is a load event only for whichever require runs
+    /// first; every later one finds the package already provided, returns its
+    /// version, and evaluates nothing.  Oracle (byte-identical on tclsh 8.6.14
+    /// and 9.0.4) — `a.tcl` and `b.tcl` each hold the same two lines, an
+    /// "is it loaded?" probe followed by `package require mylib`, and a driver
+    /// sources `a.tcl` then `b.tcl`:
+    ///
+    /// ```text
+    ///   a.tcl: before its own require, is lib loaded? NO
+    ///   lib.tcl body running
+    ///   b.tcl: before its own require, is lib loaded? YES
+    /// ```
+    ///
+    /// Identical source text, opposite answers, decided by something neither
+    /// file says.  So this edge places the child at *at most* its `at`, and
+    /// [`RunOrder`] answers only the half that survives the bound: "the child
+    /// has already run" is a fact from the require onwards; "the child has not
+    /// run yet" is never a fact at all.
+    PackageRequire,
+}
+
+impl RunEdgeKind {
+    /// Whether the child's position is the edge's `at` exactly, rather than an
+    /// upper bound on it.
+    #[must_use]
+    pub fn is_exact(self) -> bool {
+        matches!(self, Self::Source)
+    }
+}
+
+/// One edge of the workspace's **execution timeline**: a statement in `parent`
+/// that brings `child`'s body into the run, with the execution-order facts a
+/// state question needs.
 ///
 /// [`ancestor_requires`] only asks *whether* one file reaches another, so a
 /// bare `(parent, child)` pair is enough for it.  An **interpreter-state**
 /// question — "had this statement already run by the time the child loaded?"
-/// — additionally needs where in the parent the `source` sits, because a
-/// statement written after it has not run yet.
+/// — additionally needs where in the parent the entering statement sits,
+/// because a statement written after it has not run yet, and [`Self::kind`],
+/// because only a `source` pins the child to that position.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SourceEdge {
-    /// The sourcing document's key.
+pub struct RunEdge {
+    /// The entering document's key.
     pub parent: String,
-    /// The sourced document's key.
+    /// The entered document's key.
     pub child: String,
-    /// Byte offset of the `source` statement in `parent`.
+    /// Byte offset of the entering statement in `parent`.
     pub at: u32,
-    /// Span of the innermost proc/class body containing the `source`
+    /// Span of the innermost proc/class body containing the entering
     /// statement in `parent`; `None` at load level.
     pub enclosing_body: Option<tcl_lexer::Span>,
+    /// Whether `at` is the child's exact position or an upper bound on it.
+    pub kind: RunEdgeKind,
 }
 
 /// Whether the **interpreter-global** `package prefer latest` latch is already
@@ -190,7 +240,7 @@ pub struct SourceEdge {
 #[must_use]
 pub fn ancestor_prefer_latest_raised<S: BuildHasher>(
     target: &str,
-    edges: &[SourceEdge],
+    edges: &[RunEdge],
     raises: &HashMap<String, Vec<u32>, S>,
 ) -> bool {
     use tcl_compiler::analyser::indirection::in_effect_within;
@@ -259,11 +309,21 @@ pub struct Placed {
     pub at: u32,
     /// Enclosing proc/class body of that offset, in the same document.
     pub enclosing_body: Option<tcl_lexer::Span>,
+    /// Whether [`Self::at`] is where the point **is**, or only a bound on how
+    /// late it can be.
+    ///
+    /// `true` for a point in its own document and for one reached entirely
+    /// through `source` statements; `false` once a
+    /// [`RunEdgeKind::PackageRequire`] edge is on the path, where the true
+    /// position is *at most* `at` (issue #1279).  A bounded position still
+    /// answers half the questions — see [`RunOrder::trusted`].
+    pub exact: bool,
 }
 
-/// The **load order the `source` graph proves** — the single relation both
+/// The **load order the workspace proves** — the single relation both
 /// wildcard-import tiers rank cross-document events with (issue #1104 item 3,
-/// #1116 item 6; design in `docs/design/import-order-source-graph.md` §6).
+/// #1116 item 6, #1279; design in
+/// `docs/design/import-order-source-graph.md` §6).
 ///
 /// # Why an order exists at all
 ///
@@ -271,25 +331,33 @@ pub struct Placed {
 /// why every cross-document import-lifecycle event was passed *unordered* and
 /// the shared decision functions abstained toward answering: a foreign
 /// `namespace export` counted, a foreign `namespace export -clear` revoked
-/// nothing, a foreign `namespace forget` revoked nothing.  A `source`
-/// statement is the exception — it is an ordinary statement of the sourcing
-/// file that runs the whole sourced file *at that point*, so the DFS of the
-/// `source` forest **is** the run order, and two statements in one tree are
-/// genuinely comparable.
+/// nothing, a foreign `namespace forget` revoked nothing.  Two statements are
+/// the exception:
+///
+/// - a **`source`** is an ordinary statement of the sourcing file that runs
+///   the whole sourced file *at that point*, so the DFS of the `source` forest
+///   **is** the run order ([`RunEdgeKind::Source`]);
+/// - a **`package require`** guarantees the providing file has run by the time
+///   it returns — but not that it ran *there*, since a package already loaded
+///   makes the require evaluate nothing ([`RunEdgeKind::PackageRequire`]).
 ///
 /// # The relation
 ///
-/// Each point is lifted to its root-ward key: the offsets of the `source`
-/// statements that entered each document down the path, then the point's own
-/// offset.  Two keys are compared element-wise; the first index where they
-/// differ is their **deepest common document**, and there the existing
-/// single-document rules apply unchanged —
-/// [`tcl_compiler::analyser::indirection::in_effect_within`] for
-/// [`Self::has_run`], [`crate::namespace_import::load_order`] for
+/// Each point is lifted to its root-ward key: the offsets of the statements
+/// that entered each document down the path, then the point's own offset.  Two
+/// keys are compared element-wise; the first index where they differ is their
+/// **deepest common document**, and there the existing single-document rules
+/// apply unchanged — [`tcl_compiler::analyser::indirection::in_effect_within`]
+/// for [`Self::has_run`], [`crate::namespace_import::load_order`] for
 /// [`Self::cmp_run`].  One relation, both questions, so the gate and the
 /// conflict rule cannot drift (design §6.1: a `has_run` predicate alone is not
 /// enough — the folds rank events against *each other*, and a partial order
 /// has no `max`).
+///
+/// A `package require` edge changes nothing about that projection; it only
+/// marks the position it contributes as a **bound** rather than a fact
+/// ([`Placed::exact`]), and [`Self::trusted`] then reads off the half of the
+/// comparison the bound survives.
 ///
 /// # Where it abstains, deliberately
 ///
@@ -297,21 +365,24 @@ pub struct Placed {
 /// callers fold to the same "abstain toward answering" direction `at: None`
 /// took before:
 ///
-/// - the two documents sit in **different trees** (no `source` path joins
-///   them) — the overwhelmingly common case, and exactly today's behaviour;
-/// - either document is **ambiguous**: reachable by two different `source`
-///   statements, or on a `source` cycle.  Tcl tolerates re-sourcing a file, so
-///   a document with two entry points has no unique position and must not be
-///   given one;
-/// - either document is unknown to the graph.
+/// - the two documents sit in **different trees** (no path joins them) — the
+///   overwhelmingly common case, and exactly today's behaviour;
+/// - either document is **ambiguous**: entered from two different statements,
+///   or on a cycle.  Tcl tolerates re-sourcing a file, so a document with two
+///   entry points has no unique position and must not be given one;
+/// - either document is unknown to the graph;
+/// - the answer would rest on the *late* side of a `package require` bound —
+///   see [`Self::trusted`].
 ///
 /// Two points in the **same** document never consult the graph at all: they
 /// were already ordered, by the same rule, before this type existed.  A
-/// workspace with no resolvable `source` edge therefore behaves byte-identically
+/// workspace with no resolvable edge therefore behaves byte-identically
 /// to the pre-#1104-item-3 tiers.
 ///
-/// Only *literal*, resolvable `source` targets become edges — the caller
-/// filters those — because `source $dir/x.tcl` sequences nothing.  A `source`
+/// Only *literal*, resolvable `source` targets become `source` edges — the
+/// caller filters those — because `source $dir/x.tcl` sequences nothing; the
+/// caller's soundness gates on `package require` edges are on
+/// [`crate::workspace_index::WorkspaceIndex::package_run_edges`].  A statement
 /// written inside a proc body is kept and judged by `in_effect_within` like
 /// any other body-local statement, the same leniency
 /// [`ancestor_prefer_latest_raised`] already applies to the same edges.
@@ -326,30 +397,77 @@ pub struct RunOrder {
     /// Documents with no unique position — re-sourced from two sites, or on a
     /// cycle.  Every cross-document comparison touching one abstains.
     ambiguous: HashSet<String>,
+    /// For each document a `package require` *loads*, the require sites that
+    /// load it — see [`Self::alternatives`].  Keyed by the loaded document,
+    /// which is always a `source`-forest root: a document that is both
+    /// `source`d and `package require`d is ambiguous instead.
+    package_entries: HashMap<String, Vec<OwnedRunPoint>>,
+}
+
+/// A [`RunPoint`] the order has to keep past the borrow it was built from —
+/// the `package require` sites in [`RunOrder::package_entries`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OwnedRunPoint {
+    uri: String,
+    at: u32,
+    enclosing_body: Option<tcl_lexer::Span>,
+}
+
+impl OwnedRunPoint {
+    fn as_point(&self) -> RunPoint<'_> {
+        RunPoint {
+            uri: &self.uri,
+            at: self.at,
+            enclosing_body: self.enclosing_body,
+        }
+    }
 }
 
 impl RunOrder {
-    /// Build the order from the workspace's resolved `source` edges.
+    /// Build the order from the workspace's resolved edges.
     ///
     /// `edges` are `(parent, child)` with the parent-side position of the
-    /// `source` statement; the caller has already dropped non-literal and
-    /// unresolvable targets.  A child entered from two distinct sites — or from
-    /// itself — is marked ambiguous, as is everything below it and every
-    /// document on a cycle.
+    /// statement that brings `child` into the run; the caller has already
+    /// dropped non-literal and unresolvable `source` targets and applied the
+    /// `package require` soundness gates.  A child `source`d from two distinct
+    /// sites — or from itself — is marked ambiguous, as is everything below it
+    /// and every document on a cycle.
+    ///
+    /// [`RunEdgeKind::PackageRequire`] edges are kept **out** of the tree: a
+    /// package is loaded once, by whichever require runs first, so a provider
+    /// required from twenty files has twenty upper bounds and no unique
+    /// position.  They are recorded as [`Self::alternatives`] instead, which is
+    /// all the bound can support.  A document that is both `source`d and
+    /// `package require`d **is** ambiguous — it would then have a tree position
+    /// claiming it ran exactly there and a bound saying it had already run
+    /// earlier, and those can contradict.
     #[must_use]
-    pub fn build(edges: &[SourceEdge]) -> Self {
+    pub fn build(edges: &[RunEdge]) -> Self {
         let mut parent_of: HashMap<&str, (&str, Placed)> = HashMap::new();
         let mut ambiguous: HashSet<String> = HashSet::new();
         let mut documents: HashSet<&str> = HashSet::new();
+        let mut package_entries: HashMap<String, Vec<OwnedRunPoint>> = HashMap::new();
         for edge in edges {
             documents.insert(edge.parent.as_str());
             documents.insert(edge.child.as_str());
             let entry = Placed {
                 at: edge.at,
                 enclosing_body: edge.enclosing_body,
+                exact: true,
             };
             if edge.parent == edge.child {
                 ambiguous.insert(edge.child.clone());
+                continue;
+            }
+            if edge.kind == RunEdgeKind::PackageRequire {
+                package_entries
+                    .entry(edge.child.clone())
+                    .or_default()
+                    .push(OwnedRunPoint {
+                        uri: edge.parent.clone(),
+                        at: edge.at,
+                        enclosing_body: edge.enclosing_body,
+                    });
                 continue;
             }
             match parent_of.entry(edge.child.as_str()) {
@@ -362,6 +480,13 @@ impl RunOrder {
                         ambiguous.insert(edge.child.clone());
                     }
                 }
+            }
+        }
+        // A document that is both `source`d and `package require`d has two
+        // incompatible stories about when it ran; keep neither.
+        for child in package_entries.keys() {
+            if parent_of.contains_key(child.as_str()) {
+                ambiguous.insert(child.clone());
             }
         }
         let mut paths: HashMap<String, Vec<Placed>> = HashMap::new();
@@ -413,6 +538,7 @@ impl RunOrder {
             paths,
             root_of,
             ambiguous,
+            package_entries,
         }
     }
 
@@ -427,12 +553,20 @@ impl RunOrder {
     /// whole file loads before any body runs.
     #[must_use]
     pub fn has_run(&self, event: RunPoint<'_>, query: RunPoint<'_>) -> Option<bool> {
-        let (e, q) = self.common_frame(event, query)?;
-        Some(tcl_compiler::analyser::indirection::in_effect_within(
-            e.at,
-            q.at,
-            q.enclosing_body,
-        ))
+        let mut answer = None;
+        for (e, q) in self.common_frames(event, query) {
+            let ran =
+                tcl_compiler::analyser::indirection::in_effect_within(e.at, q.at, q.enclosing_body);
+            if Self::trusted(ran, e, q) {
+                // A `true` from any one bound settles it — see
+                // `common_frames` on why the frames cannot disagree.
+                if ran {
+                    return Some(true);
+                }
+                answer = Some(false);
+            }
+        }
+        answer
     }
 
     /// Which of two statements ran first under the **strict** "did this
@@ -447,11 +581,100 @@ impl RunOrder {
     #[must_use]
     pub fn cmp_run(&self, a: RunPoint<'_>, b: RunPoint<'_>) -> Option<std::cmp::Ordering> {
         use crate::namespace_import::load_order;
-        let (pa, pb) = self.common_frame(a, b)?;
-        Some(
-            load_order(pa.at, pa.enclosing_body.is_some())
-                .cmp(&load_order(pb.at, pb.enclosing_body.is_some())),
-        )
+        use std::cmp::Ordering;
+        let mut answer = None;
+        for (pa, pb) in self.common_frames(a, b) {
+            let ord = load_order(pa.at, pa.enclosing_body.is_some())
+                .cmp(&load_order(pb.at, pb.enclosing_body.is_some()));
+            let usable = match ord {
+                // `Equal` claims both directions at once, so it needs both.
+                Ordering::Equal => pa.exact && pb.exact,
+                other => Self::trusted(other == Ordering::Less, pa, pb),
+            };
+            if usable {
+                if ord == Ordering::Less {
+                    return Some(ord);
+                }
+                answer = Some(ord);
+            }
+        }
+        answer
+    }
+
+    /// Whether a comparison that came out as `a_first` is a **fact** given how
+    /// each side was placed.
+    ///
+    /// A [`Placed`] that is not [`exact`](Placed::exact) is an *upper bound*:
+    /// the statement ran at or before that offset, never after it (a
+    /// `package require` finds an already-loaded package and evaluates
+    /// nothing).  So each answer needs one side pinned:
+    ///
+    /// - "`a` ran first" survives `a` sliding earlier, but not `b` sliding
+    ///   earlier — it needs `b` exact;
+    /// - "`a` did not run first" survives `b` sliding earlier, but not `a`
+    ///   sliding earlier — it needs `a` exact.
+    ///
+    /// Two bounded sides settle nothing, which is why two documents that a
+    /// `package require` each brought in are ranked against each other exactly
+    /// as they were before this existed: not at all.
+    #[must_use]
+    pub fn trusted(a_first: bool, a: Placed, b: Placed) -> bool {
+        if a_first { b.exact } else { a.exact }
+    }
+
+    /// Every way the two points can be placed in one document, best first.
+    ///
+    /// The **direct** frame — both points lifted onto the `source` forest and
+    /// met at their deepest common document — is the whole answer whenever it
+    /// exists, and it is exact on both sides.  It is also the only frame
+    /// considered then: a document reachable directly is not also reached
+    /// through a `package require` bound (`build` marks such a document
+    /// ambiguous), so there is nothing to disagree with.
+    ///
+    /// Otherwise, a point whose tree the workspace enters by `package require`
+    /// is **substituted** by each require site that loads it: the site is a
+    /// position by which that whole tree had certainly run, so it stands in for
+    /// the point with [`Placed::exact`] cleared.  Only one side is ever
+    /// substituted — two bounded sides can settle nothing anyway, and two trees
+    /// that each require the other would let one frame's `Less` sit beside
+    /// another frame's `Greater`.
+    fn common_frames(&self, a: RunPoint<'_>, b: RunPoint<'_>) -> Vec<(Placed, Placed)> {
+        if let Some(direct) = self.common_frame(a, b) {
+            return vec![direct];
+        }
+        let a_alts = self.alternatives(a);
+        let b_alts = self.alternatives(b);
+        if !a_alts.is_empty() && !b_alts.is_empty() {
+            return Vec::new();
+        }
+        let blur = |p: Placed| Placed { exact: false, ..p };
+        a_alts
+            .iter()
+            .filter_map(|site| {
+                self.common_frame(site.as_point(), b)
+                    .map(|(x, y)| (blur(x), y))
+            })
+            .chain(b_alts.iter().filter_map(|site| {
+                self.common_frame(a, site.as_point())
+                    .map(|(x, y)| (x, blur(y)))
+            }))
+            .collect()
+    }
+
+    /// The `package require` sites that load the tree `p` sits in, if the
+    /// workspace enters that tree by `package require` at all.
+    ///
+    /// A point's tree is identified by its root: a file the provider `source`s
+    /// runs when the provider does, so it is bounded by the same require
+    /// sites.
+    fn alternatives(&self, p: RunPoint<'_>) -> &[OwnedRunPoint] {
+        if self.ambiguous.contains(p.uri) {
+            return &[];
+        }
+        let root = self.root_of.get(p.uri).map_or(p.uri, String::as_str);
+        self.package_entries
+            .get(root)
+            .map_or(&[], std::vec::Vec::as_slice)
     }
 
     /// Both points as positions in their deepest common document — the single
@@ -462,6 +685,7 @@ impl RunOrder {
         let own = |p: RunPoint<'_>| Placed {
             at: p.at,
             enclosing_body: p.enclosing_body,
+            exact: true,
         };
         // Same document: already ordered, and ordered without the graph — a
         // re-sourced or cyclic file still sequences its own statements.
@@ -596,12 +820,13 @@ mod tests {
     //   -> stable
     // ---------------------------------------------------------------------
 
-    fn edge(parent: &str, child: &str, at: u32) -> SourceEdge {
-        SourceEdge {
+    fn edge(parent: &str, child: &str, at: u32) -> RunEdge {
+        RunEdge {
             parent: parent.to_owned(),
             child: child.to_owned(),
             at,
             enclosing_body: None,
+            kind: RunEdgeKind::Source,
         }
     }
 
@@ -665,11 +890,12 @@ mod tests {
     /// ordering question uses.
     #[test]
     fn a_body_source_sees_a_later_load_level_raise() {
-        let edges = vec![SourceEdge {
+        let edges = vec![RunEdge {
             parent: "app".to_owned(),
             child: "lib".to_owned(),
             at: 10,
             enclosing_body: Some(tcl_lexer::Span::new(0, 20)),
+            kind: RunEdgeKind::Source,
         }];
         assert!(ancestor_prefer_latest_raised(
             "lib",
@@ -791,11 +1017,12 @@ mod tests {
         );
         // …but a `source` written inside that same body, after the query,
         // is an ordinary later statement of the running script.
-        let order = RunOrder::build(&[SourceEdge {
+        let order = RunOrder::build(&[RunEdge {
             parent: "app".to_owned(),
             child: "lib".to_owned(),
             at: 15,
             enclosing_body: Some(tcl_lexer::Span::new(0, 20)),
+            kind: RunEdgeKind::Source,
         }]);
         assert_eq!(
             order.has_run(point("lib", 5), body_point("app", 10, (0, 20))),
@@ -927,5 +1154,253 @@ mod tests {
             Some(std::cmp::Ordering::Equal),
         );
         assert_eq!(order.has_run(point("lib", 7), point("lib", 7)), Some(false));
+    }
+
+    // ---------------------------------------------------------------------
+    // The `package require` half of the load order (issue #1279, design §3.4).
+    //
+    // Oracle, byte-identical on tclsh 8.6.14 and 9.0.4.  `pkg/lib.tcl` holds
+    //
+    //   puts "lib.tcl body running"
+    //   namespace eval ::lib { proc p {} {return P} ; namespace export p }
+    //   package provide mylib 1.0
+    //
+    // (1) A require IS a load event, and the provider's whole body — export
+    //     included — has run by the time it returns:
+    //
+    //       # app.tcl
+    //       before require: lib not loaded
+    //       lib.tcl body running
+    //       after require:  lib loaded
+    //       app::p -> P
+    //
+    // (2) …but only for whichever require runs first.  `a.tcl` and `b.tcl`
+    //     hold the SAME two lines — a probe, then `package require mylib` —
+    //     and a driver sources a.tcl then b.tcl:
+    //
+    //       a.tcl: before its own require, is lib loaded? NO
+    //       lib.tcl body running
+    //       b.tcl: before its own require, is lib loaded? YES
+    //
+    //     Identical text, opposite answers.  So a require bounds the
+    //     provider's position from above and pins nothing.
+    // ---------------------------------------------------------------------
+
+    fn require_edge(parent: &str, child: &str, at: u32) -> RunEdge {
+        RunEdge {
+            kind: RunEdgeKind::PackageRequire,
+            ..edge(parent, child, at)
+        }
+    }
+
+    /// TP: the provider's statements have run for every query after the
+    /// `package require` — oracle case (1), `app::p -> P`.
+    #[test]
+    fn a_require_proves_the_provider_has_already_run() {
+        let order = RunOrder::build(&[require_edge("app", "lib", 10)]);
+        assert_eq!(
+            order.has_run(point("lib", 30), point("app", 50)),
+            Some(true),
+            "`package require` at 10 leaves the provider loaded for the import at 50",
+        );
+        // …and the mirror: the requiring document's later statement did not
+        // run before the provider's, which the same bound settles.
+        assert_eq!(
+            order.has_run(point("app", 50), point("lib", 30)),
+            Some(false),
+        );
+    }
+
+    /// TP: the provider's *transitive* files ride the same bound — a file the
+    /// provider `source`s runs when the provider does.
+    #[test]
+    fn the_bound_covers_what_the_provider_sources() {
+        let order = RunOrder::build(&[require_edge("app", "lib", 10), edge("lib", "deep", 5)]);
+        assert_eq!(
+            order.has_run(point("deep", 0), point("app", 50)),
+            Some(true)
+        );
+        assert_eq!(
+            order.has_run(point("app", 50), point("deep", 0)),
+            Some(false)
+        );
+    }
+
+    /// TP: one provider required from many files still ranks — the whole
+    /// point of a bound rather than a position.  A `source` child entered
+    /// twice is ambiguous; a `package require`d provider is not, because no
+    /// require claims the provider ran *there*.
+    #[test]
+    fn many_requires_of_one_package_all_bound_it() {
+        let order = RunOrder::build(&[
+            require_edge("a", "lib", 10),
+            require_edge("b", "lib", 10),
+            require_edge("c", "lib", 10),
+        ]);
+        for doc in ["a", "b", "c"] {
+            assert_eq!(
+                order.has_run(point("lib", 30), point(doc, 50)),
+                Some(true),
+                "{doc}'s own require bounds the provider for {doc}'s later statements",
+            );
+        }
+    }
+
+    /// ABSTENTION 1 (`auto_path` is mutable) is the caller's — it never emits
+    /// an edge for a package two documents provide — but the order must not
+    /// invent one from the *other* files' requires either: a document with no
+    /// require of its own is not ordered against the provider.
+    #[test]
+    fn a_document_that_does_not_require_the_package_is_not_ordered_by_it() {
+        let order = RunOrder::build(&[require_edge("a", "lib", 10)]);
+        assert_eq!(
+            order.has_run(point("lib", 30), point("bystander", 50)),
+            None
+        );
+        assert_eq!(
+            order.cmp_run(point("lib", 30), point("bystander", 50)),
+            None
+        );
+    }
+
+    /// ABSTENTION 2 (CRITICAL — the package may already be loaded): a query
+    /// written **above** the `package require` gets `None`, never
+    /// `Some(false)`.
+    ///
+    /// Oracle case (2) above: `b.tcl`'s probe, written above its own require,
+    /// answers YES because `a.tcl` loaded the package first — while the
+    /// byte-identical probe in `a.tcl` answers NO.  A static `Some(false)`
+    /// here would revoke a `namespace forget` / `-clear` that really had run.
+    #[test]
+    fn a_require_never_proves_the_provider_has_not_run_yet() {
+        let order = RunOrder::build(&[require_edge("app", "lib", 10)]);
+        assert_eq!(
+            order.has_run(point("lib", 30), point("app", 5)),
+            None,
+            "another file may have required the package before app.tcl started",
+        );
+        assert_eq!(
+            order.has_run(point("app", 5), point("lib", 30)),
+            None,
+            "…so app.tcl's earlier statement is not known to precede the provider either",
+        );
+        // A `source` edge in the same shape *does* answer both, which is what
+        // makes this an abstention rather than a limitation of the machinery.
+        let sourced = RunOrder::build(&[edge("app", "lib", 10)]);
+        assert_eq!(
+            sourced.has_run(point("lib", 30), point("app", 5)),
+            Some(false)
+        );
+        assert_eq!(
+            sourced.has_run(point("app", 5), point("lib", 30)),
+            Some(true)
+        );
+    }
+
+    /// TN: two documents each brought in by a `package require` are ranked
+    /// against each other exactly as before — not at all.  Both sides are
+    /// bounds, and two bounds settle nothing.
+    #[test]
+    fn two_package_loaded_documents_are_incomparable() {
+        let order = RunOrder::build(&[
+            require_edge("app", "one", 10),
+            require_edge("app", "two", 20),
+        ]);
+        assert_eq!(order.has_run(point("one", 0), point("two", 0)), None);
+        assert_eq!(order.has_run(point("two", 0), point("one", 0)), None);
+        assert_eq!(order.cmp_run(point("one", 0), point("two", 0)), None);
+        // The `source` shape of the same workspace *is* ordered — the
+        // difference is the load event, not the file layout.
+        let sourced = RunOrder::build(&[edge("app", "one", 10), edge("app", "two", 20)]);
+        assert_eq!(
+            sourced.has_run(point("one", 999), point("two", 0)),
+            Some(true)
+        );
+    }
+
+    /// TN: a document that is both `source`d and `package require`d has two
+    /// incompatible stories — the `source` says "it ran exactly there", the
+    /// require says "it had already run" — so it gets neither.
+    #[test]
+    fn a_document_both_sourced_and_required_is_ambiguous() {
+        let order = RunOrder::build(&[edge("app", "lib", 90), require_edge("app", "lib", 10)]);
+        assert_eq!(order.has_run(point("lib", 0), point("app", 50)), None);
+        assert_eq!(order.has_run(point("app", 50), point("lib", 0)), None);
+    }
+
+    /// TP: the bound is judged by `in_effect_within` like any other statement
+    /// — a `package require` at a document's load level counts for a query
+    /// inside one of that document's proc bodies, however far below it is
+    /// written, because the whole file loads before any body runs.
+    #[test]
+    fn a_body_local_query_observes_a_later_top_level_require() {
+        let order = RunOrder::build(&[require_edge("app", "lib", 900)]);
+        assert_eq!(
+            order.has_run(point("lib", 5), body_point("app", 10, (0, 20))),
+            Some(true),
+        );
+        // …but a require written inside that same body, after the query, is
+        // an ordinary later statement of the running script — and this time
+        // the abstention applies, because "not yet" is what a bound cannot
+        // say.
+        let order = RunOrder::build(&[RunEdge {
+            kind: RunEdgeKind::PackageRequire,
+            ..RunEdge {
+                parent: "app".to_owned(),
+                child: "lib".to_owned(),
+                at: 15,
+                enclosing_body: Some(tcl_lexer::Span::new(0, 20)),
+                kind: RunEdgeKind::Source,
+            }
+        }]);
+        assert_eq!(
+            order.has_run(point("lib", 5), body_point("app", 10, (0, 20))),
+            None,
+        );
+    }
+
+    /// `cmp_run` inherits the same one-sidedness: the conflict rule may learn
+    /// that a provider's import ran *first*, never that it ran *second*.
+    #[test]
+    fn cmp_run_reads_only_the_half_the_bound_supports() {
+        let order = RunOrder::build(&[require_edge("app", "lib", 10)]);
+        assert_eq!(
+            order.cmp_run(point("lib", 30), point("app", 50)),
+            Some(std::cmp::Ordering::Less),
+            "the provider's whole body precedes a statement below the require",
+        );
+        assert_eq!(
+            order.cmp_run(point("app", 50), point("lib", 30)),
+            Some(std::cmp::Ordering::Greater),
+        );
+        // Above the require, neither direction is a fact.
+        assert_eq!(order.cmp_run(point("lib", 30), point("app", 5)), None);
+        assert_eq!(order.cmp_run(point("app", 5), point("lib", 30)), None);
+    }
+
+    /// `trusted` is the whole rule in one place: an answer needs the side it
+    /// would break on to be pinned.
+    #[test]
+    fn trust_needs_the_side_the_answer_rests_on() {
+        let exact = Placed {
+            at: 0,
+            enclosing_body: None,
+            exact: true,
+        };
+        let bound = Placed {
+            exact: false,
+            ..exact
+        };
+        assert!(RunOrder::trusted(true, exact, exact));
+        assert!(RunOrder::trusted(false, exact, exact));
+        // "a first" survives `a` sliding earlier…
+        assert!(RunOrder::trusted(true, bound, exact));
+        assert!(!RunOrder::trusted(false, bound, exact));
+        // …"a not first" survives `b` sliding earlier.
+        assert!(RunOrder::trusted(false, exact, bound));
+        assert!(!RunOrder::trusted(true, exact, bound));
+        // Two bounds settle nothing.
+        assert!(!RunOrder::trusted(true, bound, bound));
+        assert!(!RunOrder::trusted(false, bound, bound));
     }
 }
