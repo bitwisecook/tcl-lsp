@@ -1614,6 +1614,11 @@ pub struct AnalysisResult {
     /// hover / find-references treat a namespace as a first-class symbol
     /// (issue #1088).
     pub namespace_refs: Vec<NamespaceRef>,
+    /// Variable-name argument words computed at run time, in source order —
+    /// see [`DynamicVariableNameSite`].  The per-site provenance a
+    /// post-analysis consumer needs to ask what a `$n` in a name position can
+    /// actually spell (issue #1262).
+    pub dynamic_variable_names: Vec<DynamicVariableNameSite>,
     /// Byte spans where command resolution is pinned to a namespace by
     /// runtime context rather than lexical nesting (issue #923 idx 116):
     /// `apply {{params} body ns}` runs `body` in `ns`, not the namespace
@@ -2010,6 +2015,47 @@ pub struct NamespaceRef {
     /// (`namespace eval`).  Go-to-definition answers with these; the
     /// reference set is everything else.
     pub declares: bool,
+}
+
+/// One variable-name argument whose word is **computed at run time** — a
+/// registry [`tcl_registry::ArgRole::VarWrite`] / [`tcl_registry::ArgRole::VarRead`]
+/// position holding a `$`/`[…]` substitution (`set $n 2`, `variable $n`,
+/// `namespace upvar ::ns $n local`) — together with what the analyser could
+/// prove about the value (issue #1262).
+///
+/// The proof is analyser *state*: `Scope::lookup_dominating_const_string`
+/// knows, while the walk is in progress, that the `$n` in `set n other; set
+/// $n 2` is `other` and can never be anything else at that site.  Nothing
+/// per-site survived into [`AnalysisResult`], so a post-analysis consumer —
+/// the namespace-variable rename gate, which has to be exhaustive about which
+/// cells a document can name — had only the word's own text to reason from
+/// and refused on every bare `$n`, which is a lone wildcard.
+///
+/// Recording the site is what lets that gate ask the *value* question as well
+/// as the textual one.  Abstain-toward-refuse is unchanged: a site whose
+/// resolution is [`None`] proves nothing, and a site the walk never reached
+/// leaves no row at all, so a consumer that only *narrows* on a
+/// [`Some`] resolution can never widen what it accepts.
+///
+/// A **brace-quoted** word is not here: `set {$n} 1` names the variable
+/// literally called `$n` and substitutes nothing (tclsh 8.6.14: `set {$n} v;
+/// info exists {$n}` -> 1 while `info exists n` -> 0), so it is not a dynamic
+/// name at all.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DynamicVariableNameSite {
+    /// Byte span of the name word as written.
+    pub span: Span,
+    /// The name the word evaluates to when every substitution in it has a
+    /// value that **dominates** this site — the straight-line constant
+    /// `Scope::lookup_dominating_const_string` proves.
+    ///
+    /// [`None`] when it does not: a branch-dependent binding, a parameter, a
+    /// command substitution, or any variable the constant lattice does not
+    /// track.  A consumer must treat `None` as "could be anything".
+    pub resolved: Option<String>,
+    /// `true` when the position **writes** the named variable
+    /// ([`tcl_registry::ArgRole::VarWrite`]), `false` when it reads it.
+    pub writes: bool,
 }
 
 /// One `CLASS create NAME` object-command binding, namespace-qualified.
