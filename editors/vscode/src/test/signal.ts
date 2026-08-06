@@ -269,6 +269,18 @@ export interface AwaitSignalOptions<T> {
   backstopInterval?: number;
   /** Render the last-seen value for the failure message. Defaults to JSON. */
   describe?: (value: T | undefined) => string;
+  /**
+   * Which `probe` rejections mean "the state moved under you, ask again"
+   * rather than "the test has failed".
+   *
+   * A probe that pulls from a provider can be *cancelled* by VS Code when the
+   * document or its diagnostics change while the request is in flight — which
+   * is precisely when a signal-driven wait probes hardest. Treating that as a
+   * failure would make the wait flakier than the polling it replaced; it is
+   * information, not an error. Anything this returns false for is rethrown
+   * unchanged, so a real provider fault still fails the test immediately.
+   */
+  retryProbeErrors?: (error: unknown) => boolean;
 }
 
 function defaultDescribe(value: unknown): string {
@@ -301,6 +313,8 @@ export async function awaitSignal<T>(opts: AwaitSignalOptions<T>): Promise<T> {
   let extensions = 0;
   let probes = 0;
   let signals = 0;
+  let retriedProbes = 0;
+  let lastRetriedError: unknown;
   let last: T | undefined;
   let wake: (() => void) | null = null;
 
@@ -313,8 +327,16 @@ export async function awaitSignal<T>(opts: AwaitSignalOptions<T>): Promise<T> {
     for (;;) {
       const signalsAtProbe = signals;
       probes++;
-      last = await opts.probe();
-      if (opts.predicate(last)) return last;
+      let satisfied = false;
+      try {
+        last = await opts.probe();
+        satisfied = opts.predicate(last);
+      } catch (err) {
+        if (!opts.retryProbeErrors?.(err)) throw err;
+        retriedProbes++;
+        lastRetriedError = err;
+      }
+      if (satisfied) return last as T;
 
       // A signal that arrived *while* the probe was in flight refers to state
       // the probe may not have seen — re-read at once rather than sleeping on
@@ -331,12 +353,17 @@ export async function awaitSignal<T>(opts: AwaitSignalOptions<T>): Promise<T> {
           continue;
         }
         const waited = Date.now() - started;
+        const retried =
+          retriedProbes === 0
+            ? ""
+            : `\n  ${retriedProbes} probe(s) were retried after a recoverable error, last: ` +
+              `${lastRetriedError instanceof Error ? lastRetriedError.message : String(lastRetriedError)}`;
         throw new Error(
           `${WAIT_TIMEOUT_MARKER}: timed out awaiting ${opts.label}\n` +
             `  waited ${waited}ms (base ${base}ms x measured load factor ` +
             `${factor.toFixed(1)}; ${extensions} extension(s); ${probes} probe(s), ` +
             `${signals} signal(s))\n` +
-            `  last seen: ${describe(last)}\n` +
+            `  last seen: ${describe(last)}${retried}\n` +
             `  ${note}`,
         );
       }

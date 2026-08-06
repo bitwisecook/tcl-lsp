@@ -386,6 +386,27 @@ export async function pollUntil<T>(
 }
 
 /**
+ * Whether an error is VS Code cancelling an in-flight request.
+ *
+ * VS Code cancels a pending provider request when the document or its
+ * diagnostics change underneath it. For a *wait*, that is not a failure — it
+ * means the answer would have been stale anyway, so ask again. Recognised
+ * structurally as well as by class, because the rejection crosses the
+ * extension-host RPC boundary and arrives as a plain ``Error`` named
+ * ``Canceled`` rather than a ``CancellationError`` instance.
+ */
+function isCancellation(error: unknown): boolean {
+  if (error instanceof vscode.CancellationError) return true;
+  if (!(error instanceof Error)) return false;
+  return (
+    error.name === "Canceled" ||
+    error.name === "CancellationError" ||
+    error.message === "Canceled" ||
+    error.message === "Cancelled"
+  );
+}
+
+/**
  * Wait for a language-feature provider pull (``vscode.executeCodeActionProvider``
  * and friends) to return a result satisfying *predicate*.
  *
@@ -421,6 +442,7 @@ export async function waitForProviderResult<T>(
     timeout: opts?.timeout ?? 10_000,
     backstopInterval: opts?.backstopInterval,
     describe: opts?.describe,
+    retryProbeErrors: isCancellation,
   });
 }
 
