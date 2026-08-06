@@ -17723,6 +17723,15 @@ fn extend_resolver_with_document_auto_paths(
 /// (`C:\repo\user.tcl`, which is what `Uri::to_file_path` yields there)
 /// resolving against its own directory.  It returns slash form, which
 /// `PathBuf` accepts on every host.
+///
+/// A `lappend auto_path lib` folds to a **relative** directory: Tcl resolves
+/// it against the interpreter's run-time working directory, which no static
+/// analysis knows (tclsh 8.6.16 / 9.0.4-verified), so the evaluator returns
+/// it unanchored rather than pinning it to the language server's own launch
+/// directory — an editor artefact unrelated to the user's program. This is
+/// the caller that owns the closest base the editor actually has: the
+/// analysed document's own directory, which is what the run-from-its-own
+/// -directory convention every relocatable Tcl project uses makes true.
 fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf> {
     if analysis.auto_path_entries.is_empty() {
         return Vec::new();
@@ -17741,7 +17750,10 @@ fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf>
             if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {
                 break;
             }
-            let dir = PathBuf::from(folded);
+            // Anchor a rootless fold on the document's own directory (see
+            // this function's doc comment); an already-rooted one passes
+            // through unchanged.
+            let dir = tcl_lsp_core::source_graph::resolve_source_target(&file_path, &folded);
             if !dirs.contains(&dir) {
                 dirs.push(dir);
             }

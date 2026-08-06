@@ -4215,6 +4215,75 @@ mod tests {
         );
     }
 
+    /// Issue #923 idx 85 — the ensemble is created by
+    /// `namespace ensemble create -map` inside a proc declared with a
+    /// fully-qualified name at top level, with no enclosing `namespace eval`,
+    /// so it homes to `::app::widget`. Both reference directions must reach
+    /// the dispatch call site: from the mapped target's declaration, and from
+    /// the call site itself.
+    ///
+    /// Oracle (tclsh 8.6.16 and 9.0.4, identical): the script prints `shown`,
+    /// so `::app::widget show` really does dispatch to `::app::widget::Show`.
+    ///
+    /// Go-to-definition already answered this (it resolves on demand against
+    /// the finished analysis); references enumerate recorded invocations, and
+    /// the invocation was missing. The analyser fix is what supplies it — this
+    /// pins that the reference provider consumes it from both cursor
+    /// positions and returns the *same* answer for each.
+    #[test]
+    fn ensemble_subcommand_references_reach_the_call_site_through_a_qualified_proc_923_idx85() {
+        let src = "namespace eval ::app::widget {\n    variable state 0\n}\n\
+                   proc ::app::widget::Setup {} {\n    \
+                   namespace ensemble create -map {\n        \
+                   show      ::app::widget::Show\n    }\n}\n\
+                   proc ::app::widget::Show {} { puts \"shown\" }\n\
+                   ::app::widget::Setup\n\
+                   puts [::app::widget show]\n";
+        let analysis = analyse(src);
+        // Line 8 is `proc ::app::widget::Show …`; `Show` starts at column 20.
+        let from_decl = references(src, "tcl", 8, 21, &analysis, true);
+        // Line 10 is `puts [::app::widget show]`; `show` starts at column 20.
+        let from_call = references(src, "tcl", 10, 21, &analysis, true);
+        let lines = |refs: &[LspRange]| -> Vec<u32> {
+            let mut l: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+            l.sort_unstable();
+            l
+        };
+        assert!(
+            lines(&from_decl).contains(&10),
+            "the `::app::widget show` dispatch is missing from the declaration's \
+             reference set: {from_decl:?}",
+        );
+        assert!(
+            lines(&from_decl).contains(&8),
+            "the declaration itself is missing: {from_decl:?}",
+        );
+        assert_eq!(
+            lines(&from_call),
+            lines(&from_decl),
+            "both query directions must agree: {from_call:?} vs {from_decl:?}",
+        );
+    }
+
+    /// TN for the above — a `-map` built by `[list …]` is not a literal
+    /// mapping, so no `show -> ::app::widget::Show` fact exists and the
+    /// dispatch site must stay unattributed rather than guessed at.
+    #[test]
+    fn a_dynamic_ensemble_map_yields_no_call_site_reference_923_idx85() {
+        let src = "proc ::app::widget::Setup {} {\n    \
+                   namespace ensemble create -map [list show ::app::widget::Show]\n}\n\
+                   proc ::app::widget::Show {} {}\n\
+                   ::app::widget::Setup\n\
+                   ::app::widget show\n";
+        let analysis = analyse(src);
+        // Cursor on `Show` in its declaration (line 3, column 20).
+        let refs = references(src, "tcl", 3, 21, &analysis, true);
+        assert!(
+            !refs.iter().any(|r| r.start_line == 5),
+            "a dynamic -map must not manufacture a navigation edge: {refs:?}",
+        );
+    }
+
     #[test]
     fn method_references_include_next_dispatch() {
         // `Sub::greet`'s body invokes the super via `next`; that dispatch is a

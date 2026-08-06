@@ -56,6 +56,29 @@
 //! path (`C:` or `C:foo`, resolved against a per-drive working directory only
 //! the running process knows) is outside the subset and abstains, like any
 //! other unsupported shape.
+//!
+//! # A relative result stays relative
+//!
+//! `lappend auto_path lib` / `set v helper.tcl; source $v` fold to a path
+//! with no root.  Tcl resolves such a path against the **interpreter's
+//! working directory at run time** (oracle, tclsh 8.6.16 and 9.0.4:
+//! `cd other; tclsh ../sub/main.tcl` where `main.tcl` does
+//! `set v helper.tcl; source $v` loads `other/helper.tcl`, *not*
+//! `sub/helper.tcl` — `[info script]` plays no part), which is a fact no
+//! static analysis can know.
+//!
+//! This evaluator therefore returns such a result **relative**, normalised
+//! but unanchored, and each caller applies the base it actually has — the
+//! sourcing document's directory for the source graph
+//! (`source_graph::resolve_source_target`), the workspace root for document
+//! links (`document_links::resolve_path`), the analysed file's own directory
+//! for the package database. It deliberately does **not** absolutise against
+//! the *analysing process's* current directory: the language server's launch
+//! directory is an editor artefact with no relationship to the user's
+//! program, so anchoring on it makes the same file resolve differently
+//! depending on how the editor happened to be started, and makes a computed
+//! path disagree with the literal path right beside it (which every caller
+//! already anchors on its own base).
 
 use crate::analyser::types::{AutoPathEntry, AutoPathForm};
 
@@ -109,10 +132,13 @@ pub fn evaluate_auto_path_entry(entry: &AutoPathEntry, info_script: Option<&str>
         .collect()
 }
 
-/// Fold one already-substituted path *value* (a `~` expansion plus
-/// absolutisation), abstaining on a drive-relative path.  The shared tail of
+/// Fold one already-substituted path *value* (a `~` expansion plus lexical
+/// normalisation), abstaining on a drive-relative path.  The shared tail of
 /// [`evaluate_auto_path_expr`] and the per-element path of
 /// [`evaluate_auto_path_entry`].
+///
+/// A rootless value stays rootless — see the module docs' "A relative result
+/// stays relative".
 fn fold_path_value(value: &str) -> Option<String> {
     let value = value.trim();
     if value.is_empty() {
@@ -124,12 +150,17 @@ fn fold_path_value(value: &str) -> Option<String> {
         // process knows.  Outside the subset — abstain rather than guess.
         return None;
     }
-    Some(abspath(&expanded))
+    Some(normalise_path_value(&expanded))
 }
 
-/// Resolve `raw` (a `lappend auto_path` argument) to an absolute path,
+/// Resolve `raw` (a `lappend auto_path` argument) to a normalised path,
 /// substituting `info_script` for `[info script]` (the filesystem path
 /// of the file being analysed — what Tcl itself would report).
+///
+/// The result is absolute whenever the expression is anchored — by
+/// `[info script]`, by a literal root, or by `~` — and **relative**
+/// otherwise, for the caller to anchor (see the module docs' "A relative
+/// result stays relative").
 ///
 /// Returns `None` when any part of the expression is outside the
 /// supported subset.
@@ -153,8 +184,9 @@ pub fn evaluate_auto_path_expr(raw: &str, info_script: Option<&str>) -> Option<S
         .map(to_tcl_slash_form)
         .filter(|p| !is_drive_relative(p));
     let result = eval(&node, info_script.as_deref())?;
-    // Expand `~` and make absolute (collapsing `..`) so the parent-dir
-    // idiom resolves to a real directory.
+    // Expand `~` and normalise (collapsing `..`) so the parent-dir idiom
+    // resolves to a real directory.  A rootless result is left for the
+    // caller to anchor.
     fold_path_value(&result)
 }
 
@@ -226,11 +258,6 @@ fn root_len(p: &str) -> Option<usize> {
         return Some(2 + host + 1 + share);
     }
     p.starts_with('/').then_some(1)
-}
-
-/// Whether `p` (slash form) is an absolute path in any of the three roots.
-fn is_absolute(p: &str) -> bool {
-    root_len(p).is_some()
 }
 
 /// Split `text` into `[` / `]` / word tokens.  Brace groups are kept
@@ -331,7 +358,7 @@ fn parse(tokens: &[String], mut pos: usize) -> (Option<Node>, usize) {
     (Some(Node::Lit(tok.clone())), pos + 1)
 }
 
-/// Evaluate a parsed node to a path string (pre-`abspath`).
+/// Evaluate a parsed node to a path string (pre-normalisation).
 fn eval(node: &Node, info_script: Option<&str>) -> Option<String> {
     match node {
         Node::Lit(value) => {
@@ -380,21 +407,32 @@ fn eval(node: &Node, info_script: Option<&str>) -> Option<String> {
 /// The root clamp is what makes the Windows shapes come out right:
 /// `C:/x` → `C:/` (not the drive-relative `C:`), and
 /// `//server/share/dir` → `//server/share` (not `//server`).
+///
+/// A rootless single-component path has `.` for its directory, exactly as
+/// tclsh 8.6.16 / 9.0.4 answer `file dirname helper.tcl` — not the empty
+/// string, and emphatically not the analysing process's working directory.
 fn path_dirname(p: &str) -> String {
     let root = root_len(p).unwrap_or(0);
+    let head_or_dot = |head: &str| {
+        if head.is_empty() {
+            ".".to_owned()
+        } else {
+            head.to_owned()
+        }
+    };
     if p.len() <= root {
-        return p[..root].to_owned();
+        return head_or_dot(&p[..root]);
     }
     let Some(idx) = p[root..].rfind('/') else {
-        // No separator past the root: the head is the root, or empty for a
-        // relative path (`abspath` then supplies the working directory).
-        return p[..root].to_owned();
+        // No separator past the root: the head is the root, or `.` for a
+        // single-component relative path.
+        return head_or_dot(&p[..root]);
     };
     let head = &p[..root + idx];
     if head.len() <= root {
-        return p[..root].to_owned();
+        return head_or_dot(&p[..root]);
     }
-    head.trim_end_matches('/').to_owned()
+    head_or_dot(head.trim_end_matches('/'))
 }
 
 /// `file join` in slash form — a later *absolute* component resets the
@@ -449,19 +487,17 @@ fn expanduser(p: &str) -> String {
     p.to_owned()
 }
 
-/// Absolutise `p` (slash form) against the current working directory when it
-/// has no root, then normalise (`.` / `..` / repeated separators).
-fn abspath(p: &str) -> String {
-    let joined = if is_absolute(p) {
-        p.to_owned()
-    } else {
-        let cwd = std::env::current_dir()
-            .ok()
-            .and_then(|c| c.to_str().map(to_tcl_slash_form))
-            .unwrap_or_else(|| "/".to_owned());
-        path_join(&[cwd, p.to_owned()])
-    };
-    normpath(&joined)
+/// Normalise `p` (slash form) — collapse `.`, `..` and repeated separators
+/// — **without** anchoring a rootless path anywhere.
+///
+/// An unanchored relative result is Tcl's own "resolve against the
+/// interpreter's run-time working directory" (module docs), which is not
+/// statically knowable; absolutising it against the *analysing process's*
+/// working directory would substitute an unrelated editor artefact for it.
+/// The caller — which knows the sourcing document, the workspace root, or
+/// both — anchors it instead.
+fn normalise_path_value(p: &str) -> String {
+    normpath(p)
 }
 
 /// Path normalisation in slash form — collapse `.`, `..` and repeated
@@ -511,8 +547,9 @@ fn normpath(p: &str) -> String {
 mod tests {
     use super::*;
 
-    // Absolute `info_script` keeps `abspath` deterministic (it reduces
-    // to `normpath`, independent of the test's cwd).
+    // Absolute `info_script` keeps the fold rooted; a rootless fold result
+    // is returned relative (see the module docs), never anchored on the
+    // analysing process's working directory.
 
     #[test]
     fn dirname_of_info_script() {
@@ -546,6 +583,60 @@ mod tests {
             )
             .as_deref(),
             Some("/proj"),
+        );
+    }
+
+    /// TP (issue #923 idx 73) — the exact idiom `pix` writes: three nested
+    /// `file dirname`s around `[info script]`, one level deeper than the
+    /// two-level form the other tests use.  `examples/user.tcl` reaching the
+    /// repo root two directories up is what makes the package resolvable
+    /// when the workspace root is scoped below it.
+    #[test]
+    fn triple_nested_dirname_is_the_pix_idiom() {
+        assert_eq!(
+            evaluate_auto_path_expr(
+                "[file dirname [file dirname [file dirname [info script]]]]",
+                Some("/proj/lib/examples/user.tcl"),
+            )
+            .as_deref(),
+            Some("/proj"),
+        );
+    }
+
+    /// The analysing process's working directory must never influence a
+    /// fold.  A rootless expression stays rootless (its caller anchors it);
+    /// running the same fold from two different directories must not change
+    /// the answer.
+    ///
+    /// Oracle (tclsh 8.6.16 / 9.0.4): `set v helper.tcl; source $v` inside
+    /// `sub/main.tcl` run as `cd other && tclsh ../sub/main.tcl` loads
+    /// `other/helper.tcl` — resolution is against the interpreter's *run
+    /// time* working directory, which a language server cannot know and must
+    /// not substitute its own launch directory for.
+    #[test]
+    fn a_rootless_fold_stays_relative_and_ignores_the_process_cwd() {
+        assert_eq!(
+            evaluate_auto_path_expr("helper.tcl", None).as_deref(),
+            Some("helper.tcl"),
+        );
+        assert_eq!(
+            evaluate_auto_path_expr("[file join lib pkg]", None).as_deref(),
+            Some("lib/pkg"),
+        );
+        // `..` still collapses lexically without a root to ascend past.
+        // (tclsh returns the uncollapsed text `lib/../other`; this evaluator
+        // normalises deliberately — see `normalise_path_value` — because its
+        // consumers compare and scan directories rather than print them, and
+        // the two name the same directory.)
+        assert_eq!(
+            evaluate_auto_path_expr("[file join lib .. other]", None).as_deref(),
+            Some("other"),
+        );
+        // `file dirname` of a single-component relative path is `.` in tclsh
+        // 8.6/9.0 — not the process's working directory.
+        assert_eq!(
+            evaluate_auto_path_expr("[file dirname helper.tcl]", None).as_deref(),
+            Some("."),
         );
     }
 
@@ -636,7 +727,11 @@ mod tests {
         assert_eq!(path_dirname("/a/b/c"), "/a/b");
         assert_eq!(path_dirname("/a"), "/");
         assert_eq!(path_dirname("/"), "/");
-        assert_eq!(path_dirname("a"), "");
+        // A rootless single component: `.`, exactly as tclsh 8.6.16 / 9.0.4
+        // answer `file dirname a` — the empty string this used to return had
+        // to be rescued by absolutising against the process's own working
+        // directory, which is not something a language server may assume.
+        assert_eq!(path_dirname("a"), ".");
         assert_eq!(path_join(&["/a/b".into(), "..".into()]), "/a/b/..");
         assert_eq!(path_join(&["/a".into(), "/b".into()]), "/b");
         assert_eq!(normpath("/a/b/../c"), "/a/c");

@@ -644,6 +644,100 @@ mod tests {
         assert!(links.is_empty(), "{links:?}");
     }
 
+    // Issue #1140 / #923 idx 41 — computed `source` paths, exercised through
+    // the code path a real editor takes: `workspace_root = Some(...)` *and*
+    // `script_path = Some(...)`.  The pre-existing `dynamic_path_produces_no
+    // _link` above passes `None` for both, which short-circuits `resolve_path`
+    // on `let root = workspace_root?` before the fix's `carries_substitution`
+    // gate is reached at all — so it never covered the bug.
+
+    /// TP — the positive side nothing pinned before: the corpus idiom
+    /// `set dir [file dirname [info script]]; source [file join $dir x.tcl]`
+    /// resolves to the **correct** target, not merely to no bogus one.
+    ///
+    /// Oracle (tclsh 8.6.16 / 9.0.4): running `/proj/test/caller.tcl` loads
+    /// `/proj/test/helper.tcl`, since `[info script]` is the sourcing file.
+    #[test]
+    fn a_computed_source_path_resolves_to_its_real_target_923_idx41() {
+        let src = "set dir [file dirname [info script]]\nsource [file join $dir helper.tcl]\n";
+        let links = document_links_in_context(
+            src,
+            "tcl",
+            &LinkContext {
+                workspace_root: Some("/proj"),
+                home: None,
+                script_path: Some("/proj/test/caller.tcl"),
+            },
+        );
+        assert_eq!(links.len(), 1, "expected exactly one link: {links:?}");
+        assert_eq!(
+            links[0].target, "file:///proj/test/helper.tcl",
+            "the computed path must resolve against `[info script]`'s own \
+             directory: {links:?}",
+        );
+    }
+
+    /// TN — the same shape wrapped in `file normalize`, which is outside the
+    /// evaluator's supported subset, so `dir` cannot be constant-propagated.
+    /// The whole expression must abstain rather than fall through to
+    /// percent-encoding its own raw text into a `file://` URI (the original
+    /// bug: `file:///proj/%5Bfile%20join%20$dir%20helper.tcl%5D`).
+    #[test]
+    fn an_unfoldable_computed_source_path_produces_no_link_923_idx41() {
+        for src in [
+            "set dir [file normalize [file dirname [info script]]]\n\
+             source [file join $dir helper.tcl]\n",
+            "source [file join $undeclared .. pkgfile.tcl]\n",
+            "source $other\n",
+        ] {
+            let links = document_links_in_context(
+                src,
+                "tcl",
+                &LinkContext {
+                    workspace_root: Some("/proj"),
+                    home: None,
+                    script_path: Some("/proj/test/caller.tcl"),
+                },
+            );
+            assert!(
+                links.is_empty(),
+                "an unresolvable computed path must produce no link at all, \
+                 got {links:?} for {src:?}",
+            );
+        }
+    }
+
+    /// A computed path that folds to a *relative* result is anchored by this
+    /// provider on `workspace_root`, exactly as the literal path beside it —
+    /// never on the language server process's own working directory.
+    ///
+    /// Tcl resolves such a path against the interpreter's run-time working
+    /// directory (tclsh 8.6.16 / 9.0.4: `cd other && tclsh ../sub/main.tcl`
+    /// with `set v helper.tcl; source $v` loads `other/helper.tcl`), which is
+    /// unknowable statically; what must never happen is the two spellings
+    /// disagreeing, or the answer depending on how the editor was launched.
+    #[test]
+    fn a_relative_computed_source_path_anchors_like_the_literal_beside_it_923_idx41() {
+        let ctx = LinkContext {
+            workspace_root: Some("/proj"),
+            home: None,
+            script_path: Some("/proj/test/caller.tcl"),
+        };
+        let literal = document_links_in_context("source helper.tcl\n", "tcl", &ctx);
+        let computed = document_links_in_context(
+            "set v helper.tcl\nsource [file join $v]\n",
+            "tcl",
+            &ctx,
+        );
+        assert_eq!(literal.len(), 1, "{literal:?}");
+        assert_eq!(computed.len(), 1, "{computed:?}");
+        assert_eq!(
+            computed[0].target, literal[0].target,
+            "a computed relative path must anchor exactly like the literal one",
+        );
+        assert_eq!(literal[0].target, "file:///proj/helper.tcl");
+    }
+
     #[test]
     fn double_dash_terminator_skipped() {
         let src = "source -- /tmp/x.tcl\n";
