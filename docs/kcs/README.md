@@ -88,6 +88,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   — a multi-word `eval`, `uplevel`, or `namespace eval` draws a false E002
   "wrong number of arguments", and a variable the call sets is still
   reported as read before it is set (W210).
+- [kcs-issue-uplevel-injected-variable-is-reported-unset.md](kcs-issue-uplevel-injected-variable-is-reported-unset.md)
+  — a variable a helper assigns in an outer frame with `uplevel` is reported
+  as read before it is set (W210), and the `[list set $varName …]` word that
+  does it is reported as a name/value confusion (W212).
 - [kcs-issue-always-true-condition-in-a-sourced-library-file.md](kcs-issue-always-true-condition-in-a-sourced-library-file.md)
   — I230 says a condition is always true in a library file whose procedure
   is really called with different values from another file.

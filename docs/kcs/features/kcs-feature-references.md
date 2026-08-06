@@ -56,6 +56,14 @@ command's name, which keeps its own spelling when the target is renamed. When
 a name carries both a `rename` and an `interp alias`, the one written later is
 the one whose call sites are attributed.
 
+The reverse is true as well: a proc whose own name an alias has **taken
+over** loses those call sites. After `interp alias {} ::ttk::spinbox {}
+::tk::spinbox`, a later `::ttk::spinbox` call runs `::tk::spinbox`'s body, so
+it is not a reference to the `::ttk::spinbox` proc and a rename of that proc
+leaves it alone. A `proc` written *after* the alias takes the name back, and
+an alias installed inside another proc's body may never run, so neither of
+those drops a call site.
+
 A callback wrapped for its namespace — `trace add variable v w [namespace
 code [list Handler]]`, the idiom Tk's own `fontchooser.tcl` uses — is a
 reference to `Handler`, in the `[list …]`, braced, and bareword forms alike.
