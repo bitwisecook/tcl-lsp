@@ -920,6 +920,11 @@ impl Analyser {
             .extend(frag.instance_class_sites);
         self.pending_var_literal_checks
             .extend(frag.var_literal_checks);
+        // Ensembles declared *inside* this body: the shell needs their
+        // absolute recording offsets to apply the whole-file DFS visibility
+        // rule when it replays the call sites it deferred (issue #923 idx
+        // 85). `rebase_fragment_pending` has already shifted them.
+        self.ensemble_record_offsets.extend(frag.ensemble_offsets);
         // Replay the body's qualified global reads against the shell's real
         // global scope (rebased to the body's position): a `$::g` read lands as
         // a reference on the enclosing `::g` exactly as a whole-file walk would.
@@ -1155,6 +1160,13 @@ pub struct BodyFragment {
     /// resolution (see
     /// [`super::state::Analyser::pending_var_literal_checks`]).
     var_literal_checks: Vec<(tcl_core_types::DiagCode, String, Token)>,
+    /// Where inside this body each ensemble the body declares was recorded
+    /// (`super::state::Analyser::ensemble_record_offsets`), body-relative.
+    /// The graft rebases these to absolute and merges them into the shell so
+    /// the tail's `flush_pending_ensemble_subcommand_invocations` can apply
+    /// the whole-file DFS's "declaration precedes the call site" visibility
+    /// rule to an ensemble created inside a proc body (issue #923 idx 85).
+    ensemble_offsets: std::collections::HashMap<String, u32>,
     /// Every offset-keyed synthetic identity the isolated pass minted
     /// (`@dynns@<off>` / `@dynclass@<off>` / `@autoname@<off>`), with
     /// **body-relative** offsets — the whole fragment is body-relative, so
@@ -1336,6 +1348,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         instance_class_sites: a.pending_instance_class_sites,
         widget_sites: a.widget_dispatch_sites,
         var_literal_checks: a.pending_var_literal_checks,
+        ensemble_offsets: a.ensemble_record_offsets,
         minted_synthetics: a.minted_synthetic_names,
     }
 }
@@ -1812,6 +1825,7 @@ fn rebase_pending_names(frag: &mut BodyFragment, fix: &impl Fn(&mut String)) {
     for site in &mut frag.const_dispatches {
         fix(&mut site.ns);
     }
+    fix_string_keys(&mut frag.ensemble_offsets, fix);
     fix_string_keys(&mut frag.walk_aliases, fix);
     for (target, _) in frag.walk_aliases.values_mut() {
         fix(target);
@@ -1875,6 +1889,9 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     for (_, tok, span) in &mut frag.global_defs {
         tok.span = shift(tok.span, d);
         *span = shift(*span, d);
+    }
+    for off in frag.ensemble_offsets.values_mut() {
+        *off += d;
     }
     for off in frag.walk_alias_offsets.values_mut() {
         *off += d;

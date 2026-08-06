@@ -2446,16 +2446,10 @@ impl Analyser {
         if arg_expand_in.get(1).copied().unwrap_or(false) {
             return;
         }
-        let Some(sub_map) = self.result.ensemble_subcommand_targets.get(resolved_cmd) else {
-            return;
-        };
         let Some(sub) = args.first() else { return };
         if crate::naming::is_dynamic_word(sub) {
             return;
         }
-        let Some(target) = sub_map.get(sub).cloned() else {
-            return;
-        };
         let Some(tok) = arg_tokens_in.get(1) else {
             return;
         };
@@ -2472,7 +2466,91 @@ impl Analyser {
         } else {
             Some(args.len() - 1)
         };
-        self.push_command_reference_with_policy(sub.clone(), tok.span, target, sub_argc, true);
+        self.record_or_defer_ensemble_subcommand(resolved_cmd, sub, tok.span, sub_argc);
+    }
+
+    /// Record the existence-probed subcommand reference for
+    /// `<ensemble> <sub>` — now if the ensemble's map is already known,
+    /// else queued for [`Self::flush_pending_ensemble_subcommand_invocations`]
+    /// (issue #923 idx 85).
+    ///
+    /// The queue is filled **only** by the per-item shell pass. The
+    /// whole-file DFS walks each proc/method body at its definition point,
+    /// so its map already holds every ensemble a body declared earlier in
+    /// the file; the shell pass defers those bodies, so an ensemble created
+    /// inside `proc ::app::widget::Setup {…}` is invisible to it and every
+    /// later `::app::widget show` call site was silently dropped — leaving
+    /// find-references / rename / code-lens / call-hierarchy unable to
+    /// enumerate call sites that go-to-definition (an on-demand lookup
+    /// against the finished analysis) resolved perfectly well.
+    ///
+    /// The replay is gated on the ensemble's own recording preceding the
+    /// call site, which is exactly the visibility the whole-file DFS has —
+    /// so the two walk strategies produce identical `command_invocations`
+    /// (the `per_item == analyse` corpus gate holds).
+    fn record_or_defer_ensemble_subcommand(
+        &mut self,
+        resolved_cmd: &str,
+        sub: &str,
+        span: Span,
+        argc: Option<usize>,
+    ) {
+        if let Some(target) = self
+            .result
+            .ensemble_subcommand_targets
+            .get(resolved_cmd)
+            .and_then(|subs| subs.get(sub))
+            .cloned()
+        {
+            self.push_command_reference_with_policy(sub.to_owned(), span, target, argc, true);
+            return;
+        }
+        // Nothing deferred yet means nothing can *become* visible before
+        // this offset either, so there is no candidate to hold.
+        if !self.defer_proc_bodies || self.deferred_bodies.is_empty() {
+            return;
+        }
+        self.pending_ensemble_subcommands
+            .push(super::state::PendingEnsembleSubcommand {
+                ensemble: resolved_cmd.to_owned(),
+                sub: sub.to_owned(),
+                span,
+                argc,
+            });
+    }
+
+    /// Replay every [`Self::record_or_defer_ensemble_subcommand`] miss
+    /// against the finished `ensemble_subcommand_targets` map, once every
+    /// deferred body has been walked and grafted (issue #923 idx 85).
+    ///
+    /// A candidate counts only when the ensemble's own
+    /// `namespace ensemble create|configure` recording **precedes** the call
+    /// site — the whole-file DFS's visibility rule, reproduced here so the
+    /// per-item walk records the same invocation set. Where the ensemble's
+    /// name or its `-map` is dynamic nothing is recorded at all (the map
+    /// never gains the entry), so the abstention is inherited from the one
+    /// place that decides it rather than re-decided here.
+    pub(super) fn flush_pending_ensemble_subcommand_invocations(&mut self) {
+        let pending = std::mem::take(&mut self.pending_ensemble_subcommands);
+        for cand in pending {
+            let Some(target) = self
+                .result
+                .ensemble_subcommand_targets
+                .get(&cand.ensemble)
+                .and_then(|subs| subs.get(&cand.sub))
+                .cloned()
+            else {
+                continue;
+            };
+            if !self
+                .ensemble_record_offsets
+                .get(&cand.ensemble)
+                .is_some_and(|&off| off < cand.span.start())
+            {
+                continue;
+            }
+            self.push_command_reference_with_policy(cand.sub, cand.span, target, cand.argc, true);
+        }
     }
 
     /// Walk every argument's source slice for ``[cmd ...]``
@@ -3137,16 +3215,9 @@ impl Analyser {
             // `argc` here is "args after the head" (the subcommand word
             // included), so it shifts by one to become "args after the
             // subcommand word" — the same convention that function uses.
-            if let Some((sub, sub_span)) = sub_candidate
-                && let Some(target) = self
-                    .result
-                    .ensemble_subcommand_targets
-                    .get(&resolved)
-                    .and_then(|subs| subs.get(&sub))
-                    .cloned()
-            {
+            if let Some((sub, sub_span)) = sub_candidate {
                 let sub_argc = argc.map(|a| a.saturating_sub(1));
-                self.push_command_reference_with_policy(sub, sub_span, target, sub_argc, true);
+                self.record_or_defer_ensemble_subcommand(&resolved, &sub, sub_span, sub_argc);
             }
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
