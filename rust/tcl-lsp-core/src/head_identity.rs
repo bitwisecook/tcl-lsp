@@ -190,10 +190,6 @@ fn is_static_name(word: &str) -> bool {
 /// Scan `source` for the top-level statements that move a command binding and
 /// build the document's [`HeadIdentityMap`].
 ///
-/// `imports` is the already-computed `namespace import` alias table (bare name
-/// → `(qualified spec name, enabling offset)`); it is folded in here so every
-/// consumer asks one question rather than two.
-///
 /// Which commands mutate the command table is registry data
 /// ([`CommandTableEffect`]) and the argument shapes come from the compiler's
 /// own detectors ([`detect_interp_alias`] / [`detect_rename`]) — the same ones
@@ -202,10 +198,9 @@ pub(crate) fn command_head_identities(
     source: &str,
     dialect: &str,
     registry: &CommandRegistry,
-    imports: FxHashMap<String, (String, u32)>,
 ) -> HeadIdentityMap {
     let mut map = HeadIdentityMap::default();
-    for (name, (qualified, offset)) in imports {
+    for (name, (qualified, offset)) in imported_command_aliases(source, dialect, registry) {
         map.record(&name, Some(qualified), offset);
     }
     for seg in segment_commands_with_offset_and_config(
@@ -305,13 +300,120 @@ fn record_proc(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &C
     }
 }
 
+/// Scan `source` for `namespace import` declarations and map each bare command
+/// name they bring into the global scope to its qualified registry spec name
+/// (`test` → `tcltest::test`, issue #776).
+///
+/// Recognises the two literal forms — `namespace import EXPORTING::*`
+/// (import-all) and `namespace import EXPORTING::name` (single) — matched
+/// against the registry's `is_namespace_exported` commands in the exporting
+/// namespace.  A bare name that already resolves to a global command is left
+/// alone (Tcl's own `namespace import` refuses to shadow an existing command
+/// without `-force`, and we must not mis-resolve a genuine builtin).  This is a
+/// highlighting-only convenience: it never changes which commands exist, only
+/// lets the registry-driven argument overrides see the real spec for an
+/// unqualified imported command.  Returns an empty map when nothing is imported.
+fn imported_command_aliases(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+) -> FxHashMap<String, (String, u32)> {
+    let mut aliases: FxHashMap<String, (String, u32)> = FxHashMap::default();
+    // Cheap gate: `namespace import` is the only source of aliases.
+    if !source.contains("namespace") {
+        return aliases;
+    }
+    // Wholesale imports (`ns::*`) and single-name imports (`ns::name`), each
+    // tagged with the byte offset of its `namespace import` statement so an
+    // alias only applies to heads at or after it (source order).  Only
+    // top-level imports are seen — a `namespace import` nested inside a
+    // `namespace eval` body is not a top-level segment, so it never leaks a
+    // global bare alias.
+    let mut import_all: Vec<(String, u32)> = Vec::new();
+    let mut import_one: Vec<(String, String, u32)> = Vec::new();
+    for seg in segment_commands_with_offset_and_config(
+        source,
+        0,
+        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+    ) {
+        if seg.texts.len() < 3 || seg.texts[0] != "namespace" || seg.texts[1] != "import" {
+            continue;
+        }
+        let import_off = seg.argv[0].span.start();
+        for pat in &seg.texts[2..] {
+            // Skip option flags (`-force`); computed patterns are left alone.
+            if pat.starts_with('-') {
+                continue;
+            }
+            if let Some(ns) = pat.strip_suffix("::*") {
+                import_all.push((ns.trim_start_matches(':').to_string(), import_off));
+            } else if let Some((ns, name)) = pat.rsplit_once("::") {
+                import_one.push((
+                    ns.trim_start_matches(':').to_string(),
+                    name.to_string(),
+                    import_off,
+                ));
+            }
+        }
+    }
+    if import_all.is_empty() && import_one.is_empty() {
+        return aliases;
+    }
+    // Record `name → (qualified, offset)`, keeping the *earliest* enabling
+    // import when several would produce the same alias.
+    let mut record = |name: String, qualified: String, off: u32| {
+        aliases
+            .entry(name)
+            .and_modify(|(_, o)| *o = (*o).min(off))
+            .or_insert((qualified, off));
+    };
+    // Import-all: every exported command in an imported namespace whose bare
+    // tail does not already name a global command.
+    if !import_all.is_empty() {
+        for name in registry.command_names() {
+            let Some((ns, tail)) = name.rsplit_once("::") else {
+                continue;
+            };
+            if tail.is_empty() || registry.get(tail).is_some() {
+                continue;
+            }
+            let ns = ns.trim_start_matches(':');
+            let Some(off) = import_all
+                .iter()
+                .filter(|(n, _)| n == ns)
+                .map(|(_, o)| *o)
+                .min()
+            else {
+                continue;
+            };
+            if registry.get(name).is_some_and(|s| s.is_namespace_exported) {
+                record(tail.to_string(), name.to_string(), off);
+            }
+        }
+    }
+    // Single-name imports.
+    for (ns, name, off) in &import_one {
+        if registry.get(name).is_some() {
+            continue;
+        }
+        let qualified = format!("{ns}::{name}");
+        if registry
+            .get(&qualified)
+            .is_some_and(|s| s.is_namespace_exported)
+        {
+            record(name.clone(), qualified, *off);
+        }
+    }
+    aliases
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn map_for(src: &str) -> HeadIdentityMap {
         let registry = tcl_registry::registry_for_dialect("tcl");
-        command_head_identities(src, "tcl", registry, FxHashMap::default())
+        command_head_identities(src, "tcl", registry)
     }
 
     /// Offset just past the first line of `src`, i.e. "after statement 1".

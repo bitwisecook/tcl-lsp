@@ -2336,7 +2336,7 @@ fn insert_object_method_overrides(
             } else if let Some(cls) = user_constructor_class_of_head(head_text, classes) {
                 vec![cls]
             } else {
-                collection_head_element_classes(head_text, object_collections)
+                collection_head_element_classes(head_text, registry, object_collections)
                     .map(|s| s.iter().cloned().collect())
                     .unwrap_or_default()
             }
@@ -2458,17 +2458,41 @@ fn insert_registry_method_options(
 /// the object-collection map, or `None` when the head is not such a retrieval
 /// or the collection is not tracked.  Resolves the receiver of the issue-#797
 /// `[dict get $Pins $pin] configure -node …` dispatch.
+///
+/// Which calls retrieve an element, and from which argument, is registry data
+/// ([`tcl_registry::types::ReturnElements::ElementOf`], read through
+/// [`CommandRegistry::resolve_call`] exactly as the compiler's type inference
+/// reads it) — so `::lindex` and `::dict get` resolve like their bare
+/// spellings, and no command name is matched here (issue #1185).
 fn collection_head_element_classes<'a>(
     head_text: &str,
+    registry: &CommandRegistry,
     object_collections: &'a ObjectClassMap,
 ) -> Option<&'a std::collections::HashSet<String>> {
+    use tcl_registry::types::ReturnElements;
+
     let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution(head_text)?;
-    let coll = match (cmd.as_str(), args.as_slice()) {
-        ("dict", [sub, coll, _key]) if sub == "get" => coll,
-        ("lindex", [coll, _idx]) => coll,
-        _ => return None,
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let resolved =
+        registry.resolve_call(&cmd, &arg_refs, tcl_registry::dialects::DialectSet::empty())?;
+    let ReturnElements::ElementOf { container_arg } = resolved.return_elements()? else {
+        return None;
     };
-    object_collections.get(object_handle_name(coll)?)
+    // The fact's indices are relative to after the subcommand word when one
+    // matched (`dict get $d $k` counts from `$d`).
+    let elem_args = if resolved.sub.is_some() {
+        arg_refs.get(1..).unwrap_or(&[])
+    } else {
+        &arg_refs[..]
+    };
+    // Single-step retrieval only: exactly one index/key word after the
+    // container — a multi-level `dict get $d a b` yields an inner dict, not an
+    // element, so the fact does not apply.
+    let container_idx = usize::from(container_arg);
+    if elem_args.len() != container_idx + 2 {
+        return None;
+    }
+    object_collections.get(object_handle_name(elem_args.get(container_idx)?)?)
 }
 
 /// Whether a *user-defined* class provides `method` for an instance dispatch:
@@ -5196,113 +5220,6 @@ fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth:
 
 /// Walk the segmenter + comment scan and return raw
 /// [`Entry`] tuples sorted by position.  Shared by `full` and `range`.
-/// Scan `source` for `namespace import` declarations and map each bare command
-/// name they bring into the global scope to its qualified registry spec name
-/// (`test` → `tcltest::test`, issue #776).
-///
-/// Recognises the two literal forms — `namespace import EXPORTING::*`
-/// (import-all) and `namespace import EXPORTING::name` (single) — matched
-/// against the registry's `is_namespace_exported` commands in the exporting
-/// namespace.  A bare name that already resolves to a global command is left
-/// alone (Tcl's own `namespace import` refuses to shadow an existing command
-/// without `-force`, and we must not mis-resolve a genuine builtin).  This is a
-/// highlighting-only convenience: it never changes which commands exist, only
-/// lets the registry-driven argument overrides see the real spec for an
-/// unqualified imported command.  Returns an empty map when nothing is imported.
-fn imported_command_aliases(
-    source: &str,
-    dialect: &str,
-    registry: &CommandRegistry,
-) -> FxHashMap<String, (String, u32)> {
-    let mut aliases: FxHashMap<String, (String, u32)> = FxHashMap::default();
-    // Cheap gate: `namespace import` is the only source of aliases.
-    if !source.contains("namespace") {
-        return aliases;
-    }
-    // Wholesale imports (`ns::*`) and single-name imports (`ns::name`), each
-    // tagged with the byte offset of its `namespace import` statement so an
-    // alias only applies to heads at or after it (source order).  Only
-    // top-level imports are seen — a `namespace import` nested inside a
-    // `namespace eval` body is not a top-level segment, so it never leaks a
-    // global bare alias.
-    let mut import_all: Vec<(String, u32)> = Vec::new();
-    let mut import_one: Vec<(String, String, u32)> = Vec::new();
-    for seg in segment_commands_with_offset_and_config(
-        source,
-        0,
-        tcl_lexer::LexerConfig::for_file_dialect(dialect),
-    ) {
-        if seg.texts.len() < 3 || seg.texts[0] != "namespace" || seg.texts[1] != "import" {
-            continue;
-        }
-        let import_off = seg.argv[0].span.start();
-        for pat in &seg.texts[2..] {
-            // Skip option flags (`-force`); computed patterns are left alone.
-            if pat.starts_with('-') {
-                continue;
-            }
-            if let Some(ns) = pat.strip_suffix("::*") {
-                import_all.push((ns.trim_start_matches(':').to_string(), import_off));
-            } else if let Some((ns, name)) = pat.rsplit_once("::") {
-                import_one.push((
-                    ns.trim_start_matches(':').to_string(),
-                    name.to_string(),
-                    import_off,
-                ));
-            }
-        }
-    }
-    if import_all.is_empty() && import_one.is_empty() {
-        return aliases;
-    }
-    // Record `name → (qualified, offset)`, keeping the *earliest* enabling
-    // import when several would produce the same alias.
-    let mut record = |name: String, qualified: String, off: u32| {
-        aliases
-            .entry(name)
-            .and_modify(|(_, o)| *o = (*o).min(off))
-            .or_insert((qualified, off));
-    };
-    // Import-all: every exported command in an imported namespace whose bare
-    // tail does not already name a global command.
-    if !import_all.is_empty() {
-        for name in registry.command_names() {
-            let Some((ns, tail)) = name.rsplit_once("::") else {
-                continue;
-            };
-            if tail.is_empty() || registry.get(tail).is_some() {
-                continue;
-            }
-            let ns = ns.trim_start_matches(':');
-            let Some(off) = import_all
-                .iter()
-                .filter(|(n, _)| n == ns)
-                .map(|(_, o)| *o)
-                .min()
-            else {
-                continue;
-            };
-            if registry.get(name).is_some_and(|s| s.is_namespace_exported) {
-                record(tail.to_string(), name.to_string(), off);
-            }
-        }
-    }
-    // Single-name imports.
-    for (ns, name, off) in &import_one {
-        if registry.get(name).is_some() {
-            continue;
-        }
-        let qualified = format!("{ns}::{name}");
-        if registry
-            .get(&qualified)
-            .is_some_and(|s| s.is_namespace_exported)
-        {
-            record(name.clone(), qualified, *off);
-        }
-    }
-    aliases
-}
-
 /// Augment the object-handle map with loop variables that iterate an object
 /// collection — `dict for {k v} $coll {…}`, `dict map …`, `foreach v $coll {…}`,
 /// `lmap …` — so a `$v method …` dispatch in the loop body resolves like a
@@ -5735,12 +5652,7 @@ fn collect_entries(
     // `test` = `tcltest::test`), plus every statically proven `interp alias` /
     // `rename` / built-in-shadowing `proc` (issue #1185).  Empty (no lookups)
     // unless the document actually binds something.
-    let head_identities = crate::head_identity::command_head_identities(
-        source,
-        dialect,
-        registry,
-        imported_command_aliases(source, dialect, registry),
-    );
+    let head_identities = crate::head_identity::command_head_identities(source, dialect, registry);
 
     // Object-handle → class provenance (`set chart [ticklecharts::chart new]`
     // → `chart`), so a `$chart Xaxis -name …` dispatch resolves the method's
