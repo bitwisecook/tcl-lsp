@@ -954,7 +954,8 @@ fn scan_defined_and_unset(cfg: &CfgFunction) -> (FxHashSet<String>, FxHashSet<&s
 /// cannot drift (they did, on method parameters — issue #1129).
 #[derive(Clone, Copy, Default)]
 pub struct ExistenceFrame<'a> {
-    /// The body's formal parameter names: bound on entry, so they exist.
+    /// The body's formal parameter names: bound on entry as scalars, so
+    /// they exist for `info exists` and never for `array exists`.
     /// Empty for the top level and for any body with no parameter list.
     pub params: &'a [String],
     /// Names auto-bound to out-of-frame *object* storage on entry — a
@@ -980,7 +981,8 @@ fn array_element_base(var: &str) -> Option<&str> {
 
 /// Fold `[info exists X]` / `[array exists X]`
 /// if-conditions into [`ConstantBranch`] entries for the
-/// false-positive-free cases — a parameter always exists (`true`); a
+/// false-positive-free cases — a parameter always exists, as a **scalar**
+/// (`info exists` → `true`, `array exists` → `false`, issue #1239); a
 /// never-defined non-parameter never exists (`false`); an element guard
 /// `X(elem)` on an array this body never touches never exists (`false`,
 /// issue #1173 — the guard is decided on the *array* name, with the same
@@ -1124,7 +1126,12 @@ pub fn existence_constant_branches(
         else {
             continue;
         };
-        let Some((var, negated)) = crate::expr_ast::existence_query_var(condition) else {
+        let Some(crate::expr_ast::ExistenceQuery {
+            var,
+            negated,
+            command,
+        }) = crate::expr_ast::existence_query_var(condition)
+        else {
             continue;
         };
         let exists = if let Some(base) = array_element_base(&var) {
@@ -1170,7 +1177,22 @@ pub fn existence_constant_branches(
                 if unset.contains(var.as_str()) || dynamic_names.destroys {
                     continue;
                 }
-                true
+                // Which constant depends on the spelling (issue #1239).  A
+                // parameter is bound as a *scalar* on entry — Tcl has no
+                // pass-an-array-by-value — so `array exists PARAM` is
+                // provably **false** where `info exists PARAM` is true.
+                // Nothing in a barrier-free body can turn the parameter into
+                // an array without first removing the scalar binding, and a
+                // literal `unset` / a dynamic destroy already abstained above
+                // (`set p(k) …` and `array set p …` on a live scalar are
+                // runtime errors, not conversions).
+                //
+                // tclsh-proof (8.6.16 / 9.0.4):
+                //   proc f {a} { if {[array exists a]} { puts yes } else { puts no } }
+                //   f 1                                        ;# → no
+                //   proc g {a} { array set a {x 1} }
+                //   g 1  ;# → can't set "a(x)": variable isn't array
+                matches!(command, crate::expr_ast::ExistenceCommand::Info)
             } else if !defined.contains(&var) {
                 // `set $switch {}` may have defined exactly this name — the
                 // argparse idiom the fold used to call unreachable.

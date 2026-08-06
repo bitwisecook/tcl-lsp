@@ -241,10 +241,16 @@ pub(super) fn collect_existence_guards(
             false_target,
             ..
         }) = &block.terminator
-            && let Some((var, negated)) = crate::expr_ast::existence_query_var(condition)
+            && let Some(query) = crate::expr_ast::existence_query_var(condition)
         {
-            let target = if negated { *false_target } else { *true_target };
-            guards.push((var, target));
+            // Either spelling proves the name is bound in the guarded region:
+            // `array exists X` implies `info exists X`.
+            let target = if query.negated {
+                *false_target
+            } else {
+                *true_target
+            };
+            guards.push((query.var, target));
         }
     }
     guards
