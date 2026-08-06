@@ -1429,7 +1429,7 @@ fn tn_a_not_yet_run_import_does_not_resolve_the_receiver() {
 /// in the `oo::class create` block **and** in a later `oo::define` block that
 /// reopens the same class.
 ///
-/// The reopening block is the SpiceGenTcl `generalClasses.tcl` shape
+/// The reopening block is the `SpiceGenTcl` `generalClasses.tcl` shape
 /// (`oo::configurable create Parameter { … }` followed by `oo::define
 /// Parameter { method <WriteProp-value> … }`).  Oracle, tclsh 9.0.4: the
 /// method the second block declares really is dispatchable on the class the
