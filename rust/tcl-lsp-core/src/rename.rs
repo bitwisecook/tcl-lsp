@@ -492,18 +492,65 @@ pub fn rename_with_diagnosis(
     // Method rename — match `word` against any class's methods
     // / classmethods / properties at the cursor's byte offset.
     let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if let Some(edits) = rename_method(
+    gated_untargeted_member_rename(
         source,
         dialect,
-        &word,
-        new_name,
+        (&word, new_name),
         analysis,
         cursor_offset,
         &line_index,
-    ) {
-        return Ok(edits);
+    )
+    .map(Option::unwrap_or_default)
+}
+
+/// The **untargeted** member-rename tier, behind the safety gate — the last
+/// tier [`rename_with_diagnosis`] tries, and the one that answers every
+/// cursor position no trusted dispatch tier claims.
+///
+/// `Err` is a refusal, `Ok(None)` means the cursor names no member here.
+///
+/// The gate runs *here* rather than in [`pre_edit_refusal`] so the tier order
+/// is preserved exactly: a cursor an earlier tier claims (a local variable, a
+/// proc, a class) is renamed by that tier and never consulted about a
+/// same-spelled member. And it runs at all because `pre_edit_refusal` can
+/// only speak for a cursor [`method_rename_target`] resolves — the member's
+/// own declaration name, a `my` dispatch, a tracked `$obj` dispatch. The
+/// positions this tier owns (the method word inside an untracked `[$other
+/// X]`, the bareword in `export … X …`) are precisely the ones from which the
+/// idx-79 hazard used to emit a declaration-only edit set that breaks the
+/// program once applied. Asking the same question about the same member here
+/// makes the verdict independent of *which occurrence* the rename was
+/// triggered from (issue #923 idx 79, verification pass).
+fn gated_untargeted_member_rename(
+    source: &str,
+    dialect: &str,
+    (word, new_name): (&str, &str),
+    analysis: &AnalysisResult,
+    cursor_offset: u32,
+    line_index: &LineIndex,
+) -> Result<Option<Vec<TextEdit>>, crate::rename_safety::RenameRefusal> {
+    if let Some((seed_class, method, is_classmethod)) =
+        untargeted_member_rename_target(analysis, word, cursor_offset)
+        && let Some(refusal) = member_rename_hazard(
+            source,
+            dialect,
+            analysis,
+            (&seed_class, &method, is_classmethod),
+            new_name,
+            line_index,
+        )
+    {
+        return Err(refusal);
     }
-    Ok(Vec::new())
+    Ok(rename_method(
+        source,
+        dialect,
+        word,
+        new_name,
+        analysis,
+        cursor_offset,
+        line_index,
+    ))
 }
 
 /// The refusal for a cursor sitting on a **namespace name** — a word the
@@ -572,7 +619,38 @@ fn method_rename_refusal(
 ) -> Option<crate::rename_safety::RenameRefusal> {
     let (seed_class, method, is_classmethod) =
         method_rename_target(source, line, character, analysis)?;
-    let family = override_family(analysis, &seed_class, &method);
+    member_rename_hazard(
+        source,
+        dialect,
+        analysis,
+        (&seed_class, &method, is_classmethod),
+        new_name,
+        line_index,
+    )
+}
+
+/// The safety verdict for renaming `method` on `seed_class`'s whole override
+/// family — the one call both member-rename gates make, so a hazard is a
+/// property of *which member the rename rewrites*, never of how the cursor
+/// happened to name it.
+///
+/// Split out of [`method_rename_refusal`] because that entry point can only
+/// speak for cursors a *trusted dispatch tier* resolves
+/// ([`method_rename_target`]: the member's own declaration name, a `my`
+/// dispatch, a tracked `$obj` / class-command dispatch). Every other position
+/// that still reaches a member — the untracked call site the gate exists to
+/// protect, an `export`/`unexport` bareword — is resolved by
+/// [`untargeted_member_rename_target`] instead and asked the same question
+/// here (issue #923 idx 79, verification pass).
+fn member_rename_hazard(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    (seed_class, method, is_classmethod): (&str, &str, bool),
+    new_name: &str,
+    line_index: &LineIndex,
+) -> Option<crate::rename_safety::RenameRefusal> {
+    let family = override_family(analysis, seed_class, method);
     if family.is_empty() {
         return None;
     }
@@ -582,12 +660,47 @@ fn method_rename_refusal(
         analysis,
         crate::rename_safety::MethodRenameTarget {
             family: &family,
-            method: &method,
+            method,
             is_classmethod,
             new_name,
         },
         line_index,
     )
+}
+
+/// The member the **untargeted** member-rename tier ([`rename_method`]) would
+/// rewrite for a cursor at `cursor_offset`, or `None` when that tier declines
+/// the cursor.
+///
+/// This is deliberately the *same* resolution `rename_method` performs —
+/// "which class body encloses the cursor, and does `word` name one of its
+/// members" ([`crate::definition::enclosing_class_at`] +
+/// [`resolve_member_span`]) — and not a re-derivation. That tier answers
+/// exactly the cursor positions no trusted dispatch tier claims: the method
+/// name inside `[$untracked X]`, and the bareword in an `export … X …` list.
+/// Both of those used to reach `rename_method` with no hazard check at all,
+/// so the very shape [`crate::rename_safety`] refuses when the cursor sits on
+/// the declaration silently emitted a declaration-only edit set from one line
+/// away — applying it and running under tclsh 9.0.4 / 8.6.16 gives `unknown
+/// method "X"` at the untouched dispatch (issue #923 idx 79).
+///
+/// Restricted to `method` / `classmethod`: a *property* has no dispatch
+/// (see [`rename_method`]'s own property branch), so it has no dispatch
+/// hazard to check.
+#[must_use]
+pub fn untargeted_member_rename_target(
+    analysis: &AnalysisResult,
+    word: &str,
+    cursor_offset: u32,
+) -> Option<(String, String, bool)> {
+    let class_q = crate::definition::enclosing_class_at(analysis, cursor_offset)?;
+    let class_def = analysis.all_classes.get(class_q)?;
+    let (kind, _span) = resolve_member_span(class_def, word, cursor_offset)?;
+    match kind {
+        MemberSel::Method => Some((class_def.qualified_name.clone(), word.to_owned(), false)),
+        MemberSel::ClassMethod => Some((class_def.qualified_name.clone(), word.to_owned(), true)),
+        MemberSel::Property => None,
+    }
 }
 
 /// The variable-rename edits for a cursor that names one, or `None` when it
@@ -3757,5 +3870,169 @@ mod tests {
         // And the plain entry point must produce no edits at all — never a
         // partial set.
         assert!(rename(src, "tcl8.6", 6, 11, "GetX", &analysis, None).is_empty());
+    }
+
+    // -- idx 79: the gate must not depend on the trigger position ---------
+    //
+    // The declaration-anchored refusal above was the *only* direction the
+    // gate covered.  A real editor's "rename symbol" gesture can be invoked
+    // from any occurrence, and from the two below the server used to return a
+    // live WorkspaceEdit rewriting only the declaration and the `export`
+    // word.  Applying that edit and running it (tclsh 9.0.4 and 8.6.16, byte
+    // identical):
+    //
+    //   unknown method "X": must be Get, GetX, Y, Z or destroy
+    //
+    // at the constructor's own `[$args X]`.  Every position that names the
+    // same member must therefore reach the same verdict.
+
+    /// The exact source the trigger-position tests share — the copy-
+    /// constructor shape from nico-robert/tomato's `Vector3d.tcl`, with the
+    /// `export` list the finding's `WorkspaceEdit` also rewrote.
+    ///
+    /// Line/column map (0-based):
+    ///   4  col 23 — the `X` inside `[$other X]`   (untracked call site)
+    ///   6  col 11 — the `X` of `method X`          (declaration)
+    ///   8  col 11 — the `X` in `export X Get`      (export bareword)
+    const IDX79_HAZARD: &str = "oo::class create Vector3d {\n\
+         \x20   variable _x _y\n\
+         \x20   constructor {args} {\n\
+         \x20       set other [lindex $args 0]\n\
+         \x20       set _x [$other X]\n\
+         \x20   }\n\
+         \x20   method X {} { return $_x }\n\
+         \x20   method Get {} { return \"$_x $_y\" }\n\
+         \x20   export X Get\n\
+         }\n";
+
+    /// The same class with **every** receiver tracked: `$v` is bound by
+    /// `Vector3d new`, so the reference scan rewrites its dispatch and there
+    /// is no hazard.  The true-negative control for the tests below — an
+    /// over-broad gate would refuse this too and make rename unusable.
+    ///
+    /// Line/column map (0-based):
+    ///   1  col 11 — the `X` of `method X`          (declaration)
+    ///   2  col 31 — the `X` inside `[my X]`        (`my` dispatch)
+    ///   3  col 11 — the `X` in `export X Get`      (export bareword)
+    ///   6  col  9 — the `X` inside `[$v X]`        (tracked `$obj` dispatch)
+    const IDX79_SAFE: &str = "oo::class create Vector3d {\n\
+         \x20   method X {} { return 1 }\n\
+         \x20   method Get {} { return [my X] }\n\
+         \x20   export X Get\n\
+         }\n\
+         set v [Vector3d new]\n\
+         puts [$v X]\n";
+
+    /// Every trigger position that reaches the hazardous member refuses —
+    /// declaration, untracked call site, and `export` bareword alike.
+    #[test]
+    fn fp_rename_refuses_the_untracked_receiver_from_every_trigger_position() {
+        let analysis = analyse(IDX79_HAZARD);
+        for (line, character, what) in [
+            (4, 23, "the untracked `[$other X]` call site"),
+            (6, 11, "the `method X` declaration"),
+            (8, 11, "the `export X Get` bareword"),
+        ] {
+            let err = rename_with_diagnosis(
+                IDX79_HAZARD,
+                "tcl8.6",
+                line,
+                character,
+                "GetX",
+                &analysis,
+                None,
+            )
+            .map_or_else(
+                |err| err,
+                |edits| panic!("{what} must refuse; it returned {edits:?} instead"),
+            );
+            assert!(
+                err.reason.contains("not tracked"),
+                "{what}: the refusal must name the untracked receiver, got {}",
+                err.reason
+            );
+            assert!(
+                rename(
+                    IDX79_HAZARD,
+                    "tcl8.6",
+                    line,
+                    character,
+                    "GetX",
+                    &analysis,
+                    None
+                )
+                .is_empty(),
+                "{what} must never yield a partial edit set"
+            );
+        }
+    }
+
+    /// TN control: with every receiver tracked the rename still succeeds from
+    /// each of the same trigger positions, and the applied result rewrites
+    /// the declaration, the dispatches, *and* the export word together —
+    /// the property that makes the edit safe to run.
+    #[test]
+    fn fn_guard_a_fully_tracked_member_renames_from_every_trigger_position() {
+        let analysis = analyse(IDX79_SAFE);
+        for (line, character, what) in [
+            (1, 11, "the `method X` declaration"),
+            (2, 31, "the `my X` dispatch"),
+            (3, 11, "the `export X Get` bareword"),
+            (6, 9, "the tracked `[$v X]` call site"),
+        ] {
+            let edits = rename_with_diagnosis(
+                IDX79_SAFE, "tcl8.6", line, character, "GetX", &analysis, None,
+            )
+            .unwrap_or_else(|err| panic!("{what} must not refuse: {}", err.reason));
+            let applied = apply_edits(IDX79_SAFE, &edits);
+            assert!(
+                applied.contains("method GetX {}"),
+                "{what}: declaration must rename: {applied}"
+            );
+            assert!(
+                applied.contains("[my GetX]"),
+                "{what}: the `my` dispatch must rename: {applied}"
+            );
+            assert!(
+                applied.contains("export GetX Get"),
+                "{what}: the export word must rename: {applied}"
+            );
+            assert!(
+                !applied.contains(" X]") && !applied.contains("method X "),
+                "{what}: no occurrence of the old name may survive: {applied}"
+            );
+        }
+    }
+
+    /// The resolution the gate piggy-backs on answers for exactly the
+    /// positions the untargeted tier claims, and abstains elsewhere — so
+    /// broadening the gate cannot start refusing renames an earlier tier owns.
+    #[test]
+    fn untargeted_member_target_answers_only_inside_the_class_body() {
+        let analysis = analyse(IDX79_HAZARD);
+        let line_index = LineIndex::new(IDX79_HAZARD);
+        let at = |line: u32, ch: u32| {
+            crate::definition::byte_offset_at(&line_index, IDX79_HAZARD, line, ch)
+        };
+        assert_eq!(
+            untargeted_member_rename_target(&analysis, "X", at(8, 11)),
+            Some(("::Vector3d".to_owned(), "X".to_owned(), false)),
+            "the export bareword names the member"
+        );
+        assert_eq!(
+            untargeted_member_rename_target(&analysis, "X", at(4, 23)),
+            Some(("::Vector3d".to_owned(), "X".to_owned(), false)),
+            "the untracked call site's method word names the member"
+        );
+        assert_eq!(
+            untargeted_member_rename_target(&analysis, "other", at(4, 18)),
+            None,
+            "a word that names no member of the enclosing class must abstain"
+        );
+        assert_eq!(
+            untargeted_member_rename_target(&analysis, "X", 0),
+            None,
+            "outside any class body there is no member to resolve"
+        );
     }
 }

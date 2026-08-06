@@ -811,3 +811,157 @@ fn fp_namespace_rename_refuses_a_collision_with_an_existing_namespace() {
         "the refusal must name the collision, got {err}",
     );
 }
+
+// -- idx 79: the gate must hold from EVERY trigger position -------------
+//
+// The declaration-anchored refusal above was the only direction covered, and
+// it is the one position a real editor's "rename symbol" gesture is *least*
+// likely to be used from.  Triggering the identical rename from the untracked
+// call site the gate exists for, or from the `export` bareword, returned a
+// live WorkspaceEdit rewriting only the declaration and the export word.
+//
+// Applying that edit and running the file (tclsh 9.0.4 and 8.6.16, byte
+// identical, rc=1):
+//
+//   unknown method "X": must be Get, GetX, Y, Z or destroy
+//       while executing
+//   "$args X"
+//
+// at the copy-constructor's own dispatch.  Every position that names the same
+// member must reach the same verdict.
+
+/// The idx-79 hazard shape, shared by the trigger-position tests.
+///
+/// Line/column map (0-based):
+///   5  col 27 — the `X` inside `[$other X]`   (untracked call site)
+///   10 col 11 — the `X` of `method X`          (declaration)
+///   12 col 11 — the `X` in `export X Get`      (export bareword)
+const IDX79_HAZARD: &str = "oo::class create Vector3d {\n\
+     \x20   variable _x _y\n\
+     \x20   constructor {args} {\n\
+     \x20       if {[llength $args] == 1} {\n\
+     \x20           set other [lindex $args 0]\n\
+     \x20           set _x [$other X]\n\
+     \x20       } else {\n\
+     \x20           lassign $args _x _y\n\
+     \x20       }\n\
+     \x20   }\n\
+     \x20   method X {} { return $_x }\n\
+     \x20   method Get {} { return \"$_x $_y\" }\n\
+     \x20   export X Get\n\
+     }\n";
+
+#[test]
+fn fp_rename_refuses_the_untracked_receiver_from_the_call_site_trigger() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, IDX79_HAZARD);
+    // Cursor on the `X` of `[$other X]` — the dispatch itself.
+    let err = lsp.rename_error(&uri, 5, 27, "GetX");
+    let message = err
+        .get("message")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    assert!(
+        message.contains("not tracked"),
+        "renaming from the untracked call site must refuse with the reason, got {err}"
+    );
+}
+
+#[test]
+fn fp_rename_refuses_the_untracked_receiver_from_the_export_bareword_trigger() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, IDX79_HAZARD);
+    // Cursor on the `X` of `export X Get`.
+    let err = lsp.rename_error(&uri, 12, 11, "GetX");
+    let message = err
+        .get("message")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    assert!(
+        message.contains("not tracked"),
+        "renaming from the export bareword must refuse with the reason, got {err}"
+    );
+}
+
+#[test]
+fn fp_rename_refuses_the_untracked_receiver_from_the_declaration_trigger() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, IDX79_HAZARD);
+    let err = lsp.rename_error(&uri, 10, 11, "GetX");
+    let message = err
+        .get("message")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    assert!(
+        message.contains("not tracked"),
+        "renaming from the declaration must refuse with the reason, got {err}"
+    );
+}
+
+/// The invariant itself, stated once: for one hazardous member, no trigger
+/// position may answer with edits.  A gate reachable from only some of the
+/// symbol's occurrences is not a gate — this is the test that fails if a
+/// future tier is added that bypasses it.
+#[test]
+fn fp_rename_verdict_is_the_same_from_every_occurrence_of_a_hazardous_member() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, IDX79_HAZARD);
+    for (line, ch, what) in [
+        (5u32, 27u32, "the untracked `[$other X]` call site"),
+        (10, 11, "the `method X` declaration"),
+        (12, 11, "the `export X Get` bareword"),
+    ] {
+        // `rename_error` is the only way to read this: a refusal travels as a
+        // JSON-RPC *error*, and the plain `rename` helper panics on one.  That
+        // asymmetry is the point — a refusal must never be mistakable for an
+        // ordinary empty answer.
+        let err = lsp.rename_error(&uri, line, ch, "GetX");
+        assert!(
+            !err.is_null(),
+            "{what} must answer a refusal, not an edit set"
+        );
+        assert_eq!(
+            err.get("code").and_then(Value::as_i64),
+            Some(-32600),
+            "{what}: the refusal must be an invalid-request error: {err}"
+        );
+    }
+}
+
+/// TN control, the other half of the invariant: with every receiver tracked
+/// the rename succeeds from all four trigger shapes, and each answer rewrites
+/// the declaration, the `my` dispatch, the `$obj` dispatch and the export
+/// word together.
+///
+/// Oracle (9.0.4 / 8.6.16, before and after applying the complete edit):
+/// `1` — the renamed class still runs.
+#[test]
+fn fn_guard_a_fully_tracked_member_renames_from_every_trigger_position() {
+    let source = "oo::class create Vector3d {\n\
+         \x20   method X {} { return 1 }\n\
+         \x20   method Get {} { return [my X] }\n\
+         \x20   export X Get\n\
+         }\n\
+         set v [Vector3d new]\n\
+         puts [$v X]\n";
+    for (line, ch, what) in [
+        (1u32, 11u32, "the `method X` declaration"),
+        (2, 31, "the `[my X]` dispatch"),
+        (3, 11, "the `export X Get` bareword"),
+        (6, 9, "the tracked `[$v X]` call site"),
+    ] {
+        let mut lsp = Lsp::tcl();
+        let uri = unique_uri("tcl");
+        lsp.open_ready(&uri, source);
+        let result = lsp.rename(&uri, line, ch, "GetX");
+        let texts = all_texts(&result);
+        assert!(
+            texts.iter().filter(|t| *t == "GetX").count() >= 4,
+            "{what}: declaration + `my` + `$obj` + export must all rename, got {texts:?}"
+        );
+    }
+}

@@ -3405,6 +3405,49 @@ fn method_dispatch_hover(
     ControlFlow::Continue(())
 }
 
+/// The one-line method summary for a dispatch whose **provider was resolved
+/// elsewhere** — the server's workspace tier, walking the same C-faithful
+/// linearisation `definition.rs`'s cross-file method tier walks.
+///
+/// [`method_dispatch_hover`] can only answer when the whole class chain is
+/// visible in the requesting document's own analysis. The real corpus shape
+/// is the opposite: `my ArgsPreprocess` in one file, the `mixin`/`superclass`
+/// that provides `ArgsPreprocess` in another (issue #923 idx 28 — the
+/// `SpiceGenTcl` `RModel` / `Utility` split). Go-to-definition and
+/// find-references already crossed that boundary through the workspace index;
+/// hover answered nothing, because `hover.rs` has no cross-document tier at
+/// all. Rather than grow one here — the index and the document store live in
+/// the server — the server resolves the provider and asks this function to
+/// render it, so both tiers emit the identical heading and MRO note.
+///
+/// `receiver_class_q` is the class the call dispatches *on*; `provider_q` the
+/// class the chain landed on. They differ exactly when the member is
+/// inherited, which is the note this renders — there is no `next`-chain
+/// lookup to do here, because the chain walk that produced `provider_q`
+/// already applied the visibility rule and the instance/class-side split.
+#[must_use]
+pub fn cross_document_method_hover(
+    receiver_class_q: &str,
+    provider_q: &str,
+    method_name: &str,
+    nparams: usize,
+    is_classmethod: bool,
+) -> Hover {
+    let label = if is_classmethod {
+        "classmethod"
+    } else {
+        "method"
+    };
+    let note = if provider_q == receiver_class_q {
+        String::new()
+    } else {
+        format!("  \n_inherited from `{provider_q}`_")
+    };
+    Hover::markdown(format!(
+        "**{label}** `{provider_q}::{method_name}` ({nparams} param(s)){note}"
+    ))
+}
+
 fn obj_method_hover_text(
     analysis: &AnalysisResult,
     class_q: &str,
