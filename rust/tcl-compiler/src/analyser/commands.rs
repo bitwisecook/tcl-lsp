@@ -5518,9 +5518,6 @@ mod tests {
     /// drives which file is sourced, so the read is real.
     #[test]
     fn a_list_built_body_records_its_parameter_reads_923_idx102() {
-        let src = "proc ::app::SourceLibFile {file} {\n    \
-                   namespace eval :: [list source [file join $::app::lib_dir $file.tcl]]\n}\n";
-        let r = Analyser::new().analyse(src, "tcl8.6").clone();
         // The read lands on the *scope tree*'s copy of the parameter — the
         // binding the LSP's variable providers resolve through.
         fn find<'a>(
@@ -5532,6 +5529,9 @@ mod tests {
                 .get(name)
                 .or_else(|| scope.children.iter().find_map(|c| find(c, name)))
         }
+        let src = "proc ::app::SourceLibFile {file} {\n    \
+                   namespace eval :: [list source [file join $::app::lib_dir $file.tcl]]\n}\n";
+        let r = Analyser::new().analyse(src, "tcl8.6").clone();
         let param = find(&r.global_scope, "file")
             .expect("the `file` parameter must be recorded in the proc scope");
         // The recorded span covers the whole `$file` substitution, `$` included.
