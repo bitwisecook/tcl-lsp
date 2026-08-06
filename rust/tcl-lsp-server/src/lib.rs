@@ -14712,8 +14712,24 @@ impl LanguageServer for Backend {
             .await;
         let text = doc.text.clone();
         let analysis_for_worker = analysis.clone();
+        // A rename started from a `-force`-shadowed call must offer the
+        // definition that call reaches, not the local one the import deleted
+        // (issue #1116 item 1) — the same view definition uses.
+        let exports = self.export_snapshot().await;
+        let uri_key = uri.as_str().to_owned();
         let result = tokio::task::spawn_blocking(move || {
-            core_rename::prepare_rename(&text, pos.line, pos.character, &analysis_for_worker)
+            core_rename::prepare_rename_in_program(
+                &text,
+                pos.line,
+                pos.character,
+                &analysis_for_worker,
+                core_definition::CallResolution::document_only().in_program(
+                    core_definition::ProgramExports {
+                        uri: &uri_key,
+                        oracle: exports.as_ref(),
+                    },
+                ),
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -14804,15 +14820,23 @@ impl LanguageServer for Backend {
         // hazard the gate exists to stop as "nothing renameable here" and let
         // the cross-document tier below build edits for it (issue #923 idx
         // 79, verification pass).
+        let exports = self.export_snapshot().await;
+        let uri_key = uri.as_str().to_owned();
         let edits = tokio::task::spawn_blocking(move || {
-            core_rename::rename_with_diagnosis(
+            core_rename::rename_in_program(
                 &text,
                 &dialect,
                 pos.line,
                 pos.character,
                 &new_name_worker,
                 &analysis_for_worker,
-                Some(registry_worker),
+                core_definition::CallResolution {
+                    registry: Some(registry_worker),
+                    program: Some(core_definition::ProgramExports {
+                        uri: &uri_key,
+                        oracle: exports.as_ref(),
+                    }),
+                },
             )
         })
         .await

@@ -472,3 +472,87 @@ fn the_legacy_entry_points_still_equal_the_document_only_program_view() {
         "code_actions delegation changed nothing"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Rename — retargeting matters most here, because the edit is destructive.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rename_retargets_with_the_shadow() {
+    // Renaming from a `-force`-shadowed call must rewrite the definition that
+    // call *reaches*. Rewriting the local one the import deleted would rename
+    // an unrelated proc while leaving the call pointing where it always did.
+    let (shadowed, unshadowed) = both_directions(|analysis, exports| {
+        tcl_lsp_core::rename::rename_in_program(
+            MAIN,
+            "tcl8.6",
+            call_line(),
+            0,
+            "renamed",
+            analysis,
+            resolution(exports),
+        )
+        .expect("no refusal on a resolvable call")
+        .into_iter()
+        .map(|e| e.range.start_line)
+        .collect::<Vec<_>>()
+    });
+
+    let src_line = u32::try_from(
+        MAIN[..MAIN
+            .find("proc helper {alpha beta}")
+            .expect("src proc present")]
+            .matches('\n')
+            .count(),
+    )
+    .expect("tiny");
+    let local_line = u32::try_from(
+        MAIN[..MAIN.find("proc helper {args}").expect("local proc present")]
+            .matches('\n')
+            .count(),
+    )
+    .expect("tiny");
+
+    assert!(
+        shadowed.contains(&src_line) && !shadowed.contains(&local_line),
+        "a live -force shadow retargets the rename to `::src::helper`: {shadowed:?}"
+    );
+    assert!(
+        unshadowed.contains(&local_line) && !unshadowed.contains(&src_line),
+        "with no covering export the local definition is renamed: {unshadowed:?}"
+    );
+}
+
+#[test]
+fn prepare_rename_offers_the_reached_definition() {
+    let (shadowed, unshadowed) = both_directions(|analysis, exports| {
+        tcl_lsp_core::rename::prepare_rename_in_program(
+            MAIN,
+            call_line(),
+            0,
+            analysis,
+            resolution(exports),
+        )
+        .map(|p| p.range.start_line)
+    });
+    let src_line = u32::try_from(
+        MAIN[..MAIN
+            .find("proc helper {alpha beta}")
+            .expect("src proc present")]
+            .matches('\n')
+            .count(),
+    )
+    .expect("tiny");
+    let local_line = u32::try_from(
+        MAIN[..MAIN.find("proc helper {args}").expect("local proc present")]
+            .matches('\n')
+            .count(),
+    )
+    .expect("tiny");
+    assert_eq!(shadowed, Some(src_line), "prepare follows the shadow");
+    assert_eq!(
+        unshadowed,
+        Some(local_line),
+        "prepare keeps the local when nothing is imported"
+    );
+}
