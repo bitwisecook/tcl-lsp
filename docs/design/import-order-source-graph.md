@@ -5,13 +5,14 @@ The load order shared by the whole wildcard-import gating family (#1104 item
 [`contracts/command-resolution.md`](contracts/command-resolution.md)'s import
 section).
 
-**Status: implemented.** `tcl_lsp_core::source_graph::RunOrder` is the
-relation §6 calls for; `WorkspaceIndex::run_order` builds it once per
+**Status: implemented, both halves.** `tcl_lsp_core::source_graph::RunOrder`
+is the relation §6 calls for; `WorkspaceIndex::run_order` builds it once per
 `generation()` from the host's resolver
-(`WorkspaceIndex::set_source_resolver`), and both wildcard-import tiers rank
-their events with it through the two shared decision functions. Sections 1–5
-below record the facts and the reasoning the design rests on; §6 is the shape
-that was built.
+(`WorkspaceIndex::set_source_resolver`) **and** from
+`WorkspaceIndex::package_run_edges`, and both wildcard-import tiers rank their
+events with it through the two shared decision functions. Sections 1–5 below
+record the facts and the reasoning the design rests on; §6 is the shape that
+was built and §7 is the `package require` half (issue #1279) that reuses it.
 
 ## 1. The abstention, and what lifted it
 
@@ -75,11 +76,14 @@ lexical `.`/`..` folding, no filesystem access).
 
 ### 2.2 `package require` / `package provide`
 
-- `WorkspacePackageRequire { uri, name }` — **no offset, no version**. It
-  says *that* a file requires a package, not *where*, so it cannot sequence
-  anything as it stands.
+- `WorkspacePackageRequire { uri, name }` — **no offset, no version**. It said
+  *that* a file requires a package, not *where*, so it could not sequence
+  anything. §7 added `at` / `enclosing_body` / `conditional` to it, the same
+  three facts `WorkspaceSource` carries.
 - `SignaturePackageProvide { name, version, range }` per document — the other
-  end of the edge, with an offset.
+  end of the edge, with an offset. §7 lifted it into the index as
+  `WorkspacePackageProvide`, and added `WorkspacePackageIfneeded` for the
+  registrations that make a package's loading non-static.
 - `SignatureAutoPathEntry { raw, range }` — `auto_path` mutations, one row per
   element, offsets included.
 - `tcl_lsp_core::package_resolver` + the autoload tier resolve a required
@@ -120,15 +124,16 @@ lexical `.`/`..` folding, no filesystem access).
    - a file reachable by **two** paths with different orders relative to the
      query point abstains — the order must be unique to be a fact.
 
-4. **`package require` sequencing (optional, second phase).** A
+4. **`package require` sequencing (second phase — built, §7).** A
    `package require` is an ordered statement too, and its package's files load
-   at that point. To use it, `WorkspacePackageRequire` needs the `at` /
+   at that point. To use it, `WorkspacePackageRequire` needed the `at` /
    `enclosing_body` pair `WorkspaceGlobImport` already carries, plus the
-   resolver's package→URI mapping recorded in the index rather than consulted
-   ad hoc. `package provide` gives the other end. This is strictly more
-   speculative than the `source` half: `auto_path` is mutable at runtime and
-   a package may already be loaded, so "the require ran here" does not imply
-   "the package's files ran here and not earlier".
+   package→URI mapping recorded in the index rather than consulted ad hoc.
+   `package provide` gives the other end. This is strictly more speculative
+   than the `source` half: `auto_path` is mutable at runtime and a package may
+   already be loaded, so "the require ran here" does not imply "the package's
+   files ran here and not earlier". §7 records what that costs and what
+   survives it.
 
 ## 4. Which abstentions it lifts
 
@@ -300,3 +305,149 @@ Two implementation notes on the abstentions:
   edge at all, and one the old one-`Option<u32>`-per-event encoding could not
   express because it collapsed "which file" and "where in it" into a single
   absent offset.
+
+## 7. The `package require` half (issue #1279)
+
+§4's measured reach was the reason to build this: over Tcl 9.0.4's `library/`,
+`samples/`, and the multi-file fixtures the `source` order changed **0**
+resolutions, because real Tcl writes `source [file join $tcl_library init.tcl]`
+and no static fold can place `$tcl_library`. Package-structured code writes its
+`source` statements the same way — inside a generated `pkgIndex.tcl`, against a
+`$dir` the package loader binds at run time — so the order it *does* have comes
+from `package`, not from `source`.
+
+### 7.1 The fact a `package require` establishes, and the one it does not
+
+A `package require NAME` that **returns** has left `NAME` loaded, so the
+providing file's statements have all run. That much is solid. What it does not
+establish is that they ran *at the require*: the require is a load event only
+for whichever require runs first, and every later one finds the package already
+provided, returns its version, and evaluates nothing.
+
+Oracle (byte-identical on tclsh 8.6.14 and 9.0.4). `a.tcl` and `b.tcl` hold the
+same two lines — an "is it loaded?" probe, then `package require mylib` — and a
+driver sources `a.tcl` and then `b.tcl`:
+
+```text
+  a.tcl: before its own require, is lib loaded? NO
+  lib.tcl body running
+  b.tcl: before its own require, is lib loaded? YES
+```
+
+Identical source text, opposite answers, decided by something neither file
+says.
+
+So the edge is **one-sided**: it places the provider at *at most* the require's
+offset. `RunEdgeKind::PackageRequire` carries that, `Placed::exact` records it
+through the projection, and `RunOrder::trusted` reads off the half of each
+comparison the bound survives — "`a` ran first" needs `b` pinned, "`a` did not
+run first" needs `a` pinned. Nothing else in the relation changes:
+`common_frame` is the same projection, `in_effect_within` still answers
+`has_run` and `namespace_import::load_order` still answers `cmp_run`, so the
+gate and the conflict rule cannot drift apart.
+
+Two consequences fall out rather than being coded:
+
+- **A provider required from twenty files is still ordered against all twenty.**
+  A `source` child entered twice is ambiguous (§6.2) because two `source`
+  statements each claim it ran *there*; twenty requires each only bound it, and
+  bounds compose. `RunOrder` keeps package edges out of the tree as
+  `package_entries` and substitutes a point by each require site that bounds its
+  tree.
+- **Two documents that a `package require` each brought in are ranked against
+  each other exactly as they were before: not at all.** Both sides are bounds,
+  and two bounds settle nothing.
+
+### 7.2 The three abstentions
+
+Each is stated the way §6's own are, and each is pinned by a test that fails
+when its gate is removed. The gates live on
+`WorkspaceIndex::package_run_edges`, except abstention 2, which is structural.
+
+| # | Uncertainty | What we do | Test |
+|---|---|---|---|
+| 1 | **`auto_path` is mutable.** A document's own `lappend auto_path` mutations are folded in for *resolution*, but they do not establish an order, and the path decides which copy of a package wins. | A package **two** indexed documents provide yields no edge at all. | `abstention_1_two_documents_providing_one_package_order_nothing` |
+| 2 | **A package may already be loaded**, in which case the require is not a load event. | The edge is a *bound*, not a position: "the provider has already run" is a fact from the require onwards; "the provider has not run yet" is never a fact. | `abstention_2_a_statement_above_the_require_stays_unordered` |
+| 3 | **`package ifneeded` bodies are arbitrary scripts**, so the mapping from require-site to the statements that run is not static. | A package this workspace registers a `package ifneeded` script for yields no edge. | `abstention_3_an_indexed_ifneeded_script_orders_nothing` |
+
+Oracles for 1 and 3, both byte-identical on 8.6.14 and 9.0.4:
+
+- *auto_path* — two directories each holding a `mylib2 1.0`, only one of which
+  exports `p`. `lappend auto_path pkgA pkgB` gives `::lib::p` → `from A` with
+  `p` exported; `pkgB pkgA` gives `from B` with nothing exported. Nothing in
+  either file says which.
+- *ifneeded* — one `pkgIndex.tcl` whose registered body branches on the
+  environment answers `::c::p` → `real` (with the provider's `namespace
+  export p` run) or → `stub` (with nothing exported), for the same
+  `package require`.
+
+Plus the gates the rest of the family already applies: a **conditional**
+require (`if {[catch {package require Tk}]}`) may never run, a **non-literal**
+name (`package require $pkg`) names nothing statically, and a document that
+requires the package it itself provides is a self-edge, which `RunOrder::build`
+discards. A document that is both `source`d **and** `package require`d is
+marked ambiguous — it would otherwise carry a tree position saying it ran
+exactly there beside a bound saying it had already run, and those can
+contradict.
+
+### 7.3 Measured reach
+
+Same method as §4: two indexes over the same documents, one with the
+package-derived edges and one without, diffing `resolve_wildcard_import` at
+every bare call site. Corpus: tcllib 2.0 `modules/` + `apps/` + `examples/`,
+Tcl 9.0.4 `library/`, and the repository's `samples/` + `tests/`.
+
+| | documents | `package require` sites | provable package edges | bare call sites | resolutions removed | added |
+|---|---|---|---|---|---|---|
+| every `.tcl`, `pkgIndex.tcl` included | 948 | 1 424 | 40 | 239 663 | 0 | 0 |
+| `pkgIndex.tcl` excluded | 805 | 1 419 | **697** | 237 136 | **122** | 0 |
+| tcllib `modules/` alone, `pkgIndex.tcl` excluded | 660 | 1 319 | 612 | 220 105 | 0 | 0 |
+
+Read honestly, that is three findings.
+
+**It moves numbers, where the `source` half moved none.** 697 provable edges
+against the `source` half's 3 resolvable statements, and 122 changed
+resolutions against 0.
+
+**Every change is a removal, and every removal is correct.** All 122 are the
+same shape: a bare call inside a *provider* file that used to resolve through a
+wildcard import written in some *consumer* file. The consumer requires the
+package and only then imports, so the provider's whole body — the call
+included — ran before the import existed. Oracle: inside the provider's own
+body, `info commands ::helper` is empty; after the importer's `namespace import
+::prov::*` it is not. 116 of them are calls in tcllib's
+`modules/math/bigfloat2.tcl` reached through `examples/math/bigfloat.demo.tcl`'s
+`namespace import ::math::bigfloat::*`, and 6 are calls in Tcl 9.0.4's
+`msgcat.tcl` reached through `modules/doctools2idx/msgcat_*.tcl`'s
+`namespace import ::msgcat::*`. Those call sites still resolve — through
+ordinary namespace resolution, which is what real Tcl uses there — they just no
+longer resolve through an import the program had not yet run.
+
+**Abstention 3 costs almost all of the reach on a checkout that indexes its
+package index files.** tcllib ships a `pkgIndex.tcl` per module, and each one
+registers a `package ifneeded` for the packages that module provides, so the
+gate fires on nearly every package: 697 edges become 40, and the measurable
+effect becomes 0. That is the abstention working as specified — the registered
+script is what actually runs, and `[list source [file join $dir base64.tcl]]`
+does not tell us statically that it runs `base64.tcl`.
+
+The identified way to lift it, deliberately **not** taken here, is to fold
+`$dir` inside a `pkgIndex.tcl`: the package loader binds it to the directory
+holding that file, which is a documented Tcl contract rather than a guess. That
+would give the *`source`* half those edges, not this one, and it is a separate
+piece of work — the prize is the 657-edge gap between the two rows above.
+
+### 7.4 What did **not** change
+
+The `source` half is untouched: its whole unit suite passes unmodified, and a
+workspace with no `package provide` in it builds byte-identically the same
+order. An index with no resolver installed now still derives package edges —
+the package half needs no filesystem knowledge, because a `package require
+NAME` names its provider through the index's own `package provide` records —
+so `without_a_resolver_the_same_workspace_keeps_abstaining` continues to hold
+for the `source`-graph shape it pins.
+
+The two negatives in §4's table stay negative. A load order says *when* a
+statement ran; `package require` widens the set of pairs it can say it for, and
+says nothing new about a statement in a file nobody indexed (#1116 item 1) or
+about a script aborting part-way (#1116 item 4).

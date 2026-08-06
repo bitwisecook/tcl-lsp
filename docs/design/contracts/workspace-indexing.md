@@ -74,8 +74,8 @@ item 1): a bare call written before its own `namespace import` reaches nothing
 (oracle: first call `invalid command name`, post-import call works), so an
 install that has not run at the query point does not count.
 
-Ordering is the **`source`-graph run order**
-(`tcl_lsp_core::source_graph::RunOrder`, issue #1104 item 3).  A byte offset in
+Ordering is the **workspace run order**
+(`tcl_lsp_core::source_graph::RunOrder`, issues #1104 item 3 and #1279).  A byte offset in
 the importing file and one in the calling file are unrelated numbers —
 comparing them let a `namespace forget` in the caller revoke a cross-file
 import purely because its local offset happened to be larger (issue #1116
@@ -88,6 +88,19 @@ single-document rule applies.  The index builds the order once per
 `generation()` from the host's resolver (`WorkspaceIndex::set_source_resolver`;
 the index holds no URI ↔ path mapping of its own) over **literal** `source`
 targets only.
+
+A **`package require`** contributes a second kind of edge
+(`WorkspaceIndex::package_run_edges`, issue #1279), and needs no resolver: it
+names its provider through the index's own `package provide` records.  Its
+edge is *one-sided* — a require that returns has left the package loaded, but
+a require of an already-loaded package evaluates nothing, so it bounds the
+provider's position from above rather than pinning it.  `RunEdgeKind` carries
+that through the same projection and `RunOrder::trusted` reads off the half of
+each comparison the bound survives: "the provider has already run" is a fact
+from the require onwards, "it has not run yet" never is.  No edge at all for a
+package two indexed documents provide (`auto_path` order decides which wins),
+for one this workspace registers a `package ifneeded` script for (the script
+is what runs), or for a conditional or non-literal require.
 
 The relation answers `None` — incomparable — for two documents in different
 trees, for a file reachable from two different `source` sites or on a cycle

@@ -240,12 +240,15 @@ not change the rule, and must not grow bespoke resolution logic. Every
   `in_effect` / `in_effect_within` order rule as the export snapshot, and it
   gates the **exact**-import link the same way it gates a glob lookup.
   Byte offsets order events only *within* one document, so a cross-file event
-  — an install as much as a removal — is ordered only where the **`source`
-  graph proves an order** (`tcl_lsp_core::source_graph::RunOrder`, issue #1104
-  item 3): sourcing a file inlines its whole body at the `source` statement's
-  position, so the DFS of the `source` forest is the run order and two events
-  in one tree reduce to positions in their deepest common document, where the
-  ordinary single-document rule applies. An export sourced *before* an import
+  — an install as much as a removal — is ordered only where the workspace
+  **proves an order** (`tcl_lsp_core::source_graph::RunOrder`, issues #1104
+  item 3 and #1279): sourcing a file inlines its whole body at the `source`
+  statement's position, so the DFS of the `source` forest is the run order and
+  two events in one tree reduce to positions in their deepest common document,
+  where the ordinary single-document rule applies.  A `package require`
+  additionally proves that the file `package provide`ing that package has
+  *already* run — one-sidedly, since a require of an already-loaded package
+  evaluates nothing, so it never proves the provider has not run yet. An export sourced *before* an import
   counts; one sourced *after* it is not retroactive; a `namespace forget`
   written beside a `source` revokes what that `source` installed (pinned, both
   tiers and end-to-end). Everywhere else the order abstains — different trees,

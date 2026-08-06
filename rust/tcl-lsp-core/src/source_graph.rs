@@ -453,7 +453,7 @@ impl RunOrder {
             let entry = Placed {
                 at: edge.at,
                 enclosing_body: edge.enclosing_body,
-                exact: true,
+                exact: edge.kind.is_exact(),
             };
             if edge.parent == edge.child {
                 ambiguous.insert(edge.child.clone());
@@ -553,20 +553,11 @@ impl RunOrder {
     /// whole file loads before any body runs.
     #[must_use]
     pub fn has_run(&self, event: RunPoint<'_>, query: RunPoint<'_>) -> Option<bool> {
-        let mut answer = None;
-        for (e, q) in self.common_frames(event, query) {
+        self.decide(event, query, |e, q| {
             let ran =
                 tcl_compiler::analyser::indirection::in_effect_within(e.at, q.at, q.enclosing_body);
-            if Self::trusted(ran, e, q) {
-                // A `true` from any one bound settles it — see
-                // `common_frames` on why the frames cannot disagree.
-                if ran {
-                    return Some(true);
-                }
-                answer = Some(false);
-            }
-        }
-        answer
+            Self::trusted(ran, e, q).then_some(ran)
+        })
     }
 
     /// Which of two statements ran first under the **strict** "did this
@@ -582,8 +573,7 @@ impl RunOrder {
     pub fn cmp_run(&self, a: RunPoint<'_>, b: RunPoint<'_>) -> Option<std::cmp::Ordering> {
         use crate::namespace_import::load_order;
         use std::cmp::Ordering;
-        let mut answer = None;
-        for (pa, pb) in self.common_frames(a, b) {
+        self.decide(a, b, |pa, pb| {
             let ord = load_order(pa.at, pa.enclosing_body.is_some())
                 .cmp(&load_order(pb.at, pb.enclosing_body.is_some()));
             let usable = match ord {
@@ -591,14 +581,8 @@ impl RunOrder {
                 Ordering::Equal => pa.exact && pb.exact,
                 other => Self::trusted(other == Ordering::Less, pa, pb),
             };
-            if usable {
-                if ord == Ordering::Less {
-                    return Some(ord);
-                }
-                answer = Some(ord);
-            }
-        }
-        answer
+            usable.then_some(ord)
+        })
     }
 
     /// Whether a comparison that came out as `a_first` is a **fact** given how
@@ -622,11 +606,14 @@ impl RunOrder {
         if a_first { b.exact } else { a.exact }
     }
 
-    /// Every way the two points can be placed in one document, best first.
+    /// Put the two points in one document and let `judge` read the pair, over
+    /// every placement that could settle the question — the shared body of
+    /// [`Self::has_run`] and [`Self::cmp_run`], so both see the same
+    /// placements and can only differ in the rule they apply to them.
     ///
     /// The **direct** frame — both points lifted onto the `source` forest and
     /// met at their deepest common document — is the whole answer whenever it
-    /// exists, and it is exact on both sides.  It is also the only frame
+    /// exists, and it is exact on both sides.  It is also the only placement
     /// considered then: a document reachable directly is not also reached
     /// through a `package require` bound (`build` marks such a document
     /// ambiguous), so there is nothing to disagree with.
@@ -635,30 +622,43 @@ impl RunOrder {
     /// is **substituted** by each require site that loads it: the site is a
     /// position by which that whole tree had certainly run, so it stands in for
     /// the point with [`Placed::exact`] cleared.  Only one side is ever
-    /// substituted — two bounded sides can settle nothing anyway, and two trees
-    /// that each require the other would let one frame's `Less` sit beside
-    /// another frame's `Greater`.
-    fn common_frames(&self, a: RunPoint<'_>, b: RunPoint<'_>) -> Vec<(Placed, Placed)> {
-        if let Some(direct) = self.common_frame(a, b) {
-            return vec![direct];
+    /// substituted — two bounded sides can settle nothing anyway
+    /// ([`Self::trusted`]), and two trees that each require the other would let
+    /// one placement's `Less` sit beside another's `Greater`.
+    ///
+    /// The first placement `judge` accepts wins, and that is not a shortcut:
+    /// with one side bounded, `trusted` admits exactly one of the two answers,
+    /// so no two placements can accept opposite ones.
+    fn decide<T>(
+        &self,
+        a: RunPoint<'_>,
+        b: RunPoint<'_>,
+        judge: impl Fn(Placed, Placed) -> Option<T>,
+    ) -> Option<T> {
+        if let Some((x, y)) = self.common_frame(a, b) {
+            return judge(x, y);
         }
         let a_alts = self.alternatives(a);
         let b_alts = self.alternatives(b);
         if !a_alts.is_empty() && !b_alts.is_empty() {
-            return Vec::new();
+            return None;
         }
         let blur = |p: Placed| Placed { exact: false, ..p };
-        a_alts
-            .iter()
-            .filter_map(|site| {
-                self.common_frame(site.as_point(), b)
-                    .map(|(x, y)| (blur(x), y))
-            })
-            .chain(b_alts.iter().filter_map(|site| {
-                self.common_frame(a, site.as_point())
-                    .map(|(x, y)| (x, blur(y)))
-            }))
-            .collect()
+        for site in a_alts {
+            if let Some((x, y)) = self.common_frame(site.as_point(), b)
+                && let Some(answer) = judge(blur(x), y)
+            {
+                return Some(answer);
+            }
+        }
+        for site in b_alts {
+            if let Some((x, y)) = self.common_frame(a, site.as_point())
+                && let Some(answer) = judge(x, blur(y))
+            {
+                return Some(answer);
+            }
+        }
+        None
     }
 
     /// The `package require` sites that load the tree `p` sits in, if the
@@ -668,7 +668,9 @@ impl RunOrder {
     /// runs when the provider does, so it is bounded by the same require
     /// sites.
     fn alternatives(&self, p: RunPoint<'_>) -> &[OwnedRunPoint] {
-        if self.ambiguous.contains(p.uri) {
+        // The overwhelmingly common shape: no package edge anywhere, so the
+        // fallback costs nothing at all beyond this test.
+        if self.package_entries.is_empty() || self.ambiguous.contains(p.uri) {
             return &[];
         }
         let root = self.root_of.get(p.uri).map_or(p.uri, String::as_str);
