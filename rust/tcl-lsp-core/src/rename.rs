@@ -3933,7 +3933,16 @@ mod tests {
                 err.reason
             );
             assert!(
-                rename(IDX79_HAZARD, "tcl8.6", line, character, "GetX", &analysis, None).is_empty(),
+                rename(
+                    IDX79_HAZARD,
+                    "tcl8.6",
+                    line,
+                    character,
+                    "GetX",
+                    &analysis,
+                    None
+                )
+                .is_empty(),
                 "{what} must never yield a partial edit set"
             );
         }
@@ -3952,9 +3961,10 @@ mod tests {
             (3, 11, "the `export X Get` bareword"),
             (6, 9, "the tracked `[$v X]` call site"),
         ] {
-            let edits =
-                rename_with_diagnosis(IDX79_SAFE, "tcl8.6", line, character, "GetX", &analysis, None)
-                    .unwrap_or_else(|err| panic!("{what} must not refuse: {}", err.reason));
+            let edits = rename_with_diagnosis(
+                IDX79_SAFE, "tcl8.6", line, character, "GetX", &analysis, None,
+            )
+            .unwrap_or_else(|err| panic!("{what} must not refuse: {}", err.reason));
             let applied = apply_edits(IDX79_SAFE, &edits);
             assert!(
                 applied.contains("method GetX {}"),
