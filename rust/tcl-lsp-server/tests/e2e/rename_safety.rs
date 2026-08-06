@@ -383,6 +383,39 @@ fn fp_namespace_variable_rename_refuses_beside_a_computed_variable_name() {
     );
 }
 
+// TN (issue #1093): the refusal is **per site**.  A dynamic variable name
+// written under a *different*, statically-spelled namespace cannot name a
+// cell in `::mypkg`, so it must not block the rename — the previous gate
+// refused on any dynamic variable word anywhere in a touched document.
+//
+// tclsh-proof (8.6.14): `namespace eval ::ns {variable v 1}; namespace eval
+// ::other {}; set n {::ns::v}; set ::other::$n 99` fails with `can't set
+// "::other::::ns::v": parent namespace doesn't exist` — the substituted value
+// lands *under* the written prefix, so no value of `$n` can reach `::ns::v`.
+#[test]
+fn tn_namespace_variable_rename_ignores_a_dynamic_name_under_another_namespace() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(
+        &decl,
+        "namespace eval mypkg {\n\
+         \x20   variable version 1\n\
+         }\n\
+         namespace eval other {\n\
+         \x20   proc bump {n} { set ::other::$n 2 }\n\
+         }\n",
+    );
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "puts $::mypkg::version\n");
+
+    let result = lsp.rename(&user, 0, 20, "release");
+    let edits = rename_edits(&result);
+    assert!(
+        edits.contains_key(&decl) && edits.contains_key(&user),
+        "an out-of-namespace dynamic name must not refuse the rename: {edits:?}",
+    );
+}
+
 // -- Codex review of PR #1091: fan-out coverage -------------------------
 
 // FP guard (finding 1, issue #1092): the hazard lives in a **pure-consumer**
