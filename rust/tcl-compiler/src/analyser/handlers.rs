@@ -42,7 +42,7 @@ use crate::segmenter::SegmentedCommand;
 use crate::signature_scan::types::SignatureCommandAlias;
 
 use super::state::Analyser;
-use super::types::{DefinedSymbol, ProcDef};
+use super::types::{ClassDef, ClassFactory, DefinedSymbol, FactoryMember, FactoryWord, ProcDef};
 use super::utils::{param_name_spans_for_token, parse_param_list};
 
 /// The three per-proc facts [`Analyser::infer_proc_param_traits`] derives from
@@ -238,8 +238,10 @@ fn summarise_detail(description: &str) -> String {
 ///
 /// See [`Analyser::user_metaclass_of_command`].
 struct UserMetaclass {
-    /// Fully-qualified name of the factory class.
-    qualified: String,
+    /// The registry metaclass command at the root of the chain
+    /// (`oo::class`), whose definition-body grammar governs the bodies this
+    /// factory makes.
+    root_command: String,
     /// The root registry metaclass's definition-body grammar.
     grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
 }
@@ -462,26 +464,19 @@ fn matching_bracket(text: &str) -> Option<usize> {
     None
 }
 
-/// Resolve one prologue member statement from a manufacturer override into
-/// the member the creation call actually installs.
+/// Read one prologue member statement from a manufacturer override into the
+/// **call-site-independent template** the factory publishes.
 ///
-/// A literal word is kept with its own token (it lives in the
-/// manufacturer's body, which is where the reference genuinely is written).
-/// A `{*}$param` word splices the creation call's corresponding argument,
-/// whose literal list elements carry call-site tokens.  Anything else —
-/// a substitution with no statically-known value, or a `{*}` over one —
-/// yields `None`, and the caller abstains rather than inventing a
-/// superclass list.
-fn resolve_injected_member(
-    seg: &SegmentedCommand,
-    params: &[&str],
-    args: &[String],
-    arg_tokens: &[Token],
-) -> Option<InjectedMember> {
+/// A literal word is kept with its own token (it lives in the manufacturer's
+/// body, which is where the reference genuinely is written).  A `{*}$param`
+/// word becomes a [`FactoryWord::CallerSplice`] of the creation call's
+/// corresponding argument, resolved per call.  Anything else — a substitution
+/// with no statically-known value, or a `{*}` over one — yields `None`, and
+/// the caller abstains rather than inventing a superclass list.
+fn template_injected_member(seg: &SegmentedCommand, params: &[&str]) -> Option<FactoryMember> {
     let texts_in = seg.args();
     let tokens_in = seg.arg_tokens();
-    let mut member_words: Vec<String> = Vec::new();
-    let mut member_tokens: Vec<Token> = Vec::new();
+    let mut words: Vec<FactoryWord> = Vec::new();
     for (i, (text, tok)) in texts_in.iter().zip(tokens_in.iter()).enumerate() {
         let expanded = seg
             .expand_word
@@ -493,25 +488,85 @@ fn resolve_injected_member(
             let [name] = refs.as_slice() else {
                 return None;
             };
+            // Parameter `i` of the override binds argument `i + 1` of the
+            // call (argument 0 being the manufacturer subcommand itself).
             let arg_index = params.iter().position(|p| p == name)? + 1;
-            let call_tok = *arg_tokens.get(arg_index)?;
-            let call_text = args.get(arg_index)?;
-            for (element, element_tok) in literal_list_words(call_text, call_tok)? {
-                member_words.push(element);
-                member_tokens.push(element_tok);
-            }
+            words.push(FactoryWord::CallerSplice(arg_index));
             continue;
         }
         if crate::naming::is_dynamic_word(text) {
             return None;
         }
-        member_words.push(text.clone());
-        member_tokens.push(*tok);
+        words.push(FactoryWord::Literal {
+            text: text.clone(),
+            token: *tok,
+        });
     }
-    Some(InjectedMember {
-        texts: member_words,
-        argv: member_tokens,
-    })
+    Some(FactoryMember { words })
+}
+
+/// Resolve one injected-member template against the creation call that
+/// triggered it.
+///
+/// The literal words keep the tokens they were templated with; a
+/// [`FactoryWord::CallerSplice`] contributes the call argument's literal list
+/// elements, each with its own call-site token.  `None` when this call's
+/// argument is not a statically-known list — the caller then marks the
+/// class's inheritance unknown rather than claiming an injection it cannot
+/// spell.
+fn resolve_factory_member(
+    member: &FactoryMember,
+    args: &[String],
+    arg_tokens: &[Token],
+) -> Option<InjectedMember> {
+    let mut texts: Vec<String> = Vec::new();
+    let mut argv: Vec<Token> = Vec::new();
+    for word in &member.words {
+        match word {
+            FactoryWord::Literal { text, token } => {
+                texts.push(text.clone());
+                argv.push(*token);
+            }
+            FactoryWord::CallerSplice(arg_index) => {
+                let call_tok = *arg_tokens.get(*arg_index)?;
+                let call_text = args.get(*arg_index)?;
+                for (element, element_tok) in literal_list_words(call_text, call_tok)? {
+                    texts.push(element);
+                    argv.push(element_tok);
+                }
+            }
+        }
+    }
+    Some(InjectedMember { texts, argv })
+}
+
+/// The word layout a class factory's `args[0]` manufacturer imposes on this
+/// creation call, with its injected members resolved against the call's own
+/// arguments.
+///
+/// A subcommand the factory does not override runs the inherited `oo::class`
+/// manufacturer, so the builtin `create Name Body` layout applies with
+/// nothing injected.
+fn manufacturer_layout(
+    factory: &ClassFactory,
+    args: &[String],
+    arg_tokens: &[Token],
+) -> ManufacturerLayout {
+    let Some(spec) = factory.overrides.get(&args[0]) else {
+        return ManufacturerLayout::builtin();
+    };
+    let injected = spec.injected.as_ref().and_then(|members| {
+        members
+            .iter()
+            .map(|m| resolve_factory_member(m, args, arg_tokens))
+            .collect::<Option<Vec<_>>>()
+    });
+    ManufacturerLayout {
+        name_arg: spec.name_arg,
+        body_arg: spec.body_arg,
+        inheritance_unknown: injected.is_none(),
+        injected: injected.unwrap_or_default(),
+    }
 }
 
 /// Bundled arguments for [`Analyser::walk_proc_body_in_new_scope`] — kept
@@ -5343,42 +5398,48 @@ impl Analyser {
             .and_then(|s| s.definition_body)
     }
 
-    /// The word layout of `Meta create …` plus whatever members the
-    /// manufacturer injects into every class it makes.
+    /// The [`ClassFactory`] `class` publishes, when `class` is itself a
+    /// `TclOO` class factory — a class whose superclass chain reaches a
+    /// registry metaclass.
     ///
-    /// A user metaclass that does not override the manufacturer inherits
-    /// `oo::class`'s own `create Name Body` shape, so the builtin layout
-    /// applies unchanged.  One that *does* override it declares its own
-    /// shape in the override's parameter list, and that override is read
-    /// here rather than guessed: Tk's `self method create {name superclasses
-    /// body}` puts the body at argument 3, not 2, and splices a superclass
-    /// the caller never wrote (issue #923 idx 96/97).
-    fn manufacturer_layout(
-        &self,
-        meta: &UserMetaclass,
-        args: &[String],
-        arg_tokens: &[Token],
-    ) -> ManufacturerLayout {
-        // `args[0]` is the manufacturer subcommand this call actually used,
-        // so the override looked up is the one that will run.
-        let override_def = self
-            .result
-            .all_classes
-            .get(&meta.qualified)
-            .and_then(|class| class.class_methods.get(&args[0]));
-        let Some(override_def) = override_def else {
-            return ManufacturerLayout::builtin();
-        };
-        let positions = self.manufacturer_word_positions(override_def);
-        let (name_arg, body_arg) = positions.unwrap_or((1, 2));
-        let injected = positions
-            .and_then(|_| self.manufacturer_injected_members(meta, override_def, args, arg_tokens));
-        ManufacturerLayout {
-            name_arg,
-            body_arg,
-            inheritance_unknown: injected.is_none(),
-            injected: injected.unwrap_or_default(),
-        }
+    /// Derived **once, where the metaclass is written**, so every consumer
+    /// (this file's own `Meta create …` calls and, through the workspace
+    /// factory index, another file's) classifies a creation call from the
+    /// same proved fact instead of re-deriving it — or, cross-file,
+    /// abstaining for want of it (issue #1276).
+    ///
+    /// A user metaclass that does not override a manufacturer subcommand
+    /// inherits `oo::class`'s own `create Name Body` shape, so that
+    /// subcommand simply has no entry and the builtin layout applies.  One
+    /// that *does* override it declares its own shape in the override's
+    /// parameter list, and that override is read rather than guessed: Tk's
+    /// `self method create {name superclasses body}` puts the body at
+    /// argument 3, not 2, and splices a superclass the caller never wrote
+    /// (issue #923 idx 96/97).
+    fn class_factory_of(&self, qualified: &str, class: &ClassDef) -> Option<ClassFactory> {
+        let meta = self.user_metaclass_of_class(qualified, class)?;
+        let overrides = class
+            .class_methods
+            .iter()
+            .map(|(subcommand, override_def)| {
+                let positions = self.manufacturer_word_positions(override_def);
+                let (name_arg, body_arg) = positions.unwrap_or((1, 2));
+                let injected = positions
+                    .and_then(|_| self.manufacturer_injected_template(&meta, override_def));
+                (
+                    subcommand.clone(),
+                    super::types::ManufacturerSpec {
+                        name_arg,
+                        body_arg,
+                        injected,
+                    },
+                )
+            })
+            .collect();
+        Some(ClassFactory {
+            root_metaclass: meta.root_command,
+            overrides,
+        })
     }
 
     /// Which of the creation call's argument words carry the new class's
@@ -5446,7 +5507,7 @@ impl Analyser {
     }
 
     /// The definition-body members the manufacturer splices into every class
-    /// it makes, resolved against *this* call's arguments.
+    /// it makes, as a template over the creation call's arguments.
     ///
     /// Tk's `Megawidget` hands `next` a `[list superclass ::tk::MegawidgetClass
     /// {*}$superclasses]` prologue, so every class it makes really does
@@ -5456,8 +5517,9 @@ impl Analyser {
     /// `mixin`, `filter`, `export`, … — the grammar's `all_args_ref` set)
     /// are injected: they name existing entities, so every injected word
     /// keeps a real source span, either in the manufacturer's own body
-    /// (a literal it always splices) or in this call's arguments (a
-    /// `{*}$param` splice).
+    /// (a literal it always splices) or in the call's arguments (a
+    /// `{*}$param` splice, resolved per call by
+    /// [`resolve_factory_member`]).
     ///
     /// **Reading the whole prologue is a precondition, not a best effort.**
     /// The definition word `next` receives is scanned piece by piece, and
@@ -5473,13 +5535,11 @@ impl Analyser {
     /// *known-empty* injection for a prologue that was merely unreadable
     /// would claim the class has no superclass and let W308 fire on
     /// perfectly good inherited methods.
-    fn manufacturer_injected_members(
+    fn manufacturer_injected_template(
         &self,
         meta: &UserMetaclass,
         override_def: &super::types::MethodDef,
-        args: &[String],
-        arg_tokens: &[Token],
-    ) -> Option<Vec<InjectedMember>> {
+    ) -> Option<Vec<FactoryMember>> {
         let params: Vec<&str> = override_def
             .params
             .iter()
@@ -5504,7 +5564,7 @@ impl Analyser {
             .all_tokens
             .iter()
             .filter(|tok| tok.kind == TokenType::Cmd && tok.span.start() >= word_start);
-        let mut injected: Vec<InjectedMember> = Vec::new();
+        let mut injected: Vec<FactoryMember> = Vec::new();
         for piece in prologue_pieces(prologue) {
             match piece {
                 ProloguePiece::Separator => {}
@@ -5514,8 +5574,6 @@ impl Analyser {
                         meta,
                         *groups.next()?,
                         &params,
-                        args,
-                        arg_tokens,
                     )?);
                 }
                 // Literal prologue text, a read of something that is not a
@@ -5535,9 +5593,7 @@ impl Analyser {
         meta: &UserMetaclass,
         group: Token,
         params: &[&str],
-        args: &[String],
-        arg_tokens: &[Token],
-    ) -> Option<InjectedMember> {
+    ) -> Option<FactoryMember> {
         let registry = self.registry.as_ref()?;
         let sm = SourceMap::new(&self.source);
         let descended = descend_token(&sm, group, self.lexer_config());
@@ -5562,10 +5618,80 @@ impl Analyser {
             .first()
             .and_then(|keyword| meta.grammar.member(keyword))?;
         member.all_args_ref?;
-        resolve_injected_member(&seg, params, args, arg_tokens)
+        template_injected_member(&seg, params)
     }
 
-    /// The recorded class `cmd_name` names when that class is **itself a
+    /// The [`ClassFactory`] the command `cmd_name` names, when that command
+    /// is a user-defined `TclOO` metaclass — this file's own, else one the
+    /// **workspace factory index** proves is written in another document
+    /// (issue #1276).
+    ///
+    /// The cross-document tier is what closes the audit's multi-file half:
+    /// `::tk::Megawidget create IconList FocusableWidget {…}` in a file that
+    /// never mentions `::tk::Megawidget`'s definition is, on shape alone,
+    /// indistinguishable from `interp create` or `image create`, so the walk
+    /// used to record nothing at all.  With the index it is classified from
+    /// the metaclass's *own* declaration — its `create` override's parameter
+    /// list and prologue — exactly as the same-file case is.
+    ///
+    /// The abstention it narrows is **kept everywhere it was earned**:
+    ///
+    /// * a dynamic command word (`$meta create …`) names nothing statically
+    ///   and is rejected before any lookup;
+    /// * the name is resolved through Tcl's real current-namespace-then-global
+    ///   candidate order ([`crate::naming::bareword_resolution_candidates`]),
+    ///   and only an **exact** candidate hit counts — a same-tailed metaclass
+    ///   in an unrelated namespace never manufactures a class here, the same
+    ///   discipline [`super::class_hierarchy::resolve_class_name`] applies
+    ///   same-file;
+    /// * with no index entry, nothing is recorded and nothing is diagnosed,
+    ///   byte-for-byte as before.
+    ///
+    /// A cross-document factory's injected literals carry tokens that index
+    /// the *metaclass's* document, so they are re-homed onto a token of this
+    /// call ([`ClassFactory::resolve_in_other_document`]) — and an injection
+    /// whose member word actually reads those tokens (a `retraction` member,
+    /// registry data) collapses to "inheritance unknown" rather than being
+    /// applied against a substituted span.
+    fn class_factory_for_command(
+        &self,
+        cmd_name: &str,
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> Option<ClassFactory> {
+        if crate::naming::is_dynamic_word(cmd_name) {
+            return None;
+        }
+        let namespace = self.command_resolution_namespace(scope_path);
+        let candidates = crate::naming::bareword_resolution_candidates(&namespace, cmd_name);
+        // This file first: a locally-written metaclass shadows a workspace one
+        // under the same name, exactly as a local proc shadows a workspace
+        // proc for command resolution.
+        for candidate in &candidates {
+            if let Some(class) = self.result.all_classes.get(candidate) {
+                return class.factory.clone();
+            }
+        }
+        let index = self.workspace_class_factories.as_ref()?;
+        let foreign = candidates
+            .iter()
+            .find_map(|candidate| index.get(candidate))?;
+        // Tokens in the foreign factory index the metaclass's document. The
+        // creation call's own subcommand word (`create`) is the nearest real
+        // token in *this* document that the injected member genuinely came
+        // with, and it is guaranteed present — the caller has already checked
+        // `arg_tokens.len() >= 2`.
+        let elsewhere = *arg_tokens.first()?;
+        let grammar = self.definition_grammar(&foreign.root_metaclass)?;
+        Some(foreign.resolve_in_other_document(elsewhere, &|keyword| {
+            grammar
+                .member(keyword)
+                .is_some_and(|m| m.retraction.is_some())
+        }))
+    }
+
+    /// The registry metaclass at the root of `seed`'s superclass chain, when
+    /// `seed` (recorded, or being recorded, under `qualified`) is **itself a
     /// class factory** — a user-defined `TclOO` metaclass.
     ///
     /// A class is a factory when its (possibly indirect) superclass chain
@@ -5594,26 +5720,31 @@ impl Analyser {
     /// Chain walking is depth-bounded and visited-checked, so a cyclic
     /// `superclass` declaration (rejected by real Tcl, but writable in a
     /// half-edited buffer) terminates.
-    fn user_metaclass_of_command(
-        &self,
-        cmd_name: &str,
-        scope_path: &[usize],
-    ) -> Option<UserMetaclass> {
+    fn user_metaclass_of_class(&self, qualified: &str, seed: &ClassDef) -> Option<UserMetaclass> {
         let registry = self.registry.as_ref()?;
-        let qualified = self.resolve_command_qualified_name(cmd_name, scope_path);
-        if !self.result.all_classes.contains_key(&qualified) {
-            return None;
-        }
-        let tail_index = super::class_hierarchy::build_tail_index(self.result.all_classes.keys());
+        let seed_key = qualified.to_string();
+        let tail_index = super::class_hierarchy::build_tail_index(
+            self.result
+                .all_classes
+                .keys()
+                .chain(std::iter::once(&seed_key)),
+        );
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-        let mut queue: Vec<String> = vec![qualified.clone()];
+        let mut queue: Vec<String> = vec![seed_key.clone()];
         // Bounded by the recorded class count — every class is visited once.
         while let Some(class_qname) = queue.pop() {
             if !seen.insert(class_qname.clone()) {
                 continue;
             }
-            let Some(class) = self.result.all_classes.get(&class_qname) else {
-                continue;
+            // The seed is the class being recorded, which is not in
+            // `all_classes` until the walk that is asking finishes.
+            let class = if class_qname == qualified {
+                seed
+            } else {
+                let Some(class) = self.result.all_classes.get(&class_qname) else {
+                    continue;
+                };
+                class
             };
             for parent in &class.superclasses {
                 // The registry seed: `oo::class` and its siblings are named
@@ -5624,12 +5755,17 @@ impl Analyser {
                     && let Some(grammar) = spec.definition_body
                     && grammar.family == tcl_registry::definer::DefinerFamily::TclOo
                 {
-                    return Some(UserMetaclass { qualified, grammar });
+                    return Some(UserMetaclass {
+                        root_command: bare.to_string(),
+                        grammar,
+                    });
                 }
                 if let Some(next) = super::class_hierarchy::resolve_class_name(
                     parent,
                     &class_qname,
-                    |candidate| self.result.all_classes.contains_key(candidate),
+                    |candidate| {
+                        candidate == qualified || self.result.all_classes.contains_key(candidate)
+                    },
                     &tail_index,
                 ) {
                     queue.push(next);
@@ -5736,12 +5872,20 @@ impl Analyser {
         // propagates down the recorded superclass chain — the *seed* is still
         // registry data (`IS_OO_METACLASS`), only the inheritance step is
         // `TclOO` language semantics.
-        let user_metaclass = if registry_definer {
+        //
+        // The factory description is read off the metaclass's own recorded
+        // `ClassDef` — this file's, or, when the metaclass is written in
+        // another document, the workspace factory index the host supplied
+        // (issue #1276).  Either way it is a fact *proved where the metaclass
+        // was written*, never one inferred from this call's shape: with no
+        // such record `X create Name Supers Body` stays indistinguishable
+        // from `interp create` and the walk abstains, as before.
+        let user_factory = if registry_definer {
             None
         } else {
-            self.user_metaclass_of_command(cmd_name, scope_path)
+            self.class_factory_for_command(cmd_name, arg_tokens, scope_path)
         };
-        if !registry_definer && user_metaclass.is_none() {
+        if !registry_definer && user_factory.is_none() {
             return false;
         }
         // Where the name and body words sit, and what the manufacturer
@@ -5750,9 +5894,9 @@ impl Analyser {
         // *overrides* the manufacturer (`self method create {name superclasses
         // body} { next $name [list superclass Base {*}$superclasses];$body }`)
         // declares its own, read off the override.
-        let layout = match user_metaclass.as_ref() {
+        let layout = match user_factory.as_ref() {
             None => ManufacturerLayout::builtin(),
-            Some(meta) => self.manufacturer_layout(meta, args, arg_tokens),
+            Some(factory) => manufacturer_layout(factory, args, arg_tokens),
         };
         if layout.name_arg >= args.len() || layout.name_arg >= arg_tokens.len() {
             return false;
@@ -5786,9 +5930,10 @@ impl Analyser {
         // governed by the definition grammar of the registry metaclass at the
         // root of its superclass chain — the same `TclOO` grammar, reached
         // without naming it here.
-        let grammar = user_metaclass
-            .as_ref()
-            .map_or_else(|| self.definition_grammar(cmd_name), |m| Some(m.grammar));
+        let grammar = user_factory.as_ref().map_or_else(
+            || self.definition_grammar(cmd_name),
+            |factory| self.definition_grammar(&factory.root_metaclass),
+        );
         // Members the manufacturer itself injects (Tk's `Megawidget` splices
         // `superclass ::tk::MegawidgetClass` plus whatever the caller passed)
         // are applied through the *same* registry-grammar routing as a member
@@ -5821,6 +5966,12 @@ impl Analyser {
         // #1120). Drained here, after the whole body walk, so a class extended
         // by several `oo::define` blocks reports each block's own aborts once.
         self.emit_w315_definition_cannot_run(&mut class);
+        // Is the class we just recorded *itself* a class factory?  Answered
+        // here, once, so every later `ThisClass create …` — in this file or,
+        // via the workspace factory index, in another — reads a derived fact
+        // instead of re-walking the superclass chain and re-segmenting the
+        // manufacturer override per call site (issue #1276).
+        class.factory = self.class_factory_of(&qualified, &class);
         // Register globally and in the current scope, the same as
         // the proc registration path: ``result.all_classes`` is keyed
         // by the fully-qualified name; the per-scope
@@ -6031,6 +6182,11 @@ impl Analyser {
         // aborts are dropped rather than reported: a class created in another
         // file leaves this record with no member tables to judge against.
         self.emit_w315_definition_cannot_run(&mut class_def);
+        // `oo::define C { superclass oo::class }` turns an ordinary class into
+        // a factory, and `self method create …` changes the shape of the
+        // classes it makes, so the derived factory record is recomputed here
+        // exactly as it is on the creation path (issue #1276).
+        class_def.factory = self.class_factory_of(&qualified, &class_def);
         // Same dual-registration as ``oo::class create`` — keep
         // ``all_classes`` and the per-scope ``scope.classes`` in
         // sync.  ``oo::define`` may be redefining an existing

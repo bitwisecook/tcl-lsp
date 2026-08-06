@@ -774,6 +774,19 @@ pub struct Analyser {
     /// class (e.g. method-existence checks) are unaffected — only the opt-in
     /// cross-file re-analysis populates it.
     pub workspace_classes: std::collections::HashSet<String>,
+    /// Class **factories** — user-defined `TclOO` metaclasses — declared
+    /// elsewhere in the workspace, keyed by fully-qualified name.
+    ///
+    /// The per-file walk cannot tell `::tk::Megawidget create IconList
+    /// FocusableWidget {…}` from `interp create` without knowing that
+    /// `::tk::Megawidget` is a metaclass, so with no index it abstains and
+    /// records nothing (issue #1276).  Each entry is the factory description
+    /// the metaclass's *own* document derived
+    /// ([`super::types::ClassDef::factory`]), so the consuming walk classifies
+    /// the call from a proved fact rather than its shape.  `None` — the
+    /// default, and every single-file analysis — keeps the abstention exactly
+    /// as it was.
+    pub workspace_class_factories: Option<std::sync::Arc<super::types::ClassFactoryIndex>>,
     /// When `true` (the per-item shell walk), `handle_proc_command` / OO method
     /// walks record their body for separate analysis (`deferred_bodies`) instead
     /// of recursing into it immediately.  Set only for the shell pass; the
@@ -1138,6 +1151,7 @@ impl Analyser {
             non_ascii_mode: NonAsciiMode::Default,
             structure_only: false,
             workspace_classes: std::collections::HashSet::new(),
+            workspace_class_factories: None,
             defer_proc_bodies: false,
             structural_rebind: false,
             deferred_bodies: Vec::new(),
@@ -1210,6 +1224,22 @@ impl Analyser {
     #[must_use]
     pub fn with_workspace_classes(mut self, classes: std::collections::HashSet<String>) -> Self {
         self.workspace_classes = classes;
+        self
+    }
+
+    /// Supply the workspace's **class factory** index — the user-defined
+    /// `TclOO` metaclasses declared in other documents — so a
+    /// `::tk::Megawidget create IconList …` call whose metaclass lives in
+    /// another file is classified instead of abstained on (issue #1276).
+    ///
+    /// See [`Self::workspace_class_factories`]. The normal single-file
+    /// analysis leaves this `None`, which keeps the abstention intact.
+    #[must_use]
+    pub fn with_workspace_class_factories(
+        mut self,
+        factories: Option<std::sync::Arc<super::types::ClassFactoryIndex>>,
+    ) -> Self {
+        self.workspace_class_factories = factories;
         self
     }
 
