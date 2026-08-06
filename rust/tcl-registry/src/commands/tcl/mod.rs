@@ -318,6 +318,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         oo_abstract::spec(),
         oo_class::spec(),
         oo_classvariable::spec(),
+        oo_classvariable::spec_ooutil_86(),
         oo_configurable::spec(),
         oo_copy::spec(),
         oo_define::spec(),

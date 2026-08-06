@@ -373,6 +373,53 @@ fn the_qualified_callback_spelling_resolves_at_the_top_level_in_90() {
     }
 }
 
+/// A constructor body that links a class-shared variable — mirrors
+/// `callback_doc`'s shape for the same family of gaps.
+fn classvariable_doc(prefix: &str) -> String {
+    format!(
+        "{prefix}oo::class create Counted {{\n    variable number\n    constructor {{}} {{\n        classvariable count\n        set number 1\n    }}\n}}\n"
+    )
+}
+
+#[test]
+fn classvariable_resolves_inside_a_method_body_in_90() {
+    // FP fix: `classvariable` is a genuine core Tcl 9.0 `::oo::Helpers`
+    // member and resolves with no `package require` at all.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, &classvariable_doc("# tcl-dialect: tcl9.0\n"));
+    assert!(
+        !codes(&diags).contains("W123"),
+        "`classvariable` is core Tcl 9.0 and resolves in a method body: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn classvariable_in_86_asks_for_ooutil_rather_than_being_unknown() {
+    // `classvariable` gets the same 8.6/8.7 `ooutil` route as `link` and
+    // `mymethod`: Tcllib's `ooutil` defines `proc ::oo::Helpers::classvariable`
+    // (tcllib-2-0 `modules/ooutil/ooutil.tcl:27`), so under 8.6 it is a
+    // needs-a-package-require report, not an unknown command — and a real
+    // `package require ooutil` silences it.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, &classvariable_doc(""));
+    let seen = codes(&diags);
+    assert!(
+        seen.contains("W120") && !seen.contains("W123"),
+        "8.6 `classvariable` is ooutil-provided, not unknown: {seen:?}",
+    );
+
+    let required = unique_uri("tcl");
+    let diags = lsp.open_ready(&required, &classvariable_doc("package require ooutil\n"));
+    let seen = codes(&diags);
+    assert!(
+        !seen.contains("W120") && !seen.contains("W123"),
+        "a real `package require ooutil` makes 8.6 `classvariable` known: {seen:?}",
+    );
+}
+
 // -- TestTcl91Operators --------------------------------------------------
 // doc/expr.n — the `lt`/`le`/`gt`/`ge` string operators (TIP 461) are 9.0+.
 

@@ -67,11 +67,12 @@
 //! dialect where a user has to reach for it. Both twins are derived from
 //! their bare originals, so the package gating (`required_package`,
 //! `tcllib_package`) carries across unchanged and the qualified/bare pair
-//! answer alike per dialect. `mymethod` is the second such member and gets
-//! the identical treatment — `ooutil.tcl:18` defines
-//! `proc ::oo::Helpers::mymethod` — while its 9.0 alias `callback` has a
-//! single core entry, because no Tcllib package provides that spelling
-//! (issue #923 audit, `ticklecharts` idx 51).
+//! answer alike per dialect. `mymethod` and `classvariable` are the other
+//! two such members and get the identical treatment — `ooutil.tcl:18` and
+//! `ooutil.tcl:27` define `proc ::oo::Helpers::mymethod` and
+//! `proc ::oo::Helpers::classvariable` respectively — while `callback`
+//! (9.0 alias of `mymethod`) has a single core entry, because no Tcllib
+//! package provides that spelling (issue #923 audit, `ticklecharts` idx 51).
 use crate::prelude::*;
 
 /// The bare specs whose `oo::Helpers::…` spelling is also a real,
@@ -99,6 +100,10 @@ fn family() -> Vec<(&'static str, CommandSpec)> {
         (
             "oo::Helpers::classvariable",
             super::oo_classvariable::spec(),
+        ),
+        (
+            "oo::Helpers::classvariable",
+            super::oo_classvariable::spec_ooutil_86(),
         ),
     ]
 }
@@ -184,10 +189,10 @@ mod tests {
     }
 
     /// Each qualified spec inherits its bare twin's dialect **and package**
-    /// gate, so `classvariable` stays 9.0-only, `next` / `nextto` / `self`
-    /// stay 8.6+, and `link` keeps both of its entries — 9.0 core plus the
-    /// 8.6/8.7 `ooutil` one — matching `info commands ::oo::Helpers::*` on
-    /// both interpreters.
+    /// gate, so `next` / `nextto` / `self` stay 8.6+, `callback` stays
+    /// 9.0-only, and `link` / `mymethod` / `classvariable` each keep both
+    /// of their entries — 9.0 core plus the 8.6/8.7 `ooutil` one —
+    /// matching `info commands ::oo::Helpers::*` on both interpreters.
     ///
     /// Compared pairwise against `family()`'s own order rather than by
     /// name lookup, so the two `link` rows cannot alias onto each other.

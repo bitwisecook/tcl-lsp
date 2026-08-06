@@ -2070,15 +2070,16 @@ fn tcloo_method_context_membership() {
         );
     }
     // `commands_with_trait` enumerates the whole spec table, so the dialect
-    // gate lives in the query itself: under 8.6 `classvariable` (9.0+) is
-    // not method-context-scoped because it does not exist, while `link`
-    // still is — its 8.6 spelling is the `ooutil`-gated twin.
+    // gate lives in the query itself: under 8.6 `callback` (9.0+ core only,
+    // no Tcllib route) is not method-context-scoped because it does not
+    // exist, while `link`, `mymethod`, and `classvariable` still are — each
+    // has an 8.6 spelling via the `ooutil`-gated twin.
     let reg86 = registry_for_dialect("tcl8.6");
-    assert!(!reg86.resolves_only_in_method_context("classvariable"));
-    for name in ["link", "my", "next", "nextto", "self"] {
+    assert!(!reg86.resolves_only_in_method_context("callback"));
+    for name in ["link", "my", "mymethod", "next", "nextto", "self", "classvariable"] {
         assert!(
             reg86.resolves_only_in_method_context(name),
-            "{name}: 8.6 has it (link via ooutil)"
+            "{name}: 8.6 has it (via ooutil for link/mymethod/classvariable)"
         );
     }
     // 8.5 has no TclOO at all, so the whole query answers `false` there.
@@ -2172,12 +2173,13 @@ fn tcloo_method_frame_membership() {
         );
     }
     assert!(!reg.requires_oo_method_frame("puts"));
-    // 8.6 core has the three it ships plus `ooutil`'s `link`; `classvariable`
-    // is 9.0-only. 8.5 has no TclOO at all.
+    // 8.6 core has the three it ships plus `ooutil`'s `link` and
+    // `classvariable`; `callback` is 9.0-only (no Tcllib route). 8.5 has no
+    // TclOO at all.
     let reg86 = registry_for_dialect("tcl8.6");
-    assert!(!reg86.requires_oo_method_frame("classvariable"));
+    assert!(!reg86.requires_oo_method_frame("callback"));
     assert!(!reg86.requires_oo_method_frame("my"));
-    for name in ["link", "next", "nextto", "self"] {
+    for name in ["link", "next", "nextto", "self", "classvariable"] {
         assert!(reg86.requires_oo_method_frame(name), "{name} under 8.6");
     }
     let reg85 = registry_for_dialect("tcl8.5");
