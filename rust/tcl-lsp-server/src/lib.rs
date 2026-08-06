@@ -65,6 +65,7 @@ use tcl_lsp_core::implementation as core_implementation;
 use tcl_lsp_core::inlay_hints as core_inlay_hints;
 use tcl_lsp_core::linked_editing_range as core_linked_editing_range;
 use tcl_lsp_core::minify as core_minify;
+use tcl_lsp_core::namespace_rename as core_namespace_rename;
 use tcl_lsp_core::namespace_symbol as core_namespace_symbol;
 use tcl_lsp_core::package_resolver::PackageResolver;
 use tcl_lsp_core::references as core_references;
@@ -3683,6 +3684,46 @@ struct RenameContext<'a> {
     registry: &'a CommandRegistry,
 }
 
+/// How wide a document set a pure-consumer method scan covers (issue #1099).
+///
+/// The narrow set is "documents that invoke a family constructor", which is
+/// what the index can answer cheaply — and it is a real ceiling: a consumer
+/// that *receives* an instance without constructing one (through a global, a
+/// dict entry, a callback registered elsewhere, a proc parameter fed from
+/// another file) invokes no constructor, so it appears in no index table and
+/// is invisible to both the scan and the gate.
+///
+/// A **rename** cannot live with that ceiling: an unseen `$who speak` is a
+/// call left naming a member that no longer exists, and a gate that never
+/// scans the document cannot refuse either.  So rename widens to every
+/// indexed document — the gate then sees the untracked receiver and refuses,
+/// or the collector types it through the workspace class oracle and rewrites
+/// it.  Find All References keeps the narrow set: it is an interactive query
+/// whose worst outcome is a missing result, and widening it would re-analyse
+/// the whole workspace on every invocation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ConsumerCoverage {
+    /// Documents invoking a family constructor, plus the request's own.
+    ConstructorSites,
+    /// Every indexed document.
+    WholeWorkspace,
+}
+
+/// What one pure-consumer method scan is about: the member, and how wide a
+/// document set to cover.  Grouped so the scan entry points stay within the
+/// argument budget as the plan grew a coverage mode (issue #1099).
+#[derive(Debug, Clone, Copy)]
+struct ConsumerTarget<'a> {
+    /// The class the cursor resolved the member against.
+    seed_class: &'a str,
+    /// The member name.
+    method: &'a str,
+    /// Whether it lives in the class-object dispatch table.
+    is_classmethod: bool,
+    /// How wide a document set to scan — see [`ConsumerCoverage`].
+    coverage: ConsumerCoverage,
+}
+
 /// The workspace facts one pure-consumer method scan needs, resolved under a
 /// single index read by [`Backend::consumer_scan_plan`].
 struct ConsumerScan {
@@ -5642,7 +5683,7 @@ impl Backend {
         // sibling document's block any less of a definition.
         if let Some(cell) = Self::namespace_cell(&doc.text, &analysis, pos) {
             return Ok(self
-                .namespace_declaration_locations(uri, &analysis, &cell)
+                .namespace_declaration_locations(uri, &doc.text, &analysis, &cell)
                 .await);
         }
         let text = doc.text.clone();
@@ -5793,9 +5834,17 @@ impl Backend {
     /// index, so an unindexed or just-edited document still answers; rows are
     /// deduplicated by `(uri, span)`, which is what makes overlapping with
     /// the index harmless.
+    ///
+    /// When nothing anywhere declares the cell outright, the answer falls back
+    /// to its **implicit** creators — the covering prefix of every deeper
+    /// `namespace eval` name word, local and workspace alike (issue #1246).
+    /// The in-document provider has always done this; doing it only there
+    /// meant a namespace whose sole creating block lived in a sibling file
+    /// answered nothing at all.
     async fn namespace_declaration_locations(
         &self,
         uri: &Uri,
+        source: &str,
         analysis: &AnalysisResult,
         cell: &str,
     ) -> Vec<Location> {
@@ -5805,7 +5854,10 @@ impl Backend {
                 .into_iter()
                 .map(|span| (uri.as_str().to_owned(), span))
                 .collect();
-        {
+        // Rows whose name is a strict descendant of the cell, captured while
+        // the lock is held so the (possibly disk-reading) text lookups below
+        // happen outside it.
+        let descendants: Vec<(String, String, tcl_lexer::Span)> = {
             let index = self.workspace_index.read().await;
             targets.extend(
                 index
@@ -5813,8 +5865,38 @@ impl Backend {
                     .into_iter()
                     .map(|n| (n.uri.clone(), n.span)),
             );
-        }
+            index
+                .namespace_declarations_under(cell, uri.as_str())
+                .into_iter()
+                .map(|n| (n.uri.clone(), n.qualified_name.clone(), n.span))
+                .collect()
+        };
         drop(rehoming_guard);
+        if targets.is_empty() {
+            // Nothing declares it outright anywhere.  The local implicit
+            // sites first, in the same order the in-document provider gives
+            // them, then the sibling documents'.
+            targets.extend(
+                core_namespace_symbol::namespace_implicit_parent_spans(source, analysis, cell)
+                    .into_iter()
+                    .map(|span| (uri.as_str().to_owned(), span)),
+            );
+            for (row_uri, qualified, span) in descendants {
+                let Ok(parsed) = Uri::from_str(&row_uri) else {
+                    continue;
+                };
+                let Some(doc) = self.read_document(&parsed).await else {
+                    continue;
+                };
+                // The covering prefix is a sub-range of the written word, so
+                // it can only be computed against that document's own text.
+                if let Some(prefix) = core_namespace_symbol::namespace_implicit_parent_span_in(
+                    &doc.text, span, &qualified, cell,
+                ) {
+                    targets.push((row_uri, prefix));
+                }
+            }
+        }
         dedup_span_targets(&mut targets);
         self.resolve_target_locations(targets).await
     }
@@ -5830,9 +5912,14 @@ impl Backend {
     /// differently — they differ only in how wide a set they counted, which
     /// the text states.
     ///
-    /// `None` when nothing anywhere declares it: hover then shows nothing,
-    /// which is the correct answer for a namespace no file in view creates —
-    /// never a fall-through to command documentation.
+    /// `None` when nothing anywhere declares it — outright *or* implicitly:
+    /// hover then shows nothing, which is the correct answer for a namespace
+    /// no file in view creates — never a fall-through to command
+    /// documentation.  A sibling file's deeper `namespace eval` counts as an
+    /// implicit creator here exactly as it does in the local tally, so the
+    /// "implicitly created by" wording is reachable cross-document
+    /// (issue #1246); the count is pure name arithmetic, so unlike the
+    /// definition tier it needs no document text.
     async fn namespace_hover(
         &self,
         uri: &Uri,
@@ -5855,6 +5942,16 @@ impl Backend {
                 } else {
                     merged.references += 1;
                 }
+                if seen.insert(row.uri.as_str()) {
+                    merged.documents += 1;
+                }
+            }
+            // Deeper blocks in sibling documents create the cell as a parent.
+            // Disjoint from the rows above by construction — that query is an
+            // exact-name match, this one a strict-descendant match — so no
+            // occurrence is counted twice.
+            for row in index.namespace_declarations_under(cell, uri.as_str()) {
+                merged.implicit_declarations += 1;
                 if seen.insert(row.uri.as_str()) {
                     merged.documents += 1;
                 }
@@ -7236,9 +7333,12 @@ impl Backend {
             current_uri,
             current_source,
             current_dialect,
-            seed_class,
-            method,
-            is_classmethod,
+            ConsumerTarget {
+                seed_class,
+                method,
+                is_classmethod,
+                coverage: ConsumerCoverage::ConstructorSites,
+            },
         )
         .await
         .into_iter()
@@ -7265,14 +7365,10 @@ impl Backend {
         current_uri: &Uri,
         current_source: &str,
         current_dialect: &str,
-        seed_class: &str,
-        method: &str,
-        is_classmethod: bool,
+        target: ConsumerTarget<'_>,
     ) -> Vec<(Uri, Vec<Range>)> {
-        let Some(plan) = self
-            .consumer_scan_plan(current_dialect, seed_class, method, is_classmethod)
-            .await
-        else {
+        let (method, is_classmethod) = (target.method, target.is_classmethod);
+        let Some(plan) = self.consumer_scan_plan(current_dialect, target).await else {
             return Vec::new();
         };
         let mut out: Vec<(Uri, Vec<Range>)> = Vec::new();
@@ -7333,10 +7429,14 @@ impl Backend {
     async fn consumer_scan_plan(
         &self,
         dialect: &str,
-        seed_class: &str,
-        method: &str,
-        is_classmethod: bool,
+        target: ConsumerTarget<'_>,
     ) -> Option<ConsumerScan> {
+        let ConsumerTarget {
+            seed_class,
+            method,
+            is_classmethod,
+            coverage,
+        } = target;
         let index = self.workspace_index.read().await;
         let definers = index.method_override_family(seed_class, method);
         let inheritors = index.method_inheritor_classes(seed_class, method);
@@ -7369,11 +7469,19 @@ impl Backend {
         // The index answers with a `HashSet`; sort so the per-document scan
         // order (and so the emitted edit / location order) does not ride on
         // hash iteration order.
-        let mut consumer_uris: Vec<String> = index
-            .documents_invoking_classes(&family_norm)
-            .into_iter()
-            .collect();
+        let mut consumer_uris: Vec<String> = match coverage {
+            ConsumerCoverage::ConstructorSites => index
+                .documents_invoking_classes(&family_norm)
+                .into_iter()
+                .collect(),
+            // Issue #1099: a document that receives an instance without
+            // constructing one invokes no family constructor, so it is in no
+            // index table at all — the only set that provably contains it is
+            // every document.
+            ConsumerCoverage::WholeWorkspace => index.document_uris(),
+        };
         consumer_uris.sort();
+        consumer_uris.dedup();
         drop(index);
         Some(ConsumerScan {
             family,
@@ -7547,26 +7655,28 @@ impl Backend {
         pos: Position,
         new_name: &str,
     ) -> Option<jsonrpc::Result<Option<WorkspaceEdit>>> {
-        // Namespace names refuse outright.  This has to be a *refusal* and
-        // not an empty edit set: an empty set falls through to the ordinary
-        // and workspace-resolved rename tiers, which resolve the cursor
-        // **word** as a command — so `namespace children widget` beside a
-        // `proc widget` renamed the proc instead (issue #1088 review,
-        // finding 1).  Renaming a namespace itself is not implemented: the
-        // edit set would have to rewrite every qualified name declared
-        // beneath it and every `namespace eval` block that reopens it.
-        if let Some(cell) = Self::namespace_cell(&doc.text, analysis, pos) {
-            return Some(Err(rename_refusal_error(
-                &core_rename_safety::RenameRefusal {
-                    reason: format!(
-                        "`{cell}` is a namespace name. Renaming a namespace is not \
-                         supported: it would have to rewrite every qualified name \
-                         declared beneath it and every `namespace eval` block that \
-                         reopens it."
-                    ),
-                    range: None,
+        // Namespace tier (issue #1114): the cursor names a namespace, so
+        // rename it across the whole workspace or refuse with the reason.
+        // Either answer is returned from here and never falls through: an
+        // empty edit set would reach the ordinary and workspace-resolved
+        // rename tiers, which resolve the cursor **word** as a command — so
+        // `namespace children widget` beside a `proc widget` renamed the proc
+        // instead (issue #1088 review, finding 1).
+        if Self::namespace_cell(&doc.text, analysis, pos).is_some() {
+            return Some(
+                match self
+                    .cross_document_namespace_rename(uri, doc, analysis, pos, new_name)
+                    .await
+                {
+                    Err(refusal) => Err(rename_refusal_error(&refusal)),
+                    Ok(changes) if changes.is_empty() => Ok(None),
+                    Ok(changes) => Ok(Some(WorkspaceEdit {
+                        changes: Some(changes),
+                        document_changes: None,
+                        change_annotations: None,
+                    })),
                 },
-            )));
+            );
         }
         // Safety gate: when the cursor names a `TclOO` member whose dispatch
         // this rename cannot account for anywhere in the workspace, refuse
@@ -7593,6 +7703,117 @@ impl Backend {
             }))),
             Ok(_) => None,
         }
+    }
+
+    /// Rename the **namespace** the cursor names, across the whole workspace
+    /// (issue #1114).
+    ///
+    /// A namespace is spelled in every file that reaches into it — a
+    /// `namespace eval` block that reopens it, a `$::ns::v`, a `::ns::p` call,
+    /// an import pattern — so a rename that stopped at one document would be
+    /// exactly the partial edit set the safety bar forbids.  Each document's
+    /// share is [`core_namespace_rename::namespace_rename_edits`], the same
+    /// function the in-document tier uses, so the two cannot disagree about
+    /// which occurrences exist.
+    ///
+    /// # Why every indexed document is scanned
+    ///
+    /// The gate refuses on an occurrence the analyser cannot attribute — a
+    /// rooted name beneath the namespace sitting in a data word.  Such a word
+    /// puts *nothing* in any index table, so no index query can find the
+    /// document holding it; a candidate set derived from the index would scan
+    /// only documents that already name the namespace in an attributed
+    /// position, and the one file with the embedded callback string would be
+    /// neither scanned nor rewritten.  Coverage therefore has to be the whole
+    /// workspace, which is affordable because a namespace rename is a rare,
+    /// deliberate refactor rather than a per-keystroke query.
+    ///
+    /// `Err` is a refusal: the target namespace already exists, or some
+    /// document holds an occurrence this rename can neither rewrite nor rule
+    /// out.
+    async fn cross_document_namespace_rename(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        pos: Position,
+        new_name: &str,
+    ) -> Result<std::collections::HashMap<Uri, Vec<TextEdit>>, core_rename_safety::RenameRefusal>
+    {
+        let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
+            std::collections::HashMap::new();
+        let Some(cell) = Self::namespace_cell(&doc.text, analysis, pos) else {
+            return Ok(changes);
+        };
+        if !core_rename::is_safe_symbol_name(new_name) {
+            return Ok(changes);
+        }
+        // Only the final segment moves, so the new namespace is the old one
+        // with its tail replaced.
+        let trimmed = cell.trim_end_matches(':');
+        let new_cell = match trimmed.rfind("::") {
+            Some(at) => format!("{}::{new_name}", &trimmed[..at]),
+            None => format!("::{new_name}"),
+        };
+        let candidates: Vec<String> = {
+            let _rehoming_guard = self.rehomed_index_guard().await;
+            let index = self.workspace_index.read().await;
+            // Collision gate: renaming onto a namespace that already exists
+            // merges two namespaces into one, silently moving every name in
+            // this one into a namespace that already has its own contents.
+            let occupied = !index
+                .namespace_declarations_qualified(&new_cell, "")
+                .is_empty()
+                || !core_namespace_symbol::namespace_declaration_spans(analysis, &new_cell)
+                    .is_empty();
+            if occupied {
+                return Err(core_rename_safety::RenameRefusal {
+                    reason: format!(
+                        "cannot rename `{cell}`: `{new_cell}` already exists in this \
+                         workspace, and renaming would merge two distinct namespaces \
+                         into one."
+                    ),
+                    range: None,
+                });
+            }
+            let mut c = index.document_uris();
+            c.push(uri.as_str().to_owned());
+            c.sort();
+            c.dedup();
+            c
+        };
+        for u in candidates {
+            let Ok(parsed) = Uri::from_str(&u) else {
+                continue;
+            };
+            let Some(target_doc) = self.read_document(&parsed).await else {
+                continue;
+            };
+            let target_analysis = self
+                .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
+                .await;
+            let edits = core_namespace_rename::namespace_rename_edits(
+                &target_doc.text,
+                &target_doc.dialect,
+                &target_analysis,
+                &cell,
+                new_name,
+            )?;
+            if edits.is_empty() {
+                continue;
+            }
+            let bucket = changes.entry(parsed).or_default();
+            for e in edits {
+                let range = lift_lsp_range(e.range);
+                if !bucket.iter().any(|x| x.range == range) {
+                    bucket.push(TextEdit {
+                        range,
+                        new_text: e.new_text,
+                    });
+                }
+            }
+        }
+        Ok(changes)
     }
 
     /// The rename **safety refusal** for the `TclOO` member at `pos`, if any —
@@ -7641,7 +7862,20 @@ impl Backend {
             .resolve_method_rename_target(uri, doc, analysis, pos)
             .await?;
         let plan = self
-            .consumer_scan_plan(&doc.dialect, &seed_class, &method, is_classmethod)
+            .consumer_scan_plan(
+                &doc.dialect,
+                ConsumerTarget {
+                    seed_class: &seed_class,
+                    method: &method,
+                    is_classmethod,
+                    // The same coverage the rename's edit collector uses,
+                    // which is the #1092 invariant — and since #1099 that is
+                    // every indexed document, so a consumer holding an
+                    // instance it never constructed is scanned rather than
+                    // invisible.
+                    coverage: ConsumerCoverage::WholeWorkspace,
+                },
+            )
             .await;
         let (family, mut uris) = match plan {
             Some(plan) => {
@@ -7937,9 +8171,15 @@ impl Backend {
                 current_uri,
                 &current_doc.text,
                 dialect,
-                seed_class,
-                method,
-                is_classmethod,
+                ConsumerTarget {
+                    seed_class,
+                    method,
+                    is_classmethod,
+                    // The rename leg covers every indexed document, so a
+                    // consumer that only *receives* an instance is rewritten
+                    // rather than silently missed (issue #1099).
+                    coverage: ConsumerCoverage::WholeWorkspace,
+                },
             )
             .await;
         for (uri, ranges) in consumer {
@@ -27503,7 +27743,17 @@ mod tests {
         register(&backend, &parent, parent_src).await;
         register(&backend, &consumer, "Parent make\nGadget make\n").await;
         let ranges = backend
-            .consumer_method_site_ranges(&parent, parent_src, "tcl8.6", "::Parent", "make", true)
+            .consumer_method_site_ranges(
+                &parent,
+                parent_src,
+                "tcl8.6",
+                ConsumerTarget {
+                    seed_class: "::Parent",
+                    method: "make",
+                    is_classmethod: true,
+                    coverage: ConsumerCoverage::WholeWorkspace,
+                },
+            )
             .await;
         let consumer_ranges: Vec<u32> = ranges
             .iter()

@@ -80,7 +80,7 @@ use crate::workspace_symbols::{
     IndexedWorkspaceSymbol, WorkspaceSymbolKind, matches_query, namespace_of,
 };
 use tcl_compiler::analyser::class_hierarchy::{build_tail_index, resolve_class_name};
-use tcl_compiler::analyser::{AnalysisResult, MemberSide};
+use tcl_compiler::analyser::{AnalysisResult, MemberRetractionRecord, MemberSide};
 use tcl_lexer::Span;
 
 /// One proc definition recorded in the workspace index.
@@ -171,7 +171,7 @@ pub struct WorkspaceClass {
     /// method extra … }` is an unordered addition: cross-file load order is not
     /// knowable from the index, and a retraction of a member the *same*
     /// document declares never becomes a tombstone in the first place.
-    pub retracted_members: Vec<(String, MemberSide)>,
+    pub retracted_members: Vec<MemberRetractionRecord>,
     /// `true` when this record is a cross-file `oo::define` extension stub
     /// rather than the class's own `oo::class create` site (see
     /// [`tcl_compiler::analyser::ClassDef::via_define`]).  Go-to-definition
@@ -210,6 +210,33 @@ impl WorkspaceClass {
     #[must_use]
     pub fn defines_method(&self, name: &str) -> bool {
         self.methods.iter().any(|m| m.name == name)
+    }
+
+    /// Whether a `renamemethod` recorded on this record makes `name` a member
+    /// of the class — the **arrival** half of the tombstone channel (issue
+    /// #1167).
+    ///
+    /// A cross-file `oo::define ::C { renamemethod old new }` declares no
+    /// member of its own (the params / body / visibility stay in the defining
+    /// file's record), so `defines_method` is `false` for `new` on every
+    /// record of the class.  Without this the member simply disappears at the
+    /// workspace tier: `old` is correctly tombstoned and `new` is nowhere.
+    #[must_use]
+    pub fn arrives_method(&self, name: &str) -> bool {
+        self.retracted_members
+            .iter()
+            .any(|r| r.arrival.as_deref() == Some(name))
+    }
+
+    /// The member name that arrives as `name` on `side`, per a `renamemethod`
+    /// recorded on this record — the source whose `MethodDef` the workspace
+    /// join re-keys.
+    #[must_use]
+    pub fn arrival_source(&self, name: &str, side: MemberSide) -> Option<&str> {
+        self.retracted_members
+            .iter()
+            .find(|r| r.arrival.as_deref() == Some(name) && r.side == side)
+            .map(|r| r.member.as_str())
     }
 
     /// The typed record for the *instance-receiver* method `name`
@@ -2160,22 +2187,37 @@ impl WorkspaceIndex {
             if records.iter().any(|c| {
                 c.retracted_members
                     .iter()
-                    .any(|(n, s)| n == method && *s == side)
+                    .any(|r| r.member == method && r.side == side)
             }) {
                 continue;
             }
+            // The **arrival** join (issue #1167): a cross-file `oo::define ::C
+            // { renamemethod old new }` moves the member without owning a
+            // `MethodDef` to move — the params / body / visibility live in the
+            // defining file's record.  So when nothing declares the name asked
+            // for, a stub's recorded arrival re-keys that other record's
+            // member and the defining record enters the chain under the new
+            // name.  Visibility travels with the *body*, not the new name's
+            // leading-capital default (oracle, tclsh 9.0.4 / 8.6.14:
+            // `oo::class create ::R4 {method Priv {} {…}; renamemethod Priv
+            // pub}` leaves `info class methods ::R4` empty while `-private`
+            // lists `pub`), so the source member's own record is what the
+            // visibility test below reads.
+            let arrived_from: Option<&str> =
+                records.iter().find_map(|c| c.arrival_source(method, side));
             for record in records {
-                let declared = match side {
-                    MemberSide::Instance => record.instance_method(method),
+                let lookup = |name: &str| match side {
+                    MemberSide::Instance => record.instance_method(name),
                     // A stock `self method` is not inherited: the class object
                     // that declared it is the only one whose command reaches it
                     // (`Gadget make` against a parent's `self method make` ->
                     // `unknown method "make"`, 8.6 / 9.0.4). An `ooutil`
                     // `classmethod` shares the receiver kind but does propagate.
                     MemberSide::ClassObject => record
-                        .class_method(method)
+                        .class_method(name)
                         .filter(|m| !m.is_self_method || record.qualified_name == receiver_class),
                 };
+                let declared = lookup(method).or_else(|| arrived_from.and_then(lookup));
                 let Some(m) = declared else {
                     continue;
                 };
@@ -2317,9 +2359,13 @@ impl WorkspaceIndex {
             false
         };
         let connected = |a: &str, b: &str| a == b || is_ancestor(a, b) || is_ancestor(b, a);
+        // A member that *arrived* through a cross-file `renamemethod` counts
+        // as defined for family purposes: the class really has it, the
+        // declaring record just spells it under the source name (issue #1167).
         let class_defines = |qname: &str| {
-            self.classes()
-                .any(|c| c.qualified_name == qname && c.defines_method(method))
+            self.classes().any(|c| {
+                c.qualified_name == qname && (c.defines_method(method) || c.arrives_method(method))
+            })
         };
         // Seed: the class under the cursor if it defines `method`, else the
         // nearest ancestor that does (any definer ancestor is in the same
@@ -2348,7 +2394,7 @@ impl WorkspaceIndex {
         let definers: Vec<String> = {
             let mut ds: Vec<String> = self
                 .classes()
-                .filter(|c| c.defines_method(method))
+                .filter(|c| c.defines_method(method) || c.arrives_method(method))
                 .map(|c| c.qualified_name.clone())
                 .collect();
             ds.sort();
@@ -2631,6 +2677,44 @@ impl WorkspaceIndex {
         self.namespace_refs()
             .filter(|n| n.declares && n.uri != exclude_uri)
             .filter(|n| n.qualified_name.trim_start_matches("::") == target)
+            .collect()
+    }
+
+    /// Declaring sites whose namespace is a **strict descendant** of
+    /// `qualified_name` — the rows that create it *implicitly*, as a parent
+    /// (`namespace eval ::p::q::r {}` really creates `::p::q`), excluding any
+    /// in `exclude_uri`.
+    ///
+    /// The cross-document half of issue #1113 item 1 (issue #1246): the
+    /// in-document tier answers implicit parents from its own
+    /// `namespace_refs`, and without this query a namespace whose only
+    /// creating block lives in a sibling file answered nothing at all.
+    ///
+    /// Rows only — the *span* an implicit answer reports is the covering
+    /// prefix of the written word, a sub-range that needs the declaring
+    /// document's text, so the caller pairs each row with its source through
+    /// [`crate::namespace_symbol::namespace_implicit_parent_span_in`].
+    #[must_use]
+    pub fn namespace_declarations_under<'a>(
+        &'a self,
+        qualified_name: &str,
+        exclude_uri: &str,
+    ) -> Vec<&'a WorkspaceNamespaceRef> {
+        // The global namespace is created by the interpreter, not by any
+        // block, so it has no implicit creator — the same bound the
+        // in-document tier keeps.  Without it every declaring row in the
+        // workspace would count as creating `::`.
+        if qualified_name.trim_start_matches(':').is_empty() {
+            return Vec::new();
+        }
+        self.namespace_refs()
+            .filter(|n| n.declares && n.uri != exclude_uri)
+            .filter(|n| {
+                crate::namespace_symbol::namespace_strictly_contains(
+                    qualified_name,
+                    &n.qualified_name,
+                )
+            })
             .collect()
     }
 
@@ -3962,6 +4046,113 @@ mod tests {
                 .method_dispatch_chain("::C", "old", MethodAccess::External)
                 .is_empty(),
             "the source name must not survive the move",
+        );
+    }
+
+    /// TP, issue #1167: the `renamemethod` sits in a **cross-file**
+    /// `oo::define` stub, which has no `MethodDef` of its own to move.  The
+    /// stub tombstones the source and records the arrival; the workspace join
+    /// re-keys the defining file's record, so the member dispatches under its
+    /// new name instead of disappearing.
+    ///
+    /// tclsh-proof (8.6.14) that this is what sourcing both files does:
+    ///
+    /// ```tcl
+    /// oo::class create ::C { method old {} { return OLDBODY } }
+    /// oo::define ::C { renamemethod old new }
+    /// info class methods ::C   ;# -> new
+    /// [::C new] new            ;# -> OLDBODY
+    /// [::C new] old            ;# -> unknown method "old"
+    /// ```
+    #[test]
+    fn a_cross_file_stub_renamemethod_records_the_arrival_name() {
+        let a = analyse("oo::class create ::C { method old {} { return 1 } }\n");
+        let b = analyse("oo::define ::C { renamemethod old new }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert_eq!(
+            index
+                .method_dispatch_chain("::C", "new", MethodAccess::External)
+                .iter()
+                .map(|c| c.uri.as_str())
+                .collect::<Vec<_>>(),
+            ["file:///a.tcl"],
+            "the arrival resolves to the record holding the body",
+        );
+        assert!(
+            index
+                .method_dispatch_chain("::C", "old", MethodAccess::External)
+                .is_empty(),
+            "the source name must not survive the move",
+        );
+        // The family resolution sees it too, so rename / references seed from
+        // the new name rather than finding nothing.
+        assert_eq!(
+            index
+                .method_override_family("::C", "new")
+                .iter()
+                .map(|c| c.qualified_name.as_str())
+                .collect::<Vec<_>>(),
+            ["::C", "::C"],
+            "both records of the class are in the family",
+        );
+    }
+
+    /// TN: visibility travels with the **body**, not the arrival name's
+    /// leading-capital default.
+    ///
+    /// tclsh-proof (8.6.14): `oo::class create ::R4 { method Priv {} {…} }` +
+    /// `oo::define ::R4 { renamemethod Priv pub }` leaves `info class methods
+    /// ::R4` empty (the member is still unexported) while `info class methods
+    /// ::R4 -private` lists `pub`.
+    #[test]
+    fn a_cross_file_arrival_keeps_the_sources_visibility() {
+        let a = analyse("oo::class create ::C { method Priv {} { return 1 } }\n");
+        let b = analyse("oo::define ::C { renamemethod Priv pub }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert!(
+            index
+                .method_dispatch_chain("::C", "pub", MethodAccess::External)
+                .is_empty(),
+            "the moved member is still unexported — the new name's default does not apply",
+        );
+        assert!(
+            !index
+                .method_dispatch_chain("::C", "pub", MethodAccess::Internal)
+                .is_empty(),
+            "…but it is a real member, reachable internally",
+        );
+    }
+
+    /// TN: a plain cross-file `deletemethod` records no arrival, so nothing
+    /// arrives — the tombstone keeps its original meaning.
+    #[test]
+    fn a_cross_file_deletemethod_records_no_arrival() {
+        let a = analyse("oo::class create ::C { method m {} { return 1 } }\n");
+        let b = analyse("oo::define ::C { deletemethod m }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert!(
+            index
+                .method_dispatch_chain("::C", "m", MethodAccess::External)
+                .is_empty(),
+        );
+        assert!(
+            index.classes().all(|c| !c.arrives_method("m")),
+            "a deletion has no destination",
+        );
+    }
+
+    /// TN: a **computed** destination (`renamemethod old $new`) names nothing
+    /// statically, so the move abstains and only the retraction stands.
+    #[test]
+    fn a_computed_cross_file_arrival_abstains() {
+        let a = analyse("oo::class create ::C { method old {} { return 1 } }\n");
+        let b = analyse("oo::define ::C { renamemethod old $target }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert!(
+            index
+                .classes()
+                .all(|c| c.retracted_members.iter().all(|r| r.arrival.is_none())),
+            "a computed destination records no arrival",
         );
     }
 
@@ -6045,6 +6236,50 @@ mod tests {
                 .namespace_declarations_qualified("::mypkg", "file:///decl.tcl")
                 .is_empty(),
         );
+    }
+
+    /// Issue #1246 — declaring rows whose name is a **strict descendant** of
+    /// the cell: the workspace half of the implicit-parent answer.
+    ///
+    /// tclsh-proof (9.0.4 / 8.6.16, byte-identical): `namespace eval
+    /// ::p::q::r {}` leaves `namespace exists ::p::q` -> 1 and `namespace
+    /// exists ::p` -> 1, while `namespace eval ::pq::r {}` leaves `namespace
+    /// exists ::p` -> 0.
+    #[test]
+    fn namespace_declarations_under_finds_implicit_parent_rows() {
+        let decl = analyse("namespace eval ::p::q::r {}\n");
+        let other = analyse("namespace eval ::pq::r {}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///decl.tcl", &decl),
+            ("file:///other.tcl", &other),
+        ]);
+        // TP — both ancestors are answered by the one deeper block.
+        assert_eq!(
+            index
+                .namespace_declarations_under("::p::q", "")
+                .iter()
+                .map(|n| n.qualified_name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["::p::q::r"],
+        );
+        assert_eq!(index.namespace_declarations_under("::p", "").len(), 1);
+        // TN — an exact match is a real declaration, not an implicit one.
+        assert!(
+            index
+                .namespace_declarations_under("::p::q::r", "")
+                .is_empty(),
+        );
+        // TN — a segment prefix is a different namespace entirely.
+        assert!(
+            index
+                .namespace_declarations_under("::p", "file:///decl.tcl")
+                .is_empty(),
+            "excluding the declaring document leaves only `::pq::r`, which is not under `::p`",
+        );
+        // TN — the global namespace is created by the interpreter, so nothing
+        // implicitly creates it.
+        assert!(index.namespace_declarations_under("::", "").is_empty());
+        assert!(index.namespace_declarations_under("", "").is_empty());
     }
 
     #[test]

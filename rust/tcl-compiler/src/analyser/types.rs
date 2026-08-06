@@ -800,6 +800,49 @@ pub enum DefinitionAbortKind {
     RenameToItself,
 }
 
+/// One member a record **retracts without declaring** — the cross-document
+/// tombstone described on
+/// [`ClassDef::retracted_members`](crate::analyser::ClassDef::retracted_members).
+///
+/// Carries a *destination* (issue #1167): a `renamemethod old new` in a
+/// cross-file `oo::define` stub does not merely delete `old`, it moves the
+/// member to `new`, and the stub has no [`MethodDef`] of its own to move — the
+/// member's params / body / visibility live in the defining file's record.
+/// Recording the arrival name here is what lets the workspace join re-key that
+/// other record's member, so `new` appears instead of the member vanishing.
+///
+/// `arrival` is `None` for a plain `deletemethod`, and also for a
+/// `renamemethod old $new` whose destination is computed — that names nothing
+/// statically, so the retraction stands alone and the move abstains, the
+/// direction this campaign abstains toward.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemberRetractionRecord {
+    /// The member name retracted.
+    pub member: String,
+    /// The side the retracting word was scoped to.
+    pub side: MemberSide,
+    /// The name the member arrives under, when the retracting word was a
+    /// **move** rather than a deletion.
+    pub arrival: Option<String>,
+    /// Span of the arrival word — the synthetic declaration site the moved
+    /// member gets, and therefore what go-to-definition on the new name
+    /// answers with.  `None` whenever [`Self::arrival`] is.
+    pub arrival_span: Option<Span>,
+}
+
+impl MemberRetractionRecord {
+    /// A plain retraction with no destination.
+    #[must_use]
+    pub fn deletion(member: String, side: MemberSide) -> Self {
+        Self {
+            member,
+            side,
+            arrival: None,
+            arrival_span: None,
+        }
+    }
+}
+
 /// One `renamemethod` that successfully **moved** a member, with the member
 /// state the move ran against (issue #1121 review).
 ///
@@ -1044,7 +1087,7 @@ pub struct ClassDef {
     /// extension deletes it (issue #1101 review). Cross-file *order* is
     /// unprovable, so the tombstone is unordered — exactly as a cross-file
     /// `oo::define ::C { method extra … }` is an unordered addition today.
-    pub retracted_members: Vec<(String, MemberSide)>,
+    pub retracted_members: Vec<MemberRetractionRecord>,
     /// Reasons this record's definition body **cannot run at all** (issue
     /// #1120) — a retraction of a member absent from its side's table, or a
     /// `renamemethod` onto a name already taken.

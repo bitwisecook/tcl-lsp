@@ -99,6 +99,15 @@
 //! may be naming the very cell being renamed, with no word to rewrite — so
 //! a rename that would touch that namespace is refused.
 //!
+//! The refusal is decided **per site**, not per document (issue #1093): a
+//! word's written text bounds the names it can produce, because a
+//! substitution can evaluate to anything but the literal characters around it
+//! cannot change.  `set ::other::$n 1` therefore stops refusing a rename of
+//! `::ns::v` — nothing that word can spell is under `::ns` — while `variable
+//! $n` inside `::ns` still refuses.  See
+//! [`namespace_variable_rename_hazard`] for the bound and what stays outside
+//! it.
+//!
 //! # No command names here
 //!
 //! Every command-level fact this module uses comes from the registry: the
@@ -141,6 +150,14 @@ impl RenameRefusal {
             reason,
             range: span.map(|s| span_to_range(source, line_index, s)),
         }
+    }
+
+    /// [`Self::new`] for the sibling gates that live in their own modules
+    /// ([`crate::namespace_rename`]) — one constructor, so every refusal
+    /// resolves its span against the document it came from the same way.
+    #[must_use]
+    pub fn at(reason: String, source: &str, line_index: &LineIndex, span: Option<Span>) -> Self {
+        Self::new(reason, source, line_index, span)
     }
 }
 
@@ -537,7 +554,11 @@ fn dispatch_hazard(
 /// can be written in — the top-level stream, every proc body, and every
 /// class member body, descending both same-frame and frame-shifted nested
 /// regions exactly as the reference scan does.
-fn walk_document(
+///
+/// Shared with [`crate::namespace_rename`] so the two rename gates scan the
+/// same regions — a gate that visits fewer regions than its edit collector is
+/// a hollow guarantee (issue #1092).
+pub(crate) fn walk_document(
     source: &str,
     dialect: &str,
     analysis: &AnalysisResult,
@@ -667,9 +688,26 @@ fn slice(source: &str, span: Span) -> Option<&str> {
 /// [`tcl_compiler::dynamic_names::names_a_dynamic_variable`]'s.  No command
 /// name is matched here.
 ///
-/// Scoped to the namespace being renamed: a dynamic name in a document that
-/// has nothing to do with `::ns` is irrelevant, and refusing on it would
-/// make the tier unusable.
+/// # Per-site provenance (issue #1093)
+///
+/// The refusal is **per site**, not per document: a dynamic word refuses only
+/// when it can be proved *unprovable* — when the names it can produce include
+/// a spelling of this cell.  A word's written text already bounds that set,
+/// because a substitution can evaluate to anything but the literal characters
+/// around it cannot change, so
+/// [`tcl_compiler::dynamic_names::dynamic_variable_word_can_spell`] treats the
+/// word as a pattern and the cell's spellings as the candidates.  `set
+/// ::other::$n 1` beside a rename of `::ns::v` no longer refuses; `variable
+/// $n` inside `::ns` still does, which is the issue's own oracle
+/// (`namespace eval ns { variable v 1; proc bump {n} {variable $n; set $n 2} }`
+/// really does reach the cell through `ns::bump v`).
+///
+/// Abstain-toward-refuse is unchanged — the predicate answers "could spell it"
+/// for everything it cannot rule out, and a lone `$n` is a bare wildcard that
+/// rules nothing out.  The residual is a *value*-set fact this text-level
+/// bound cannot see: a `$n` whose dominating constant provably differs from
+/// the cell's tail still refuses, because no per-site constant-value record
+/// survives analysis for a post-analysis consumer to read.
 #[must_use]
 pub fn namespace_variable_rename_hazard(
     source: &str,
@@ -697,6 +735,12 @@ pub fn namespace_variable_rename_hazard(
                     continue;
                 };
                 if !tcl_compiler::dynamic_names::names_a_dynamic_variable(word) {
+                    continue;
+                }
+                // Per-site provenance: a word that provably cannot spell this
+                // cell is not a hazard for *this* rename, however dynamic it
+                // is.
+                if !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(word, cell) {
                     continue;
                 }
                 if let Some(tok) = cmd.argv.get(idx + 1) {
@@ -1008,6 +1052,73 @@ mod tests {
                    }\n\
                    puts $::ns::v\n";
         assert_eq!(var_hazard(src, "::ns::v"), None);
+    }
+
+    // Issue #1093 — per-site provenance.  The refusal now asks whether *this*
+    // word can spell *this* cell, instead of refusing on any dynamic word
+    // anywhere in the document.
+
+    /// TN: a dynamic word under a different, statically-written namespace
+    /// cannot spell a cell in `::ns`, so the rename proceeds.
+    ///
+    /// tclsh-proof (8.6.14): `namespace eval ::ns {variable v 1}; namespace
+    /// eval ::other {}; set n {::ns::v}; set ::other::$n 99` fails with
+    /// `can't set "::other::::ns::v": parent namespace doesn't exist` — the
+    /// value lands *under* the written prefix, so no value of `$n` reaches
+    /// `::ns::v`.
+    #[test]
+    fn tn_a_dynamic_name_under_another_namespace_no_longer_refuses() {
+        let src = "namespace eval ::ns {\n\
+                   \x20   variable v 1\n\
+                   }\n\
+                   namespace eval ::other {\n\
+                   \x20   proc p {n} { set ::other::$n 2 }\n\
+                   }\n";
+        assert_eq!(
+            var_hazard(src, "::ns::v"),
+            None,
+            "`::other::$n` cannot name `::ns::v`",
+        );
+    }
+
+    /// TP control for the pair above: the same word *under the renamed
+    /// namespace* still refuses — the narrowing is a narrowing, not a
+    /// disabling.
+    #[test]
+    fn tp_a_dynamic_name_under_the_renamed_namespace_still_refuses() {
+        let src = "namespace eval ::ns {\n\
+                   \x20   variable v 1\n\
+                   \x20   proc p {n} { set ::ns::$n 2 }\n\
+                   }\n";
+        let reason = var_hazard(src, "::ns::v").expect("`::ns::$n` can name the cell");
+        assert!(reason.contains("computed at run time"), "{reason}");
+    }
+
+    /// TN: a written affix bounds the name too — `${p}_count` can never spell
+    /// `v` (tclsh-proof, 8.6.14: `set j 1; set v$j 2` leaves `::ns::total`
+    /// untouched and creates only `::v1`).
+    #[test]
+    fn tn_a_dynamic_name_with_an_unsatisfiable_affix_no_longer_refuses() {
+        let src = "namespace eval ::ns {\n\
+                   \x20   variable v 1\n\
+                   \x20   proc p {pfx} { set ${pfx}_count 2 }\n\
+                   }\n";
+        assert_eq!(var_hazard(src, "::ns::v"), None);
+    }
+
+    /// TP (CRITICAL): the issue's own oracle shape must stay refused — a bare
+    /// `$n` is a lone wildcard and really does reach the cell.
+    ///
+    /// tclsh-proof (8.6.14): `namespace eval ns {variable v 1; proc bump {n}
+    /// {variable $n; set $n 2}}; ns::bump v` leaves `set ::ns::v` -> 2.
+    #[test]
+    fn tp_the_bare_dynamic_name_oracle_still_refuses() {
+        let src = "namespace eval ::ns {\n\
+                   \x20   variable v 1\n\
+                   \x20   proc bump {n} { variable $n; set $n 2 }\n\
+                   }\n";
+        let reason = var_hazard(src, "::ns::v").expect("`variable $n` really does reach the cell");
+        assert!(reason.contains("computed at run time"), "{reason}");
     }
 
     // Issue #1121 review — a moved member's declaration site is the

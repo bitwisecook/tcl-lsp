@@ -188,15 +188,27 @@ pub fn prepare_rename(
     analysis: &AnalysisResult,
 ) -> Option<PrepareRename> {
     let line_index = LineIndex::new(source);
-    // A namespace name is not a renameable symbol (see
-    // [`namespace_rename_refusal`]), and the check must come first: the word
-    // resolvers below would otherwise anchor prepare on a same-spelled proc
-    // or class in a completely different place in the file (issue #1088
-    // review, finding 1).  `None` is the right answer here — the editor
-    // simply offers no rename UI — while a client that skips prepare and
-    // calls `rename` directly meets the refusal instead.
-    if crate::namespace_symbol::namespace_cell_at(source, analysis, line, character).is_some() {
-        return None;
+    // A namespace name is renameable (issue #1114), and the check must come
+    // first: the word resolvers below would otherwise anchor prepare on a
+    // same-spelled proc or class in a completely different place in the file
+    // (issue #1088 review, finding 1).
+    //
+    // The range offered is the **final segment** of the namespace inside the
+    // word under the cursor, because that is the only byte range the rename
+    // rewrites — offering the whole `::app::old` word would have the editor
+    // pre-fill a placeholder the rename never replaces.  A word that does not
+    // spell that segment (a relative `sub` inside the namespace itself) is not
+    // an anchor for it, so prepare declines and the editor offers no UI there.
+    if let Some(cell) =
+        crate::namespace_symbol::namespace_cell_at(source, analysis, line, character)
+    {
+        let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+        return crate::namespace_rename::namespace_segment_at(source, analysis, cursor, &cell).map(
+            |span| PrepareRename {
+                range: span_to_range(source, &line_index, span),
+                placeholder: source[span.start() as usize..span.end() as usize].to_owned(),
+            },
+        );
     }
     // Variable?  Shared `$ref` gate: a `$name`-shaped substring in a comment
     // or a data brace is not a reference, so it is not renameable either
@@ -339,15 +351,15 @@ fn pre_edit_refusal(
     method_rename_refusal(
         source, dialect, line, character, new_name, analysis, line_index,
     )
-    // A namespace name is not a rename target here, and — crucially — it must
-    // **refuse** rather than return an empty edit set: `Ok(vec![])` falls
-    // through to the server's workspace-resolved rename branch, which
-    // resolved the word as a *command* and rewrote a same-spelled proc
-    // instead (issue #1088 review, finding 1).  The cursor is provably on a
-    // registry-declared `ArgRole::NamespaceName` argument, so it names a
-    // namespace and nothing else; renaming one would have to rewrite every
-    // qualified name beneath it, which this tier does not do.
-    .or_else(|| namespace_rename_refusal(source, line, character, analysis))
+    // A namespace name is answered by its own tier
+    // ([`crate::namespace_rename`], issue #1114), and a refusal from it must
+    // stay a refusal: `Ok(vec![])` falls through to the server's
+    // workspace-resolved rename branch, which resolves the word as a
+    // *command* and rewrote a same-spelled proc instead (issue #1088 review,
+    // finding 1).  The cursor is provably on a registry-declared
+    // `ArgRole::NamespaceName` argument, so it names a namespace and nothing
+    // else.
+    .or_else(|| namespace_rename_refusal(source, dialect, line, character, new_name, analysis))
     // A variable whose *name* can only be written quoted (`set {$n} 1`) cannot
     // be renamed by substituting into the recorded spans — see the gate's own
     // doc (issue #1078).  Decided before `rename_variable_at`, whose
@@ -399,6 +411,12 @@ pub fn rename_with_diagnosis(
         return Err(refusal);
     }
 
+    // Namespace name first: the position is *definitive* (a proc or class of
+    // the same spelling is not what it names), and the gate above already
+    // cleared this document.
+    if let Some(edits) = rename_namespace_at(source, dialect, line, character, new_name, analysis) {
+        return Ok(edits);
+    }
     if let Some(edits) =
         rename_variable_at(source, line, character, new_name, analysis, &line_index)
     {
@@ -489,13 +507,9 @@ pub fn rename_with_diagnosis(
 }
 
 /// The refusal for a cursor sitting on a **namespace name** — a word the
-/// registry marks [`tcl_registry::ArgRole::NamespaceName`] (issue #1088).
-///
-/// Renaming a namespace is not implemented: the edit set would have to
-/// rewrite every qualified proc, class, and variable name beneath it, plus
-/// every `namespace eval` block that reopens it, across the workspace.  That
-/// is a materially larger question than the variable tier's, and until it is
-/// answered the honest response is a refusal *with a reason*.
+/// registry marks [`tcl_registry::ArgRole::NamespaceName`] (issue #1088) —
+/// when [`crate::namespace_rename`]'s tier cannot prove the edit set complete
+/// (issue #1114).
 ///
 /// It has to be a refusal rather than an empty edit set for the reason
 /// [`rename_with_diagnosis`]'s own doc gives: an empty set falls through to
@@ -505,19 +519,39 @@ pub fn rename_with_diagnosis(
 /// at the proc's declaration on another line.
 fn namespace_rename_refusal(
     source: &str,
+    dialect: &str,
     line: u32,
     character: u32,
+    new_name: &str,
     analysis: &AnalysisResult,
 ) -> Option<crate::rename_safety::RenameRefusal> {
     let cell = crate::namespace_symbol::namespace_cell_at(source, analysis, line, character)?;
-    Some(crate::rename_safety::RenameRefusal {
-        reason: format!(
-            "`{cell}` is a namespace name. Renaming a namespace is not supported: \
-             it would have to rewrite every qualified name declared beneath it \
-             and every `namespace eval` block that reopens it."
-        ),
-        range: None,
-    })
+    crate::namespace_rename::namespace_rename_edits(source, dialect, analysis, &cell, new_name)
+        .err()
+}
+
+/// The **in-document** namespace rename: every written spelling of the
+/// namespace the cursor names, rewritten to `new_name` (issue #1114).
+///
+/// `None` when the cursor names no namespace.  A refusal has already been
+/// decided by [`namespace_rename_refusal`] in [`pre_edit_refusal`], so this
+/// tier only ever runs on a document the gate cleared — the two call the same
+/// [`crate::namespace_rename::namespace_rename_edits`], so they cannot
+/// disagree about which occurrences exist.
+///
+/// The server drives the *workspace* version of this: a namespace is spelled
+/// in every file that reaches into it, so a rename that stopped at one
+/// document would be exactly the partial edit set the safety bar forbids.
+fn rename_namespace_at(
+    source: &str,
+    dialect: &str,
+    line: u32,
+    character: u32,
+    new_name: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<TextEdit>> {
+    let cell = crate::namespace_symbol::namespace_cell_at(source, analysis, line, character)?;
+    crate::namespace_rename::namespace_rename_edits(source, dialect, analysis, &cell, new_name).ok()
 }
 
 /// The safety refusal for a `TclOO` member rename anchored at the cursor, if
