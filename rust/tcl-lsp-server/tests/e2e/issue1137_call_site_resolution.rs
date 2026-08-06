@@ -193,6 +193,29 @@ fn a_bare_helper_call_in_a_method_body_resolves_across_files() {
         "the bare `callback` call must reach ::oo::Helpers::callback in utils.tcl: {result}",
     );
 
+    // The reverse direction of the same edge, which the issue #923 audit
+    // reported separately: find-references started from the helper's own
+    // declaration must reach the method-body call site in the other file.
+    // The two providers have to agree — a definition that resolves while
+    // references does not is exactly the inconsistency the audit found.
+    let utils_uri = format!("file://{}", root.join("utils.tcl").to_string_lossy());
+    lsp.open_ready(
+        &utils_uri,
+        &std::fs::read_to_string(root.join("utils.tcl")).expect("read utils"),
+    );
+    let refs = lsp.references(&utils_uri, 0, 24, true);
+    let uris: Vec<String> = refs
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|loc| loc.get("uri").and_then(Value::as_str).map(str::to_owned))
+        .collect();
+    assert!(
+        uris.iter().any(|u| u.ends_with("esnap.tcl")),
+        "references on the helper declaration must include the esnap.tcl call site: {refs}",
+    );
+
     let _ = std::fs::remove_dir_all(&root);
 }
 

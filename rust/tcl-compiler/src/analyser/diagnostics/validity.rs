@@ -387,6 +387,25 @@ fn qualify_candidates(ns: &str, cmd_name: &str) -> Vec<String> {
     crate::naming::bareword_resolution_candidates(ns, cmd_name)
 }
 
+/// [`qualify_candidates`] plus the **implicit `namespace path`** in force at
+/// `call_off` — today only a `TclOO` member body's `::oo::Helpers`, and that
+/// name comes from the registry
+/// ([`tcl_registry::definer::TCLOO_MEMBER_BODY_NAMESPACE_PATH`], read through
+/// [`crate::analyser::scope::implicit_command_namespace_path_at`]), never from
+/// a literal here.
+///
+/// Without the path a bare word written in a method body only ever qualifies
+/// to `::WORD`, so a document that installs its own
+/// `proc ::oo::Helpers::callback` — the documented "`TclOO` Tricks" wiki
+/// helper `ticklecharts` uses under 8.6 — did not count as shadowing the
+/// like-named 9.0 builtin, and the call drew a W002 "disabled in the active
+/// dialect profile" the program provably never sees (issue #923 audit,
+/// `ticklecharts` idx 51). tclsh 8.6.14 runs that file: the helper *is* the
+/// command the method body reaches.
+fn qualify_candidates_with_path(ns: &str, cmd_name: &str, path: &[&str]) -> Vec<String> {
+    crate::naming::command_resolution_candidates(ns, path, cmd_name)
+}
+
 /// Whole-file facts needed to decide whether a same-file call resolves to a
 /// user definition rather than falling through to a registry builtin.
 ///
@@ -468,10 +487,11 @@ impl UserResolutionFacts {
         }
     }
 
-    /// Whether a call to `cmd_name` (resolved at `ns`, at byte offset
-    /// `call_off`) resolves to a user-declared proc, class, alias, rename
-    /// target, ensemble, or stub, rather than falling through to the
-    /// registry builtin that produced the candidate diagnostic.
+    /// Whether a call to `cmd_name` (resolved at `ns`, through the implicit
+    /// `namespace path` `path`, at byte offset `call_off`) resolves to a
+    /// user-declared proc, class, alias, rename target, ensemble, or stub,
+    /// rather than falling through to the registry builtin that produced the
+    /// candidate diagnostic.
     ///
     /// `enforce_order` gates **proc** and **rename** shadowing to a
     /// definition that lexically precedes the call: true for a top-level
@@ -486,11 +506,12 @@ impl UserResolutionFacts {
         &self,
         cmd_name: &str,
         ns: &str,
+        path: &[&str],
         enforce_order: bool,
         call_off: u32,
     ) -> bool {
         let bare = cmd_name.rsplit("::").next().unwrap_or(cmd_name);
-        let candidates = qualify_candidates(ns, cmd_name);
+        let candidates = qualify_candidates_with_path(ns, cmd_name, path);
         candidates.iter().any(|c| {
             self.non_proc_qnames.contains(c.as_str())
                 || self
@@ -1532,7 +1553,11 @@ impl Analyser {
         let pending = std::mem::take(&mut self.pending_disabled_commands);
         for (cmd_name, ns, enforce_order, diag) in pending {
             let call_off = diag.span.start();
-            if facts.resolves_to_user(&cmd_name, &ns, enforce_order, call_off) {
+            let path = crate::analyser::scope::implicit_command_namespace_path_at(
+                &self.result.global_scope,
+                call_off,
+            );
+            if facts.resolves_to_user(&cmd_name, &ns, path, enforce_order, call_off) {
                 continue;
             }
             self.result.diagnostics.push(diag);
@@ -1642,7 +1667,11 @@ impl Analyser {
         let pending = std::mem::take(&mut self.pending_arity);
         for (cmd_name, ns, enforce_order, diag) in pending {
             let call_off = diag.span.start();
-            if facts.resolves_to_user(&cmd_name, &ns, enforce_order, call_off) {
+            let path = crate::analyser::scope::implicit_command_namespace_path_at(
+                &self.result.global_scope,
+                call_off,
+            );
+            if facts.resolves_to_user(&cmd_name, &ns, path, enforce_order, call_off) {
                 continue;
             }
             // Arity verdicts only — the *count* claim is the one that needs
@@ -3100,7 +3129,11 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
             .collect();
         let pending = std::mem::take(&mut self.pending_w143);
         for (cmd_name, ns, enforce_order, diag) in pending {
-            if facts.resolves_to_user(&cmd_name, &ns, enforce_order, diag.span.start()) {
+            let path = crate::analyser::scope::implicit_command_namespace_path_at(
+                &self.result.global_scope,
+                diag.span.start(),
+            );
+            if facts.resolves_to_user(&cmd_name, &ns, path, enforce_order, diag.span.start()) {
                 continue;
             }
             let bare = cmd_name.trim_start_matches(':');

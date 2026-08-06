@@ -191,7 +191,15 @@ fn method_body_link_stays_clean() {
 #[test]
 fn top_level_family_members_all_draw_w123() {
     let mut lsp = Lsp::tcl();
-    for word in ["my", "next", "nextto", "self", "classvariable"] {
+    for word in [
+        "my",
+        "next",
+        "nextto",
+        "self",
+        "classvariable",
+        "callback",
+        "mymethod",
+    ] {
         let uri = unique_uri("tcl");
         let diags = lsp.open_ready(&uri, &scoped_family_doc(&format!("{word} foo\n")));
         assert!(
@@ -265,6 +273,104 @@ fn the_qualified_oo_helpers_spelling_resolves_at_the_top_level() {
         "the qualified spelling is a real global command: {:?}",
         codes(&diags)
     );
+}
+
+// `callback` / `mymethod` version gating (issue #923 audit, `ticklecharts`
+// idx 51): both are genuine core `::oo::Helpers` members from 9.0 onward and
+// exist nowhere in 8.6 core, so a bare call inside a method body must be
+// silent on 9.0 and reported on 8.6.
+//
+// tclsh 9.0.4: `info commands ::oo::Helpers::*` -> `… callback … mymethod …`,
+// and inside a method `callback Foo 1 2` -> `::oo::Obj22::my Foo 1 2`.
+// tclsh 8.6.14: the same list holds only `next nextto self`, and the same
+// method body answers `invalid command name "callback"`.
+
+/// The class layout `ticklecharts`'s `esnap.tcl` uses: a capitalised (hence
+/// auto-private) handler method reached through a `callback`-built prefix.
+fn callback_doc(dialect_directive: &str, word: &str) -> String {
+    format!(
+        "{dialect_directive}oo::class create Snap {{\n    method Start {{}} {{\n        return [{word} ReadBrowser]\n    }}\n    method ReadBrowser {{}} {{ return 1 }}\n}}\n"
+    )
+}
+
+#[test]
+fn callback_and_mymethod_resolve_inside_a_method_body_in_90() {
+    // FP fix: before the registry entries the bare word drew
+    // `Unknown command 'callback'` on every dialect.
+    let mut lsp = Lsp::tcl();
+    for word in ["callback", "mymethod"] {
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(&uri, &callback_doc("# tcl-dialect: tcl9.0\n", word));
+        assert!(
+            !codes(&diags).contains("W123"),
+            "`{word}` is core Tcl 9.0 and resolves in a method body: {:?}",
+            codes(&diags)
+        );
+    }
+}
+
+#[test]
+fn callback_is_unknown_in_86_core() {
+    // TN, the version dimension: 8.6 core has no `callback` at all, and no
+    // package supplies it either — `ticklecharts` hand-rolls a
+    // `proc ::oo::Helpers::callback` behind a version guard precisely
+    // because of that, and the workspace index resolves *that* proc on its
+    // own. With no such proc in the document the word is genuinely unknown.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, &callback_doc("", "callback"));
+    assert!(
+        codes(&diags).contains("W123"),
+        "8.6 core has no `callback`: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn mymethod_in_86_asks_for_ooutil_rather_than_being_unknown() {
+    // `mymethod` is the one of the pair Tcllib backfills: `ooutil` defines
+    // `proc ::oo::Helpers::mymethod`. So under 8.6 it is a
+    // needs-a-package-require report, not an unknown command — and a real
+    // `package require ooutil` silences it.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, &callback_doc("", "mymethod"));
+    let seen = codes(&diags);
+    assert!(
+        seen.contains("W120") && !seen.contains("W123"),
+        "8.6 `mymethod` is ooutil-provided, not unknown: {seen:?}",
+    );
+
+    let required = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &required,
+        &callback_doc("package require ooutil\n", "mymethod"),
+    );
+    let seen = codes(&diags);
+    assert!(
+        !seen.contains("W120") && !seen.contains("W123"),
+        "a real `package require ooutil` makes 8.6 `mymethod` known: {seen:?}",
+    );
+}
+
+#[test]
+fn the_qualified_callback_spelling_resolves_at_the_top_level_in_90() {
+    // Same rule the `link` twin pins: `info commands ::oo::Helpers::callback`
+    // answers under tclsh 9.0.4, and calling it outside a method is the
+    // *runtime* error "may only be called from inside a method".
+    let mut lsp = Lsp::tcl();
+    for word in ["callback", "mymethod"] {
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(
+            &uri,
+            &scoped_family_doc(&format!("::oo::Helpers::{word} Foo\n")),
+        );
+        assert!(
+            !codes(&diags).contains("W123"),
+            "`::oo::Helpers::{word}` is a real global command: {:?}",
+            codes(&diags)
+        );
+    }
 }
 
 // -- TestTcl91Operators --------------------------------------------------

@@ -348,9 +348,19 @@ const MOD_DEFINITION: u32 = 1 << 1;
 const MOD_DECLARATION: u32 = 1 << 0;
 
 /// `TclOO` method-body helper commands (used inside a method body, not
-/// definition-context members) without a standalone `CommandSpec` — the part
-/// of [`is_language_keyword_sub_keyword`]'s residue specific to this crate
-/// (its clause-keyword half lives in the registry; see that function's docs).
+/// definition-context members) with no `CommandSpec` **in the active
+/// dialect** — the part of [`is_language_keyword_sub_keyword`]'s residue
+/// specific to this crate (its clause-keyword half lives in the registry;
+/// see that function's docs).
+///
+/// Both gained real, 9.0-gated registry specs with issue #923's
+/// `ticklecharts` idx 51 (`tcl_registry::commands::tcl::oo_callback`), so
+/// under a 9.0/9.1 profile the `LANGUAGE_KEYWORD` lookup already answers and
+/// this list is inert. It still earns its place on 8.4-8.6, where the same
+/// two words are only ever a hand-installed `proc ::oo::Helpers::callback`
+/// (the "`TclOO` Tricks" wiki helper) or Tcllib `ooutil`'s `mymethod`: they
+/// read as method-body keywords to a human either way, and the highlighter
+/// has no package-load information to decide otherwise.
 const METHOD_BODY_HELPER_SUB_KEYWORDS: &[&str] = &["callback", "mymethod"];
 
 /// `true` for sub-keywords highlighted as `keyword` that are **not**

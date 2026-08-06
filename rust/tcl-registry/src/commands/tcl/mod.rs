@@ -107,6 +107,7 @@ mod memory;
 mod namespace_;
 mod nextto;
 mod oo_abstract;
+mod oo_callback;
 mod oo_class;
 mod oo_classvariable;
 mod oo_configurable;
@@ -241,6 +242,7 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         array_::spec(),
         binary_::spec(),
         break_::spec(),
+        oo_callback::spec(),
         catch_::spec(),
         cd::spec(),
         chan_::spec(),
@@ -321,6 +323,8 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         oo_define::spec(),
         oo_link::spec(),
         oo_link::spec_ooutil_86(),
+        oo_callback::mymethod_spec(),
+        oo_callback::mymethod_spec_ooutil_86(),
         oo_my::spec(),
         oo_next::spec(),
         oo_objdefine::spec(),

@@ -316,6 +316,76 @@ fn codes_for_dialect(src: &str, dialect: &str) -> Vec<String> {
         .collect()
 }
 
+/// FP guard (issue #923 audit, `ticklecharts` idx 51): a document that
+/// installs the documented "`TclOO` Tricks" wiki helper
+/// `proc ::oo::Helpers::callback` and calls it bare from a method body must
+/// draw **no** diagnostic under 8.6, where `callback` is not a core command.
+///
+/// A `TclOO` member body's `namespace path` is unconditionally
+/// `::oo::Helpers` (tclsh 8.6.14 / 9.0.4), so the helper really is the
+/// command that bare word reaches — `esnap.tcl`'s `[callback ReadBrowser]`
+/// runs. Before the shadow check consulted that implicit path the bare word
+/// only ever qualified to `::callback`, so the helper did not count and the
+/// call drew a W002 "disabled in the active dialect profile" for the 9.0
+/// builtin the program never sees.
+#[test]
+fn oo_helpers_user_helper_shadows_the_dialect_gated_builtin() {
+    let src = "proc ::oo::Helpers::callback {method args} {\n    \
+               return [list my $method {*}$args]\n}\n\
+               oo::class create Snap {\n    \
+               method Start {} { return [callback ReadBrowser] }\n    \
+               method ReadBrowser {} { return 1 }\n}\n";
+    let codes = codes_for_dialect(src, "tcl8.6");
+    assert!(
+        !codes.contains(&"W002".to_string()) && !codes.contains(&"W123".to_string()),
+        "the file's own ::oo::Helpers::callback is what the method body \
+         reaches: {codes:?}"
+    );
+}
+
+/// TP control for the same gate: with no such helper anywhere, an 8.6
+/// document really has no `callback`, and both the dialect-availability
+/// report and the unknown-command report must still fire (tclsh 8.6.14:
+/// `invalid command name "callback"`).
+#[test]
+fn oo_helpers_builtin_without_a_user_helper_still_reports() {
+    let src = "oo::class create Snap {\n    \
+               method Start {} { return [callback ReadBrowser] }\n    \
+               method ReadBrowser {} { return 1 }\n}\n";
+    let codes = codes_for_dialect(src, "tcl8.6");
+    assert!(
+        codes.contains(&"W002".to_string()) && codes.contains(&"W123".to_string()),
+        "8.6 core has no `callback` and nothing supplies it: {codes:?}"
+    );
+}
+
+/// TN control: the implicit path is a `TclOO` member-body fact only, so a
+/// `proc ::oo::Helpers::NAME` must shadow **only** inside such a body.
+///
+/// Uses `lseq` (Tcl 9.0-only, and not an `oo::Helpers` member of any
+/// version) so the two positions differ in nothing but the namespace path:
+/// inside a method body `::oo::Helpers::lseq` is genuinely on the search
+/// path and shadows, at the top level nothing puts `::oo::Helpers` there
+/// (tclsh 9.0.4: a bare word at the top level is looked up in `::` alone),
+/// so the 8.6 dialect-availability report must stand.
+#[test]
+fn oo_helpers_user_helper_shadows_only_inside_a_member_body() {
+    let helper = "proc ::oo::Helpers::lseq {args} { return $args }\n";
+    let top_level = format!("{helper}lseq 1 5\n");
+    assert!(
+        codes_for_dialect(&top_level, "tcl8.6").contains(&"W002".to_string()),
+        "a top-level bare word never reaches ::oo::Helpers: {:?}",
+        codes_for_dialect(&top_level, "tcl8.6")
+    );
+    let in_method =
+        format!("{helper}oo::class create C {{\n    method m {{}} {{ return [lseq 1 5] }}\n}}\n");
+    assert!(
+        !codes_for_dialect(&in_method, "tcl8.6").contains(&"W002".to_string()),
+        "a method body resolves the helper: {:?}",
+        codes_for_dialect(&in_method, "tcl8.6")
+    );
+}
+
 #[test]
 fn disabled_definer_nested_in_catch_reports_w002_once_without_cascade() {
     // The feature-detection idiom: a Tcl 9-only definer probed under 8.6.

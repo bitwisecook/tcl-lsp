@@ -2006,9 +2006,9 @@ fn tcloo_dispatch_keyword_membership() {
 }
 
 /// The method-context-scoped set (issue #1026) — which bare spellings only
-/// resolve inside a `TclOO` method body — is exactly `link` / `my` / `next`
-/// / `nextto` / `self` / `classvariable`, and never the qualified
-/// `oo::Helpers::…` spellings.
+/// resolve inside a `TclOO` method body — is exactly `callback` / `link` /
+/// `my` / `mymethod` / `next` / `nextto` / `self` / `classvariable`, and
+/// never the qualified `oo::Helpers::…` spellings.
 ///
 /// Pinned against tclsh 9.0.4: each bare word at the top level raises
 /// `invalid command name`, `info commands ::link` is empty, and inside
@@ -2031,7 +2031,16 @@ fn tcloo_method_context_membership() {
     carriers.dedup();
     assert_eq!(
         carriers,
-        ["classvariable", "link", "my", "next", "nextto", "self"]
+        [
+            "callback",
+            "classvariable",
+            "link",
+            "my",
+            "mymethod",
+            "next",
+            "nextto",
+            "self"
+        ]
     );
     for name in carriers {
         assert!(
@@ -2105,7 +2114,7 @@ fn tcloo_method_alias_binding_membership() {
     assert!(!registry_for_dialect("tcl8.5").binds_method_alias("link"));
 }
 
-/// **Resolving is not calling.** The five `::oo::Helpers` members need a real
+/// **Resolving is not calling.** Every `::oo::Helpers` member needs a real
 /// method invocation; `my` does not (Codex review of PR #1084).
 ///
 /// tclsh 9.0.4, inside `oo::class create ::P { initialize { … } }` — a frame
@@ -2118,6 +2127,8 @@ fn tcloo_method_alias_binding_membership() {
 /// nextto:        which='::oo::Helpers::nextto'         call -> nextto may only be called from inside a method
 /// self:          which='::oo::Helpers::self'           call -> self may only be called from inside a method
 /// classvariable: which='::oo::Helpers::classvariable'  call -> classvariable may only be called from inside a method
+/// callback:      which='::oo::Helpers::callback'       call -> callback may only be called from inside a method
+/// mymethod:      which='::oo::Helpers::mymethod'       call -> mymethod may only be called from inside a method
 /// my:            which='::oo::Obj20::my'               call -> OK  (`my new` returns ::oo::Obj22)
 /// ```
 ///
@@ -2131,7 +2142,15 @@ fn tcloo_method_frame_membership() {
     carriers.dedup();
     assert_eq!(
         carriers,
-        ["classvariable", "link", "next", "nextto", "self"],
+        [
+            "callback",
+            "classvariable",
+            "link",
+            "mymethod",
+            "next",
+            "nextto",
+            "self"
+        ],
         "`my` is `::oo::ObjN::my`, callable from any object frame",
     );
     for name in carriers {

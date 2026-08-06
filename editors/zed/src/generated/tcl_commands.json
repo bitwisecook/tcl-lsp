@@ -1229,6 +1229,10 @@
       "summary": "Create and manipulate a button widget."
     },
     {
+      "name": "callback",
+      "summary": "build a command prefix that invokes a method of the current object"
+    },
+    {
       "name": "canvas",
       "summary": "Create and manipulate a canvas widget.",
       "subcommands": [
@@ -6420,6 +6424,10 @@
       ]
     },
     {
+      "name": "mymethod",
+      "summary": "build a command prefix that invokes a method of the current object"
+    },
+    {
       "name": "nameserv::bind",
       "summary": "The caller of this command registers the given name as its name in the configured name service, and additionally "
     },
@@ -6727,12 +6735,20 @@
       "summary": "This procedure will use the settings made with ::oauth::config to create the basic authentication and then send."
     },
     {
+      "name": "oo::Helpers::callback",
+      "summary": "build a command prefix that invokes a method of the current object"
+    },
+    {
       "name": "oo::Helpers::classvariable",
       "summary": "Link local variables to variables shared by every instance of a class."
     },
     {
       "name": "oo::Helpers::link",
       "summary": "expose a method as a bareword command in the object's own namespace"
+    },
+    {
+      "name": "oo::Helpers::mymethod",
+      "summary": "build a command prefix that invokes a method of the current object"
     },
     {
       "name": "oo::Helpers::next",
