@@ -5326,6 +5326,38 @@ impl Analyser {
             });
     }
 
+    /// Record ``package ifneeded NAME VERSION ?SCRIPT?``.
+    ///
+    /// Only the setter form is a record: ``package ifneeded NAME
+    /// VERSION`` with no script is a *query* that registers nothing,
+    /// so treating it as a registration would abstain a
+    /// package-derived load order on a document that merely asked
+    /// what was registered.
+    ///
+    /// The script is not kept — see
+    /// [`PackageIfneeded`](super::types::PackageIfneeded) for why the
+    /// bare fact of a registration is the useful part.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::PackageIfneeded`]
+    /// (stamped on `package`'s `ifneeded` subcommand).  See
+    /// [`Self::handle_package_require`] for the `cmd_tok` anchoring
+    /// convention.
+    pub fn handle_package_ifneeded(&mut self, cmd_tok: Token, args: &[String]) {
+        // args[0] is the `ifneeded` subcommand word; the setter form
+        // is NAME + VERSION + SCRIPT.
+        if args.len() < 4 {
+            return;
+        }
+        self.result
+            .package_ifneededs
+            .push(super::types::PackageIfneeded {
+                name: args[1].clone(),
+                version: args[2].clone(),
+                range: cmd_tok.span,
+            });
+    }
+
     /// Record ``package prefer latest`` — the one form of ``package
     /// prefer`` that changes the interpreter's version-selection rule
     /// (issue #1126 item 1).
@@ -11705,6 +11737,29 @@ mod tests {
         let p = &r.package_requires[0];
         assert_eq!(p.name, "-exact");
         assert!(!p.exact);
+    }
+
+    /// `package ifneeded NAME VER SCRIPT` registers a load script; the
+    /// two-word query form registers nothing (issue #1279).
+    #[test]
+    fn analyse_records_package_ifneeded_registrations_only() {
+        let mut a = crate::analyser::Analyser::new();
+        // TP — the setter form, the shape every `pkgIndex.tcl` writes.
+        let r = a.analyse(
+            "package ifneeded base64 2.5 [list source [file join $dir base64.tcl]]",
+            "tcl",
+        );
+        assert_eq!(r.package_ifneededs.len(), 1);
+        assert_eq!(r.package_ifneededs[0].name, "base64");
+        assert_eq!(r.package_ifneededs[0].version, "2.5");
+        // TP — a braced script body is equally a registration.
+        let r = a.analyse("package ifneeded mylib 1.0 {source lib.tcl}", "tcl");
+        assert_eq!(r.package_ifneededs.len(), 1);
+        // TN — the two-word form is a *query*; it registers nothing, so a
+        // document that merely asks what is registered must not be read as
+        // making the package's loading dynamic.
+        let r = a.analyse("package ifneeded base64 2.5", "tcl");
+        assert!(r.package_ifneededs.is_empty());
     }
 
     /// `package prefer latest` is recorded; every other spelling of the
