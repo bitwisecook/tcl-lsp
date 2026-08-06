@@ -5107,18 +5107,20 @@ mod class_factories {
         assert!(codes[0].contains("nosuch"), "{codes:?}");
     }
 
-    /// A user metaclass whose own definition is in **another file** cannot be
-    /// recognised: the analyser is per-file, and nothing in
-    /// `X create Name Supers Body` distinguishes a class factory from
-    /// `interp create`, `image create`, or any ordinary proc taking a script
-    /// argument.  Guessing would invent classes out of unrelated commands, so
-    /// the LSP abstains — records no class, and emits no diagnostic about the
-    /// members it therefore cannot see (issue #923 idx 97, the multi-file
-    /// half; Tk's own `library/iconlist.tcl` is exactly this shape).
+    /// A user metaclass whose own definition is in **another file** and whose
+    /// declaration the host never indexed cannot be recognised: the analyser
+    /// is per-file, and nothing in `X create Name Supers Body` distinguishes
+    /// a class factory from `interp create`, `image create`, or any ordinary
+    /// proc taking a script argument.  Guessing would invent classes out of
+    /// unrelated commands, so the LSP abstains — records no class, and emits
+    /// no diagnostic about the members it therefore cannot see (issue #923
+    /// idx 97, the multi-file half).
     ///
-    /// The single-file case — the metaclass and its products in one file, as
-    /// in Tk's `library/megawidget.tcl` — is fully resolved; see
-    /// `user_metaclass_creates_real_classes` above.
+    /// This is the **floor** the workspace factory index raises, not
+    /// replaces: with no index (every single-file analysis, and every host
+    /// that has not enumerated the project) the behaviour is unchanged.  The
+    /// resolving half is `a_workspace_indexed_metaclass_creates_real_classes`
+    /// below; Tk's own `library/iconlist.tcl` is that shape.
     #[test]
     fn a_metaclass_defined_in_another_file_abstains_rather_than_guessing() {
         let src = concat!(
@@ -5138,6 +5140,329 @@ mod class_factories {
                 .all(|d| d.code.to_string() != "W308" && d.code.to_string() != "W001"),
             "abstention must be silent, not a wrong answer: {:?}",
             r.diagnostics
+        );
+    }
+
+    // -- cross-file class factories (issue #1276) ------------------------
+    //
+    // Ground truth, byte-identical on tclsh 8.6.14 and 9.0.4, for the
+    // three-file shape below (`megawidget.tcl` / `base.tcl` /
+    // `iconlist.tcl`, each `source`d in turn):
+    //
+    //   info object isa class ::IconList          -> 1
+    //   info class superclasses ::IconList        -> ::tk::MegawidgetClass ::FocusableWidget
+    //   info class methods ::IconList -private    -> CreateHull GetSpecs
+    //   info class superclasses ::FocusableWidget -> ::tk::MegawidgetClass
+    //   [::IconList new] CreateHull               -> iconlist-hull/hull-from-FocusableWidget
+    //   [::IconList new] TraceOption a b          -> traced-from-MegawidgetClass
+    //
+    // i.e. the class, its members, its spliced superclass, and the `next`
+    // chain through the injected base are all real — the file that writes
+    // `::tk::Megawidget create IconList …` just cannot see any of it on its
+    // own.
+
+    /// The metaclass file of the three-file shape.
+    const META_FILE: &str = concat!(
+        "oo::class create ::tk::MegawidgetClass {\n",
+        "    method TraceOption {a b} { return traced-from-MegawidgetClass }\n",
+        "}\n",
+        "oo::class create ::tk::Megawidget {\n",
+        "    superclass oo::class\n",
+        "    self method create {name superclasses body} {\n",
+        "        next $name [list superclass ::tk::MegawidgetClass {*}$superclasses]\\;$body\n",
+        "    }\n",
+        "}\n",
+    );
+
+    /// The consumer file — Tk's `library/iconlist.tcl` shape, reduced.
+    const CONSUMER_FILE: &str = concat!(
+        "::tk::Megawidget create IconList FocusableWidget {\n",
+        "    method GetSpecs {} { return iconlist }\n",
+        "    method CreateHull {} { return hull }\n",
+        "}\n",
+    );
+
+    /// The workspace factory index `src` publishes — what a host merges and
+    /// hands back to a consumer document's analysis.
+    fn factories_of(src: &str) -> std::sync::Arc<tcl_compiler::analyser::ClassFactoryIndex> {
+        std::sync::Arc::new(analysis(src, "tcl9.0").class_factories())
+    }
+
+    /// Analyse `src` with `index` supplied as the workspace factory oracle.
+    fn analysis_with_factories(
+        src: &str,
+        index: &std::sync::Arc<tcl_compiler::analyser::ClassFactoryIndex>,
+    ) -> AnalysisResult {
+        Analyser::new()
+            .with_workspace_class_factories(Some(std::sync::Arc::clone(index)))
+            .analyse(src, "tcl9.0")
+    }
+
+    #[test]
+    fn a_metaclass_file_publishes_exactly_one_factory() {
+        // Non-vacuity floor for every test below: the index really carries
+        // `::tk::Megawidget` (and only it — `::tk::MegawidgetClass` is an
+        // ordinary class, not a factory), and the factory really describes
+        // the `{name superclasses body}` layout rather than the builtin one.
+        let index = factories_of(META_FILE);
+        assert_eq!(
+            index.keys().collect::<Vec<_>>(),
+            ["::tk::Megawidget"],
+            "{index:?}"
+        );
+        let spec = &index["::tk::Megawidget"].overrides["create"];
+        assert_eq!((spec.name_arg, spec.body_arg), (1, 3), "{spec:?}");
+        assert!(spec.injected.is_some(), "readable prologue: {spec:?}");
+    }
+
+    #[test]
+    fn a_workspace_indexed_metaclass_creates_real_classes() {
+        // TP — idx 97, the multi-file half.  The consumer file names
+        // `::tk::Megawidget` and nothing else about it; the index proves it
+        // is a factory, so the class, its members, and the superclasses the
+        // manufacturer splices all come out matching the tclsh oracle above.
+        let index = factories_of(META_FILE);
+        let r = analysis_with_factories(CONSUMER_FILE, &index);
+        let cd = r
+            .all_classes
+            .get("::IconList")
+            .unwrap_or_else(|| panic!("::IconList recorded: {:?}", r.all_classes.keys()));
+        let mut methods: Vec<&str> = cd.methods.keys().map(String::as_str).collect();
+        methods.sort_unstable();
+        assert_eq!(methods, ["CreateHull", "GetSpecs"], "{cd:?}");
+        assert_eq!(
+            cd.superclasses,
+            ["::tk::MegawidgetClass", "FocusableWidget"],
+            "{cd:?}"
+        );
+        assert!(!cd.inheritance_unknown, "{cd:?}");
+    }
+
+    #[test]
+    fn the_cross_file_result_matches_the_same_file_result() {
+        // The two tiers must describe the same class: concatenating the
+        // metaclass file with the consumer is the same program, so the
+        // recorded members / superclasses / opacity flags must agree
+        // field-for-field.  (Spans differ — the text is at a different
+        // offset — so the comparison is over the modelled facts.)
+        let index = factories_of(META_FILE);
+        let cross = analysis_with_factories(CONSUMER_FILE, &index);
+        let same = analysis(&format!("{META_FILE}{CONSUMER_FILE}"), "tcl9.0");
+        let a = &cross.all_classes["::IconList"];
+        let b = &same.all_classes["::IconList"];
+        assert_eq!(a.superclasses, b.superclasses, "{a:?}\n{b:?}");
+        assert_eq!(a.inheritance_unknown, b.inheritance_unknown);
+        assert_eq!(a.member_set_incomplete, b.member_set_incomplete);
+        let mut ma: Vec<&str> = a.methods.keys().map(String::as_str).collect();
+        let mut mb: Vec<&str> = b.methods.keys().map(String::as_str).collect();
+        ma.sort_unstable();
+        mb.sort_unstable();
+        assert_eq!(ma, mb);
+    }
+
+    #[test]
+    fn the_per_item_walk_agrees_with_the_whole_file_walk_cross_file() {
+        // The per-item (incremental) strategy defers proc / method bodies to
+        // an isolated second pass, and this campaign has already found two
+        // bugs where that path silently lost a fact the whole-file walk kept.
+        // A creation call at load level *and* one inside a proc body are both
+        // exercised, and the two strategies must produce identical results —
+        // asserted directly rather than assumed.
+        let index = factories_of(META_FILE);
+        let src = concat!(
+            "::tk::Megawidget create IconList FocusableWidget {\n",
+            "    method GetSpecs {} { return iconlist }\n",
+            "}\n",
+            "proc late {} {\n",
+            "    ::tk::Megawidget create Deferred FocusableWidget {\n",
+            "        method Inner {} { return inner }\n",
+            "    }\n",
+            "}\n",
+        );
+        let whole = analysis_with_factories(src, &index);
+        let per_item = Analyser::new()
+            .with_workspace_class_factories(Some(std::sync::Arc::clone(&index)))
+            .analyse_per_item(src, "tcl9.0");
+        for name in ["::IconList", "::Deferred"] {
+            assert!(
+                whole.all_classes.contains_key(name),
+                "{name} on the whole-file walk: {:?}",
+                whole.all_classes.keys().collect::<Vec<_>>()
+            );
+        }
+        assert_eq!(
+            whole.all_classes, per_item.all_classes,
+            "per-item and whole-file class tables must be identical"
+        );
+        assert_eq!(whole.diagnostics, per_item.diagnostics);
+    }
+
+    #[test]
+    fn a_dynamic_metaclass_name_still_abstains() {
+        // TN, the non-negotiable half — the command word is a runtime value,
+        // so *no* index can prove what it names.  The abstention is narrowed
+        // to provable names, never removed.
+        let index = factories_of(META_FILE);
+        let src = concat!(
+            "set meta ::tk::Megawidget\n",
+            "$meta create IconList FocusableWidget {\n",
+            "    method GetSpecs {} { return iconlist }\n",
+            "}\n",
+        );
+        let r = analysis_with_factories(src, &index);
+        assert!(
+            !r.all_classes.contains_key("::IconList"),
+            "a dynamic head proves nothing: {:?}",
+            r.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn an_unindexed_metaclass_still_abstains() {
+        // TN — the index is populated, but with a different metaclass.  A
+        // name it does not carry stays exactly as unrecognised as it was
+        // before the index existed.
+        let index = factories_of(META_FILE);
+        let src = concat!(
+            "::some::OtherFactory create IconList FocusableWidget {\n",
+            "    method GetSpecs {} { return iconlist }\n",
+            "}\n",
+        );
+        let r = analysis_with_factories(src, &index);
+        assert!(
+            !r.all_classes.contains_key("::IconList"),
+            "{:?}",
+            r.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_workspace_metaclass_is_not_reached_by_a_same_tailed_bare_name() {
+        // TN (cross-link guard, the #1063 precedent carried across files) —
+        // the index holds `::tk::Megawidget`; a *global* `Megawidget create …`
+        // names `::Megawidget`, which real Tcl does not resolve to it.
+        // Matching on the tail would manufacture a class the interpreter
+        // never makes.
+        let index = factories_of(META_FILE);
+        let src = concat!(
+            "Megawidget create IconList FocusableWidget {\n",
+            "    method GetSpecs {} { return iconlist }\n",
+            "}\n",
+        );
+        let r = analysis_with_factories(src, &index);
+        assert!(
+            !r.all_classes.contains_key("::IconList"),
+            "{:?}",
+            r.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_bare_name_inside_the_metaclass_namespace_does_resolve() {
+        // TP — the mirror of the guard above: inside `namespace eval ::tk`,
+        // a bare `Megawidget` *is* `::tk::Megawidget` by Tcl's own
+        // current-namespace-then-global rule, so it resolves.  Without this
+        // the guard could be satisfied by never resolving anything.
+        let index = factories_of(META_FILE);
+        let src = concat!(
+            "namespace eval ::tk {\n",
+            "    Megawidget create IconList FocusableWidget {\n",
+            "        method GetSpecs {} { return iconlist }\n",
+            "    }\n",
+            "}\n",
+        );
+        let r = analysis_with_factories(src, &index);
+        assert!(
+            r.all_classes.contains_key("::tk::IconList"),
+            "{:?}",
+            r.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_local_metaclass_shadows_the_workspace_one() {
+        // TN — a class of the same qualified name written *here* is what the
+        // interpreter would have; the index must not override it.  The local
+        // `::tk::Megawidget` is an ordinary class, so its `create` makes an
+        // instance and no `::IconList` class may appear.
+        let index = factories_of(META_FILE);
+        let src = concat!(
+            "oo::class create ::tk::Megawidget {\n",
+            "    method notafactory {} { return 1 }\n",
+            "}\n",
+            "::tk::Megawidget create IconList FocusableWidget {\n",
+            "    method GetSpecs {} { return iconlist }\n",
+            "}\n",
+        );
+        let r = analysis_with_factories(src, &index);
+        assert!(
+            !r.all_classes.contains_key("::IconList"),
+            "the local definition wins: {:?}",
+            r.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn an_unreadable_cross_file_prologue_marks_inheritance_unknown() {
+        // Abstention preserved across the index: the factory's own prologue
+        // is built from a runtime value, so it publishes `injected: None` and
+        // the consumer records the class with its inheritance opaque —
+        // exactly what the same-file path does.
+        let meta = concat!(
+            "oo::class create ::ns::Meta {\n",
+            "    superclass oo::class\n",
+            "    self method create {name extra body} {\n",
+            "        next $name [list superclass [pickBase $extra]]\\;$body\n",
+            "    }\n",
+            "}\n",
+        );
+        let index = factories_of(meta);
+        assert!(
+            index["::ns::Meta"].overrides["create"].injected.is_none(),
+            "{index:?}"
+        );
+        let src = concat!(
+            "::ns::Meta create Widget somewhere {\n",
+            "    method m {} { return 1 }\n",
+            "}\n",
+        );
+        let cd = analysis_with_factories(src, &index)
+            .all_classes
+            .get("::Widget")
+            .cloned()
+            .expect("::Widget recorded");
+        assert!(cd.inheritance_unknown, "{cd:?}");
+        assert!(cd.superclasses.is_empty(), "{cd:?}");
+        assert!(cd.methods.contains_key("m"), "{cd:?}");
+    }
+
+    #[test]
+    fn a_cross_file_factory_keeps_method_checks_live_when_it_can() {
+        // FN guard — resolving cross-file must not blanket-suppress W308.
+        // `PlainMeta` injects nothing provably, so a method that exists
+        // nowhere on the manufactured class still warns.
+        let meta = concat!(
+            "oo::class create ::ns::PlainMeta {\n",
+            "    superclass oo::class\n",
+            "    self method create {name body} { next $name $body }\n",
+            "}\n",
+        );
+        let index = factories_of(meta);
+        let src = concat!(
+            "::ns::PlainMeta create PlainWidget {\n",
+            "    method own {} { return plain-own }\n",
+            "}\n",
+            "set w [PlainWidget new]\n",
+            "$w nosuchmethod\n",
+        );
+        let r = analysis_with_factories(src, &index);
+        assert!(
+            r.diagnostics.iter().any(|d| d.code.to_string() == "W308"),
+            "{:?}",
+            r.diagnostics
+                .iter()
+                .map(|d| d.code.to_string())
+                .collect::<Vec<_>>()
         );
     }
 
