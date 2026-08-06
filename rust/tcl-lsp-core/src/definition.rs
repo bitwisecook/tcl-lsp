@@ -116,6 +116,7 @@ use tcl_compiler::analyser::indirection;
 use tcl_lexer::{LineIndex, Utf16Col};
 
 use crate::hover::{find_var_at_position, find_word_span_at_position};
+use crate::source_graph::{RunOrder, RunPoint};
 
 /// LSP `Range` analogue — line/character pairs in UTF-16 code
 /// units per the LSP spec.
@@ -3237,6 +3238,12 @@ fn live_import_at(
     // Only the winning source's own installs order against its removals: an
     // import of the same name from a *different* namespace is a different
     // edge, and letting it out-date this edge's forget would resurrect it.
+    let install_point = |at: u32| in_document_point(analysis, at);
+    let removal_point = |at: u32| RunPoint {
+        uri: IN_DOCUMENT_URI,
+        at,
+        enclosing_body: None,
+    };
     let mut log = events
         .iter()
         .filter_map(|ev| match *ev {
@@ -3247,30 +3254,58 @@ fn live_import_at(
                 .any(|&(i, _)| i == at)
                 .then_some(AliasEvent {
                     kind: AliasEventKind::Install,
-                    at: Some(at),
+                    at: install_point(at),
                 }),
             SlotEvent::Forget { at, source_ns: s } if forget_covers(s, source_ns) => {
                 Some(AliasEvent {
                     kind: AliasEventKind::Remove,
-                    at: Some(at),
+                    at: removal_point(at),
                 })
             }
             SlotEvent::Destroy { at, source_ns: s } if s == source_ns => Some(AliasEvent {
                 kind: AliasEventKind::Remove,
-                at: Some(at),
+                at: removal_point(at),
             }),
             SlotEvent::Declare { at } => Some(AliasEvent {
                 kind: AliasEventKind::Remove,
-                at: Some(at),
+                at: removal_point(at),
             }),
             _ => None,
         })
         .collect::<Vec<_>>()
         .into_iter();
-    crate::namespace_import::alias_live_at(&mut log, &|at| {
-        indirection::in_effect(analysis, at, call_off)
-    })
+    crate::namespace_import::alias_live_at(
+        &mut log,
+        &RunOrder::default(),
+        Some(in_document_point(analysis, call_off)),
+    )
     .then(|| source_ns.to_owned())
+}
+
+/// The document key every in-document import event carries.
+///
+/// This tier holds exactly one document, so the *identity* of the key is
+/// irrelevant — what matters is that every point shares it, which is what makes
+/// [`crate::source_graph::RunOrder`] fall through to the single-document rule
+/// ([`tcl_compiler::analyser::indirection::in_effect_within`]) without
+/// consulting any graph. The cross-document tier passes real URIs to the same
+/// functions, so the two cannot drift.
+/// The order the in-document tier passes with them: **empty**. One document
+/// needs no `source` graph — every point shares [`IN_DOCUMENT_URI`], so
+/// [`crate::source_graph::RunOrder`] answers from the single-document rule
+/// alone and never looks at an edge. Building it allocates nothing.
+const IN_DOCUMENT_URI: &str = "";
+
+/// An offset in the document being analysed, as a
+/// [`crate::source_graph::RunPoint`] — with the enclosing definition body the
+/// load-order rule needs, which is the only thing
+/// [`indirection::in_effect`] reads out of the analysis.
+fn in_document_point(analysis: &AnalysisResult, at: u32) -> RunPoint<'static> {
+    RunPoint {
+        uri: IN_DOCUMENT_URI,
+        at,
+        enclosing_body: analysis.innermost_definition_body_span(at),
+    }
 }
 
 /// Every [`SlotEvent`] bearing on `<importing_ns>::<word>` in this document,
@@ -3431,11 +3466,23 @@ pub(crate) fn exported_at_import(
         .map(|e| crate::namespace_import::ExportEvent {
             pattern: &e.pattern,
             clears: e.clears,
-            at: Some(e.range.start()),
+            // No enclosing-body span: the index stores none per export row
+            // either, so both tiers rank a `-clear` against a pattern by
+            // position alone. Symmetric, and the safe direction — a
+            // body-local export the tombstone cannot be proven to follow
+            // keeps the name exported.
+            at: RunPoint {
+                uri: IN_DOCUMENT_URI,
+                at: e.range.start(),
+                enclosing_body: None,
+            },
         });
-    crate::namespace_import::exported_at_import_site(&mut events, word, &|at| {
-        indirection::in_effect(analysis, at, import_at)
-    })
+    crate::namespace_import::exported_at_import_site(
+        &mut events,
+        word,
+        &RunOrder::default(),
+        in_document_point(analysis, import_at),
+    )
 }
 
 /// Whether the call at `call_off` in `namespace` reaches `def_qualified`

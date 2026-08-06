@@ -71,17 +71,16 @@
 //! `WorkspaceCommandLink` an exact import produces is only live while this
 //! function admits it (`WorkspaceIndex::live_command_links`).
 //!
-//! What *is* tier-specific is the primitive
-//! "had this event already run when the import executed?", which the caller
-//! supplies as `visible`:
+//! The primitive "had this event already run when the import executed?" is no
+//! longer tier-specific either: both tiers hand these functions the workspace's
+//! [`crate::source_graph::RunOrder`] and the point being asked about, and the
+//! relation answers all three cases from the same rule:
 //!
-//! - Same document: `analyser::indirection::in_effect`, so a declaration
+//! - Same document: `analyser::indirection::in_effect_within`, so a declaration
 //!   inside a proc body is judged by the same load-order rule the rename /
-//!   alias timeline uses.
-//! - Cross-document, same file as the import:
-//!   `analyser::indirection::in_effect_within` — the *identical* rule, stated
-//!   over the two facts the index stores per row (the import's offset and the
-//!   innermost proc/class body containing it). A plain offset comparison is
+//!   alias timeline uses. (The in-document tier reaches it by giving every
+//!   event the document's own key; `in_effect(analysis, …)` is that same rule
+//!   with the body span read out of the analysis.) A plain offset comparison is
 //!   **not** good enough and was a real tier divergence (PR #1102 review): an
 //!   import written inside a body genuinely observes a top-level export
 //!   written later in the same file, because the whole file loads before any
@@ -89,13 +88,26 @@
 //!   setup {} {namespace import ::mymod::*}; proc run {} {helper}}` followed
 //!   by `namespace eval ::mymod {namespace export helper}`, then
 //!   `::app::setup; ::app::run` → `HELP`.
-//! - **Different file from the import: not ordered at all.** Which file loads
-//!   first is not a static fact, so such an event is passed with
-//!   [`ExportEvent::at`] `None`, and this module abstains toward the safer
-//!   side *for navigation*: an unordered pattern still counts (keep answering
-//!   go-to-definition / find-references, the pre-#1027 behaviour), while an
-//!   unordered `-clear` does **not** revoke anything (revoking on a guess
-//!   would silently drop real references).
+//! - **Different file from the import: ordered only where the `source` graph
+//!   proves an order** ([`crate::source_graph::RunOrder`], issue #1104 item
+//!   3). Sourcing a file inlines its whole body at the `source` statement's
+//!   position, so the DFS of the `source` forest *is* the run order and two
+//!   events in one tree are genuinely comparable. Everywhere else — different
+//!   trees, a re-sourced file, a `source` cycle — nothing is ordered and this
+//!   module abstains toward the safer side *for navigation*: an unrankable
+//!   pattern still counts (keep answering go-to-definition / find-references,
+//!   the pre-#1027 behaviour), while an unrankable `-clear` does **not**
+//!   revoke anything (revoking on a guess would silently drop real
+//!   references).
+//!
+//!   Two events written in the **same** foreign file were always ordered
+//!   against each other even before the graph existed — a file's statements
+//!   run consecutively — so a `namespace export p` followed by a `namespace
+//!   export -clear` in one other file now revokes, where the old
+//!   one-`Option<u32>`-per-event encoding could only say "unordered" about
+//!   both and kept the export. What stays unknown is where *this* import sits
+//!   relative to that file, and the pattern-versus-tombstone question does not
+//!   depend on it.
 //!
 //! # The edge has a lifetime, not just a birth
 //!
@@ -130,6 +142,7 @@
 //! Every one of those rows is oracle-confirmed byte-identically on tclsh
 //! 9.0.4 and 8.6.14; the transcripts sit on the individual items.
 
+use crate::source_graph::{RunOrder, RunPoint};
 use tcl_syntax::glob::string_match;
 
 /// One `namespace export` event as either tier sees it.
@@ -140,74 +153,92 @@ pub struct ExportEvent<'a> {
     pub pattern: &'a str,
     /// `true` for a `namespace export -clear` tombstone.
     pub clears: bool,
-    /// Byte offset of the event *when it is ordered relative to the import
-    /// site* — i.e. when both are in the same document. `None` when the two
-    /// sit in different files, whose relative load order is not a static
-    /// fact.
-    pub at: Option<u32>,
+    /// Where the event sits in the workspace's execution timeline. Ordering it
+    /// against anything else is [`RunOrder`]'s job — within one document
+    /// always, and across documents wherever the `source` graph proves a load
+    /// order (issue #1104 item 3).
+    pub at: RunPoint<'a>,
+}
+
+/// Whether `later` is **known** to have run strictly after `earlier`.
+///
+/// The one direction both folds below need, stated once over
+/// [`RunOrder::has_run`] so the gate ("had this run by the query point?") and
+/// the ranking ("which of these two ran later?") cannot mean different things.
+/// `has_run(later, earlier) == Some(false)` reads "at the moment `earlier`
+/// ran, `later` had not" — which is precisely "`later` came after".
+///
+/// Incomparable answers `false`: a removal that cannot be placed revokes
+/// nothing, the abstain-toward-answering direction this whole family takes.
+fn ran_after(order: &RunOrder, later: RunPoint<'_>, earlier: RunPoint<'_>) -> bool {
+    order.has_run(later, earlier) == Some(false)
+}
+
+/// Whether an event had already run at the query point, abstaining toward
+/// *yes* when the two have no static order.
+fn in_effect_at(order: &RunOrder, event: RunPoint<'_>, query: Option<RunPoint<'_>>) -> bool {
+    query.is_none_or(|q| order.has_run(event, q).unwrap_or(true))
 }
 
 /// Whether the source namespace exported `name` **at the point the import
 /// ran** — the per-import-site snapshot (issue #1027).
 ///
-/// `events` are that namespace's export events, in any order. `visible`
-/// decides, for an ordered event at the given offset, whether it had already
-/// run when the import executed; see the module docs for why that primitive is
-/// the caller's and everything else is not.
+/// `events` are that namespace's export events, in any order; `order` is the
+/// workspace's [`RunOrder`] and `import_site` the position of the import being
+/// judged.
 ///
-/// The rule, applied to the events `visible` admits:
+/// The rule, applied to the events in effect at `import_site`:
 ///
-/// 1. Take the latest visible `-clear` tombstone, if any.
-/// 2. `name` is exported when some visible pattern event *after* that
-///    tombstone glob-matches it (Tcl's own `Tcl_StringMatch` semantics, via
-///    [`tcl_syntax::glob::string_match`] — export patterns are glob patterns:
-///    `namespace export get*` exports `getX` and not `setX`, and
-///    `namespace export {p[ab]}` exports `pa`/`pb` and not `pc`,
-///    oracle-verified).
-/// 3. Failing that, an *unordered* pattern event (a different file from the
-///    import) may still match — unordered `-clear`s revoke nothing.
+/// `name` is exported when some visible pattern event glob-matches it (Tcl's
+/// own `Tcl_StringMatch` semantics, via [`tcl_syntax::glob::string_match`] —
+/// export patterns are glob patterns: `namespace export get*` exports `getX`
+/// and not `setX`, and `namespace export {p[ab]}` exports `pa`/`pb` and not
+/// `pc`, oracle-verified) and **no visible `-clear` tombstone is known to have
+/// run after it**.
+///
+/// That is a *latest-wins* rule stated over a partial order rather than a
+/// total one, which is what lets cross-document events participate at all
+/// (design §6.1): two events the gate admits still have to be ranked against
+/// each other, and a partial order has no `max`. A pattern survives unless
+/// some tombstone provably follows it, so an unrankable tombstone revokes
+/// nothing — the same abstention the old unordered encoding expressed, now
+/// stated once instead of as a special case.
 ///
 /// An export pattern is a name pattern, not a reference to a command, so
 /// nothing here requires the command to exist: `namespace export p` written
 /// before `proc p` still exports `p` (oracle-verified). Whether the command
 /// exists is the caller's own lookup, which it does afterwards.
 ///
-/// Single pass, no sort, no allocation — "some matching pattern sits after the
-/// latest `-clear`" is decided by comparing the *latest matching* pattern's
-/// offset with the latest tombstone's, which needs only two running maxima.
-/// This runs inside the cross-document find-references loop, once per
-/// candidate import per invocation, where the workspace tier already had to
-/// hoist an index out (see
+/// One pass to collect the visible events, then an `O(patterns × clears)`
+/// check over them — both sets are a namespace's own `namespace export`
+/// statements, so in practice one or two of each, and the `Vec`s stay
+/// unallocated when nothing is visible. This runs inside the cross-document
+/// find-references loop, once per candidate import per invocation, where the
+/// workspace tier already had to hoist an index out (see
 /// `WorkspaceIndex::resolve_wildcard_import_indexed`) to keep that path off
 /// the profiler.
 #[must_use]
 pub fn exported_at_import_site(
     events: &mut dyn Iterator<Item = ExportEvent<'_>>,
     name: &str,
-    visible: &dyn Fn(u32) -> bool,
+    order: &RunOrder,
+    import_site: RunPoint<'_>,
 ) -> bool {
-    // Latest visible tombstone, and the latest visible pattern event that
-    // matches `name`.
-    let mut cleared_through: Option<u32> = None;
-    let mut latest_match: Option<u32> = None;
-    let mut unordered_match = false;
+    let mut patterns: Vec<RunPoint<'_>> = Vec::new();
+    let mut clears: Vec<RunPoint<'_>> = Vec::new();
     for ev in events {
-        let Some(at) = ev.at else {
-            unordered_match |= !ev.clears && string_match(ev.pattern, name);
-            continue;
-        };
-        if !visible(at) {
+        if !in_effect_at(order, ev.at, Some(import_site)) {
             continue;
         }
         if ev.clears {
-            cleared_through = cleared_through.max(Some(at));
+            clears.push(ev.at);
         } else if string_match(ev.pattern, name) {
-            latest_match = latest_match.max(Some(at));
+            patterns.push(ev.at);
         }
     }
-    let ordered_match =
-        latest_match.is_some_and(|m| cleared_through.is_none_or(|cleared| m > cleared));
-    ordered_match || unordered_match
+    patterns
+        .iter()
+        .any(|&p| !clears.iter().any(|&c| ran_after(order, c, p)))
 }
 
 /// The **load-order** position of a statement in its own document: `false`
@@ -285,14 +316,12 @@ pub enum AliasEventKind {
 /// ordered, append-only log and read by the same "latest visible event wins"
 /// rule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AliasEvent {
+pub struct AliasEvent<'a> {
     /// What the event does.
     pub kind: AliasEventKind,
-    /// Byte offset of the event *when it is ordered relative to the query
-    /// point* — i.e. when both are in the same document. `None` when the two
-    /// sit in different files, whose relative load order is not a static
-    /// fact.
-    pub at: Option<u32>,
+    /// Where the event sits in the workspace's execution timeline; ordered
+    /// against the query point and against the other events by [`RunOrder`].
+    pub at: RunPoint<'a>,
 }
 
 /// Whether the importing namespace still holds a live imported alias at the
@@ -328,25 +357,29 @@ pub struct AliasEvent {
 ///
 /// # The rule
 ///
-/// Symmetric with [`exported_at_import_site`], and for the same reason: the
-/// latest in-effect [`AliasEventKind::Remove`] wins over every install before
-/// it, and an install *after* that removal reinstates the alias (a re-import
-/// after a forget genuinely does — oracle: re-running `namespace import
-/// ::src::*` after a `namespace forget` makes the bare call work again).
-/// Unordered events — from a different file, where no static load order
-/// exists — abstain toward *answering*: an unordered install counts, an
-/// unordered removal revokes nothing, exactly as an unordered `-clear` does
-/// not revoke an export.
+/// Symmetric with [`exported_at_import_site`], and for the same reason: an
+/// install survives unless some in-effect [`AliasEventKind::Remove`] is *known*
+/// to have run after it, and an install after a removal reinstates the alias (a
+/// re-import after a forget genuinely does — oracle: re-running `namespace
+/// import ::src::*` after a `namespace forget` makes the bare call work again).
+/// Events the [`RunOrder`] cannot rank abstain toward *answering*: an
+/// unrankable install counts, an unrankable removal revokes nothing, exactly as
+/// an unrankable `-clear` does not revoke an export.
 ///
-/// # What `in_effect` gates
+/// # What the order gates
 ///
-/// `in_effect` decides, for an ordered event at the given offset, whether it
-/// had already run at the query point — and it is applied to **every** ordered
-/// event, install and removal alike. Both tiers pass the order-gating
-/// primitive they already use for the export snapshot
-/// ([`tcl_compiler::analyser::indirection::in_effect`] /
-/// [`tcl_compiler::analyser::indirection::in_effect_within`]), so "has run by
-/// here" cannot mean two things.
+/// [`RunOrder::has_run`] decides, for each event, whether it had already run at
+/// `query` — and it is applied to **every** event, install and removal alike.
+/// Both tiers pass the same relation, so "has run by here" cannot mean two
+/// things; within one document it *is*
+/// [`tcl_compiler::analyser::indirection::in_effect_within`], the primitive the
+/// `rename` / `interp alias` timeline uses.
+///
+/// `query` is `None` for a caller with no query point of its own — the
+/// whole-index liveness mask over exact import links
+/// (`WildcardImportIndex::link_alias_live`), which asks "does this alias exist
+/// for navigation at all". Every event then counts as having run, and the only
+/// ordering left is each removal's position relative to the install.
 ///
 /// Gating the *install* is what makes a bare call written **before** its own
 /// `namespace import` stop resolving through it (issue #1104 item 1). Oracle
@@ -362,115 +395,170 @@ pub struct AliasEvent {
 /// That gate is *not* a plain offset comparison, and must not be reduced to
 /// one: a call inside a proc body is not ordered against a top-level import of
 /// the same file at all, because the whole file loads — running every
-/// top-level statement, imports included — before any body runs. `in_effect` /
-/// `in_effect_within` already state exactly that rule, which is why both tiers
-/// pass one of them rather than `at < call_off`. A tier that compared offsets
-/// alone would drop every proc body calling a name imported further down its
-/// own file — the overwhelmingly common shape in real code.
+/// top-level statement, imports included — before any body runs.
+/// [`RunOrder::has_run`] states exactly that rule, which is why both tiers pass
+/// it rather than `at < call_off`. A tier that compared offsets alone would
+/// drop every proc body calling a name imported further down its own file —
+/// the overwhelmingly common shape in real code.
 ///
 /// With no install in effect the answer is `false`: nothing had put the alias
 /// there yet. Callers that have already proven an import matches (pattern,
 /// export snapshot, conflict rule) pass it as an [`AliasEventKind::Install`].
 ///
-/// Single pass, two running maxima, no allocation — the same shape and the
-/// same cost as [`exported_at_import_site`], which it runs beside.
+/// The same shape and the same cost as [`exported_at_import_site`], which it
+/// runs beside: one pass to collect the visible events, then an
+/// `O(installs × removals)` check over two sets that hold a handful of
+/// elements each.
 #[must_use]
 pub fn alias_live_at(
-    events: &mut dyn Iterator<Item = AliasEvent>,
-    in_effect: &dyn Fn(u32) -> bool,
+    events: &mut dyn Iterator<Item = AliasEvent<'_>>,
+    order: &RunOrder,
+    query: Option<RunPoint<'_>>,
 ) -> bool {
-    let mut installed: Option<u32> = None;
-    let mut removed: Option<u32> = None;
-    let mut unordered_install = false;
+    let mut installs: Vec<RunPoint<'_>> = Vec::new();
+    let mut removals: Vec<RunPoint<'_>> = Vec::new();
     for ev in events {
-        let Some(at) = ev.at else {
-            unordered_install |= ev.kind == AliasEventKind::Install;
-            continue;
-        };
-        if !in_effect(at) {
+        if !in_effect_at(order, ev.at, query) {
             continue;
         }
         match ev.kind {
-            AliasEventKind::Install => installed = installed.max(Some(at)),
-            AliasEventKind::Remove => removed = removed.max(Some(at)),
+            AliasEventKind::Install => installs.push(ev.at),
+            AliasEventKind::Remove => removals.push(ev.at),
         }
     }
-    let ordered_live = installed.is_some_and(|i| removed.is_none_or(|r| i > r));
-    ordered_live || unordered_install
+    installs
+        .iter()
+        .any(|&i| !removals.iter().any(|&r| ran_after(order, r, i)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::source_graph::SourceEdge;
 
-    fn ev(pattern: &str, at: u32) -> ExportEvent<'_> {
-        ExportEvent {
-            pattern,
-            clears: false,
-            at: Some(at),
+    /// The document every ordered event in these tests lives in — the
+    /// single-document case both tiers spend almost all their time in.
+    const DOC: &str = "file:///dst.tcl";
+    /// A second document with no `source` path to [`DOC`]: unrankable.
+    const OTHER: &str = "file:///other.tcl";
+
+    fn at(uri: &str, off: u32) -> RunPoint<'_> {
+        RunPoint {
+            uri,
+            at: off,
+            enclosing_body: None,
         }
     }
 
-    fn clear(at: u32) -> ExportEvent<'static> {
+    fn ev(pattern: &str, off: u32) -> ExportEvent<'_> {
+        ExportEvent {
+            pattern,
+            clears: false,
+            at: at(DOC, off),
+        }
+    }
+
+    fn clear(off: u32) -> ExportEvent<'static> {
         ExportEvent {
             pattern: "",
             clears: true,
-            at: Some(at),
+            at: at(DOC, off),
         }
     }
 
-    fn unordered(pattern: &str) -> ExportEvent<'_> {
+    fn foreign(pattern: &str) -> ExportEvent<'_> {
         ExportEvent {
             pattern,
             clears: false,
-            at: None,
+            at: at(OTHER, 0),
         }
     }
 
-    /// `visible` for an import at `import_at`: plain textual order.
-    fn before(import_at: u32) -> impl Fn(u32) -> bool {
-        move |at| at <= import_at
+    /// No `source` statement anywhere — the workspace shape that must behave
+    /// exactly as the pre-#1104-item-3 tiers did.
+    fn unlinked() -> RunOrder {
+        RunOrder::default()
     }
 
     #[test]
     fn export_before_import_is_visible() {
         let mut evs = [ev("p", 10)].into_iter();
-        assert!(exported_at_import_site(&mut evs, "p", &before(20)));
+        assert!(exported_at_import_site(
+            &mut evs,
+            "p",
+            &unlinked(),
+            at(DOC, 20)
+        ));
     }
 
     #[test]
     fn direction_b_export_after_import_is_not_retroactive() {
         // `namespace export p` at 30, import at 20 → not yet exported.
         let mut evs = [ev("p", 30)].into_iter();
-        assert!(!exported_at_import_site(&mut evs, "p", &before(20)));
+        assert!(!exported_at_import_site(
+            &mut evs,
+            "p",
+            &unlinked(),
+            at(DOC, 20)
+        ));
     }
 
     #[test]
     fn direction_a_clear_after_import_does_not_revoke() {
         // export p @10, import @20, `-clear` @30.
         let mut evs = [ev("p", 10), clear(30)].into_iter();
-        assert!(exported_at_import_site(&mut evs, "p", &before(20)));
+        assert!(exported_at_import_site(
+            &mut evs,
+            "p",
+            &unlinked(),
+            at(DOC, 20)
+        ));
     }
 
     #[test]
     fn clear_before_import_does_revoke() {
         let mut evs = [ev("p", 10), clear(15)].into_iter();
-        assert!(!exported_at_import_site(&mut evs, "p", &before(20)));
+        assert!(!exported_at_import_site(
+            &mut evs,
+            "p",
+            &unlinked(),
+            at(DOC, 20)
+        ));
     }
 
     #[test]
     fn clear_then_add_on_the_same_call_keeps_the_new_pattern() {
         // `namespace export a b; namespace export -clear p` → exactly `p`.
-        let mut evs = [ev("a", 5), ev("b", 7), clear(20), ev("p", 27)].into_iter();
-        assert!(exported_at_import_site(&mut evs.clone(), "p", &before(40)));
-        assert!(!exported_at_import_site(&mut evs, "a", &before(40)));
+        let evs = [ev("a", 5), ev("b", 7), clear(20), ev("p", 27)];
+        assert!(exported_at_import_site(
+            &mut evs.into_iter(),
+            "p",
+            &unlinked(),
+            at(DOC, 40)
+        ));
+        assert!(!exported_at_import_site(
+            &mut evs.into_iter(),
+            "a",
+            &unlinked(),
+            at(DOC, 40)
+        ));
     }
 
     #[test]
     fn exports_are_additive_across_calls() {
-        let mut evs = [ev("a", 5), ev("b", 20)].into_iter();
-        assert!(exported_at_import_site(&mut evs.clone(), "a", &before(40)));
-        assert!(exported_at_import_site(&mut evs, "b", &before(40)));
+        let evs = [ev("a", 5), ev("b", 20)];
+        assert!(exported_at_import_site(
+            &mut evs.into_iter(),
+            "a",
+            &unlinked(),
+            at(DOC, 40)
+        ));
+        assert!(exported_at_import_site(
+            &mut evs.into_iter(),
+            "b",
+            &unlinked(),
+            at(DOC, 40)
+        ));
     }
 
     #[test]
@@ -480,23 +568,27 @@ mod tests {
         assert!(exported_at_import_site(
             &mut events.into_iter(),
             "p",
-            &before(20)
+            &unlinked(),
+            at(DOC, 20)
         ));
         assert!(!exported_at_import_site(
             &mut events.into_iter(),
             "q",
-            &before(20)
+            &unlinked(),
+            at(DOC, 20)
         ));
         // Second import at 50: both.
         assert!(exported_at_import_site(
             &mut events.into_iter(),
             "p",
-            &before(50)
+            &unlinked(),
+            at(DOC, 50)
         ));
         assert!(exported_at_import_site(
             &mut events.into_iter(),
             "q",
-            &before(50)
+            &unlinked(),
+            at(DOC, 50)
         ));
     }
 
@@ -506,58 +598,269 @@ mod tests {
         assert!(exported_at_import_site(
             &mut events.into_iter(),
             "getX",
-            &before(20)
+            &unlinked(),
+            at(DOC, 20)
         ));
         assert!(!exported_at_import_site(
             &mut events.into_iter(),
             "setX",
-            &before(20)
+            &unlinked(),
+            at(DOC, 20)
         ));
         let cc = [ev("p[ab]", 10)];
         assert!(exported_at_import_site(
             &mut cc.into_iter(),
             "pa",
-            &before(20)
+            &unlinked(),
+            at(DOC, 20)
         ));
         assert!(!exported_at_import_site(
             &mut cc.into_iter(),
             "pc",
-            &before(20)
+            &unlinked(),
+            at(DOC, 20)
         ));
     }
 
     #[test]
-    fn unordered_pattern_counts_and_unordered_clear_does_not_revoke() {
-        // Export declared in another file: ordering unknown, so it still
-        // resolves…
-        let mut evs = [unordered("p")].into_iter();
-        assert!(exported_at_import_site(&mut evs, "p", &before(0)));
-        // …and a `-clear` from another file cannot silently drop it.
+    fn an_unrankable_pattern_counts_and_an_unrankable_clear_does_not_revoke() {
+        // Export declared in another file with no `source` path to this one:
+        // ordering unknown, so it still resolves…
+        let mut evs = [foreign("p")].into_iter();
+        assert!(exported_at_import_site(
+            &mut evs,
+            "p",
+            &unlinked(),
+            at(DOC, 0)
+        ));
+        // …and a `-clear` from a *third* file cannot silently drop it.
         let mut evs = [
-            unordered("p"),
+            foreign("p"),
             ExportEvent {
                 pattern: "",
                 clears: true,
-                at: None,
+                at: at("file:///third.tcl", 0),
             },
         ]
         .into_iter();
-        assert!(exported_at_import_site(&mut evs, "p", &before(0)));
+        assert!(exported_at_import_site(
+            &mut evs,
+            "p",
+            &unlinked(),
+            at(DOC, 0)
+        ));
     }
 
     #[test]
-    fn an_ordered_clear_does_not_revoke_an_unordered_export() {
+    fn an_ordered_clear_does_not_revoke_an_unrankable_export() {
         // The `-clear` is ordered before the import, but the surviving
         // pattern comes from a file whose load order is unknown — it may well
         // have run after. Navigation keeps answering.
-        let mut evs = [clear(5), unordered("p")].into_iter();
-        assert!(exported_at_import_site(&mut evs, "p", &before(20)));
+        let mut evs = [clear(5), foreign("p")].into_iter();
+        assert!(exported_at_import_site(
+            &mut evs,
+            "p",
+            &unlinked(),
+            at(DOC, 20)
+        ));
+    }
+
+    /// TN, issue #1104 item 3. Two export events written in **one** other file
+    /// were always ordered against each other — a file's statements run
+    /// consecutively — even though where that file sits relative to this
+    /// import is unknown. The old one-`Option<u32>`-per-event encoding could
+    /// only call both "unordered" and kept the export.
+    #[test]
+    fn a_clear_revokes_a_pattern_written_above_it_in_the_same_foreign_file() {
+        let evs = [
+            ExportEvent {
+                pattern: "p",
+                clears: false,
+                at: at(OTHER, 10),
+            },
+            ExportEvent {
+                pattern: "",
+                clears: true,
+                at: at(OTHER, 30),
+            },
+        ];
+        assert!(!exported_at_import_site(
+            &mut evs.into_iter(),
+            "p",
+            &unlinked(),
+            at(DOC, 0)
+        ));
+        // …and the other way round the pattern survives, as it must.
+        let evs = [
+            ExportEvent {
+                pattern: "",
+                clears: true,
+                at: at(OTHER, 10),
+            },
+            ExportEvent {
+                pattern: "p",
+                clears: false,
+                at: at(OTHER, 30),
+            },
+        ];
+        assert!(exported_at_import_site(
+            &mut evs.into_iter(),
+            "p",
+            &unlinked(),
+            at(DOC, 0)
+        ));
     }
 
     #[test]
     fn no_events_means_not_exported() {
         let mut evs = [].into_iter();
-        assert!(!exported_at_import_site(&mut evs, "p", &before(20)));
+        assert!(!exported_at_import_site(
+            &mut evs,
+            "p",
+            &unlinked(),
+            at(DOC, 20)
+        ));
+    }
+
+    // ---- the `source` graph orders what the file boundary did not ---------
+
+    /// The two documents the sourced-order tests use, and the order that
+    /// sequences them: `app.tcl` sources `exp.tcl` and then `imp.tcl`.
+    fn sourced_order() -> RunOrder {
+        RunOrder::build(&[
+            SourceEdge {
+                parent: "file:///app.tcl".to_owned(),
+                child: "file:///exp.tcl".to_owned(),
+                at: 10,
+                enclosing_body: None,
+            },
+            SourceEdge {
+                parent: "file:///app.tcl".to_owned(),
+                child: DOC.to_owned(),
+                at: 20,
+                enclosing_body: None,
+            },
+        ])
+    }
+
+    /// TP (issue #1104 item 3): a `namespace export` in a file the entry point
+    /// sources **before** the importing file counts, as it always did — but
+    /// now as a *fact* rather than an abstention.
+    #[test]
+    fn an_export_in_an_earlier_sourced_file_counts() {
+        let mut evs = [ExportEvent {
+            pattern: "p",
+            clears: false,
+            at: at("file:///exp.tcl", 5),
+        }]
+        .into_iter();
+        assert!(exported_at_import_site(
+            &mut evs,
+            "p",
+            &sourced_order(),
+            at(DOC, 0)
+        ));
+    }
+
+    /// TN (CRITICAL, issue #1104 item 3): the same export in a file sourced
+    /// **after** the importing one has not run when the import executes, so it
+    /// exports nothing to it. This is the leniency the source graph removes.
+    #[test]
+    fn an_export_in_a_later_sourced_file_is_not_retroactive() {
+        // Reverse the order: imp.tcl at 10, exp.tcl at 20.
+        let order = RunOrder::build(&[
+            SourceEdge {
+                parent: "file:///app.tcl".to_owned(),
+                child: DOC.to_owned(),
+                at: 10,
+                enclosing_body: None,
+            },
+            SourceEdge {
+                parent: "file:///app.tcl".to_owned(),
+                child: "file:///exp.tcl".to_owned(),
+                at: 20,
+                enclosing_body: None,
+            },
+        ]);
+        let mut evs = [ExportEvent {
+            pattern: "p",
+            clears: false,
+            at: at("file:///exp.tcl", 5),
+        }]
+        .into_iter();
+        assert!(!exported_at_import_site(&mut evs, "p", &order, at(DOC, 0)));
+    }
+
+    /// TN: a `-clear` in an earlier-sourced file now revokes an export from a
+    /// file sourced before *it* — the second row of #1104 item 3's table.
+    #[test]
+    fn a_clear_in_a_later_sourced_file_revokes_an_earlier_export() {
+        let order = RunOrder::build(&[
+            SourceEdge {
+                parent: "file:///app.tcl".to_owned(),
+                child: "file:///exp.tcl".to_owned(),
+                at: 10,
+                enclosing_body: None,
+            },
+            SourceEdge {
+                parent: "file:///app.tcl".to_owned(),
+                child: "file:///clr.tcl".to_owned(),
+                at: 20,
+                enclosing_body: None,
+            },
+            SourceEdge {
+                parent: "file:///app.tcl".to_owned(),
+                child: DOC.to_owned(),
+                at: 30,
+                enclosing_body: None,
+            },
+        ]);
+        let evs = [
+            ExportEvent {
+                pattern: "p",
+                clears: false,
+                at: at("file:///exp.tcl", 5),
+            },
+            ExportEvent {
+                pattern: "",
+                clears: true,
+                at: at("file:///clr.tcl", 5),
+            },
+        ];
+        assert!(!exported_at_import_site(
+            &mut evs.into_iter(),
+            "p",
+            &order,
+            at(DOC, 0)
+        ));
+        // …and with the import sourced *between* the two, the snapshot it took
+        // still holds — the `-clear` had not run yet.
+        let order = RunOrder::build(&[
+            SourceEdge {
+                parent: "file:///app.tcl".to_owned(),
+                child: "file:///exp.tcl".to_owned(),
+                at: 10,
+                enclosing_body: None,
+            },
+            SourceEdge {
+                parent: "file:///app.tcl".to_owned(),
+                child: DOC.to_owned(),
+                at: 20,
+                enclosing_body: None,
+            },
+            SourceEdge {
+                parent: "file:///app.tcl".to_owned(),
+                child: "file:///clr.tcl".to_owned(),
+                at: 30,
+                enclosing_body: None,
+            },
+        ]);
+        assert!(exported_at_import_site(
+            &mut evs.into_iter(),
+            "p",
+            &order,
+            at(DOC, 0)
+        ));
     }
 
     // ---- load order, for the conflict rule --------------------------------
@@ -594,59 +897,57 @@ mod tests {
 
     // ---- the import edge's own lifecycle (issue #1103) -------------------
 
-    fn install(at: u32) -> AliasEvent {
+    fn install(off: u32) -> AliasEvent<'static> {
         AliasEvent {
             kind: AliasEventKind::Install,
-            at: Some(at),
+            at: at(DOC, off),
         }
     }
 
-    fn remove(at: u32) -> AliasEvent {
+    fn remove(off: u32) -> AliasEvent<'static> {
         AliasEvent {
             kind: AliasEventKind::Remove,
-            at: Some(at),
+            at: at(DOC, off),
         }
     }
 
-    fn unordered_event(kind: AliasEventKind) -> AliasEvent {
-        AliasEvent { kind, at: None }
-    }
-
-    /// `in_effect` for a call at `call_at`: plain textual order.
-    fn ran_before(call_at: u32) -> impl Fn(u32) -> bool {
-        move |at| at < call_at
+    fn unrankable(kind: AliasEventKind) -> AliasEvent<'static> {
+        AliasEvent {
+            kind,
+            at: at(OTHER, 0),
+        }
     }
 
     #[test]
     fn an_import_with_no_removal_is_live() {
         let mut evs = [install(10)].into_iter();
-        assert!(alias_live_at(&mut evs, &ran_before(20)));
+        assert!(alias_live_at(&mut evs, &unlinked(), Some(at(DOC, 20))));
     }
 
     #[test]
     fn nothing_installed_means_no_alias() {
         let mut evs = [remove(10)].into_iter();
-        assert!(!alias_live_at(&mut evs, &ran_before(20)));
+        assert!(!alias_live_at(&mut evs, &unlinked(), Some(at(DOC, 20))));
     }
 
     #[test]
     fn a_forget_after_the_import_kills_the_alias() {
         // import @10, `namespace forget` @15, call @20.
         let mut evs = [install(10), remove(15)].into_iter();
-        assert!(!alias_live_at(&mut evs, &ran_before(20)));
+        assert!(!alias_live_at(&mut evs, &unlinked(), Some(at(DOC, 20))));
     }
 
     #[test]
     fn a_forget_after_the_call_leaves_it_alive() {
         // import @10, call @20, `namespace forget` @30 — the call runs first.
         let mut evs = [install(10), remove(30)].into_iter();
-        assert!(alias_live_at(&mut evs, &ran_before(20)));
+        assert!(alias_live_at(&mut evs, &unlinked(), Some(at(DOC, 20))));
     }
 
     #[test]
     fn a_re_import_after_a_forget_reinstates_the_alias() {
         let mut evs = [install(10), remove(15), install(17)].into_iter();
-        assert!(alias_live_at(&mut evs, &ran_before(20)));
+        assert!(alias_live_at(&mut evs, &unlinked(), Some(at(DOC, 20))));
     }
 
     #[test]
@@ -654,7 +955,7 @@ mod tests {
         // Two forgets; the alias is dead from the first one that follows the
         // last install.
         let mut evs = [install(10), remove(12), remove(15)].into_iter();
-        assert!(!alias_live_at(&mut evs, &ran_before(20)));
+        assert!(!alias_live_at(&mut evs, &unlinked(), Some(at(DOC, 20))));
     }
 
     #[test]
@@ -663,55 +964,102 @@ mod tests {
         // import` reaches nothing (oracle in the function's docs), so an
         // install at 30 with the call at 20 does not install here.
         let mut evs = [install(30)].into_iter();
-        assert!(!alias_live_at(&mut evs, &ran_before(20)));
+        assert!(!alias_live_at(&mut evs, &unlinked(), Some(at(DOC, 20))));
         // The earlier install is the one that counts, and a removal between
         // the two still kills it.
         let mut evs = [install(5), install(30)].into_iter();
-        assert!(alias_live_at(&mut evs, &ran_before(20)));
+        assert!(alias_live_at(&mut evs, &unlinked(), Some(at(DOC, 20))));
         let mut evs = [install(5), remove(10), install(30)].into_iter();
-        assert!(!alias_live_at(&mut evs, &ran_before(20)));
+        assert!(!alias_live_at(&mut evs, &unlinked(), Some(at(DOC, 20))));
     }
 
     #[test]
     fn a_body_local_call_observes_a_later_top_level_install() {
-        // The install gate is `in_effect`, not `at < call_off`: a call inside
-        // a proc body at 20 sees a top-level import at 30, because the whole
-        // file loads before any body runs. Modelled here by the predicate the
-        // real callers pass.
-        let body = tcl_lexer::Span::new(15, 25);
+        // The install gate is the load-order rule, not `at < call_off`: a call
+        // inside a proc body at 20 sees a top-level import at 30, because the
+        // whole file loads before any body runs.
+        let call = RunPoint {
+            uri: DOC,
+            at: 20,
+            enclosing_body: Some(tcl_lexer::Span::new(15, 25)),
+        };
         let mut evs = [install(30)].into_iter();
-        assert!(alias_live_at(&mut evs, &|at| {
-            tcl_compiler::analyser::indirection::in_effect_within(at, 20, Some(body))
-        }));
+        assert!(alias_live_at(&mut evs, &unlinked(), Some(call)));
         // …but an install written inside that same body after the call is an
         // ordinary later statement of the running script.
         let mut evs = [install(22)].into_iter();
-        assert!(!alias_live_at(&mut evs, &|at| {
-            tcl_compiler::analyser::indirection::in_effect_within(at, 20, Some(body))
-        }));
+        assert!(!alias_live_at(&mut evs, &unlinked(), Some(call)));
     }
 
     #[test]
-    fn an_unordered_removal_revokes_nothing() {
-        // A `namespace forget` in another file: no static load order, so
-        // navigation keeps answering rather than dropping a real alias.
-        let mut evs = [install(10), unordered_event(AliasEventKind::Remove)].into_iter();
-        assert!(alias_live_at(&mut evs, &ran_before(20)));
+    fn an_unrankable_removal_revokes_nothing() {
+        // A `namespace forget` in another file with no `source` path to this
+        // one: no static load order, so navigation keeps answering rather than
+        // dropping a real alias.
+        let mut evs = [install(10), unrankable(AliasEventKind::Remove)].into_iter();
+        assert!(alias_live_at(&mut evs, &unlinked(), Some(at(DOC, 20))));
     }
 
     #[test]
-    fn an_unordered_install_counts() {
-        let mut evs = [unordered_event(AliasEventKind::Install)].into_iter();
-        assert!(alias_live_at(&mut evs, &ran_before(20)));
+    fn an_unrankable_install_counts() {
+        let mut evs = [unrankable(AliasEventKind::Install)].into_iter();
+        assert!(alias_live_at(&mut evs, &unlinked(), Some(at(DOC, 20))));
         // …and survives an ordered removal, for the same reason an ordered
-        // `-clear` cannot revoke an unordered export.
-        let mut evs = [unordered_event(AliasEventKind::Install), remove(5)].into_iter();
-        assert!(alias_live_at(&mut evs, &ran_before(20)));
+        // `-clear` cannot revoke an unrankable export.
+        let mut evs = [unrankable(AliasEventKind::Install), remove(5)].into_iter();
+        assert!(alias_live_at(&mut evs, &unlinked(), Some(at(DOC, 20))));
     }
 
     #[test]
     fn no_events_at_all_means_no_alias() {
         let mut evs = [].into_iter();
-        assert!(!alias_live_at(&mut evs, &ran_before(20)));
+        assert!(!alias_live_at(&mut evs, &unlinked(), Some(at(DOC, 20))));
+    }
+
+    /// TP: with no query point every event counts as having run, and the only
+    /// ordering left is the removal's position relative to the install — the
+    /// whole-index liveness mask over exact import links.
+    #[test]
+    fn without_a_query_point_only_the_install_removal_order_matters() {
+        let mut evs = [install(10), remove(30)].into_iter();
+        assert!(!alias_live_at(&mut evs, &unlinked(), None));
+        let mut evs = [install(30), remove(10)].into_iter();
+        assert!(alias_live_at(&mut evs, &unlinked(), None));
+        // A removal that cannot be ranked against the install revokes nothing.
+        let mut evs = [install(10), unrankable(AliasEventKind::Remove)].into_iter();
+        assert!(alias_live_at(&mut evs, &unlinked(), None));
+    }
+
+    /// TN (CRITICAL, #1104 item 3 / #1116 item 6): `source lib.tcl` followed
+    /// by `namespace forget ::lib::p` beside it — the genuinely-sequenced
+    /// idiom that got *both* halves of the abstention wrong. The install from
+    /// `lib.tcl` counts (it always did), and now the forget written after the
+    /// `source` revokes it.
+    #[test]
+    fn a_forget_after_the_source_statement_revokes_the_sourced_install() {
+        let order = RunOrder::build(&[SourceEdge {
+            parent: "file:///app.tcl".to_owned(),
+            child: "file:///lib.tcl".to_owned(),
+            at: 10,
+            enclosing_body: None,
+        }]);
+        let install_in_lib = AliasEvent {
+            kind: AliasEventKind::Install,
+            at: at("file:///lib.tcl", 5),
+        };
+        let forget_in_app = AliasEvent {
+            kind: AliasEventKind::Remove,
+            at: at("file:///app.tcl", 20),
+        };
+        let call = at("file:///app.tcl", 30);
+        let mut evs = [install_in_lib, forget_in_app].into_iter();
+        assert!(!alias_live_at(&mut evs, &order, Some(call)));
+        // …and a call written *between* the two still resolves.
+        let mut evs = [install_in_lib, forget_in_app].into_iter();
+        assert!(alias_live_at(
+            &mut evs,
+            &order,
+            Some(at("file:///app.tcl", 15))
+        ));
     }
 }

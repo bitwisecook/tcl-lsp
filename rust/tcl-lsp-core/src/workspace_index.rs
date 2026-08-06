@@ -76,6 +76,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use crate::source_graph::RunPoint;
 use crate::workspace_symbols::{
     IndexedWorkspaceSymbol, WorkspaceSymbolKind, matches_query, namespace_of,
 };
@@ -1514,6 +1515,12 @@ pub struct WorkspaceIndex {
     /// without link-following — see
     /// [`WorkspaceIndex::invocations_by_settled_target`].
     settled_invocations: [Derived<SettledTargets>; 2],
+    /// The `source`-path → document-URI resolver, when the host has installed
+    /// one — see [`WorkspaceIndex::set_source_resolver`].
+    source_resolver: Option<fn(&str, &str) -> Option<String>>,
+    /// The `source`-graph load order derived from it — see
+    /// [`WorkspaceIndex::run_order`].
+    run_order: Derived<crate::source_graph::RunOrder>,
 }
 
 /// A whole-index **derived view**: a value that is a pure function of the
@@ -1710,6 +1717,63 @@ impl WorkspaceIndex {
         })
     }
 
+    /// Install the host's literal-`source`-path → document-URI resolver, so
+    /// the index can build the [`crate::source_graph::RunOrder`] the
+    /// import-lifecycle gates rank cross-document events with (issue #1104
+    /// item 3).
+    ///
+    /// The index deliberately holds no URI ↔ filesystem-path mapping of its
+    /// own — that is the host's knowledge, and every other `source`-graph
+    /// consumer already takes the same closure per call
+    /// ([`Self::source_ancestor_package_requires`],
+    /// [`Self::source_ancestor_prefers_latest`], [`Self::source_seed_map`]).
+    /// The order, though, is consulted *inside* the per-call import walk,
+    /// where a per-call resolver argument would have to be threaded through
+    /// every caller of `resolve_wildcard_import` and every derived view that
+    /// builds a `WildcardImportIndex`. Holding it here instead lets the order
+    /// be a [`Derived`] view like the rest, built at most once per
+    /// [`Self::generation`].
+    ///
+    /// A plain `fn` pointer rather than a boxed closure: the resolver is a
+    /// pure function of `(parent uri, raw path)` in every host, and a `fn`
+    /// keeps the index `Debug + Clone + Default` with no manual impls.
+    ///
+    /// **Without a resolver the order is empty**, and both tiers behave
+    /// exactly as they did before the `source` graph existed — every
+    /// cross-document event unrankable, every same-document one ordered.
+    pub fn set_source_resolver(&mut self, resolve: fn(&str, &str) -> Option<String>) {
+        self.source_resolver = Some(resolve);
+        self.run_order = Derived::default();
+    }
+
+    /// The `source`-graph load order over this workspace's documents, built at
+    /// most once per [`Self::generation`].
+    ///
+    /// Empty when no resolver is installed (see [`Self::set_source_resolver`])
+    /// or when no `source` statement resolves. Only **literal** targets become
+    /// edges: `source $dir/x.tcl` names no document statically and sequences
+    /// nothing.
+    fn run_order(&self) -> Arc<crate::source_graph::RunOrder> {
+        self.run_order.get_or_build(|| {
+            let Some(resolve) = self.source_resolver else {
+                return crate::source_graph::RunOrder::default();
+            };
+            let edges: Vec<crate::source_graph::SourceEdge> = self
+                .sources()
+                .filter(|s| s.is_literal)
+                .filter_map(|s| {
+                    resolve(&s.uri, &s.raw_path).map(|child| crate::source_graph::SourceEdge {
+                        parent: s.uri.clone(),
+                        child,
+                        at: s.range.start(),
+                        enclosing_body: s.enclosing_body,
+                    })
+                })
+                .collect();
+            crate::source_graph::RunOrder::build(&edges)
+        })
+    }
+
     /// Note a mutation: bump the generation and drop every derived cache.
     fn invalidate(&mut self) {
         self.generation = self.generation.wrapping_add(1);
@@ -1718,6 +1782,7 @@ impl WorkspaceIndex {
         self.defined_names = <[Derived<HashSet<String>>; 2]>::default();
         self.command_link_map = Derived::default();
         self.settled_invocations = <[Derived<SettledTargets>; 2]>::default();
+        self.run_order = Derived::default();
     }
 
     /// The command name-links that are actually installed — every `interp
@@ -3607,6 +3672,11 @@ struct WildcardImportIndex<'a> {
     /// finding 3), which is a question about where the declaration sits, not
     /// merely whether one exists.
     declarations_by_qname: std::collections::HashMap<&'a str, Vec<(&'a str, u32)>>,
+    /// The workspace's `source`-graph load order — the relation every
+    /// decision below ranks its events with, so a cross-document event is
+    /// ordered wherever the graph proves an order and unrankable everywhere
+    /// else (issue #1104 item 3).
+    order: Arc<crate::source_graph::RunOrder>,
 }
 
 impl<'a> WildcardImportIndex<'a> {
@@ -3675,6 +3745,7 @@ impl<'a> WildcardImportIndex<'a> {
             forgets_by_ns,
             deletions_by_name,
             declarations_by_qname,
+            order: index.run_order(),
         }
     }
 
@@ -3701,9 +3772,8 @@ impl<'a> WildcardImportIndex<'a> {
         importing_ns: &'e str,
         source_ns: &'e str,
         name: &'e str,
-        ordered_in: &'e str,
-        destroy_at: impl Fn(&WorkspaceCommandDeletion) -> Option<u32> + 'e,
-    ) -> impl Iterator<Item = crate::namespace_import::AliasEvent> + 'e {
+        destroy_point: impl Fn(&'e WorkspaceCommandDeletion) -> RunPoint<'e> + 'e,
+    ) -> impl Iterator<Item = crate::namespace_import::AliasEvent<'e>> + 'e {
         use crate::namespace_import::{AliasEvent, AliasEventKind};
         let forgets = self
             .forgets_by_ns
@@ -3718,7 +3788,11 @@ impl<'a> WildcardImportIndex<'a> {
             })
             .map(move |f| AliasEvent {
                 kind: AliasEventKind::Remove,
-                at: (f.uri == ordered_in).then_some(f.at),
+                at: RunPoint {
+                    uri: f.uri.as_str(),
+                    at: f.at,
+                    enclosing_body: None,
+                },
             });
         // A `proc` / class declaration of the *imported* name recreates it as
         // an ordinary command and ends the alias (oracle on
@@ -3729,9 +3803,13 @@ impl<'a> WildcardImportIndex<'a> {
             .map(Vec::as_slice)
             .unwrap_or_default()
             .iter()
-            .map(move |(uri, at)| AliasEvent {
+            .map(move |&(uri, at)| AliasEvent {
                 kind: AliasEventKind::Remove,
-                at: (*uri == ordered_in).then_some(*at),
+                at: RunPoint {
+                    uri,
+                    at,
+                    enclosing_body: None,
+                },
             });
         let qualified = tcl_syntax::naming::qualify(source_ns, name);
         let deletions = self
@@ -3742,7 +3820,7 @@ impl<'a> WildcardImportIndex<'a> {
             .iter()
             .map(move |d| AliasEvent {
                 kind: AliasEventKind::Remove,
-                at: destroy_at(d),
+                at: destroy_point(d),
             });
         forgets.chain(redefinitions).chain(deletions)
     }
@@ -3782,17 +3860,17 @@ impl<'a> WildcardImportIndex<'a> {
         use crate::namespace_import::{AliasEvent, AliasEventKind};
         let install = std::iter::once(AliasEvent {
             kind: AliasEventKind::Install,
-            at: (install_at.uri == call.uri).then_some(install_at.at),
+            at: install_at.point(),
         });
         let mut events =
             install.chain(
-                self.removal_events(importing_ns, source_ns, name, call.uri, |d| {
-                    (d.uri == call.uri).then_some(d.at)
+                self.removal_events(importing_ns, source_ns, name, |d| RunPoint {
+                    uri: d.uri.as_str(),
+                    at: d.at,
+                    enclosing_body: None,
                 }),
             );
-        crate::namespace_import::alias_live_at(&mut events, &|at| {
-            tcl_compiler::analyser::indirection::in_effect_within(at, call.at, call.enclosing_body)
-        })
+        crate::namespace_import::alias_live_at(&mut events, &self.order, Some(call.point()))
     }
 
     /// Whether `ns` already holds a live alias for `name` from a namespace
@@ -3849,13 +3927,11 @@ impl<'a> WildcardImportIndex<'a> {
         name: &str,
         site: ImportSite<'_>,
     ) -> bool {
-        use crate::namespace_import::load_order;
         let call = CallSite {
             uri: site.uri,
             at: site.at,
             enclosing_body: site.enclosing_body,
         };
-        let here = load_order(site.at, site.enclosing_body.is_some());
         let mut earlier = self
             .imports_by_ns
             .get(ns)
@@ -3874,8 +3950,7 @@ impl<'a> WildcardImportIndex<'a> {
                     .map(|(uri, gate)| (gate.source_ns.as_str(), gate.site(uri))),
             );
         earlier.any(|(other_source, other_site)| {
-            other_site.uri == site.uri
-                && load_order(other_site.at, other_site.enclosing_body.is_some()) < here
+            self.order.cmp_run(other_site.point(), site.point()) == Some(std::cmp::Ordering::Less)
                 && !ns_eq(other_source, source_ns)
                 && self.exports_name_at(other_source, name, other_site)
                 && self.alias_live_at(ns, other_source, name, other_site, call)
@@ -3912,16 +3987,20 @@ impl<'a> WildcardImportIndex<'a> {
         use crate::namespace_import::{AliasEvent, AliasEventKind};
         let install = std::iter::once(AliasEvent {
             kind: AliasEventKind::Install,
-            at: Some(gate.at),
+            at: gate.site(uri).point(),
         });
-        let mut events = install.chain(self.removal_events(
-            importing_ns,
-            &gate.source_ns,
-            &gate.name,
-            uri,
-            |_| Some(u32::MAX),
-        ));
-        crate::namespace_import::alias_live_at(&mut events, &|_| true)
+        // The destruction is passed in the *import's* document at `u32::MAX`
+        // so it ranks after every install wherever it was written: the command
+        // object is gone workspace-wide and no load order brings it back.
+        let mut events =
+            install.chain(
+                self.removal_events(importing_ns, &gate.source_ns, &gate.name, |_| RunPoint {
+                    uri,
+                    at: u32::MAX,
+                    enclosing_body: None,
+                }),
+            );
+        crate::namespace_import::alias_live_at(&mut events, &self.order, None)
     }
 
     /// Whether `ns` (`::`-rooted) had exported the unqualified `name` **as of
@@ -3947,15 +4026,18 @@ impl<'a> WildcardImportIndex<'a> {
                 .map(|e| crate::namespace_import::ExportEvent {
                     pattern: e.pattern.as_str(),
                     clears: e.clears,
-                    at: (e.uri == site.uri).then_some(e.at),
+                    at: RunPoint {
+                        uri: e.uri.as_str(),
+                        at: e.at,
+                        enclosing_body: None,
+                    },
                 });
-            crate::namespace_import::exported_at_import_site(&mut events, name, &|at| {
-                tcl_compiler::analyser::indirection::in_effect_within(
-                    at,
-                    site.at,
-                    site.enclosing_body,
-                )
-            })
+            crate::namespace_import::exported_at_import_site(
+                &mut events,
+                name,
+                &self.order,
+                site.point(),
+            )
         })
     }
 }
@@ -4001,6 +4083,18 @@ struct ImportSite<'a> {
     enclosing_body: Option<Span>,
 }
 
+impl<'a> ImportSite<'a> {
+    /// This site as the workspace-wide execution-timeline point
+    /// [`crate::source_graph::RunOrder`] ranks events by.
+    fn point(self) -> RunPoint<'a> {
+        RunPoint {
+            uri: self.uri,
+            at: self.at,
+            enclosing_body: self.enclosing_body,
+        }
+    }
+}
+
 /// Where the **call** being resolved sits: the document and the offset of its
 /// command-head token.
 ///
@@ -4035,6 +4129,18 @@ pub struct CallSite<'a> {
     /// Span of the innermost proc/class **body** containing the call, within
     /// `uri`; `None` when the call sits at load level.
     pub enclosing_body: Option<Span>,
+}
+
+impl<'a> CallSite<'a> {
+    /// This call as the workspace-wide execution-timeline point
+    /// [`crate::source_graph::RunOrder`] ranks events against.
+    fn point(self) -> RunPoint<'a> {
+        RunPoint {
+            uri: self.uri,
+            at: self.at,
+            enclosing_body: self.enclosing_body,
+        }
+    }
 }
 
 #[cfg(test)]
