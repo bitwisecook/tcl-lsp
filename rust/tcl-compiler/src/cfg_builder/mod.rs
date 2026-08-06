@@ -1616,6 +1616,34 @@ pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
                 info.caller_frame_opaque_reads = true;
             }
         }
+        // The second one-hop composition: an **ordinary** call to a proc that
+        // reaches past its own caller lands in *this* proc's caller (issue
+        // #1019 / issue #923 idx 24).  Oracle, identical on tclsh 9.0.4 and
+        // 8.6.16: `proc setUp2 {var} {uplevel 2 [list set $var 99]}` /
+        // `proc middle {} {setUp2 answer}` / `proc outer {} {middle; return
+        // $answer}` — `outer` returns `99`, so `answer` really is assigned in
+        // a frame `middle` never names.  A level-**1** effect is emphatically
+        // not transitive this way (`detect_upvar_procs_does_not_propagate_
+        // through_a_plain_call_wrapper` pins the tclsh transcript), which is
+        // why only `beyond_caller_frame_effects` travels here.
+        //
+        // One hop, against the own-body summaries, for the same reason the
+        // forwarded-call composition above takes exactly one: it terminates
+        // by construction on any call graph, recursive or not.  A `uplevel 3`
+        // two plain calls out is left to the opaque-widening path.
+        for callee in &own_info.plain_calls {
+            if by_name
+                .get(callee.as_str())
+                .is_some_and(|(callee_info, _)| callee_info.beyond_caller_frame_effects)
+            {
+                info.caller_frame_opaque_writes = true;
+                info.caller_frame_opaque_reads = true;
+            }
+        }
+        // Composition input, not a caller-side effect — dropped so the
+        // published summaries (which are folded into every procedure's
+        // `function_lattice` memo key) carry only what a call site reads.
+        info.plain_calls.clear();
         composed.push((qname, info));
     }
 

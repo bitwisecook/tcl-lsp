@@ -84,6 +84,12 @@ struct DispatchSite<'a> {
     arg_expand_in: &'a [bool],
     cmd_tok: Token,
     scope_path: &'a [usize],
+    /// This command's words are pre-substituted `list` elements — see
+    /// [`super::state::AnalyserState::presubstituted_args`].  A `$word` here
+    /// was replaced by its value while the *building* frame ran, before the
+    /// script existed, so it is not the written-source shape any
+    /// substitution-vs-literal check is about.
+    presubstituted_args: bool,
 }
 
 /// One resolved analyser-hook dispatch: the hook the head resolved to, plus
@@ -930,6 +936,7 @@ impl Analyser {
                 arg_expand_in,
                 cmd_tok,
                 scope_path,
+                presubstituted_args,
             });
         } // end `if !self.structure_only`
 
@@ -1435,6 +1442,7 @@ impl Analyser {
             arg_expand_in,
             cmd_tok,
             scope_path,
+            presubstituted_args,
         } = *site;
         // W302 dispatches off the registry's own `AnalyserHookId::Catch`
         // stamp rather than the literal head text, so any spelling the
@@ -1509,7 +1517,19 @@ impl Analyser {
         // TK1001 / TK1002 / TK1003 — Tk-dialect widget + geometry checks
         // (tk dialect only); the TK1001 conflict is flushed post-walk.
         self.emit_tk_checks(cmd_name, args, arg_tokens, cmd_tok);
-        self.emit_w212_name_vs_value(cmd_name, args, arg_tokens, scope_path);
+        // W212 asks whether a *written* variable-name word was spelled as a
+        // `$` substitution by mistake.  In a `list`-built script that
+        // question does not arise: `uplevel 1 [list set $var 99]` substitutes
+        // `$var` in the building frame, so the script `uplevel` finally runs
+        // already carries the literal name the user meant, and the
+        // substitution is the whole point of the idiom (tclsh 9.0.4 / 8.6.16:
+        // `proc setInCaller {var} {uplevel 1 [list set $var 99]}` /
+        // `proc useIt {} {setInCaller answer; return $answer}` prints `99`).
+        // Only the directly-written spelling (`set $var 99`) is the
+        // name/value confusion the code is about (issue #923 idx 24).
+        if !presubstituted_args {
+            self.emit_w212_name_vs_value(cmd_name, args, arg_tokens, scope_path);
+        }
         self.emit_w104_append_list(cmd_name, args, arg_tokens, arg_expand_in, cmd_tok);
         self.emit_w106_unbraced_switch_body(cmd_name, args, arg_tokens);
         self.emit_w311_encoding_mismatch(cmd_name, args, arg_tokens);
@@ -2846,6 +2866,12 @@ impl Analyser {
             arg_expand_in: arg_expand,
             cmd_tok,
             scope_path,
+            // A command written inside a `[…]` substitution is written
+            // source, with its own words: `$x` here really is a substitution
+            // the author typed. (The list-built path never reaches this
+            // walker — `process_command` skips the nested-substitution scan
+            // entirely when its words are pre-substituted.)
+            presubstituted_args: false,
         });
         self.dispatch_expr_arguments(&cmd_name, args, arg_tokens, cmd_tok);
         // W216 (broken brace-form array access, `${arr}(idx)` / `${arr($i)}`)
