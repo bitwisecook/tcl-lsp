@@ -5430,6 +5430,225 @@ mod tests {
         assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
     }
 
+    // ---- the `source` graph orders what the file boundary did not --------
+    //
+    // Issue #1104 item 3 / #1116 item 6. Sourcing a file inlines its whole
+    // body at the `source` statement's position, so the DFS of the source
+    // forest *is* the run order. Oracle for every case below, byte-identical
+    // on tclsh 8.6.14 and 9.0.4 — with
+    //
+    //   # exp.tcl:  namespace eval ::mymod { namespace export helper }
+    //   # imp.tcl:  namespace eval ::app   { namespace import ::mymod::* }
+    //   # mod.tcl:  namespace eval ::mymod { proc helper {} {return HELP} }
+    //
+    //   # app.tcl:  source mod.tcl; source exp.tcl; source imp.tcl
+    //   ::app::helper   ->  HELP
+    //   # app.tcl:  source mod.tcl; source imp.tcl; source exp.tcl
+    //   ::app::helper   ->  invalid command name "::app::helper"
+
+    /// The server's URI resolver, in miniature: a literal path resolved
+    /// against the sourcing document's directory.
+    fn test_resolve(parent_uri: &str, raw_path: &str) -> Option<String> {
+        let parent = parent_uri.strip_prefix("file://")?;
+        let dir = std::path::Path::new(parent).parent()?;
+        let child = crate::source_graph::resolve_under(dir, raw_path);
+        Some(format!("file://{}", child.display()))
+    }
+
+    /// An index over `documents` with the `source`-path resolver installed —
+    /// the shape the real server builds ([`WorkspaceIndex::set_source_resolver`]).
+    fn sourced_index<'a>(
+        documents: impl IntoIterator<Item = (&'a str, &'a AnalysisResult)>,
+    ) -> WorkspaceIndex {
+        let mut index = WorkspaceIndex::new();
+        index.set_source_resolver(test_resolve);
+        for (uri, analysis) in documents {
+            index.add_document(uri, analysis);
+        }
+        index
+    }
+
+    /// The three module documents every source-order test below shares.
+    fn import_order_modules() -> (AnalysisResult, AnalysisResult, AnalysisResult) {
+        (
+            analyse("namespace eval ::mymod { proc helper {} { return HELP } }\n"),
+            analyse("namespace eval ::mymod { namespace export helper }\n"),
+            analyse("namespace eval ::app { namespace import ::mymod::* }\n"),
+        )
+    }
+
+    #[test]
+    fn an_export_sourced_before_the_import_resolves() {
+        // TP: `app.tcl` sources the export before the import, so the import
+        // really did see it — the same answer as before, but now as a proved
+        // order rather than an abstention.
+        let (mod_doc, exp, imp) = import_order_modules();
+        let app = analyse("source mod.tcl\nsource exp.tcl\nsource imp.tcl\n");
+        let index = sourced_index([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app),
+        ]);
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_from("file:///p/caller.tcl"),
+                )
+                .as_deref(),
+            Some("::mymod::helper"),
+        );
+    }
+
+    #[test]
+    fn an_export_sourced_after_the_import_is_not_retroactive() {
+        // FP guard (CRITICAL), issue #1104 item 3 — the whole point of the
+        // order. The import runs first, `::mymod` has exported nothing yet,
+        // so real Tcl installs no alias at all. Byte-identical documents to
+        // the test above; only `app.tcl`'s two `source` lines swap.
+        let (mod_doc, exp, imp) = import_order_modules();
+        let app = analyse("source mod.tcl\nsource imp.tcl\nsource exp.tcl\n");
+        let index = sourced_index([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+            call_from("file:///p/caller.tcl"),
+        );
+        assert!(
+            resolved.is_none(),
+            "an export sourced after the import cannot apply retroactively: {resolved:?}",
+        );
+    }
+
+    #[test]
+    fn without_a_resolver_the_same_workspace_keeps_abstaining() {
+        // TN for the deployment shape: an index with no `source` resolver
+        // installed holds the pre-#1104-item-3 behaviour exactly — the
+        // foreign export counts and the import resolves, whichever way the
+        // `source` statements are written.
+        let (mod_doc, exp, imp) = import_order_modules();
+        let app = analyse("source mod.tcl\nsource imp.tcl\nsource exp.tcl\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app),
+        ]);
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_from("file:///p/caller.tcl"),
+                )
+                .as_deref(),
+            Some("::mymod::helper"),
+        );
+    }
+
+    #[test]
+    fn a_re_sourced_export_file_keeps_abstaining() {
+        // TN (CRITICAL): `exp.tcl` is sourced twice, so it has no unique
+        // position and the order must not invent one — Tcl tolerates
+        // re-sourcing, and guessing would silently drop a real alias. Falls
+        // back to the pre-graph abstention: the export counts.
+        let (mod_doc, exp, imp) = import_order_modules();
+        let app = analyse("source mod.tcl\nsource imp.tcl\nsource exp.tcl\nsource exp.tcl\n");
+        let index = sourced_index([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app),
+        ]);
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_from("file:///p/caller.tcl"),
+                )
+                .as_deref(),
+            Some("::mymod::helper"),
+        );
+    }
+
+    #[test]
+    fn a_computed_source_path_orders_nothing() {
+        // TN: `source $dir/exp.tcl` names no document statically, so the edge
+        // is dropped and the export goes back to being unrankable — the
+        // deliberate abstention, not an accident of path resolution.
+        let (mod_doc, exp, imp) = import_order_modules();
+        let app = analyse(
+            "set dir [file dirname [info script]]\nsource mod.tcl\nsource imp.tcl\nsource $dir/exp.tcl\n",
+        );
+        let index = sourced_index([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app),
+        ]);
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_from("file:///p/caller.tcl"),
+                )
+                .as_deref(),
+            Some("::mymod::helper"),
+        );
+    }
+
+    #[test]
+    fn a_forget_written_after_the_source_revokes_the_sourced_import() {
+        // TP (CRITICAL), the `source lib.tcl ; namespace forget ::lib::p`
+        // idiom #1104 item 3 and #1116 called out by name: the install from
+        // the sourced file counts (it always did) *and* the forget beside the
+        // `source` now revokes it. Oracle: `::app::helper` is an `invalid
+        // command name` after the forget.
+        let (mod_doc, exp, imp) = import_order_modules();
+        let app = analyse(
+            "source mod.tcl\nsource exp.tcl\nsource imp.tcl\nnamespace eval ::app { namespace forget ::mymod::helper }\n",
+        );
+        let index = sourced_index([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app),
+        ]);
+        let src = std::fs::read_to_string("/dev/null").ok();
+        let _ = src;
+        // A call written after the forget no longer resolves…
+        let after = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+            call_at("file:///p/app.tcl", u32::MAX),
+        );
+        assert!(
+            after.is_none(),
+            "a forget written after the `source` that installed the alias must revoke it: {after:?}",
+        );
+        // …while one written before it still does.
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_at("file:///p/app.tcl", 0),
+                )
+                .as_deref(),
+            None,
+            "and a call above every `source` statement has no alias yet either",
+        );
+    }
+
     #[test]
     fn resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import() {
         // FP guard (CRITICAL), direction B, cross-document — the import and

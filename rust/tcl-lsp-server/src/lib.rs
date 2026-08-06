@@ -3850,7 +3850,7 @@ impl Backend {
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(default_disabled_set()),
             severity_overrides: Mutex::new(HashMap::new()),
-            workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
+            workspace_index: Arc::new(RwLock::new(new_workspace_index())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             recovery_names: Arc::new(Mutex::new(RecoveryNameCache::default())),
             workspace_scan_gate: tokio::sync::Mutex::new(()),
@@ -11138,7 +11138,7 @@ impl Backend {
         if unindexed.is_empty() {
             return Vec::new();
         }
-        let mut pending = core_workspace_index::WorkspaceIndex::new();
+        let mut pending = new_workspace_index();
         for uri in &unindexed {
             if let Some(analysis) = self.cached_analysis(uri).await {
                 pending.add_document(uri.as_str(), &analysis);
@@ -16791,6 +16791,21 @@ fn resolve_source_uri(parent_uri: &str, raw_path: &str) -> Option<String> {
     canonical_file_uri(&child).map(|u| u.as_str().to_owned())
 }
 
+/// A [`core_workspace_index::WorkspaceIndex`] with this server's
+/// `source`-path resolver installed.
+///
+/// The index holds no URI ↔ filesystem-path mapping of its own, so the
+/// `source`-graph load order its import-lifecycle gates rank cross-document
+/// events with ([`tcl_lsp_core::source_graph::RunOrder`], issue #1104 item 3)
+/// can only be built once the host hands it [`resolve_source_uri`]. Every
+/// index this server builds goes through here so none of them can silently
+/// end up with an empty order and answer a different question from the rest.
+fn new_workspace_index() -> core_workspace_index::WorkspaceIndex {
+    let mut index = core_workspace_index::WorkspaceIndex::new();
+    index.set_source_resolver(resolve_source_uri);
+    index
+}
+
 /// [`resolve_source_uri`] extended with the M9 stage-9.2 computed-path tier:
 /// a literal resolves as before; a computed path is statically folded through
 /// [`tcl_compiler::auto_path_eval::evaluate_auto_path_expr`] (`[file join …]`
@@ -21360,7 +21375,7 @@ mod tests {
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(default_disabled_set()),
             severity_overrides: Mutex::new(HashMap::new()),
-            workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
+            workspace_index: Arc::new(RwLock::new(new_workspace_index())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             recovery_names: Arc::new(Mutex::new(RecoveryNameCache::default())),
             workspace_scan_gate: tokio::sync::Mutex::new(()),

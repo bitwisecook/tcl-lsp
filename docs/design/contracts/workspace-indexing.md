@@ -74,12 +74,29 @@ item 1): a bare call written before its own `namespace import` reaches nothing
 (oracle: first call `invalid command name`, post-import call works), so an
 install that has not run at the query point does not count.
 
-Ordering is per document on **both** sides of the comparison: an install
-whose document differs from the call's is passed unordered too, because a byte
-offset in the importing file and one in the calling file are unrelated numbers
-— comparing them let a `namespace forget` in the caller revoke a cross-file
+Ordering is the **`source`-graph run order**
+(`tcl_lsp_core::source_graph::RunOrder`, issue #1104 item 3).  A byte offset in
+the importing file and one in the calling file are unrelated numbers —
+comparing them let a `namespace forget` in the caller revoke a cross-file
 import purely because its local offset happened to be larger (issue #1116
-finding 1).  Unordered, the shared function keeps the alias.
+finding 1) — so two events in different documents are ordered only where a
+`source` path proves it.  Sourcing a file inlines its whole body at the
+`source` statement's position, so the DFS of the `source` forest *is* the run
+order: each point is lifted to its root-ward path of `source`-statement
+offsets, and the deepest document the two paths share is where the ordinary
+single-document rule applies.  The index builds the order once per
+`generation()` from the host's resolver (`WorkspaceIndex::set_source_resolver`;
+the index holds no URI ↔ path mapping of its own) over **literal** `source`
+targets only.
+
+The relation answers `None` — incomparable — for two documents in different
+trees, for a file reachable from two different `source` sites or on a cycle
+(Tcl tolerates re-sourcing, and a doubly-entered file has no unique position),
+for a computed `source $dir/x.tcl`, and for a host that installs no resolver.
+`None` folds to "abstain toward answering" in both decision functions: an
+unrankable install counts, an unrankable removal revokes nothing.  A workspace
+with no resolvable `source` edge therefore behaves exactly as it did before the
+order existed.
 
 Within one document the comparison is `in_effect_within` on **both** sides
 too, which is why `CallSite` carries the call's own `enclosing_body` span and
@@ -95,11 +112,23 @@ spans and call offsets rather than one `innermost_definition_body_span` per
 row, so the cost is `O((P + I) log (P + I))` per document instead of the
 `O(procs × invocations)` that kept the fact out of the index.
 
-Two further points are deliberate.  A removal in a **different document**
-from the call revokes nothing, the same unordered-event rule the `-clear`
-tombstones follow.  And **destroying** the source command is not treated as a
-slot event on a timeline at all — the command object is gone workspace-wide —
-so it revokes wherever it is written.
+Two further points are deliberate.  A removal the order cannot rank against
+the install revokes nothing, the same rule the `-clear` tombstones follow.  And
+**destroying** the source command is not treated as a slot event on a timeline
+at all — the command object is gone workspace-wide — so it revokes wherever it
+is written.
+
+Both decision functions are **latest-wins folds over a partial order**, not
+over a `u32` maximum: two events the gate admits still have to be ranked
+against each other, and a partial order has no `max`.  A pattern survives
+unless some tombstone is known to have run after it; an install survives unless
+some removal is.  "Known to have run after" is `has_run(a, b) == Some(false)` —
+the *same* relation the gate uses, so the gate and the ranking cannot mean
+different things.  One consequence needs no `source` edge at all: two events
+written in one *foreign* file are ranked against each other (a file's
+statements run consecutively), so a `namespace export p` followed by a
+`namespace export -clear` there revokes, where the old encoding could only call
+both "unordered" and kept the export.
 
 The **exact**-import link tier runs the same decision function with no call
 site (`WildcardImportIndex::link_alias_live`, issue #1116 finding 2): the
@@ -117,15 +146,16 @@ exact pattern is a fact about the source text, not about the command table, so
 an earlier import of either spelling makes a later non-`-force` import of the
 other install nothing (issue #1116 item 7 — asking each side only about its own
 kind made the rule directional).  A same-source re-import is a silent no-op,
-never a conflict, and two imports in different documents have no static load
-order and do not conflict at all.
+never a conflict, and two imports in different documents conflict only where
+the `source` order ranks one strictly before the other (issue #1116 item 6).
 
 "Earlier" is **load order**, not byte offset
 (`tcl_lsp_core::namespace_import::load_order`, shared with the same-document
 tier's slot-log fold): a load-level statement runs before every body of its
 file however far below it is written, a body-local one never counts as having
 run at load level, and within one tier the key degenerates to the offset
-comparison it replaces.  A raw offset test let a body-local import install over
+comparison it replaces.  Across documents it is the same key read at the two
+sites' deepest common document (`RunOrder::cmp_run`).  A raw offset test let a body-local import install over
 a top-level one written after it — oracle (8.6.14 / 9.0.4): with `proc p {}
 {namespace import ::B::x}` in `::dst` followed by a top-level `namespace import
 ::A::*`, `namespace origin ::dst::x` is `::A::x` and `::dst::p` raises `can't

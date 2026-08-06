@@ -1,37 +1,48 @@
 # A load-order partial order from the `source` / `package require` graph
 
-Design sketch for the single remaining abstention shared by the whole
-wildcard-import gating family (#1104 item 3, #1116 items 3 and 6, and the
-cross-file half of every rule in
+The load order shared by the whole wildcard-import gating family (#1104 item
+3, #1116 items 3 and 6, and the cross-file half of every rule in
 [`contracts/command-resolution.md`](contracts/command-resolution.md)'s import
-section). **Nothing here is implemented.** This note records which facts the
-analyser and the index already hold, what a partial load order would need on
-top of them, which abstentions it would lift, and what it would cost.
+section).
 
-## 1. The abstention, stated once
+**Status: implemented.** `tcl_lsp_core::source_graph::RunOrder` is the
+relation §6 calls for; `WorkspaceIndex::run_order` builds it once per
+`generation()` from the host's resolver
+(`WorkspaceIndex::set_source_resolver`), and both wildcard-import tiers rank
+their events with it through the two shared decision functions. Sections 1–5
+below record the facts and the reasoning the design rests on; §6 is the shape
+that was built.
 
-Both LSP resolution tiers order import-lifecycle events by **byte offset
-within one document**, via
+## 1. The abstention, and what lifted it
+
+Both LSP resolution tiers used to order import-lifecycle events by **byte
+offset within one document**, via
 `tcl_compiler::analyser::indirection::in_effect_within`. Across documents
-they order nothing, because nothing in a Tcl source tree says which file runs
-first. Every cross-file event is therefore passed to the shared decision
-functions (`namespace_import::exported_at_import_site`,
-`namespace_import::alias_live_at`) with `at: None`, and those abstain toward
-*answering*:
+they ordered nothing, because nothing in a Tcl source tree says which file
+runs first in general. Every cross-file event was passed to the shared
+decision functions (`namespace_import::exported_at_import_site`,
+`namespace_import::alias_live_at`) with `at: None`, and those abstained
+toward *answering*:
 
-| Fact in another file | Today |
-|---|---|
-| `namespace export p` | counts (the import may resolve) |
-| `namespace export -clear` | revokes nothing |
-| `namespace import` (an install) | counts |
-| `namespace forget` | revokes nothing |
-| a second import of the same name | never conflicts (#1116 item 6) |
+| Fact in another file | Before | With the `source` order |
+|---|---|---|
+| `namespace export p` | counts (the import may resolve) | counts when the graph proves it ran first; **does not** when it proves it ran later |
+| `namespace export -clear` | revokes nothing | revokes when it provably ran between the export and the import |
+| `namespace import` (an install) | counts | counts, now as a fact |
+| `namespace forget` | revokes nothing | revokes when it provably ran before the call |
+| a second import of the same name | never conflicts (#1116 item 6) | conflicts when its site provably ran first (`cmp_run`) |
 
-Each row is one-directional leniency. The genuinely-sequenced idiom
-`source lib.tcl ; namespace forget ::lib::p` gets *both* halves wrong: the
-install from `lib.tcl` counts (right), and the forget beside it revokes
-nothing (wrong). One partial order fixes the whole table at once, which is
-why it is worth doing as one piece of work rather than five.
+Each old row was one-directional leniency. The genuinely-sequenced idiom
+`source lib.tcl ; namespace forget ::lib::p` got *both* halves wrong: the
+install from `lib.tcl` counted (right), and the forget beside it revoked
+nothing (wrong). One relation fixed the whole table at once, which is why it
+was worth doing as one piece of work rather than five.
+
+Everywhere the graph does **not** prove an order — different trees, a
+re-sourced file, a `source` cycle, a computed `source $dir/x.tcl`, or a host
+that installs no resolver — the old column still applies, unchanged and by
+construction: `RunOrder` answers `None`, and `None` folds to exactly the
+abstention `at: None` expressed.
 
 ## 2. What is already recorded
 
@@ -156,6 +167,22 @@ index's public shape) or the order is built lazily behind the same
 argument. The second is the smaller change and matches `live_command_links`'s
 existing pattern.
 
+**What was built:** the resolver is held *on the index* as a plain `fn`
+pointer (`WorkspaceIndex::set_source_resolver`, installed by the server's
+`new_workspace_index`), and the order is a `Derived<RunOrder>` view like the
+rest. Taking the resolver as a per-call argument would have meant threading it
+through every caller of `resolve_wildcard_import` and every derived view that
+builds a `WildcardImportIndex` — the order is consulted *inside* the per-call
+import walk, not at its entry point. A `fn` pointer rather than a boxed
+closure keeps the index `Debug + Clone + Default` with no manual impls, and
+the resolver is a pure function of `(parent uri, raw path)` in every host.
+
+An index with **no** resolver installed derives an empty order, and every
+tier then behaves byte-identically to the pre-#1104-item-3 code. That is the
+property the unit suite pins (`without_a_resolver_the_same_workspace_keeps_abstaining`),
+and it is why the change could land without re-baselining the existing
+cross-document tests.
+
 **A trivial subset was considered and rejected for this round.** "Same
 document `source a.tcl` written before an import of a namespace `a.tcl`
 declares" still needs (1) the raw path resolved to a URI, which only the
@@ -163,18 +190,19 @@ server can do, and (2) that resolution reaching into `exports_name_at` /
 `alias_live_at`, i.e. the whole plumbing above. There is no subset that is
 provable without the resolver, so the work does not decompose below §3.1.
 
-## 6. Direction if it is built
+## 6. The shape that was built
 
 Keep the discipline the family already has: **one** decision function per
-question, both tiers calling it. The order belongs behind a single predicate
-with the shape
+question, both tiers calling it. The order lives behind a single relation with
+the shape
 
 ```rust
-fn has_run(&self, event: (uri, at, enclosing_body), query: (uri, at, enclosing_body)) -> Option<bool>
+fn has_run(&self, event: RunPoint<'_>, query: RunPoint<'_>) -> Option<bool>
 ```
 
-— `None` meaning "no static order", which is what the existing `at: None`
-event encoding already expresses.
+— `None` meaning "no static order", which is what the old `at: None` event
+encoding expressed. `RunPoint` is the `(uri, at, enclosing_body)` triple every
+event and query point already carried as loose fields.
 
 ### 6.1 `has_run` alone is not enough — the fold needs *comparability*
 
@@ -203,8 +231,20 @@ fn cmp_run(&self, a: (uri, at, enclosing_body), b: (uri, at, enclosing_body)) ->
 ```
 
 with `None` — incomparable — folding to "abstain toward answering", the same
-direction `at: None` takes now. `has_run` is then `cmp_run(event, query)`
+direction `at: None` took. `has_run` is then `cmp_run(event, query)`
 against the existing body-leniency rule, so one relation serves both.
+
+**As implemented**, both are thin readings of one private projection,
+`RunOrder::common_frame(a, b) -> Option<(Placed, Placed)>`, which reduces two
+points to positions in their deepest common document. `has_run` then applies
+`indirection::in_effect_within` there and `cmp_run` applies
+`namespace_import::load_order` — the *same* two single-document rules the
+tiers used before, now with a wider domain. The folds do not use `cmp_run` at
+all: the leniency a removal needs is `has_run`'s, not `load_order`'s (a
+maybe-never-run body statement must not be counted as having definitely run
+*after* an install), so `ran_after(a, b)` is defined as
+`has_run(a, b) == Some(false)` and the strict `cmp_run` is reserved for the
+import-conflict rule, which inverts the sign — see `namespace_import::load_order`.
 
 ### 6.2 The shape that makes `cmp_run` total where it matters
 
@@ -230,6 +270,19 @@ This keeps the whole order behind one relation and needs no numeric flattening
 (no rank arithmetic to invalidate per generation): the paths are `O(depth)`,
 and depth is the `source` nesting of a real project.
 
-Every current caller then keeps its shape, the shared decision functions gain
+Every current caller keeps its shape, the shared decision functions gained
 their comparator instead of assuming one, and the abstention table in §1
-shrinks without a second rule appearing anywhere.
+shrank without a second rule appearing anywhere.
+
+Two implementation notes on the abstentions:
+
+- **Ambiguity is inherited.** A document below a re-sourced one has no unique
+  position either, so `RunOrder::build` propagates the mark down the tree
+  rather than only marking the doubly-entered file.
+- **Two events in one *foreign* file are ranked against each other even
+  though neither is ranked against the query.** A file's statements run
+  consecutively, so a `namespace export p` followed by a `namespace export
+  -clear` in one other file revokes — a precision win that needs no `source`
+  edge at all, and one the old one-`Option<u32>`-per-event encoding could not
+  express because it collapsed "which file" and "where in it" into a single
+  absent offset.
