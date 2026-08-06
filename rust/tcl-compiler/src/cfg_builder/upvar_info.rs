@@ -177,39 +177,53 @@ pub struct UpvarInfo {
     /// covers, so `detect_upvar_procs` registers the proc and its call
     /// sites widen.
     pub unnameable_local_aliases: BTreeSet<String>,
-    /// The proc reaches a frame **further out than its own caller** — an
-    /// `upvar 2` / `uplevel 2` / `uplevel #3`, or a level word this analysis
-    /// cannot place (`uplevel [expr {[info level] - $n}] …`).
-    ///
-    /// Distinct from [`Self::caller_frame_opaque_writes`], which is only ever
-    /// about the direct caller: a write two frames out lands in the frame of
-    /// whoever called *this proc's caller*, so it travels one hop further
-    /// along an **ordinary** call than a level-1 effect does.
-    /// [`super::detect_upvar_procs`] composes that hop; without it a
-    /// three-frame chain reads as a plain call chain and the outermost frame
-    /// draws a false `W210` on a variable that really is assigned.
-    ///
-    /// Oracle (tclsh 9.0.4 and 8.6.16, identical): with
-    /// `proc setUp2 {var} {uplevel 2 [list set $var 99]}`,
-    /// `proc middle {} {setUp2 answer}` and
-    /// `proc outer {} {middle; return $answer}`, `outer` returns `99` —
-    /// `answer` is genuinely set in `outer`'s frame by a proc `outer` never
-    /// calls directly. The level-1 spelling behaves the opposite way and is
-    /// pinned by `detect_upvar_procs_does_not_propagate_through_a_plain_call_wrapper`.
+    /// How far out of this proc's own frame its frame effects reach — see
+    /// [`FrameReach`].
     ///
     /// Not part of [`Self::is_empty`]'s summary contract on its own: every
-    /// site that sets it also sets [`Self::caller_frame_opaque_writes`],
-    /// which `is_empty` already covers.
-    pub beyond_caller_frame_effects: bool,
+    /// site that sets it past the caller also sets
+    /// [`Self::caller_frame_opaque_writes`], which `is_empty` already covers.
+    pub frame_reach: FrameReach,
     /// Command names this proc invokes as **ordinary** calls (not through
     /// `uplevel`), in body order and deduplicated.
     ///
     /// Only [`super::detect_upvar_procs`]'s one-hop composition reads it, to
-    /// find the callees whose [`Self::beyond_caller_frame_effects`] land in
+    /// find the callees whose [`FrameReach::PastTheCaller`] effects land in
     /// this proc's caller. Like [`Self::unnameable_local_aliases`] it is
     /// structural bookkeeping, not a caller-side effect, so it stays out of
     /// [`Self::is_empty`].
     pub plain_calls: BTreeSet<String>,
+}
+
+/// How far out of a procedure's own frame its `upvar` / `uplevel` effects
+/// reach, as far as the summary can tell.
+///
+/// A **level-1** effect (`upvar 1`, `uplevel 1`) writes the direct caller's
+/// frame and stops there: it is emphatically not transitive through an
+/// ordinary call, because the callee's caller *is* the wrapper
+/// (`detect_upvar_procs_does_not_propagate_through_a_plain_call_wrapper`
+/// pins the tclsh transcript). A level that lands **past** the direct caller
+/// travels one hop further along an ordinary call, and
+/// [`super::detect_upvar_procs`] composes that hop; without it a three-frame
+/// chain reads as a plain call chain and the outermost frame draws a false
+/// `W210` on a variable that really is assigned.
+///
+/// Oracle (tclsh 9.0.4 and 8.6.16, identical): with
+/// `proc setUp2 {var} {uplevel 2 [list set $var 99]}`,
+/// `proc middle {} {setUp2 answer}` and
+/// `proc outer {} {middle; return $answer}`, `outer` returns `99` — `answer`
+/// is genuinely set in `outer`'s frame by a proc `outer` never calls
+/// directly.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum FrameReach {
+    /// Nothing lands further out than the direct caller, so the summary's
+    /// other fields describe the whole effect.
+    #[default]
+    NoFurtherThanTheCaller,
+    /// At least one effect lands past the direct caller — an `upvar 2` /
+    /// `uplevel 2` / `uplevel #3`, or a level word nothing static can place
+    /// (`uplevel [expr {[info level] - $n}] …`).
+    PastTheCaller,
 }
 
 impl UpvarInfo {
@@ -585,7 +599,7 @@ fn walk_stmt(
 /// an ordinary call — the frame it actually reaches.
 fn widen_beyond_caller(info: &mut UpvarInfo) {
     info.caller_frame_opaque_writes = true;
-    info.beyond_caller_frame_effects = true;
+    info.frame_reach = FrameReach::PastTheCaller;
 }
 
 /// `upvar ?level? otherVar myVar …` — classify each pair against the frame

@@ -1433,6 +1433,29 @@ impl Analyser {
     ///   post-walk by [`Self::flush_arity_diagnostics`].
     /// - **W143** (direct call into a private `::tcl::` implementation
     ///   namespace) — dialect-independent, registry-driven.
+    /// The script-injection family — a script or command line built by
+    /// concatenating substituted words, which the interpreter then re-parses.
+    ///
+    /// Grouped out of [`Self::emit_dispatch_site_diagnostics`] because they
+    /// are one subject with one shared argument shape, and because that
+    /// dispatcher is at its line budget.
+    fn emit_injection_diagnostics(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+    ) {
+        self.emit_w101_eval_string_concat(cmd_name, args, arg_tokens, arg_single);
+        self.emit_w102_subst_injection(cmd_name, args, arg_tokens);
+        self.emit_w103_open_pipeline(cmd_name, args, arg_tokens, arg_single);
+        self.emit_w300_source_variable(cmd_name, args, arg_tokens);
+        self.emit_w309_eval_subst_double_decode(cmd_name, args, arg_tokens);
+        self.emit_w301_uplevel_injection(cmd_name, args, arg_tokens, arg_single);
+        self.emit_w312_interp_eval_injection(cmd_name, args, arg_tokens, arg_single);
+        self.emit_w303_redos(cmd_name, args, arg_tokens);
+    }
+
     fn emit_dispatch_site_diagnostics(&mut self, site: &DispatchSite<'_>) {
         let DispatchSite {
             cmd_name,
@@ -1488,16 +1511,7 @@ impl Analyser {
         {
             self.emit_w142_context_gate(gate, args, cmd_tok);
         }
-        self.emit_w101_eval_string_concat(cmd_name, args, arg_tokens, arg_single);
-        // W102 / W103 / W300 / W301 / W309 / W312 security-injection
-        // checks.
-        self.emit_w102_subst_injection(cmd_name, args, arg_tokens);
-        self.emit_w103_open_pipeline(cmd_name, args, arg_tokens, arg_single);
-        self.emit_w300_source_variable(cmd_name, args, arg_tokens);
-        self.emit_w309_eval_subst_double_decode(cmd_name, args, arg_tokens);
-        self.emit_w301_uplevel_injection(cmd_name, args, arg_tokens, arg_single);
-        self.emit_w312_interp_eval_injection(cmd_name, args, arg_tokens, arg_single);
-        self.emit_w303_redos(cmd_name, args, arg_tokens);
+        self.emit_injection_diagnostics(cmd_name, args, arg_tokens, arg_single);
         self.emit_w306_literal_expected(cmd_name, args, arg_tokens);
         // W310 runs for every command (it scans args for credential
         // option flags), so it takes no cmd_name guard.

@@ -41,7 +41,7 @@ use crate::ir_helpers::defs_from_ir_script;
 use crate::naming::normalise_var_name;
 
 use self::global_write_info::GlobalWriteInfo;
-use self::upvar_info::{UpvarInfo, collect_upvar_targets};
+use self::upvar_info::{FrameReach, UpvarInfo, collect_upvar_targets};
 
 /// Choose the [`CommandTokens`] for a "frozen" `while`/`for` runtime call.
 ///
@@ -1625,7 +1625,7 @@ pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
         // a frame `middle` never names.  A level-**1** effect is emphatically
         // not transitive this way (`detect_upvar_procs_does_not_propagate_
         // through_a_plain_call_wrapper` pins the tclsh transcript), which is
-        // why only `beyond_caller_frame_effects` travels here.
+        // why only a `FrameReach::PastTheCaller` summary travels here.
         //
         // One hop, against the own-body summaries, for the same reason the
         // forwarded-call composition above takes exactly one: it terminates
@@ -1634,7 +1634,9 @@ pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
         for callee in &own_info.plain_calls {
             if by_name
                 .get(callee.as_str())
-                .is_some_and(|(callee_info, _)| callee_info.beyond_caller_frame_effects)
+                .is_some_and(|(callee_info, _)| {
+                    callee_info.frame_reach == FrameReach::PastTheCaller
+                })
             {
                 info.caller_frame_opaque_writes = true;
                 info.caller_frame_opaque_reads = true;
