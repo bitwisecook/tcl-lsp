@@ -791,12 +791,7 @@ fn actions_catch_without_result_var_offers_capture_fixes() {
         .lines()
         .nth(1)
         .map_or(0, |l| u32::try_from(l.len()).unwrap_or(0));
-    let actions = code_actions(
-        src,
-        selection(1, 0, line2_len),
-        Some(&analysis),
-        &analysis.diagnostics,
-    );
+    let actions = code_actions(src, selection(1, 0, line2_len), Some(&analysis), &analysis.diagnostics);
     let titles: Vec<&str> = actions.iter().map(|a| a.title.as_str()).collect();
     assert!(
         titles.iter().any(|t| t.contains("catch result")),

@@ -119,8 +119,7 @@ suite("Issue #923 idx 92: namespace-code-wrapped trace callbacks", () => {
     )) as vscode.CallHierarchyIncomingCall[] | undefined;
     const callers = (incoming ?? []).map((c) => c.from.name).sort();
     assert.ok(
-      callers.some((n) => n.includes("Idx92Setup")) &&
-        callers.some((n) => n.includes("Idx92Done")),
+      callers.some((n) => n.includes("Idx92Setup")) && callers.some((n) => n.includes("Idx92Done")),
       `idx 92: both enclosing procs must show as callers, got [${callers}]`,
     );
   });

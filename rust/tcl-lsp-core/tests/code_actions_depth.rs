@@ -269,12 +269,7 @@ fn invert_comparison_flips_equality_operator() {
     let src = "if {$a == $b} { puts hi }\n";
     let analysis = analyse(src);
     // `if {` is 4 chars; `$a == $b` spans cols 4..12.
-    let actions = code_actions(
-        src,
-        selection(0, 4, 12),
-        Some(&analysis),
-        &analysis.diagnostics,
-    );
+    let actions = code_actions(src, selection(0, 4, 12), Some(&analysis), &analysis.diagnostics);
     let inv = find(&actions, "Invert comparison").expect("an invert-comparison rewrite");
     assert_eq!(inv.kind, ActionKind::RefactorRewrite, "{inv:?}");
     assert_eq!(inv.edits.len(), 1);
@@ -299,12 +294,7 @@ fn invert_comparison_flips_relational_operator() {
     let src = "while {$a <= $b} { incr a }\n";
     let analysis = analyse(src);
     // `while {` is 7 chars; `$a <= $b` spans cols 7..15.
-    let actions = code_actions(
-        src,
-        selection(0, 7, 15),
-        Some(&analysis),
-        &analysis.diagnostics,
-    );
+    let actions = code_actions(src, selection(0, 7, 15), Some(&analysis), &analysis.diagnostics);
     let inv = find(&actions, "Invert comparison").expect("an invert-comparison rewrite");
     assert_eq!(
         inv.edits[0].new_text, "$a > $b",
@@ -324,12 +314,7 @@ fn invert_comparison_flips_tip461_string_ordering_operator() {
     let src = "if {$a lt $b} { puts hi }\n";
     let analysis = analyse(src);
     // `if {` is 4 chars; `$a lt $b` spans cols 4..12.
-    let actions = code_actions(
-        src,
-        selection(0, 4, 12),
-        Some(&analysis),
-        &analysis.diagnostics,
-    );
+    let actions = code_actions(src, selection(0, 4, 12), Some(&analysis), &analysis.diagnostics);
     let inv = find(&actions, "Invert comparison").expect("an invert-comparison rewrite");
     assert_eq!(
         inv.edits[0].new_text, "$a ge $b",
@@ -345,12 +330,7 @@ fn invert_comparison_absent_without_top_level_operator() {
     let src = "puts $value\n";
     let analysis = analyse(src);
     // Select `$value` (cols 5..11).
-    let actions = code_actions(
-        src,
-        selection(0, 5, 11),
-        Some(&analysis),
-        &analysis.diagnostics,
-    );
+    let actions = code_actions(src, selection(0, 5, 11), Some(&analysis), &analysis.diagnostics);
     assert!(
         find(&actions, "Invert comparison").is_none(),
         "no comparison operator -> no inversion; got {:?}",
@@ -382,12 +362,7 @@ fn demorgan_reverse_collapses_disjunction_of_negations() {
     let src = "if {!$a || !$b} { puts hi }\n";
     let analysis = analyse(src);
     // `if {` is 4 chars; `!$a || !$b` spans cols 4..14.
-    let actions = code_actions(
-        src,
-        selection(0, 4, 14),
-        Some(&analysis),
-        &analysis.diagnostics,
-    );
+    let actions = code_actions(src, selection(0, 4, 14), Some(&analysis), &analysis.diagnostics);
     let dm = find(&actions, "De Morgan").expect("a reverse-direction De Morgan rewrite");
     assert_eq!(dm.kind, ActionKind::RefactorRewrite);
     assert!(edits_well_formed(dm) && edits_in_bounds(dm, src), "{dm:?}");
@@ -414,12 +389,7 @@ fn demorgan_forward_recognises_irules_word_operators() {
     let src = "if {!($a and $b)} { puts hi }\n";
     let analysis = analyse_dialect(src, "f5-irules");
     // `if {` is 4 chars; `!($a and $b)` spans cols 4..16.
-    let actions = code_actions(
-        src,
-        selection(0, 4, 16),
-        Some(&analysis),
-        &analysis.diagnostics,
-    );
+    let actions = code_actions(src, selection(0, 4, 16), Some(&analysis), &analysis.diagnostics);
     let dm =
         find(&actions, "De Morgan").expect("a forward-direction word-operator De Morgan rewrite");
     assert_eq!(dm.kind, ActionKind::RefactorRewrite);
@@ -440,12 +410,7 @@ fn demorgan_reverse_recognises_irules_word_operators() {
     let src = "if {not $a or not $b} { puts hi }\n";
     let analysis = analyse_dialect(src, "f5-irules");
     // `if {` is 4 chars; `not $a or not $b` spans cols 4..20.
-    let actions = code_actions(
-        src,
-        selection(0, 4, 20),
-        Some(&analysis),
-        &analysis.diagnostics,
-    );
+    let actions = code_actions(src, selection(0, 4, 20), Some(&analysis), &analysis.diagnostics);
     let dm =
         find(&actions, "De Morgan").expect("a reverse-direction word-operator De Morgan rewrite");
     assert_eq!(
@@ -1046,12 +1011,7 @@ fn multi_action_position_offers_several_families() {
     let analysis = analyse(src);
     // Select the literal `192.168.0.1` (cols 7..18); the start cursor (col 7)
     // also sits on the literal for the IP refactor.
-    let actions = code_actions(
-        src,
-        selection(0, 7, 18),
-        Some(&analysis),
-        &analysis.diagnostics,
-    );
+    let actions = code_actions(src, selection(0, 7, 18), Some(&analysis), &analysis.diagnostics);
     let kinds: std::collections::BTreeSet<&str> = actions.iter().map(|a| a.kind.as_str()).collect();
     assert!(
         kinds.len() >= 2,
@@ -1081,12 +1041,7 @@ fn caller_only_filter_can_select_a_single_kind() {
     // invertible comparison selection.
     let src = "if {$a == $b} { puts hi }\n";
     let analysis = analyse(src);
-    let actions = code_actions(
-        src,
-        selection(0, 4, 12),
-        Some(&analysis),
-        &analysis.diagnostics,
-    );
+    let actions = code_actions(src, selection(0, 4, 12), Some(&analysis), &analysis.diagnostics);
     let only_rewrites: Vec<&CodeAction> = actions
         .iter()
         .filter(|a| a.kind == ActionKind::RefactorRewrite)
@@ -1114,12 +1069,7 @@ fn out_of_range_positions_never_panic() {
     let src = "set x 1\nputs $x\n";
     let analysis = analyse(src);
     // Cursor far past the last line.
-    let _ = code_actions(
-        src,
-        cursor(999, 999),
-        Some(&analysis),
-        &analysis.diagnostics,
-    );
+    let _ = code_actions(src, cursor(999, 999), Some(&analysis), &analysis.diagnostics);
     // A range straddling beyond the buffer.
     let _ = code_actions(
         src,
