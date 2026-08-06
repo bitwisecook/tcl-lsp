@@ -26767,7 +26767,15 @@ mod tests {
                 "both cross-file callers must be rewritten from the {which} \
                  declaration: {changes:?}"
             );
-            assert!(consumer_edits.iter().all(|e| e.new_text == "enable"));
+            // The caller spells the command with its namespace qualifier, and
+            // rename preserves that qualifier rather than flattening the call
+            // to a bare name.
+            assert!(
+                consumer_edits
+                    .iter()
+                    .all(|e| e.new_text == "ticklecharts::enable"),
+                "the qualifier must be preserved: {consumer_edits:?}"
+            );
         }
     }
 
