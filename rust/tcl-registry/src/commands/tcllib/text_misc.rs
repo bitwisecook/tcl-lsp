@@ -88,7 +88,7 @@ const REGISTER_OPTS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-prohibitedBidi",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Whether to apply the bidirectional-text checks.",
         ..OptionSpec::DEFAULT
     },

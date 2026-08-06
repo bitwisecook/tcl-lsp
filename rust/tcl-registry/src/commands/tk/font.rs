@@ -132,7 +132,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-underline",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Whether to draw an underline beneath the text.",
         dialects: None,
         aliases: &[],
@@ -141,7 +141,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-overstrike",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Whether to draw a horizontal line through the text.",
         dialects: None,
         aliases: &[],
@@ -215,7 +215,7 @@ const ATTRIBUTE_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-underline",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Whether to draw an underline beneath the text.",
         dialects: None,
         aliases: &[],
@@ -224,7 +224,7 @@ const ATTRIBUTE_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-overstrike",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Whether to draw a horizontal line through the text.",
         dialects: None,
         aliases: &[],
@@ -285,7 +285,7 @@ const ACTUAL_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-underline",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Whether to draw an underline beneath the text.",
         dialects: None,
         aliases: &[],
@@ -294,7 +294,7 @@ const ACTUAL_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-overstrike",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Whether to draw a horizontal line through the text.",
         dialects: None,
         aliases: &[],

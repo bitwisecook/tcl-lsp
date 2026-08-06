@@ -194,3 +194,69 @@ fn formatting_never_changes_a_range_it_was_not_asked_about() {
         "the second line is outside the range: {text}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Issue #1256 — the boolean consumption site is a declared registry fact
+// (`ArgRole::Boolean`), not something inferred from an option's value set.
+//
+// tclsh-proof (8.6.16 / 9.0.4): the value's bytes are consumed and discarded,
+// so every spelling of the same truth value is interchangeable —
+//   set c [open /dev/null]
+//   chan configure $c -blocking yes ; chan configure $c -blocking   ;# -> 1
+//   chan configure $c -blocking off ; chan configure $c -blocking   ;# -> 0
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_declared_boolean_option_value_normalises() {
+    // Before the fact existed, the inference reached exactly two options in
+    // the whole registry (`tcltest::configure -limitconstraints`/
+    // `-singleproc`); every core boolean option was invisible to it.
+    for (src, want) in [
+        ("fconfigure $c -blocking yes\n", "-blocking true"),
+        ("fconfigure $c -blocking 0\n", "-blocking false"),
+        ("socket -server $cb -reuseaddr on 0\n", "-reuseaddr true"),
+        ("clock format $t -gmt 1\n", "-gmt true"),
+    ] {
+        let out = default_fmt(src);
+        assert!(out.contains(want), "{src} -> {out}");
+    }
+}
+
+#[test]
+fn the_configured_form_reaches_a_declared_boolean_option() {
+    for (form, want) in [
+        (BooleanForm::YesNo, "-blocking yes"),
+        (BooleanForm::OnOff, "-blocking on"),
+        (BooleanForm::ZeroOne, "-blocking 1"),
+    ] {
+        let config = FormatterConfig {
+            boolean_form: form,
+            ..FormatterConfig::default()
+        };
+        let out = fmt("fconfigure $c -blocking true\n", &config);
+        assert!(out.contains(want), "{form:?} -> {out}");
+    }
+}
+
+#[test]
+fn a_non_boolean_option_value_is_never_rewritten() {
+    // TN: `-translation` takes an enum, `-buffersize` a count. Neither is a
+    // boolean consumption site, so `binary`/`1` keep their bytes.
+    let out = default_fmt("fconfigure $c -translation binary -buffersize 1\n");
+    assert!(out.contains("-translation binary"), "{out}");
+    assert!(out.contains("-buffersize 1"), "{out}");
+}
+
+#[test]
+fn boolean_option_rewriting_is_idempotent() {
+    let once = default_fmt("fconfigure $c -blocking yes\n");
+    assert_eq!(once, default_fmt(&once));
+}
+
+#[test]
+fn a_dynamic_boolean_option_value_abstains() {
+    // FP guard: the value is a substitution, so there are no bytes to
+    // canonicalise.
+    let out = default_fmt("fconfigure $c -blocking $flag\n");
+    assert!(out.contains("-blocking $flag"), "{out}");
+}

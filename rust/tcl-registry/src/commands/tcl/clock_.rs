@@ -52,7 +52,7 @@ static FORMAT_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-gmt",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Format in UTC instead of the local time zone; superseded by -timezone :UTC but still accepted.",
         dialects: None,
         aliases: &[],
@@ -113,7 +113,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-gmt",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Interpret the input as UTC instead of local time; superseded by -timezone :UTC but still accepted.",
         dialects: None,
         aliases: &[],
@@ -141,7 +141,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
     // `-validate` is Tcl 9.0+ (TIP 688).
     OptionSpec {
         name: "-validate",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "When true (the default), an out-of-range field (e.g. day 31 in a 30-day month) raises an error; when false, it is clamped into range instead.",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
@@ -156,7 +156,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
 static ADD_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-gmt",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Do the arithmetic in UTC instead of the local time zone; superseded by -timezone :UTC but still accepted.",
         dialects: None,
         aliases: &[],
@@ -402,7 +402,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-gmt",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Use GMT instead of local time.",
         dialects: None,
         aliases: &[],
@@ -436,7 +436,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
     // gate for the top-level (pre-subcommand-resolution) completion/hover path.
     OptionSpec {
         name: "-validate",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Validate date fields strictly (Tcl 9.0+).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],

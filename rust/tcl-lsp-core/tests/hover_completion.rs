@@ -834,3 +834,53 @@ fn completion_proc_scope_still_qualifies_globals_in_every_dialect_m11() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Issue #1256 — completion and hover read the declared boolean argument role.
+//
+// tclsh (8.6.16 / 9.0.4): `fconfigure` / `chan configure -blocking` accepts
+// every boolean spelling and reports the canonical integer back —
+//   set c [open /dev/null]; fconfigure $c -blocking yes; fconfigure $c -blocking
+//     -> 1
+// so the whole boolean vocabulary is legal at the position; the registry now
+// declares that with `ArgRole::Boolean` rather than leaving it implicit.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn completion_offers_the_boolean_vocabulary_at_a_boolean_option_value() {
+    let src = "fconfigure $c -blocking \n";
+    let analysis = analyse(src);
+    let reg = registry();
+    let items = completions(src, 0, 24, &analysis, Some(&reg), None, "tcl8.6");
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    for want in ["true", "false", "yes", "no", "on", "off", "0", "1"] {
+        assert!(labels.contains(&want), "expected `{want}` in {labels:?}");
+    }
+    for it in &items {
+        assert_eq!(it.kind, CompletionKind::EnumValue, "{it:?}");
+    }
+}
+
+#[test]
+fn completion_filters_the_boolean_vocabulary_by_partial() {
+    let src = "fconfigure $c -blocking t\n";
+    let analysis = analyse(src);
+    let reg = registry();
+    let items = completions(src, 0, 25, &analysis, Some(&reg), None, "tcl8.6");
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(labels.contains(&"true"), "{labels:?}");
+    assert!(!labels.contains(&"false"), "filtered by `t`: {labels:?}");
+}
+
+#[test]
+fn hover_on_a_boolean_option_names_the_vocabulary() {
+    let src = "fconfigure $c -blocking yes\n";
+    let analysis = analyse(src);
+    let reg = registry();
+    let h = hover(src, 0, 16, &analysis, Some(&reg)).expect("option hover");
+    assert!(
+        h.value.contains("boolean") && h.value.contains("`yes`"),
+        "hover must name the boolean vocabulary: {}",
+        h.value
+    );
+}
