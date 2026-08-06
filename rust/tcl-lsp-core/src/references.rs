@@ -166,6 +166,7 @@ use crate::hover::find_word_span_at_position;
 #[must_use]
 pub(crate) fn proc_reference_spans(
     analysis: &AnalysisResult,
+    ctx: crate::definition::CallResolution<'_>,
     qname: &str,
     proc_def: &tcl_compiler::analyser::ProcDef,
 ) -> Vec<tcl_lexer::Span> {
@@ -174,9 +175,17 @@ pub(crate) fn proc_reference_spans(
         .command_invocations
         .iter()
         .filter(|inv| {
-            invocation_references_proc(analysis, inv, qname, proc_def)
+            (invocation_references_proc(analysis, inv, qname, proc_def)
+                && !forced_shadow_takes_the_call(
+                    analysis,
+                    ctx,
+                    inv,
+                    &proc_def.name,
+                    &proc_def.qualified_name,
+                ))
                 || invocation_references_via_wildcard_import(
                     analysis,
+                    ctx,
                     inv,
                     &proc_def.name,
                     &proc_def.qualified_name,
@@ -185,6 +194,49 @@ pub(crate) fn proc_reference_spans(
         })
         .map(|inv| inv.range)
         .collect()
+}
+
+/// Whether a live `namespace import -force` has taken this call away from the
+/// definition it would otherwise name.
+///
+/// The reference-side statement of the fact go-to-definition applies in
+/// `resolve_called_proc`: `-force` *replaces* the importing namespace's own
+/// command, so from the import onward a bare call does not reach the local
+/// definition and must not be listed among its references (issue #1116 item
+/// 1). Without it the two providers contradict each other on the very same
+/// cursor — definition jumps to the import's source while find-references
+/// still files the call under the definition the import deleted.
+///
+/// Narrow on purpose: it fires only for a call written in the *importing*
+/// namespace itself, spelled as the bare name, with the shadow live at that
+/// call. Everything else — a qualified call, a call in another namespace, a
+/// call before the import — is untouched, and the shared
+/// [`crate::definition::forced_import_shadows`] applies the whole ordered
+/// lifecycle (export snapshot, conflict, forget, redefinition) rather than a
+/// second copy of it.
+fn forced_shadow_takes_the_call(
+    analysis: &AnalysisResult,
+    ctx: crate::definition::CallResolution<'_>,
+    inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    def_name: &str,
+    def_qualified: &str,
+) -> bool {
+    if inv.name != def_name {
+        return false;
+    }
+    let owner = def_qualified
+        .trim_start_matches("::")
+        .rsplit_once("::")
+        .map_or("", |(ns, _)| ns);
+    let call_ns = crate::definition::namespace_context_at(
+        &analysis.global_scope,
+        inv.range.start(),
+        &analysis.namespace_overrides,
+    );
+    if call_ns.trim_start_matches("::") != owner {
+        return false;
+    }
+    crate::definition::forced_import_shadows(analysis, ctx, &call_ns, def_name, inv.range.start())
 }
 
 /// Every command name whose in-document `rename` / `interp alias` chain
@@ -330,6 +382,7 @@ fn invocation_references_via_indirection(
 #[must_use]
 fn invocation_references_via_wildcard_import(
     analysis: &AnalysisResult,
+    ctx: crate::definition::CallResolution<'_>,
     inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
     def_name: &str,
     def_qualified: &str,
@@ -346,14 +399,8 @@ fn invocation_references_via_wildcard_import(
         inv.range.start(),
         &analysis.namespace_overrides,
     );
-    crate::definition::import_chain_target(
-        analysis,
-        crate::definition::CallResolution::document_only(),
-        &call_ns,
-        def_name,
-        inv.range.start(),
-    )
-    .is_some_and(|source_ns| source_ns.trim_start_matches("::") == target_ns)
+    crate::definition::import_chain_target(analysis, ctx, &call_ns, def_name, inv.range.start())
+        .is_some_and(|source_ns| source_ns.trim_start_matches("::") == target_ns)
 }
 
 #[must_use]
@@ -475,6 +522,35 @@ pub fn references(
     analysis: &AnalysisResult,
     include_declaration: bool,
 ) -> Vec<LspRange> {
+    references_in_program(
+        source,
+        dialect,
+        line,
+        character,
+        analysis,
+        include_declaration,
+        None,
+    )
+}
+
+/// [`references`] with the caller's whole-program export view attached — the
+/// entry point a host with a workspace index should call.
+///
+/// `program` is `None` for a host without one, which reproduces [`references`]
+/// exactly. It matters because a `namespace import -force` whose covering
+/// `namespace export` lives in another file changes *which* definition a bare
+/// call is a reference to (issue #1116 item 1), and find-references has to
+/// answer that the same way go-to-definition does.
+#[must_use]
+pub fn references_in_program(
+    source: &str,
+    dialect: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    include_declaration: bool,
+    program: Option<crate::definition::ProgramExports<'_>>,
+) -> Vec<LspRange> {
     let line_index = LineIndex::new(source);
     let ctx = RefCtx {
         source,
@@ -484,6 +560,10 @@ pub fn references(
         character,
         analysis,
         include_declaration,
+        resolution: crate::definition::CallResolution {
+            registry: None,
+            program,
+        },
     };
 
     if let Some(out) = variable_references(&ctx) {
@@ -639,6 +719,7 @@ fn constructor_or_destructor_references(ctx: &RefCtx<'_>, word: &str) -> Option<
         character,
         analysis,
         include_declaration,
+        ..
     } = *ctx;
     if word != "constructor" && word != "destructor" {
         return None;
@@ -682,6 +763,10 @@ struct RefCtx<'a> {
     character: u32,
     analysis: &'a AnalysisResult,
     include_declaration: bool,
+    /// Everything outside this document that a call-site resolution may
+    /// consult — in practice the whole-program export oracle (issue #1116
+    /// item 1). Default (`document_only`) for a host with no workspace index.
+    resolution: crate::definition::CallResolution<'a>,
 }
 
 /// Build `decl + references` ranges for a variable at the cursor.
@@ -755,6 +840,7 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         character,
         analysis,
         include_declaration,
+        ..
     } = *ctx;
     let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     // Resolved through the shared gate, not the raw character scan: the
@@ -836,6 +922,7 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
 #[must_use]
 pub(crate) fn class_reference_spans(
     analysis: &AnalysisResult,
+    ctx: crate::definition::CallResolution<'_>,
     qname: &str,
     class_def: &tcl_compiler::analyser::ClassDef,
 ) -> Vec<tcl_lexer::Span> {
@@ -844,9 +931,17 @@ pub(crate) fn class_reference_spans(
         .command_invocations
         .iter()
         .filter(|inv| {
-            invocation_references_class(analysis, inv, qname, class_def)
+            (invocation_references_class(analysis, inv, qname, class_def)
+                && !forced_shadow_takes_the_call(
+                    analysis,
+                    ctx,
+                    inv,
+                    &class_def.name,
+                    &class_def.qualified_name,
+                ))
                 || invocation_references_via_wildcard_import(
                     analysis,
+                    ctx,
                     inv,
                     &class_def.name,
                     &class_def.qualified_name,
@@ -893,7 +988,7 @@ fn class_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     // `class_reference_spans` (over `command_invocations`) already covers them,
     // in this document and, via the workspace index, across files.  Rename and
     // the code-lens count read the same collection, so the three never diverge.
-    for span in class_reference_spans(analysis, qname, class_def) {
+    for span in class_reference_spans(analysis, ctx.resolution, qname, class_def) {
         out.push(span_to_range(source, line_index, span));
     }
     dedup_ranges(&mut out);
@@ -929,7 +1024,7 @@ fn proc_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     if include_declaration {
         out.push(span_to_range(source, line_index, proc_def.name_span));
     }
-    for span in proc_reference_spans(analysis, qname, proc_def) {
+    for span in proc_reference_spans(analysis, ctx.resolution, qname, proc_def) {
         out.push(span_to_range(source, line_index, span));
     }
     dedup_ranges(&mut out);
@@ -974,7 +1069,7 @@ fn ensemble_subcommand_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     if include_declaration {
         out.push(span_to_range(source, line_index, proc_def.name_span));
     }
-    for span in proc_reference_spans(analysis, qname, proc_def) {
+    for span in proc_reference_spans(analysis, ctx.resolution, qname, proc_def) {
         out.push(span_to_range(source, line_index, span));
     }
     dedup_ranges(&mut out);
@@ -994,6 +1089,7 @@ fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         character,
         analysis,
         include_declaration,
+        ..
     } = *ctx;
     let (inst, method, is_dollar) =
         crate::definition::instance_method_at_cursor(source, line, character)?;
@@ -1067,6 +1163,7 @@ fn classmethod_call_site_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         character,
         analysis,
         include_declaration,
+        ..
     } = *ctx;
     let (inst, method, is_dollar) =
         crate::definition::instance_method_at_cursor(source, line, character)?;
@@ -1110,6 +1207,7 @@ fn itcl_class_proc_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         character,
         analysis,
         include_declaration,
+        ..
     } = *ctx;
     let (class_q, member) =
         crate::definition::itcl_class_proc_target_at(source, dialect, line, character, analysis)?;
@@ -1138,6 +1236,7 @@ fn class_member_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>
         character,
         analysis,
         include_declaration,
+        ..
     } = *ctx;
     let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     let (decl_span, call_spans) =
@@ -3320,7 +3419,12 @@ pub fn document_highlights(
                 span_to_range(source, &line_index, class_def.name_span),
                 HighlightKind::Text,
             ));
-            for span in class_reference_spans(analysis, qname, class_def) {
+            for span in class_reference_spans(
+                analysis,
+                crate::definition::CallResolution::document_only(),
+                qname,
+                class_def,
+            ) {
                 out.push((
                     span_to_range(source, &line_index, span),
                     HighlightKind::Text,

@@ -4130,7 +4130,7 @@ fn exported_at_site<'e>(
 /// [`crate::namespace_import::NamespaceExportOracle`] the single-document tier
 /// can borrow (issue #1116 item 1).
 ///
-/// Owned rather than a view borrowing [`WorkspaceIndex`] because the servers's
+/// Owned rather than a view borrowing [`WorkspaceIndex`] because the server's
 /// pure-CPU providers run on a blocking worker with the index lock released:
 /// the snapshot is taken under the lock and moved into the worker. It is a
 /// [`Derived`] view, so a whole generation's requests share one build.

@@ -2943,7 +2943,7 @@ fn proc_visible_via_wildcard_import<'a>(
 /// namespace defined in *another* file still deletes the local command, and
 /// answering with that local definition would be wrong; the cross-document
 /// resolver takes it from there.
-fn forced_import_shadows(
+pub(crate) fn forced_import_shadows(
     analysis: &AnalysisResult,
     ctx: CallResolution<'_>,
     namespace: &str,

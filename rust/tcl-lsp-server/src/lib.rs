@@ -7033,14 +7033,25 @@ impl Backend {
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
         let analysis_for_worker = analysis.clone();
+        // Which definition a bare call is a reference *to* can turn on a
+        // `namespace export` in another file (issue #1116 item 1), so the
+        // single-document pass gets the same whole-program export view
+        // go-to-definition uses — or the two contradict each other on one
+        // cursor.
+        let exports = self.export_snapshot().await;
+        let uri_key = uri.as_str().to_owned();
         let ranges = tokio::task::spawn_blocking(move || {
-            core_references::references(
+            core_references::references_in_program(
                 &text,
                 &dialect,
                 position.line,
                 position.character,
                 &analysis_for_worker,
                 include_declaration,
+                Some(core_definition::ProgramExports {
+                    uri: &uri_key,
+                    oracle: exports.as_ref(),
+                }),
             )
         })
         .await

@@ -142,7 +142,13 @@ pub fn code_lenses(
         // another namespace).  `proc_reference_spans` takes the resolved
         // proc directly, so iterating every proc here doesn't rebuild a
         // `LineIndex` or rescan the proc table per definition.
-        let mut count = crate::references::proc_reference_spans(analysis, qname, proc_def).len();
+        let mut count = crate::references::proc_reference_spans(
+            analysis,
+            crate::definition::CallResolution::document_only(),
+            qname,
+            proc_def,
+        )
+        .len();
         if let Some(index) = workspace {
             count += index
                 .invocations_of(&proc_def.qualified_name, current_uri)
@@ -452,13 +458,17 @@ fn count_class_references(
     // (Find All References) uses — `references::class_reference_spans` — so
     // the lens title and the peek can never drift (mirrors the proc lens's
     // `proc_reference_spans` reuse above).
-    crate::references::class_reference_spans(analysis, qname, class_def)
-        .into_iter()
-        .filter(|span| {
-            !(span.start() <= class_def.name_span.start()
-                && class_def.name_span.end() <= span.end())
-        })
-        .count()
+    crate::references::class_reference_spans(
+        analysis,
+        crate::definition::CallResolution::document_only(),
+        qname,
+        class_def,
+    )
+    .into_iter()
+    .filter(|span| {
+        !(span.start() <= class_def.name_span.start() && class_def.name_span.end() <= span.end())
+    })
+    .count()
 }
 
 #[cfg(test)]
