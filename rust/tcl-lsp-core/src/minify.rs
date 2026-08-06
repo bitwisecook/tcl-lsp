@@ -514,7 +514,17 @@ impl MinifyResult {
 /// Minify a Tcl source string for the given dialect (default tier).
 #[must_use]
 pub fn minify_tcl(source: &str, dialect: &str, registry: &CommandRegistry) -> String {
-    minify_body(source, dialect, registry, 0)
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    minify_body(
+        source,
+        MinifyEnv {
+            dialect,
+            registry,
+            identities: &identities,
+        },
+        0,
+    )
 }
 
 /// Aggressive minification: apply the compiler's optimiser
@@ -608,7 +618,19 @@ pub fn minify_tcl_aggressive_with(
     };
 
     // Phase 3: minify whitespace.
-    let minified = minify_body(&renamed, dialect, registry, 0);
+    // The identity facts come from the *renamed* text, which is what the
+    // recursion below actually sees.
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(&renamed, dialect, registry);
+    let minified = minify_body(
+        &renamed,
+        MinifyEnv {
+            dialect,
+            registry,
+            identities: &identities,
+        },
+        0,
+    );
 
     MinifyResult {
         source: minified,
@@ -633,13 +655,63 @@ pub fn minify_tcl_compact(
     registry: &CommandRegistry,
 ) -> (String, SymbolMap) {
     let (renamed, symbol_map) = compact_names(source, dialect, isolated, registry);
-    let minified = minify_body(&renamed, dialect, registry, 0);
+    // The identity facts come from the *renamed* text, which is what the
+    // recursion below actually sees.
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(&renamed, dialect, registry);
+    let minified = minify_body(
+        &renamed,
+        MinifyEnv {
+            dialect,
+            registry,
+            identities: &identities,
+        },
+        0,
+    );
     (minified, symbol_map)
+}
+
+/// The document-wide context every step of the minify recursion carries
+/// unchanged.
+///
+/// Bundled rather than passed as three parameters because the recursion is
+/// deep (`minify_body` → `render_command` → `reconstruct_raw` → `minify_body`)
+/// and one of its steps was already at the argument limit.
+#[derive(Clone, Copy)]
+struct MinifyEnv<'a> {
+    /// The document's dialect, for the lexer and the abbreviation tables.
+    dialect: &'a str,
+    /// The registry the argument roles and clause-list shapes come from.
+    registry: &'a CommandRegistry,
+    /// The document's statically proven command-identity facts
+    /// ([`tcl_compiler::head_identity`]), so a body / lambda / expression /
+    /// clause-list argument is recognised by the command a head *is* rather
+    /// than the one it is spelled as (issue #1275).
+    ///
+    /// Read *unpositioned*: this recursion re-minifies each nested body from
+    /// its own slice, segmented at offset 0, so no document-absolute offset
+    /// exists at the point of the query.
+    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+}
+
+impl<'a> MinifyEnv<'a> {
+    /// The registry name a head spelling effectively resolves to.
+    fn resolve<'h>(&'h self, head: &'h str) -> &'h str
+    where
+        'a: 'h,
+    {
+        if self.identities.is_empty() {
+            head
+        } else {
+            self.identities.resolve_unpositioned(head).spec_name()
+        }
+    }
 }
 
 /// Minify a Tcl script body (top-level or inside braces). `depth` is this
 /// body's nesting level — see [`MAX_MINIFY_DEPTH`].
-fn minify_body(source: &str, dialect: &str, registry: &CommandRegistry, depth: u32) -> String {
+fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32) -> String {
+    let dialect = env.dialect;
     // Native-stack safety net — see `MAX_MINIFY_DEPTH`'s doc comment
     // (issue #996). Past the cap, leave this (deeply nested) body
     // unminified rather than recursing further, matching the existing
@@ -660,7 +732,7 @@ fn minify_body(source: &str, dialect: &str, registry: &CommandRegistry, depth: u
     // Render each command, abbreviating ensemble subcommands.
     let mut rendered: Vec<Vec<String>> = Vec::with_capacity(commands.len());
     for cmd_args in &commands {
-        let mut arg_strs = render_command(&sm, cmd_args, dialect, registry, depth);
+        let mut arg_strs = render_command(&sm, cmd_args, env, depth);
         if arg_strs.len() >= 2 {
             arg_strs[1] = abbreviated_subcommand(&arg_strs[0], &arg_strs[1], dialect);
         }
@@ -882,6 +954,7 @@ fn find_rename_barriers(
     source: &str,
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
+    identities: &tcl_compiler::head_identity::HeadIdentityMap,
     include_global: bool,
 ) -> RenameBarriers {
     let mut out = RenameBarriers::default();
@@ -893,7 +966,18 @@ fn find_rename_barriers(
             out.procs = true;
             continue;
         }
-        let head = inv.name.trim_start_matches(':');
+        // The head's *effective command identity*: an observability trait
+        // belongs to the command a head really names.  A proven
+        // `interp alias {} peek {} upvar` still bars every variable scope, and
+        // a `proc upvar …` that takes the name over does not (issue #1275).
+        // The invocation carries its own absolute offset, so this is the
+        // positioned read.
+        let written = inv.name.trim_start_matches(':');
+        let head = if identities.is_empty() {
+            written
+        } else {
+            identities.resolve(written, inv.range.start()).spec_name()
+        };
         let Some(spec) = registry.get(head) else {
             continue;
         };
@@ -1159,7 +1243,9 @@ fn compact_names(
     let mut symbol_map = SymbolMap::default();
     let mut edits: Vec<Edit> = Vec::new();
 
-    let barriers = find_rename_barriers(source, &analysis, registry, isolated);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let barriers = find_rename_barriers(source, &analysis, registry, &identities, isolated);
     let rmw_targets = rmw_target_var_names(source, dialect, registry);
     let builtin_names: FxHashSet<&str> = registry.command_names().collect();
 
@@ -1604,6 +1690,8 @@ fn alias_repeated_commands(
 /// Abstains on strict tables, dynamic and `{*}`-expanded words, and anything
 /// the registry does not resolve `Unique`.
 fn abbreviate_keywords(source: &str, dialect: &str, registry: &CommandRegistry) -> (String, usize) {
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     let mut edits: Vec<Edit> = Vec::new();
     let mut stack: Vec<(String, u32)> = vec![(source.to_owned(), 0)];
     let later = later_core_registries(dialect);
@@ -1623,7 +1711,16 @@ fn abbreviate_keywords(source: &str, dialect: &str, registry: &CommandRegistry) 
                     }
                 }
             }
-            abbreviate_command(&command, registry, &later, base, &mut edits);
+            abbreviate_command(
+                &command,
+                registry,
+                &later,
+                AbbrevSite {
+                    base,
+                    identities: &identities,
+                },
+                &mut edits,
+            );
         }
     }
     if edits.is_empty() {
@@ -1631,6 +1728,21 @@ fn abbreviate_keywords(source: &str, dialect: &str, registry: &CommandRegistry) 
     }
     let count = edits.len();
     (apply_edits(source, edits), count)
+}
+
+/// Where an abbreviation candidate sits, and what the document has proven
+/// about the command it belongs to.
+///
+/// Bundled so [`abbreviate_command`] keeps a small signature — the scan
+/// re-enters nested braced words with a shifted `base`, and both fields travel
+/// together.
+#[derive(Clone, Copy)]
+struct AbbrevSite<'a> {
+    /// Byte offset of the scanned slice within the whole document, so a head's
+    /// own span resolves to a document-absolute offset.
+    base: u32,
+    /// The document's proven command-identity facts.
+    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
 }
 
 /// One word of a command, with the token it came from.
@@ -1699,14 +1811,27 @@ fn abbreviate_command(
     words: &[CommandWord],
     registry: &CommandRegistry,
     later: &[&'static CommandRegistry],
-    base: u32,
+    site: AbbrevSite<'_>,
     edits: &mut Vec<Edit>,
 ) {
+    let AbbrevSite { base, identities } = site;
     let Some(head) = words.first() else { return };
     if head.dynamic || head.kind != TokenType::Esc {
         return;
     }
-    let Some(spec) = registry.get(&head.text) else {
+    // Which subcommands and options a head has is registry data about the
+    // command it *is*: abbreviating `myfmt`'s words under `format`'s tables
+    // when `myfmt` is not `format` would rewrite live text (issue #1275).
+    // `base` makes the head's offset document-absolute even inside a
+    // recursively-scanned braced word, so this is the positioned read.
+    let head_name = if identities.is_empty() {
+        head.text.as_str()
+    } else {
+        identities
+            .resolve(&head.text, base + head.token.span.start())
+            .spec_name()
+    };
+    let Some(spec) = registry.get(head_name) else {
         return;
     };
     let args = &words[1..];
@@ -1723,7 +1848,7 @@ fn abbreviate_command(
         else {
             return;
         };
-        let tables = keyword_tables(&head.text, TableScope::Subcommands, registry, later);
+        let tables = keyword_tables(head_name, TableScope::Subcommands, registry, later);
         if let Some(short) = shortest_spelling(&tables, canonical)
             && short.len() < word.text.len()
         {
@@ -1733,7 +1858,7 @@ fn abbreviate_command(
         start = 1;
     }
     let scope = subcommand.map_or(TableScope::CommandOptions, TableScope::SubcommandOptions);
-    let option_tables = keyword_tables(&head.text, scope, registry, later);
+    let option_tables = keyword_tables(head_name, scope, registry, later);
     if option_tables.iter().all(KeywordTable::is_empty) {
         return;
     }
@@ -2670,27 +2795,29 @@ fn parse_commands(source: &str, tokens: &[Token]) -> Vec<Vec<Arg>> {
 }
 
 /// Render one command's arguments to their minified string forms.
-fn render_command(
-    sm: &SourceMap,
-    cmd_args: &[Arg],
-    dialect: &str,
-    registry: &CommandRegistry,
-    depth: u32,
-) -> Vec<String> {
+fn render_command(sm: &SourceMap, cmd_args: &[Arg], env: MinifyEnv<'_>, depth: u32) -> Vec<String> {
+    let registry = env.registry;
     let cmd_name = cmd_args
         .first()
         .map(|a| token_text(sm, a))
         .unwrap_or_default();
+    // The head's *effective command identity*: which registry command the
+    // spelling really names once the document's `namespace import` / `interp
+    // alias` / `rename` / built-in-shadowing `proc` statements are folded in
+    // (issue #1275).  Without it a rebound command's body / lambda /
+    // expression / clause-list arguments were re-minified as the grammar of
+    // the command it no longer is.
+    let head = env.resolve(&cmd_name);
     let post: Vec<String> = cmd_args.iter().skip(1).map(|a| token_text(sm, a)).collect();
     let post_refs: Vec<&str> = post.iter().map(String::as_str).collect();
 
-    let body_indices = role_indices(registry, &cmd_name, &post_refs, ArgRole::Body);
-    let lambda_indices = role_indices(registry, &cmd_name, &post_refs, ArgRole::LambdaLiteral);
-    let expr_indices = role_indices(registry, &cmd_name, &post_refs, ArgRole::Expr);
+    let body_indices = role_indices(registry, head, &post_refs, ArgRole::Body);
+    let lambda_indices = role_indices(registry, head, &post_refs, ArgRole::LambdaLiteral);
+    let expr_indices = role_indices(registry, head, &post_refs, ArgRole::Expr);
     // The braced clause-list form of a registry `case_list` command
     // (`switch … { pat body … }`, Expect's `expect { … }`).  Registry
     // data, never a spelled command name (issue #1197).
-    let case_list_spec = registry.get(&cmd_name).and_then(|s| s.case_list);
+    let case_list_spec = registry.get(head).and_then(|s| s.case_list);
     let is_case_list = case_list_spec.is_some_and(|cl| is_case_list_form(cl, &post_refs));
 
     let mut out: Vec<String> = Vec::with_capacity(cmd_args.len());
@@ -2700,27 +2827,18 @@ fn render_command(
             let inner = sm.token_text(arg.tokens[0]);
             let minified = match case_list_spec {
                 Some(cl) if is_case_list && i == cmd_args.len() - 1 => {
-                    minify_case_list(inner, cl, dialect, registry, depth + 1)
+                    minify_case_list(inner, cl, env, depth + 1)
                 }
-                _ => minify_body(inner, dialect, registry, depth + 1),
+                _ => minify_body(inner, env, depth + 1),
             };
             out.push(format!("{{{minified}}}"));
         } else if lambda_indices.contains(&i) && single_braced {
-            out.push(minify_lambda_literal(
-                sm,
-                arg.tokens[0],
-                dialect,
-                registry,
-                depth + 1,
-            ));
+            out.push(minify_lambda_literal(sm, arg.tokens[0], env, depth + 1));
         } else if expr_indices.contains(&i) && single_braced {
             let inner = sm.token_text(arg.tokens[0]);
-            out.push(format!(
-                "{{{}}}",
-                compress_expr(inner, dialect, registry, depth + 1)
-            ));
+            out.push(format!("{{{}}}", compress_expr(inner, env, depth + 1)));
         } else {
-            out.push(reconstruct_arg(sm, arg, dialect, registry, depth));
+            out.push(reconstruct_arg(sm, arg, env, depth));
         }
     }
     out
@@ -2744,13 +2862,7 @@ fn render_command(
 /// puts\ hi}`'s real body is `puts hi`, not `puts\ hi`), and a multi-word
 /// parameter list (`apply {{x y} …}`) would otherwise lose the braces that
 /// group it into one list element.
-fn minify_lambda_literal(
-    sm: &SourceMap,
-    tok: Token,
-    dialect: &str,
-    registry: &CommandRegistry,
-    depth: u32,
-) -> String {
+fn minify_lambda_literal(sm: &SourceMap, tok: Token, env: MinifyEnv<'_>, depth: u32) -> String {
     let source = sm.source();
     let fallback = || format!("{{{}}}", sm.token_text(tok));
     let Some(elems) = split_lambda_literal_decoded(source, tok) else {
@@ -2759,7 +2871,7 @@ fn minify_lambda_literal(
     let Some(body) = elems.body.as_deref() else {
         return fallback();
     };
-    let minified_body = minify_body(body, dialect, registry, depth);
+    let minified_body = minify_body(body, env, depth);
     let mut parts = vec![
         tcl_syntax::list::list_element(&elems.params),
         tcl_syntax::list::list_element(&minified_body),
@@ -2811,8 +2923,7 @@ fn reconstruct_raw(
     sm: &SourceMap,
     tok: Token,
     next_tok: Option<Token>,
-    dialect: &str,
-    registry: &CommandRegistry,
+    env: MinifyEnv<'_>,
     in_quotes: bool,
     depth: u32,
 ) -> String {
@@ -2822,10 +2933,7 @@ fn reconstruct_raw(
         // emit it verbatim, not brace-wrapped as `{$}` (`RUST_ISSUE_103`).
         TokenType::Str if in_quotes => sm.text(tok.span).to_owned(),
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
-        TokenType::Cmd => format!(
-            "[{}]",
-            minify_body(sm.token_text(tok), dialect, registry, depth + 1)
-        ),
+        TokenType::Cmd => format!("[{}]", minify_body(sm.token_text(tok), env, depth + 1)),
         TokenType::Var => {
             // Keep `${var}` when the next token would otherwise extend the
             // variable name.  Beyond name characters, `(` (array index) and `:`
@@ -2905,13 +3013,7 @@ fn utf8_len(b: u8) -> usize {
 }
 
 /// Rebuild the source text of an argument from its tokens.
-fn reconstruct_arg(
-    sm: &SourceMap,
-    arg: &Arg,
-    dialect: &str,
-    registry: &CommandRegistry,
-    depth: u32,
-) -> String {
+fn reconstruct_arg(sm: &SourceMap, arg: &Arg, env: MinifyEnv<'_>, depth: u32) -> String {
     let mut raw = String::new();
     for (idx, &tok) in arg.tokens.iter().enumerate() {
         // The next token within the *same* word can extend a preceding
@@ -2920,15 +3022,7 @@ fn reconstruct_arg(
         // are dropped), so the name-extension guard must see it in both cases
         // (RUST_ISSUE_039).
         let next = arg.tokens.get(idx + 1).copied();
-        raw.push_str(&reconstruct_raw(
-            sm,
-            tok,
-            next,
-            dialect,
-            registry,
-            arg.is_quoted,
-            depth,
-        ));
+        raw.push_str(&reconstruct_raw(sm, tok, next, env, arg.is_quoted, depth));
     }
     if arg.is_quoted && !can_strip_quotes(&raw) {
         format!("\"{raw}\"")
@@ -3037,8 +3131,7 @@ fn case_element_text<'s>(inner: &'s str, el: &CaseElement) -> &'s str {
 fn minify_case_list(
     inner: &str,
     cl: &tcl_registry::CaseListSpec,
-    dialect: &str,
-    registry: &CommandRegistry,
+    env: MinifyEnv<'_>,
     depth: u32,
 ) -> String {
     let Some(elements) = case_list_elements(inner) else {
@@ -3085,7 +3178,7 @@ fn minify_case_list(
         parts.push(case_element_text(inner, pattern).to_owned());
         if body.braced {
             let body_src = &inner[body.value.clone()];
-            let minified = minify_body(body_src, dialect, registry, depth);
+            let minified = minify_body(body_src, env, depth);
             parts.push(format!("{{{minified}}}"));
         } else {
             parts.push(case_element_text(inner, body).to_owned());
@@ -3110,13 +3203,8 @@ enum ExprTok {
 /// Remove unnecessary whitespace inside an `expr` body, keeping
 /// spaces only around word-operators and between adjacent word
 /// tokens. (no AST shrinking).
-fn strip_expr_whitespace(
-    text: &str,
-    dialect: &str,
-    registry: &CommandRegistry,
-    depth: u32,
-) -> String {
-    let toks = tokenise_expr(text, dialect, registry, depth);
+fn strip_expr_whitespace(text: &str, env: MinifyEnv<'_>, depth: u32) -> String {
+    let toks = tokenise_expr(text, env, depth);
     let rendered: Vec<String> = toks
         .iter()
         .filter_map(|t| match t {
@@ -3142,9 +3230,9 @@ fn strip_expr_whitespace(
 /// Compress and shrink an `expr` body: strip whitespace, then try
 /// AST transforms (De Morgan / comparison inversion / double
 /// negation) and keep whichever is shorter.
-fn compress_expr(text: &str, dialect: &str, registry: &CommandRegistry, depth: u32) -> String {
-    let compressed = strip_expr_whitespace(text, dialect, registry, depth);
-    let shrunk = shrink_expr_ast(&compressed, dialect, registry, depth);
+fn compress_expr(text: &str, env: MinifyEnv<'_>, depth: u32) -> String {
+    let compressed = strip_expr_whitespace(text, env, depth);
+    let shrunk = shrink_expr_ast(&compressed, env, depth);
     if shrunk.len() < compressed.len() {
         shrunk
     } else {
@@ -3153,8 +3241,8 @@ fn compress_expr(text: &str, dialect: &str, registry: &CommandRegistry, depth: u
 }
 
 /// AST-based expression shrinking.
-fn shrink_expr_ast(text: &str, dialect: &str, registry: &CommandRegistry, depth: u32) -> String {
-    let node = parse_expr(text, Some(dialect));
+fn shrink_expr_ast(text: &str, env: MinifyEnv<'_>, depth: u32) -> String {
+    let node = parse_expr(text, Some(env.dialect));
     if matches!(node, ExprNode::Raw { .. }) {
         return text.to_owned();
     }
@@ -3163,7 +3251,7 @@ fn shrink_expr_ast(text: &str, dialect: &str, registry: &CommandRegistry, depth:
         return text.to_owned();
     }
     let rendered = render_expr(&shrunk);
-    strip_expr_whitespace(&rendered, dialect, registry, depth)
+    strip_expr_whitespace(&rendered, env, depth)
 }
 
 /// The logical complement of a comparison / membership operator,
@@ -3346,12 +3434,7 @@ fn shrink_not(node: &ExprNode, operand: &ExprNode) -> ExprNode {
 
 /// Tokenise an `expr` body, with a catch-all so no character is
 /// dropped.
-fn tokenise_expr(
-    text: &str,
-    dialect: &str,
-    registry: &CommandRegistry,
-    nest_depth: u32,
-) -> Vec<ExprTok> {
+fn tokenise_expr(text: &str, env: MinifyEnv<'_>, nest_depth: u32) -> Vec<ExprTok> {
     let bytes = text.as_bytes();
     let n = bytes.len();
     let mut out = Vec::new();
@@ -3403,7 +3486,7 @@ fn tokenise_expr(
             let inner = &text[start + 1..end];
             out.push(ExprTok::Cmd(format!(
                 "[{}]",
-                minify_body(inner, dialect, registry, nest_depth + 1)
+                minify_body(inner, env, nest_depth + 1)
             )));
         } else if c == b'$' {
             let start = i;
@@ -4353,5 +4436,145 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Issue #1275 — minification must resolve a command head's *effective
+    /// identity*, not its written spelling.
+    ///
+    /// A body-role argument is re-minified as the script it is (comments
+    /// stripped, whitespace collapsed); an unrecognised command's braced word
+    /// is emitted verbatim.  That difference is the witness.
+    ///
+    /// tclsh oracle (8.6.16 and 9.0.4, byte-identical): `interp alias {} maybe
+    /// {} if` makes `maybe` run `if`; `rename if maybe` moves it and leaves
+    /// `if` gone; a top-level `proc if …` takes the name over.
+    fn body_was_minified(src: &str) -> bool {
+        !min(src).contains("# c")
+    }
+
+    const BODY_CALL: &str = " {$x} {\n    # c\n    puts a\n}\n";
+
+    #[test]
+    fn minify_follows_an_aliased_body_command() {
+        assert!(body_was_minified(&format!(
+            "interp alias {{}} maybe {{}} if\nmaybe{BODY_CALL}"
+        )));
+        // The `::`-qualified spelling of the alias classifies alike.
+        assert!(body_was_minified(&format!(
+            "interp alias {{}} maybe {{}} if\n::maybe{BODY_CALL}"
+        )));
+        // Guard: an unbound `maybe` has no body argument to descend into.
+        assert!(!body_was_minified(&format!("set y 1\nmaybe{BODY_CALL}")));
+    }
+
+    #[test]
+    fn minify_follows_a_renamed_body_command() {
+        assert!(body_was_minified(&format!(
+            "rename if maybe\nmaybe{BODY_CALL}"
+        )));
+        assert!(
+            !body_was_minified(&format!("rename if maybe\nif{BODY_CALL}")),
+            "a renamed-away `if` must not keep the built-in's body grammar"
+        );
+    }
+
+    #[test]
+    fn minify_abstains_for_a_builtin_shadowed_by_a_user_proc() {
+        assert!(
+            !body_was_minified(&format!("proc if {{c b}} {{return 1}}\nif{BODY_CALL}")),
+            "a user `proc if` takes the name over; its braced word is opaque data"
+        );
+        // Guard: the unshadowed built-in still descends.
+        assert!(body_was_minified(&format!("set y 1\nif{BODY_CALL}")));
+    }
+
+    #[test]
+    fn minify_abstains_for_a_dynamic_binding() {
+        assert!(
+            !body_was_minified(&format!("rename $old maybe\nmaybe{BODY_CALL}")),
+            "a dynamic rename must not give `maybe` a body grammar"
+        );
+        assert!(
+            body_was_minified(&format!("rename $old maybe\nif{BODY_CALL}")),
+            "a dynamic rename must not take `if`'s body grammar away either"
+        );
+    }
+
+    /// The aggressive tier's keyword-abbreviation phase reads the resolved
+    /// head too: the subcommand table it shortens against belongs to the
+    /// command the head *is*.
+    #[test]
+    fn keyword_abbreviation_follows_an_aliased_head() {
+        let registry = CommandRegistry::build_default();
+        let aliased = minify_tcl_aggressive(
+            "interp alias {} str {} string\nstr toupper $::env(HOME)\n",
+            "tcl8.6",
+            true,
+            &registry,
+        );
+        assert!(
+            aliased.source.contains("str tou "),
+            "an alias of `string` must abbreviate against `string`'s subcommand \
+             table; got {:?}",
+            aliased.source
+        );
+        // Guard: an unbound `str` has no subcommand table, so `toupper` is
+        // ordinary data and must survive untouched.
+        let unbound = minify_tcl_aggressive(
+            "set y 1\nstr toupper $::env(HOME)\n",
+            "tcl8.6",
+            true,
+            &registry,
+        );
+        assert!(
+            unbound.source.contains("str toupper"),
+            "{:?}",
+            unbound.source
+        );
+    }
+
+    /// The aggressive tier's rename-*barrier* scan reads the resolved head:
+    /// `upvar`'s "aliases the caller's frame" trait bars local-name compaction
+    /// in every scope, and that trait belongs to the command a head *is*.
+    ///
+    /// The witness is whether `set local 1` survives: barred, the local keeps
+    /// its name; unbarred, it compacts to a single letter.
+    #[test]
+    fn rename_barriers_follow_the_resolved_head() {
+        let registry = CommandRegistry::build_default();
+        const UPVAR_BODY: &str =
+            "proc p {v} {\n    set local 1\n    upvar 1 $v alias\n    return $local\n}\n";
+        const PEEK_BODY: &str =
+            "proc p {v} {\n    set local 1\n    peek 1 $v alias\n    return $local\n}\n";
+        let minify = |src: &str| minify_tcl_aggressive(src, "tcl8.6", true, &registry).source;
+        let barred = |src: &str| minify(src).contains("set local 1");
+
+        // Baseline: the built-in bars compaction.
+        assert!(barred(&format!("set y 1\n{UPVAR_BODY}")));
+
+        // A user `proc upvar` takes the name over, so the built-in's trait no
+        // longer applies and the local compacts.
+        assert!(
+            !barred(&format!("proc upvar {{a b c}} {{return 1}}\n{UPVAR_BODY}")),
+            "a shadowed `upvar` must not keep barring compaction"
+        );
+        // Likewise once the name has been renamed away.
+        assert!(
+            !barred(&format!("rename upvar peek\n{UPVAR_BODY}")),
+            "a renamed-away `upvar` must not keep barring compaction"
+        );
+        // An alias of `upvar` bars exactly as `upvar` does.
+        assert!(barred(&format!(
+            "interp alias {{}} peek {{}} upvar\n{PEEK_BODY}"
+        )));
+        // A dynamic rename proves nothing about either name.
+        assert!(
+            !barred(&format!("rename $old peek\n{PEEK_BODY}")),
+            "a dynamic rename must not make `peek` a barrier"
+        );
+        assert!(
+            barred(&format!("rename $old peek\n{UPVAR_BODY}")),
+            "a dynamic rename must not take `upvar`'s barrier away either"
+        );
     }
 }
