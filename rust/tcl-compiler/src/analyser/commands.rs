@@ -5501,4 +5501,70 @@ mod tests {
             r.diagnostics,
         );
     }
+
+    /// Issue #923 differential-audit finding idx 102 (fixed under #1138) —
+    /// [`Analyser::analyse_list_quoted_body`]'s *variable-reference*
+    /// recording, isolated at the analyser tier.
+    ///
+    /// `analyse_body`'s gate used to treat any non-`Str` body token as an
+    /// opaque barrier, so a script argument **built** with `list` — Tk's own
+    /// `library/tk.tcl` writes `namespace eval :: [list source [file join
+    /// $::tk_library $file.tcl]]` — never had `record_arg_var_reads` run
+    /// inside it and the enclosing proc's parameter looked unread from its
+    /// own scope.  Coverage for this lived only at the e2e / VS Code tiers,
+    /// testing through find-references and semantic tokens; nothing pinned
+    /// the analyser primitive that supplies them.
+    ///
+    /// Oracle (tclsh 8.6.16 and 9.0.4): the parameter deterministically
+    /// drives which file is sourced, so the read is real.
+    #[test]
+    fn a_list_built_body_records_its_parameter_reads_923_idx102() {
+        let src = "proc ::app::SourceLibFile {file} {\n    \
+                   namespace eval :: [list source [file join $::app::lib_dir $file.tcl]]\n}\n";
+        let r = Analyser::new().analyse(src, "tcl8.6").clone();
+        // The read lands on the *scope tree*'s copy of the parameter — the
+        // binding the LSP's variable providers resolve through.
+        fn find<'a>(
+            scope: &'a super::super::types::Scope,
+            name: &str,
+        ) -> Option<&'a super::super::types::VarDef> {
+            scope
+                .variables
+                .get(name)
+                .or_else(|| scope.children.iter().find_map(|c| find(c, name)))
+        }
+        let param = find(&r.global_scope, "file")
+            .expect("the `file` parameter must be recorded in the proc scope");
+        // The recorded span covers the whole `$file` substitution, `$` included.
+        let read_start = u32::try_from(src.find("$file.tcl").expect("the read is in the source"))
+            .expect("offset fits u32");
+        assert!(
+            param.references.iter().any(|s| s.start() == read_start),
+            "the `$file` read inside the list-built body must be recorded on the \
+             parameter (expected a reference at {read_start}): {:?}",
+            param.references,
+        );
+    }
+
+    /// TN control for the above — a body that is genuinely dynamic
+    /// (`[gen]`, not a statically known `list`-built command) stays the
+    /// opaque barrier it always was, so nothing inside it is attributed.
+    #[test]
+    fn a_dynamic_body_records_no_parameter_reads_923_idx102() {
+        let src = "proc ::app::Run {file} {\n    namespace eval :: [gen $file]\n}\n";
+        let r = Analyser::new().analyse(src, "tcl8.6").clone();
+        // The `$file` inside `[gen $file]` is a real argument read of the
+        // enclosing command substitution and is recorded once; what must not
+        // happen is the `[gen …]` body being *walked* as a script.
+        assert!(
+            !r.command_invocations
+                .iter()
+                .any(|i| i.name == "source" || i.name == "namespace eval"),
+            "a dynamic body must not be walked as a script: {:?}",
+            r.command_invocations
+                .iter()
+                .map(|i| i.name.as_str())
+                .collect::<Vec<_>>(),
+        );
+    }
 }
