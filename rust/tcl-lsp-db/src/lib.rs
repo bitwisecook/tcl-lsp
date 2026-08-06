@@ -309,13 +309,24 @@ pub fn file_analysis(
 /// item set therefore *cannot* diverge from `analyse`. Slices 2–3 re-home this
 /// onto a cheap, independent CST extractor — guarded by the `file_decls` corpus
 /// gate + the `incremental == fresh` differential fuzzer + the full-rebuild
-/// fallback (item detection is config-independent, hence no `AnalyserConfig`).
+/// fallback (item detection is config-independent, hence no `AnalyserConfig`;
+/// the one cross-file input it does read, `SourceFile::workspace_class_factories`,
+/// is a property of the *file*, so the query key is unchanged).
 #[salsa::tracked]
 pub fn item_tree(db: &dyn salsa::Database, file: SourceFile) -> Arc<ItemTree> {
     // `structure_only` skips diagnostic emission (the dominant analyse cost)
     // while building the identical declaration/scope structure — a cheap,
     // non-divergent item extractor (gated by `file_decls_corpus`).
-    let mut analyser = Analyser::new().structure_only();
+    let mut analyser = Analyser::new()
+        .structure_only()
+        // The workspace class-factory oracle (issue #1276) is part of the
+        // *file's* input, not the analyser config, so the item tree stays a
+        // function of `SourceFile` alone. It has to be here: a class a
+        // cross-file metaclass manufactures is a declaration of this file, and
+        // leaving it out of the item tree would leave it out of `file_decls`
+        // too — so cross-file W123 would call `IconList` an unknown command
+        // while the full analysis, hover, and the outline all describe it.
+        .with_workspace_class_factories(file.workspace_class_factories(db).clone());
     let result = analyser.analyse(file.text(db), file.dialect(db));
     Arc::new(ItemTree::from_analysis(
         &result,
@@ -384,10 +395,12 @@ pub fn project_proc_names(db: &dyn salsa::Database, project: Project) -> Arc<BTr
 /// edit that does not change a metaclass's `create` override leaves this
 /// equal, so it backdates and no cross-file query re-runs.
 ///
-/// A file's own view is deliberately *local* — a factory whose metaclass is
-/// itself manufactured by a metaclass in a third file does not resolve, and
-/// the walk abstains on it. One hop is what the index proves; a fixpoint over
-/// the project is not, and guessing is the thing this whole area refuses to do.
+/// [`item_tree`] itself reads [`SourceFile::workspace_class_factories`], so a
+/// metaclass that is *itself* manufactured by another file's metaclass is
+/// picked up on the host's next sync round rather than needing a fixpoint
+/// here: the sync is compare-then-set, so it stops as soon as the index stops
+/// moving. What never happens is a *guess* — a round adds an entry only when
+/// some file proved it.
 #[salsa::tracked]
 pub fn file_class_factories(
     db: &dyn salsa::Database,
@@ -3140,7 +3153,7 @@ mod tests {
                 false,
                 Vec::new(),
                 None,
-                (Vec::new(), None),
+                (Vec::new(), None, None),
                 "tcl8.6".to_owned(),
                 Vec::new(),
                 NonAsciiMode::Default,
@@ -3163,7 +3176,7 @@ mod tests {
             false,
             Vec::new(),
             None,
-            (Vec::new(), None),
+            (Vec::new(), None, None),
             "tcl8.6".to_owned(),
             Vec::new(),
             NonAsciiMode::Default,
