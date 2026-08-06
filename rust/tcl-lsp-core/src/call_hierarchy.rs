@@ -153,13 +153,8 @@ pub fn prepare_in_program(
     // (mirrors `references::proc_references` / `rename::rename_proc`) —
     // never a namespace-blind `p.name == word` first-`HashMap`-hit scan.
     let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
-    let proc_match = crate::definition::resolve_proc_target_at(
-        analysis,
-        source,
-        cursor_off,
-        &word,
-        resolution,
-    );
+    let proc_match =
+        crate::definition::resolve_proc_target_at(analysis, source, cursor_off, &word, resolution);
     if let Some((qname, proc_def)) = proc_match {
         return vec![item_for_proc(source, proc_def, qname, &line_index)];
     }
@@ -883,7 +878,8 @@ pub fn outgoing_calls_in_program(
     resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<OutgoingCall> {
     let line_index = LineIndex::new(source);
-    let Some((_, source_proc)) = find_proc_for_item(source, analysis, item, &line_index, resolution)
+    let Some((_, source_proc)) =
+        find_proc_for_item(source, analysis, item, &line_index, resolution)
     else {
         // Not a proc — try a class method.
         return method_outgoing_calls(source, dialect, item, analysis, &line_index, resolution);

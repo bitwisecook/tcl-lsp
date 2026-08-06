@@ -117,9 +117,7 @@ pub fn inline_proc_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Option<Refactoring> {
-    let Some(registry) = resolution.registry else {
-        return None;
-    };
+    let registry = resolution.registry?;
     let call = find_command_at(source, cursor, None, registry)?;
     let head = call.name();
     if head.is_empty() {
@@ -136,12 +134,7 @@ pub fn inline_proc_in_program(
         &analysis.namespace_overrides,
     );
     let proc_def = crate::definition::resolve_called_proc(
-        analysis,
-        source,
-        &namespace,
-        head,
-        head_off,
-        resolution,
+        analysis, source, &namespace, head, head_off, resolution,
     )?;
     let title = format!("Inline proc '{}'", proc_def.name);
     let (call_start, call_end) = command_span_offsets(source, &call);

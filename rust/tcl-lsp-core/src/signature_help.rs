@@ -150,12 +150,7 @@ pub fn signature_help_in_program(
         &analysis.namespace_overrides,
     );
     if let Some(proc_def) = lookup_proc(
-        analysis,
-        source,
-        &namespace,
-        &command,
-        cursor_off,
-        resolution,
+        analysis, source, &namespace, &command, cursor_off, resolution,
     ) {
         return Some(proc_signature_help(proc_def, active_param));
     }

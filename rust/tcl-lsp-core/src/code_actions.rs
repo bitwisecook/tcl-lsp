@@ -380,7 +380,11 @@ pub fn code_actions_in_program(
     actions.extend(expr_rewrite_actions(source, range, &line_index));
     actions.extend(docstring_actions(source, range, analysis, &line_index));
     actions.extend(extract_inline_actions(
-        source, range, analysis, &line_index, program,
+        source,
+        range,
+        analysis,
+        &line_index,
+        program,
     ));
 
     actions
@@ -758,9 +762,7 @@ fn missing_package_for_head_at(
     context_diagnostics: &[ContextDiagnostic],
     line_index: &LineIndex,
 ) -> Option<String> {
-    let Some(registry) = resolution.registry else {
-        return None;
-    };
+    let registry = resolution.registry?;
     let catalogue = package_catalogue(registry);
     for invocation in &analysis.command_invocations {
         let start = line_index.position_at_utf16(invocation.range.start(), source);

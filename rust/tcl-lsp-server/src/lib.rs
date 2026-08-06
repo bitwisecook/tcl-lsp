@@ -8835,8 +8835,21 @@ impl Backend {
             let dialect = dialect.to_owned();
             let item = item.clone();
             let analysis = analysis.clone();
+            let exports = self.export_snapshot().await;
+            let uri_key = current_uri.as_str().to_owned();
             tokio::task::spawn_blocking(move || {
-                core_call_hierarchy::unresolved_outgoing_calls(&source, &dialect, &item, &analysis)
+                core_call_hierarchy::unresolved_outgoing_calls_in_program(
+                    &source,
+                    &dialect,
+                    &item,
+                    &analysis,
+                    core_definition::CallResolution::document_only().in_program(
+                        core_definition::ProgramExports {
+                            uri: &uri_key,
+                            oracle: exports.as_ref(),
+                        },
+                    ),
+                )
             })
             .await
             .unwrap_or_default()
@@ -13186,8 +13199,23 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        // A call edge is a call resolution, so the hierarchy needs the same
+        // export view definition uses (issue #1116 item 1).
+        let exports = self.export_snapshot().await;
+        let uri_key = uri.as_str().to_owned();
         let items = tokio::task::spawn_blocking(move || {
-            core_call_hierarchy::prepare(&doc.text, pos.line, pos.character, &analysis)
+            core_call_hierarchy::prepare_in_program(
+                &doc.text,
+                pos.line,
+                pos.character,
+                &analysis,
+                core_definition::CallResolution::document_only().in_program(
+                    core_definition::ProgramExports {
+                        uri: &uri_key,
+                        oracle: exports.as_ref(),
+                    },
+                ),
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -13253,12 +13281,20 @@ impl LanguageServer for Backend {
         let doc_dialect = doc.dialect.clone();
         let local_item = core_item.clone();
         let local_analysis = analysis.clone();
+        let exports = self.export_snapshot().await;
+        let uri_key = uri.as_str().to_owned();
         let local = tokio::task::spawn_blocking(move || {
-            core_call_hierarchy::incoming_calls(
+            core_call_hierarchy::incoming_calls_in_program(
                 &doc_text,
                 &doc_dialect,
                 &local_item,
                 &local_analysis,
+                core_definition::CallResolution::document_only().in_program(
+                    core_definition::ProgramExports {
+                        uri: &uri_key,
+                        oracle: exports.as_ref(),
+                    },
+                ),
             )
         })
         .await
@@ -13332,12 +13368,20 @@ impl LanguageServer for Backend {
             .await;
         let local_uri = uri.clone();
         let local_analysis = analysis.clone();
+        let exports = self.export_snapshot().await;
+        let uri_key = uri.as_str().to_owned();
         let outgoing = tokio::task::spawn_blocking(move || {
-            core_call_hierarchy::outgoing_calls(
+            core_call_hierarchy::outgoing_calls_in_program(
                 &doc.text,
                 &doc.dialect,
                 &core_item,
                 &local_analysis,
+                core_definition::CallResolution::document_only().in_program(
+                    core_definition::ProgramExports {
+                        uri: &uri_key,
+                        oracle: exports.as_ref(),
+                    },
+                ),
             )
         })
         .await
@@ -14116,13 +14160,25 @@ impl LanguageServer for Backend {
         // (`inlayParameterHints`).  When the analyser surfaces an empty
         // all_procs map (no user procs in the document), the provider still
         // returns built-in hints from the registry.
+        // The parameter labels name the reached proc's parameters, so the
+        // hint provider needs the same whole-program export view definition
+        // and hover use — a `-force` shadow changes which proc that is
+        // (issue #1116 item 1).
+        let exports = self.export_snapshot().await;
+        let uri_key = uri.as_str().to_owned();
         let hints = tokio::task::spawn_blocking(move || {
-            core_inlay_hints::inlay_hints(
+            core_inlay_hints::inlay_hints_in_program(
                 &doc.text,
                 &doc.dialect,
                 range,
                 Some(&analysis),
-                Some(registry),
+                core_definition::CallResolution {
+                    registry: Some(registry),
+                    program: Some(core_definition::ProgramExports {
+                        uri: &uri_key,
+                        oracle: exports.as_ref(),
+                    }),
+                },
                 type_hints,
                 parameter_hints,
             )
@@ -14360,18 +14416,34 @@ impl LanguageServer for Backend {
         // / `package require` / `# noqa` / extracted `set` inserted into a
         // CRLF or old-Mac document keeps that document's terminators.
         let line_ending = self.resolved_edit_line_ending(&uri, doc.raw()).await;
+        // The inline-proc refactor substitutes the reached proc's body, so
+        // it needs the same export view definition uses (issue #1116 item 1).
+        let exports = self.export_snapshot().await;
+        let uri_key = uri.as_str().to_owned();
         let actions = tokio::task::spawn_blocking(move || {
-            let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
+            let program = core_definition::ProgramExports {
+                uri: &uri_key,
+                oracle: exports.as_ref(),
+            };
+            let mut actions = core_code_actions::code_actions_in_program(
+                &doc.text,
+                range,
+                Some(&analysis),
+                Some(program),
+            );
             // The fuzzy package-suggestion path needs both the analysis (to
             // prove the cursor is on an unresolved *command head* rather than
             // on a comment, a string, or a data word) and the request's own
             // diagnostics (the editor may be showing a W123 this analysis has
             // not re-emitted).  Passing neither is what let it fire anywhere
             // an identifier-shaped word appeared — issue #1191.
-            actions.extend(core_code_actions::package_require_actions(
+            actions.extend(core_code_actions::package_require_actions_in_program(
                 &doc.text,
                 range,
-                registry,
+                core_definition::CallResolution {
+                    registry: Some(registry),
+                    program: Some(program),
+                },
                 Some(&analysis),
                 &context_diags,
             ));
@@ -14918,13 +14990,24 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        // Same whole-program view as hover: the signature rendered is the
+        // reached proc's parameter list, which a `-force` shadow changes
+        // (issue #1116 item 1).
+        let exports = self.export_snapshot().await;
+        let uri_key = uri.as_str().to_owned();
         let result = tokio::task::spawn_blocking(move || {
-            core_sig::signature_help(
+            core_sig::signature_help_in_program(
                 &doc.text,
                 pos.line,
                 pos.character,
                 &analysis,
-                Some(registry),
+                core_definition::CallResolution {
+                    registry: Some(registry),
+                    program: Some(core_definition::ProgramExports {
+                        uri: &uri_key,
+                        oracle: exports.as_ref(),
+                    }),
+                },
             )
         })
         .await
