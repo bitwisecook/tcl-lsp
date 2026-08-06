@@ -66,9 +66,20 @@ Ordering follows the same load-order rule renames and aliases do. An import
 written **inside a proc or method body** sees every top-level statement of its
 own file, wherever written — the file loads before any body runs — so an
 export further down the file still counts; an export written after the import
-*in that same body* does not. Ordering only exists inside one document; when
-the import and the export are in different files, nothing fixes which loads
-first, so navigation keeps answering rather than guessing a revocation.
+*in that same body* does not.
+
+Across files the order comes from `source`. Sourcing a file runs the whole of
+it at the `source` statement, so a file sourced earlier has finished before a
+file sourced later starts, and Go to Definition uses that: an export in a file
+sourced **before** the importing one counts, and one in a file sourced
+**after** it does not — the import ran first and bound nothing. A `namespace
+forget` written beside a `source` revokes what that `source` installed. Where
+no `source` path joins the two files, nothing fixes which loads first, and
+navigation keeps answering rather than guessing a revocation. The same applies
+when the order cannot be trusted: a file sourced from two different places has
+no single position, a `source` path built at run time (`source $dir/x.tcl`,
+unless it folds to a fixed path) names no file, and a `source` loop is not an
+order at all.
 
 A call written **before** its own `namespace import` reaches nothing, and Go to
 Definition says so: the import has not run yet, exactly as a `rename` written

@@ -216,10 +216,19 @@ not change the rule, and must not grow bespoke resolution logic. Every
   `in_effect` / `in_effect_within` order rule as the export snapshot, and it
   gates the **exact**-import link the same way it gates a glob lookup.
   Byte offsets order events only *within* one document, so a cross-file event
-  — an install as much as a removal — is passed unordered rather than compared
-  against an unrelated file's numbering. Removals then abstain toward
-  *keeping* the alias: one in another file revokes nothing, and one written
-  inside a proc/class body is conditional and is not published at all. The one
+  — an install as much as a removal — is ordered only where the **`source`
+  graph proves an order** (`tcl_lsp_core::source_graph::RunOrder`, issue #1104
+  item 3): sourcing a file inlines its whole body at the `source` statement's
+  position, so the DFS of the `source` forest is the run order and two events
+  in one tree reduce to positions in their deepest common document, where the
+  ordinary single-document rule applies. An export sourced *before* an import
+  counts; one sourced *after* it is not retroactive; a `namespace forget`
+  written beside a `source` revokes what that `source` installed (pinned, both
+  tiers and end-to-end). Everywhere else the order abstains — different trees,
+  a file reachable from two `source` sites or on a cycle, a `source` path the
+  host cannot prove statically — and removals then abstain toward *keeping*
+  the alias: one that cannot be ranked revokes nothing, and one written inside
+  a proc/class body is conditional and is not published at all. The one
   exception is **destroying the source command**, which is not a slot event on
   a timeline but the disappearance of the command object workspace-wide: it
   revokes a link regardless of where it is written.

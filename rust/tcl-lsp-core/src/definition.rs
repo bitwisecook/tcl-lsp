@@ -116,6 +116,7 @@ use tcl_compiler::analyser::indirection;
 use tcl_lexer::{LineIndex, Utf16Col};
 
 use crate::hover::{find_var_at_position, find_word_span_at_position};
+use crate::source_graph::{RunOrder, RunPoint};
 
 /// LSP `Range` analogue — line/character pairs in UTF-16 code
 /// units per the LSP spec.
@@ -3237,6 +3238,17 @@ fn live_import_at(
     // Only the winning source's own installs order against its removals: an
     // import of the same name from a *different* namespace is a different
     // edge, and letting it out-date this edge's forget would resurrect it.
+    // The install carries its enclosing body, the removals do not — not an
+    // oversight: the fold reads a body span only off the point it is ranking
+    // *against* (`ran_after(removal, install)` asks whether the removal had run
+    // at the install), and a removal is never that point. Computing one per
+    // removal would be a body scan that decides nothing.
+    let install_point = |at: u32| in_document_point(analysis, at);
+    let removal_point = |at: u32| RunPoint {
+        uri: IN_DOCUMENT_URI,
+        at,
+        enclosing_body: None,
+    };
     let mut log = events
         .iter()
         .filter_map(|ev| match *ev {
@@ -3247,30 +3259,58 @@ fn live_import_at(
                 .any(|&(i, _)| i == at)
                 .then_some(AliasEvent {
                     kind: AliasEventKind::Install,
-                    at: Some(at),
+                    at: install_point(at),
                 }),
             SlotEvent::Forget { at, source_ns: s } if forget_covers(s, source_ns) => {
                 Some(AliasEvent {
                     kind: AliasEventKind::Remove,
-                    at: Some(at),
+                    at: removal_point(at),
                 })
             }
             SlotEvent::Destroy { at, source_ns: s } if s == source_ns => Some(AliasEvent {
                 kind: AliasEventKind::Remove,
-                at: Some(at),
+                at: removal_point(at),
             }),
             SlotEvent::Declare { at } => Some(AliasEvent {
                 kind: AliasEventKind::Remove,
-                at: Some(at),
+                at: removal_point(at),
             }),
             _ => None,
         })
         .collect::<Vec<_>>()
         .into_iter();
-    crate::namespace_import::alias_live_at(&mut log, &|at| {
-        indirection::in_effect(analysis, at, call_off)
-    })
+    crate::namespace_import::alias_live_at(
+        &mut log,
+        &RunOrder::default(),
+        Some(in_document_point(analysis, call_off)),
+    )
     .then(|| source_ns.to_owned())
+}
+
+/// The document key every in-document import event carries.
+///
+/// This tier holds exactly one document, so the *identity* of the key is
+/// irrelevant — what matters is that every point shares it, which is what makes
+/// [`crate::source_graph::RunOrder`] fall through to the single-document rule
+/// ([`tcl_compiler::analyser::indirection::in_effect_within`]) without
+/// consulting any graph. The cross-document tier passes real URIs to the same
+/// functions, so the two cannot drift.
+/// The order the in-document tier passes with them: **empty**. One document
+/// needs no `source` graph — every point shares [`IN_DOCUMENT_URI`], so
+/// [`crate::source_graph::RunOrder`] answers from the single-document rule
+/// alone and never looks at an edge. Building it allocates nothing.
+const IN_DOCUMENT_URI: &str = "";
+
+/// An offset in the document being analysed, as a
+/// [`crate::source_graph::RunPoint`] — with the enclosing definition body the
+/// load-order rule needs, which is the only thing
+/// [`indirection::in_effect`] reads out of the analysis.
+fn in_document_point(analysis: &AnalysisResult, at: u32) -> RunPoint<'static> {
+    RunPoint {
+        uri: IN_DOCUMENT_URI,
+        at,
+        enclosing_body: analysis.innermost_definition_body_span(at),
+    }
 }
 
 /// Every [`SlotEvent`] bearing on `<importing_ns>::<word>` in this document,
@@ -3431,11 +3471,23 @@ pub(crate) fn exported_at_import(
         .map(|e| crate::namespace_import::ExportEvent {
             pattern: &e.pattern,
             clears: e.clears,
-            at: Some(e.range.start()),
+            // No enclosing-body span: the index stores none per export row
+            // either, so both tiers rank a `-clear` against a pattern by
+            // position alone. Symmetric, and the safe direction — a
+            // body-local export the tombstone cannot be proven to follow
+            // keeps the name exported.
+            at: RunPoint {
+                uri: IN_DOCUMENT_URI,
+                at: e.range.start(),
+                enclosing_body: None,
+            },
         });
-    crate::namespace_import::exported_at_import_site(&mut events, word, &|at| {
-        indirection::in_effect(analysis, at, import_at)
-    })
+    crate::namespace_import::exported_at_import_site(
+        &mut events,
+        word,
+        &RunOrder::default(),
+        in_document_point(analysis, import_at),
+    )
 }
 
 /// Whether the call at `call_off` in `namespace` reaches `def_qualified`
@@ -4718,6 +4770,96 @@ mod tests {
         assert!(
             proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX).is_none(),
             "the literal spelling of the same forget still revokes"
+        );
+    }
+
+    /// FN guard pinning #1104's dynamic-export note — the export-side twin of
+    /// [`a_dynamic_forget_pattern_revokes_nothing`], and the same sign
+    /// argument.
+    ///
+    /// `namespace export $pat` really does export whatever `$pat` expands to,
+    /// but nothing static says what that is and the word is a *glob*. The
+    /// scanner therefore records no pattern at all
+    /// (`Analyser::handle_namespace_export` skips a word containing `$` or
+    /// `[`), so the import takes a snapshot that does not cover the name and
+    /// the resolver abstains. That is the safe direction here precisely
+    /// because the sign is inverted from the forget case: a *guessed export*
+    /// can only add names an import never took, inventing a definition the
+    /// program has no path to.
+    ///
+    /// The abstention costs a real answer, which is why it is pinned rather
+    /// than merely documented — a future change that starts guessing here
+    /// will fail this test, not silently start resolving.
+    #[test]
+    fn a_dynamic_export_pattern_exports_nothing() {
+        let dynamic = "set pat p\nnamespace eval src {\n    proc p {} { return P }\n    namespace export $pat\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let analysis = analyse(dynamic);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
+        assert!(
+            hit.is_none(),
+            "a dynamic export pattern must not be guessed into a covering export: {hit:?}"
+        );
+        // Control — the same source with the pattern written literally does
+        // export, so the difference is the substitution and nothing else.
+        let literal = dynamic.replace("namespace export $pat", "namespace export p");
+        let analysis = analyse(&literal);
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX)
+                .is_some_and(|p| p.qualified_name == "::src::p"),
+            "the literal spelling of the same export does resolve"
+        );
+    }
+
+    /// TN for the interaction the dynamic-export abstention has with a
+    /// tombstone (#1104's minor note): a `namespace export -clear` written
+    /// after a dynamic pattern leaves the snapshot empty either way, so the
+    /// unrecorded pattern costs nothing there — the abstention is only ever
+    /// visible *before* a clear, which the test above covers.
+    #[test]
+    fn a_clear_after_a_dynamic_export_is_still_empty() {
+        let src = "set pat p\nnamespace eval src {\n    proc p {} { return P }\n    namespace export $pat\n    namespace export -clear\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let analysis = analyse(src);
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX).is_none(),
+            "a `-clear` after any export leaves nothing exported"
+        );
+    }
+
+    /// TP (both tiers agree): a `namespace forget` at the file's **load
+    /// level** runs before a body-local `namespace import`, which then
+    /// installs the alias — so a call in that body still resolves.
+    ///
+    /// The in-document twin of
+    /// `workspace_index::tests::a_body_local_exact_import_survives_a_top_level_forget`.
+    /// Ranking the two by raw offset said the forget "came later" and dropped
+    /// the alias; the load-order rule the shared fold now uses reads a removal
+    /// written outside the import's own body as having run before it, which is
+    /// what actually happens — the whole file loads, forget included, before
+    /// any body runs. Oracle (8.6.14 / 9.0.4): with `proc ::dst::setup {}
+    /// {namespace import ::src::* ; p}` and a top-level `namespace eval ::dst
+    /// {namespace forget ::src::p}` below it, `::dst::setup` returns `P` — the
+    /// forget ran during load, found nothing imported, and the import inside
+    /// the body then installed the alias the call reaches.
+    #[test]
+    fn a_load_level_forget_before_a_body_local_import_revokes_nothing() {
+        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    proc setup {} { namespace import ::src::* ; p }\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\n";
+        let analysis = analyse(src);
+        let call =
+            u32::try_from(src.rfind("; p }").expect("call in source") + 2).expect("tiny source");
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", call);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::src::p"),
+            "the body-local import runs after the load-level forget and reinstalls: {hit:?}"
+        );
+        // FN guard — a forget written *inside that same body*, after the
+        // import, is an ordinary later statement and does revoke.
+        let inner = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    proc setup {} { namespace import ::src::* ; namespace forget ::src::p ; p }\n}\n";
+        let analysis = analyse(inner);
+        let call =
+            u32::try_from(inner.rfind("; p }").expect("call in source") + 2).expect("tiny source");
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "dst", "p", call).is_none(),
+            "a forget in the same body before the call does revoke"
         );
     }
 

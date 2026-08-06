@@ -76,6 +76,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use crate::source_graph::RunPoint;
 use crate::workspace_symbols::{
     IndexedWorkspaceSymbol, WorkspaceSymbolKind, matches_query, namespace_of,
 };
@@ -1514,7 +1515,23 @@ pub struct WorkspaceIndex {
     /// without link-following — see
     /// [`WorkspaceIndex::invocations_by_settled_target`].
     settled_invocations: [Derived<SettledTargets>; 2],
+    /// The `source`-path → document-URI resolver, when the host has installed
+    /// one — see [`WorkspaceIndex::set_source_resolver`].
+    source_resolver: Option<SourceResolver>,
+    /// The `source`-graph load order derived from it — see
+    /// [`WorkspaceIndex::run_order`].
+    run_order: Derived<crate::source_graph::RunOrder>,
 }
+
+/// The host's `source`-path → document-URI resolver: `(sourcing document's
+/// URI, the path word as written, whether that word is a plain literal)` to
+/// the sourced document's URI, or `None` for a path the host cannot place.
+///
+/// `WorkspaceIndex` holds no URI ↔ filesystem-path mapping of its own, so this
+/// is how the `source`-graph load order gets its edges — see
+/// [`WorkspaceIndex::set_source_resolver`].  The signature is
+/// [`WorkspaceIndex::source_seed_map`]'s, so one host resolver serves both.
+pub type SourceResolver = fn(&str, &str, bool) -> Option<String>;
 
 /// A whole-index **derived view**: a value that is a pure function of the
 /// index's contents, built at most once per [`WorkspaceIndex::generation`] and
@@ -1710,6 +1727,69 @@ impl WorkspaceIndex {
         })
     }
 
+    /// Install the host's literal-`source`-path → document-URI resolver, so
+    /// the index can build the [`crate::source_graph::RunOrder`] the
+    /// import-lifecycle gates rank cross-document events with (issue #1104
+    /// item 3).
+    ///
+    /// The index deliberately holds no URI ↔ filesystem-path mapping of its
+    /// own — that is the host's knowledge, and every other `source`-graph
+    /// consumer already takes the same closure per call
+    /// ([`Self::source_ancestor_package_requires`],
+    /// [`Self::source_ancestor_prefers_latest`], [`Self::source_seed_map`]).
+    /// The order, though, is consulted *inside* the per-call import walk,
+    /// where a per-call resolver argument would have to be threaded through
+    /// every caller of `resolve_wildcard_import` and every derived view that
+    /// builds a `WildcardImportIndex`. Holding it here instead lets the order
+    /// be a [`Derived`] view like the rest, built at most once per
+    /// [`Self::generation`].
+    ///
+    /// A plain `fn` pointer rather than a boxed closure: the resolver is a
+    /// pure function of `(parent uri, raw path, is_literal)` in every host, and
+    /// a `fn` keeps the index `Debug + Clone + Default` with no manual impls.
+    /// The signature is [`Self::source_seed_map`]'s, so one host resolver
+    /// serves both — including its statically-foldable computed-path tier
+    /// (`[file join [file dirname [info script]] x.tcl]`), which is as provable
+    /// as a literal and is the idiom real multi-file projects actually write.
+    /// A path the host cannot prove returns `None` and sequences nothing.
+    ///
+    /// **Without a resolver the order is empty**, and both tiers behave
+    /// exactly as they did before the `source` graph existed — every
+    /// cross-document event unrankable, every same-document one ordered.
+    pub fn set_source_resolver(&mut self, resolve: SourceResolver) {
+        self.source_resolver = Some(resolve);
+        self.run_order = Derived::default();
+    }
+
+    /// The `source`-graph load order over this workspace's documents, built at
+    /// most once per [`Self::generation`].
+    ///
+    /// Empty when no resolver is installed (see [`Self::set_source_resolver`])
+    /// or when no `source` statement resolves. A target the resolver cannot
+    /// place — `source $dir/x.tcl` with `$dir` unknown — names no document
+    /// statically and sequences nothing.
+    fn run_order(&self) -> Arc<crate::source_graph::RunOrder> {
+        self.run_order.get_or_build(|| {
+            let Some(resolve) = self.source_resolver else {
+                return crate::source_graph::RunOrder::default();
+            };
+            let edges: Vec<crate::source_graph::SourceEdge> = self
+                .sources()
+                .filter_map(|s| {
+                    resolve(&s.uri, &s.raw_path, s.is_literal).map(|child| {
+                        crate::source_graph::SourceEdge {
+                            parent: s.uri.clone(),
+                            child,
+                            at: s.range.start(),
+                            enclosing_body: s.enclosing_body,
+                        }
+                    })
+                })
+                .collect();
+            crate::source_graph::RunOrder::build(&edges)
+        })
+    }
+
     /// Note a mutation: bump the generation and drop every derived cache.
     fn invalidate(&mut self) {
         self.generation = self.generation.wrapping_add(1);
@@ -1718,6 +1798,7 @@ impl WorkspaceIndex {
         self.defined_names = <[Derived<HashSet<String>>; 2]>::default();
         self.command_link_map = Derived::default();
         self.settled_invocations = <[Derived<SettledTargets>; 2]>::default();
+        self.run_order = Derived::default();
     }
 
     /// The command name-links that are actually installed — every `interp
@@ -3607,6 +3688,11 @@ struct WildcardImportIndex<'a> {
     /// finding 3), which is a question about where the declaration sits, not
     /// merely whether one exists.
     declarations_by_qname: std::collections::HashMap<&'a str, Vec<(&'a str, u32)>>,
+    /// The workspace's `source`-graph load order — the relation every
+    /// decision below ranks its events with, so a cross-document event is
+    /// ordered wherever the graph proves an order and unrankable everywhere
+    /// else (issue #1104 item 3).
+    order: Arc<crate::source_graph::RunOrder>,
 }
 
 impl<'a> WildcardImportIndex<'a> {
@@ -3675,6 +3761,7 @@ impl<'a> WildcardImportIndex<'a> {
             forgets_by_ns,
             deletions_by_name,
             declarations_by_qname,
+            order: index.run_order(),
         }
     }
 
@@ -3701,9 +3788,8 @@ impl<'a> WildcardImportIndex<'a> {
         importing_ns: &'e str,
         source_ns: &'e str,
         name: &'e str,
-        ordered_in: &'e str,
-        destroy_at: impl Fn(&WorkspaceCommandDeletion) -> Option<u32> + 'e,
-    ) -> impl Iterator<Item = crate::namespace_import::AliasEvent> + 'e {
+        destroy_point: impl Fn(&'e WorkspaceCommandDeletion) -> RunPoint<'e> + 'e,
+    ) -> impl Iterator<Item = crate::namespace_import::AliasEvent<'e>> + 'e {
         use crate::namespace_import::{AliasEvent, AliasEventKind};
         let forgets = self
             .forgets_by_ns
@@ -3718,7 +3804,11 @@ impl<'a> WildcardImportIndex<'a> {
             })
             .map(move |f| AliasEvent {
                 kind: AliasEventKind::Remove,
-                at: (f.uri == ordered_in).then_some(f.at),
+                at: RunPoint {
+                    uri: f.uri.as_str(),
+                    at: f.at,
+                    enclosing_body: None,
+                },
             });
         // A `proc` / class declaration of the *imported* name recreates it as
         // an ordinary command and ends the alias (oracle on
@@ -3729,9 +3819,13 @@ impl<'a> WildcardImportIndex<'a> {
             .map(Vec::as_slice)
             .unwrap_or_default()
             .iter()
-            .map(move |(uri, at)| AliasEvent {
+            .map(move |&(uri, at)| AliasEvent {
                 kind: AliasEventKind::Remove,
-                at: (*uri == ordered_in).then_some(*at),
+                at: RunPoint {
+                    uri,
+                    at,
+                    enclosing_body: None,
+                },
             });
         let qualified = tcl_syntax::naming::qualify(source_ns, name);
         let deletions = self
@@ -3742,7 +3836,7 @@ impl<'a> WildcardImportIndex<'a> {
             .iter()
             .map(move |d| AliasEvent {
                 kind: AliasEventKind::Remove,
-                at: destroy_at(d),
+                at: destroy_point(d),
             });
         forgets.chain(redefinitions).chain(deletions)
     }
@@ -3782,17 +3876,17 @@ impl<'a> WildcardImportIndex<'a> {
         use crate::namespace_import::{AliasEvent, AliasEventKind};
         let install = std::iter::once(AliasEvent {
             kind: AliasEventKind::Install,
-            at: (install_at.uri == call.uri).then_some(install_at.at),
+            at: install_at.point(),
         });
         let mut events =
             install.chain(
-                self.removal_events(importing_ns, source_ns, name, call.uri, |d| {
-                    (d.uri == call.uri).then_some(d.at)
+                self.removal_events(importing_ns, source_ns, name, |d| RunPoint {
+                    uri: d.uri.as_str(),
+                    at: d.at,
+                    enclosing_body: None,
                 }),
             );
-        crate::namespace_import::alias_live_at(&mut events, &|at| {
-            tcl_compiler::analyser::indirection::in_effect_within(at, call.at, call.enclosing_body)
-        })
+        crate::namespace_import::alias_live_at(&mut events, &self.order, Some(call.point()))
     }
 
     /// Whether `ns` already holds a live alias for `name` from a namespace
@@ -3849,13 +3943,11 @@ impl<'a> WildcardImportIndex<'a> {
         name: &str,
         site: ImportSite<'_>,
     ) -> bool {
-        use crate::namespace_import::load_order;
         let call = CallSite {
             uri: site.uri,
             at: site.at,
             enclosing_body: site.enclosing_body,
         };
-        let here = load_order(site.at, site.enclosing_body.is_some());
         let mut earlier = self
             .imports_by_ns
             .get(ns)
@@ -3874,8 +3966,7 @@ impl<'a> WildcardImportIndex<'a> {
                     .map(|(uri, gate)| (gate.source_ns.as_str(), gate.site(uri))),
             );
         earlier.any(|(other_source, other_site)| {
-            other_site.uri == site.uri
-                && load_order(other_site.at, other_site.enclosing_body.is_some()) < here
+            self.order.cmp_run(other_site.point(), site.point()) == Some(std::cmp::Ordering::Less)
                 && !ns_eq(other_source, source_ns)
                 && self.exports_name_at(other_source, name, other_site)
                 && self.alias_live_at(ns, other_source, name, other_site, call)
@@ -3904,24 +3995,38 @@ impl<'a> WildcardImportIndex<'a> {
     ///   reinstalls — oracle).
     /// - One in another document has no static load order and revokes
     ///   nothing, exactly as in [`Self::alias_live_at`].
-    /// - A destroyed source command revokes regardless: the command object is
-    ///   gone workspace-wide (oracle: `rename ::src::p {}` makes `::dst::p`
-    ///   an `invalid command name` and empties `info commands ::dst::*`), so
-    ///   it is passed at [`u32::MAX`] — later than any install.
+    /// - A destroyed source command revokes regardless, and is **not** put on
+    ///   the timeline at all: the command object is gone workspace-wide
+    ///   (oracle: `rename ::src::p {}` makes `::dst::p` an `invalid command
+    ///   name` and empties `info commands ::dst::*`) and no load order brings
+    ///   it back, so with no query point to order anything against it is
+    ///   decided before the fold runs.  Encoding it as an event at `u32::MAX`
+    ///   instead would be wrong for a **body-local** import gate: the
+    ///   load-order rule reads a removal written outside the import's own body
+    ///   as having run *before* it — right for a `namespace forget`, which the
+    ///   import then undoes, and exactly backwards for a destruction the
+    ///   import cannot undo.
     fn link_alias_live(&self, importing_ns: &str, gate: &WorkspaceImportGate, uri: &str) -> bool {
         use crate::namespace_import::{AliasEvent, AliasEventKind};
+        if self
+            .deletions_by_name
+            .contains_key(tcl_syntax::naming::qualify(&gate.source_ns, &gate.name).as_str())
+        {
+            return false;
+        }
         let install = std::iter::once(AliasEvent {
             kind: AliasEventKind::Install,
-            at: Some(gate.at),
+            at: gate.site(uri).point(),
         });
-        let mut events = install.chain(self.removal_events(
-            importing_ns,
-            &gate.source_ns,
-            &gate.name,
-            uri,
-            |_| Some(u32::MAX),
-        ));
-        crate::namespace_import::alias_live_at(&mut events, &|_| true)
+        let mut events =
+            install.chain(
+                self.removal_events(importing_ns, &gate.source_ns, &gate.name, |d| RunPoint {
+                    uri: d.uri.as_str(),
+                    at: d.at,
+                    enclosing_body: None,
+                }),
+            );
+        crate::namespace_import::alias_live_at(&mut events, &self.order, None)
     }
 
     /// Whether `ns` (`::`-rooted) had exported the unqualified `name` **as of
@@ -3947,15 +4052,18 @@ impl<'a> WildcardImportIndex<'a> {
                 .map(|e| crate::namespace_import::ExportEvent {
                     pattern: e.pattern.as_str(),
                     clears: e.clears,
-                    at: (e.uri == site.uri).then_some(e.at),
+                    at: RunPoint {
+                        uri: e.uri.as_str(),
+                        at: e.at,
+                        enclosing_body: None,
+                    },
                 });
-            crate::namespace_import::exported_at_import_site(&mut events, name, &|at| {
-                tcl_compiler::analyser::indirection::in_effect_within(
-                    at,
-                    site.at,
-                    site.enclosing_body,
-                )
-            })
+            crate::namespace_import::exported_at_import_site(
+                &mut events,
+                name,
+                &self.order,
+                site.point(),
+            )
         })
     }
 }
@@ -4001,6 +4109,18 @@ struct ImportSite<'a> {
     enclosing_body: Option<Span>,
 }
 
+impl<'a> ImportSite<'a> {
+    /// This site as the workspace-wide execution-timeline point
+    /// [`crate::source_graph::RunOrder`] ranks events by.
+    fn point(self) -> RunPoint<'a> {
+        RunPoint {
+            uri: self.uri,
+            at: self.at,
+            enclosing_body: self.enclosing_body,
+        }
+    }
+}
+
 /// Where the **call** being resolved sits: the document and the offset of its
 /// command-head token.
 ///
@@ -4035,6 +4155,18 @@ pub struct CallSite<'a> {
     /// Span of the innermost proc/class **body** containing the call, within
     /// `uri`; `None` when the call sits at load level.
     pub enclosing_body: Option<Span>,
+}
+
+impl<'a> CallSite<'a> {
+    /// This call as the workspace-wide execution-timeline point
+    /// [`crate::source_graph::RunOrder`] ranks events against.
+    fn point(self) -> RunPoint<'a> {
+        RunPoint {
+            uri: self.uri,
+            at: self.at,
+            enclosing_body: self.enclosing_body,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -5324,6 +5456,312 @@ mod tests {
         assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
     }
 
+    // ---- the `source` graph orders what the file boundary did not --------
+    //
+    // Issue #1104 item 3 / #1116 item 6. Sourcing a file inlines its whole
+    // body at the `source` statement's position, so the DFS of the source
+    // forest *is* the run order. Oracle for every case below, byte-identical
+    // on tclsh 8.6.14 and 9.0.4 — with
+    //
+    //   # exp.tcl:  namespace eval ::mymod { namespace export helper }
+    //   # imp.tcl:  namespace eval ::app   { namespace import ::mymod::* }
+    //   # mod.tcl:  namespace eval ::mymod { proc helper {} {return HELP} }
+    //
+    //   # app.tcl:  source mod.tcl; source exp.tcl; source imp.tcl
+    //   ::app::helper   ->  HELP
+    //   # app.tcl:  source mod.tcl; source imp.tcl; source exp.tcl
+    //   ::app::helper   ->  invalid command name "::app::helper"
+
+    /// The server's URI resolver, in miniature: a literal path resolved
+    /// against the sourcing document's directory.
+    fn test_resolve(parent_uri: &str, raw_path: &str, is_literal: bool) -> Option<String> {
+        let parent = parent_uri.strip_prefix("file://")?;
+        let dir = std::path::Path::new(parent).parent()?;
+        // The server's two tiers, in miniature: a literal resolves directly, a
+        // computed path only when it folds statically — anything else names no
+        // document and sequences nothing.
+        let raw = if is_literal {
+            raw_path.to_owned()
+        } else {
+            tcl_compiler::auto_path_eval::evaluate_auto_path_expr(raw_path, Some(parent))?
+        };
+        let child = crate::source_graph::resolve_under(dir, &raw);
+        Some(format!("file://{}", child.display()))
+    }
+
+    /// An index over `documents` with the `source`-path resolver installed —
+    /// the shape the real server builds ([`WorkspaceIndex::set_source_resolver`]).
+    fn sourced_index<'a>(
+        documents: impl IntoIterator<Item = (&'a str, &'a AnalysisResult)>,
+    ) -> WorkspaceIndex {
+        let mut index = WorkspaceIndex::new();
+        index.set_source_resolver(test_resolve);
+        for (uri, analysis) in documents {
+            index.add_document(uri, analysis);
+        }
+        index
+    }
+
+    /// The three module documents every source-order test below shares.
+    fn import_order_modules() -> (AnalysisResult, AnalysisResult, AnalysisResult) {
+        (
+            analyse("namespace eval ::mymod { proc helper {} { return HELP } }\n"),
+            analyse("namespace eval ::mymod { namespace export helper }\n"),
+            analyse("namespace eval ::app { namespace import ::mymod::* }\n"),
+        )
+    }
+
+    #[test]
+    fn an_export_sourced_before_the_import_resolves() {
+        // TP: `app.tcl` sources the export before the import, so the import
+        // really did see it — the same answer as before, but now as a proved
+        // order rather than an abstention.
+        let (mod_doc, exp, imp) = import_order_modules();
+        let app = analyse("source mod.tcl\nsource exp.tcl\nsource imp.tcl\n");
+        let index = sourced_index([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app),
+        ]);
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_from("file:///p/caller.tcl"),
+                )
+                .as_deref(),
+            Some("::mymod::helper"),
+        );
+    }
+
+    #[test]
+    fn an_export_sourced_after_the_import_is_not_retroactive() {
+        // FP guard (CRITICAL), issue #1104 item 3 — the whole point of the
+        // order. The import runs first, `::mymod` has exported nothing yet,
+        // so real Tcl installs no alias at all. Byte-identical documents to
+        // the test above; only `app.tcl`'s two `source` lines swap.
+        let (mod_doc, exp, imp) = import_order_modules();
+        let app = analyse("source mod.tcl\nsource imp.tcl\nsource exp.tcl\n");
+        let index = sourced_index([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+            call_from("file:///p/caller.tcl"),
+        );
+        assert!(
+            resolved.is_none(),
+            "an export sourced after the import cannot apply retroactively: {resolved:?}",
+        );
+    }
+
+    #[test]
+    fn without_a_resolver_the_same_workspace_keeps_abstaining() {
+        // TN for the deployment shape: an index with no `source` resolver
+        // installed holds the pre-#1104-item-3 behaviour exactly — the
+        // foreign export counts and the import resolves, whichever way the
+        // `source` statements are written.
+        let (mod_doc, exp, imp) = import_order_modules();
+        let app = analyse("source mod.tcl\nsource imp.tcl\nsource exp.tcl\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app),
+        ]);
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_from("file:///p/caller.tcl"),
+                )
+                .as_deref(),
+            Some("::mymod::helper"),
+        );
+    }
+
+    #[test]
+    fn a_re_sourced_export_file_keeps_abstaining() {
+        // TN (CRITICAL): `exp.tcl` is sourced twice, so it has no unique
+        // position and the order must not invent one — Tcl tolerates
+        // re-sourcing, and guessing would silently drop a real alias. Falls
+        // back to the pre-graph abstention: the export counts.
+        let (mod_doc, exp, imp) = import_order_modules();
+        let app = analyse("source mod.tcl\nsource imp.tcl\nsource exp.tcl\nsource exp.tcl\n");
+        let index = sourced_index([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app),
+        ]);
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_from("file:///p/caller.tcl"),
+                )
+                .as_deref(),
+            Some("::mymod::helper"),
+        );
+    }
+
+    #[test]
+    fn a_computed_source_path_orders_nothing() {
+        // TN: `source $dir/exp.tcl` names no document statically, so the edge
+        // is dropped and the export goes back to being unrankable — the
+        // deliberate abstention, not an accident of path resolution.
+        let (mod_doc, exp, imp) = import_order_modules();
+        let app = analyse(
+            "set dir [file dirname [info script]]\nsource mod.tcl\nsource imp.tcl\nsource $dir/exp.tcl\n",
+        );
+        let index = sourced_index([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app),
+        ]);
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_from("file:///p/caller.tcl"),
+                )
+                .as_deref(),
+            Some("::mymod::helper"),
+        );
+    }
+
+    #[test]
+    fn a_forget_written_after_the_source_revokes_the_sourced_import() {
+        // TP (CRITICAL), the `source lib.tcl ; namespace forget ::lib::p`
+        // idiom #1104 item 3 and #1116 called out by name: the install from
+        // the sourced file counts (it always did) *and* the forget beside the
+        // `source` now revokes it. Oracle: `::app::helper` is an `invalid
+        // command name` after the forget.
+        let (mod_doc, exp, imp) = import_order_modules();
+        let app = analyse(
+            "source mod.tcl\nsource exp.tcl\nsource imp.tcl\nnamespace eval ::app { namespace forget ::mymod::helper }\n",
+        );
+        let index = sourced_index([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app),
+        ]);
+        // A call written after the forget no longer resolves…
+        let after = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+            call_at("file:///p/app.tcl", u32::MAX),
+        );
+        assert!(
+            after.is_none(),
+            "a forget written after the `source` that installed the alias must revoke it: {after:?}",
+        );
+        // …and a call written *above* every `source` statement has no alias
+        // yet either — the install has not run at that point.
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_at("file:///p/app.tcl", 0),
+                )
+                .as_deref(),
+            None,
+        );
+        // TP: with the forget removed, the same call site after the sources
+        // does resolve — so the assertion above is the forget's doing and not
+        // an accident of the graph.
+        let app_no_forget = analyse("source mod.tcl\nsource exp.tcl\nsource imp.tcl\n");
+        let index = sourced_index([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app_no_forget),
+        ]);
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_at("file:///p/app.tcl", u32::MAX),
+                )
+                .as_deref(),
+            Some("::mymod::helper"),
+        );
+    }
+
+    #[test]
+    fn a_cross_file_import_conflict_is_decided_by_the_source_order() {
+        // TP (CRITICAL), issue #1116 item 6 — two imports of one name from
+        // different sources, in different files. Without an order neither
+        // conflicts and the later one silently installs; with one, the file
+        // sourced first owns the name and the second import raises `can't
+        // import command "helper": already exists` and installs nothing.
+        //
+        // Oracle (8.6.14 / 9.0.4), with the two importers in separate files
+        // sourced in this order:
+        //   namespace origin ::app::helper  ->  ::first::helper
+        let first = analyse(
+            "namespace eval ::first { proc helper {} { return F }\n namespace export helper }\n",
+        );
+        let second = analyse(
+            "namespace eval ::second { proc helper {} { return S }\n namespace export helper }\n",
+        );
+        let imp_a = analyse("namespace eval ::app { namespace import ::first::* }\n");
+        let imp_b = analyse("namespace eval ::app { namespace import ::second::* }\n");
+        let app =
+            analyse("source first.tcl\nsource second.tcl\nsource impa.tcl\nsource impb.tcl\n");
+        let docs = [
+            ("file:///p/first.tcl", &first),
+            ("file:///p/second.tcl", &second),
+            ("file:///p/impa.tcl", &imp_a),
+            ("file:///p/impb.tcl", &imp_b),
+            ("file:///p/app.tcl", &app),
+        ];
+        assert_eq!(
+            sourced_index(docs)
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_from("file:///p/caller.tcl"),
+                )
+                .as_deref(),
+            Some("::first::helper"),
+            "the import sourced first owns the name; the second conflicts and installs nothing",
+        );
+        // Swap the two `source` lines and the winner swaps with them.
+        let app =
+            analyse("source first.tcl\nsource second.tcl\nsource impb.tcl\nsource impa.tcl\n");
+        let docs = [
+            ("file:///p/first.tcl", &first),
+            ("file:///p/second.tcl", &second),
+            ("file:///p/impa.tcl", &imp_a),
+            ("file:///p/impb.tcl", &imp_b),
+            ("file:///p/app.tcl", &app),
+        ];
+        assert_eq!(
+            sourced_index(docs)
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_from("file:///p/caller.tcl"),
+                )
+                .as_deref(),
+            Some("::second::helper"),
+        );
+    }
+
     #[test]
     fn resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import() {
         // FP guard (CRITICAL), direction B, cross-document — the import and
@@ -6186,6 +6624,70 @@ mod tests {
         assert_eq!(
             index.resolve_command_target("::app::helper"),
             "::mymod::helper"
+        );
+    }
+
+    #[test]
+    fn a_destroyed_source_kills_a_body_local_exact_import_link() {
+        // TN (CRITICAL): the destruction is not a timeline event — the command
+        // object is gone workspace-wide and no load order brings it back — so
+        // it must revoke however the import is written. A **body-local**
+        // import gate is the case that separates the two encodings: the
+        // load-order rule reads a removal written outside the import's own
+        // body as having run before it, which is right for a `namespace
+        // forget` (the import then undoes it) and backwards for a destruction
+        // the import cannot undo. Oracle: `rename ::mymod::helper {}` makes
+        // `::app::helper` an `invalid command name` and empties `info commands
+        // ::app::*`.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    proc setup {} { namespace import ::mymod::helper }\n}\nrename ::mymod::helper {}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        assert_eq!(
+            index.resolve_command_target("::app::helper"),
+            "::app::helper",
+            "destroying the source command revokes the link wherever the import sits"
+        );
+        assert!(!index.workspace_command_exists("::app::helper"));
+        // …and the top-level spelling of the same import, for the control.
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::helper\n}\nrename ::mymod::helper {}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        assert_eq!(
+            index.resolve_command_target("::app::helper"),
+            "::app::helper"
+        );
+    }
+
+    #[test]
+    fn a_body_local_exact_import_survives_a_top_level_forget() {
+        // FN guard for the row above, and the reason the destruction cannot
+        // simply be encoded as "a removal at `u32::MAX`": a `namespace forget`
+        // at the file's load level runs *before* a body-local import, which
+        // then reinstalls the alias. Oracle: `::app::setup` followed by
+        // `namespace origin ::app::helper` answers `::mymod::helper`.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    proc setup {} { namespace import ::mymod::helper }\n}\nnamespace eval ::app { namespace forget ::mymod::helper }\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        assert_eq!(
+            index.resolve_command_target("::app::helper"),
+            "::mymod::helper",
+            "a load-level forget runs before the body-local import that reinstalls it"
         );
     }
 
