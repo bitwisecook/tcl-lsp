@@ -382,10 +382,13 @@ Oracles for 1 and 3, both byte-identical on 8.6.14 and 9.0.4:
   `package require`.
 
 Plus the gates the rest of the family already applies: a **conditional**
-require (`if {[catch {package require Tk}]}`) may never run, a **non-literal**
-name (`package require $pkg`) names nothing statically, and a document that
-requires the package it itself provides is a self-edge, which `RunOrder::build`
-discards. A document that is both `source`d **and** `package require`d is
+require (`if {[catch {package require Tk}]}`) may never run, a **conditional
+provide** likewise — tcllib's `doctools2idx/import_json.tcl` writes `package
+provide dict 1` inside a nested `if`/`catch`, a shim supplied only on an old
+interpreter, and reading that as "this file provides `dict`" would name the
+wrong provider everywhere else — a **non-literal** name (`package require
+$pkg`) names nothing statically, and a document that requires the package it
+itself provides is a self-edge, which `RunOrder::build` discards. A document that is both `source`d **and** `package require`d is
 marked ambiguous — it would otherwise carry a tree position saying it ran
 exactly there beside a bound saying it had already run, and those can
 contradict.
@@ -399,13 +402,13 @@ Tcl 9.0.4 `library/`, and the repository's `samples/` + `tests/`.
 
 | | documents | `package require` sites | provable package edges | bare call sites | resolutions removed | added |
 |---|---|---|---|---|---|---|
-| every `.tcl`, `pkgIndex.tcl` included | 948 | 1 424 | 40 | 239 663 | 0 | 0 |
-| `pkgIndex.tcl` excluded | 805 | 1 419 | **697** | 237 136 | **122** | 0 |
+| every `.tcl`, `pkgIndex.tcl` included | 948 | 1 424 | 47 | 239 663 | 0 | 0 |
+| `pkgIndex.tcl` excluded | 805 | 1 419 | **704** | 237 136 | **122** | 0 |
 | tcllib `modules/` alone, `pkgIndex.tcl` excluded | 660 | 1 319 | 612 | 220 105 | 0 | 0 |
 
 Read honestly, that is three findings.
 
-**It moves numbers, where the `source` half moved none.** 697 provable edges
+**It moves numbers, where the `source` half moved none.** 704 provable edges
 against the `source` half's 3 resolvable statements, and 122 changed
 resolutions against 0.
 
@@ -426,7 +429,7 @@ longer resolve through an import the program had not yet run.
 **Abstention 3 costs almost all of the reach on a checkout that indexes its
 package index files.** tcllib ships a `pkgIndex.tcl` per module, and each one
 registers a `package ifneeded` for the packages that module provides, so the
-gate fires on nearly every package: 697 edges become 40, and the measurable
+gate fires on nearly every package: 704 edges become 47, and the measurable
 effect becomes 0. That is the abstention working as specified — the registered
 script is what actually runs, and `[list source [file join $dir base64.tcl]]`
 does not tell us statically that it runs `base64.tcl`.

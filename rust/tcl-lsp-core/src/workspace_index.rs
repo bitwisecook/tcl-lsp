@@ -705,6 +705,11 @@ pub struct WorkspacePackageProvide {
     pub name: String,
     /// Byte offset of the `package` command word in `uri`'s source.
     pub at: u32,
+    /// `true` when the provide sits inside a guarded branch and so may never
+    /// run — the shim idiom
+    /// [`tcl_compiler::analyser::types::PackageProvide::conditional`]
+    /// documents.  Such a document is not this package's provider.
+    pub conditional: bool,
 }
 
 /// One `package ifneeded NAME VERSION SCRIPT` registration recorded in the
@@ -1272,6 +1277,7 @@ impl DocumentRecords {
                 uri: uri.to_owned(),
                 name: pp.name.clone(),
                 at: pp.range.start(),
+                conditional: pp.conditional,
             });
         }
         for pi in &analysis.package_ifneededs {
@@ -1961,7 +1967,9 @@ impl WorkspaceIndex {
     ///    `namespace export`, for the same `package require`).
     ///
     /// Plus the gates the `source` half already applies in spirit: a
-    /// **conditional** require may never run; a **non-literal** package name
+    /// **conditional** require *or provide* may never run (the shim idiom
+    /// [`tcl_compiler::analyser::types::PackageProvide::conditional`]
+    /// documents); a **non-literal** package name
     /// (`package require $pkg`) names nothing statically; and a document that
     /// requires the package it itself provides is a self-edge, which
     /// [`crate::source_graph::RunOrder::build`] discards.
@@ -1973,7 +1981,7 @@ impl WorkspaceIndex {
             std::collections::HashMap::new();
         for pp in self
             .package_provides()
-            .filter(|pp| is_literal_name(&pp.name))
+            .filter(|pp| !pp.conditional && is_literal_name(&pp.name))
         {
             match provider.entry(pp.name.as_str()) {
                 Entry::Vacant(slot) => {
@@ -6163,6 +6171,40 @@ mod tests {
                 "{app_src}",
             );
         }
+    }
+
+    #[test]
+    fn a_conditional_provide_does_not_make_a_document_the_provider() {
+        // TN: the shim idiom. tcllib's `doctools2idx/import_json.tcl` writes
+        // `package provide dict 1` inside `if {[package vcompare …] < 0} { if
+        // {[catch {package require dict}]} { … } }` — a fake `dict` package
+        // supplied only on an old interpreter. Reading that as "this document
+        // provides `dict`" would name the wrong file as the provider on every
+        // other interpreter, so a guarded provide establishes nothing.
+        let shim = analyse(
+            "if {[package vcompare [package present Tcl] 8.5] < 0} {\nnamespace eval ::mymod { proc helper {} { return SHIM } }\npackage provide mymod 1.0\n}\n",
+        );
+        let app = analyse(
+            "package require mymod\nnamespace eval ::mymod { namespace export -clear }\nnamespace eval ::app { namespace import ::mymod::* }\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///p/lib.tcl", &package_provider()),
+            ("file:///p/shim.tcl", &shim),
+            ("file:///p/app.tcl", &app),
+        ]);
+        // Only `lib.tcl` provides `mymod` unconditionally, so the edge stands
+        // and the `-clear` revokes…
+        assert!(helper_resolves(&index).is_none());
+        // …but with `lib.tcl`'s provide made conditional too, nothing in the
+        // workspace provably provides `mymod` and the order abstains.
+        let guarded_lib = analyse(
+            "namespace eval ::mymod { proc helper {} { return HELP }\n namespace export helper }\nif {$::tcl_platform(platform) eq \"unix\"} { package provide mymod 1.0 }\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///p/lib.tcl", &guarded_lib),
+            ("file:///p/app.tcl", &app),
+        ]);
+        assert_eq!(helper_resolves(&index).as_deref(), Some("::mymod::helper"));
     }
 
     #[test]

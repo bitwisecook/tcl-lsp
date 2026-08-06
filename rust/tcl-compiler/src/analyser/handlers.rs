@@ -5323,6 +5323,7 @@ impl Analyser {
                 name,
                 version,
                 range: cmd_tok.span,
+                conditional: self.conditional_depth > 0,
             });
     }
 

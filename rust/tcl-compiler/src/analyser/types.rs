@@ -2201,6 +2201,19 @@ pub struct PackageProvide {
     pub version: Option<String>,
     /// Span of the originating ``package`` token.
     pub range: Span,
+    /// ``true`` when the call is inside a guarded branch (an
+    /// ``if``/``elseif``/``else`` body, a ``catch`` script, or a
+    /// ``try``/``on``/``trap``/``finally`` clause), matching
+    /// [`SignaturePackageRequire::conditional`].
+    ///
+    /// The shim idiom makes this load-bearing: tcllib's
+    /// ``doctools2idx/import_json.tcl`` writes ``package provide dict 1``
+    /// inside ``if {[package vcompare …] < 0} { if {[catch {package
+    /// require dict}]} { … } }`` — a fake ``dict`` package supplied only
+    /// on an old interpreter.  Reading that as "this document provides
+    /// ``dict``" would name the wrong file as a package's provider on
+    /// every other interpreter.
+    pub conditional: bool,
 }
 
 /// `package ifneeded NAME VERSION ?SCRIPT?` record.
