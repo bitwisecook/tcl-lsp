@@ -631,8 +631,13 @@ fn push_positional_boolean_rewrites(
         if claimed.get(index).copied().unwrap_or(false) || !touchable(index) {
             continue;
         }
-        let site =
-            positional_site_across_range(ctx.releases, cmd_name, canonical_args, index, target_site);
+        let site = positional_site_across_range(
+            ctx.releases,
+            cmd_name,
+            canonical_args,
+            index,
+            target_site,
+        );
         if site == BooleanSite::None {
             continue;
         }
@@ -703,7 +708,9 @@ pub(crate) fn rewrites_for_command(
         if !touchable(0) {
             return out;
         }
-        match subcommand_scope(spec, dialect, config, &releases, cmd_name, &args[0], &mut out) {
+        match subcommand_scope(
+            spec, dialect, config, &releases, cmd_name, &args[0], &mut out,
+        ) {
             Some((scope, canonical)) => {
                 canonical.clone_into(&mut canonical_args[0]);
                 scope
