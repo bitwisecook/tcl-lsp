@@ -694,7 +694,10 @@ impl DefinitionBodyGrammar {
     /// [`Self::member_body_commands`]).
     #[must_use]
     pub fn member_body_command(&self, name: &str) -> Option<&'static MemberBodyCommand> {
-        let idx = self.member_body_commands.iter().position(|c| c.name == name)?;
+        let idx = self
+            .member_body_commands
+            .iter()
+            .position(|c| c.name == name)?;
         Some(&self.member_body_commands[idx])
     }
 

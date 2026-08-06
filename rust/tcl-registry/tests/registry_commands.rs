@@ -2682,3 +2682,98 @@ fn only_namespace_eval_declares_a_namespace() {
         .collect();
     assert_eq!(declarers, vec!["namespace"]);
 }
+
+// ---------------------------------------------------------------------------
+// Object-handle bindings (issue #1185) — which argument of a call becomes a
+// handle, and of what class, is registry data rather than a walker's
+// command-name match.
+// ---------------------------------------------------------------------------
+
+/// `set` declares the handle-binding layout its value word implies, and the
+/// query resolves it through the same `get` path every other registry query
+/// uses — so `::set` answers identically to the bare spelling.
+#[test]
+fn set_declares_its_handle_binding_for_every_spelling() {
+    use tcl_registry::{BoundHandle, HandleClassSource};
+
+    let reg = CommandRegistry::build_default();
+    for spelling in ["set", "::set"] {
+        let layout = reg
+            .handle_binding(spelling)
+            .unwrap_or_else(|| panic!("`{spelling}` must declare a handle binding"));
+        assert_eq!(
+            layout.resolve(&["axis", "[verticalAxis $win.a]"]),
+            Some(BoundHandle {
+                name: "axis",
+                class_word: "[verticalAxis $win.a]",
+                class_source: HandleClassSource::ConstructionValue(1),
+            }),
+            "`{spelling}` must bind argument 0 from its value word"
+        );
+        // The one-argument read form binds nothing.
+        assert_eq!(layout.resolve(&["axis"]), None);
+    }
+    // A command with no such layout answers `None` — no guessing.
+    assert!(reg.handle_binding("puts").is_none());
+    assert!(reg.handle_binding("nosuchcommand").is_none());
+}
+
+/// snit's `install` is a **member-body** command, not a global one: it must
+/// carry its layout on the definition-body grammar and must NOT be registered
+/// as a global spec (which would make a user's own `proc install` look like a
+/// built-in everywhere).
+#[test]
+fn snit_install_is_a_member_body_binding_not_a_global_command() {
+    use tcl_registry::{BoundHandle, HandleClassSource};
+
+    let reg = CommandRegistry::build_default();
+    assert!(
+        reg.get("install").is_none(),
+        "`install` must not become a global command spec"
+    );
+
+    let bindings = reg.member_body_handle_bindings();
+    let (_, layout) = bindings
+        .iter()
+        .find(|(name, _)| *name == "install")
+        .unwrap_or_else(|| panic!("snit must declare an `install` handle binding: {bindings:?}"));
+    assert_eq!(
+        layout.resolve(&["axis", "using", "verticalAxis", "$win.a"]),
+        Some(BoundHandle {
+            name: "axis",
+            class_word: "verticalAxis",
+            class_source: HandleClassSource::Word(2),
+        })
+    );
+    // Without the `using` keyword the layout does not fire, so a user's own
+    // three-word `install` binds nothing.
+    assert_eq!(layout.resolve(&["a", "b", "c"]), None);
+    // The snit `type` and `widget` grammars share one command set — the query
+    // deduplicates rather than reporting the same word twice.
+    assert_eq!(
+        bindings.iter().filter(|(n, _)| *n == "install").count(),
+        1,
+        "member-body bindings must be deduplicated: {bindings:?}"
+    );
+}
+
+/// Whether a class family constructs from a **bare instance name** is a
+/// grammar fact, not a metaclass-name prefix test.
+#[test]
+fn bare_word_construction_is_declared_per_definer_family() {
+    use tcl_registry::definer::{ITCL_GRAMMAR, SNIT_GRAMMAR, SNIT_WIDGET_GRAMMAR, TCLOO_GRAMMAR};
+
+    // snit(n), "The Type Command": `$type name ?args?` implies `create`.
+    assert!(SNIT_GRAMMAR.bare_word_construction);
+    assert!(SNIT_WIDGET_GRAMMAR.bare_word_construction);
+    // tclsh 9.0.4: `oo::class create ::C {}; ::C x` -> `unknown method "x"`.
+    assert!(!TCLOO_GRAMMAR.bare_word_construction);
+    assert!(!ITCL_GRAMMAR.bare_word_construction);
+
+    // Only snit injects member-body commands today; the others inject none.
+    assert!(SNIT_GRAMMAR.member_body_command("install").is_some());
+    assert!(TCLOO_GRAMMAR.member_body_command("install").is_none());
+    assert!(ITCL_GRAMMAR.member_body_command("install").is_none());
+    // An unknown word is not a member-body command of any family.
+    assert!(SNIT_GRAMMAR.member_body_command("nosuchword").is_none());
+}

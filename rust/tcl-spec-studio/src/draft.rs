@@ -947,6 +947,10 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         lost.expr("body_scope", spec.body_scope.is_some()),
     );
     d.insert(
+        "binds_handle".into(),
+        lost.expr("binds_handle", spec.binds_handle.is_some()),
+    );
+    d.insert(
         "creates_instance_at".into(),
         opt_index(spec.creates_instance_at),
     );

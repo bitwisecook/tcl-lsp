@@ -412,6 +412,61 @@ report a bogus Tcl 8.6 requirement. `record_dsl_format_sites` (W138) therefore
 gates on `FormatType::Sprintf` and leaves the other families alone rather than
 guessing.
 
+### HandleBindingSpec -- which argument becomes an object handle
+
+Some calls make a *variable* hold an object handle, with a second word of
+the same call saying what class the handle is. Two shapes recur:
+
+```tcl
+install axis using ::verticalAxis $win.a   ;# snit component install
+set     axis      [::verticalAxis $win.a]  ;# snit bare-word construction
+```
+
+Both used to be recognised by matching the command word in the LSP's
+handle scan. They are now registry data
+(`rust/tcl-registry/src/handle_binding.rs`):
+
+```rust
+pub struct HandleBindingSpec {
+    pub name_at: u8,                     // the variable that receives the handle
+    pub class_from: HandleClassSource,   // where the class is written
+    pub keyword: Option<HandleKeyword>,  // a literal word the layout requires
+}
+
+pub enum HandleClassSource {
+    Word(u8),               // the word *is* the class name (`install … using TYPE`)
+    ConstructionValue(u8),  // the word *contains* a construction (`set n [TYPE …]`)
+}
+```
+
+`HandleBindingSpec::resolve(args)` returns a `BoundHandle { name,
+class_word, class_source }` or `None`. It abstains rather than guesses: a
+missing keyword (`install a b c`, a user's own `install`), a call too short
+to carry both words, or a dynamic word all answer `None`.
+
+Where the descriptor hangs depends on whether the command is global:
+
+| Command | Home | Why |
+|---|---|---|
+| `set` | `CommandSpec::binds_handle` | a real global command; `CommandRegistry::handle_binding` resolves it through `get`, so `::set` answers identically |
+| snit `install` | `DefinitionBodyGrammar::member_body_commands` | the word exists **only** inside a snit member body -- a global spec would make a user's own `proc install` look like a built-in everywhere. `CommandRegistry::member_body_handle_bindings()` enumerates them once per document |
+
+The paired grammar flag `DefinitionBodyGrammar::bare_word_construction`
+says whether a family's *type command* constructs from a bare instance
+name (`$type $name`, snit(n)'s "The Type Command"). It is `true` for snit
+and `false` for `TclOO` / `[incr Tcl]`, and it replaced a
+`metaclass.starts_with("snit::")` spelling test in the scan.
+
+**Limits.** The descriptor covers a *fixed* pair of indices plus one
+optional literal keyword -- enough for both shapes above and for a
+comparable installer in another class system, and deliberately not a
+general option parser. snit's `installhull ?using TYPE …?` is **not**
+modelled: it binds the implicit `hull` component rather than a named
+variable, so it has no `name_at`, and adding it needs another variant
+rather than another row. `install NAME $widget` (a run-time-typed
+component) is likewise not modelled -- there is no static class word, so
+the scan abstains.
+
 ### ArgPresentation -- how a formatter lays an argument out
 
 `ArgRole` says what an argument **is**. `arg_presentation` (a
@@ -1077,9 +1132,75 @@ dispatch, var-escape, and taint sinks reached through this pipeline are
 they resolve through the same registry lookup, but only after the
 canonical name has already been substituted in.
 
-### The limitation is real for the source-text, re-segmentation-based consumers
+### Semantic tokens resolve identity themselves (issue #1185)
 
-The blind spot is the consumers that never go through
+The semantic-token walker is no longer part of this limitation. It resolves
+each head's **effective command identity** once, before any registry query,
+through `rust/tcl-lsp-core/src/head_identity.rs`:
+
+```rust
+enum HeadIdentity<'a> {
+    Command(&'a str),  // the registry name this spelling really invokes
+    Rebound,           // the binding was provably taken over -- no grammar applies
+}
+```
+
+`command_head_identities` scans the document's **top-level** statements once
+and records an offset-keyed fact per head spelling. Which commands mutate the
+command table is registry data (`CommandTableEffect`), and the argument shapes
+come from the compiler's own `alias.rs` detectors -- the same ones the
+IR-lowering pipeline uses -- so nothing here spells a command name. Four
+sources feed it:
+
+| Statement | Fact |
+|---|---|
+| `namespace import ::tcltest::*` | `test` -> `::tcltest::test` (issue #776) |
+| `interp alias {} myfmt {} format` | `myfmt` and `::myfmt` -> `format` |
+| `rename format origfmt` | `origfmt` -> `format`, **and** `format` -> `Rebound` |
+| `proc format {args} {...}` | `format` -> `Rebound` |
+
+Both the bare and the explicitly `::`-qualified spelling of a bound name are
+recorded, and the *latest* fact at or before the call's byte offset wins, so a
+binding never retroactively re-tags an earlier call:
+
+```tcl
+format {%08x} 42       ;# still the built-in -- specifier sub-tokens
+rename format origfmt
+origfmt {%08x} 42      ;# now the built-in
+format  {%08x} 42      ;# Rebound -- a plain string argument
+```
+
+`HeadIdentity::spec_name()` answers `""` for `Rebound`, which
+`CommandRegistry::get` never resolves -- so every registry query the walker
+already makes (`arg_indices_for_role`, `format_string_args`,
+`handle_binding`, ...) answers "unknown command" without a variant check at
+each call site.
+
+**Explicit limits.** The table is sound by abstention, and states nothing for:
+
+- a **dynamic** binding -- `rename $old new`, `interp alias {} $n {} eval`,
+  `interp alias {} n {} $t` (rejected by `is_dynamic_word`);
+- an alias with **pre-bound arguments** -- `interp alias {} pad {} format %08x`
+  shifts every index, so the target's layout cannot be reused; the name is
+  marked `Rebound` rather than aliased;
+- **another interpreter** -- a non-empty `srcPath` binds a name in a *child*
+  interpreter and states nothing here; a non-empty `targetPath` marks the name
+  `Rebound`. Hidden commands in a safe interpreter are invisible for the same
+  reason: this is a description of *this* document's command table;
+- a **conditional or nested** binding -- only top-level statements are scanned,
+  so a `rename` inside an `if` / proc / `eval`, and a `proc` inside
+  `namespace eval ::n` (which defines `::n::format`, not `::format`), state
+  nothing;
+- `unknown` fallback, traces, and computed heads -- nothing is inferred.
+
+The other source-text consumers below are still blind to rename/alias; the
+`HeadIdentityMap` is the shared pre-pass the "plausible future fix direction"
+note called for, and extending it to them is a matter of threading it through,
+not of inventing a mechanism.
+
+### The limitation is real for the other source-text, re-segmentation-based consumers
+
+The remaining blind spot is the consumers that never go through
 `Lowering`'s alias table at all: the ones that recognise a shape (a
 lambda literal, a body, a callback prefix) by re-parsing a segmented
 command's own raw head text directly against the registry, outside the
@@ -1108,10 +1229,12 @@ rename/alias-awareness for one diagnostic. The gap described here is a
 missing integration (the source-text consumers have no access to an alias
 table at all, static or otherwise), not a partial one.
 
-**Plausible future fix direction** (out of scope here — this note only
-records the limitation): give the source-text-based consumers the same
-kind of alias resolution the compiler's lowering pass already has, rather
-than inventing a new mechanism. The `CommandAliasMap` pattern in
+**Fix direction** (done for semantic tokens in issue #1185, still open for
+the rest): give the source-text-based consumers the same kind of alias
+resolution the compiler's lowering pass already has, rather than inventing a
+new mechanism. `head_identity.rs` is that shared document-wide pre-pass, and
+the remaining consumers need it threaded through rather than reinvented. The
+`CommandAliasMap` pattern in
 `rust/tcl-compiler/src/alias.rs` is IR-lowering-specific (it's built while
 walking a `CompilationUnit`, and reads `self.aliases` accumulated so far in
 that walk); the source-text consumers operate on individually re-parsed

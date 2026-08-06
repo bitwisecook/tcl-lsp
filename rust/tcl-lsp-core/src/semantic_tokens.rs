@@ -4673,7 +4673,8 @@ fn collect_script(
         let identity = if ctx.head_identities.is_empty() {
             crate::head_identity::HeadIdentity::Command(head_text.as_str())
         } else {
-            ctx.head_identities.resolve(head_text, head_tok.span.start())
+            ctx.head_identities
+                .resolve(head_text, head_tok.span.start())
         };
         let resolved_head: &str = identity.spec_name();
         // A *static* head word is a resolvable command name: emit it as a
@@ -5503,10 +5504,9 @@ fn bind_object_handle(
             }
             // A bare construction needs an instance-name argument that is not a
             // (non-`create`) typemethod call on the type.
-            if !args
-                .first()
-                .is_some_and(|a| a == "create" || !class_declares_typemethod(hierarchy, registry, &class, a))
-            {
+            if !args.first().is_some_and(|a| {
+                a == "create" || !class_declares_typemethod(hierarchy, registry, &class, a)
+            }) {
                 return;
             }
             handles

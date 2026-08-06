@@ -146,11 +146,7 @@ impl HeadIdentityMap {
         let Some(facts) = self.facts.get(head) else {
             return HeadIdentity::Command(head);
         };
-        let Some(fact) = facts
-            .iter()
-            .filter(|f| f.from <= at)
-            .max_by_key(|f| f.from)
-        else {
+        let Some(fact) = facts.iter().filter(|f| f.from <= at).max_by_key(|f| f.from) else {
             return HeadIdentity::Command(head);
         };
         fact.target
@@ -171,10 +167,10 @@ impl HeadIdentityMap {
         if head.is_empty() {
             return;
         }
-        self.facts.entry(head.to_owned()).or_default().push(HeadFact {
-            from,
-            target,
-        });
+        self.facts
+            .entry(head.to_owned())
+            .or_default()
+            .push(HeadFact { from, target });
     }
 
     /// Record a fact under both the written spelling and its explicitly global
@@ -330,7 +326,10 @@ mod tests {
         let at = after_first_line(src);
         assert_eq!(map.resolve("origfmt", at), HeadIdentity::Command("format"));
         // The `::`-qualified spelling of the new name resolves alike.
-        assert_eq!(map.resolve("::origfmt", at), HeadIdentity::Command("format"));
+        assert_eq!(
+            map.resolve("::origfmt", at),
+            HeadIdentity::Command("format")
+        );
         // The old name is gone from the rename onwards …
         assert_eq!(map.resolve("format", at), HeadIdentity::Rebound);
         // … but calls *before* it still see the built-in.
@@ -354,7 +353,10 @@ mod tests {
         // Pre-bound arguments shift every index — the layout cannot be reused.
         let src = "interp alias {} pad {} format %08x\n";
         let map = map_for(src);
-        assert_eq!(map.resolve("pad", after_first_line(src)), HeadIdentity::Rebound);
+        assert_eq!(
+            map.resolve("pad", after_first_line(src)),
+            HeadIdentity::Rebound
+        );
     }
 
     #[test]
