@@ -400,16 +400,13 @@ fn tp_reference_lens_counts_the_mathfunc_override_and_the_global_proc_apart() {
     let analysis = analyse(SWEEP);
     let lenses = tcl_lsp_core::code_lens::code_lenses(SWEEP, "tcl8.6", Some(&analysis), None, "");
     let title_for = |qname: &str| {
-        lenses
-            .iter()
-            .find(|lens| lens.qname == qname)
-            .map(|lens| lens.command_title.clone())
-            .unwrap_or_else(|| {
-                panic!(
-                    "no lens for {qname}; got {:?}",
-                    lenses.iter().map(|l| &l.qname).collect::<Vec<_>>()
-                )
-            })
+        let Some(lens) = lenses.iter().find(|lens| lens.qname == qname) else {
+            panic!(
+                "no lens for {qname}; got {:?}",
+                lenses.iter().map(|l| &l.qname).collect::<Vec<_>>()
+            )
+        };
+        lens.command_title.clone()
     };
     assert_eq!(
         title_for("::ns::tcl::mathfunc::f"),
