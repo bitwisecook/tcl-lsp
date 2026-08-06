@@ -382,14 +382,16 @@ impl Analyser {
                 }
             }
         }
-        // External superclass or mixin: a method might come from a class
-        // outside the current index.
+        // The class's method set cannot be enumerated — an external
+        // superclass or mixin, opaque metaclass-spliced inheritance, or
+        // members installed reflectively — so a method might exist that this
+        // index cannot see.
         if !found && has_local_class {
             found = class_names.iter().any(|cls| {
                 self.result
                     .all_classes
                     .get(cls)
-                    .is_some_and(|cd| self.has_external_super_or_mixin(cd))
+                    .is_some_and(|cd| self.method_set_unknowable(cd))
             });
         }
         // ``oo::objdefine`` adds per-instance methods we can't see at the
@@ -1805,23 +1807,45 @@ impl Analyser {
         if hierarchy.is_some_and(|h| h.method_target(class_name, "unknown").is_some()) {
             return true;
         }
-        // External superclass or mixin ⇒ skip W308.
-        self.has_external_super_or_mixin(cd)
+        // Unknowable method set (external base, opaque inheritance, or
+        // reflectively-installed members) ⇒ skip W308.
+        self.method_set_unknowable(cd)
     }
 
-    /// True when `cd` names a superclass **or mixin** that is not in the
-    /// local class index (the `TclOO` bases in [`OO_BASE`] excepted).
-    /// `TclOO` mixins contribute to the MRO exactly as superclasses do, so
-    /// an unresolvable name in either list means the class's callable
-    /// method set is unknowable and W308 must abstain.  Shared by
-    /// [`Self::w308_for_object_var`] and [`Self::validate_method_on_class`]
-    /// so the two escape hatches cannot drift.
-    fn has_external_super_or_mixin(&self, cd: &super::types::ClassDef) -> bool {
+    /// True when `cd`'s callable method set cannot be enumerated from what
+    /// the analyser recorded, so W308 must abstain rather than call a method
+    /// missing.  Three independent reasons, all "the tables are a lower
+    /// bound", never "this method does not exist":
+    ///
+    /// * a superclass **or mixin** outside the local class index (the
+    ///   `TclOO` bases in [`OO_BASE`] excepted) — `TclOO` mixins contribute
+    ///   to the MRO exactly as superclasses do, so an unresolvable name in
+    ///   either list hides an unknown set of inherited methods;
+    /// * [`ClassDef::inheritance_unknown`] — manufactured by a user
+    ///   metaclass whose `create` override could not be read, so the
+    ///   spliced superclass list itself is unknown (issue #923 idx 96/97);
+    /// * [`ClassDef::member_set_incomplete`] — the class's own body installs
+    ///   members reflectively (issue #923 idx 53).
+    ///
+    /// Shared by [`Self::w308_for_object_var`] and
+    /// [`Self::validate_method_on_class`] so the two escape hatches cannot
+    /// drift.
+    ///
+    /// [`ClassDef::inheritance_unknown`]: super::types::ClassDef::inheritance_unknown
+    /// [`ClassDef::member_set_incomplete`]: super::types::ClassDef::member_set_incomplete
+    fn method_set_unknowable(&self, cd: &super::types::ClassDef) -> bool {
         // A class manufactured by a user-defined metaclass whose `create`
         // override could not be read has an unknown superclass list, which is
         // the same situation as a superclass outside the index: a method it
         // inherits is not a method it is missing (issue #923 idx 96/97).
+        //
+        // A class whose own body installs members through reflection
+        // (`constructor {*}[info class constructor ::Base]`, `foreach m {…}
+        // { method $m … }`) is the same judgement one level in: the recorded
+        // member tables are a lower bound, so a method that is absent from
+        // them is not thereby missing from the class (issue #923 idx 53).
         cd.inheritance_unknown
+            || cd.member_set_incomplete
             || cd
                 .superclasses
                 .iter()

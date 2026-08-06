@@ -324,6 +324,90 @@ impl Analyser {
     /// `MemberRefKind::Method` member names methods of *this* class rather than
     /// commands, so the method-reference machinery handles it, not this path.  A
     /// dynamic word (`superclass $base`) names no static command and is skipped.
+    /// Whether one command of a definition body installs members this walk
+    /// cannot read, making the class's recorded member tables a lower bound
+    /// ([`super::types::ClassDef::member_set_incomplete`], issue #923 idx 53).
+    ///
+    /// Two shapes qualify, neither matched by keyword:
+    ///
+    /// * a **member** word whose declaration is supplied dynamically — a
+    ///   `{*}` expansion that survived [`splice_static_member_expansions`]
+    ///   (only a braced literal splices statically), or a computed word in
+    ///   one of the member's own declaring roles (`method $m …`). Tcl
+    ///   resolves both at definition time, so the members are real; the
+    ///   analyser simply cannot name them.
+    /// * a **non-member** word that either has no registry spec (a helper
+    ///   proc, or a class-installer command from another file) or declares
+    ///   an [`ArgRole::Body`] argument — a script the member walk does not
+    ///   descend into, so any `method` inside it is invisible
+    ///   (`foreach m {…} { method $m … }`, `if {…} { method x {} {…} }`).
+    ///
+    /// Registry data decides both halves: the definer grammar says what a
+    /// member word is and which of its arguments declare, and the command
+    /// spec says whether a word carries a script. Nothing here names a
+    /// command or a keyword.
+    ///
+    /// A comment line segments to no words at all and is skipped by the
+    /// caller, so it never reaches this test.
+    fn member_declaration_is_opaque(
+        &self,
+        grammar: &DefinitionBodyGrammar,
+        cmd: &crate::segmenter::SegmentedCommand,
+        texts: &[String],
+    ) -> bool {
+        let Some(keyword) = texts.first() else {
+            return false;
+        };
+        let Some(member) = grammar.member(keyword) else {
+            // Not a member word. Unknown to the registry, or script-taking:
+            // either way this command can install members out of sight.
+            // Roles come from the static table *and* the per-call resolver
+            // (`foreach`'s layout depends on how many var/list pairs it was
+            // given, so its `Body` index is only knowable from the words).
+            return self.registry.as_ref().is_some_and(|registry| {
+                registry.get(keyword).is_none_or(|spec| {
+                    let args: Vec<&str> = texts.iter().skip(1).map(String::as_str).collect();
+                    let resolved = spec
+                        .arg_role_resolver
+                        .map(|resolve| resolve(&args))
+                        .unwrap_or_default();
+                    spec.arg_roles
+                        .iter()
+                        .chain(resolved.iter())
+                        .any(|(_, role)| *role == ArgRole::Body)
+                })
+            });
+        };
+        // A `{*}` word the splicer would refuse — anything but a single
+        // braced literal, whose element list is the only one knowable
+        // without running the program.  Tested per word (not "did any
+        // splice happen"), so a command mixing a spliceable and an
+        // unspliceable expansion is still opaque.
+        if let Some(expand) = cmd.expand_word.as_ref()
+            && expand.iter().enumerate().any(|(i, &e)| {
+                e && !(cmd.argv.get(i).is_some_and(|t| t.kind == TokenType::Str)
+                    && cmd.single_token_word.get(i).copied().unwrap_or(false))
+            })
+        {
+            return true;
+        }
+        // A computed member **name** — `method $m …`, the installer-loop
+        // spelling — declares a member the walk cannot name.  `+ 1` because
+        // role indices are relative to the member's arguments while `texts`
+        // still carries the keyword at 0.
+        //
+        // Only the name word is tested.  A parameter list or body word is a
+        // *script*, and a script routinely contains `$` and `[` without being
+        // dynamic in the sense that matters here (`constructor {x} { set a
+        // $x }` is entirely readable); the `{*}` test above is what catches
+        // the genuinely reflected signature.
+        member.indices_for(ArgRole::Name).any(|idx| {
+            texts
+                .get(idx + 1)
+                .is_some_and(|w| crate::naming::is_dynamic_word(w))
+        })
+    }
+
     pub(super) fn record_member_command_references(
         &mut self,
         grammar: &DefinitionBodyGrammar,
@@ -441,6 +525,12 @@ impl Analyser {
             if let (Some(subcmd), Some(tok)) = (texts.first(), argv.first()) {
                 self.emit_w002_oo_member_disabled(grammar, subcmd, *tok, definer_disabled);
             }
+            // …and when it does abstain, say so on the record: the member
+            // tables become a lower bound, not the class's whole surface
+            // (see [`ClassDef::member_set_incomplete`], issue #923 idx 53).
+            if self.member_declaration_is_opaque(grammar, cmd, texts) {
+                class_def.member_set_incomplete = true;
+            }
             // A wrapper member's bare *script-block* form (`self { method m …
             // }`, `private { … }`) declares exactly the members its block
             // spells out — so rewrite each inner command into the equivalent
@@ -474,37 +564,13 @@ impl Analyser {
                     method_bodies.push(mb);
                 }
             }
-            match texts.first().map(String::as_str) {
-                Some("property") => {
-                    collect_property_accessor_bodies(texts, argv, &mut accessor_bodies);
-                }
-                Some(kw @ ("initialise" | "initialize")) => {
-                    // A class-level init script. It is *not* collected by
-                    // `collect_method_body` (which is restricted to the four
-                    // real method-bearing members) but it does need its own
-                    // per-class scope — see the `init_bodies` walk below.
-                    if let Some(body_idx) = grammar
-                        .member(kw)
-                        .and_then(|m| m.indices_for(ArgRole::Body).next())
-                        .map(|i| i + 1)
-                        && let (Some(body), Some(tok)) =
-                            (texts.get(body_idx), argv.get(body_idx).copied())
-                        && tok.kind == TokenType::Str
-                    {
-                        init_bodies.push(CollectedMethodBody {
-                            name: format!("<{kw}>"),
-                            params: Vec::new(),
-                            body_text: body.clone(),
-                            body_tok: tok,
-                            params_tok: None,
-                            // A class-level init script is not a method
-                            // frame at all — `self` raises there.
-                            class_side: true,
-                        });
-                    }
-                }
-                _ => {}
-            }
+            collect_class_level_bodies(
+                grammar,
+                texts,
+                argv,
+                &mut accessor_bodies,
+                &mut init_bodies,
+            );
         }
         // A bareword-callable-from-this-class fact, gathered before Phase 2
         // starts (so it's already populated by the time member-lookup
@@ -1606,6 +1672,47 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
         | Statement::Incr { .. }
         | Statement::ExprEval { .. }
         | Statement::Return { .. } => {}
+    }
+}
+
+/// Collect the two class-level (non-method) body kinds a definition body
+/// can carry: a `property`'s `-get`/`-set` accessor scripts, and an
+/// `initialise`/`initialize` block.
+///
+/// Neither is a method frame, so [`collect_method_body`] — restricted to the
+/// four real method-bearing members — does not see them, yet each needs its
+/// own scope in phase 2. Split out of `parse_oo_definition_body` purely to
+/// keep that walker within its line budget.
+fn collect_class_level_bodies(
+    grammar: &DefinitionBodyGrammar,
+    texts: &[String],
+    argv: &[Token],
+    accessor_bodies: &mut Vec<CollectedMethodBody>,
+    init_bodies: &mut Vec<CollectedMethodBody>,
+) {
+    match texts.first().map(String::as_str) {
+        Some("property") => collect_property_accessor_bodies(texts, argv, accessor_bodies),
+        Some(kw @ ("initialise" | "initialize")) => {
+            if let Some(body_idx) = grammar
+                .member(kw)
+                .and_then(|m| m.indices_for(ArgRole::Body).next())
+                .map(|i| i + 1)
+                && let (Some(body), Some(tok)) = (texts.get(body_idx), argv.get(body_idx).copied())
+                && tok.kind == TokenType::Str
+            {
+                init_bodies.push(CollectedMethodBody {
+                    name: format!("<{kw}>"),
+                    params: Vec::new(),
+                    body_text: body.clone(),
+                    body_tok: tok,
+                    params_tok: None,
+                    // A class-level init script is not a method frame at
+                    // all — `self` raises there.
+                    class_side: true,
+                });
+            }
+        }
+        _ => {}
     }
 }
 

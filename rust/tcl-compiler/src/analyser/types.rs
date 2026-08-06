@@ -1142,6 +1142,33 @@ pub struct ClassDef {
     /// they do for one whose superclass lives outside the workspace index —
     /// a method it inherits is not one it is missing (issue #923 idx 96/97).
     pub inheritance_unknown: bool,
+    /// `true` when the class's definition body installs members the analyser
+    /// could not read, so the recorded member tables are a **lower bound**
+    /// on what the class really has (issue #923 idx 53).
+    ///
+    /// Two shapes set it, both registry-driven rather than keyword-matched:
+    ///
+    /// * a recognised member word whose declaration is supplied through an
+    ///   unresolvable `{*}` expansion or a computed name —
+    ///   `constructor {*}[info class constructor ::Base]`,
+    ///   `method $m {*}[info class definition ::Base $m]` (the ticklecharts
+    ///   `chart3D` reflection idiom). Tcl expands these at definition time,
+    ///   so the members are entirely real; only their spelling is opaque.
+    /// * a body command that is **not** a member word and either has no
+    ///   registry spec at all (a helper proc that installs members) or takes
+    ///   a script argument the member walk does not descend into
+    ///   (`foreach m {…} { method $m … }`, `if {…} { method … }`).
+    ///
+    /// The class itself, and every member that *was* readable, stay fully
+    /// modelled — this only says "there may be more". Method-existence
+    /// checks (W308) must therefore abstain on such a class, exactly as they
+    /// do for [`Self::inheritance_unknown`]: a method installed by
+    /// reflection is not a method that is missing. tclsh 9.0.4 and 8.6.16
+    /// agree that `oo::class create C3 { constructor {*}[info class
+    /// constructor ::C] ; foreach m {options} { method $m {*}[info class
+    /// definition ::C $m] } }` yields `info class methods ::C3` → `options`,
+    /// and `[C3 new] options` really runs.
+    pub member_set_incomplete: bool,
 }
 
 impl Default for ClassDef {
@@ -1182,6 +1209,7 @@ impl Default for ClassDef {
             doc: String::new(),
             via_define: false,
             inheritance_unknown: false,
+            member_set_incomplete: false,
         }
     }
 }

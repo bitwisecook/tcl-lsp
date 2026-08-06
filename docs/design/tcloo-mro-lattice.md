@@ -145,6 +145,85 @@ The harness measures the marginal value of each layer:
 - **A3 +cross-file index** — resolve against a corpus-merged class index
   instead of the per-file one.
 
+## Abstentions on the class *definition* side
+
+The ⊤ taxonomy above is about the receiver — "which class is this object?".
+A second, independent family of abstentions is about the class itself —
+"what does this class contain, and is this even a class?".  Both are
+recorded on the `ClassDef` so every consumer abstains from one fact rather
+than each re-deriving its own guess.
+
+| flag / state | trigger | consumer effect |
+|---|---|---|
+| `ClassDef::inheritance_unknown` | manufactured by a user metaclass whose `create` override could not be read, so the spliced superclass list is unknown (audit idx 96/97) | W308 abstains: an inherited method is not a missing one |
+| `ClassDef::member_set_incomplete` | the class body installs members the walk cannot read (audit idx 53) | W308 abstains: the member tables are a lower bound |
+| *no `ClassDef` at all* | `X create Name … Body` where `X`'s own definition is in another file (audit idx 97, multi-file half) | nothing is recorded, and nothing is diagnosed |
+
+### Reflective member installation (`member_set_incomplete`)
+
+ticklecharts' `chart3D` builds its whole public surface by reflection:
+
+```tcl
+oo::class create ticklecharts::chart3D {
+    constructor {*}[info class constructor "ticklecharts::chart"]
+    foreach method {Render toHTML options get toJSON …} {
+        method $method {*}[ticklecharts::classDef "chart" $method]
+    }
+}
+```
+
+Tcl expands both shapes at definition time, so the members are entirely
+real — `info class methods ::ticklecharts::chart3D` lists all of them on
+9.0.4 and 8.6.16 alike.  What the analyser cannot do is *name* them: a
+`{*}` over a command substitution has no statically-known element list, and
+the installer loop's body is a script the member walk does not descend into.
+
+Two registry-driven signals set the flag (`Analyser::member_declaration_is_opaque`):
+
+- a **member** word (per the definer grammar) whose declaration arrives
+  through a `{*}` expansion that would not splice statically, or with a
+  computed word in one of its declaring roles (`Name` / `ParamList` /
+  `Body`);
+- a **non-member** word that either has no registry spec or declares an
+  `ArgRole::Body` argument — a script that can install members out of
+  sight (`foreach`, `if`, a helper proc).
+
+Neither signal names a command or a keyword.  What is recorded stays
+recorded: the readable members, the class itself, and its inheritance are
+all still modelled — the flag only says "there may be more", which is
+exactly the premise W308 needs to be sound.
+
+*Not* built: recovering the member *names* from a literal `foreach` list
+while leaving their signatures unknown.  It is tempting (the names really
+are static) but it buys an outline entry at the cost of a `MethodDef` whose
+parameter list is a fabrication, and every arity-shaped consumer would have
+to learn a second "unknown signature" state.  The abstention is the honest
+answer until that state exists.
+
+### Cross-file class factories
+
+Single-file, a user metaclass is fully resolved: `handle_oo_class_command`
+recognises a `create` call whose command is a recorded class reaching
+`oo::class` through its own superclass chain, reads the body/name argument
+positions off the `self method create` override, and splices the
+superclasses that override injects.  Tk's `library/megawidget.tcl`
+(`SimpleWidget`, `FocusableWidget`) is entirely covered.
+
+Across files it is not, and deliberately so.  The analyser is per-file, and
+a bare `::tk::Megawidget create IconList FocusableWidget {…}` in a file that
+never mentions `::tk::Megawidget`'s definition is syntactically
+indistinguishable from `interp create`, `image create`, or any ordinary proc
+that happens to take a script argument.  Recognising it on shape alone would
+invent classes out of unrelated commands — a wrong answer, and one that
+would then feed W308, the outline, and rename.  So nothing is recorded and
+nothing is diagnosed: `symbols` is empty for such a file, navigation returns
+no locations, and no false "unknown method" appears.
+
+Closing it needs the analyser to consult a *workspace* class index during
+the walk — the same seed the cross-document command-resolution lattice
+already builds after the fact — which is a larger change than the per-file
+walk this abstention lives in.
+
 ## What is deliberately *not* built
 
 - No second dataflow engine — the SSA type lattice is reused.

@@ -4978,6 +4978,120 @@ mod class_factories {
         assert!(cd.methods.contains_key("getType"), "{cd:?}");
         assert!(!cd.methods.contains_key("options"), "{cd:?}");
         assert!(cd.constructors.is_empty(), "{cd:?}");
+        // …and the abstention is *recorded*, so the tables read as a lower
+        // bound rather than as the class's whole surface (issue #923 idx 53).
+        assert!(cd.member_set_incomplete, "{cd:?}");
+    }
+
+    #[test]
+    fn a_foreach_member_installer_marks_the_member_set_incomplete() {
+        // TP — idx 53's other half: the ticklecharts `chart3D` installer
+        // loop.  `foreach` is not a member word and carries a script the
+        // member walk never descends into, so every `method` it installs is
+        // invisible; the class must say so.  tclsh 9.0.4 / 8.6.16: `info
+        // class methods ::C3` really lists `options` and `globalOptions`.
+        let src = concat!(
+            "oo::class create C3 {\n",
+            "    foreach m {options globalOptions} {\n",
+            "        method $m {} { return $m }\n",
+            "    }\n",
+            "    method getType {} { return c3 }\n",
+            "}\n",
+        );
+        let cd = class(src, "::C3");
+        assert!(cd.methods.contains_key("getType"), "{cd:?}");
+        assert!(cd.member_set_incomplete, "{cd:?}");
+    }
+
+    #[test]
+    fn an_ordinary_class_body_keeps_a_complete_member_set() {
+        // TN — the flag is not a blanket "TclOO is hard" switch: a class
+        // whose body is nothing but readable member declarations (including
+        // the *statically spliceable* `{*}` form and a `self` wrapper block)
+        // still reports a complete member set, so W308 keeps its teeth.
+        let src = concat!(
+            "oo::class create Plain {\n",
+            "    superclass ::oo::object\n",
+            "    variable a b\n",
+            "    constructor {x} { set a $x }\n",
+            "    method {*}{spliced {} {return 1}}\n",
+            "    self { method make {} { return made } }\n",
+            "    method run {} { return $a }\n",
+            "    destructor { return }\n",
+            "}\n",
+        );
+        assert!(!class(src, "::Plain").member_set_incomplete);
+    }
+
+    #[test]
+    fn w308_abstains_on_a_class_whose_members_are_installed_reflectively() {
+        // TP — idx 53's user-visible wrong answer: `$c3 options` drew
+        // "Unknown method 'options'" on a call tclsh proves succeeds.  A
+        // class whose member tables are a lower bound cannot support a
+        // missing-method claim, so W308 must abstain — while the sibling
+        // class in the same file, whose body *is* fully readable, keeps
+        // being checked (the TN half, guarding against a blanket
+        // suppression).
+        let src = concat!(
+            "oo::class create Donor {\n",
+            "    method options {} { return 1 }\n",
+            "}\n",
+            "oo::class create C3 {\n",
+            "    constructor {*}[info class constructor ::Donor]\n",
+            "    foreach m {options} { method $m {*}[info class definition ::Donor $m] }\n",
+            "}\n",
+            "set c3 [C3 new]\n",
+            "$c3 options\n",
+            "set d [Donor new]\n",
+            "$d nosuch\n",
+        );
+        let r = analysis(src, "tcl9.0");
+        let codes: Vec<&str> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.to_string() == "W308")
+            .map(|d| d.message.as_str())
+            .collect();
+        assert_eq!(
+            codes.len(),
+            1,
+            "only the readable class draws W308: {codes:?}"
+        );
+        assert!(codes[0].contains("nosuch"), "{codes:?}");
+    }
+
+    /// A user metaclass whose own definition is in **another file** cannot be
+    /// recognised: the analyser is per-file, and nothing in
+    /// `X create Name Supers Body` distinguishes a class factory from
+    /// `interp create`, `image create`, or any ordinary proc taking a script
+    /// argument.  Guessing would invent classes out of unrelated commands, so
+    /// the LSP abstains — records no class, and emits no diagnostic about the
+    /// members it therefore cannot see (issue #923 idx 97, the multi-file
+    /// half; Tk's own `library/iconlist.tcl` is exactly this shape).
+    ///
+    /// The single-file case — the metaclass and its products in one file, as
+    /// in Tk's `library/megawidget.tcl` — is fully resolved; see
+    /// `user_metaclass_creates_real_classes` above.
+    #[test]
+    fn a_metaclass_defined_in_another_file_abstains_rather_than_guessing() {
+        let src = concat!(
+            "::Megawidget create IconList FocusableWidget {\n",
+            "    method GetSpecs {} { return \"iconlist+[next]\" }\n",
+            "}\n",
+        );
+        let r = analysis(src, "tcl9.0");
+        assert!(
+            !r.all_classes.contains_key("::IconList"),
+            "no class may be invented from an unknown command: {:?}",
+            r.all_classes.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .all(|d| d.code.to_string() != "W308" && d.code.to_string() != "W001"),
+            "abstention must be silent, not a wrong answer: {:?}",
+            r.diagnostics
+        );
     }
 
     #[test]
