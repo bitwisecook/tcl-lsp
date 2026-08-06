@@ -9637,7 +9637,10 @@ mod tests {
             "the `[::app::widget show]` dispatch must be a reference to Show: {probes:?}",
         );
         assert!(
-            probes.contains(&("configure".to_owned(), "::app::widget::Configure".to_owned())),
+            probes.contains(&(
+                "configure".to_owned(),
+                "::app::widget::Configure".to_owned()
+            )),
             "the top-level `::app::widget configure` dispatch must be a reference \
              to Configure: {probes:?}",
         );

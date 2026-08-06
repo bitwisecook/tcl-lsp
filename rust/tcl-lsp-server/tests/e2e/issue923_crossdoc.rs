@@ -241,3 +241,111 @@ fn tn_plain_argument_word_does_not_resolve_to_a_sibling_class() {
         locations(&def),
     );
 }
+
+// TP (idx 44): `${ns}::setdef` inside a TclOO constructor, where `ns` comes
+// from `[namespace qualifiers [self class]]`, reaching a proc declared in a
+// **sibling document**.
+//
+// The same mechanic is already pinned single-file (issue #1132), but idx 44's
+// real corpus (`ticklecharts`) splits it across files — the utility proc in
+// `utils.tcl`, the class in `dataset.tcl` — which is the tier a
+// workspace-index regression would break without touching the single-file
+// tests at all.
+//
+// Oracle (tclsh 9.0.4 and 8.6.16, sourcing both files): prints
+// `resolved options dict = id {-default hello}`, proving `${ns}::setdef`
+// genuinely dispatches to `::ticklecharts::setdef`.
+#[test]
+fn tp_cross_file_folded_namespace_head_reaches_its_proc_923_idx44() {
+    let mut lsp = Lsp::tcl();
+    let utils = unique_uri("tcl");
+    lsp.open_ready(
+        &utils,
+        "namespace eval ticklecharts {}\n\
+         proc ticklecharts::setdef {d key args} {\n\
+         \x20   upvar 1 $d dict\n\
+         \x20   dict set dict $key $args\n\
+         \x20   return [dict get $dict]\n\
+         }\n",
+    );
+    let dataset = unique_uri("tcl");
+    lsp.open_ready(
+        &dataset,
+        "oo::class create ticklecharts::dataset {\n\
+         \x20   variable options\n\
+         \x20   constructor {value} {\n\
+         \x20       set ns [namespace qualifiers [self class]]\n\
+         \x20       ${ns}::setdef options id -default $value\n\
+         \x20   }\n\
+         }\n",
+    );
+
+    // Go-to-definition from the constructor's `${ns}::setdef` head (line 4;
+    // `setdef` sits inside the `${ns}::setdef` word).
+    let def = lsp.definition(&dataset, 4, 17);
+    assert_eq!(
+        lines_in(&def, &utils),
+        vec![1],
+        "the `${{ns}}::setdef` head must reach the sibling document's proc: {:?}",
+        locations(&def),
+    );
+
+    // And the reverse direction: references from that declaration reach the
+    // constructor's call site.
+    let refs = lsp.references(&utils, 1, 20, true);
+    assert!(
+        !lines_in(&refs, &dataset).is_empty(),
+        "find-references from the declaration must reach the cross-file \
+         constructor call site: {:?}",
+        locations(&refs),
+    );
+}
+
+// TP (idx 19), *unit-level* companion to
+// `tp_cross_file_superclass_through_split_nested_namespace`: the split /
+// nested `namespace eval ::Outer { namespace eval Inner::Sub { … } }` shape
+// must give the class its full `::Outer::Inner::Sub::Foo` qualified name in a
+// single document too — the fact the cross-document tier consumes. A
+// regression that mis-homed the class would break every cross-file query
+// built on it, and this pins the cause rather than one symptom.
+//
+// Oracle (tclsh 9.0.4 / 8.6.16): the two-file program prints `42`, so
+// `::Outer::Inner::Sub::Foo` is the real command name.
+#[test]
+fn tp_split_nested_namespace_eval_homes_the_class_fully_923_idx19() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "namespace eval ::Outer {\n\
+         \x20   namespace eval Inner::Sub {\n\
+         \x20       namespace export Foo\n\
+         \x20   }\n\
+         }\n\
+         namespace eval ::Outer::Inner::Sub {\n\
+         \x20   oo::class create Foo {\n\
+         \x20       method show {} { return 1 }\n\
+         \x20   }\n\
+         }\n\
+         oo::class create Baz {\n\
+         \x20   superclass ::Outer::Inner::Sub::Foo\n\
+         }\n",
+    );
+    // `superclass ::Outer::Inner::Sub::Foo` (line 11): the argument starts at
+    // column 15, so its `Foo` tail sits at column 36.
+    let def = lsp.definition(&uri, 11, 37);
+    assert_eq!(
+        lines_in(&def, &uri),
+        vec![6],
+        "the superclass argument must reach the class the split/nested \
+         `namespace eval` declares: {:?}",
+        locations(&def),
+    );
+    // Hover names the fully-qualified command, which is what proves the
+    // homing rather than a same-tail-name coincidence.
+    let hover = crate::common::helpers::hover_text(&lsp.hover(&uri, 6, 22));
+    assert!(
+        hover.contains("::Outer::Inner::Sub::Foo"),
+        "hover must name the fully-qualified class: {hover:?}",
+    );
+}

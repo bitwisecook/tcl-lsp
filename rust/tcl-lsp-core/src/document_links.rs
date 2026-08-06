@@ -724,11 +724,8 @@ mod tests {
             script_path: Some("/proj/test/caller.tcl"),
         };
         let literal = document_links_in_context("source helper.tcl\n", "tcl", &ctx);
-        let computed = document_links_in_context(
-            "set v helper.tcl\nsource [file join $v]\n",
-            "tcl",
-            &ctx,
-        );
+        let computed =
+            document_links_in_context("set v helper.tcl\nsource [file join $v]\n", "tcl", &ctx);
         assert_eq!(literal.len(), 1, "{literal:?}");
         assert_eq!(computed.len(), 1, "{computed:?}");
         assert_eq!(
