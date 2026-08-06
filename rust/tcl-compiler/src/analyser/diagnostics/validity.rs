@@ -1627,9 +1627,12 @@ impl Analyser {
     ///
     /// `pending_arity` carries E002/E003 arity candidates, W004
     /// (dialect-invalid-option) candidates, and W001 (unknown-subcommand)
-    /// candidates (see its field doc); the resolution loop below never
-    /// inspects `diag.code`, so all three share the identical shadowing
-    /// suppression with no special-casing.
+    /// candidates (see its field doc); the *shadowing* suppression never
+    /// inspects `diag.code`, so all three share it with no special-casing.
+    /// The package-loaded gate below is the one exception, and it is scoped
+    /// to the arity verdicts because only they assert against the resolved
+    /// spec's own argument counts — see
+    /// [`Self::spec_is_an_unloaded_package_command`].
     pub fn flush_arity_diagnostics(&mut self) {
         if self.pending_arity.is_empty() && self.pending_user_call_arity.is_empty() {
             return;
@@ -1642,7 +1645,17 @@ impl Analyser {
             if facts.resolves_to_user(&cmd_name, &ns, enforce_order, call_off) {
                 continue;
             }
-            if self.spec_is_an_unloaded_package_command(&cmd_name) {
+            // Arity verdicts only — the *count* claim is the one that needs
+            // the spec to be the command actually being called. W001
+            // (unknown subcommand) and W004 (dialect-invalid option) share
+            // this queue but are claims about the *word the user wrote*
+            // against a name the registry knows, and they stay useful for a
+            // package the file has not required yet (`wm bogus` is still a
+            // typo whether or not `package require Tk` is present) — the two
+            // TP tests in `fp::sty` pin exactly that.
+            if matches!(diag.code, DiagCode::E002 | DiagCode::E003 | DiagCode::E005)
+                && self.spec_is_an_unloaded_package_command(&cmd_name)
+            {
                 continue;
             }
             self.result.diagnostics.push(diag);

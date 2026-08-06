@@ -3852,4 +3852,158 @@ mod tests {
         // partial set.
         assert!(rename(src, "tcl8.6", 6, 11, "GetX", &analysis, None).is_empty());
     }
+
+    // -- idx 79: the gate must not depend on the trigger position ---------
+    //
+    // The declaration-anchored refusal above was the *only* direction the
+    // gate covered.  A real editor's "rename symbol" gesture can be invoked
+    // from any occurrence, and from the two below the server used to return a
+    // live WorkspaceEdit rewriting only the declaration and the `export`
+    // word.  Applying that edit and running it (tclsh 9.0.4 and 8.6.16, byte
+    // identical):
+    //
+    //   unknown method "X": must be Get, GetX, Y, Z or destroy
+    //
+    // at the constructor's own `[$args X]`.  Every position that names the
+    // same member must therefore reach the same verdict.
+
+    /// The exact source the trigger-position tests share — the copy-
+    /// constructor shape from nico-robert/tomato's `Vector3d.tcl`, with the
+    /// `export` list the finding's WorkspaceEdit also rewrote.
+    ///
+    /// Line/column map (0-based):
+    ///   4  col 23 — the `X` inside `[$other X]`   (untracked call site)
+    ///   6  col 11 — the `X` of `method X`          (declaration)
+    ///   8  col 11 — the `X` in `export X Get`      (export bareword)
+    const IDX79_HAZARD: &str = "oo::class create Vector3d {\n\
+         \x20   variable _x _y\n\
+         \x20   constructor {args} {\n\
+         \x20       set other [lindex $args 0]\n\
+         \x20       set _x [$other X]\n\
+         \x20   }\n\
+         \x20   method X {} { return $_x }\n\
+         \x20   method Get {} { return \"$_x $_y\" }\n\
+         \x20   export X Get\n\
+         }\n";
+
+    /// The same class with **every** receiver tracked: `$v` is bound by
+    /// `Vector3d new`, so the reference scan rewrites its dispatch and there
+    /// is no hazard.  The true-negative control for the tests below — an
+    /// over-broad gate would refuse this too and make rename unusable.
+    ///
+    /// Line/column map (0-based):
+    ///   1  col 11 — the `X` of `method X`          (declaration)
+    ///   2  col 31 — the `X` inside `[my X]`        (`my` dispatch)
+    ///   3  col 11 — the `X` in `export X Get`      (export bareword)
+    ///   6  col  9 — the `X` inside `[$v X]`        (tracked `$obj` dispatch)
+    const IDX79_SAFE: &str = "oo::class create Vector3d {\n\
+         \x20   method X {} { return 1 }\n\
+         \x20   method Get {} { return [my X] }\n\
+         \x20   export X Get\n\
+         }\n\
+         set v [Vector3d new]\n\
+         puts [$v X]\n";
+
+    /// Every trigger position that reaches the hazardous member refuses —
+    /// declaration, untracked call site, and `export` bareword alike.
+    #[test]
+    fn fp_rename_refuses_the_untracked_receiver_from_every_trigger_position() {
+        let analysis = analyse(IDX79_HAZARD);
+        for (line, character, what) in [
+            (4, 23, "the untracked `[$other X]` call site"),
+            (6, 11, "the `method X` declaration"),
+            (8, 11, "the `export X Get` bareword"),
+        ] {
+            let err = rename_with_diagnosis(
+                IDX79_HAZARD,
+                "tcl8.6",
+                line,
+                character,
+                "GetX",
+                &analysis,
+                None,
+            )
+            .map_or_else(
+                |err| err,
+                |edits| panic!("{what} must refuse; it returned {edits:?} instead"),
+            );
+            assert!(
+                err.reason.contains("not tracked"),
+                "{what}: the refusal must name the untracked receiver, got {}",
+                err.reason
+            );
+            assert!(
+                rename(IDX79_HAZARD, "tcl8.6", line, character, "GetX", &analysis, None).is_empty(),
+                "{what} must never yield a partial edit set"
+            );
+        }
+    }
+
+    /// TN control: with every receiver tracked the rename still succeeds from
+    /// each of the same trigger positions, and the applied result rewrites
+    /// the declaration, the dispatches, *and* the export word together —
+    /// the property that makes the edit safe to run.
+    #[test]
+    fn fn_guard_a_fully_tracked_member_renames_from_every_trigger_position() {
+        let analysis = analyse(IDX79_SAFE);
+        for (line, character, what) in [
+            (1, 11, "the `method X` declaration"),
+            (2, 31, "the `my X` dispatch"),
+            (3, 11, "the `export X Get` bareword"),
+            (6, 9, "the tracked `[$v X]` call site"),
+        ] {
+            let edits =
+                rename_with_diagnosis(IDX79_SAFE, "tcl8.6", line, character, "GetX", &analysis, None)
+                    .unwrap_or_else(|err| panic!("{what} must not refuse: {}", err.reason));
+            let applied = apply_edits(IDX79_SAFE, &edits);
+            assert!(
+                applied.contains("method GetX {}"),
+                "{what}: declaration must rename: {applied}"
+            );
+            assert!(
+                applied.contains("[my GetX]"),
+                "{what}: the `my` dispatch must rename: {applied}"
+            );
+            assert!(
+                applied.contains("export GetX Get"),
+                "{what}: the export word must rename: {applied}"
+            );
+            assert!(
+                !applied.contains(" X]") && !applied.contains("method X "),
+                "{what}: no occurrence of the old name may survive: {applied}"
+            );
+        }
+    }
+
+    /// The resolution the gate piggy-backs on answers for exactly the
+    /// positions the untargeted tier claims, and abstains elsewhere — so
+    /// broadening the gate cannot start refusing renames an earlier tier owns.
+    #[test]
+    fn untargeted_member_target_answers_only_inside_the_class_body() {
+        let analysis = analyse(IDX79_HAZARD);
+        let line_index = LineIndex::new(IDX79_HAZARD);
+        let at = |line: u32, ch: u32| {
+            crate::definition::byte_offset_at(&line_index, IDX79_HAZARD, line, ch)
+        };
+        assert_eq!(
+            untargeted_member_rename_target(&analysis, "X", at(8, 11)),
+            Some(("::Vector3d".to_owned(), "X".to_owned(), false)),
+            "the export bareword names the member"
+        );
+        assert_eq!(
+            untargeted_member_rename_target(&analysis, "X", at(4, 23)),
+            Some(("::Vector3d".to_owned(), "X".to_owned(), false)),
+            "the untracked call site's method word names the member"
+        );
+        assert_eq!(
+            untargeted_member_rename_target(&analysis, "other", at(4, 18)),
+            None,
+            "a word that names no member of the enclosing class must abstain"
+        );
+        assert_eq!(
+            untargeted_member_rename_target(&analysis, "X", 0),
+            None,
+            "outside any class body there is no member to resolve"
+        );
+    }
 }
