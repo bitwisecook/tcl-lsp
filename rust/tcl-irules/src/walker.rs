@@ -157,12 +157,8 @@ fn resolve_head<'a>(
     identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
     cmd: &'a SegmentedCommand,
 ) -> &'a str {
-    let written = cmd.name();
-    if identities.is_empty() {
-        return written;
-    }
     let at = cmd.argv.first().map_or(0, |t| t.span.start());
-    identities.resolve(written, at).spec_name()
+    identities.head_words(cmd.name(), at).resolved
 }
 
 /// Segment `slice` (a substring of the rule starting at byte `base`) and

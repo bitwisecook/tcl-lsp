@@ -700,11 +700,7 @@ impl<'a> MinifyEnv<'a> {
     where
         'a: 'h,
     {
-        if self.identities.is_empty() {
-            head
-        } else {
-            self.identities.resolve_unpositioned(head).spec_name()
-        }
+        self.identities.head_words_unpositioned(head).resolved
     }
 }
 
@@ -973,11 +969,7 @@ fn find_rename_barriers(
         // The invocation carries its own absolute offset, so this is the
         // positioned read.
         let written = inv.name.trim_start_matches(':');
-        let head = if identities.is_empty() {
-            written
-        } else {
-            identities.resolve(written, inv.range.start()).spec_name()
-        };
+        let head = identities.head_words(written, inv.range.start()).resolved;
         let Some(spec) = registry.get(head) else {
             continue;
         };
@@ -1824,13 +1816,9 @@ fn abbreviate_command(
     // when `myfmt` is not `format` would rewrite live text (issue #1275).
     // `base` makes the head's offset document-absolute even inside a
     // recursively-scanned braced word, so this is the positioned read.
-    let head_name = if identities.is_empty() {
-        head.text.as_str()
-    } else {
-        identities
-            .resolve(&head.text, base + head.token.span.start())
-            .spec_name()
-    };
+    let head_name = identities
+        .head_words(&head.text, base + head.token.span.start())
+        .resolved;
     let Some(spec) = registry.get(head_name) else {
         return;
     };

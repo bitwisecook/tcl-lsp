@@ -207,13 +207,9 @@ fn collect_declarations_in_region(
         // and a spelling whose binding was provably taken over answers with
         // nothing, so no registry grammar is applied to it (issue #1275).
         let written = token_text(source, head_tok.span);
-        let head = if identities.is_empty() {
-            written
-        } else {
-            identities
-                .resolve(written, head_tok.span.start())
-                .spec_name()
-        };
+        let head = identities
+            .head_words(written, head_tok.span.start())
+            .resolved;
         // Argument tokens, excluding the command word — the coordinate
         // system the `var_scoping` index helpers expect.
         let arg_tokens = &cmd.argv[1..];

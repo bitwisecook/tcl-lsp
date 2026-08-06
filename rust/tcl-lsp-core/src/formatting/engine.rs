@@ -404,12 +404,10 @@ fn identify_body_args(
     // no document-absolute offset exists here.  `resolve_unpositioned` folds
     // every fact about the spelling and abstains when they disagree, rather
     // than falling back to the written name.
-    if !identities.is_empty() {
-        cmd.resolved_name = identities
-            .resolve_unpositioned(&cmd.name)
-            .spec_name()
-            .to_owned();
-    }
+    cmd.resolved_name = identities
+        .head_words_unpositioned(&cmd.name)
+        .resolved
+        .to_owned();
     let name = cmd.resolved_name.clone();
     // Post-name argument texts, owned so the immutable borrow of
     // `cmd.args` is released before the role-driven mutation below.
