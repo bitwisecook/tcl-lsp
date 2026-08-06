@@ -661,6 +661,16 @@ pub struct Analyser {
     /// `None` outside an active analysis run.  Tied to the
     /// (single-threaded) analyser instance rather than a thread-local.
     pub stub_overlay: Option<tcl_registry::stub_overlay::StubOverlay>,
+    /// The document's statically proven command-identity facts
+    /// ([`crate::head_identity`]) — which registry command each head spelling
+    /// really names, folding in `namespace import`, `interp alias`, `rename`,
+    /// and a built-in-shadowing `proc`.  Rebuilt alongside
+    /// [`Self::registry`] at the top of every entry point so a per-proc
+    /// param-trait scan resolves a body's heads against the *document's*
+    /// bindings rather than their written spellings (issue #1275).  Empty
+    /// outside an active analysis run, and for the overwhelmingly common
+    /// document that binds nothing.
+    pub head_identities: crate::head_identity::HeadIdentityMap,
     /// Sorted byte offsets of every ``\n`` in [`Self::source`],
     /// precomputed at the top of [`Self::analyse`] /
     /// [`Self::analyse_chunked`] / [`Self::analyse_commands`] so
@@ -1098,6 +1108,7 @@ impl Analyser {
             recovery_known_commands: super::utils::RecoveryKnownCommands::default(),
             deep_param_traits: false,
             stub_overlay: None,
+            head_identities: crate::head_identity::HeadIdentityMap::default(),
             line_offsets: None,
             cached_line_index: tcl_lexer::LineIndex::new(""),
             cached_line_index_source_len: 0,
@@ -1314,6 +1325,11 @@ impl Analyser {
         // ``self`` so per-command handlers (registry-driven body
         // iteration in ``process_command``) reuse it.
         self.registry = Some(tcl_registry::cache::registry_for_profile(self.profile));
+        self.head_identities = crate::head_identity::command_head_identities_with_config(
+            source,
+            self.lexer_config(),
+            self.registry.expect("registry just stashed"),
+        );
         // Precompute the iRules file-profile stack (no-op off f5-irules) so
         // the per-command IRULE1001 hint can consult it without recomputing.
         self.compute_irules_file_profiles();
@@ -1668,6 +1684,11 @@ impl Analyser {
         // for the ``line_offsets`` index used by
         // ``apply_preceding_noqa``.
         self.registry = Some(tcl_registry::cache::registry_for_profile(self.profile));
+        self.head_identities = crate::head_identity::command_head_identities_with_config(
+            source,
+            self.lexer_config(),
+            self.registry.expect("registry just stashed"),
+        );
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
             self.registry.expect("registry just stashed"),
@@ -1748,6 +1769,11 @@ impl Analyser {
         // ``process_command`` silently skips body recursion on
         // the incremental path.
         self.registry = Some(tcl_registry::cache::registry_for_profile(self.profile));
+        self.head_identities = crate::head_identity::command_head_identities_with_config(
+            source,
+            self.lexer_config(),
+            self.registry.expect("registry just stashed"),
+        );
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
             self.registry.expect("registry just stashed"),

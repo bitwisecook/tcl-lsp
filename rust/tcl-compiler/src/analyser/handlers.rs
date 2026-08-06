@@ -1059,32 +1059,24 @@ impl Analyser {
                 std::collections::HashMap::new(),
             );
         };
-        let overlay = self.stub_overlay.as_ref();
         let param_names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
-        let config = self.lexer_config();
-        let caller_frame_params = super::param_traits::caller_frame_upvar_params(
-            &param_names,
-            body_text,
+        // One environment for all four scans, so the traits, the caller-frame
+        // params, and the caller-frame literals can never be derived from
+        // different views of the proc *or* of the document's command bindings
+        // (issue #1275).
+        let env = super::param_traits::TraitScanEnv {
             registry,
-            config,
-        );
+            stub_overlay: self.stub_overlay.as_ref(),
+            config: self.lexer_config(),
+            identities: &self.head_identities,
+        };
+        let caller_frame_params =
+            super::param_traits::caller_frame_upvar_params(&param_names, body_text, env);
         let caller_frame_literals =
-            super::param_traits::caller_frame_literal_targets(body_text, registry, config);
-        let shallow = super::param_traits::infer_param_traits_with_config(
-            &param_names,
-            body_text,
-            registry,
-            overlay,
-            config,
-        );
+            super::param_traits::caller_frame_literal_targets(body_text, env);
+        let shallow = super::param_traits::infer_param_traits(&param_names, body_text, env);
         let traits = if self.deep_param_traits {
-            let deep = super::param_traits::infer_param_traits_deep_with_config(
-                &param_names,
-                body_text,
-                registry,
-                overlay,
-                config,
-            );
+            let deep = super::param_traits::infer_param_traits_deep(&param_names, body_text, env);
             super::param_traits::merge_traits(shallow, deep)
         } else {
             shallow
