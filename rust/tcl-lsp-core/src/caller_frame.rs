@@ -1390,12 +1390,16 @@ proc RestoreFocusGrab {grab focus} {
             let defs = crate::definition::definition(src, line, col, &analysis);
             assert_eq!(defs.len(), 1, "{label}: one definition: {defs:?}");
             let refs = crate::references::references(src, "tcl9.0", line, col, &analysis, true);
-            let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+            let spans: Vec<(u32, u32)> = refs
+                .iter()
+                .map(|r| (r.start_line, r.start_character))
+                .collect();
             assert_eq!(
-                lines,
-                vec![2, 2, 3, 8],
-                "{label}: the `upvar` otherVar word and its `data` alias (line 2), \
-                 the alias use (line 3), and the sibling proc's read (line 8): {refs:?}"
+                spans,
+                vec![(2, 10), (8, 18), (2, 34), (3, 12)],
+                "{label}: the cell's own two spellings — the `upvar` otherVar word \
+                 and the sibling proc's read — then the two occurrences of the \
+                 `data` alias it introduces: {refs:?}"
             );
         }
     }
