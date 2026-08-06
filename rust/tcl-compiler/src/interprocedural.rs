@@ -287,13 +287,7 @@ fn add_call_by_name(cmd: &str, args: &[String], index: &ProcIndex, out: &mut Has
         // A substituted (`$x`) / array / non-name arg names a runtime
         // variable we can't identify — skip (preserve genuine FPs where
         // the caller passed a literal string, not a name).
-        if is_var
-            && !arg.is_empty()
-            && !arg.contains(['$', '['])
-            && arg
-                .chars()
-                .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
-        {
+        if is_var && is_literal_var_name(arg) {
             out.insert(arg.clone());
         }
     }
@@ -357,6 +351,87 @@ pub fn collect_call_by_name_reads(
                 }
                 _ => {}
             }
+        }
+    }
+    out
+}
+
+/// Whether `word` is a plain, literal variable *name* — the only argument
+/// shape whose call-by-name meaning is knowable.
+///
+/// The same test [`add_call_by_name`] applies to a resolvable callee's
+/// name-role argument, factored out so the opaque-callee scan below cannot
+/// drift from it.
+fn is_literal_var_name(word: &str) -> bool {
+    !word.is_empty()
+        && !word.contains(['$', '['])
+        && word
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
+}
+
+/// Caller-frame names a call to an **opaque callee** — a command this
+/// compilation unit can resolve neither in the registry nor to any
+/// definition of its own — may create in the calling frame.
+///
+/// A Tcl procedure's `upvar 1 $param local` reaches the frame of whoever
+/// called it, so a helper defined in *another file* creates the caller's
+/// variable just as one defined here does.  C Tcl, tclsh 9.0.4 and 8.6.16
+/// (identical), for the ticklecharts layout the issue #923 audit idx 59
+/// finding was mined from — `setdef` in `utils.tcl`, the caller in
+/// `options.tcl`, tied together by a `pkgIndex.tcl`:
+///
+/// ```text
+/// proc demo::setdef {d key args} { upvar 1 $d _dict; … dict set _dict … }
+/// proc demo::build {items} { setdef options name …; dict get $options name }
+/// demo::build {a b c}   → {nothing str no} …   — `options` exists, unassigned here
+/// ```
+///
+/// The per-proc frame-effect summary ([`crate::cfg_builder::upvar_info`])
+/// is built from one module, so it holds nothing at all for such a callee
+/// and the read looked like `W210` read-before-set.  The honest answer is
+/// that this unit cannot tell: the callee's body is not here.  So each
+/// **literal, name-shaped argument word** of the call — the only words that
+/// could name a caller-frame variable — is reported as possibly-defined,
+/// and the read-before-set emitters abstain for exactly those names.
+///
+/// Deliberately narrow in three ways, so this is an abstention and not a
+/// blanket silence:
+///
+/// * only names the call **spells** are covered — an unrelated local read
+///   in the same frame still reports (its true-positive control lives in
+///   `tests/caller_frame_effects.rs`);
+/// * only *literal* words qualify — a `$x` / `[f]` argument names a
+///   variable nothing here can identify, the same abstention direction
+///   `is_plain_var_name` takes on the navigation side;
+/// * only *opaque* callees qualify — a registry command has a declared
+///   frame effect, and a procedure defined in this unit has a real summary
+///   which is trusted per-name (so a same-file helper without an `upvar`
+///   keeps its reads reporting).
+///
+/// `resolvable` answers "can this unit resolve that command head?", which
+/// the analyser supplies from the dialect profile plus its own definition
+/// tables — no command name appears here.
+#[must_use]
+pub fn collect_opaque_callee_name_args(
+    cfg: &crate::cfg::Function,
+    resolvable: &dyn Fn(&str) -> bool,
+) -> HashSet<String> {
+    use crate::ir::Statement;
+    let mut out = HashSet::new();
+    for block in cfg.blocks.values() {
+        for stmt in &block.statements {
+            let (Statement::Call { command, args, .. }
+            | Statement::Barrier { command, args, .. }) = stmt
+            else {
+                continue;
+            };
+            // A dynamic head (`$cmd …`) is handled by the dynamic-name
+            // barrier, not here; an empty head is not a call.
+            if command.is_empty() || command.contains(['$', '[']) || resolvable(command) {
+                continue;
+            }
+            out.extend(args.iter().filter(|a| is_literal_var_name(a)).cloned());
         }
     }
     out

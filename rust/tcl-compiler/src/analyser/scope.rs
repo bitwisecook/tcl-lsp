@@ -1798,6 +1798,16 @@ impl Analyser {
         // ref for a `::`-qualified parameter name.
         if !self.structural_rebind {
             self.record_qualified_var_ref(base_name, span, scope_path);
+            // Isolated per-item body: a definition landing in the body's own
+            // (throwaway) root scope is a fixed global cell the whole-file
+            // walk would have written into the *document's* global scope, so
+            // capture it for the graft to replay there — the write-side twin
+            // of `capture_global_reads` (issue #923 audit idx 98).
+            if scope_path.is_empty()
+                && let Some(captured) = self.capture_global_defs.as_mut()
+            {
+                captured.push((name.to_string(), tok, span));
+            }
         }
         // A `set arr(idx) …` definition records the element index on the array.
         let element = crate::naming::split_array_name_braced(name, braced_literal)

@@ -835,6 +835,25 @@ pub struct Analyser {
     /// def — one of the divergences the per-item path must reproduce.  `None` on
     /// the whole-file `analyse` path (reads resolve against the populated scope).
     pub(super) capture_global_reads: Option<Vec<(String, tcl_lexer::Span)>>,
+    /// The write-side twin of [`Self::capture_global_reads`].  When `Some`,
+    /// an isolated proc-body analysis (the per-item path) records every
+    /// variable the body defines **directly in the global scope** — a body
+    /// that names one fixed, frame-independent cell, which today means
+    /// `upvar`'s `otherVar` word (`upvar ::tk::FocusGrab($i) data`, `upvar
+    /// #0 counter c`; see
+    /// [`Analyser::handle_upvar_command`](super::state::Analyser)).
+    ///
+    /// The graft merges the fragment's *proc* scope, never its (throwaway)
+    /// root, so without this capture such a cell reached `all_variables` but
+    /// never the shell's scope tree — and the scope tree is what
+    /// `attach_qualified_var_references`, `replay_body_global_reads`, and
+    /// every LSP navigation provider read.  The result was the issue #923
+    /// audit idx 98 residual: the whole-file walk answered hover /
+    /// definition / references for the cell and the live server's
+    /// incremental walk answered nothing.  `None` on the whole-file
+    /// `analyse` path, where the body walk writes the real global scope
+    /// directly.
+    pub(super) capture_global_defs: Option<Vec<(String, tcl_lexer::Token, tcl_lexer::Span)>>,
     /// Deferred W002 (disabled-in-dialect command) diagnostics — both the
     /// whole-command form ([`Self::emit_w002_disabled_command`]) and the
     /// subcommand form embedded in
@@ -1125,6 +1144,7 @@ impl Analyser {
             minted_synthetic_names: std::collections::HashSet::new(),
             cu_override: None,
             capture_global_reads: None,
+            capture_global_defs: None,
             pending_disabled_commands: Vec::new(),
             pending_w143: Vec::new(),
             pending_w304: Vec::new(),
