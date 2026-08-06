@@ -5362,12 +5362,14 @@ fn augment_snit_handles(
             .into_iter()
             .collect();
     scan_snit_handles(
-        source,
+        &HandleScanCtx {
+            full_source: source,
+            dialect,
+            classes,
+            member_bindings: &member_bindings,
+        },
         source,
         0,
-        dialect,
-        classes,
-        &member_bindings,
         object_classes,
         0,
     );
@@ -5534,20 +5536,40 @@ fn bind_loop_vars_for_call(
     }
 }
 
+/// Everything an object-handle scan needs that does **not** change as the walk
+/// recurses into nested scripts — bundled so the recursive worker keeps a small
+/// signature.
+struct HandleScanCtx<'a> {
+    /// The whole document, for resolving a nested script's absolute span.
+    full_source: &'a str,
+    /// The document's dialect, for the lexer config and registry.
+    dialect: &'a str,
+    /// The class hierarchy (local, or workspace-merged in project mode), or
+    /// `None` when no analysis is available.
+    classes: Option<&'a ClassHierarchy>,
+    /// The member-body installers this dialect's definers inject, resolved once
+    /// per document (see
+    /// [`CommandRegistry::member_body_handle_bindings`](tcl_registry::CommandRegistry::member_body_handle_bindings)).
+    member_bindings: &'a FxHashMap<&'static str, tcl_registry::HandleBindingSpec>,
+}
+
 /// Recursive worker for [`augment_snit_handles`].
 fn scan_snit_handles(
-    full_source: &str,
+    ctx: &HandleScanCtx<'_>,
     text: &str,
     base_offset: u32,
-    dialect: &str,
-    classes: Option<&ClassHierarchy>,
-    member_bindings: &FxHashMap<&'static str, tcl_registry::HandleBindingSpec>,
     handles: &mut ObjectClassMap,
     depth: u32,
 ) {
     if MAX_TOKEN_RECURSION.exceeded(depth) {
         return;
     }
+    let HandleScanCtx {
+        full_source,
+        dialect,
+        classes,
+        member_bindings,
+    } = *ctx;
     let registry = tcl_registry::registry_for_dialect(dialect);
     for seg in segment_commands_with_offset_and_config(
         text,
@@ -5588,12 +5610,9 @@ fn scan_snit_handles(
             };
             if let Some((cstart, inner)) = inner_span {
                 scan_snit_handles(
-                    full_source,
+                    ctx,
                     inner,
                     u32::try_from(cstart).unwrap_or(0),
-                    dialect,
-                    classes,
-                    member_bindings,
                     handles,
                     depth + 1,
                 );
