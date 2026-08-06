@@ -259,6 +259,122 @@ impl WorkspaceClass {
     }
 }
 
+/// Which receiver side a [`WorkspaceMethod`] is declared on — the same split
+/// [`WorkspaceClass::instance_method`] / [`WorkspaceClass::class_method`] make,
+/// named once so the member fold and the tombstone lookup agree on it.
+#[must_use]
+fn method_side(m: &WorkspaceMethod) -> MemberSide {
+    if m.kind == "classmethod" {
+        MemberSide::ClassObject
+    } else {
+        MemberSide::Instance
+    }
+}
+
+/// One member of a class as the **workspace** sees it: the declaring record's
+/// entry, keyed under the name the class actually dispatches it by once every
+/// cross-document retraction and arrival has been applied (issue #1263).
+///
+/// The raw [`WorkspaceClass::methods`] table is per-record and additive — it
+/// records what that record's own body declared and nothing else — so a member
+/// moved by a cross-file `oo::define ::C { renamemethod old new }` is still
+/// listed as `old` on the defining record and not listed at all on the stub.
+/// Resolving one name against the table already joined the two halves
+/// ([`WorkspaceIndex::dispatch_chain`], issue #1167); *listing* the table did
+/// not, so anything that enumerates a class's members (`workspace/symbol`, an
+/// outline, a member completion universe) showed the pre-rename name.
+///
+/// [`WorkspaceIndex::effective_members`] is the one place that fold happens,
+/// and the dispatch chain reads it too, so a single rule decides what a class's
+/// member set is.
+#[derive(Debug, Clone, Copy)]
+pub struct EffectiveMember<'a> {
+    /// The name the class dispatches this member under.
+    pub name: &'a str,
+    /// The record whose body, parameters and visibility define the member —
+    /// where a `renamemethod`'s *source* was declared, not where the rename is
+    /// written.
+    pub declaring: &'a WorkspaceClass,
+    /// The declaring record's own entry, still keyed under its declared
+    /// spelling.  Visibility travels with the body, so this is what a
+    /// visibility test must read.
+    pub method: &'a WorkspaceMethod,
+    /// Document holding the token that spells [`Self::name`] — the declaring
+    /// record's document normally, the retracting stub's when the member
+    /// arrived through a cross-file `renamemethod`.
+    pub name_uri: &'a str,
+    /// Byte span of that token, in [`Self::name_uri`]'s source.
+    pub name_span: Span,
+}
+
+/// Every cross-document member retraction in the workspace, keyed by the
+/// `(class qualified name, member name, side)` it removes and valued with the
+/// record that wrote it plus the retraction itself.  See
+/// [`WorkspaceIndex::retraction_index`].
+type RetractionIndex<'a> = std::collections::HashMap<
+    (&'a str, &'a str, MemberSide),
+    (&'a WorkspaceClass, &'a MemberRetractionRecord),
+>;
+
+/// Apply the workspace's retraction / arrival fold to one member `declaring`
+/// declares, yielding the name the class dispatches it under — or `None` when
+/// a cross-document `deletemethod` removed it outright (issue #1263).
+///
+/// The one place that decision is made; [`WorkspaceIndex::effective_members`]
+/// (and through it [`WorkspaceIndex::dispatch_chain`]) and the
+/// `workspace/symbol` member walk all route through it, so resolving a name
+/// and listing the member set can no longer disagree.
+///
+/// tclsh-proof (8.6.14), for the two arms:
+///
+/// ```tcl
+/// # a.tcl: oo::class create ::C { method old {} { return OLDBODY } }
+/// # b.tcl: oo::define ::C { renamemethod old new }
+/// info class methods ::C     ;# -> new         (arrival re-keys the member)
+/// [::C new] old              ;# -> unknown method "old"
+/// # with `deletemethod old` instead:
+/// info class methods ::C     ;# -> (empty)     (the member is gone)
+/// ```
+fn effective_member<'a>(
+    retractions: &RetractionIndex<'a>,
+    declaring: &'a WorkspaceClass,
+    method: &'a WorkspaceMethod,
+) -> Option<EffectiveMember<'a>> {
+    let side = method_side(method);
+    // A `deletemethod` / `renamemethod` in *another* document's `oo::define`
+    // stub really removes the member (issue #1101 review). The union is taken
+    // per class — a subclass cannot retract an inherited member (real Tcl:
+    // `method … does not exist`) — and the tombstone carries the side it
+    // removed from, so a `self deletemethod m` never touches the
+    // instance-side member.
+    let Some((stub, retraction)) = retractions.get(&(
+        declaring.qualified_name.as_str(),
+        method.name.as_str(),
+        side,
+    )) else {
+        return Some(EffectiveMember {
+            name: &method.name,
+            declaring,
+            method,
+            name_uri: &declaring.uri,
+            name_span: method.name_span,
+        });
+    };
+    // A `renamemethod old new` *moves* the member: the stub owns no
+    // `MethodDef` (the params / body / visibility stay on the declaring
+    // record), so the arrival re-keys this entry and the arrival word is the
+    // moved member's declaration site.  A plain `deletemethod` — and a
+    // `renamemethod old $new` whose destination is computed, which names
+    // nothing statically — records no arrival, and the member is simply gone.
+    Some(EffectiveMember {
+        name: retraction.arrival.as_deref()?,
+        declaring,
+        method,
+        name_uri: &stub.uri,
+        name_span: retraction.arrival_span?,
+    })
+}
+
 /// One method a class record directly defines, as indexed for cross-file
 /// dispatch (issue #945 faults 4 and 6).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -881,6 +997,7 @@ impl DocumentRecords {
         &self,
         lower_query: &str,
         limit: usize,
+        retractions: &RetractionIndex<'_>,
         out: &mut Vec<IndexedWorkspaceSymbol>,
     ) {
         for proc_def in &self.procs {
@@ -919,17 +1036,28 @@ impl DocumentRecords {
             }
             // Members carry the class's qualified name as their container, so
             // an editor renders them as `ClassName::methodName`.
+            //
+            // Enumerated through the workspace's member fold, not straight off
+            // this record's own table: a member a cross-file `oo::define ::C {
+            // renamemethod old new }` moved is declared here under `old` and
+            // dispatches as `new`, and one deleted the same way is not a
+            // member at all (issue #1263).  An arrived member's location is
+            // the arrival word in the retracting document, which is also what
+            // go-to-definition on the new name answers with.
             for method in &class_def.methods {
                 if out.len() >= limit {
                     return;
                 }
-                if matches_query(&method.name, lower_query) {
+                let Some(em) = effective_member(retractions, class_def, method) else {
+                    continue;
+                };
+                if matches_query(em.name, lower_query) {
                     out.push(IndexedWorkspaceSymbol {
-                        uri: class_def.uri.clone(),
-                        name: method.name.clone(),
+                        uri: em.name_uri.to_owned(),
+                        name: em.name.to_owned(),
                         container_name: Some(class_def.qualified_name.clone()),
                         kind: WorkspaceSymbolKind::Method,
-                        name_span: method.name_span,
+                        name_span: em.name_span,
                     });
                 }
             }
@@ -1849,11 +1977,15 @@ impl WorkspaceIndex {
     pub fn symbols_matching(&self, query: &str, limit: usize) -> Vec<IndexedWorkspaceSymbol> {
         let lower_query = query.to_lowercase();
         let mut out: Vec<IndexedWorkspaceSymbol> = Vec::new();
+        // Built once for the whole scan — the class-member walk needs the
+        // workspace's cross-document retractions, which no single document's
+        // records can answer for themselves (issue #1263).
+        let retractions = self.retraction_index();
         for doc in &self.docs {
             if out.len() >= limit {
                 break;
             }
-            doc.collect_symbols_matching(&lower_query, limit, &mut out);
+            doc.collect_symbols_matching(&lower_query, limit, &retractions, &mut out);
         }
         out
     }
@@ -2156,11 +2288,7 @@ impl WorkspaceIndex {
             // has to be a property of the workspace, not of when each document
             // happened to be indexed.  Document URI then source position is
             // that stable order (issue #1028).
-            let mut records: Vec<&WorkspaceClass> = self
-                .classes()
-                .filter(|c| c.qualified_name == class_q)
-                .collect();
-            records.sort_by_key(|c| (c.uri.as_str(), c.name_span.start(), c.name_span.end()));
+            let records = self.class_records(&class_q);
             // The class-level effective export union **for this side**: any
             // record exporting the name keeps it callable; explicit unexports
             // matter only when no record exports it.  The two sides never share
@@ -2172,74 +2300,139 @@ impl WorkspaceIndex {
             let any_unexports = records
                 .iter()
                 .any(|c| visibility_sets_for(c, side).1.iter().any(|e| e == method));
-            // A `deletemethod` / `renamemethod` in *another* document's
-            // `oo::define` stub really removes the member (issue #1101 review):
-            //   a.tcl  oo::class create ::C { method m {} {…} }
-            //   b.tcl  oo::define ::C { deletemethod m }
-            //   [::C new] m  ->  unknown method "m"     (9.0.4 / 8.6.14)
-            // so the whole chain for the name is empty, exactly as it is for a
-            // method no record defines. The union is taken per class — a
-            // subclass cannot retract an inherited member (real Tcl: `method …
-            // does not exist`), so a retraction never reaches past the record's
-            // own `class_q`. The tombstone carries the side it removed from, so
-            // a `self deletemethod m` never empties the instance chain and an
-            // unwrapped one never empties the class chain.
-            if records.iter().any(|c| {
-                c.retracted_members
-                    .iter()
-                    .any(|r| r.member == method && r.side == side)
-            }) {
-                continue;
-            }
-            // The **arrival** join (issue #1167): a cross-file `oo::define ::C
-            // { renamemethod old new }` moves the member without owning a
-            // `MethodDef` to move — the params / body / visibility live in the
-            // defining file's record.  So when nothing declares the name asked
-            // for, a stub's recorded arrival re-keys that other record's
-            // member and the defining record enters the chain under the new
-            // name.  Visibility travels with the *body*, not the new name's
-            // leading-capital default (oracle, tclsh 9.0.4 / 8.6.14:
-            // `oo::class create ::R4 {method Priv {} {…}; renamemethod Priv
-            // pub}` leaves `info class methods ::R4` empty while `-private`
-            // lists `pub`), so the source member's own record is what the
-            // visibility test below reads.
-            let arrived_from: Option<&str> =
-                records.iter().find_map(|c| c.arrival_source(method, side));
-            for record in records {
-                let lookup = |name: &str| match side {
-                    MemberSide::Instance => record.instance_method(name),
-                    // A stock `self method` is not inherited: the class object
-                    // that declared it is the only one whose command reaches it
-                    // (`Gadget make` against a parent's `self method make` ->
-                    // `unknown method "make"`, 8.6 / 9.0.4). An `ooutil`
-                    // `classmethod` shares the receiver kind but does propagate.
-                    MemberSide::ClassObject => record
-                        .class_method(name)
-                        .filter(|m| !m.is_self_method || record.qualified_name == receiver_class),
-                };
-                let declared = lookup(method).or_else(|| arrived_from.and_then(lookup));
-                let Some(m) = declared else {
+            // The class's member set — retractions applied, arrivals
+            // re-keyed — is decided once by [`Self::effective_members`]
+            // rather than here (issue #1263).  A `deletemethod`ed member is
+            // absent from it, so the chain for that name is empty exactly as
+            // it is for a method no record defines; a `renamemethod`ed one is
+            // present under its destination and absent under its source.
+            for em in self.effective_members(&class_q) {
+                if em.name != method || method_side(em.method) != side {
                     continue;
-                };
+                }
+                // A stock `self method` is not inherited: the class object
+                // that declared it is the only one whose command reaches it
+                // (`Gadget make` against a parent's `self method make` ->
+                // `unknown method "make"`, 8.6 / 9.0.4). An `ooutil`
+                // `classmethod` shares the receiver kind but does propagate.
+                if side == MemberSide::ClassObject
+                    && em.method.is_self_method
+                    && em.declaring.qualified_name != receiver_class
+                {
+                    continue;
+                }
                 // Effective export across the class's records: an explicit
                 // `export` anywhere wins, else an explicit `unexport`
                 // anywhere, else the definer's own effective state.  (True
-                // cross-file order is load-order; explicit-export-wins is
-                // the navigation-permissive reading.)
+                // cross-file order is load-order; explicit-export-wins is the
+                // navigation-permissive reading.)  Visibility travels with the
+                // *body*, not an arrival name's leading-capital default
+                // (oracle, tclsh 9.0.4 / 8.6.14: `oo::class create ::R4
+                // {method Priv {} {…}; renamemethod Priv pub}` leaves `info
+                // class methods ::R4` empty while `-private` lists `pub`), so
+                // the source member's own record is what this reads.
                 let exported = if any_exports {
                     true
                 } else if any_unexports {
                     false
                 } else {
-                    m.exported
+                    em.method.exported
                 };
                 let visible = match access {
-                    MethodAccess::External => exported && !m.private,
-                    MethodAccess::Internal => !m.private || class_q == receiver_class,
+                    MethodAccess::External => exported && !em.method.private,
+                    MethodAccess::Internal => !em.method.private || class_q == receiver_class,
                 };
                 if visible {
-                    out.push(record);
+                    out.push(em.declaring);
                 }
+            }
+        }
+        out
+    }
+
+    /// Every record of the class `class_q`, in the workspace's stable order.
+    ///
+    /// Several records of one class (its creation site plus every
+    /// `oo::define` stub, possibly spread over files) are all kept, and the
+    /// *first* is what go-to-definition answers with — so the order has to be
+    /// a property of the workspace, not of when each document happened to be
+    /// indexed.  Document URI then source position is that order (issue
+    /// #1028).
+    #[must_use]
+    pub fn class_records<'a>(&'a self, class_q: &str) -> Vec<&'a WorkspaceClass> {
+        let mut records: Vec<&WorkspaceClass> = self
+            .classes()
+            .filter(|c| c.qualified_name == class_q)
+            .collect();
+        records.sort_by_key(|c| (c.uri.as_str(), c.name_span.start(), c.name_span.end()));
+        records
+    }
+
+    /// The members of `class_q` as the workspace sees them: every record's own
+    /// declarations, with the class's cross-document retractions applied and
+    /// its arrivals re-keyed (issue #1263).  Both receiver sides, in
+    /// [`Self::class_records`] order then declaration order — filter on
+    /// [`EffectiveMember::method`]'s `kind` (via `WorkspaceClass`'s own
+    /// instance/class split) for one side.
+    ///
+    /// This is the single rule for "which members does this class have":
+    /// [`Self::dispatch_chain`] resolves one name against it and every
+    /// *enumeration* (`workspace/symbol`, an outline, a member completion
+    /// universe) lists it, so the two can no longer disagree.  Before this,
+    /// resolution joined the arrival channel and listing did not, so a member
+    /// moved by a cross-file `renamemethod` was still enumerated under its
+    /// pre-rename name.
+    ///
+    /// Inheritance is **not** applied: these are the class's own members.
+    /// Walk [`Self::class_linearisation`] for the inherited set.
+    ///
+    /// Carries the tombstone channel's unordered-cross-file caveat: true load
+    /// order is not knowable from the index, so a retraction recorded by any
+    /// record of the class applies to every record of it.
+    #[must_use]
+    pub fn effective_members<'a>(&'a self, class_q: &str) -> Vec<EffectiveMember<'a>> {
+        let retractions = self.retraction_index();
+        let mut out: Vec<EffectiveMember<'a>> = Vec::new();
+        for declaring in self.class_records(class_q) {
+            out.extend(
+                declaring
+                    .methods
+                    .iter()
+                    .filter_map(|method| effective_member(&retractions, declaring, method)),
+            );
+        }
+        out
+    }
+
+    /// Every cross-document member retraction in the workspace, keyed by the
+    /// `(class, member, side)` it removes — the lookup table the member fold
+    /// ([`effective_member`]) applies.
+    ///
+    /// Built once per query rather than rescanned per member: a retraction
+    /// recorded by *any* record of a class applies to every record of it, so
+    /// the naive form is a scan of the class's records per declared method,
+    /// which is quadratic in a workspace's class count on a path
+    /// (`workspace/symbol`) that runs per keystroke.  The map is empty in the
+    /// overwhelmingly common case — no document retracts anything — and the
+    /// walk is then exactly what it was before the fold existed.
+    ///
+    /// Ties are broken by the workspace's stable record order
+    /// ([`Self::class_records`]), so which stub an arrival is attributed to
+    /// does not depend on indexing order.
+    fn retraction_index(&self) -> RetractionIndex<'_> {
+        let mut records: Vec<&WorkspaceClass> = self
+            .classes()
+            .filter(|c| !c.retracted_members.is_empty())
+            .collect();
+        if records.is_empty() {
+            return RetractionIndex::default();
+        }
+        records.sort_by_key(|c| (c.uri.as_str(), c.name_span.start(), c.name_span.end()));
+        let mut out = RetractionIndex::default();
+        for c in records {
+            for r in &c.retracted_members {
+                out.entry((c.qualified_name.as_str(), r.member.as_str(), r.side))
+                    .or_insert((c, r));
             }
         }
         out
@@ -4153,6 +4346,128 @@ mod tests {
                 .classes()
                 .all(|c| c.retracted_members.iter().all(|r| r.arrival.is_none())),
             "a computed destination records no arrival",
+        );
+    }
+
+    /// TP, issue #1263: **enumeration** joins the arrival channel too.  The
+    /// defining record still declares the member as `old`, so the raw
+    /// `WorkspaceClass::methods` table (which `workspace/symbol` used to read
+    /// directly) advertised the pre-rename name after the resolution join had
+    /// already been fixed for `dispatch_chain` (#1167).
+    ///
+    /// tclsh-proof (8.6.14), sourcing both files:
+    ///
+    /// ```tcl
+    /// oo::class create ::C { method old {} { return OLDBODY } }
+    /// oo::define ::C { renamemethod old new }
+    /// info class methods ::C   ;# -> new
+    /// [::C new] old            ;# -> unknown method "old"
+    /// ```
+    #[test]
+    fn a_cross_file_arrival_re_keys_member_enumeration() {
+        let a = analyse("oo::class create ::C { method old {} { return 1 } }\n");
+        let b = analyse("oo::define ::C { renamemethod old new }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert_eq!(
+            index
+                .effective_members("::C")
+                .iter()
+                .map(|em| em.name)
+                .collect::<Vec<_>>(),
+            ["new"],
+            "the fold lists the member under the name the class dispatches it by",
+        );
+        // The body still lives in a.tcl; only the *name* moved.
+        let em = index.effective_members("::C");
+        let moved = em.first().expect("one member");
+        assert_eq!(moved.declaring.uri, "file:///a.tcl");
+        assert_eq!(moved.method.name, "old", "the declaring entry is untouched");
+        assert_eq!(
+            moved.name_uri, "file:///b.tcl",
+            "the arrival word is the moved member's declaration site",
+        );
+        // …and `workspace/symbol` offers the new name, not the old one.
+        let names: Vec<String> = index
+            .symbols_matching("", 100)
+            .into_iter()
+            .filter(|s| s.kind == WorkspaceSymbolKind::Method)
+            .map(|s| s.name)
+            .collect();
+        assert_eq!(names, ["new"], "the picker must not show the pre-rename name");
+    }
+
+    /// TN, issue #1263: a cross-file `deletemethod` removes the member from
+    /// enumeration outright — nothing arrives, so nothing is listed.
+    ///
+    /// tclsh-proof (8.6.14): `oo::class create ::C { method m {} {…} }` +
+    /// `oo::define ::C { deletemethod m }` leaves `info class methods ::C`
+    /// empty and `[::C new] m` erroring `unknown method "m"`.
+    #[test]
+    fn a_cross_file_deletion_drops_the_member_from_enumeration() {
+        let a = analyse("oo::class create ::C { method m {} { return 1 } }\n");
+        let b = analyse("oo::define ::C { deletemethod m }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert!(
+            index.effective_members("::C").is_empty(),
+            "a deleted member is not a member",
+        );
+        assert!(
+            index
+                .symbols_matching("m", 100)
+                .iter()
+                .all(|s| s.kind != WorkspaceSymbolKind::Method),
+            "the picker must not offer a deleted member",
+        );
+    }
+
+    /// TN, issue #1263: with no retraction anywhere, enumeration is exactly
+    /// each record's own table — the fold must not perturb the ordinary case,
+    /// including a member declared by a cross-file `oo::define` stub and one
+    /// on the class-object side.
+    #[test]
+    fn enumeration_without_a_retraction_is_the_declared_table() {
+        let a = analyse("oo::class create ::C { method one {} {}\n method two {} {} }\n");
+        let b = analyse("oo::define ::C { method three {} {}\n self method cm {} {} }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert_eq!(
+            index
+                .effective_members("::C")
+                .iter()
+                .map(|em| em.name)
+                .collect::<Vec<_>>(),
+            ["one", "two", "three", "cm"],
+            "record order then declaration order, unchanged",
+        );
+        assert!(
+            index
+                .effective_members("::C")
+                .iter()
+                .all(|em| em.name == em.method.name),
+            "no rename, so no re-keying",
+        );
+    }
+
+    /// TN, issue #1263: a `self renamemethod` moves the **class-object** side
+    /// only.  An identically-named instance method keeps its own name, which
+    /// is the same side-scoping the tombstone channel already enforces for
+    /// resolution (#1098 / #1119).
+    #[test]
+    fn a_cross_file_arrival_is_side_scoped_in_enumeration() {
+        let a = analyse(
+            "oo::class create ::C { method m {} { return 1 }\n self method m {} { return 2 } }\n",
+        );
+        let b = analyse("oo::define ::C { self renamemethod m cm }\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        let mut listed: Vec<(&str, &str)> = index
+            .effective_members("::C")
+            .iter()
+            .map(|em| (em.name, em.method.kind.as_str()))
+            .collect();
+        listed.sort_unstable();
+        assert_eq!(
+            listed,
+            [("cm", "classmethod"), ("m", "method")],
+            "only the class-object member moved",
         );
     }
 
