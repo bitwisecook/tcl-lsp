@@ -1143,11 +1143,11 @@ dispatch, var-escape, and taint sinks reached through this pipeline are
 they resolve through the same registry lookup, but only after the
 canonical name has already been substituted in.
 
-### Semantic tokens resolve identity themselves (issue #1185)
+### The source-text consumers resolve identity themselves (issues #1185, #1275)
 
-The semantic-token walker is no longer part of this limitation. It resolves
-each head's **effective command identity** once, before any registry query,
-through `rust/tcl-lsp-core/src/head_identity.rs`:
+The source-text consumers are no longer part of this limitation. Each resolves
+its head's **effective command identity** once, before any registry query,
+through `rust/tcl-compiler/src/head_identity.rs`:
 
 ```rust
 enum HeadIdentity<'a> {
@@ -1169,6 +1169,14 @@ sources feed it:
 | `interp alias {} myfmt {} format` | `myfmt` and `::myfmt` -> `format` |
 | `rename format origfmt` | `origfmt` -> `format`, **and** `format` -> `Rebound` |
 | `proc format {args} {...}` | `format` -> `Rebound` |
+
+A binding **source** is read through the map before the registry, so chains
+compose: `interp alias {} a {} format; rename a b` leaves `b` naming `format`
+(tclsh 8.6.16 and 9.0.4, byte-identical: `b %08x 42` answers `0000002a` while
+`info commands a` answers empty), and `proc format {…} {…}; rename format
+myfmt` correctly leaves `myfmt` `Rebound` rather than inheriting the built-in's
+grammar. An alias always *takes over* the name it binds, because C Tcl lets one
+shadow an existing command outright.
 
 Both the bare and the explicitly `::`-qualified spelling of a bound name are
 recorded, and the *latest* fact at or before the call's byte offset wins, so a
@@ -1204,59 +1212,56 @@ each call site.
   nothing;
 - `unknown` fallback, traces, and computed heads -- nothing is inferred.
 
-The other source-text consumers below are still blind to rename/alias; the
-`HeadIdentityMap` is the shared pre-pass the "plausible future fix direction"
-note called for, and extending it to them is a matter of threading it through,
-not of inventing a mechanism.
+#### Positioned and unpositioned readers
 
-### The limitation is real for the other source-text, re-segmentation-based consumers
+`resolve(head, at)` answers for a head at a known byte offset. Several
+consumers re-lex a body out of its own *decoded* text — the formatter
+reformats `arg.text`, the minifier re-minifies a body slice, the call-graph
+and param-trait scans segment a body string at offset 0 — so no
+document-absolute offset exists at the point of the query. Those read
+`resolve_unpositioned(head)`, which folds *every* fact about the spelling and
+abstains (`Rebound`) unless they agree. A document that binds one name twice
+cannot be read without a position, and guessing one of the two bindings is
+exactly the fall-back-to-spelling this module exists to remove.
 
-The remaining blind spot is the consumers that never go through
-`Lowering`'s alias table at all: the ones that recognise a shape (a
-lambda literal, a body, a callback prefix) by re-parsing a segmented
-command's own raw head text directly against the registry, outside the
-IR-lowering pass and with no alias map available to them. This is
-precisely the set of consumers the #954/#999 fix taught
-`ArgRole::LambdaLiteral` awareness — semantic tokens, folding, formatting,
-minification, declaration scanning, the best-effort text-based
-interprocedural call-graph scanner (`tcl-compiler/src/interprocedural.rs`
-— distinct from the IR-based taint/SSA interprocedural analysis, which
-*is* on the alias-aware pipeline above), param-trait inference, and the
-iRules object-reference walker. The concrete, verified case is `apply`'s
-`ArgRole::LambdaLiteral` handling under `rename`/`interp alias`: see the
-"Failure modes" section of
-[the `apply`-lambda-body KCS note](../../kcs/kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md)
-for the reproduction and file-path anchors. The same gap applies to any
-other registry-keyed field (arg roles, `defines_command_at`, …) queried the
-same direct way by one of these consumers — `apply` is simply the instance
-that has been reproduced and written up (issue #1002); it is not evidence
-that taint or purity share it, since those two are demonstrably covered by
-the mechanism described above.
+`HeadWords { written, resolved }` carries both forms where the distinction
+matters. A **global command** lookup reads `resolved`; a **lexical** test reads
+`written`, because a class-body member sub-keyword (`method`, `constructor`) or
+a `$var` head is not a command binding at all — a top-level `rename method …`
+says nothing about the word inside an `oo::define`.
+
+#### Which consumers resolve, and how
+
+| Consumer | Reads | Notes |
+|---|---|---|
+| semantic tokens | positioned | issue #1185 |
+| inlay hints (format specifiers) | positioned | issue #1185 |
+| folding | positioned | body / lambda / clause-list roles |
+| the declaration scan | positioned | scope-alias grammar + body recursion |
+| the iRules object-ref walker | positioned | reference args, roles, `set` constant propagation |
+| the minifier's rename-barrier scan | positioned | the invocation carries its own range |
+| the minifier's keyword abbreviation | positioned | `base` makes a nested word's offset absolute |
+| the minifier's render path | unpositioned | re-minifies each body from its own slice |
+| formatting | unpositioned | re-lexes decoded `arg.text`; range formatting lexes a slice |
+| the call-graph scan (`interprocedural.rs`) | unpositioned | walks lowered statements and body text at offset 0 |
+| param-trait inference | unpositioned | scans a proc body from its own text |
+
+Range formatting builds the map from the **whole document**, not the selected
+slice, so a `rename` above the selection still governs it. The analyser builds
+it alongside its registry at the top of every entry point, so a per-proc
+param-trait scan reads the *document's* bindings while scanning a *body*.
 
 This is a different mechanism from issue #973, which is about the
 analyser's `known()` predicate (`scope.rs`) not gating an existence check
 (W123) on deletion — a single analyser-side predicate partially growing
-rename/alias-awareness for one diagnostic. The gap described here is a
-missing integration (the source-text consumers have no access to an alias
-table at all, static or otherwise), not a partial one.
+rename/alias-awareness for one diagnostic.
 
-**Fix direction** (done for semantic tokens in issue #1185, still open for
-the rest): give the source-text-based consumers the same kind of alias
-resolution the compiler's lowering pass already has, rather than inventing a
-new mechanism. `head_identity.rs` is that shared document-wide pre-pass, and
-the remaining consumers need it threaded through rather than reinvented. The
-`CommandAliasMap` pattern in
-`rust/tcl-compiler/src/alias.rs` is IR-lowering-specific (it's built while
-walking a `CompilationUnit`, and reads `self.aliases` accumulated so far in
-that walk); the source-text consumers operate on individually re-parsed
-segmented commands, often outside any compilation-unit walk, so reusing it
-directly is not a drop-in change — each consumer would need either its own
-document-wide alias scan pre-pass, or a shared one computed once and passed
-down to every consumer that currently calls `CommandRegistry::get` /
-`arg_indices_for_role` directly on raw head text. That is still a real,
-multi-consumer change (it touches every one of the source-text consumers
-listed above, not just `apply`'s), just a narrower one than rewriting
-`CommandRegistry::get` itself.
+**Still by spelling.** `CommandRegistry::get` itself is unchanged: it is a
+by-name lookup, and every consumer above resolves *before* calling it. A
+consumer added later that queries the registry on raw head text re-opens the
+gap for itself; the `apply`-lambda reproduction in the
+[`apply`-lambda-body KCS note](../../kcs/kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md)
+is what that looks like from the outside.
 
 ## Decision rule
 

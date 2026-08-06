@@ -380,21 +380,22 @@ differential audit's finding **idx 0** (georgtree/argparse), which found the
   never matched `apply`'s spec, and the direct call's `parameter` /
   `function` / `variable` split collapsed into one opaque `string` token.
 
-  **Fixed for the semantic-token consumer** by issue #1185: it now resolves a
-  head's effective command identity through
-  `rust/tcl-lsp-core/src/head_identity.rs` before any registry query, so a
-  statically visible `rename` / `interp alias` / `namespace import` — and a
-  built-in-shadowing top-level `proc`, in the other direction — is followed
-  (regression test: `apply_lambda_literals_survive_a_rename_or_alias` in
-  `semantic_tokens.rs`). Folding, formatting, minification, declaration
-  scanning, the text-based call-graph scanner, param-trait inference, and the
-  iRules object-reference walker still resolve raw head text and remain
-  exposed; the `HeadIdentityMap` is the shared pre-pass they need threading
-  through. This is a different mechanism from issue #973 (the analyser's
-  `known()` predicate in `scope.rs` not gating W123's existence check on
-  deletion). See the "Known limitations" note in
+  **Fixed** for the semantic-token and inlay-hint consumers by issue #1185,
+  and for the remaining seven by issue #1275. Each resolves a head's effective
+  command identity through `rust/tcl-compiler/src/head_identity.rs` before any
+  registry query, so a statically visible `rename` / `interp alias` /
+  `namespace import` — and a built-in-shadowing top-level `proc`, in the other
+  direction — is followed (regression test:
+  `apply_lambda_literals_survive_a_rename_or_alias` in `semantic_tokens.rs`,
+  with per-consumer tiers in `folding.rs`, `formatting/engine.rs`,
+  `minify.rs`, `declaration.rs`, `tcl-irules/src/walker.rs`,
+  `interprocedural.rs`, and `analyser/param_traits.rs`). This is a different
+  mechanism from issue #973 (the analyser's `known()` predicate in `scope.rs`
+  not gating W123's existence check on deletion). See the "Known limitations"
+  note in
   [the command registry design doc](../design/compiler/command-registry.md#known-limitations)
-  for the project-wide scope of the remaining exposure (issue #1002).
+  for which consumers read a positioned offset and which must abstain without
+  one.
 
 ## Triage checklist
 

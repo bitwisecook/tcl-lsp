@@ -115,6 +115,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   which `f5` verb to pick for filter / find / rename tasks.
 - [kcs-qa-tcl-lsp-annotations.md](kcs-qa-tcl-lsp-annotations.md) — which
   `# tcl-lsp:` and `# noqa` comments the analyser understands.
+- [kcs-qa-does-the-server-follow-rename-and-interp-alias.md](kcs-qa-does-the-server-follow-rename-and-interp-alias.md)
+  — which command-rebinding statements the server follows, and what it
+  refuses to guess.
 - [kcs-qa-what-does-fix-all-safe-issues-apply.md](kcs-qa-what-does-fix-all-safe-issues-apply.md)
   — the four fix-safety classes, and why "Fix All Safe Issues" applies
   only the provably equivalent ones.
