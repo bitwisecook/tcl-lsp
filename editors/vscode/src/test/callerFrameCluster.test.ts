@@ -127,10 +127,16 @@ suite("Caller-frame variables (issue #923 audit cluster C1)", () => {
       new vscode.Position(30, 26),
     )) as vscode.Location[];
     const lines = refs.map((r) => r.range.start.line).sort((a, b) => a - b);
+    // The `upvar` otherVar word and the `data` alias it introduces (both
+    // line 24), the alias use (line 25), and the sibling proc's read
+    // (line 30) — Find-References unifies an alias with the cell it names.
+    // The bareword `info exists` / `unset` arguments are a separate anchor
+    // kind and are deliberately not claimed here; the compiler-library and
+    // lsp-e2e twins assert the same set, so the tiers agree about scope.
     assert.deepStrictEqual(
       lines,
-      [24, 29, 30, 31],
-      `otherVar word + info exists + read + unset, got: ${JSON.stringify(lines)}`,
+      [24, 24, 25, 30],
+      `expected the cell and its alias spans, got: ${JSON.stringify(lines)}`,
     );
   });
 

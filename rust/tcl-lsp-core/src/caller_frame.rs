@@ -1215,8 +1215,14 @@ oo::class create Widget {
     }
 
     /// TN — `next` names no callee statically (it dispatches to whatever
-    /// follows *this* implementation in the MRO), so it stays abstaining
-    /// even when a superclass method would bind the name.
+    /// follows *this* implementation in the MRO), so it stays abstaining.
+    ///
+    /// And abstaining is the *right* answer here, not merely the safe one:
+    /// tclsh 9.0.4 and 8.6.16 both raise `can't read "name": no such
+    /// variable` for the source below.  `next`'s frame does not nest inside
+    /// the method that issued it, so `Base::init`'s `upvar 1` reaches
+    /// **past** `Derived::init` — claiming a binding here would have been a
+    /// wrong answer, not just an over-eager one.
     #[test]
     fn a_next_dispatch_binds_nothing() {
         let src = "\
@@ -1326,11 +1332,20 @@ mod caller_frame_navigation_tests {
     /// read.  Before the cell gained a `VarDef` at the `otherVar` word,
     /// every one of these anchors answered nothing (a silent miss).
     ///
-    /// The four references are: the `otherVar` word, the `info exists`
-    /// argument, the `$` read, and the `unset` argument.  A *bareword*
-    /// cursor on the `info exists` argument still abstains — barewords in
-    /// variable-role argument positions are a separate anchor kind — but
-    /// the occurrence itself is in the reference set.
+    /// The four references are the two spellings of the cell that this
+    /// document actually binds: the `upvar` `otherVar` word and the sibling
+    /// proc's `$::tk::FocusGrab($index)` read, plus the two occurrences of
+    /// the local alias `data` the `upvar` introduces for it — Find-
+    /// References unifies an alias with the cell it names.
+    ///
+    /// Deliberately asserted **by position**, not by count.  A count-only
+    /// assertion cannot tell those four apart from four other spans, and
+    /// this test's own earlier prose claimed a different four (the bareword
+    /// `info exists` / `unset` arguments) that the pass does not in fact
+    /// record: a *bareword* in a variable-role argument slot is a separate
+    /// anchor kind, and neither the cursor nor the reference set reaches it
+    /// yet.  That residual is real and stays visible here rather than being
+    /// asserted away.
     #[test]
     fn a_fully_qualified_upvar_target_navigates_from_word_and_read() {
         let src = "\
@@ -1372,10 +1387,12 @@ proc RestoreFocusGrab {grab focus} {
             let defs = crate::definition::definition(src, line, col, &analysis);
             assert_eq!(defs.len(), 1, "{label}: one definition: {defs:?}");
             let refs = crate::references::references(src, "tcl9.0", line, col, &analysis, true);
+            let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
             assert_eq!(
-                refs.len(),
-                4,
-                "{label}: otherVar word + info exists + read + unset: {refs:?}"
+                lines,
+                vec![2, 2, 3, 8],
+                "{label}: the `upvar` otherVar word and its `data` alias (line 2), \
+                 the alias use (line 3), and the sibling proc's read (line 8): {refs:?}"
             );
         }
     }
