@@ -834,6 +834,7 @@ suite("Semantic Tokens", () => {
       await setTestContent(editor, originalContent);
     }
   });
+
   // Issue #1185: a command head's grammar follows its *effective command
   // identity*, not its spelling — asserted end-to-end through the editor
   // client on the decoded token stream, not just the server's encoder.
