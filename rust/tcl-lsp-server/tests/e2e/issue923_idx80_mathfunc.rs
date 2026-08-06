@@ -334,5 +334,5 @@ fn cross_file_resolution_on_clears_a_plain_proc_w123_and_its_quick_fix() {
         "the diagnostic is suppressed, so its quick-fix must be too: {at_call:?}",
     );
     let at_unknown = action_titles(&lsp.code_actions(&caller, caret(1, 4), json!([])));
-    assert!(has_replace_fix(&at_unknown), "TP control: {at_unknown:?}",);
+    assert!(has_replace_fix(&at_unknown), "TP control: {at_unknown:?}");
 }
