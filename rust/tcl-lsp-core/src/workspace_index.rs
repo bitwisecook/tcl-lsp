@@ -616,6 +616,36 @@ pub struct WorkspaceSource {
     /// namespace (M9), so the sourced document's definitions re-home under
     /// this namespace — see [`WorkspaceIndex::source_seed_map`].
     pub site_namespace: String,
+    /// Span of the innermost proc/class body containing the `source`
+    /// statement; `None` at load level.  See
+    /// [`WorkspaceGlobImport::enclosing_body`] — the same execution-order
+    /// fact, needed here so a cross-document interpreter-state question
+    /// ("had this statement already run when the child was loaded?") applies
+    /// the identical [`tcl_compiler::analyser::indirection::in_effect_within`]
+    /// rule the single-document tier does (issue #1253).
+    pub enclosing_body: Option<Span>,
+}
+
+/// One unconditional `package prefer latest` recorded in the index.
+///
+/// `package prefer` latches **interpreter-global** state, so a raise in a file
+/// that runs before this one really does change this one's version selection.
+/// Which file runs first is not knowable in general — but along the `source`
+/// graph it is: a file that `source`s another runs the sourcing statement
+/// before the sourced file loads at all.  See
+/// [`WorkspaceIndex::source_ancestor_prefers_latest`] (issue #1253).
+///
+/// Conditional raises (inside `if` / `catch` / `try`) are not recorded at all:
+/// they may not run, and the abstention is toward the interpreter default.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspacePackagePrefer {
+    /// Document containing the `package prefer latest` statement.
+    pub uri: String,
+    /// Byte offset of the `package` command word in `uri`'s source.
+    pub at: u32,
+    /// Span of the innermost proc/class body containing the raise; `None` at
+    /// load level.
+    pub enclosing_body: Option<Span>,
 }
 
 /// One `package require NAME` declaration recorded in the index.
@@ -933,6 +963,7 @@ struct DocumentRecords {
     invocations: Vec<WorkspaceInvocation>,
     sources: Vec<WorkspaceSource>,
     package_requires: Vec<WorkspacePackageRequire>,
+    package_prefers: Vec<WorkspacePackagePrefer>,
     command_links: Vec<WorkspaceCommandLink>,
     glob_imports: Vec<WorkspaceGlobImport>,
     namespace_exports: Vec<WorkspaceNamespaceExport>,
@@ -962,6 +993,7 @@ impl DocumentRecords {
             invocations,
             sources,
             package_requires,
+            package_prefers,
             command_links,
             glob_imports,
             namespace_exports,
@@ -978,6 +1010,7 @@ impl DocumentRecords {
         invocations.clear();
         sources.clear();
         package_requires.clear();
+        package_prefers.clear();
         command_links.clear();
         glob_imports.clear();
         namespace_exports.clear();
@@ -1154,12 +1187,28 @@ impl DocumentRecords {
                 site_namespace: target.site_namespace.clone(),
                 range: target.range,
                 is_literal: target.is_literal,
+                enclosing_body: analysis.innermost_definition_body_span(target.range.start()),
             });
         }
         for pr in &analysis.package_requires {
             self.package_requires.push(WorkspacePackageRequire {
                 uri: uri.to_owned(),
                 name: pr.name.clone(),
+            });
+        }
+        // Only the unconditional raises: a `package prefer latest` inside an
+        // `if` / `catch` / `try` may not run, and the cross-document tier
+        // abstains toward the interpreter default exactly as the
+        // single-document one does (issue #1253).
+        for prefer in analysis
+            .package_prefer_latest
+            .iter()
+            .filter(|p| !p.conditional)
+        {
+            self.package_prefers.push(WorkspacePackagePrefer {
+                uri: uri.to_owned(),
+                at: prefer.range.start(),
+                enclosing_body: analysis.innermost_definition_body_span(prefer.range.start()),
             });
         }
         for exp in &analysis.namespace_exports {
@@ -1862,6 +1911,11 @@ impl WorkspaceIndex {
         self.docs.iter().flat_map(|doc| doc.package_requires.iter())
     }
 
+    /// Every indexed unconditional `package prefer latest`.
+    pub fn package_prefers(&self) -> impl Iterator<Item = &WorkspacePackagePrefer> {
+        self.docs.iter().flat_map(|doc| doc.package_prefers.iter())
+    }
+
     /// The package names `uri` `package require`s, de-duplicated. Used to seed
     /// the workspace W120 refinement from an explicitly configured project
     /// entry file.
@@ -1907,6 +1961,52 @@ impl WorkspaceIndex {
                 .push(pr.name.clone());
         }
         crate::source_graph::ancestor_requires(target_uri, &edges, &requires)
+    }
+
+    /// Whether the interpreter-global `package prefer latest` latch is already
+    /// raised by the time `target_uri` is loaded, because a document that
+    /// (transitively) `source`s it raised it first (issue #1253).
+    ///
+    /// `resolve` maps a literal `source` path written in a document to the
+    /// child document's URI, exactly as for
+    /// [`Self::source_ancestor_package_requires`]; a `None` return drops that
+    /// edge, and only literal `source` targets are followed.
+    ///
+    /// The state is interpreter-global, so this is genuinely *this* document's
+    /// answer — it just is not a fact about this document's own text.  The
+    /// order rule and the two ways the latch can already be up live in
+    /// [`crate::source_graph::ancestor_prefer_latest_raised`].
+    #[must_use]
+    pub fn source_ancestor_prefers_latest(
+        &self,
+        target_uri: &str,
+        resolve: impl Fn(&str, &str) -> Option<String>,
+    ) -> bool {
+        // Nothing raises the latch anywhere: skip building the graph. This is
+        // the overwhelmingly common case (the default is `stable` and most
+        // workspaces never write `package prefer` at all), and it keeps a
+        // per-`package require` query free.
+        if self.package_prefers().next().is_none() {
+            return false;
+        }
+        let edges: Vec<crate::source_graph::SourceEdge> = self
+            .sources()
+            .filter(|s| s.is_literal)
+            .filter_map(|s| {
+                resolve(&s.uri, &s.raw_path).map(|child| crate::source_graph::SourceEdge {
+                    parent: s.uri.clone(),
+                    child,
+                    at: s.range.start(),
+                    enclosing_body: s.enclosing_body,
+                })
+            })
+            .collect();
+        let mut raises: std::collections::HashMap<String, Vec<u32>> =
+            std::collections::HashMap::new();
+        for p in self.package_prefers() {
+            raises.entry(p.uri.clone()).or_default().push(p.at);
+        }
+        crate::source_graph::ancestor_prefer_latest_raised(target_uri, &edges, &raises)
     }
 
     /// The **source-site namespace seeds** per sourced document (M9): for
@@ -7069,5 +7169,60 @@ mod tests {
                 .source_ancestor_package_requires("file:///proj/util.tcl", resolve)
                 .is_empty()
         );
+    }
+
+    /// Issue #1253 item 1 — `package prefer latest` is interpreter-global, and
+    /// along the `source` graph "ran first" is a static fact.
+    ///
+    /// tclsh-proof (8.6.14), with `lib.tcl` holding `puts [package prefer]`:
+    /// `app.tcl` written as `package prefer latest; source lib.tcl` prints
+    /// `latest`, and as `source lib.tcl; package prefer latest` prints
+    /// `stable`.
+    #[test]
+    fn source_ancestor_prefer_latest_crosses_documents() {
+        let resolve = |parent: &str, raw: &str| -> Option<String> {
+            let dir = parent.rsplit_once('/').map(|(d, _)| d)?;
+            Some(format!("{dir}/{raw}"))
+        };
+        let lib = analyse("package require w\n");
+
+        // TP — the raise runs before the `source`.
+        let app = analyse("package prefer latest\nsource lib.tcl\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///proj/app.tcl", &app),
+            ("file:///proj/lib.tcl", &lib),
+        ]);
+        assert!(index.source_ancestor_prefers_latest("file:///proj/lib.tcl", resolve));
+        // …and the entry file itself inherits nothing (its own raise is the
+        // position-sensitive single-document question).
+        assert!(!index.source_ancestor_prefers_latest("file:///proj/app.tcl", resolve));
+
+        // FP guard — the raise runs after the `source`.
+        let app = analyse("source lib.tcl\npackage prefer latest\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///proj/app.tcl", &app),
+            ("file:///proj/lib.tcl", &lib),
+        ]);
+        assert!(!index.source_ancestor_prefers_latest("file:///proj/lib.tcl", resolve));
+
+        // FP guard — a conditional raise is never recorded at all.
+        let app = analyse("if {$::c} { package prefer latest }\nsource lib.tcl\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///proj/app.tcl", &app),
+            ("file:///proj/lib.tcl", &lib),
+        ]);
+        assert!(index.package_prefers().next().is_none());
+        assert!(!index.source_ancestor_prefers_latest("file:///proj/lib.tcl", resolve));
+    }
+
+    /// The prefer rows drop with their document, like every other table.
+    #[test]
+    fn package_prefers_are_dropped_with_their_document() {
+        let a = analyse("package prefer latest\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        assert_eq!(index.package_prefers().count(), 1);
+        index.remove_document("file:///a.tcl");
+        assert!(index.package_prefers().next().is_none());
     }
 }
