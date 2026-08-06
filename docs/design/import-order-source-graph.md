@@ -163,11 +163,12 @@ regression that forced it). Adding a graph reachability query per event would
 put it straight back. The shape that fits is a **precomputed order** built
 once per `generation()`:
 
-- resolve every literal `source` edge once → `O(sources)` with the server's
-  resolver;
-- topologically order the DAG → `O(V + E)`;
-- store, per document, its position and the offsets at which each child is
-  entered, so the three cases in §3.2 are `O(1)` lookups.
+- resolve every `source` edge the host can place once → `O(sources)` with the
+  host's resolver;
+- walk each document to its root once → `O(V · depth)`, storing its root-ward
+  path of `source`-statement positions;
+- compare two events by walking those two paths — `O(depth)`, and depth is the
+  `source` nesting of a real project.
 
 The one thing that cannot be precomputed cheaply is the *server-supplied
 resolver*: `WorkspaceIndex` deliberately holds no filesystem knowledge, so
@@ -185,7 +186,10 @@ through every caller of `resolve_wildcard_import` and every derived view that
 builds a `WildcardImportIndex` — the order is consulted *inside* the per-call
 import walk, not at its entry point. A `fn` pointer rather than a boxed
 closure keeps the index `Debug + Clone + Default` with no manual impls, and
-the resolver is a pure function of `(parent uri, raw path)` in every host.
+the resolver is a pure function of `(parent uri, raw path, is_literal)` in
+every host — `WorkspaceIndex::SourceResolver`, the signature `source_seed_map`
+already took, so one host resolver serves both and the order inherits the M9
+tier's statically-foldable computed-path half for free.
 
 An index with **no** resolver installed derives an empty order, and every
 tier then behaves byte-identically to the pre-#1104-item-3 code. That is the

@@ -3238,6 +3238,11 @@ fn live_import_at(
     // Only the winning source's own installs order against its removals: an
     // import of the same name from a *different* namespace is a different
     // edge, and letting it out-date this edge's forget would resurrect it.
+    // The install carries its enclosing body, the removals do not — not an
+    // oversight: the fold reads a body span only off the point it is ranking
+    // *against* (`ran_after(removal, install)` asks whether the removal had run
+    // at the install), and a removal is never that point. Computing one per
+    // removal would be a body scan that decides nothing.
     let install_point = |at: u32| in_document_point(analysis, at);
     let removal_point = |at: u32| RunPoint {
         uri: IN_DOCUMENT_URI,
@@ -4817,6 +4822,44 @@ mod tests {
         assert!(
             proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX).is_none(),
             "a `-clear` after any export leaves nothing exported"
+        );
+    }
+
+    /// TP (both tiers agree): a `namespace forget` at the file's **load
+    /// level** runs before a body-local `namespace import`, which then
+    /// installs the alias — so a call in that body still resolves.
+    ///
+    /// The in-document twin of
+    /// `workspace_index::tests::a_body_local_exact_import_survives_a_top_level_forget`.
+    /// Ranking the two by raw offset said the forget "came later" and dropped
+    /// the alias; the load-order rule the shared fold now uses reads a removal
+    /// written outside the import's own body as having run before it, which is
+    /// what actually happens — the whole file loads, forget included, before
+    /// any body runs. Oracle (8.6.14 / 9.0.4): with `proc ::dst::setup {}
+    /// {namespace import ::src::* ; p}` and a top-level `namespace eval ::dst
+    /// {namespace forget ::src::p}` below it, `::dst::setup` returns `P` — the
+    /// forget ran during load, found nothing imported, and the import inside
+    /// the body then installed the alias the call reaches.
+    #[test]
+    fn a_load_level_forget_before_a_body_local_import_revokes_nothing() {
+        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    proc setup {} { namespace import ::src::* ; p }\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\n";
+        let analysis = analyse(src);
+        let call =
+            u32::try_from(src.rfind("; p }").expect("call in source") + 2).expect("tiny source");
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", call);
+        assert!(
+            hit.is_some_and(|p| p.qualified_name == "::src::p"),
+            "the body-local import runs after the load-level forget and reinstalls: {hit:?}"
+        );
+        // FN guard — a forget written *inside that same body*, after the
+        // import, is an ordinary later statement and does revoke.
+        let inner = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    proc setup {} { namespace import ::src::* ; namespace forget ::src::p ; p }\n}\n";
+        let analysis = analyse(inner);
+        let call =
+            u32::try_from(inner.rfind("; p }").expect("call in source") + 2).expect("tiny source");
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "dst", "p", call).is_none(),
+            "a forget in the same body before the call does revoke"
         );
     }
 
