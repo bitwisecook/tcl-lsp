@@ -12224,6 +12224,11 @@ impl LanguageServer for Backend {
         let formatting = self.resolved_formatting(&params.text_document.uri).await;
         let mut config = core_formatting::FormatterConfig {
             lexer_config: tcl_lexer::LexerConfig::for_dialect(&doc.dialect),
+            dialect: Some(doc.dialect.clone()),
+            // Version-range-aware rewrites (#1257): the document targets this
+            // release but may be run on a later one, so a spelling is only
+            // rewritten when it means the same thing across the whole range.
+            target_range: tcl_registry::version_range::forward_range(&doc.dialect),
             ..core_formatting::FormatterConfig::default()
         };
         if let Some(obj) = formatting.as_object() {
@@ -15230,6 +15235,11 @@ fn formatter_config_from(
         // `if {expr}{body}` (`}{` valid in TMM) is parsed and re-emitted as
         // `} {` rather than left unchanged by the stock-Tcl lexer.
         lexer_config: tcl_lexer::LexerConfig::for_dialect(dialect),
+        dialect: Some(dialect.to_owned()),
+        // Version-range-aware rewrites (#1257): the document targets this
+        // release but may be run on a later one, so a spelling is only
+        // rewritten when it means the same thing across the whole range.
+        target_range: tcl_registry::version_range::forward_range(dialect),
         ..Default::default()
     };
     if let Some(obj) = formatting.as_object() {

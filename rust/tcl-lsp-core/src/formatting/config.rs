@@ -31,6 +31,7 @@
 //! knobs affect a plain format pass.
 
 use tcl_lexer::LexerConfig;
+use tcl_registry::prelude::DialectSet;
 
 /// Where to place opening braces.  Only K&R is supported (the F5
 /// style-guide default); the enum exists so the field can grow.
@@ -227,6 +228,26 @@ pub struct FormatterConfig {
     /// ([`LexerConfig::default`]); set to [`LexerConfig::for_dialect`] to format
     /// a specific dialect.
     pub lexer_config: LexerConfig,
+    /// The document's resolved dialect name (`"tcl8.6"`, `"f5-irules"`, …),
+    /// or `None` when the caller does not know it.
+    ///
+    /// The formatter's entry points take a `&CommandRegistry`, which is
+    /// already dialect-specific, so the *table contents* were always right —
+    /// but nothing said which release, so no rewrite could reason about
+    /// spellings that differ across versions (issue #1257).  Set together
+    /// with [`Self::target_range`].
+    pub dialect: Option<String>,
+    /// The **range of releases** the document must stay correct across.
+    ///
+    /// Empty (the default) means "only the registry handed to the formatter"
+    /// — the pre-existing behaviour.  Set it to
+    /// [`tcl_registry::version_range::forward_range`] of the document's
+    /// dialect to make the version-range-aware rewrites apply: an
+    /// abbreviation is then expanded only when it resolves to the *same*
+    /// keyword in every release of the range, so a prefix that a later Tcl
+    /// makes ambiguous is left alone rather than expanded into one of its
+    /// candidates.
+    pub target_range: DialectSet,
 }
 
 impl Default for FormatterConfig {
@@ -260,6 +281,8 @@ impl Default for FormatterConfig {
             expand_abbreviations: true,
             boolean_form: BooleanForm::TrueFalse,
             lexer_config: LexerConfig::default(),
+            dialect: None,
+            target_range: DialectSet::empty(),
         }
     }
 }
