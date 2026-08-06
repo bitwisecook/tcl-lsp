@@ -40,7 +40,7 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::Span;
 
 use crate::expr_ast::ExprNode;
@@ -355,9 +355,30 @@ impl Function {
     }
 
     /// Compute the predecessor map: block → set of predecessor blocks.
+    ///
+    /// O(V+E), and it allocates — a caller that needs the map more than once
+    /// should build it once and pass it down rather than re-deriving it
+    /// (issue #1251).
     #[must_use]
     pub fn predecessors(&self) -> HashMap<BlockId, HashSet<BlockId>> {
-        let mut preds: HashMap<BlockId, HashSet<BlockId>> = HashMap::new();
+        self.predecessor_map()
+    }
+
+    /// [`Self::predecessors`] keyed with `rustc-hash`, for the CFG-derived
+    /// indices that are built per analysis run: a [`BlockId`] is a dense `u32`
+    /// and needs no randomised hashing.
+    #[must_use]
+    pub fn predecessors_fx(&self) -> FxHashMap<BlockId, FxHashSet<BlockId>> {
+        self.predecessor_map()
+    }
+
+    /// The shared predecessor-map build, generic over the hasher so
+    /// [`Self::predecessors`] and [`Self::predecessors_fx`] stay one
+    /// implementation.
+    fn predecessor_map<S: std::hash::BuildHasher + Default>(
+        &self,
+    ) -> HashMap<BlockId, HashSet<BlockId, S>, S> {
+        let mut preds: HashMap<BlockId, HashSet<BlockId, S>, S> = HashMap::default();
         for id in self.blocks.keys() {
             preds.entry(*id).or_default();
         }
