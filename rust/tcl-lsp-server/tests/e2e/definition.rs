@@ -823,3 +823,163 @@ fn opt_proc_call_site_resolves_to_its_declaration_end_to_end() {
         "must resolve to the tcl::OptProc declaration (line 1): {locs:?}"
     );
 }
+
+// -- the `source` graph orders what the file boundary did not (issue #1104
+//    item 3, #1116 item 6) --
+//
+// Sourcing a file inlines its whole body at the `source` statement's
+// position, so the DFS of the `source` forest *is* the run order and an
+// import in one file is genuinely ordered against an export in another.
+// Oracle, byte-identical on tclsh 8.6.14 and 9.0.4, with
+//
+//   # mod.tcl: namespace eval Lib { proc bar {} {return 1} }
+//   # exp.tcl: namespace eval Lib { namespace export bar }
+//   # imp.tcl: namespace import ::Lib::*
+//
+//   # app.tcl: source mod.tcl; source exp.tcl; source imp.tcl
+//   bar   -> 1
+//   # app.tcl: source mod.tcl; source imp.tcl; source exp.tcl
+//   bar   -> invalid command name "bar"
+
+/// The four documents the source-order end-to-end tests share, under one
+/// directory so the relative `source` literals resolve against each other.
+fn source_order_uris(tag: &str) -> (String, String, String, String) {
+    let dir = format!("file:///e2e/order_{}_{tag}", std::process::id());
+    (
+        format!("{dir}/mod.tcl"),
+        format!("{dir}/exp.tcl"),
+        format!("{dir}/imp.tcl"),
+        format!("{dir}/app.tcl"),
+    )
+}
+
+#[test]
+fn an_export_sourced_before_the_import_resolves_end_to_end() {
+    // TP: the export's file is sourced first, so the import really did see
+    // it and the bare call jumps into mod.tcl.
+    let mut lsp = Lsp::tcl();
+    let (mod_uri, exp_uri, imp_uri, app_uri) = source_order_uris("tp");
+    lsp.open_ready(
+        &mod_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n}\n",
+    );
+    lsp.open_ready(
+        &exp_uri,
+        "namespace eval Lib {\n    namespace export bar\n}\n",
+    );
+    lsp.open_ready(&imp_uri, "namespace import ::Lib::*\n");
+    lsp.open_ready(
+        &app_uri,
+        "source mod.tcl\nsource exp.tcl\nsource imp.tcl\nbar\n",
+    );
+    let locs = locations(&lsp.definition(&app_uri, 3, 0));
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(locs[0].uri, mod_uri, "must jump into mod.tcl");
+    assert_eq!(start_line(&locs[0]), 1, "proc bar is declared on line 1");
+}
+
+#[test]
+fn an_export_sourced_after_the_import_does_not_resolve_end_to_end() {
+    // FP guard (CRITICAL): identical documents, only app.tcl's two `source`
+    // lines swapped. The import now runs before `::Lib` has exported
+    // anything, so real Tcl installs no alias and the bare call is an
+    // `invalid command name` — go-to-definition must find nothing.
+    let mut lsp = Lsp::tcl();
+    let (mod_uri, exp_uri, imp_uri, app_uri) = source_order_uris("fp");
+    lsp.open_ready(
+        &mod_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n}\n",
+    );
+    lsp.open_ready(
+        &exp_uri,
+        "namespace eval Lib {\n    namespace export bar\n}\n",
+    );
+    lsp.open_ready(&imp_uri, "namespace import ::Lib::*\n");
+    lsp.open_ready(
+        &app_uri,
+        "source mod.tcl\nsource imp.tcl\nsource exp.tcl\nbar\n",
+    );
+    let result = lsp.definition(&app_uri, 3, 0);
+    assert!(
+        locations(&result).is_empty(),
+        "an export sourced after the import cannot apply retroactively: {result:?}"
+    );
+}
+
+#[test]
+fn find_references_agrees_with_the_source_order() {
+    // The two tiers must agree on the LSP surfaces, not only in the
+    // resolver: with the export sourced first, `proc bar`'s references
+    // include the bare call in app.tcl; with it sourced last, they do not.
+    let mut lsp = Lsp::tcl();
+    let (mod_uri, exp_uri, imp_uri, app_uri) = source_order_uris("refs");
+    lsp.open_ready(
+        &mod_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n}\n",
+    );
+    lsp.open_ready(
+        &exp_uri,
+        "namespace eval Lib {\n    namespace export bar\n}\n",
+    );
+    lsp.open_ready(&imp_uri, "namespace import ::Lib::*\n");
+    lsp.open_ready(
+        &app_uri,
+        "source mod.tcl\nsource exp.tcl\nsource imp.tcl\nbar\n",
+    );
+    let refs = locations(&lsp.references(&mod_uri, 1, 9, false));
+    assert!(
+        refs.iter().any(|l| l.uri == app_uri),
+        "the bare call reached through the sourced import is a reference: {refs:?}"
+    );
+
+    let mut lsp = Lsp::tcl();
+    let (mod_uri, exp_uri, imp_uri, app_uri) = source_order_uris("refs_fp");
+    lsp.open_ready(
+        &mod_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n}\n",
+    );
+    lsp.open_ready(
+        &exp_uri,
+        "namespace eval Lib {\n    namespace export bar\n}\n",
+    );
+    lsp.open_ready(&imp_uri, "namespace import ::Lib::*\n");
+    lsp.open_ready(
+        &app_uri,
+        "source mod.tcl\nsource imp.tcl\nsource exp.tcl\nbar\n",
+    );
+    let refs = locations(&lsp.references(&mod_uri, 1, 9, false));
+    assert!(
+        !refs.iter().any(|l| l.uri == app_uri),
+        "a call the import never bound is not a reference: {refs:?}"
+    );
+}
+
+#[test]
+fn a_computed_source_path_keeps_the_pre_graph_abstention_end_to_end() {
+    // TN for the deliberate abstention: `source $dir/exp.tcl` names no
+    // document statically, so no edge is built and the export goes back to
+    // being unrankable — which keeps answering, the pre-#1104-item-3
+    // behaviour. Same document text as the FP guard above otherwise.
+    let mut lsp = Lsp::tcl();
+    let (mod_uri, exp_uri, imp_uri, app_uri) = source_order_uris("computed");
+    lsp.open_ready(
+        &mod_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n}\n",
+    );
+    lsp.open_ready(
+        &exp_uri,
+        "namespace eval Lib {\n    namespace export bar\n}\n",
+    );
+    lsp.open_ready(&imp_uri, "namespace import ::Lib::*\n");
+    lsp.open_ready(
+        &app_uri,
+        "set dir /nowhere\nsource mod.tcl\nsource imp.tcl\nsource $dir/exp.tcl\nbar\n",
+    );
+    let locs = locations(&lsp.definition(&app_uri, 4, 0));
+    assert_eq!(
+        locs.len(),
+        1,
+        "an unprovable `source` path must not be given an order: {locs:?}"
+    );
+    assert_eq!(locs[0].uri, mod_uri);
+}

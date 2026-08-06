@@ -16797,12 +16797,15 @@ fn resolve_source_uri(parent_uri: &str, raw_path: &str) -> Option<String> {
 /// The index holds no URI ↔ filesystem-path mapping of its own, so the
 /// `source`-graph load order its import-lifecycle gates rank cross-document
 /// events with ([`tcl_lsp_core::source_graph::RunOrder`], issue #1104 item 3)
-/// can only be built once the host hands it [`resolve_source_uri`]. Every
+/// can only be built once the host hands it [`resolve_source_edge`] — the same
+/// resolver the M9 re-homing pass uses, so its statically-foldable
+/// computed-path tier (`[file join [file dirname [info script]] x.tcl]`, the
+/// idiom real multi-file projects write) sequences the order too. Every
 /// index this server builds goes through here so none of them can silently
 /// end up with an empty order and answer a different question from the rest.
 fn new_workspace_index() -> core_workspace_index::WorkspaceIndex {
     let mut index = core_workspace_index::WorkspaceIndex::new();
-    index.set_source_resolver(resolve_source_uri);
+    index.set_source_resolver(resolve_source_edge);
     index
 }
 

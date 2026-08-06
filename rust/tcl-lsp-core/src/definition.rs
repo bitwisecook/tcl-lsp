@@ -4768,6 +4768,58 @@ mod tests {
         );
     }
 
+    /// FN guard pinning #1104's dynamic-export note — the export-side twin of
+    /// [`a_dynamic_forget_pattern_revokes_nothing`], and the same sign
+    /// argument.
+    ///
+    /// `namespace export $pat` really does export whatever `$pat` expands to,
+    /// but nothing static says what that is and the word is a *glob*. The
+    /// scanner therefore records no pattern at all
+    /// (`Analyser::handle_namespace_export` skips a word containing `$` or
+    /// `[`), so the import takes a snapshot that does not cover the name and
+    /// the resolver abstains. That is the safe direction here precisely
+    /// because the sign is inverted from the forget case: a *guessed export*
+    /// can only add names an import never took, inventing a definition the
+    /// program has no path to.
+    ///
+    /// The abstention costs a real answer, which is why it is pinned rather
+    /// than merely documented — a future change that starts guessing here
+    /// will fail this test, not silently start resolving.
+    #[test]
+    fn a_dynamic_export_pattern_exports_nothing() {
+        let dynamic = "set pat p\nnamespace eval src {\n    proc p {} { return P }\n    namespace export $pat\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let analysis = analyse(dynamic);
+        let hit = proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX);
+        assert!(
+            hit.is_none(),
+            "a dynamic export pattern must not be guessed into a covering export: {hit:?}"
+        );
+        // Control — the same source with the pattern written literally does
+        // export, so the difference is the substitution and nothing else.
+        let literal = dynamic.replace("namespace export $pat", "namespace export p");
+        let analysis = analyse(&literal);
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX)
+                .is_some_and(|p| p.qualified_name == "::src::p"),
+            "the literal spelling of the same export does resolve"
+        );
+    }
+
+    /// TN for the interaction the dynamic-export abstention has with a
+    /// tombstone (#1104's minor note): a `namespace export -clear` written
+    /// after a dynamic pattern leaves the snapshot empty either way, so the
+    /// unrecorded pattern costs nothing there — the abstention is only ever
+    /// visible *before* a clear, which the test above covers.
+    #[test]
+    fn a_clear_after_a_dynamic_export_is_still_empty() {
+        let src = "set pat p\nnamespace eval src {\n    proc p {} { return P }\n    namespace export $pat\n    namespace export -clear\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let analysis = analyse(src);
+        assert!(
+            proc_visible_via_wildcard_import(&analysis, "dst", "p", u32::MAX).is_none(),
+            "a `-clear` after any export leaves nothing exported"
+        );
+    }
+
     #[test]
     fn a_simple_forget_pattern_removes_the_alias_too() {
         // TN — `Tcl_ForgetImport`'s unqualified branch: the pattern is matched

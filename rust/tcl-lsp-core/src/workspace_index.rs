@@ -1517,7 +1517,7 @@ pub struct WorkspaceIndex {
     settled_invocations: [Derived<SettledTargets>; 2],
     /// The `source`-path → document-URI resolver, when the host has installed
     /// one — see [`WorkspaceIndex::set_source_resolver`].
-    source_resolver: Option<fn(&str, &str) -> Option<String>>,
+    source_resolver: Option<fn(&str, &str, bool) -> Option<String>>,
     /// The `source`-graph load order derived from it — see
     /// [`WorkspaceIndex::run_order`].
     run_order: Derived<crate::source_graph::RunOrder>,
@@ -1735,13 +1735,18 @@ impl WorkspaceIndex {
     /// [`Self::generation`].
     ///
     /// A plain `fn` pointer rather than a boxed closure: the resolver is a
-    /// pure function of `(parent uri, raw path)` in every host, and a `fn`
-    /// keeps the index `Debug + Clone + Default` with no manual impls.
+    /// pure function of `(parent uri, raw path, is_literal)` in every host, and
+    /// a `fn` keeps the index `Debug + Clone + Default` with no manual impls.
+    /// The signature is [`Self::source_seed_map`]'s, so one host resolver
+    /// serves both — including its statically-foldable computed-path tier
+    /// (`[file join [file dirname [info script]] x.tcl]`), which is as provable
+    /// as a literal and is the idiom real multi-file projects actually write.
+    /// A path the host cannot prove returns `None` and sequences nothing.
     ///
     /// **Without a resolver the order is empty**, and both tiers behave
     /// exactly as they did before the `source` graph existed — every
     /// cross-document event unrankable, every same-document one ordered.
-    pub fn set_source_resolver(&mut self, resolve: fn(&str, &str) -> Option<String>) {
+    pub fn set_source_resolver(&mut self, resolve: fn(&str, &str, bool) -> Option<String>) {
         self.source_resolver = Some(resolve);
         self.run_order = Derived::default();
     }
@@ -1750,9 +1755,9 @@ impl WorkspaceIndex {
     /// most once per [`Self::generation`].
     ///
     /// Empty when no resolver is installed (see [`Self::set_source_resolver`])
-    /// or when no `source` statement resolves. Only **literal** targets become
-    /// edges: `source $dir/x.tcl` names no document statically and sequences
-    /// nothing.
+    /// or when no `source` statement resolves. A target the resolver cannot
+    /// place — `source $dir/x.tcl` with `$dir` unknown — names no document
+    /// statically and sequences nothing.
     fn run_order(&self) -> Arc<crate::source_graph::RunOrder> {
         self.run_order.get_or_build(|| {
             let Some(resolve) = self.source_resolver else {
@@ -1760,13 +1765,14 @@ impl WorkspaceIndex {
             };
             let edges: Vec<crate::source_graph::SourceEdge> = self
                 .sources()
-                .filter(|s| s.is_literal)
                 .filter_map(|s| {
-                    resolve(&s.uri, &s.raw_path).map(|child| crate::source_graph::SourceEdge {
-                        parent: s.uri.clone(),
-                        child,
-                        at: s.range.start(),
-                        enclosing_body: s.enclosing_body,
+                    resolve(&s.uri, &s.raw_path, s.is_literal).map(|child| {
+                        crate::source_graph::SourceEdge {
+                            parent: s.uri.clone(),
+                            child,
+                            at: s.range.start(),
+                            enclosing_body: s.enclosing_body,
+                        }
                     })
                 })
                 .collect();
@@ -5448,10 +5454,18 @@ mod tests {
 
     /// The server's URI resolver, in miniature: a literal path resolved
     /// against the sourcing document's directory.
-    fn test_resolve(parent_uri: &str, raw_path: &str) -> Option<String> {
+    fn test_resolve(parent_uri: &str, raw_path: &str, is_literal: bool) -> Option<String> {
         let parent = parent_uri.strip_prefix("file://")?;
         let dir = std::path::Path::new(parent).parent()?;
-        let child = crate::source_graph::resolve_under(dir, raw_path);
+        // The server's two tiers, in miniature: a literal resolves directly, a
+        // computed path only when it folds statically — anything else names no
+        // document and sequences nothing.
+        let raw = if is_literal {
+            raw_path.to_owned()
+        } else {
+            tcl_compiler::auto_path_eval::evaluate_auto_path_expr(raw_path, Some(parent))?
+        };
+        let child = crate::source_graph::resolve_under(dir, &raw);
         Some(format!("file://{}", child.display()))
     }
 
@@ -5623,8 +5637,6 @@ mod tests {
             ("file:///p/imp.tcl", &imp),
             ("file:///p/app.tcl", &app),
         ]);
-        let src = std::fs::read_to_string("/dev/null").ok();
-        let _ = src;
         // A call written after the forget no longer resolves…
         let after = index.resolve_wildcard_import(
             "helper",
@@ -5635,7 +5647,8 @@ mod tests {
             after.is_none(),
             "a forget written after the `source` that installed the alias must revoke it: {after:?}",
         );
-        // …while one written before it still does.
+        // …and a call written *above* every `source` statement has no alias
+        // yet either — the install has not run at that point.
         assert_eq!(
             index
                 .resolve_wildcard_import(
@@ -5645,7 +5658,87 @@ mod tests {
                 )
                 .as_deref(),
             None,
-            "and a call above every `source` statement has no alias yet either",
+        );
+        // TP: with the forget removed, the same call site after the sources
+        // does resolve — so the assertion above is the forget's doing and not
+        // an accident of the graph.
+        let app_no_forget = analyse("source mod.tcl\nsource exp.tcl\nsource imp.tcl\n");
+        let index = sourced_index([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app_no_forget),
+        ]);
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_at("file:///p/app.tcl", u32::MAX),
+                )
+                .as_deref(),
+            Some("::mymod::helper"),
+        );
+    }
+
+    #[test]
+    fn a_cross_file_import_conflict_is_decided_by_the_source_order() {
+        // TP (CRITICAL), issue #1116 item 6 — two imports of one name from
+        // different sources, in different files. Without an order neither
+        // conflicts and the later one silently installs; with one, the file
+        // sourced first owns the name and the second import raises `can't
+        // import command "helper": already exists` and installs nothing.
+        //
+        // Oracle (8.6.14 / 9.0.4), with the two importers in separate files
+        // sourced in this order:
+        //   namespace origin ::app::helper  ->  ::first::helper
+        let first = analyse(
+            "namespace eval ::first { proc helper {} { return F }\n namespace export helper }\n",
+        );
+        let second = analyse(
+            "namespace eval ::second { proc helper {} { return S }\n namespace export helper }\n",
+        );
+        let imp_a = analyse("namespace eval ::app { namespace import ::first::* }\n");
+        let imp_b = analyse("namespace eval ::app { namespace import ::second::* }\n");
+        let app =
+            analyse("source first.tcl\nsource second.tcl\nsource impa.tcl\nsource impb.tcl\n");
+        let docs = [
+            ("file:///p/first.tcl", &first),
+            ("file:///p/second.tcl", &second),
+            ("file:///p/impa.tcl", &imp_a),
+            ("file:///p/impb.tcl", &imp_b),
+            ("file:///p/app.tcl", &app),
+        ];
+        assert_eq!(
+            sourced_index(docs)
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_from("file:///p/caller.tcl"),
+                )
+                .as_deref(),
+            Some("::first::helper"),
+            "the import sourced first owns the name; the second conflicts and installs nothing",
+        );
+        // Swap the two `source` lines and the winner swaps with them.
+        let app =
+            analyse("source first.tcl\nsource second.tcl\nsource impb.tcl\nsource impa.tcl\n");
+        let docs = [
+            ("file:///p/first.tcl", &first),
+            ("file:///p/second.tcl", &second),
+            ("file:///p/impa.tcl", &imp_a),
+            ("file:///p/impb.tcl", &imp_b),
+            ("file:///p/app.tcl", &app),
+        ];
+        assert_eq!(
+            sourced_index(docs)
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_from("file:///p/caller.tcl"),
+                )
+                .as_deref(),
+            Some("::second::helper"),
         );
     }
 
