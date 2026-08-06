@@ -2018,7 +2018,20 @@ fn retract_named_members(
             continue;
         }
         let Some(removed) = side.table(class_def).remove(name) else {
-            class_def.retracted_members.push((name.clone(), side));
+            // Nothing local to remove: the cross-file stub shape.  The
+            // tombstone carries the *arrival* too when the retracting word was
+            // a move (issue #1167) — the stub has no `MethodDef` to re-key, so
+            // recording where the member goes is the only way the workspace
+            // join can put it there.  Its own arrival word is the synthetic
+            // declaration site, exactly as it is for a same-file move.
+            class_def
+                .retracted_members
+                .push(crate::analyser::types::MemberRetractionRecord {
+                    member: name.clone(),
+                    side,
+                    arrival: arrival.map(|(new_name, _)| new_name.clone()),
+                    arrival_span: arrival.map(|(_, tok)| tok.span),
+                });
             if let Some(tok) = tok {
                 class_def.definition_aborts.push(DefinitionAbort {
                     kind: DefinitionAbortKind::MissingMember,
@@ -2679,6 +2692,7 @@ fn extract_method_def(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::analyser::types::MemberRetractionRecord;
 
     /// The `TclOO` definition-body grammar the `apply_oo_subcommand` /
     /// `extract_method_def` helpers read their member argument layout from —
@@ -4124,7 +4138,7 @@ mod tests {
         assert!(
             !c.retracted_members
                 .iter()
-                .any(|(n, _)| n == "new" || n == "old"),
+                .any(|r| r.member == "new" || r.member == "old"),
             "a locally-declared retraction needs no tombstone: {:?}",
             c.retracted_members,
         );
@@ -4696,7 +4710,10 @@ mod tests {
         assert!(!has_w315(&r), "{:?}", w315_messages(&r));
         assert_eq!(
             r.all_classes["::C"].retracted_members,
-            vec![("m".to_string(), MemberSide::Instance)],
+            vec![MemberRetractionRecord::deletion(
+                "m".to_string(),
+                MemberSide::Instance
+            )],
         );
         assert!(r.all_classes["::C"].via_define);
     }
@@ -4939,11 +4956,17 @@ mod tests {
         );
         assert_eq!(
             r.all_classes["::C"].retracted_members,
-            vec![("m".to_string(), MemberSide::Instance)],
+            vec![MemberRetractionRecord::deletion(
+                "m".to_string(),
+                MemberSide::Instance
+            )],
         );
         assert_eq!(
             r.all_classes["::D"].retracted_members,
-            vec![("cm".to_string(), MemberSide::ClassObject)],
+            vec![MemberRetractionRecord::deletion(
+                "cm".to_string(),
+                MemberSide::ClassObject
+            )],
         );
     }
 
@@ -4959,8 +4982,19 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("oo::define ::C { renamemethod old new }", "tcl9.0");
         assert_eq!(
-            r.all_classes["::C"].retracted_members,
+            r.all_classes["::C"]
+                .retracted_members
+                .iter()
+                .map(|r| (r.member.clone(), r.side))
+                .collect::<Vec<_>>(),
             vec![("old".to_string(), MemberSide::Instance)],
+        );
+        // …and the arrival travels with it (issue #1167): the stub has no
+        // `MethodDef` to move, so the destination name is what lets the
+        // workspace join re-key the defining file's record.
+        assert_eq!(
+            r.all_classes["::C"].retracted_members[0].arrival.as_deref(),
+            Some("new"),
         );
     }
 

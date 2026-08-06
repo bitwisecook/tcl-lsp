@@ -219,6 +219,181 @@ pub fn names_a_dynamic_variable(word: &str) -> bool {
     tail.contains('$') || tail.contains('[')
 }
 
+/// Whether the variable-name word `word` — one
+/// [`names_a_dynamic_variable`] has already classified dynamic — **can spell**
+/// the fully-qualified cell `qualified_cell` (issue #1093).
+///
+/// The per-site provenance question the rename gate needs: "any dynamic
+/// variable word in the document" is a far blunter refusal than the language
+/// requires, because a word's *written* text already bounds the set of names
+/// it can produce.  A substitution can evaluate to anything, but the literal
+/// characters around it cannot change — so the word is a pattern, its
+/// substitutions are wildcards, and a cell no spelling of which matches that
+/// pattern is provably out of reach.
+///
+/// The pattern is matched against every way the cell can be *written* at a
+/// use site: the rooted name and each of its `::`-segment suffixes
+/// (`::ns::v` → `::ns::v`, `ns::v`, `v`), which covers the absolute spelling
+/// and every relative one.  A wildcard matches the empty string too — an
+/// empty substitution really does collapse (tclsh-proof, 8.6.14: `set i {};
+/// set v$i 1` leaves `info exists v` -> 1).
+///
+/// Abstain-toward-refuse stays the rule: `true` (could spell it) is the
+/// answer for anything unproven, including a bare `$n`, which is a lone
+/// wildcard and matches every spelling.
+///
+/// tclsh-proof (8.6.14) for the two facts the bound rests on:
+///
+/// ```text
+/// namespace eval ::ns { variable v 1 } ; namespace eval ::other {}
+/// set n {::ns::v} ; set ::other::$n 99
+///   -> can't set "::other::::ns::v": parent namespace doesn't exist
+/// ;# a written prefix confines the name — a substitution cannot escape it
+/// namespace eval ::ns { variable total 5 } ; set j 1 ; set v$j 2
+///   -> info vars ::v* is {::v1}, ::ns::total still 5
+/// ```
+#[must_use]
+pub fn dynamic_variable_word_can_spell(word: &str, qualified_cell: &str) -> bool {
+    // An element suffix names an element of the base array, so the *variable*
+    // this word names is the base — the same split `names_a_dynamic_variable`
+    // makes.
+    let base = word.split_once('(').map_or(word, |(base, _)| base);
+    let pattern = name_word_pattern(base);
+    cell_spellings(qualified_cell).any(|spelling| pattern_matches(&pattern, spelling))
+}
+
+/// One piece of a variable-name word: a run of literal characters, or a
+/// substitution whose value is unknown.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum NamePiece {
+    Literal(String),
+    /// `$name`, `${name}`, or `[cmd …]` — any string, the empty one included.
+    Wildcard,
+}
+
+/// Split a variable-name word into its literal runs and its substitutions.
+///
+/// Text arrives either as the segmenter's reconstructed form (a `$name`
+/// substitution canonicalised to `${name}`) or as a token's verbatim
+/// spelling, so both are recognised — the same double spelling
+/// [`names_a_dynamic_variable`] documents.
+fn name_word_pattern(word: &str) -> Vec<NamePiece> {
+    let bytes = word.as_bytes();
+    let mut pieces: Vec<NamePiece> = Vec::new();
+    let mut literal = String::new();
+    let mut i = 0usize;
+    let push_wildcard = |pieces: &mut Vec<NamePiece>, literal: &mut String| {
+        if !literal.is_empty() {
+            pieces.push(NamePiece::Literal(std::mem::take(literal)));
+        }
+        if pieces.last() != Some(&NamePiece::Wildcard) {
+            pieces.push(NamePiece::Wildcard);
+        }
+    };
+    while i < bytes.len() {
+        match bytes[i] {
+            b'$' if i + 1 < bytes.len() && bytes[i + 1] == b'{' => {
+                i = match word[i + 2..].find('}') {
+                    Some(off) => i + 2 + off + 1,
+                    None => bytes.len(),
+                };
+                push_wildcard(&mut pieces, &mut literal);
+            }
+            b'$' => {
+                i += 1;
+                while i < bytes.len()
+                    && (bytes[i].is_ascii_alphanumeric()
+                        || bytes[i] == b'_'
+                        || (bytes[i] == b':' && bytes.get(i + 1) == Some(&b':')))
+                {
+                    i += if bytes[i] == b':' { 2 } else { 1 };
+                }
+                push_wildcard(&mut pieces, &mut literal);
+            }
+            b'[' => {
+                let mut depth = 0usize;
+                while i < bytes.len() {
+                    match bytes[i] {
+                        b'[' => depth += 1,
+                        b']' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                i += 1;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    i += 1;
+                }
+                push_wildcard(&mut pieces, &mut literal);
+            }
+            _ => {
+                let ch_len = word[i..].chars().next().map_or(1, char::len_utf8);
+                literal.push_str(&word[i..i + ch_len]);
+                i += ch_len;
+            }
+        }
+    }
+    if !literal.is_empty() {
+        pieces.push(NamePiece::Literal(literal));
+    }
+    pieces
+}
+
+/// Every way `qualified_cell` can be written at a use site: the rooted name
+/// and each of its `::`-segment suffixes.
+///
+/// `::ns::v` yields `::ns::v`, `ns::v`, `v` — the absolute spelling plus the
+/// relative ones a site inside an enclosing namespace would use.  Over-wide
+/// on purpose: a spelling that could not actually resolve to this cell from
+/// some site only ever adds a refusal, never removes one.
+fn cell_spellings(qualified_cell: &str) -> impl Iterator<Item = &str> {
+    let rooted = qualified_cell.starts_with("::");
+    let bare = qualified_cell.trim_start_matches("::");
+    std::iter::once(qualified_cell)
+        .chain(std::iter::once(bare).filter(move |_| rooted))
+        .chain(bare.match_indices("::").map(|(at, _)| &bare[at + 2..]))
+}
+
+/// Wildcard match — `NamePiece::Wildcard` is `*`, literals must appear in
+/// order.  The classic greedy scan: each literal is found at or after the
+/// current position, anchored when it is the first / last piece.
+fn pattern_matches(pattern: &[NamePiece], candidate: &str) -> bool {
+    let mut rest = candidate;
+    let mut free = false;
+    for (idx, piece) in pattern.iter().enumerate() {
+        match piece {
+            NamePiece::Wildcard => free = true,
+            NamePiece::Literal(lit) => {
+                let at = if free {
+                    match rest.find(lit.as_str()) {
+                        Some(at) => at,
+                        None => return false,
+                    }
+                } else if rest.starts_with(lit.as_str()) {
+                    0
+                } else {
+                    return false;
+                };
+                // The final literal must reach the end of the candidate.
+                if idx + 1 == pattern.len() {
+                    return if free {
+                        rest.ends_with(lit.as_str())
+                    } else {
+                        rest == lit.as_str()
+                    };
+                }
+                rest = &rest[at + lit.len()..];
+                free = false;
+            }
+        }
+    }
+    // Ended on a wildcard (or an empty pattern): the remainder is free only
+    // when a wildcard can absorb it.
+    free || rest.is_empty()
+}
+
 /// Compute the [`DynamicNameBarrier`] for `cfg`.
 ///
 /// One flow-insensitive walk over every statement, terminator condition, and
@@ -602,6 +777,93 @@ mod tests {
         assert!(names_a_dynamic_variable("$x"));
         assert!(names_a_dynamic_variable("[string trim $x]"));
         assert!(names_a_dynamic_variable("pre$x"));
+    }
+
+    // Issue #1093 — per-site provenance: which cells a dynamic name word can
+    // actually spell.  `true` is the abstention (could reach it), `false` is
+    // the proof it cannot.
+
+    /// TP (must stay refused): a bare substitution is a lone wildcard, so it
+    /// reaches every spelling of every cell.  The issue's own oracle shape.
+    #[test]
+    fn a_bare_substitution_can_spell_any_cell() {
+        for word in ["$n", "${n}", "[pick]"] {
+            assert!(dynamic_variable_word_can_spell(word, "::ns::v"), "{word}");
+            assert!(
+                dynamic_variable_word_can_spell(word, "::a::b::deep"),
+                "{word}"
+            );
+        }
+    }
+
+    /// TN: a written namespace prefix confines the name — a substitution
+    /// cannot escape it.
+    ///
+    /// tclsh-proof (8.6.14): `namespace eval ::ns {variable v 1}; namespace
+    /// eval ::other {}; set n {::ns::v}; set ::other::$n 99` fails with
+    /// `can't set "::other::::ns::v": parent namespace doesn't exist` — the
+    /// value is appended under the prefix, never resolved as an absolute
+    /// name.  `set ::other::$n` with `n` = `sub::x` writes `::other::sub::x`.
+    #[test]
+    fn a_written_namespace_prefix_confines_the_name() {
+        assert!(!dynamic_variable_word_can_spell("::other::$n", "::ns::v"));
+        assert!(!dynamic_variable_word_can_spell("::other::${n}", "::ns::v"));
+        // …and still reaches cells that really are under it, at any depth.
+        assert!(dynamic_variable_word_can_spell("::other::$n", "::other::v"));
+        assert!(dynamic_variable_word_can_spell(
+            "::other::$n",
+            "::other::sub::x"
+        ));
+    }
+
+    /// TN: a written affix constrains the name the same way.
+    ///
+    /// tclsh-proof (8.6.14): `namespace eval ::ns {variable total 5}; set j
+    /// 1; set v$j 2` leaves `info vars ::v*` = `::v1` and `::ns::total`
+    /// untouched.
+    #[test]
+    fn a_written_affix_constrains_the_name() {
+        assert!(!dynamic_variable_word_can_spell("v$j", "::ns::total"));
+        // `${j}_count`, not `$j_count` — the latter is the single variable
+        // `j_count`, so it is one wildcard with no written affix at all.
+        assert!(!dynamic_variable_word_can_spell(
+            "${j}_count",
+            "::ns::total"
+        ));
+        assert!(dynamic_variable_word_can_spell("$j_count", "::ns::total"));
+        // TP guard: the affix is satisfiable, so the abstention stands — an
+        // empty substitution collapses (`set i {}; set v$i 1` -> `info exists
+        // v` is 1 on 8.6.14).
+        assert!(dynamic_variable_word_can_spell("v$j", "::ns::v"));
+        assert!(dynamic_variable_word_can_spell("v$j", "::ns::verbose"));
+        assert!(dynamic_variable_word_can_spell("$j", "::ns::total"));
+    }
+
+    /// TN: a *relative* prefix is a prefix too — `b::$m` names something
+    /// under some `…::b`, so a cell with no `b` segment is out of reach.
+    #[test]
+    fn a_relative_prefix_still_excludes_unrelated_cells() {
+        assert!(!dynamic_variable_word_can_spell("b::$m", "::ns::v"));
+        assert!(dynamic_variable_word_can_spell("b::$m", "::a::b::tail"));
+    }
+
+    /// The relative spellings count: a cell written from inside its own
+    /// namespace is a bare tail, so a wildcard-tail word reaches it.
+    #[test]
+    fn every_relative_spelling_of_the_cell_is_considered() {
+        assert!(dynamic_variable_word_can_spell("ns::$t", "::ns::v"));
+        assert!(dynamic_variable_word_can_spell("$t", "::ns::v"));
+        assert!(!dynamic_variable_word_can_spell("nz::$t", "::ns::v"));
+    }
+
+    /// An element suffix is not part of the variable name.
+    #[test]
+    fn the_element_suffix_is_not_part_of_the_name() {
+        assert!(dynamic_variable_word_can_spell("$a(k)", "::ns::v"));
+        assert!(!dynamic_variable_word_can_spell(
+            "::other::$a(k)",
+            "::ns::v"
+        ));
     }
 
     #[test]

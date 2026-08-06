@@ -385,13 +385,18 @@ fn tn_references_never_fall_through_to_the_proc_tier() {
     );
 }
 
-// TN (finding 1) — and for rename.  Prepare must offer no UI, and a client
-// that skips prepare must meet a *refusal*, not an empty edit set: an empty
-// set falls through to the server's workspace-resolved rename branch, which
-// resolved the word as a command and rewrote the same-spelled proc — pointing
-// the editor's highlight at a declaration on a completely different line.
+// TN (finding 1) — and for rename.  The namespace tier (#1114) answers the
+// word, so a rename here moves the *namespace* and leaves the same-spelled
+// proc exactly where it is.  The failure this guards against is the original
+// one: an empty edit set falling through to the server's workspace-resolved
+// rename branch, which resolved the word as a command and rewrote the proc.
+//
+// tclsh-proof (8.6.14): a proc and a namespace may share a name — `proc
+// widget {} {return 1}` then `namespace eval widget {}` leaves `widget` -> 1
+// and `namespace exists ::widget` -> 1, and the same script with the
+// namespace spelled `gadget` behaves identically for the proc.
 #[test]
-fn tn_rename_refuses_a_namespace_word_rather_than_renaming_a_proc() {
+fn tn_renaming_a_namespace_word_does_not_rename_the_same_spelled_proc() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(
@@ -399,18 +404,29 @@ fn tn_rename_refuses_a_namespace_word_rather_than_renaming_a_proc() {
         "proc widget {} { return 1 }\nnamespace eval widget {}\nnamespace children widget\n",
     );
 
+    let prepare = lsp.prepare_rename(&uri, 2, 20);
     assert!(
-        lsp.prepare_rename(&uri, 2, 20).is_null(),
-        "prepare-rename must not offer to rename a namespace word",
+        !prepare.is_null(),
+        "prepare-rename must offer the namespace segment: {prepare:?}",
     );
-    let err = lsp.rename_error(&uri, 2, 20, "gadget");
-    let message = err
-        .get("message")
-        .and_then(Value::as_str)
+    let result = lsp.rename(&uri, 2, 20, "gadget");
+    let edits = rename_edits(&result);
+    let lines: Vec<i64> = edits
+        .get(&uri)
+        .map(|es| {
+            es.iter()
+                .filter_map(|e| {
+                    e.get("range")
+                        .and_then(|r| r.get("start"))
+                        .and_then(|s| s.get("line"))
+                        .and_then(Value::as_i64)
+                })
+                .collect()
+        })
         .unwrap_or_default();
     assert!(
-        message.contains("is a namespace name"),
-        "rename must refuse with a reason naming the namespace, got {err}",
+        lines.contains(&1) && lines.contains(&2) && !lines.contains(&0),
+        "the namespace's two words move and `proc widget` does not: {edits:?}",
     );
 }
 
@@ -575,6 +591,126 @@ fn tp_a_braced_namespace_name_is_navigable() {
         lines_in(&def, &uri),
         vec![0],
         "a braced namespace name is a real name: {:?}",
+        locations(&def),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Issue #1246 — implicit parents at the **workspace** tier.
+//
+// `namespace eval ::p::q::r {}` really creates `::p` and `::p::q`, so a
+// reference to `::p::q` answers with the covering prefix of the deeper written
+// name.  The in-document tier has done that since #1113 item 1; the server's
+// cross-document tier matched only exact qualified names, so a cell whose sole
+// creating block lived in a sibling file answered nothing at all.
+//
+// tclsh-proof — 9.0.4 and 8.6.16, byte-identical:
+//   namespace eval ::p::q::r {}
+//   namespace exists ::p::q   -> 1
+//   namespace exists ::p      -> 1
+//   namespace children ::p    -> ::p::q
+// ---------------------------------------------------------------------------
+
+/// The `(line, start-character, end-character)` of every definition target in
+/// `uri` — the implicit answer is a **sub-range** of a name word, so the
+/// columns are the fact under test, not just the line.
+fn spans_in(result: &Value, uri: &str) -> Vec<(i64, i64, i64)> {
+    locations(result)
+        .iter()
+        .filter(|l| l.uri == uri)
+        .map(|l| {
+            let field = |end: &str, name: &str| {
+                l.range
+                    .get(end)
+                    .and_then(|s| s.get(name))
+                    .and_then(Value::as_i64)
+                    .unwrap_or(-1)
+            };
+            (
+                field("start", "line"),
+                field("start", "character"),
+                field("end", "character"),
+            )
+        })
+        .collect()
+}
+
+// TP — the cross-document implicit answer: the creating block is next door,
+// and the covering prefix (`::p::q` of `::p::q::r`) is what go-to-definition
+// reports.
+#[test]
+fn tp_cross_file_definition_answers_an_implicit_parent() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(&decl, "namespace eval ::p::q::r {\n    variable v 1\n}\n");
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "namespace children ::p::q\n");
+
+    let def = lsp.definition(&user, 0, 22);
+    assert_eq!(
+        spans_in(&def, &decl),
+        // `namespace eval ` is 15 columns wide; the `::p::q` prefix ends at 21.
+        vec![(0, 15, 21)],
+        "the sibling block's covering prefix must be the target: {:?}",
+        locations(&def),
+    );
+}
+
+// TP — hover words it "implicitly created by" across documents too, rather
+// than showing nothing.
+#[test]
+fn tp_cross_file_hover_words_an_implicit_parent() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(&decl, "namespace eval ::p::q::r {}\n");
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "namespace children ::p::q\n");
+
+    let text = hover_text(&lsp.hover(&user, 0, 22));
+    assert!(
+        text.contains("Implicitly created by") && text.contains("::p::q"),
+        "cross-file hover must name the implicit creator: {text:?}",
+    );
+}
+
+// TN — an **outright** declaration next door still wins: the implicit
+// fallback fires only when nothing anywhere declares the cell, so the answer
+// is that whole `::p::q` word, never a prefix of a deeper one.
+#[test]
+fn tn_an_outright_sibling_declaration_beats_the_implicit_fallback() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(
+        &decl,
+        "namespace eval ::p::q {}\nnamespace eval ::p::q::r {}\n",
+    );
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "namespace children ::p::q\n");
+
+    let def = lsp.definition(&user, 0, 22);
+    assert_eq!(
+        spans_in(&def, &decl),
+        vec![(0, 15, 21)],
+        "only the real declaration answers: {:?}",
+        locations(&def),
+    );
+}
+
+// TN — the descendant query must not match a mere prefix of a *segment*:
+// `::pq::r` does not create `::p` (tclsh 9.0.4 / 8.6.16: `namespace eval
+// ::pq::r {}` then `namespace exists ::p` -> 0).
+#[test]
+fn tn_a_segment_prefix_is_not_an_implicit_parent() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(&decl, "namespace eval ::pq::r {}\n");
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "namespace children ::p\n");
+
+    let def = lsp.definition(&user, 0, 20);
+    assert!(
+        locations(&def).is_empty(),
+        "`::pq::r` does not create `::p`: {:?}",
         locations(&def),
     );
 }
