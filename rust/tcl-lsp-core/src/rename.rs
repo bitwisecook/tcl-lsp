@@ -455,7 +455,6 @@ pub fn rename_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal> {
-    let registry = resolution.registry;
     // Shape gate first — applies to every rename target.
     if !is_safe_symbol_name(new_name) {
         return Ok(Vec::new());

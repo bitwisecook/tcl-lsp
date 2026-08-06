@@ -7718,6 +7718,65 @@ impl Backend {
     /// `Some(Err(..))` is a **refusal** carrying its own reason; `Some(Ok(..))`
     /// is a complete namespace-variable edit set.  Split out of
     /// [`Backend::rename`] so that handler stays inside the line budget.
+    /// The in-document rename tiers, run on the blocking pool with the
+    /// request's whole-program export view attached.
+    ///
+    /// `rename_in_program`, not `rename`: the in-document tiers carry their
+    /// own safety gate for the cursor positions the workspace gate cannot
+    /// resolve — an untracked `[$other X]` dispatch, an `export … X …`
+    /// bareword — and a refusal from them must reach the editor as an error
+    /// with its reason, exactly like the workspace gate's.  Flattening it to
+    /// an empty edit set would present the one hazard the gate exists to stop
+    /// as "nothing renameable here" and let the cross-document tier build
+    /// edits for it (issue #923 idx 79, verification pass).
+    ///
+    /// The export snapshot is what lets a rename started from a
+    /// `-force`-shadowed call retarget to the definition that call actually
+    /// reaches (issue #1116 item 1).
+    ///
+    /// Extracted from [`Self::rename`] to keep that entry point inside the
+    /// line budget.
+    async fn in_document_rename_edits(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        registry: &'static tcl_registry::CommandRegistry,
+        pos: Position,
+        new_name: &str,
+    ) -> jsonrpc::Result<Vec<core_rename::TextEdit>> {
+        let text = doc.text.clone();
+        let dialect = doc.dialect.clone();
+        let analysis_for_worker = analysis.clone();
+        let new_name_worker = new_name.to_owned();
+        let exports = self.export_snapshot().await;
+        let uri_key = uri.as_str().to_owned();
+        tokio::task::spawn_blocking(move || {
+            core_rename::rename_in_program(
+                &text,
+                &dialect,
+                pos.line,
+                pos.character,
+                &new_name_worker,
+                &analysis_for_worker,
+                core_definition::CallResolution {
+                    registry: Some(registry),
+                    program: Some(core_definition::ProgramExports {
+                        uri: &uri_key,
+                        oracle: exports.as_ref(),
+                    }),
+                },
+            )
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("rename worker panicked: {err}").into(),
+            data: None,
+        })?
+        .map_err(|refusal| rename_refusal_error(&refusal))
+    }
+
     async fn gated_rename_tiers(
         &self,
         uri: &Uri,
@@ -14806,46 +14865,9 @@ impl LanguageServer for Backend {
                 change_annotations: None,
             }));
         }
-        let text = doc.text.clone();
-        let dialect = doc.dialect.clone();
-        let analysis_for_worker = analysis.clone();
-        let new_name_worker = new_name.clone();
-        let registry_worker = registry;
-        // `rename_with_diagnosis`, not `rename`: the in-document tiers carry
-        // their own safety gate for the cursor positions the workspace gate
-        // above cannot resolve — an untracked `[$other X]` dispatch, an
-        // `export … X …` bareword — and a refusal from them must reach the
-        // editor as an error with its reason, exactly like the workspace
-        // gate's.  Flattening it to an empty edit set would present the one
-        // hazard the gate exists to stop as "nothing renameable here" and let
-        // the cross-document tier below build edits for it (issue #923 idx
-        // 79, verification pass).
-        let exports = self.export_snapshot().await;
-        let uri_key = uri.as_str().to_owned();
-        let edits = tokio::task::spawn_blocking(move || {
-            core_rename::rename_in_program(
-                &text,
-                &dialect,
-                pos.line,
-                pos.character,
-                &new_name_worker,
-                &analysis_for_worker,
-                core_definition::CallResolution {
-                    registry: Some(registry_worker),
-                    program: Some(core_definition::ProgramExports {
-                        uri: &uri_key,
-                        oracle: exports.as_ref(),
-                    }),
-                },
-            )
-        })
-        .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("rename worker panicked: {err}").into(),
-            data: None,
-        })?
-        .map_err(|refusal| rename_refusal_error(&refusal))?;
+        let edits = self
+            .in_document_rename_edits(&uri, &doc, &analysis, registry, pos, &new_name)
+            .await?;
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
         // An empty in-document result means the rename was *rejected*
