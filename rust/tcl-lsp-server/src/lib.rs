@@ -3684,6 +3684,46 @@ struct RenameContext<'a> {
     registry: &'a CommandRegistry,
 }
 
+/// How wide a document set a pure-consumer method scan covers (issue #1099).
+///
+/// The narrow set is "documents that invoke a family constructor", which is
+/// what the index can answer cheaply — and it is a real ceiling: a consumer
+/// that *receives* an instance without constructing one (through a global, a
+/// dict entry, a callback registered elsewhere, a proc parameter fed from
+/// another file) invokes no constructor, so it appears in no index table and
+/// is invisible to both the scan and the gate.
+///
+/// A **rename** cannot live with that ceiling: an unseen `$who speak` is a
+/// call left naming a member that no longer exists, and a gate that never
+/// scans the document cannot refuse either.  So rename widens to every
+/// indexed document — the gate then sees the untracked receiver and refuses,
+/// or the collector types it through the workspace class oracle and rewrites
+/// it.  Find All References keeps the narrow set: it is an interactive query
+/// whose worst outcome is a missing result, and widening it would re-analyse
+/// the whole workspace on every invocation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ConsumerCoverage {
+    /// Documents invoking a family constructor, plus the request's own.
+    ConstructorSites,
+    /// Every indexed document.
+    WholeWorkspace,
+}
+
+/// What one pure-consumer method scan is about: the member, and how wide a
+/// document set to cover.  Grouped so the scan entry points stay within the
+/// argument budget as the plan grew a coverage mode (issue #1099).
+#[derive(Debug, Clone, Copy)]
+struct ConsumerTarget<'a> {
+    /// The class the cursor resolved the member against.
+    seed_class: &'a str,
+    /// The member name.
+    method: &'a str,
+    /// Whether it lives in the class-object dispatch table.
+    is_classmethod: bool,
+    /// How wide a document set to scan — see [`ConsumerCoverage`].
+    coverage: ConsumerCoverage,
+}
+
 /// The workspace facts one pure-consumer method scan needs, resolved under a
 /// single index read by [`Backend::consumer_scan_plan`].
 struct ConsumerScan {
@@ -7293,9 +7333,12 @@ impl Backend {
             current_uri,
             current_source,
             current_dialect,
-            seed_class,
-            method,
-            is_classmethod,
+            ConsumerTarget {
+                seed_class,
+                method,
+                is_classmethod,
+                coverage: ConsumerCoverage::ConstructorSites,
+            },
         )
         .await
         .into_iter()
@@ -7322,14 +7365,10 @@ impl Backend {
         current_uri: &Uri,
         current_source: &str,
         current_dialect: &str,
-        seed_class: &str,
-        method: &str,
-        is_classmethod: bool,
+        target: ConsumerTarget<'_>,
     ) -> Vec<(Uri, Vec<Range>)> {
-        let Some(plan) = self
-            .consumer_scan_plan(current_dialect, seed_class, method, is_classmethod)
-            .await
-        else {
+        let (method, is_classmethod) = (target.method, target.is_classmethod);
+        let Some(plan) = self.consumer_scan_plan(current_dialect, target).await else {
             return Vec::new();
         };
         let mut out: Vec<(Uri, Vec<Range>)> = Vec::new();
@@ -7390,10 +7429,14 @@ impl Backend {
     async fn consumer_scan_plan(
         &self,
         dialect: &str,
-        seed_class: &str,
-        method: &str,
-        is_classmethod: bool,
+        target: ConsumerTarget<'_>,
     ) -> Option<ConsumerScan> {
+        let ConsumerTarget {
+            seed_class,
+            method,
+            is_classmethod,
+            coverage,
+        } = target;
         let index = self.workspace_index.read().await;
         let definers = index.method_override_family(seed_class, method);
         let inheritors = index.method_inheritor_classes(seed_class, method);
@@ -7426,11 +7469,19 @@ impl Backend {
         // The index answers with a `HashSet`; sort so the per-document scan
         // order (and so the emitted edit / location order) does not ride on
         // hash iteration order.
-        let mut consumer_uris: Vec<String> = index
-            .documents_invoking_classes(&family_norm)
-            .into_iter()
-            .collect();
+        let mut consumer_uris: Vec<String> = match coverage {
+            ConsumerCoverage::ConstructorSites => index
+                .documents_invoking_classes(&family_norm)
+                .into_iter()
+                .collect(),
+            // Issue #1099: a document that receives an instance without
+            // constructing one invokes no family constructor, so it is in no
+            // index table at all — the only set that provably contains it is
+            // every document.
+            ConsumerCoverage::WholeWorkspace => index.document_uris(),
+        };
         consumer_uris.sort();
+        consumer_uris.dedup();
         drop(index);
         Some(ConsumerScan {
             family,
@@ -7811,7 +7862,20 @@ impl Backend {
             .resolve_method_rename_target(uri, doc, analysis, pos)
             .await?;
         let plan = self
-            .consumer_scan_plan(&doc.dialect, &seed_class, &method, is_classmethod)
+            .consumer_scan_plan(
+                &doc.dialect,
+                ConsumerTarget {
+                    seed_class: &seed_class,
+                    method: &method,
+                    is_classmethod,
+                    // The same coverage the rename's edit collector uses,
+                    // which is the #1092 invariant — and since #1099 that is
+                    // every indexed document, so a consumer holding an
+                    // instance it never constructed is scanned rather than
+                    // invisible.
+                    coverage: ConsumerCoverage::WholeWorkspace,
+                },
+            )
             .await;
         let (family, mut uris) = match plan {
             Some(plan) => {
@@ -8107,9 +8171,15 @@ impl Backend {
                 current_uri,
                 &current_doc.text,
                 dialect,
-                seed_class,
-                method,
-                is_classmethod,
+                ConsumerTarget {
+                    seed_class,
+                    method,
+                    is_classmethod,
+                    // The rename leg covers every indexed document, so a
+                    // consumer that only *receives* an instance is rewritten
+                    // rather than silently missed (issue #1099).
+                    coverage: ConsumerCoverage::WholeWorkspace,
+                },
             )
             .await;
         for (uri, ranges) in consumer {
@@ -27673,7 +27743,17 @@ mod tests {
         register(&backend, &parent, parent_src).await;
         register(&backend, &consumer, "Parent make\nGadget make\n").await;
         let ranges = backend
-            .consumer_method_site_ranges(&parent, parent_src, "tcl8.6", "::Parent", "make", true)
+            .consumer_method_site_ranges(
+                &parent,
+                parent_src,
+                "tcl8.6",
+                ConsumerTarget {
+                    seed_class: "::Parent",
+                    method: "make",
+                    is_classmethod: true,
+                    coverage: ConsumerCoverage::WholeWorkspace,
+                },
+            )
             .await;
         let consumer_ranges: Vec<u32> = ranges
             .iter()

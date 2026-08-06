@@ -509,6 +509,50 @@ fn fn_guard_rename_still_applies_across_tracked_consumer_documents() {
     );
 }
 
+// FP guard (issue #1099): the consumer **never constructs** the class — it is
+// handed the instance through a global another file filled in — so it invokes
+// no family constructor and sat in no index table.  Both the edit collector
+// and the gate were bounded by that set, so the declaration moved while
+// `$::handle speak` kept naming a member that no longer exists.  The rename
+// leg now covers every indexed document, so the gate sees the untracked
+// receiver and refuses.
+//
+// tclsh-proof (8.6.14, the interpreter available in this container), sourcing
+// all three files in order:
+//   before                       -> woof, rc 0
+//   after renaming `speak` -> `bark` in the definer only
+//                                -> unknown method "speak": must be bark or
+//                                   destroy, at `"$::handle speak"`, rc 1
+#[test]
+fn fp_rename_refuses_a_consumer_that_never_constructs_the_class() {
+    let mut lsp = Lsp::tcl();
+    let definer = unique_uri("tcl");
+    lsp.open_ready(
+        &definer,
+        "oo::class create Dog {\n\
+         \x20   method speak {} { return \"woof\" }\n\
+         \x20   export speak\n\
+         }\n",
+    );
+    // The only constructor call in the workspace lives here.
+    let factory = unique_uri("tcl");
+    lsp.open_ready(&factory, "set ::handle [Dog new]\n");
+    // …and this document only *uses* the handle.  No constructor, no class
+    // name, nothing for `documents_invoking_classes` to match.
+    let consumer = unique_uri("tcl");
+    lsp.open_ready(&consumer, "puts [$::handle speak]\n");
+
+    let err = lsp.rename_error(&definer, 1, 11, "bark");
+    let message = err
+        .get("message")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    assert!(
+        message.contains("not tracked"),
+        "the refusal must name the untracked receiver, got {err}",
+    );
+}
+
 // TP (finding 2): a document whose only stake in the cell is an alias written
 // from **another namespace** is visited and rewritten.  A global `proc p {} {
 // namespace upvar ::ns v local; … }` declares nothing in `::ns` and writes no
