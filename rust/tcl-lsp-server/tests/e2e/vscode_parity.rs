@@ -429,25 +429,28 @@ fn test_optimiser_code_override_does_not_leak() {
     let mut lsp = Lsp::tcl();
     let clean = "set x 10\nset y 20\nset sum [expr {$x + $y}]\n";
     let uri = unique_uri("tcl");
-    // Both applies need the effective-config barrier, for different reasons.
-    // The override must be observed as *on* first, or the "does not leak"
-    // assertion below can pass vacuously against a config that never took.
-    lsp.apply_configuration_settle(json!({ "optimiser": { "O100": true } }), &uri, |c| {
-        c.get("optimiser").and_then(|o| o.get("O100")) == Some(&Value::Bool(true))
-    });
+    // `open_ready` is a plain request sequence with nothing to block on, so it
+    // can race ahead of the async didChangeConfiguration apply and analyse
+    // under the stale override.  A barrier is needed, but `getEffectiveConfig`
+    // reports the resolved optimiser state as flat `optimiser_enabled` /
+    // `optimiser_profile` keys and never surfaces the per-code override map —
+    // so the override itself cannot be observed directly.  Instead ride an
+    // orthogonal, reported setting on the same notification: a configuration
+    // message is applied as a unit, so once `line_length` shows the value sent
+    // alongside the optimiser block, that block has been applied too.
+    lsp.apply_configuration_settle(
+        json!({ "optimiser": { "O100": true }, "formatting": { "lineLength": 81 } }),
+        &uri,
+        |c| c["line_length"] == json!(81),
+    );
     // (Python enters and immediately exits the config_session, restoring the
     // profile; here each test owns its server, so re-assert the default profile
-    // to mirror the restore.)  `open_ready` is a plain request sequence with
-    // nothing to block on, so it can race ahead of the async
-    // didChangeConfiguration apply and analyse under the stale override. The
-    // barrier is the effective config itself: analysis reads the same resolved
-    // config `getEffectiveConfig` reports, so once that reports the override
-    // gone, a later open cannot observe it.
-    lsp.apply_configuration_settle(json!({ "optimiser": { "enabled": true } }), &uri, |c| {
-        let opt = c.get("optimiser");
-        opt.and_then(|o| o.get("enabled")) == Some(&Value::Bool(true))
-            && opt.and_then(|o| o.get("O100")) != Some(&Value::Bool(true))
-    });
+    // to mirror the restore.)
+    lsp.apply_configuration_settle(
+        json!({ "optimiser": { "enabled": true }, "formatting": { "lineLength": 82 } }),
+        &uri,
+        |c| c["line_length"] == json!(82),
+    );
     assert!(!codes(&lsp.open_ready(&uri, clean)).contains(&"O100".to_owned()));
 }
 
