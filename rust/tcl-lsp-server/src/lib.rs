@@ -8443,6 +8443,76 @@ impl Backend {
         Vec::new()
     }
 
+    /// Cross-file **hover** for a `TclOO` method dispatch: the same dispatch
+    /// entry [`Self::cross_file_method_definition`] jumps to, rendered as the
+    /// one-line summary the in-document hover renders (issue #923 idx 28).
+    ///
+    /// The in-document provider (`core_hover`'s `method_dispatch_hover`) is
+    /// MRO-aware, but only over `analysis.all_classes` — the classes *this*
+    /// document declares.  The finding's real corpus shape is cross-file:
+    /// `my ArgsPreprocess` in a device file, the `mixin` that provides it in
+    /// the library file.  Definition and references crossed that boundary
+    /// through the workspace index; hover returned nothing at all.
+    ///
+    /// Deliberately built on the *same* resolution and the *same* chain walk
+    /// as the definition tier — [`Self::resolve_method_target`] then
+    /// `method_dispatch_chain` / `class_method_dispatch_chain` — rather than
+    /// a parallel lookup, so hover can never name a provider the definition
+    /// jump would not land on.
+    async fn cross_file_method_hover(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        pos: Position,
+    ) -> Option<CoreHover> {
+        let (class_q, method, is_classmethod, access) = self
+            .resolve_method_target(uri, &doc.text, &doc.dialect, analysis, pos)
+            .await?;
+        let chain: Vec<(String, String)> = {
+            let index = self.workspace_index.read().await;
+            if is_classmethod {
+                index.class_method_dispatch_chain(&class_q, &method, access)
+            } else {
+                index.method_dispatch_chain(&class_q, &method, access)
+            }
+            .into_iter()
+            .map(|wc| (wc.uri.clone(), wc.qualified_name.clone()))
+            .collect()
+        };
+        // The chain's first record is the dispatch entry; the rest is the
+        // `next` chain, which hover does not describe.
+        for (u, provider_q) in chain {
+            let Ok(parsed) = Uri::from_str(&u) else {
+                continue;
+            };
+            let Some(target_doc) = self.read_document(&parsed).await else {
+                continue;
+            };
+            let target_analysis = self
+                .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
+                .await;
+            let Some(class_def) = target_analysis.all_classes.get(&provider_q) else {
+                continue;
+            };
+            let (a, b) = if is_classmethod {
+                (&class_def.class_methods, &class_def.methods)
+            } else {
+                (&class_def.methods, &class_def.class_methods)
+            };
+            if let Some(m) = a.get(&method).or_else(|| b.get(&method)) {
+                return Some(core_hover::cross_document_method_hover(
+                    &class_q,
+                    &provider_q,
+                    &m.name,
+                    m.params.len(),
+                    is_classmethod,
+                ));
+            }
+        }
+        None
+    }
+
     /// Add cross-document rename edits for the proc / class at
     /// `pos` into `changes`.  Resolves the symbol, asks the core
     /// rename provider for the namespace-aware sibling-document
@@ -14596,8 +14666,17 @@ impl LanguageServer for Backend {
         let analysis_for_worker = analysis.clone();
         let new_name_worker = new_name.clone();
         let registry_worker = registry;
+        // `rename_with_diagnosis`, not `rename`: the in-document tiers carry
+        // their own safety gate for the cursor positions the workspace gate
+        // above cannot resolve — an untracked `[$other X]` dispatch, an
+        // `export … X …` bareword — and a refusal from them must reach the
+        // editor as an error with its reason, exactly like the workspace
+        // gate's.  Flattening it to an empty edit set would present the one
+        // hazard the gate exists to stop as "nothing renameable here" and let
+        // the cross-document tier below build edits for it (issue #923 idx
+        // 79, verification pass).
         let edits = tokio::task::spawn_blocking(move || {
-            core_rename::rename(
+            core_rename::rename_with_diagnosis(
                 &text,
                 &dialect,
                 pos.line,
@@ -14612,7 +14691,8 @@ impl LanguageServer for Backend {
             code: jsonrpc::ErrorCode::InternalError,
             message: format!("rename worker panicked: {err}").into(),
             data: None,
-        })?;
+        })?
+        .map_err(|refusal| rename_refusal_error(&refusal))?;
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
         // An empty in-document result means the rename was *rejected*
@@ -14887,10 +14967,33 @@ impl LanguageServer for Backend {
             }
             return Ok(Some(lift_hover(hover)));
         }
-        // Nothing in this document explains the word.  A namespace-qualified
-        // variable whose declaration is in a sibling document is answered
-        // first — a `$var` site is never a command head, so it would never
-        // reach the tiers below (issue #923 idx 65 / 75 / 78).
+        // Nothing in this document explains the word.  A per-object
+        // visibility mask makes `$obj m` answer `unknown method` regardless
+        // of the class chain, so it is a *definitive* no-hover and must not
+        // fall through to the cross-file method tier — the same gate
+        // `compute_definition` applies ahead of its own (issue #1170).
+        if core_definition::object_masks_external_dispatch(
+            &analysis,
+            &doc.text,
+            pos.line,
+            pos.character,
+        ) {
+            return Ok(None);
+        }
+        // A `my method` / `$obj method` dispatch whose provider class lives
+        // in a sibling document (issue #923 idx 28).  Answered before the
+        // command-head tiers because a method-name token is never a command
+        // head — its head is `my` / `$obj` — so it would otherwise never
+        // reach any cross-document tier at all.
+        if let Some(hover) = self
+            .cross_file_method_hover(&uri, &doc, &analysis, pos)
+            .await
+        {
+            return Ok(Some(lift_hover(hover)));
+        }
+        // A namespace-qualified variable whose declaration is in a sibling
+        // document — a `$var` site is never a command head either, so it
+        // would never reach the tiers below (issue #923 idx 65 / 75 / 78).
         if let Some(hover) = self
             .cross_document_variable_hover(&uri, &doc.text, pos, &analysis)
             .await

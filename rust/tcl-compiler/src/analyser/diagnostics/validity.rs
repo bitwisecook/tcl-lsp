@@ -406,7 +406,7 @@ fn qualify_candidates(ns: &str, cmd_name: &str) -> Vec<String> {
 /// fields (`pending_arity`, `result.diagnostics`, …) while iterating —
 /// borrowing through a whole-`&Analyser` build call would otherwise pin the
 /// borrow checker's view to "all of `self`" for the facts' lifetime.
-struct UserResolutionFacts {
+pub(super) struct UserResolutionFacts {
     /// Fully-qualified names that unconditionally denote a user command once
     /// declared anywhere in the file: `TclOO`/snit/itcl classes, `interp
     /// alias` names, and `namespace ensemble create` namespaces. Not
@@ -430,7 +430,7 @@ struct UserResolutionFacts {
 }
 
 impl UserResolutionFacts {
-    fn build(a: &Analyser) -> Self {
+    pub(super) fn build(a: &Analyser) -> Self {
         let mut non_proc_qnames: FxHashSet<String> = FxHashSet::default();
         non_proc_qnames.extend(a.result.all_classes.keys().cloned());
         non_proc_qnames.extend(a.result.command_aliases.keys().cloned());
@@ -501,6 +501,29 @@ impl UserResolutionFacts {
                     .rename_offsets
                     .get(c.as_str())
                     .is_some_and(|&off| !enforce_order || off < call_off)
+        }) || self.stub_names.contains(bare)
+    }
+
+    /// Whether **any** of an invocation's already-resolved command-resolution
+    /// candidates names a command this document itself declares — a proc, a
+    /// class, an `interp alias`, a static `rename` target, an ensemble
+    /// namespace, or a `# tcl-lsp: stub` name.
+    ///
+    /// The order-gated sibling ([`Self::resolves_to_user`]) answers "which
+    /// definition is in effect *at this call*", which is what a
+    /// wrong-arguments verdict needs. This one answers the weaker question
+    /// W120 asks — "does this file define the command at all" — for which
+    /// order is irrelevant: `package require` is a statement about what the
+    /// *file* needs loaded, and a file that defines the command needs nothing
+    /// loaded to make the name exist, whatever line the definition is on.
+    /// Deliberately permissive for the same reason the non-proc set is
+    /// (issue #923 idx 11, verification pass: `proc ::argparse {args}`
+    /// beside a call to it was told to `package require argparse`).
+    pub(super) fn declares_any(&self, candidates: &[String], bare: &str) -> bool {
+        candidates.iter().any(|c| {
+            self.non_proc_qnames.contains(c.as_str())
+                || self.proc_offsets.contains_key(c.as_str())
+                || self.rename_offsets.contains_key(c.as_str())
         }) || self.stub_names.contains(bare)
     }
 }
@@ -1516,6 +1539,63 @@ impl Analyser {
         }
     }
 
+    /// Whether `name` resolves to a registry command that only exists once a
+    /// `required_package` / `tcllib_package` is loaded, and this document
+    /// neither `package require`s nor `package provide`s it — with the
+    /// profile's ambient packages excluded, exactly as
+    /// [`Analyser::is_package_gated_non_ambient`] and the W120 emitter do.
+    ///
+    /// Such a call has **no proven identity**: the registry's `CommandSpec`
+    /// describes the package's command, but nothing in this document says
+    /// that package is what the name will resolve to at run time — which is
+    /// the very thing W120 is emitted to say. Asserting a hard arity *error*
+    /// against that spec while simultaneously warning that the package is not
+    /// loaded is self-contradictory, and it is wrong whenever the name is
+    /// actually supplied by something else: a proc defined in a file this one
+    /// `source`s, an `interp alias` set up by its host application.
+    ///
+    /// The real corpus case (issue #923 idx 11, verification pass) is
+    /// georgtree/argparse's own `proc ::argparse {args}`: a sibling file that
+    /// `source`s it and calls `argparse` with no arguments — which real tclsh
+    /// 9.0.4 / 8.6.16 both run happily, printing `case0` — was told
+    /// `Too few arguments for 'argparse': expected at least 1, got 0`,
+    /// resolved against the *package's* spec that this workspace never loads.
+    /// Whole-file `source`-graph knowledge is not available here (the analyser
+    /// is single-file by construction, see
+    /// [`Analyser::emit_missing_package_require_diagnostics`]), so the sound
+    /// answer is to abstain and let W120 carry the (retractable, warning-level)
+    /// report.
+    ///
+    /// The true positive is untouched: a document that *does* `package
+    /// require argparse` has proven the identity, W120 does not fire, and a
+    /// bad-arity call to it is still an error.
+    fn spec_is_an_unloaded_package_command(&self, name: &str) -> bool {
+        use tcl_registry::ProfileQueries;
+        let registry = tcl_registry::cache::registry_for_profile(self.profile);
+        let Some(pkg) = self
+            .profile
+            .resolve_command(registry, name)
+            .and_then(tcl_registry::CommandSpec::owning_package)
+        else {
+            return false;
+        };
+        if self.profile.is_ambient_package(pkg) {
+            return false;
+        }
+        !self
+            .result
+            .package_requires
+            .iter()
+            .map(|pr| pr.name.as_str())
+            .chain(
+                self.result
+                    .package_provides
+                    .iter()
+                    .map(|pp| pp.name.as_str()),
+            )
+            .any(|imported| imported == pkg)
+    }
+
     /// Post-walk flush of the [`Self::pending_arity`] / [`Self::pending_user_call_arity`]
     /// candidates collected by [`Self::emit_arity_diagnostics`] and
     /// [`Self::queue_user_call_arity_candidate`].
@@ -1547,9 +1627,12 @@ impl Analyser {
     ///
     /// `pending_arity` carries E002/E003 arity candidates, W004
     /// (dialect-invalid-option) candidates, and W001 (unknown-subcommand)
-    /// candidates (see its field doc); the resolution loop below never
-    /// inspects `diag.code`, so all three share the identical shadowing
-    /// suppression with no special-casing.
+    /// candidates (see its field doc); the *shadowing* suppression never
+    /// inspects `diag.code`, so all three share it with no special-casing.
+    /// The package-loaded gate below is the one exception, and it is scoped
+    /// to the arity verdicts because only they assert against the resolved
+    /// spec's own argument counts — see
+    /// [`Self::spec_is_an_unloaded_package_command`].
     pub fn flush_arity_diagnostics(&mut self) {
         if self.pending_arity.is_empty() && self.pending_user_call_arity.is_empty() {
             return;
@@ -1560,6 +1643,19 @@ impl Analyser {
         for (cmd_name, ns, enforce_order, diag) in pending {
             let call_off = diag.span.start();
             if facts.resolves_to_user(&cmd_name, &ns, enforce_order, call_off) {
+                continue;
+            }
+            // Arity verdicts only — the *count* claim is the one that needs
+            // the spec to be the command actually being called. W001
+            // (unknown subcommand) and W004 (dialect-invalid option) share
+            // this queue but are claims about the *word the user wrote*
+            // against a name the registry knows, and they stay useful for a
+            // package the file has not required yet (`wm bogus` is still a
+            // typo whether or not `package require Tk` is present) — the two
+            // TP tests in `fp::sty` pin exactly that.
+            if matches!(diag.code, DiagCode::E002 | DiagCode::E003 | DiagCode::E005)
+                && self.spec_is_an_unloaded_package_command(&cmd_name)
+            {
                 continue;
             }
             self.result.diagnostics.push(diag);
