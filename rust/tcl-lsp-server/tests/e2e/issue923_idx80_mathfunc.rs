@@ -137,8 +137,11 @@ fn default_config_clears_w123_for_a_cross_file_mathfunc() {
     let vector = unique_uri("tcl");
     lsp.open_ready(&vector, VECTOR);
 
+    // The fast tier publishes no W120/W123 at all, so a batch carrying the
+    // control's W123 is necessarily a deep-pass batch with the workspace
+    // refinements applied — the only state worth asserting on.
     let diags = lsp.await_diagnostics_settled(&vector, Duration::from_secs(20), |d| {
-        !w123_names(d).is_empty()
+        w123_names(d).iter().any(|n| n == "NeverDefinedAnywhere")
     });
     let names = w123_names(&diags);
     assert!(
@@ -168,7 +171,7 @@ fn default_config_offers_no_command_rewrite_over_a_cross_file_mathfunc() {
     let vector = unique_uri("tcl");
     lsp.open_ready(&vector, VECTOR);
     lsp.await_diagnostics_settled(&vector, Duration::from_secs(20), |d| {
-        !w123_names(d).is_empty()
+        w123_names(d).iter().any(|n| n == "NeverDefinedAnywhere")
     });
 
     let at_pi = titles_at_pi(&mut lsp, &vector);
@@ -212,7 +215,7 @@ fn workspace_scan_clears_w123_for_a_cross_file_mathfunc() {
     let vector = format!("file://{}", vector_path.to_string_lossy());
     lsp.open_ready(&vector, VECTOR);
     let diags = lsp.await_diagnostics_settled(&vector, Duration::from_secs(30), |d| {
-        !w123_names(d).is_empty()
+        w123_names(d).iter().any(|n| n == "NeverDefinedAnywhere")
     });
     let names = w123_names(&diags);
     assert!(
@@ -245,8 +248,11 @@ fn cross_file_resolution_on_keeps_the_mathfunc_verdict_and_the_action_agrees() {
     lsp.open_ready(&helper, HELPER);
     let vector = unique_uri("tcl");
     lsp.open_ready(&vector, VECTOR);
+    // The fast tier publishes no W120/W123 at all, so a batch carrying the
+    // control's W123 is necessarily a deep-pass batch with the workspace
+    // refinements applied — the only state worth asserting on.
     let diags = lsp.await_diagnostics_settled(&vector, Duration::from_secs(20), |d| {
-        !w123_names(d).is_empty()
+        w123_names(d).iter().any(|n| n == "NeverDefinedAnywhere")
     });
     let names = w123_names(&diags);
     assert!(
@@ -300,7 +306,7 @@ fn cross_file_resolution_on_clears_a_plain_proc_w123_and_its_quick_fix() {
     let src = "renderReport 1 2\nnoSuchCommandAnywhere 1\n";
     lsp.open_ready(&caller, src);
     let diags = lsp.await_diagnostics_settled(&caller, Duration::from_secs(20), |d| {
-        !w123_names(d).is_empty()
+        w123_names(d).iter().any(|n| n == "noSuchCommandAnywhere")
     });
     let names = w123_names(&diags);
     assert!(
