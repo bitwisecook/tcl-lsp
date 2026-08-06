@@ -2064,3 +2064,210 @@ fn issue_1260_braced_loop_value_word_keeps_the_store_live() {
         codes(unmentioned, D)
     );
 }
+
+// ---------------------------------------------------------------------------
+// Issue #1266 — a read collapsed out of an **opaque** `switch` arm keeps its
+// `UseClass`.
+//
+// A non-lowered `switch` (`-glob` / `-regexp`, or `-exact` with a
+// fall-through arm) keeps its arms as one opaque CFG statement, so those arm
+// bodies are the only scripts that reach SSA un-lowered. `ssa::switch_reads`
+// collected them through `free_reads_in_script` / `reads_in_script` as a bare
+// name set and merged the lot into `ClassifiedUses::substituted`, so every
+// brace-quoted DATA word inside an arm was seen as a *substituted* read and
+// drew a false W210 — while the identical spelling outside an arm is
+// correctly quiet, because the lowered path classifies it `UseClass::Quoted`
+// and the W210 emitter skips a quoted use.
+//
+// The walk now threads `ClassifiedUses` end to end, so an arm body is
+// classified exactly as the same script would be when lowered.
+//
+// tclsh-proof (tclsh 9.0.4, the interpreter available in this container; the
+// issue reports the same on 8.6.14):
+//
+//   proc f {z} { switch -glob $z { a* { foreach n {a $b c} {puts $n} } } }
+//   f abc                                     -> a / $b / c   (b undefined)
+//   proc f {z} { switch -glob $z { a* { puts {$b} } } };  f abc -> $b
+//   proc f {z} { switch $z { a - b { puts {$q} } } };     f b   -> $q
+//   proc f {z} { switch -regexp $z { a.* { puts {$b} } default { puts {$c} } } }
+//   f zz                                      -> $c
+//   proc f {z} { set x 1; switch -glob $z { a* { foreach n {$x} {puts $n} } } }
+//   f abc                                     -> $x   (the literal two chars)
+//   proc f {z} { switch -glob $z { a* { puts $b } } }
+//   f abc                    -> can't read "b": no such variable
+// ---------------------------------------------------------------------------
+
+/// #1266 FP — a braced data word inside an opaque arm substitutes nothing, in
+/// every arm shape that keeps the `switch` opaque and at every nesting depth
+/// the collapsed walk descends.
+#[test]
+fn issue_1266_braced_data_word_in_opaque_switch_arm_is_not_a_read() {
+    for src in [
+        // The two spellings named on the issue.
+        "proc f {z} { switch -glob $z { a* { foreach n {a $b c} {} } } }\n",
+        "proc f {z} { switch -glob $z { a* { puts {$b} } } }\n",
+        // -regexp keeps it opaque too, and the default body is walked by the
+        // same helper as an arm body.
+        "proc f {z} { switch -regexp $z { a.* { puts {$b} } } }\n",
+        "proc f {z} { switch -regexp $z { a.* { } default { puts {$b} } } }\n",
+        // -exact stays opaque when an arm falls through.
+        "proc f {z} { switch $z { a - b { puts {$q} } } }\n",
+        // Structured statements inside an arm are walked by `reads_in_stmt`,
+        // not lowered — each recursion must carry the classification.
+        "proc f {z} { switch -glob $z { a* { if {1} { puts {$b} } } } }\n",
+        "proc f {z} { switch -glob $z { a* { if {0} { } else { puts {$b} } } } }\n",
+        "proc f {z} { switch -glob $z { a* { while {[incr i] < 2} { puts {$b} } } } }\n",
+        "proc f {z} { switch -glob $z { a* { for {set i 0} {$i < 1} {incr i} { puts {$b} } } } }\n",
+        "proc f {z} { switch -glob $z { a* { catch { puts {$b} } m } } }\n",
+        "proc f {z} { switch -glob $z { a* { try { puts {$b} } finally { puts {$c} } } } }\n",
+        // A nested opaque switch inside an opaque arm.
+        "proc f {z} { switch -glob $z { a* { switch -glob $z { c* { puts {$b} } } } } }\n",
+        // Every `Statement::Foreach` value word, including a multi-group call.
+        "proc f {z} { switch -glob $z { a* { foreach n {a $b c} m {$d} {} } } }\n",
+        "proc f {z} { switch -glob $z { a* { lmap n {a $b c} {} } } }\n",
+        // A braced `return` value is literal in an arm exactly as outside one.
+        "proc f {z} { switch -glob $z { a* { return {$b} } } }\n",
+    ] {
+        assert!(
+            !fires(src, D, "W210"),
+            "#1266: a braced word inside an opaque switch arm substitutes nothing; \
+{src} emitted: {:?}",
+            codes(src, D)
+        );
+    }
+}
+
+/// #1266 TP — the substituting spellings of the same words inside an opaque
+/// arm must still fire. This is what separates "classify the arm's reads"
+/// from "stop collecting them".
+#[test]
+fn issue_1266_substituted_word_in_opaque_switch_arm_still_fires() {
+    for src in [
+        "proc f {z} { switch -glob $z { a* { puts $b } } }\n",
+        "proc f {z} { switch -glob $z { a* { foreach n \"a $b c\" {} } } }\n",
+        "proc f {z} { switch -glob $z { a* { foreach n $b {} } } }\n",
+        "proc f {z} { switch -glob $z { a* { if {$b} { } } } }\n",
+        "proc f {z} { switch -glob $z { a* { return $b } } }\n",
+        "proc f {z} { switch -regexp $z { a.* { } default { puts $b } } }\n",
+        "proc f {z} { switch $z { a - b { puts $q } } }\n",
+    ] {
+        assert!(
+            fires(src, D, "W210"),
+            "#1266 TP: a substituted word inside an opaque switch arm is a real read; \
+{src} emitted: {:?}",
+            codes(src, D)
+        );
+    }
+}
+
+/// #1266 TN / guard rail — the classification must be *threaded*, never
+/// dropped. The naive fix (omitting the name from `reads_in_script`) was
+/// rejected in #1260 precisely because a dropped name loses its **liveness**
+/// use as well, resurrecting a false W211/W220 on a store whose only mention
+/// is the braced word. Same guard rail as
+/// `issue_1237_quoted_use_still_keeps_the_variable_live` and
+/// `issue_1260_braced_loop_value_word_keeps_the_store_live`, now inside an
+/// opaque arm.
+#[test]
+fn issue_1266_quoted_arm_mention_keeps_the_store_live() {
+    for src in [
+        "proc p {z} { set x 1; switch -glob $z { a* { foreach n {$x} {} } } }\n",
+        "proc p {z} { set x 1; switch -glob $z { a* { puts {$x} } } }\n",
+        "proc p {z} { set x 1; switch -glob $z { a* { if {1} { puts {$x} } } } }\n",
+        "proc p {z} { set x 1; switch -regexp $z { a.* { } default { puts {$x} } } }\n",
+        "proc p {z} { set x 1; switch $z { a - b { puts {$x} } } }\n",
+    ] {
+        assert!(
+            !fires(src, D, "W211") && !fires(src, D, "W220"),
+            "#1266: a quoted mention inside an opaque arm keeps the store live; \
+{src} emitted: {:?}",
+            codes(src, D)
+        );
+    }
+    // TP control: with no mention of any kind the dead store is still reported.
+    for unmentioned in [
+        "proc p {z} { set x 1; switch -glob $z { a* { foreach n {$y} {} } } }\n",
+        "proc p {z} { set x 1; switch -glob $z { a* { puts {$y} } } }\n",
+    ] {
+        assert!(
+            fires(unmentioned, D, "W211") || fires(unmentioned, D, "W220"),
+            "#1266 TP: an unmentioned store is still dead; {unmentioned} emitted: {:?}",
+            codes(unmentioned, D)
+        );
+    }
+}
+
+/// #1266 FN guard — the whole point is that an opaque arm agrees with the
+/// lowered path. A plain `-exact` `switch` with no fall-through lowers its
+/// arms into ordinary CFG blocks; the `-glob` spelling of the same body must
+/// produce the same verdict, braced and substituted alike.
+#[test]
+fn issue_1266_opaque_arm_agrees_with_the_lowered_path() {
+    for (lowered, opaque) in [
+        (
+            "proc f {z} { switch $z { a { puts {$b} } } }\n",
+            "proc f {z} { switch -glob $z { a* { puts {$b} } } }\n",
+        ),
+        (
+            "proc f {z} { switch $z { a { puts $b } } }\n",
+            "proc f {z} { switch -glob $z { a* { puts $b } } }\n",
+        ),
+        (
+            "proc f {z} { switch $z { a { foreach n {a $b c} {} } } }\n",
+            "proc f {z} { switch -glob $z { a* { foreach n {a $b c} {} } } }\n",
+        ),
+        (
+            "proc p {z} { set x 1; switch $z { a { foreach n {$x} {} } } }\n",
+            "proc p {z} { set x 1; switch -glob $z { a* { foreach n {$x} {} } } }\n",
+        ),
+    ] {
+        for code in ["W210", "W211", "W220"] {
+            assert_eq!(
+                fires(lowered, D, code),
+                fires(opaque, D, code),
+                "#1266: {code} must agree between the lowered arm ({lowered}) \
+and the opaque one ({opaque}); {:?} vs {:?}",
+                codes(lowered, D),
+                codes(opaque, D)
+            );
+        }
+    }
+}
+
+/// #1266 — the same collapse covered the arm **patterns**, which the
+/// canonical single-braced `{pat body …}` block also carries literally.
+///
+/// tclsh 9.0.4: `proc f {z} { switch -glob $z { $a* { puts hit } default {
+/// puts miss } } }` prints `hit` for `f {$a}` and `miss` for `f zz`, with `a`
+/// undefined throughout — the pattern matched the two literal characters
+/// `$a`. Supplied as separate words the pattern *does* substitute, and the
+/// lowered `-exact` path already classified its patterns this way, so this is
+/// the same lowered-vs-opaque parity gap.
+#[test]
+fn issue_1266_braced_switch_pattern_is_not_a_read() {
+    for src in [
+        "proc f {z} { switch -glob $z { $a* { } } }\n",
+        "proc f {z} { switch -regexp $z { $a.* { } } }\n",
+        "proc f {z} { switch $z { $a - b { } } }\n",
+    ] {
+        assert!(
+            !fires(src, D, "W210"),
+            "#1266: a pattern in the braced arm block is literal; {src} emitted: {:?}",
+            codes(src, D)
+        );
+    }
+    // TP — patterns supplied as separate words really do substitute.
+    let words = "proc f {z} { switch -glob -- $z $a* { } }\n";
+    assert!(
+        fires(words, D, "W210"),
+        "#1266 TP: a separate-word pattern substitutes; emitted: {:?}",
+        codes(words, D)
+    );
+    // TN guard rail — the quoted pattern still keeps the store live.
+    let live = "proc p {z} { set x 1; switch -glob $z { $x* { } } }\n";
+    assert!(
+        !fires(live, D, "W211") && !fires(live, D, "W220"),
+        "#1266: a quoted pattern mention keeps the store live; emitted: {:?}",
+        codes(live, D)
+    );
+}

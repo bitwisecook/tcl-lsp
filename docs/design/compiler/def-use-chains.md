@@ -78,6 +78,31 @@ twin of the analyser's `barrier_body_locally_sets`.
 A braced `return` value (`return {$y}`) is `QUOTED` on both the statement
 and the terminator read.
 
+### Collapsed bodies keep their classification
+
+Almost every script in a Tcl file is *lowered* into ordinary CFG blocks
+before SSA runs, so the classification above is derived once, per word, at
+the statement that owns it.  The one exception is a non-lowered `switch`
+(`-glob` / `-regexp`, or `-exact` with a fall-through arm): its arms stay
+inside a single opaque `Statement::Switch`, and `ssa::switch_reads` recovers
+the names they read so a variable used only in an arm is not reported unused.
+
+That recovery walk (`switch_reads` → `free_reads_in_script` →
+`reads_in_script` → `reads_in_stmt`) carries the **same `ClassifiedUses`
+pair** the lowered path produces, rather than a bare name set (issue #1266).
+Collapsing to names alone made every brace-quoted data word inside an arm a
+substituted read, so `switch -glob $z { a* { puts {$b} } }` drew a false
+W210 that the identical body outside an arm did not.
+
+The classification has to be *threaded*, not dropped: omitting the name
+instead would take its liveness use with it and resurrect a false
+`W220 assignment never read` on `set x 1; switch -glob $z { a* { foreach n
+{$x} {} } }` — the guard rail issues #1237 and #1260 established.  The
+braced loop value word (`ForeachIterator::list_braced`) is the only extra
+input the walk needs beyond what `uses_of_classified` already answers,
+because a `Statement::Foreach` inside an opaque arm is walked here rather
+than lowered.
+
 ## Derivation from SSA
 
 1. **Pass 1 — definitions**: Walk every block.  For each phi node,

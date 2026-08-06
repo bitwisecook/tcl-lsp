@@ -1333,6 +1333,33 @@ struct ClassifiedUses {
     quoted: BTreeSet<String>,
 }
 
+impl ClassifiedUses {
+    /// Absorb another scan's two halves, keeping each name in its own bucket.
+    /// A name that is substituted *somewhere* stays substituted — the final
+    /// `quoted.retain` in [`uses_of_classified`] resolves the overlap once,
+    /// at the top, so intermediate merges never have to.
+    fn merge(&mut self, other: ClassifiedUses) {
+        self.substituted.extend(other.substituted);
+        self.quoted.extend(other.quoted);
+    }
+
+    /// Absorb a classified name list (as [`uses_of_classified`] returns it).
+    fn merge_classified(&mut self, uses: impl IntoIterator<Item = (String, UseClass)>) {
+        for (name, class) in uses {
+            match class {
+                UseClass::Substituted => self.substituted.insert(name),
+                UseClass::Quoted => self.quoted.insert(name),
+            };
+        }
+    }
+
+    /// Drop every name a collapsed body defines itself, from both halves.
+    fn remove_defs(&mut self, defs: &HashSet<String>) {
+        self.substituted.retain(|v| !defs.contains(v));
+        self.quoted.retain(|v| !defs.contains(v));
+    }
+}
+
 /// [`uses_of`] with each name's [`UseClass`].
 ///
 /// A name reached by both a substituted word and a brace-quoted one is
@@ -1402,12 +1429,14 @@ pub fn uses_of_classified(
             subject,
             arms,
             default_body,
+            patterns_braced,
             ..
         } => {
-            found.substituted.extend(switch_reads(
+            found.merge(switch_reads(
                 subject,
                 arms,
                 default_body.as_ref(),
+                *patterns_braced,
                 scanner,
                 registry,
             ));
@@ -1904,22 +1933,44 @@ fn word_sets_name(word: &str, name: &str) -> bool {
 /// Reads of a non-lowered (`-glob`/`-regexp`, or `-exact` with a fall-through
 /// arm) `switch` kept opaque in a CFG block: the subject word, every arm
 /// pattern, and the *free* reads of each arm/default body.
+///
+/// The arm bodies are the *only* scripts in the pipeline that reach SSA
+/// un-lowered, so this walk is the one place a `UseClass` would otherwise be
+/// invented rather than derived. It is threaded through instead (issue
+/// #1266): a brace-quoted data word inside an arm keeps the same
+/// [`UseClass::Quoted`] it would carry had the arm been lowered, so
+/// read-before-set skips it while liveness still honours it.
 fn switch_reads(
     subject: &str,
     arms: &[crate::ir::SwitchArm],
     default_body: Option<&crate::ir::Script>,
+    patterns_braced: bool,
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
-) -> BTreeSet<String> {
-    let mut reads = scanner.scan_word(subject, registry);
+) -> ClassifiedUses {
+    let mut reads = ClassifiedUses {
+        substituted: scanner.scan_word(subject, registry),
+        quoted: BTreeSet::new(),
+    };
     for arm in arms {
-        reads.extend(scanner.scan_word(&arm.pattern, registry));
+        // A pattern from the canonical single braced `{pat body …}` block is a
+        // literal list element — tclsh 9.0.4: `proc f {z} {switch -glob $z
+        // {$a* {puts hit} default {puts miss}}}; f {$a}` prints `hit` with `a`
+        // undefined. Supplied as separate words (`switch $s $pat {body}`) the
+        // pattern does substitute. Same classification the lowered `-exact`
+        // path already applies to its patterns.
+        let pattern_sink = if patterns_braced {
+            &mut reads.quoted
+        } else {
+            &mut reads.substituted
+        };
+        pattern_sink.extend(scanner.scan_word(&arm.pattern, registry));
         if let Some(body) = &arm.body {
-            reads.extend(free_reads_in_script(body, scanner, registry));
+            reads.merge(free_reads_in_script(body, scanner, registry));
         }
     }
     if let Some(db) = default_body {
-        reads.extend(free_reads_in_script(db, scanner, registry));
+        reads.merge(free_reads_in_script(db, scanner, registry));
     }
     reads
 }
@@ -1932,57 +1983,62 @@ fn free_reads_in_script(
     script: &crate::ir::Script,
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
-) -> BTreeSet<String> {
+) -> ClassifiedUses {
     let mut defs: HashSet<String> = crate::ir_helpers::defs_from_ir_script(script)
         .into_iter()
         .collect();
     defs.extend(collapsed_extra_defs(script, registry, 0));
-    reads_in_script(script, scanner, registry)
-        .into_iter()
-        .filter(|v| !defs.contains(v))
-        .collect()
+    let mut reads = reads_in_script(script, scanner, registry);
+    reads.remove_defs(&defs);
+    reads
 }
 
-/// Recursively collect variable reads from an un-lowered IR script.
+/// Recursively collect classified variable reads from an un-lowered IR script.
 fn reads_in_script(
     script: &crate::ir::Script,
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
-) -> BTreeSet<String> {
-    let mut reads = BTreeSet::new();
+) -> ClassifiedUses {
+    let mut reads = ClassifiedUses::default();
     for stmt in &script.statements {
-        reads.extend(reads_in_stmt(stmt, scanner, registry));
+        reads.merge(reads_in_stmt(stmt, scanner, registry));
     }
     reads
 }
 
-/// Variable reads of a single statement, recursing into nested bodies. Leaf
-/// reads come from [`uses_of`] (which resolves a nested `Statement::Switch` via
-/// [`switch_reads`]); structured statements are walked here because they are
-/// not lowered inside an opaque switch arm.
+/// Classified variable reads of a single statement, recursing into nested
+/// bodies. Leaf reads come from [`uses_of_classified`] (which resolves a
+/// nested `Statement::Switch` via [`switch_reads`]); structured statements are
+/// walked here because they are not lowered inside an opaque switch arm.
+///
+/// Every context this walk adds by hand — an `if`/`while`/`for` condition, a
+/// loop's value word, a nested body — is one the enclosing frame really does
+/// evaluate, so it is [`UseClass::Substituted`]; the single exception is a
+/// **braced** loop value word, which is literal list text (issue #1260).
 fn reads_in_stmt(
     stmt: &Statement,
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
-) -> BTreeSet<String> {
-    let mut reads: BTreeSet<String> = uses_of(stmt, scanner, registry).into_iter().collect();
+) -> ClassifiedUses {
+    let mut reads = ClassifiedUses::default();
+    reads.merge_classified(uses_of_classified(stmt, scanner, registry));
     match stmt {
         Statement::If {
             clauses, else_body, ..
         } => {
             for clause in clauses {
-                reads.extend(vars_in_expr(&clause.condition));
-                reads.extend(reads_in_script(&clause.body, scanner, registry));
+                reads.substituted.extend(vars_in_expr(&clause.condition));
+                reads.merge(reads_in_script(&clause.body, scanner, registry));
             }
             if let Some(eb) = else_body {
-                reads.extend(reads_in_script(eb, scanner, registry));
+                reads.merge(reads_in_script(eb, scanner, registry));
             }
         }
         Statement::While {
             condition, body, ..
         } => {
-            reads.extend(vars_in_expr(condition));
-            reads.extend(reads_in_script(body, scanner, registry));
+            reads.substituted.extend(vars_in_expr(condition));
+            reads.merge(reads_in_script(body, scanner, registry));
         }
         Statement::For {
             init,
@@ -1991,33 +2047,33 @@ fn reads_in_stmt(
             body,
             ..
         } => {
-            reads.extend(reads_in_script(init, scanner, registry));
-            reads.extend(vars_in_expr(condition));
-            reads.extend(reads_in_script(next, scanner, registry));
-            reads.extend(reads_in_script(body, scanner, registry));
+            reads.merge(reads_in_script(init, scanner, registry));
+            reads.substituted.extend(vars_in_expr(condition));
+            reads.merge(reads_in_script(next, scanner, registry));
+            reads.merge(reads_in_script(body, scanner, registry));
         }
         Statement::Foreach {
             iterators, body, ..
         } => {
             for it in iterators {
-                // `it.list_braced` is deliberately NOT consulted here. This
-                // walk feeds [`free_reads_in_script`], whose caller
-                // ([`switch_reads`]) merges everything into
-                // `ClassifiedUses::substituted` — the whole path drops
-                // [`UseClass`], so a name omitted here loses its *liveness*
-                // use too and resurrects W211/W220 on a store whose only
-                // mention is the braced word. The same collapse already
-                // keeps `puts {$y}` a read inside an opaque switch arm; the
-                // fix is to thread the classification through this walk, not
-                // to drop reads one statement kind at a time (issue #1260
-                // fixes the lowered path; the collapsed-arm residual is
-                // tracked separately).
-                reads.extend(scanner.scan_word(&it.list_arg, registry));
+                // A braced value word is literal list text — `foreach n {a $b
+                // c}` iterates the three characters `$b`, it does not read
+                // `b` (issue #1260). The name is still *recorded*, as
+                // `Quoted`: dropping it here would take its liveness use with
+                // it and resurrect a false W220 on a store whose only mention
+                // is that word (the #1237 guard rail). Classifying is what
+                // separates the two.
+                let sink = if it.list_braced {
+                    &mut reads.quoted
+                } else {
+                    &mut reads.substituted
+                };
+                sink.extend(scanner.scan_word(&it.list_arg, registry));
             }
-            reads.extend(reads_in_script(body, scanner, registry));
+            reads.merge(reads_in_script(body, scanner, registry));
         }
         Statement::Catch { body, .. } => {
-            reads.extend(reads_in_script(body, scanner, registry));
+            reads.merge(reads_in_script(body, scanner, registry));
         }
         Statement::Try {
             body,
@@ -2025,12 +2081,12 @@ fn reads_in_stmt(
             finally_body,
             ..
         } => {
-            reads.extend(reads_in_script(body, scanner, registry));
+            reads.merge(reads_in_script(body, scanner, registry));
             for handler in handlers {
-                reads.extend(reads_in_script(&handler.body, scanner, registry));
+                reads.merge(reads_in_script(&handler.body, scanner, registry));
             }
             if let Some(fb) = finally_body {
-                reads.extend(reads_in_script(fb, scanner, registry));
+                reads.merge(reads_in_script(fb, scanner, registry));
             }
         }
         _ => {}
@@ -3632,6 +3688,125 @@ mod tests {
             braced: true,
         };
         assert_eq!(classify(&stmt, &reg, "y"), Some(UseClass::Quoted));
+    }
+
+    /// Build a one-arm opaque `switch` around `body`, with `pattern` as the
+    /// arm's pattern and the canonical braced arm block.
+    fn opaque_switch(subject: &str, pattern: &str, body: crate::ir::Script) -> Statement {
+        Statement::Switch {
+            span: Span::new(0, 40),
+            subject: subject.into(),
+            subject_span: Span::new(0, 1),
+            arms: vec![crate::ir::SwitchArm {
+                pattern: pattern.into(),
+                pattern_span: Span::new(0, 1),
+                body: Some(body),
+                body_span: Some(Span::new(0, 1)),
+                fallthrough: false,
+            }],
+            default_body: None,
+            default_span: None,
+            mode: crate::ir::SwitchMode::Glob,
+            nocase: false,
+            raw_args: Vec::new(),
+            patterns_braced: true,
+        }
+    }
+
+    /// Issue #1266 — an arm body is the one script that reaches SSA
+    /// un-lowered, and its reads must arrive classified exactly as the same
+    /// word would be outside the arm. A braced data word is `Quoted`.
+    /// tclsh-proof: tclsh 9.0.4 — `proc f {z} { switch -glob $z { a* { puts
+    /// {$b} } } }; f abc` prints `$b` with `b` undefined.
+    #[test]
+    fn uses_of_classified_opaque_switch_arm_braced_data_word_is_quoted() {
+        let reg = default_registry();
+        let mut body = crate::ir::Script::new();
+        body.statements.push(call_with_words("puts", &["{$y}"]));
+        let stmt = opaque_switch("$z", "a*", body);
+        assert_eq!(classify(&stmt, &reg, "y"), Some(UseClass::Quoted));
+        // The subject is a genuine read of this frame.
+        assert_eq!(classify(&stmt, &reg, "z"), Some(UseClass::Substituted));
+    }
+
+    /// TP control — the substituting spelling of the same arm word stays a
+    /// definite read, so the classification is threaded, not dropped.
+    #[test]
+    fn uses_of_classified_opaque_switch_arm_unbraced_word_is_substituted() {
+        let reg = default_registry();
+        let mut body = crate::ir::Script::new();
+        body.statements.push(call_with_words("puts", &["$y"]));
+        let stmt = opaque_switch("$z", "a*", body);
+        assert_eq!(classify(&stmt, &reg, "y"), Some(UseClass::Substituted));
+    }
+
+    /// Issue #1266 — a `Statement::Foreach` inside an opaque arm is walked by
+    /// `reads_in_stmt` rather than lowered, so `ForeachIterator::list_braced`
+    /// (#1260) is the extra fact that walk needs: a braced value word is
+    /// literal list text, recorded `Quoted` so liveness still honours it.
+    #[test]
+    fn uses_of_classified_opaque_switch_arm_braced_foreach_list_is_quoted() {
+        let reg = default_registry();
+        let mut body = crate::ir::Script::new();
+        body.statements.push(Statement::Foreach {
+            span: Span::new(0, 20),
+            iterators: vec![crate::ir::ForeachIterator {
+                vars: vec!["n".into()],
+                list_arg: "a $y c".into(),
+                list_braced: true,
+            }],
+            body: crate::ir::Script::new(),
+            body_span: Span::new(0, 1),
+            is_lmap: false,
+            raw_args: Vec::new(),
+            is_dict_iteration: false,
+            is_array_iteration: false,
+            raw_tokens: None,
+        });
+        let stmt = opaque_switch("$z", "a*", body);
+        assert_eq!(classify(&stmt, &reg, "y"), Some(UseClass::Quoted));
+    }
+
+    /// TP control for the loop value word — the substituting spelling is a
+    /// definite read even inside an opaque arm.
+    #[test]
+    fn uses_of_classified_opaque_switch_arm_substituted_foreach_list_is_substituted() {
+        let reg = default_registry();
+        let mut body = crate::ir::Script::new();
+        body.statements.push(Statement::Foreach {
+            span: Span::new(0, 20),
+            iterators: vec![crate::ir::ForeachIterator {
+                vars: vec!["n".into()],
+                list_arg: "a $y c".into(),
+                list_braced: false,
+            }],
+            body: crate::ir::Script::new(),
+            body_span: Span::new(0, 1),
+            is_lmap: false,
+            raw_args: Vec::new(),
+            is_dict_iteration: false,
+            is_array_iteration: false,
+            raw_tokens: None,
+        });
+        let stmt = opaque_switch("$z", "a*", body);
+        assert_eq!(classify(&stmt, &reg, "y"), Some(UseClass::Substituted));
+    }
+
+    /// Issue #1266 — a pattern from the canonical braced arm block is a
+    /// literal list element; supplied as separate words it substitutes.
+    #[test]
+    fn uses_of_classified_switch_pattern_class_follows_patterns_braced() {
+        let reg = default_registry();
+        let braced = opaque_switch("$z", "$p*", crate::ir::Script::new());
+        assert_eq!(classify(&braced, &reg, "p"), Some(UseClass::Quoted));
+        let mut worded = opaque_switch("$z", "$p*", crate::ir::Script::new());
+        if let Statement::Switch {
+            patterns_braced, ..
+        } = &mut worded
+        {
+            *patterns_braced = false;
+        }
+        assert_eq!(classify(&worded, &reg, "p"), Some(UseClass::Substituted));
     }
 
     // build_ssa tests
