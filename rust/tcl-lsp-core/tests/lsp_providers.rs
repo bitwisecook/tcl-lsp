@@ -465,7 +465,7 @@ fn whole_line(line: u32) -> LspRange {
 
 #[test]
 fn code_actions_none_analysis_is_empty() {
-    assert!(code_actions("catch { puts hi }\n", whole_line(0), None).is_empty());
+    assert!(code_actions("catch { puts hi }\n", whole_line(0), None, &[]).is_empty());
 }
 
 #[test]
@@ -485,7 +485,7 @@ fn code_actions_catch_without_result_var_offers_fix() {
         "expected a W302 diagnostic; got {:?}",
         analysis.diagnostics,
     );
-    let actions = code_actions(src, whole_line(0), Some(&analysis));
+    let actions = code_actions(src, whole_line(0), Some(&analysis), &analysis.diagnostics);
     let titles: Vec<&str> = actions.iter().map(|a| a.title.as_str()).collect();
     assert!(
         titles.iter().any(|t| t.contains("result")),
@@ -518,7 +518,7 @@ fn code_actions_catch_with_result_var_offers_no_w302_fix() {
     // silent-swallow, so no W302 and no catch-result quick-fix.
     let src = "catch { puts hi } result\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, whole_line(0), Some(&analysis));
+    let actions = code_actions(src, whole_line(0), Some(&analysis), &analysis.diagnostics);
     assert!(
         !actions.iter().any(|a| a.title.contains("catch result")),
         "no catch-result fix expected; got {:?}",
@@ -544,7 +544,7 @@ fn code_actions_unset_possibly_undef_offers_nocomplain() {
     // The W213 diag is on line 0 (narrowed to the `xs` variable word); the
     // whole-line request range still overlaps it and the `unset` keyword.
     let (l, _c) = pos_of(src, "unset", 1);
-    let actions = code_actions(src, whole_line(l), Some(&analysis));
+    let actions = code_actions(src, whole_line(l), Some(&analysis), &analysis.diagnostics);
     let nocomplain = actions
         .iter()
         .find(|a| a.title.contains("-nocomplain"))
@@ -565,7 +565,7 @@ fn code_actions_clean_script_outside_diag_offers_no_quickfix() {
     // (refactor/source actions may still appear, but no `quickfix`).
     let src = "set x 1\nset y 2\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, whole_line(0), Some(&analysis));
+    let actions = code_actions(src, whole_line(0), Some(&analysis), &analysis.diagnostics);
     assert!(
         !actions.iter().any(|a| a.kind == ActionKind::QuickFix),
         "no quick-fix expected on a clean line; got {:?}",
@@ -577,7 +577,7 @@ fn code_actions_clean_script_outside_diag_offers_no_quickfix() {
 fn code_actions_degenerate_inputs_do_not_panic() {
     for src in ["", "   ", "\n", "catch {"] {
         let analysis = analyse(src);
-        let _ = code_actions(src, whole_line(0), Some(&analysis));
+        let _ = code_actions(src, whole_line(0), Some(&analysis), &analysis.diagnostics);
     }
 }
 

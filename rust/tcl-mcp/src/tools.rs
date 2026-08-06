@@ -830,8 +830,15 @@ fn code_actions(args: &Value) -> Value {
         end_line: arg_u32(args, "end_line"),
         end_character: arg_u32(args, "end_character"),
     };
-    let actions: Vec<Value> = tcl_lsp_core::code_actions::code_actions(source, range, Some(&analysis))
-        .iter()
+    // The MCP tool analyses one standalone source string with no workspace
+    // behind it, so the analyser's own diagnostics *are* the published set.
+    let actions: Vec<Value> = tcl_lsp_core::code_actions::code_actions(
+        source,
+        range,
+        Some(&analysis),
+        &analysis.diagnostics,
+    )
+    .iter()
         .map(|a| {
             let mut obj = json!({ "title": a.title, "kind": a.kind.as_str() });
             let m = obj.as_object_mut().expect("json object");

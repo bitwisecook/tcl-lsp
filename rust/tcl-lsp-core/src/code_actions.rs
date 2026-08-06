@@ -260,10 +260,10 @@ fn push_brace_expr_refactors(
     actions: &mut Vec<CodeAction>,
     source: &str,
     range: LspRange,
-    analysis: &AnalysisResult,
+    diagnostics: &[tcl_compiler::analyser::Diagnostic],
     line_index: &LineIndex,
 ) {
-    for diag in &analysis.diagnostics {
+    for diag in diagnostics {
         if diag.code != DiagCode::W100 {
             continue;
         }
@@ -300,13 +300,24 @@ fn push_brace_expr_refactors(
 /// already computed.  When `None`, returns an empty vector
 /// (preserves the stub call shape for callers that haven't
 /// yet plumbed analysis through).
+///
+/// `diagnostics` is the **published** diagnostic set — the one the host has
+/// decided this document actually shows, after whatever workspace refinement
+/// it applies (the LSP server's package / auto-load / cross-file W120 and W123
+/// passes).  It is a separate argument from `analysis` precisely because it is
+/// *not* `analysis.diagnostics`: reading the analyser's raw set here is what
+/// let the server offer a "did you mean 'ni'?" rewrite over a cross-file
+/// `Pi()` call whose diagnostic it had already suppressed (issue #923 idx 80).
+/// A host with no workspace knowledge passes `&analysis.diagnostics`, which is
+/// then the same set by definition.
 #[must_use]
 pub fn code_actions(
     source: &str,
     range: LspRange,
     analysis: Option<&AnalysisResult>,
+    diagnostics: &[tcl_compiler::analyser::Diagnostic],
 ) -> Vec<CodeAction> {
-    code_actions_in_program(source, range, analysis, None)
+    code_actions_in_program(source, range, analysis, diagnostics, None)
 }
 
 /// [`code_actions`] with the caller's whole-program export view attached —
@@ -317,11 +328,17 @@ pub fn code_actions(
 /// `namespace export` lives in another file decides whether inlining the
 /// local same-named proc is a refactor or a behaviour change (issue #1116
 /// item 1).
+///
+/// `diagnostics` carries the same published-set meaning as in [`code_actions`]:
+/// the two arguments answer different questions — `program` decides what a call
+/// *reaches*, `diagnostics` decides what the document is *showing* — so a host
+/// with a workspace index needs to supply both.
 #[must_use]
 pub fn code_actions_in_program(
     source: &str,
     range: LspRange,
     analysis: Option<&AnalysisResult>,
+    diagnostics: &[tcl_compiler::analyser::Diagnostic],
     program: Option<crate::definition::ProgramExports<'_>>,
 ) -> Vec<CodeAction> {
     let Some(analysis) = analysis else {
@@ -330,9 +347,9 @@ pub fn code_actions_in_program(
     let line_index = LineIndex::new(source);
     let mut actions = Vec::new();
 
-    push_brace_expr_refactors(&mut actions, source, range, analysis, &line_index);
+    push_brace_expr_refactors(&mut actions, source, range, diagnostics, &line_index);
 
-    for diag in &analysis.diagnostics {
+    for diag in diagnostics {
         let diag_start = line_index.position_at_utf16(diag.span.start(), source);
         let diag_end = line_index.position_at_utf16(diag.span.end(), source);
         let diag_range = LspRange {
@@ -2141,7 +2158,7 @@ mod tests {
 
     #[test]
     fn empty_actions_when_analysis_is_none() {
-        assert!(code_actions("set x 1\n", whole_document_range("set x 1\n"), None).is_empty());
+        assert!(code_actions("set x 1\n", whole_document_range("set x 1\n"), None, &[]).is_empty());
     }
 
     #[test]
@@ -2162,7 +2179,12 @@ mod tests {
                 safety: tcl_compiler::analyser::FixSafety::RequiresReview,
             }],
         });
-        let actions = code_actions("set x 1\n", whole_document_range("set x 1\n"), Some(&r));
+        let actions = code_actions(
+            "set x 1\n",
+            whole_document_range("set x 1\n"),
+            Some(&r),
+            &r.diagnostics,
+        );
         let qf: Vec<&CodeAction> = actions
             .iter()
             .filter(|a| a.kind == ActionKind::QuickFix)
@@ -2196,7 +2218,7 @@ mod tests {
             end_line: 99,
             end_character: 10,
         };
-        assert!(code_actions("set x 1\n", far_range, Some(&r)).is_empty());
+        assert!(code_actions("set x 1\n", far_range, Some(&r), &r.diagnostics).is_empty());
     }
 
     #[test]
@@ -2214,7 +2236,12 @@ mod tests {
                 safety: tcl_compiler::analyser::FixSafety::RequiresReview,
             }],
         });
-        let actions = code_actions("set x 1\n", whole_document_range("set x 1\n"), Some(&r));
+        let actions = code_actions(
+            "set x 1\n",
+            whole_document_range("set x 1\n"),
+            Some(&r),
+            &r.diagnostics,
+        );
         let qf: Vec<&CodeAction> = actions
             .iter()
             .filter(|a| a.kind == ActionKind::QuickFix)
@@ -2233,6 +2260,7 @@ mod tests {
             "set x 1\nputs $x\n",
             whole_document_range("set x 1\nputs $x\n"),
             Some(&analysis),
+            &analysis.diagnostics,
         );
         // No diagnostic fixes → no quick-fix actions (range-based refactors
         // like extract-proc may still be offered for the selection).
@@ -2265,7 +2293,12 @@ mod tests {
                 },
             ],
         });
-        let actions = code_actions("set x 1\n", whole_document_range("set x 1\n"), Some(&r));
+        let actions = code_actions(
+            "set x 1\n",
+            whole_document_range("set x 1\n"),
+            Some(&r),
+            &r.diagnostics,
+        );
         let titles: Vec<&str> = actions
             .iter()
             .filter(|a| a.kind == ActionKind::QuickFix)
@@ -2290,7 +2323,12 @@ mod tests {
     fn inline_outcome(src: &str, call_line: u32) -> Result<String, String> {
         let mut analyser = Analyser::new();
         let analysis = analyser.analyse(src, "tcl8.6").clone();
-        let actions = code_actions(src, line_range(call_line), Some(&analysis));
+        let actions = code_actions(
+            src,
+            line_range(call_line),
+            Some(&analysis),
+            &analysis.diagnostics,
+        );
         let action = actions
             .iter()
             .find(|a| a.title.starts_with("Inline proc "))
@@ -2345,7 +2383,12 @@ mod tests {
             "expected W213 from {:?}",
             analysis.diagnostics,
         );
-        let actions = code_actions(src, whole_document_range(src), Some(&analysis));
+        let actions = code_actions(
+            src,
+            whole_document_range(src),
+            Some(&analysis),
+            &analysis.diagnostics,
+        );
         let nocomplain = actions
             .iter()
             .find(|a| a.title == "Add '-nocomplain' to unset");
@@ -2368,7 +2411,12 @@ mod tests {
         let src = "proc foo {} { unset xs }\n";
         let mut a = Analyser::new();
         let analysis = a.analyse(src, "tcl8.6").clone();
-        let actions = code_actions(src, whole_document_range(src), Some(&analysis));
+        let actions = code_actions(
+            src,
+            whole_document_range(src),
+            Some(&analysis),
+            &analysis.diagnostics,
+        );
         let act = actions
             .iter()
             .find(|a| a.title == "Add '-nocomplain' to unset")
@@ -2428,10 +2476,15 @@ mod tests {
             "expected W302 from {:?}",
             analysis.diagnostics,
         );
-        code_actions(src, whole_document_range(src), Some(&analysis))
-            .into_iter()
-            .filter(|action| action.title.starts_with("Add catch"))
-            .collect()
+        code_actions(
+            src,
+            whole_document_range(src),
+            Some(&analysis),
+            &analysis.diagnostics,
+        )
+        .into_iter()
+        .filter(|action| action.title.starts_with("Add catch"))
+        .collect()
     }
 
     #[test]
@@ -2518,7 +2571,12 @@ mod tests {
             "expected W120 from {:?}",
             analysis.diagnostics,
         );
-        let actions = code_actions(src, whole_document_range(src), Some(&analysis));
+        let actions = code_actions(
+            src,
+            whole_document_range(src),
+            Some(&analysis),
+            &analysis.diagnostics,
+        );
         let add = actions
             .iter()
             .find(|a| a.title.starts_with("Add 'package require"));
@@ -2952,7 +3010,7 @@ mod tests {
             end_line: 0,
             end_character: 27,
         };
-        let actions = code_actions(src, range, Some(&analysis));
+        let actions = code_actions(src, range, Some(&analysis), &analysis.diagnostics);
         assert!(
             actions.iter().any(|a| {
                 a.kind == ActionKind::RefactorExtract && a.title.to_lowercase().contains("variable")
@@ -2974,7 +3032,7 @@ mod tests {
             end_line: 0,
             end_character: 16,
         };
-        let mut actions = code_actions(src, range, Some(&analysis));
+        let mut actions = code_actions(src, range, Some(&analysis), &analysis.diagnostics);
         assert!(
             actions
                 .iter()
@@ -3033,7 +3091,7 @@ mod tests {
             end_line: 0,
             end_character: 0,
         };
-        let actions = code_actions(src, cursor, Some(&analysis));
+        let actions = code_actions(src, cursor, Some(&analysis), &analysis.diagnostics);
         assert!(
             actions
                 .iter()
@@ -3059,7 +3117,7 @@ mod tests {
             end_line: 2,
             end_character: 8,
         };
-        let actions = code_actions(src, cursor, Some(&analysis));
+        let actions = code_actions(src, cursor, Some(&analysis), &analysis.diagnostics);
         assert!(
             actions
                 .iter()
@@ -3078,7 +3136,7 @@ mod tests {
             end_line: 0,
             end_character: 0,
         };
-        let actions = code_actions(src, cursor, Some(&analysis));
+        let actions = code_actions(src, cursor, Some(&analysis), &analysis.diagnostics);
         let dg = actions
             .iter()
             .find(|a| a.title.to_lowercase().contains("data-group"))

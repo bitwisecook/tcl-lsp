@@ -324,6 +324,7 @@ fn code_actions_offer_the_reached_body_for_inlining() {
             MAIN,
             cursor,
             Some(analysis),
+            &analysis.diagnostics,
             Some(program(exports)),
         )
         .into_iter()
@@ -461,14 +462,25 @@ fn the_legacy_entry_points_still_equal_the_document_only_program_view() {
         end_character: 0,
     };
     assert_eq!(
-        tcl_lsp_core::code_actions::code_actions(MAIN, cursor, Some(&analysis))
-            .into_iter()
-            .map(|a| a.title)
-            .collect::<Vec<_>>(),
-        tcl_lsp_core::code_actions::code_actions_in_program(MAIN, cursor, Some(&analysis), None)
-            .into_iter()
-            .map(|a| a.title)
-            .collect::<Vec<_>>(),
+        tcl_lsp_core::code_actions::code_actions(
+            MAIN,
+            cursor,
+            Some(&analysis),
+            &analysis.diagnostics
+        )
+        .into_iter()
+        .map(|a| a.title)
+        .collect::<Vec<_>>(),
+        tcl_lsp_core::code_actions::code_actions_in_program(
+            MAIN,
+            cursor,
+            Some(&analysis),
+            &analysis.diagnostics,
+            None
+        )
+        .into_iter()
+        .map(|a| a.title)
+        .collect::<Vec<_>>(),
         "code_actions delegation changed nothing"
     );
 }
