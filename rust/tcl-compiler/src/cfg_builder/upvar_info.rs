@@ -519,7 +519,8 @@ fn walk_stmt(
             ..
         } => match (*absolute, *frame_shift) {
             (false, 1) => record_upframe_body(body, info),
-            (true, 0) | (false, 0) => {}
+            // `uplevel #0` is the global frame, `uplevel 0` the callee's own.
+            (true | false, 0) => {}
             _ => widen_beyond_caller(info),
         },
         Statement::If {
