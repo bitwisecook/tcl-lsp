@@ -828,6 +828,14 @@ impl Analyser {
             // than an inert word (issue #1088).
             self.record_namespace_name_references(cmd_name, args, arg_tokens, scope_path);
 
+            // Record every *computed* variable-name argument (`set $n 2`,
+            // `variable $n`) with what the dominating-constant lattice
+            // proves about its value, so a post-analysis consumer can ask
+            // which cells the word can actually name (issue #1262).
+            self.record_dynamic_variable_name_sites(
+                cmd_name, args, arg_tokens, arg_single, scope_path,
+            );
+
             // Run the per-command syntactic checks on commands nested inside
             // ``[…]`` substitutions (bare-`Cmd` args *and* braced-expr args)
             // — the main walk never descends a substitution (it treats
@@ -2294,6 +2302,73 @@ impl Analyser {
                 span: tok.span,
                 declares,
             });
+        }
+    }
+
+    /// Record each computed variable-name argument as a
+    /// [`DynamicVariableNameSite`](super::types::DynamicVariableNameSite):
+    /// the word's span plus the name it provably evaluates to, when the
+    /// constant lattice dominates the site (issue #1262).
+    ///
+    /// Which argument of which command names a variable is the registry's
+    /// answer ([`tcl_registry::ArgRole::VarWrite`] /
+    /// [`tcl_registry::ArgRole::VarRead`]); whether the word is computed is
+    /// [`crate::dynamic_names::names_a_dynamic_variable`]'s.  No command name
+    /// is matched here.
+    ///
+    /// A **brace-quoted** word is skipped: `set {$n} 1` names the variable
+    /// literally called `$n` and substitutes nothing (tclsh 8.6.14: `set {$n}
+    /// v; info exists {$n}` -> 1 while `info exists n` -> 0).  The word text
+    /// alone cannot tell the two spellings apart, so the token kind decides —
+    /// the same authority `dynamic_names::scan_command` uses for the compiler
+    /// -side barrier.
+    ///
+    /// The resolution is [`Self::resolve_dynamic_word`]'s, which folds only
+    /// through values that **dominate** the site: a branch-conditional
+    /// binding, a parameter, or a `[…]` substitution yields `None`, which a
+    /// consumer must read as "could be anything".
+    fn record_dynamic_variable_name_sites(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) {
+        let Some(registry) = self.registry else {
+            return;
+        };
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        for (role, writes) in [(ArgRole::VarWrite, true), (ArgRole::VarRead, false)] {
+            for idx in registry.arg_indices_for_role(cmd_name, &arg_strs, role) {
+                let (Some(word), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) else {
+                    continue;
+                };
+                if tok.kind == TokenType::Str
+                    || !crate::dynamic_names::names_a_dynamic_variable(word)
+                {
+                    continue;
+                }
+                // A word carrying both roles (a read-modify-write target)
+                // is one site, recorded under the write it also performs.
+                if self
+                    .result
+                    .dynamic_variable_names
+                    .iter()
+                    .any(|s| s.span == tok.span)
+                {
+                    continue;
+                }
+                let is_single = arg_single.get(idx).copied().unwrap_or(false);
+                let resolved = self.resolve_dynamic_word(word, Some(*tok), is_single, scope_path);
+                self.result.dynamic_variable_names.push(
+                    super::types::DynamicVariableNameSite {
+                        span: tok.span,
+                        resolved,
+                        writes,
+                    },
+                );
+            }
         }
     }
 
