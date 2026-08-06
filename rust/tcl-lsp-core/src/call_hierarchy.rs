@@ -121,6 +121,30 @@ pub fn prepare(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Vec<CallHierarchyItem> {
+    prepare_in_program(
+        source,
+        line,
+        character,
+        analysis,
+        crate::definition::CallResolution::document_only(),
+    )
+}
+
+/// [`prepare`] with the caller's whole-program export view attached — the
+/// entry point a host with a workspace index should call.
+///
+/// Which proc a call edge points at is a call resolution, so a `namespace
+/// import -force` whose covering `namespace export` lives in another file
+/// changes the hierarchy (issue #1116 item 1). Without the oracle the graph
+/// would draw an edge to a definition go-to-definition refuses to open.
+#[must_use]
+pub fn prepare_in_program(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+) -> Vec<CallHierarchyItem> {
     let line_index = LineIndex::new(source);
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
@@ -134,7 +158,7 @@ pub fn prepare(
         source,
         cursor_off,
         &word,
-        crate::definition::CallResolution::document_only(),
+        resolution,
     );
     if let Some((qname, proc_def)) = proc_match {
         return vec![item_for_proc(source, proc_def, qname, &line_index)];
@@ -235,6 +259,7 @@ fn find_proc_for_item<'a>(
     analysis: &'a AnalysisResult,
     item: &CallHierarchyItem,
     line_index: &LineIndex,
+    resolution: crate::definition::CallResolution<'_>,
 ) -> Option<(&'a String, &'a ProcDef)> {
     if let Some(hit) = analysis
         .all_procs
@@ -253,13 +278,7 @@ fn find_proc_for_item<'a>(
         item.selection_range.start_line,
         item.selection_range.start_character,
     );
-    crate::definition::resolve_proc_target_at(
-        analysis,
-        source,
-        cursor_off,
-        &item.name,
-        crate::definition::CallResolution::document_only(),
-    )
+    crate::definition::resolve_proc_target_at(analysis, source, cursor_off, &item.name, resolution)
 }
 
 /// Build a [`CallHierarchyItem`] for a class method.
@@ -575,8 +594,34 @@ pub fn unresolved_outgoing_calls(
     item: &CallHierarchyItem,
     analysis: &AnalysisResult,
 ) -> Vec<UnresolvedOutgoingCall> {
+    unresolved_outgoing_calls_in_program(
+        source,
+        dialect,
+        item,
+        analysis,
+        crate::definition::CallResolution::document_only(),
+    )
+}
+
+/// [`unresolved_outgoing_calls`] with the caller's whole-program export view attached — the
+/// entry point a host with a workspace index should call.
+///
+/// Which proc a call edge points at is a call resolution, so a `namespace
+/// import -force` whose covering `namespace export` lives in another file
+/// changes the hierarchy (issue #1116 item 1). Without the oracle the graph
+/// would draw an edge to a definition go-to-definition refuses to open.
+#[must_use]
+pub fn unresolved_outgoing_calls_in_program(
+    source: &str,
+    dialect: &str,
+    item: &CallHierarchyItem,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+) -> Vec<UnresolvedOutgoingCall> {
     let line_index = LineIndex::new(source);
-    if let Some((_, source_proc)) = find_proc_for_item(source, analysis, item, &line_index) {
+    if let Some((_, source_proc)) =
+        find_proc_for_item(source, analysis, item, &line_index, resolution)
+    {
         let mut by_head: std::collections::BTreeMap<String, (Option<String>, Vec<LspRange>)> =
             std::collections::BTreeMap::new();
         for inv in &analysis.command_invocations {
@@ -608,7 +653,7 @@ pub fn unresolved_outgoing_calls(
             )
             .collect();
     }
-    unresolved_method_outgoing_calls(source, dialect, item, analysis, &line_index)
+    unresolved_method_outgoing_calls(source, dialect, item, analysis, &line_index, resolution)
 }
 
 /// Method-body variant of [`unresolved_outgoing_calls`]: keeps
@@ -626,6 +671,7 @@ fn unresolved_method_outgoing_calls(
     item: &CallHierarchyItem,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
+    resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<UnresolvedOutgoingCall> {
     let Some((class_def, source_method)) = resolve_method_item(source, analysis, item, line_index)
     else {
@@ -652,7 +698,7 @@ fn unresolved_method_outgoing_calls(
             class_ns,
             &head,
             span.start(),
-            crate::definition::CallResolution::document_only(),
+            resolution,
         )
         .is_some()
         {
@@ -688,8 +734,33 @@ pub fn incoming_calls(
     item: &CallHierarchyItem,
     analysis: &AnalysisResult,
 ) -> Vec<IncomingCall> {
+    incoming_calls_in_program(
+        source,
+        dialect,
+        item,
+        analysis,
+        crate::definition::CallResolution::document_only(),
+    )
+}
+
+/// [`incoming_calls`] with the caller's whole-program export view attached — the
+/// entry point a host with a workspace index should call.
+///
+/// Which proc a call edge points at is a call resolution, so a `namespace
+/// import -force` whose covering `namespace export` lives in another file
+/// changes the hierarchy (issue #1116 item 1). Without the oracle the graph
+/// would draw an edge to a definition go-to-definition refuses to open.
+#[must_use]
+pub fn incoming_calls_in_program(
+    source: &str,
+    dialect: &str,
+    item: &CallHierarchyItem,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+) -> Vec<IncomingCall> {
     let line_index = LineIndex::new(source);
-    let Some((target_qname, target_proc)) = find_proc_for_item(source, analysis, item, &line_index)
+    let Some((target_qname, target_proc)) =
+        find_proc_for_item(source, analysis, item, &line_index, resolution)
     else {
         // Not a proc — try a class method.
         return method_incoming_calls(source, dialect, item, analysis, &line_index);
@@ -787,10 +858,35 @@ pub fn outgoing_calls(
     item: &CallHierarchyItem,
     analysis: &AnalysisResult,
 ) -> Vec<OutgoingCall> {
+    outgoing_calls_in_program(
+        source,
+        dialect,
+        item,
+        analysis,
+        crate::definition::CallResolution::document_only(),
+    )
+}
+
+/// [`outgoing_calls`] with the caller's whole-program export view attached — the
+/// entry point a host with a workspace index should call.
+///
+/// Which proc a call edge points at is a call resolution, so a `namespace
+/// import -force` whose covering `namespace export` lives in another file
+/// changes the hierarchy (issue #1116 item 1). Without the oracle the graph
+/// would draw an edge to a definition go-to-definition refuses to open.
+#[must_use]
+pub fn outgoing_calls_in_program(
+    source: &str,
+    dialect: &str,
+    item: &CallHierarchyItem,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+) -> Vec<OutgoingCall> {
     let line_index = LineIndex::new(source);
-    let Some((_, source_proc)) = find_proc_for_item(source, analysis, item, &line_index) else {
+    let Some((_, source_proc)) = find_proc_for_item(source, analysis, item, &line_index, resolution)
+    else {
         // Not a proc — try a class method.
-        return method_outgoing_calls(source, dialect, item, analysis, &line_index);
+        return method_outgoing_calls(source, dialect, item, analysis, &line_index, resolution);
     };
     let mut by_target: EdgeBuckets = EdgeBuckets::new();
     for inv in &analysis.command_invocations {
@@ -1034,6 +1130,7 @@ fn method_outgoing_calls(
     item: &CallHierarchyItem,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
+    resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<OutgoingCall> {
     let Some((class_def, source_method)) = resolve_method_item(source, analysis, item, line_index)
     else {
@@ -1092,7 +1189,7 @@ fn method_outgoing_calls(
             class_ns,
             &head,
             span.start(),
-            crate::definition::CallResolution::document_only(),
+            resolution,
         ) {
             let qname = &proc_def.qualified_name;
             let entry = by_target

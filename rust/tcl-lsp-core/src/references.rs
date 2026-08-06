@@ -791,14 +791,19 @@ fn caller_frame_references(
         line_index,
         analysis,
         include_declaration,
+        resolution,
         ..
     } = *ctx;
+    // The caller's whole-program view, not a fresh document-only one: which
+    // proc a binding's call-site word reaches is itself a call resolution, so
+    // dropping the oracle here would let find-references disagree with
+    // go-to-definition on a `-force`-shadowed callee (issue #1116 item 1).
+    let resolution = resolution.with_registry(tcl_registry::registry_for_dialect(dialect));
     let bindings = crate::caller_frame::caller_frame_bindings(
         analysis,
         source,
         dialect,
-        crate::definition::CallResolution::document_only()
-            .with_registry(tcl_registry::registry_for_dialect(dialect)),
+        resolution,
         byte_offset,
         name,
     );
@@ -818,8 +823,7 @@ fn caller_frame_references(
         analysis,
         source,
         dialect,
-        crate::definition::CallResolution::document_only()
-            .with_registry(tcl_registry::registry_for_dialect(dialect)),
+        resolution,
         byte_offset,
         name,
     )
@@ -840,6 +844,7 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         character,
         analysis,
         include_declaration,
+        resolution,
         ..
     } = *ctx;
     let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
@@ -875,8 +880,7 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         analysis,
         source,
         dialect,
-        crate::definition::CallResolution::document_only()
-            .with_registry(tcl_registry::registry_for_dialect(dialect)),
+        resolution.with_registry(tcl_registry::registry_for_dialect(dialect)),
         byte_offset,
         &find_word_span_at_position(source, line, character)
             .map(|(w, _, _)| w)

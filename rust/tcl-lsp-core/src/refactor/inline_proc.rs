@@ -93,6 +93,33 @@ pub fn inline_proc(
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
 ) -> Option<Refactoring> {
+    inline_proc_in_program(
+        source,
+        cursor,
+        analysis,
+        crate::definition::CallResolution::document_only().with_registry(registry),
+    )
+}
+
+/// [`inline_proc`] with the caller's whole-program export view attached — the
+/// entry point a host with a workspace index should call.
+///
+/// Inlining substitutes *the body of the proc the call actually reaches*, so
+/// a `namespace import -force` whose covering `namespace export` lives in
+/// another file makes inlining the local same-named proc a behaviour change,
+/// not a refactor (issue #1116 item 1). With the oracle attached the head
+/// simply does not resolve locally and no action is offered — the safe
+/// answer, and the same one go-to-definition gives.
+#[must_use]
+pub fn inline_proc_in_program(
+    source: &str,
+    cursor: u32,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+) -> Option<Refactoring> {
+    let Some(registry) = resolution.registry else {
+        return None;
+    };
     let call = find_command_at(source, cursor, None, registry)?;
     let head = call.name();
     if head.is_empty() {
@@ -114,7 +141,7 @@ pub fn inline_proc(
         &namespace,
         head,
         head_off,
-        crate::definition::CallResolution::document_only().with_registry(registry),
+        resolution,
     )?;
     let title = format!("Inline proc '{}'", proc_def.name);
     let (call_start, call_end) = command_span_offsets(source, &call);

@@ -288,6 +288,7 @@ pub fn definition_with(
             line,
             character,
             analysis,
+            resolution: view,
         },
     ) {
         return result;
@@ -494,6 +495,12 @@ struct DefCtx<'a> {
     line: u32,
     character: u32,
     analysis: &'a AnalysisResult,
+    /// The request's whole-program view, carried this far because the
+    /// caller-frame path resolves *call sites* to find the callee that
+    /// `upvar`s the name — a resolution the `-force` shadow can change
+    /// (issue #1116 item 1). Hover already threads it; dropping it here is
+    /// what made the two providers disagree on one cursor.
+    resolution: CallResolution<'a>,
 }
 
 /// The go-to-definition answers decided by the cursor's *position* alone,
@@ -532,6 +539,7 @@ fn position_definition(
         line,
         character,
         analysis,
+        resolution,
     } = ctx;
     // Resolved through the shared gate, not the raw character scan: a cursor
     // inside a brace-quoted variable-name word (`set {$n} 1`) is not a `$n`
@@ -557,7 +565,7 @@ fn position_definition(
         // the creating write, the nearest thing the frame has to a
         // declaration (issue #923 audit idx 58).
         return Some(caller_frame_definition(
-            source, line_index, analysis, cursor_off, &var_name,
+            source, line_index, analysis, resolution, cursor_off, &var_name,
         ));
     }
     let param_position = parameter_list_position_at(analysis, source, cursor_off);
@@ -622,6 +630,7 @@ fn caller_frame_definition(
     source: &str,
     line_index: &LineIndex,
     analysis: &AnalysisResult,
+    resolution: CallResolution<'_>,
     cursor_off: u32,
     name: &str,
 ) -> Vec<LspRange> {
@@ -629,7 +638,7 @@ fn caller_frame_definition(
         analysis,
         source,
         "",
-        CallResolution::document_only().with_registry(tcl_registry::registry_for_dialect("")),
+        resolution.with_registry(tcl_registry::registry_for_dialect("")),
         cursor_off,
         name,
     );
