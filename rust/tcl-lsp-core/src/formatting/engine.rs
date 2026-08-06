@@ -1225,11 +1225,19 @@ fn keyword_rewrites_for(
                     .any(|t| matches!(t.kind, TokenType::Var | TokenType::Cmd | TokenType::Expand))
         })
         .collect();
-    // The registry handed to the formatter is already the document's
-    // dialect pack, so no further dialect intersection is applied here;
-    // passing `None` keeps every declared keyword a candidate, which can only
-    // make a prefix *less* unique — the conservative direction.
-    super::keywords::rewrites_for_command(registry, None, config, &cmd.name, &words, &dynamic)
+    // The document's own release filters the candidate table, so a keyword a
+    // later Tcl adds is not counted against a prefix the target resolves
+    // uniquely.  The forward-compatibility half — "and it must still mean the
+    // same thing in every later release of the target range" — is enforced
+    // inside `rewrites_for_command` from `config.target_range` (issue #1257).
+    // With no dialect declared this falls back to `None`, the pre-#1257
+    // conservative direction: every declared keyword stays a candidate, which
+    // can only make a prefix *less* unique.
+    let dialect = config
+        .dialect
+        .as_deref()
+        .and_then(tcl_registry::prelude::DialectSet::parse);
+    super::keywords::rewrites_for_command(registry, dialect, config, &cmd.name, &words, &dynamic)
         .into_iter()
         .map(|r| (r.index + 1, r.text))
         .collect()
