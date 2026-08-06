@@ -2076,7 +2076,15 @@ fn tcloo_method_context_membership() {
     // has an 8.6 spelling via the `ooutil`-gated twin.
     let reg86 = registry_for_dialect("tcl8.6");
     assert!(!reg86.resolves_only_in_method_context("callback"));
-    for name in ["link", "my", "mymethod", "next", "nextto", "self", "classvariable"] {
+    for name in [
+        "link",
+        "my",
+        "mymethod",
+        "next",
+        "nextto",
+        "self",
+        "classvariable",
+    ] {
         assert!(
             reg86.resolves_only_in_method_context(name),
             "{name}: 8.6 has it (via ooutil for link/mymethod/classvariable)"

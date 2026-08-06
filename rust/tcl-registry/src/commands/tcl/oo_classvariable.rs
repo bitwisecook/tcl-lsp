@@ -134,7 +134,11 @@ mod tests {
     #[test]
     fn both_entries_are_method_frame_scoped() {
         for s in [spec(), spec_ooutil_86()] {
-            assert!(s.traits.contains(Traits::TCLOO_METHOD_CONTEXT), "{}", s.name);
+            assert!(
+                s.traits.contains(Traits::TCLOO_METHOD_CONTEXT),
+                "{}",
+                s.name
+            );
             assert!(
                 s.traits.contains(Traits::TCLOO_REQUIRES_METHOD_FRAME),
                 "{}",
