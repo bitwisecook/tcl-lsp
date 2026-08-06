@@ -82,9 +82,7 @@ suite("Tk checks across child interpreters (TK1001 / TK1002)", () => {
     );
     assert.ok(
       diagnostics.some((d) => codeOf(d) === "TK1002" && d.message.includes(".childOnly")),
-      `The message must name the missing parent: ${diagnostics
-        .map((d) => d.message)
-        .join("; ")}`,
+      `The message must name the missing parent: ${diagnostics.map((d) => d.message).join("; ")}`,
     );
   });
 
