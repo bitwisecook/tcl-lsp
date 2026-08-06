@@ -274,6 +274,41 @@ impl OptionValue {
         })
     }
 
+    /// A single value consumed **purely as a boolean** —
+    /// [`ArgRole::Boolean`], the first-class registry answer to "is this word
+    /// a boolean" (issue #1256).
+    ///
+    /// The value set is left open on purpose: Tcl accepts every spelling
+    /// [`crate::abbrev::boolean_table`] resolves, *including unique prefixes*
+    /// (`-blocking tru`), which a closed `values` list cannot express without
+    /// making the option-aware closed-value check reject legal code.
+    /// Completion and hover read the role and offer
+    /// [`crate::abbrev::BOOLEAN_KEYWORDS`] instead.
+    ///
+    /// Use [`Self::numeric_or_boolean`] for a position that also accepts a
+    /// count — `0`/`1` are valid integers, and a rewriting consumer must not
+    /// guess which language the author meant.
+    #[must_use]
+    pub const fn boolean() -> Self {
+        Self::Takes(OptionArg {
+            role: ArgRole::Boolean,
+            hint: "boolean",
+            ..OptionArg::DEFAULT
+        })
+    }
+
+    /// A single value accepted as **either** a boolean or a number
+    /// ([`ArgRole::NumericOrBoolean`]) — declared so a consumer abstains by
+    /// construction rather than by inference.
+    #[must_use]
+    pub const fn numeric_or_boolean(hint: &'static str) -> Self {
+        Self::Takes(OptionArg {
+            role: ArgRole::NumericOrBoolean,
+            hint,
+            ..OptionArg::DEFAULT
+        })
+    }
+
     /// A single expression value (argparse `-validate`).
     #[must_use]
     pub const fn expr() -> Self {
@@ -421,6 +456,23 @@ impl OptionSpec {
         match self.value {
             OptionValue::Flag => None,
             OptionValue::Takes(arg) => Some(arg.role),
+        }
+    }
+
+    /// Whether the option's value is consumed **purely as a boolean**, so
+    /// every accepted spelling of the same truth value is interchangeable.
+    ///
+    /// Reads the declared [`ArgRole::Boolean`] fact (issue #1256) — never
+    /// inferred from the value set, which only ever covered the handful of
+    /// options that happened to enumerate `true`/`false` and missed every
+    /// option declared with an open value or a bare hint.
+    /// [`ArgRole::NumericOrBoolean`] answers `false`: `0`/`1` are valid
+    /// integers there too.
+    #[must_use]
+    pub const fn value_is_boolean(&self) -> bool {
+        match self.value {
+            OptionValue::Flag => false,
+            OptionValue::Takes(arg) => arg.role.consumes_boolean(),
         }
     }
 

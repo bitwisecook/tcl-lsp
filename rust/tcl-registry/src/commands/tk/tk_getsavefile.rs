@@ -29,7 +29,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-confirmoverwrite",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Prompt for confirmation if the file already exists.",
         dialects: None,
         aliases: &[],

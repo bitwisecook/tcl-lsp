@@ -5594,3 +5594,112 @@ mod const_dominated_namespace_eval {
         assert_eq!(scope_names(src), ["::app"]);
     }
 }
+
+// ===========================================================================
+// Issue #1252 — a brace-quoted word's *elements* are literal too.
+//
+// The IR/analyser word arrives with its braces already stripped, so scanning
+// the element text alone reports "dynamic" for content Tcl never substitutes.
+// #1245 fixed the whole-word question for `namespace path`; these are the two
+// remaining places that ask it per element with the token in hand.
+//
+// tclsh-proof (8.6.16 / 9.0.4):
+//   namespace eval x {}
+//   namespace eval {::$ns} {}
+//   namespace eval n { namespace path {::$ns ::x} ; namespace path }
+//     ->  {::$ns} ::x        (an entry literally named `::$ns`, no var read)
+//   foreach n {aa {$b} cc} { puts $n }
+//     ->  aa / $b / cc       (three literal iterations, no read of `b`)
+// ===========================================================================
+mod braced_word_elements_are_literal {
+    use super::*;
+
+    /// Namespace-reference source texts recorded for `src`.
+    fn ns_ref_texts(src: &str) -> Vec<String> {
+        let r = Analyser::new().analyse(src, "tcl9.0").clone();
+        let mut out: Vec<String> = r
+            .namespace_refs
+            .iter()
+            .map(|n| src[n.span.start() as usize..n.span.end() as usize].to_owned())
+            .collect();
+        out.sort();
+        out
+    }
+
+    /// Diagnostic codes emitted for `src`.
+    fn diag_codes(src: &str) -> Vec<String> {
+        Analyser::new()
+            .analyse(src, "tcl9.0")
+            .diagnostics
+            .iter()
+            .map(|d| d.code.to_string())
+            .collect()
+    }
+
+    #[test]
+    fn tp_namespace_path_records_a_braced_dollar_element_as_a_reference() {
+        // The whole-word gate (#1245) already lets the path be *recorded*;
+        // the element-reference walk skipped the same word, so the function
+        // disagreed with itself. Both must now see `::$ns`.
+        let src = "namespace eval n { namespace path {::$ns ::x} }\n";
+        assert!(
+            ns_ref_texts(src).iter().any(|t| t == "::$ns"),
+            "the braced element is a namespace literally named `::$ns`; got {:?}",
+            ns_ref_texts(src)
+        );
+    }
+
+    #[test]
+    fn fp_namespace_path_still_skips_a_substituting_element() {
+        // FP guard: an unbraced path word does substitute, so its `$ns` names
+        // nothing static and must stay unrecorded.
+        let src = "namespace eval n { namespace path ::$ns }\n";
+        assert!(
+            !ns_ref_texts(src).iter().any(|t| t.contains('$')),
+            "a substituting path word must record no element reference; got {:?}",
+            ns_ref_texts(src)
+        );
+    }
+
+    #[test]
+    fn tn_namespace_path_literal_elements_unchanged() {
+        let src = "namespace eval n { namespace path {::x ::y} }\n";
+        let refs = ns_ref_texts(src);
+        assert!(refs.iter().any(|t| t == "::x"), "{refs:?}");
+        assert!(refs.iter().any(|t| t == "::y"), "{refs:?}");
+    }
+
+    #[test]
+    fn tp_foreach_simulation_survives_a_braced_dollar_element() {
+        // One odd element used to abstain from the whole simulation, so every
+        // proc the loop installs went missing and each call raised W123.
+        let src = "foreach n {aa {$b} cc} { proc $n {} {} }\naa\ncc\n";
+        assert!(
+            !diag_codes(src).iter().any(|c| c == "W123"),
+            "the braced element must not abstain the whole simulation; got {:?}",
+            diag_codes(src)
+        );
+    }
+
+    #[test]
+    fn fp_foreach_simulation_still_abstains_on_a_substituting_list() {
+        // FP guard: a quoted list word *does* substitute, so its elements are
+        // not knowable and the simulation must still decline.
+        let src = "foreach n \"aa $b cc\" { proc $n {} {} }\naa\n";
+        assert!(
+            diag_codes(src).iter().any(|c| c == "W123"),
+            "a substituting list word must still abstain; got {:?}",
+            diag_codes(src)
+        );
+    }
+
+    #[test]
+    fn tn_foreach_simulation_literal_elements_unchanged() {
+        let src = "foreach n {aa cc} { proc $n {} {} }\naa\ncc\n";
+        assert!(
+            !diag_codes(src).iter().any(|c| c == "W123"),
+            "{:?}",
+            diag_codes(src)
+        );
+    }
+}

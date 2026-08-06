@@ -338,6 +338,122 @@ impl SsaFunction {
             .position(|n| n == name)
             .map(|i| BlockId(u32::try_from(i).expect("block count fits in u32")))
     }
+
+    /// Build the O(1)-query dominance index for this function
+    /// ([`DominatorIntervals`]).  One O(V) walk; build it once per function
+    /// and reuse it for every query.
+    #[must_use]
+    pub fn dominator_intervals(&self) -> DominatorIntervals {
+        DominatorIntervals::build(self)
+    }
+}
+
+/// Dominator-tree DFS interval numbering: answers `dominates(a, b)` in O(1).
+///
+/// The straightforward answer walks `b`'s immediate-dominator chain looking
+/// for `a`, which is O(depth) with a hash lookup per hop — and on a flat
+/// N-branch dispatch chain the idom chain *is* the whole function, so a
+/// per-block-pair loop over it is O(V²) (issue #1250).  A pre-order DFS of
+/// the dominator tree instead assigns every block a half-open `[enter, exit)`
+/// interval that contains exactly its dominator-tree subtree, and `a`
+/// dominates `b` iff `b`'s interval nests inside `a`'s.
+///
+/// Blocks outside the dominator forest (unreachable, hence absent from
+/// `idom`) have no interval and dominate nothing but themselves — the same
+/// answer the chain walk gives, since it runs out of parents.
+#[derive(Debug, Clone, Default)]
+pub struct DominatorIntervals {
+    /// `(enter, exit)` per block, indexed by [`BlockId`]`.0`.  `None` for a
+    /// block the DFS never reached.
+    intervals: Vec<Option<(u32, u32)>>,
+}
+
+impl DominatorIntervals {
+    /// Number `ssa`'s dominator forest.
+    ///
+    /// Children are derived from `idom` rather than read off
+    /// [`SsaFunction::dominator_tree`], so the index is correct for any
+    /// function whose `idom` is populated (including hand-built test
+    /// fixtures that never ran the tree builder).
+    ///
+    /// The DFS starts at the entry block and then picks up any other root
+    /// (a block whose `idom` is `None`), so a forest with more than one root
+    /// is numbered in full rather than silently losing a component.
+    #[must_use]
+    fn build(ssa: &SsaFunction) -> Self {
+        let slots = ssa
+            .idom
+            .iter()
+            .flat_map(|(id, parent)| [Some(*id), *parent])
+            .flatten()
+            .map(|b| b.0 as usize + 1)
+            .chain(std::iter::once(ssa.block_names.len()))
+            .max()
+            .unwrap_or(0);
+        let mut intervals = vec![None; slots];
+        if ssa.idom.is_empty() {
+            return Self { intervals };
+        }
+        let mut children: Vec<Vec<BlockId>> = vec![Vec::new(); slots];
+        let mut roots: Vec<BlockId> = Vec::new();
+        for (id, parent) in &ssa.idom {
+            match parent {
+                Some(p) => children[p.0 as usize].push(*id),
+                None if *id != ssa.entry => roots.push(*id),
+                None => {}
+            }
+        }
+        for kids in &mut children {
+            kids.sort_unstable();
+        }
+        roots.sort_unstable();
+        if ssa.idom.contains_key(&ssa.entry) {
+            roots.insert(0, ssa.entry);
+        }
+
+        let mut counter: u32 = 0;
+        // Explicit stack of `(block, next child index)` — an iterative
+        // pre-order DFS, so a deep dominator chain cannot blow the stack.
+        let mut stack: Vec<(BlockId, usize)> = Vec::new();
+        for root in roots {
+            if intervals[root.0 as usize].is_some() {
+                continue;
+            }
+            intervals[root.0 as usize] = Some((counter, counter));
+            counter += 1;
+            stack.push((root, 0));
+            while let Some((node, child_idx)) = stack.pop() {
+                let kids = &children[node.0 as usize];
+                if child_idx < kids.len() {
+                    stack.push((node, child_idx + 1));
+                    let child = kids[child_idx];
+                    if intervals[child.0 as usize].is_none() {
+                        intervals[child.0 as usize] = Some((counter, counter));
+                        counter += 1;
+                        stack.push((child, 0));
+                    }
+                } else if let Some((_, exit)) = intervals[node.0 as usize].as_mut() {
+                    *exit = counter;
+                }
+            }
+        }
+        Self { intervals }
+    }
+
+    /// True when `ancestor` dominates `node` (a block dominates itself).
+    #[must_use]
+    pub fn dominates(&self, ancestor: BlockId, node: BlockId) -> bool {
+        if ancestor == node {
+            return true;
+        }
+        let (Some(Some((a_enter, a_exit))), Some(Some((n_enter, n_exit)))) = (
+            self.intervals.get(ancestor.0 as usize),
+            self.intervals.get(node.0 as usize),
+        ) else {
+            return false;
+        };
+        *a_enter <= *n_enter && *n_exit <= *a_exit
+    }
 }
 
 /// CFG block ceiling above which deep analysis (SSA / dataflow) is skipped.

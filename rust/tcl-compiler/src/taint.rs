@@ -103,7 +103,7 @@ use std::collections::{HashMap, HashSet};
 use tcl_core_types::{DiagCode, DiagFamily};
 
 use bitflags::bitflags;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use tcl_dialect::DialectSet;
 use tcl_lexer::{Lexer, SourceMap, Span, TokenType, backslash_subst};
@@ -1091,6 +1091,43 @@ fn collect_global_reads(ssa: &SsaFunction) -> FxHashSet<String> {
     out
 }
 
+/// One function's CFG/SSA analyses plus the CFG-derived indices
+/// [`propagate_taints`] walks, built once and reused across every
+/// propagation over that function.
+///
+/// Both indices are pure functions of the CFG, so rebuilding them per
+/// propagation is wasted work — and it was not a small amount of it:
+/// [`crate::taint_interproc::infer_proc_summary`] runs one propagation for the
+/// baseline plus one per (parameter, basis) scenario, and the summary
+/// worklist re-infers a procedure whenever a callee's summary moves, so an
+/// O(V+E) predecessor map and an O(V+E) reverse-postorder were being rebuilt
+/// dozens of times per function (issue #1251).
+pub(crate) struct TaintGraph<'a> {
+    /// The function's CFG.
+    pub cfg: &'a CfgFunction,
+    /// Its SSA form.
+    pub ssa: &'a SsaFunction,
+    /// The SCCP result gating block/edge executability.
+    pub sccp: &'a SccpResult,
+    /// Predecessor map for the phi joins, `rustc-hash`-keyed.
+    preds: FxHashMap<BlockId, FxHashSet<BlockId>>,
+    /// Reverse-postorder block visit order for the fixpoint sweep.
+    order: Vec<BlockId>,
+}
+
+impl<'a> TaintGraph<'a> {
+    /// Build the per-function indices once.
+    pub fn new(cfg: &'a CfgFunction, ssa: &'a SsaFunction, sccp: &'a SccpResult) -> Self {
+        Self {
+            cfg,
+            ssa,
+            sccp,
+            preds: cfg.predecessors_fx(),
+            order: cfg_order(cfg),
+        }
+    }
+}
+
 /// Run intra-procedural taint propagation over one SSA function.
 ///
 /// Returns a map from `(variable_name, ssa_version)` to its taint
@@ -1120,15 +1157,8 @@ fn collect_global_reads(ssa: &SsaFunction) -> FxHashSet<String> {
 ///   full return-summary transfer (`apply_proc_return_summary`)
 ///   instead of the conservative single-passthrough rule.
 #[must_use]
-// `too_many_arguments`: the call sites live in `compilation_unit.rs` (another
-// subsystem) and pass these analyses positionally; bundling would require
-// editing those out-of-scope callers. The grouping is already minimal —
-// each argument is an independent analysis input.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn propagate_taints(
-    cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    sccp: &SccpResult,
+    graph: &TaintGraph<'_>,
     registry: &CommandRegistry,
     rendered_props: Option<&HashMap<ValueKey, RenderedValueProps>>,
     interproc: Option<&InterproceduralAnalysis>,
@@ -1136,8 +1166,13 @@ pub(crate) fn propagate_taints(
     param_taints: Option<&HashMap<String, TaintLattice>>,
     taint_summaries: Option<&HashMap<String, crate::taint_interproc::ProcTaintSummary>>,
 ) -> HashMap<ValueKey, TaintLattice> {
-    let preds = cfg.predecessors();
-    let order = cfg_order(cfg);
+    let TaintGraph {
+        cfg,
+        ssa,
+        sccp,
+        preds,
+        order,
+    } = graph;
 
     // Precompute the set of known procedure names once so per-call
     // resolution in `interproc_call_taint` is O(1) rather than
@@ -1164,14 +1199,14 @@ pub(crate) fn propagate_taints(
     let mut changed = true;
     while changed {
         changed = false;
-        for bn in &order {
+        for bn in order {
             if !sccp.executable_blocks.contains(bn) {
                 continue;
             }
             let Some(ssa_block) = ssa.blocks.get(bn) else {
                 continue;
             };
-            changed |= propagate_phi_taints(&mut taints, ssa_block, *bn, &preds, sccp);
+            changed |= propagate_phi_taints(&mut taints, ssa_block, *bn, preds, sccp);
             changed |= propagate_statement_taints(&mut taints, ssa_block, ctx, ssa, rendered_props);
         }
     }
@@ -1265,7 +1300,7 @@ fn propagate_phi_taints(
     taints: &mut HashMap<ValueKey, TaintLattice>,
     ssa_block: &crate::ssa::SsaBlock,
     bn: BlockId,
-    preds: &HashMap<BlockId, HashSet<BlockId>>,
+    preds: &FxHashMap<BlockId, FxHashSet<BlockId>>,
     sccp: &SccpResult,
 ) -> bool {
     let mut changed = false;
@@ -3547,6 +3582,24 @@ mod tests {
         }
     }
 
+    /// Bare intra-procedural propagation with no optional inputs.
+    fn plain_taints(
+        cfg: &CfgFunction,
+        ssa: &SsaFunction,
+        sccp: &SccpResult,
+        registry: &CommandRegistry,
+    ) -> HashMap<ValueKey, TaintLattice> {
+        propagate_taints(
+            &TaintGraph::new(cfg, ssa, sccp),
+            registry,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+    }
+
     #[test]
     fn clean_and_tainted_constructors() {
         let c = TaintLattice::clean();
@@ -3756,7 +3809,7 @@ mod tests {
         );
 
         let sccp = simple_sccp(&[entry]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
+        let taints = plain_taints(&cfg, &ssa, &sccp, &registry);
         assert!(
             taints.get(&(x, 1)).is_some_and(|t| t.is_tainted()),
             "gets stdin result should be tainted"
@@ -3841,7 +3894,7 @@ mod tests {
         );
 
         let sccp = simple_sccp(&[entry]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
+        let taints = plain_taints(&cfg, &ssa, &sccp, &registry);
         let warnings = find_taint_warnings(
             &cfg,
             &ssa,
@@ -3919,7 +3972,7 @@ mod tests {
             },
         );
         let sccp = simple_sccp(&[entry]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
+        let taints = plain_taints(&cfg, &ssa, &sccp, &registry);
         find_taint_warnings(
             &cfg,
             &ssa,
@@ -4084,7 +4137,7 @@ mod tests {
             },
         );
         let sccp = simple_sccp(&[entry]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
+        let taints = plain_taints(&cfg, &ssa, &sccp, &registry);
         // The transform colour must have propagated to y.
         assert!(
             taints
@@ -4152,7 +4205,7 @@ mod tests {
             },
         );
         let sccp = simple_sccp(&[entry]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
+        let taints = plain_taints(&cfg, &ssa, &sccp, &registry);
         find_destructive_file_warnings(&cfg, &ssa, &taints, &sccp.executable_blocks, &registry)
     }
 
@@ -4342,7 +4395,7 @@ mod tests {
         );
 
         let sccp = simple_sccp(&[entry]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
+        let taints = plain_taints(&cfg, &ssa, &sccp, &registry);
         assert!(
             taints.get(&(x, 1)).is_none_or(|t| !t.is_tainted()),
             "constant assignment should not be tainted"
@@ -4428,7 +4481,7 @@ mod tests {
         );
 
         let sccp = simple_sccp(&[entry]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
+        let taints = plain_taints(&cfg, &ssa, &sccp, &registry);
         let warnings = find_taint_warnings(
             &cfg,
             &ssa,
@@ -4526,7 +4579,7 @@ mod tests {
         );
 
         let sccp = simple_sccp(&[entry]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
+        let taints = plain_taints(&cfg, &ssa, &sccp, &registry);
         let warnings = find_taint_warnings(
             &cfg,
             &ssa,

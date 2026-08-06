@@ -78,7 +78,7 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-prefixes",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Whether unambiguous subcommand prefixes are accepted (default: on).",
         dialects: None,
         aliases: &[],

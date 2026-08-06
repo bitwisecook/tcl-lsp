@@ -94,6 +94,7 @@ pub mod taint;
 pub mod traits;
 pub mod types;
 pub mod version;
+pub mod version_range;
 
 /// Convenience prelude for command spec files.
 ///

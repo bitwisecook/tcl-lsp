@@ -1617,3 +1617,77 @@ fn sweep_lifecycle_seed_cases() {
         LifecycleState::NotIntroduced
     );
 }
+
+/// Issue #1256 — the boolean argument role is a declared registry fact, and
+/// the whole registry agrees about which options carry it.
+///
+/// Two invariants, both sweeping every command and subcommand option table in
+/// every known dialect:
+///
+/// 1. An option whose value hint says `boolean`/`bool` **must** declare
+///    `ArgRole::Boolean`. That is what stops a new boolean option from
+///    silently going back to being invisible to the consumers.
+/// 2. The reverse holds too: `value_is_boolean()` is `true` only for the
+///    declared role — the old inference from a closed value set is gone.
+///
+/// tclsh-proof (8.6.16 / 9.0.4): the role means the bytes are consumed and
+/// discarded, which is why every spelling is interchangeable —
+/// `chan configure $c -blocking yes; chan configure $c -blocking` → `1`, and
+/// `-blocking tru` is accepted identically (prefix matching).
+#[test]
+fn boolean_argument_role_is_declared_and_consistent() {
+    use tcl_registry::ArgRole;
+    use tcl_registry::hover::OptionSpec;
+
+    let mut declared = 0usize;
+    for dialect in [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1",
+        "f5-irules",
+    ] {
+        let reg = registry_for_dialect(dialect);
+        let names: Vec<String> = reg.command_names().map(str::to_owned).collect();
+        for name in &names {
+            let Some(spec) = reg.get(name) else { continue };
+            let mut sweep = |path: &str, options: &'static [OptionSpec]| {
+                for opt in options {
+                    let hint = opt.value_hint();
+                    if matches!(hint, "boolean" | "bool") {
+                        assert!(
+                            opt.value_is_boolean(),
+                            "{dialect} {path} {}: hint says `{hint}` but the option does not \
+                             declare ArgRole::Boolean — every boolean-valued option must carry \
+                             the fact (issue #1256)",
+                            opt.name
+                        );
+                    }
+                    if opt.value_is_boolean() {
+                        declared += 1;
+                        assert_eq!(
+                            opt.value_role(),
+                            Some(ArgRole::Boolean),
+                            "{dialect} {path} {}: value_is_boolean must mean the declared role",
+                            opt.name
+                        );
+                    }
+                }
+            };
+            sweep(spec.name, spec.options);
+            for sub in spec.subcommands {
+                sweep(&format!("{} {}", spec.name, sub.name), sub.options);
+            }
+        }
+    }
+    assert!(
+        declared > 0,
+        "the sweep must actually reach declared boolean options"
+    );
+    assert!(ArgRole::Boolean.consumes_boolean());
+    // A numeric-or-boolean position is deliberately NOT boolean: `0`/`1` are
+    // valid integers there, so a rewriting consumer must abstain.
+    assert!(!ArgRole::NumericOrBoolean.consumes_boolean());
+    assert!(!ArgRole::Value.consumes_boolean());
+}
