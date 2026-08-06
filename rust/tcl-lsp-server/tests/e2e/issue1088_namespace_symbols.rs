@@ -578,3 +578,123 @@ fn tp_a_braced_namespace_name_is_navigable() {
         locations(&def),
     );
 }
+
+// ---------------------------------------------------------------------------
+// Issue #1246 — implicit parents at the **workspace** tier.
+//
+// `namespace eval ::p::q::r {}` really creates `::p` and `::p::q`, so a
+// reference to `::p::q` answers with the covering prefix of the deeper written
+// name.  The in-document tier has done that since #1113 item 1; the server's
+// cross-document tier matched only exact qualified names, so a cell whose sole
+// creating block lived in a sibling file answered nothing at all.
+//
+// tclsh-proof — 9.0.4 and 8.6.16, byte-identical:
+//   namespace eval ::p::q::r {}
+//   namespace exists ::p::q   -> 1
+//   namespace exists ::p      -> 1
+//   namespace children ::p    -> ::p::q
+// ---------------------------------------------------------------------------
+
+/// The `(line, start-character, end-character)` of every definition target in
+/// `uri` — the implicit answer is a **sub-range** of a name word, so the
+/// columns are the fact under test, not just the line.
+fn spans_in(result: &Value, uri: &str) -> Vec<(i64, i64, i64)> {
+    locations(result)
+        .iter()
+        .filter(|l| l.uri == uri)
+        .map(|l| {
+            let field = |end: &str, name: &str| {
+                l.range
+                    .get(end)
+                    .and_then(|s| s.get(name))
+                    .and_then(Value::as_i64)
+                    .unwrap_or(-1)
+            };
+            (
+                field("start", "line"),
+                field("start", "character"),
+                field("end", "character"),
+            )
+        })
+        .collect()
+}
+
+// TP — the cross-document implicit answer: the creating block is next door,
+// and the covering prefix (`::p::q` of `::p::q::r`) is what go-to-definition
+// reports.
+#[test]
+fn tp_cross_file_definition_answers_an_implicit_parent() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(&decl, "namespace eval ::p::q::r {\n    variable v 1\n}\n");
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "namespace children ::p::q\n");
+
+    let def = lsp.definition(&user, 0, 22);
+    assert_eq!(
+        spans_in(&def, &decl),
+        // `namespace eval ` is 15 columns wide; the `::p::q` prefix ends at 21.
+        vec![(0, 15, 21)],
+        "the sibling block's covering prefix must be the target: {:?}",
+        locations(&def),
+    );
+}
+
+// TP — hover words it "implicitly created by" across documents too, rather
+// than showing nothing.
+#[test]
+fn tp_cross_file_hover_words_an_implicit_parent() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(&decl, "namespace eval ::p::q::r {}\n");
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "namespace children ::p::q\n");
+
+    let text = hover_text(&lsp.hover(&user, 0, 22));
+    assert!(
+        text.contains("Implicitly created by") && text.contains("::p::q"),
+        "cross-file hover must name the implicit creator: {text:?}",
+    );
+}
+
+// TN — an **outright** declaration next door still wins: the implicit
+// fallback fires only when nothing anywhere declares the cell, so the answer
+// is that whole `::p::q` word, never a prefix of a deeper one.
+#[test]
+fn tn_an_outright_sibling_declaration_beats_the_implicit_fallback() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(
+        &decl,
+        "namespace eval ::p::q {}\nnamespace eval ::p::q::r {}\n",
+    );
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "namespace children ::p::q\n");
+
+    let def = lsp.definition(&user, 0, 22);
+    assert_eq!(
+        spans_in(&def, &decl),
+        vec![(0, 15, 21)],
+        "only the real declaration answers: {:?}",
+        locations(&def),
+    );
+}
+
+// TN — the descendant query must not match a mere prefix of a *segment*:
+// `::pq::r` does not create `::p` (tclsh 9.0.4 / 8.6.16: `namespace eval
+// ::pq::r {}` then `namespace exists ::p` -> 0).
+#[test]
+fn tn_a_segment_prefix_is_not_an_implicit_parent() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(&decl, "namespace eval ::pq::r {}\n");
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "namespace children ::p\n");
+
+    let def = lsp.definition(&user, 0, 20);
+    assert!(
+        locations(&def).is_empty(),
+        "`::pq::r` does not create `::p`: {:?}",
+        locations(&def),
+    );
+}

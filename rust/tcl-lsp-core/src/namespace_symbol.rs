@@ -235,20 +235,76 @@ pub fn namespace_implicit_parent_spans(
         // block, so it has no implicit site either.
         return Vec::new();
     }
-    let wanted_depth = wanted.split("::").count();
     analysis
         .namespace_refs
         .iter()
         .filter(|r| r.declares)
-        .filter_map(|r| {
-            let declared = normalise_namespace(&r.qualified_name);
-            // Strict descendant only — an exact match is a real declaration.
-            declared
-                .strip_prefix(wanted)
-                .filter(|rest| rest.starts_with("::"))?;
-            covering_prefix_span(source, r.span, declared, wanted_depth)
-        })
+        .filter_map(|r| namespace_implicit_parent_span_in(source, r.span, &r.qualified_name, cell))
         .collect()
+}
+
+/// Whether `child` is a **strict** descendant namespace of `parent` — the
+/// name arithmetic that decides whether a `namespace eval` on `child`
+/// implicitly creates `parent`.
+///
+/// Both spellings are normalised first, so the root answers under every
+/// spelling it has (`::`, `` ``) and a trailing-separator name stays the
+/// distinct namespace it is (see [`normalise_namespace`]).
+#[must_use]
+pub fn namespace_strictly_contains(parent: &str, child: &str) -> bool {
+    let parent = normalise_namespace(parent);
+    let child = normalise_namespace(child);
+    if child.is_empty() {
+        return false;
+    }
+    if parent.is_empty() {
+        // Every named namespace is a strict descendant of the global one —
+        // but the global namespace is created by the interpreter, so nothing
+        // *implicitly* creates it.  Its own site question is answered by
+        // [`namespace_implicit_parent_spans`] returning nothing; this
+        // predicate stays honest about the containment relation itself.
+        return true;
+    }
+    child
+        .strip_prefix(parent)
+        .is_some_and(|rest| rest.starts_with("::"))
+}
+
+/// The covering-prefix span of **one** declaring name word: the leading
+/// sub-range of the word at `span` (written in `source`, declaring
+/// `declared_qualified`) that spells exactly `cell`.
+///
+/// The single-row form of [`namespace_implicit_parent_spans`], split out so
+/// the workspace tier can ask the same question of a *sibling* document's
+/// row (issue #1246): the index knows the row's qualified name and span, but
+/// the covering prefix is a sub-range of the written word, so the answer
+/// needs that document's own text.  One implementation, so the in-document
+/// and cross-document tiers cannot disagree about where the prefix ends.
+///
+/// `None` when `cell` is not a strict ancestor of the declared name (an exact
+/// match is a real declaration, not an implicit creation), when `cell` is the
+/// global namespace (created by the interpreter, never by a block), or when
+/// the prefix is not written in this word at all.
+#[must_use]
+pub fn namespace_implicit_parent_span_in(
+    source: &str,
+    span: Span,
+    declared_qualified: &str,
+    cell: &str,
+) -> Option<Span> {
+    let wanted = normalise_namespace(cell);
+    if wanted.is_empty() {
+        return None;
+    }
+    if !namespace_strictly_contains(cell, declared_qualified) {
+        return None;
+    }
+    covering_prefix_span(
+        source,
+        span,
+        normalise_namespace(declared_qualified),
+        wanted.split("::").count(),
+    )
 }
 
 /// The leading sub-range of the name word at `span` that spells the first
@@ -372,16 +428,11 @@ pub fn namespace_facts(analysis: &AnalysisResult, cell: &str) -> NamespaceFacts 
     // Deeper blocks that create `cell` only as a parent.  Pure name
     // arithmetic, so the workspace tier can fold in its own rows the same
     // way without needing any document's text.
-    let wanted = normalise_namespace(cell);
     let implicit_declarations = analysis
         .namespace_refs
         .iter()
-        .filter(|r| r.declares && !wanted.is_empty())
-        .filter(|r| {
-            normalise_namespace(&r.qualified_name)
-                .strip_prefix(wanted)
-                .is_some_and(|rest| rest.starts_with("::"))
-        })
+        .filter(|r| r.declares && !normalise_namespace(cell).is_empty())
+        .filter(|r| namespace_strictly_contains(cell, &r.qualified_name))
         .count();
     NamespaceFacts {
         declarations,
@@ -726,6 +777,53 @@ mod tests {
         let analysis = analyse(src);
         assert!(namespace_implicit_parent_spans(src, &analysis, "::pq").is_empty());
         assert!(namespace_implicit_parent_spans(src, &analysis, "::q").is_empty());
+    }
+
+    /// Issue #1246 — the row-wise form the workspace tier calls, given a
+    /// *sibling* document's span and qualified name plus that document's own
+    /// text.  It must answer exactly what the whole-document form does.
+    #[test]
+    fn tp_the_row_wise_covering_prefix_matches_the_document_form() {
+        let src = "namespace eval ::p::q::r {}\n";
+        let analysis = analyse(src);
+        let row = analysis
+            .namespace_refs
+            .iter()
+            .find(|r| r.declares)
+            .expect("the declaring row");
+        for cell in ["::p::q", "::p"] {
+            assert_eq!(
+                namespace_implicit_parent_span_in(src, row.span, &row.qualified_name, cell)
+                    .map(|s| texts(src, &[s])),
+                Some(texts(
+                    src,
+                    &namespace_implicit_parent_spans(src, &analysis, cell)
+                )),
+                "row-wise and document-wide answers must agree for {cell}",
+            );
+        }
+        // TN — an exact match is a declaration, the global namespace has no
+        // implicit creator, and a segment prefix is a different namespace.
+        for cell in ["::p::q::r", "::", "", "::pq"] {
+            assert_eq!(
+                namespace_implicit_parent_span_in(src, row.span, &row.qualified_name, cell),
+                None,
+                "{cell} must have no implicit site here",
+            );
+        }
+    }
+
+    #[test]
+    fn namespace_containment_is_segment_wise() {
+        assert!(namespace_strictly_contains("::p", "::p::q"));
+        assert!(namespace_strictly_contains("p", "::p::q::r"));
+        assert!(!namespace_strictly_contains("::p", "::pq::r"));
+        assert!(!namespace_strictly_contains("::p", "::p"));
+        // Every named namespace lives under the global one; the global one
+        // lives under nothing.
+        assert!(namespace_strictly_contains("::", "::p"));
+        assert!(!namespace_strictly_contains("::p", "::"));
+        assert!(!namespace_strictly_contains("::", "::"));
     }
 
     #[test]

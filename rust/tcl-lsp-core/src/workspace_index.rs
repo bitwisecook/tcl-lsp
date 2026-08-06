@@ -2634,6 +2634,44 @@ impl WorkspaceIndex {
             .collect()
     }
 
+    /// Declaring sites whose namespace is a **strict descendant** of
+    /// `qualified_name` — the rows that create it *implicitly*, as a parent
+    /// (`namespace eval ::p::q::r {}` really creates `::p::q`), excluding any
+    /// in `exclude_uri`.
+    ///
+    /// The cross-document half of issue #1113 item 1 (issue #1246): the
+    /// in-document tier answers implicit parents from its own
+    /// `namespace_refs`, and without this query a namespace whose only
+    /// creating block lives in a sibling file answered nothing at all.
+    ///
+    /// Rows only — the *span* an implicit answer reports is the covering
+    /// prefix of the written word, a sub-range that needs the declaring
+    /// document's text, so the caller pairs each row with its source through
+    /// [`crate::namespace_symbol::namespace_implicit_parent_span_in`].
+    #[must_use]
+    pub fn namespace_declarations_under<'a>(
+        &'a self,
+        qualified_name: &str,
+        exclude_uri: &str,
+    ) -> Vec<&'a WorkspaceNamespaceRef> {
+        // The global namespace is created by the interpreter, not by any
+        // block, so it has no implicit creator — the same bound the
+        // in-document tier keeps.  Without it every declaring row in the
+        // workspace would count as creating `::`.
+        if qualified_name.trim_start_matches(':').is_empty() {
+            return Vec::new();
+        }
+        self.namespace_refs()
+            .filter(|n| n.declares && n.uri != exclude_uri)
+            .filter(|n| {
+                crate::namespace_symbol::namespace_strictly_contains(
+                    qualified_name,
+                    &n.qualified_name,
+                )
+            })
+            .collect()
+    }
+
     /// Non-declaring occurrences of the namespace `qualified_name`, excluding
     /// any in `exclude_uri` — the reference-side twin of
     /// [`Self::namespace_declarations_qualified`].
@@ -6045,6 +6083,50 @@ mod tests {
                 .namespace_declarations_qualified("::mypkg", "file:///decl.tcl")
                 .is_empty(),
         );
+    }
+
+    /// Issue #1246 — declaring rows whose name is a **strict descendant** of
+    /// the cell: the workspace half of the implicit-parent answer.
+    ///
+    /// tclsh-proof (9.0.4 / 8.6.16, byte-identical): `namespace eval
+    /// ::p::q::r {}` leaves `namespace exists ::p::q` -> 1 and `namespace
+    /// exists ::p` -> 1, while `namespace eval ::pq::r {}` leaves `namespace
+    /// exists ::p` -> 0.
+    #[test]
+    fn namespace_declarations_under_finds_implicit_parent_rows() {
+        let decl = analyse("namespace eval ::p::q::r {}\n");
+        let other = analyse("namespace eval ::pq::r {}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///decl.tcl", &decl),
+            ("file:///other.tcl", &other),
+        ]);
+        // TP — both ancestors are answered by the one deeper block.
+        assert_eq!(
+            index
+                .namespace_declarations_under("::p::q", "")
+                .iter()
+                .map(|n| n.qualified_name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["::p::q::r"],
+        );
+        assert_eq!(index.namespace_declarations_under("::p", "").len(), 1);
+        // TN — an exact match is a real declaration, not an implicit one.
+        assert!(
+            index
+                .namespace_declarations_under("::p::q::r", "")
+                .is_empty(),
+        );
+        // TN — a segment prefix is a different namespace entirely.
+        assert!(
+            index
+                .namespace_declarations_under("::p", "file:///decl.tcl")
+                .is_empty(),
+            "excluding the declaring document leaves only `::pq::r`, which is not under `::p`",
+        );
+        // TN — the global namespace is created by the interpreter, so nothing
+        // implicitly creates it.
+        assert!(index.namespace_declarations_under("::", "").is_empty());
+        assert!(index.namespace_declarations_under("", "").is_empty());
     }
 
     #[test]

@@ -5642,7 +5642,7 @@ impl Backend {
         // sibling document's block any less of a definition.
         if let Some(cell) = Self::namespace_cell(&doc.text, &analysis, pos) {
             return Ok(self
-                .namespace_declaration_locations(uri, &analysis, &cell)
+                .namespace_declaration_locations(uri, &doc.text, &analysis, &cell)
                 .await);
         }
         let text = doc.text.clone();
@@ -5793,9 +5793,17 @@ impl Backend {
     /// index, so an unindexed or just-edited document still answers; rows are
     /// deduplicated by `(uri, span)`, which is what makes overlapping with
     /// the index harmless.
+    ///
+    /// When nothing anywhere declares the cell outright, the answer falls back
+    /// to its **implicit** creators — the covering prefix of every deeper
+    /// `namespace eval` name word, local and workspace alike (issue #1246).
+    /// The in-document provider has always done this; doing it only there
+    /// meant a namespace whose sole creating block lived in a sibling file
+    /// answered nothing at all.
     async fn namespace_declaration_locations(
         &self,
         uri: &Uri,
+        source: &str,
         analysis: &AnalysisResult,
         cell: &str,
     ) -> Vec<Location> {
@@ -5805,7 +5813,10 @@ impl Backend {
                 .into_iter()
                 .map(|span| (uri.as_str().to_owned(), span))
                 .collect();
-        {
+        // Rows whose name is a strict descendant of the cell, captured while
+        // the lock is held so the (possibly disk-reading) text lookups below
+        // happen outside it.
+        let descendants: Vec<(String, String, tcl_lexer::Span)> = {
             let index = self.workspace_index.read().await;
             targets.extend(
                 index
@@ -5813,8 +5824,38 @@ impl Backend {
                     .into_iter()
                     .map(|n| (n.uri.clone(), n.span)),
             );
-        }
+            index
+                .namespace_declarations_under(cell, uri.as_str())
+                .into_iter()
+                .map(|n| (n.uri.clone(), n.qualified_name.clone(), n.span))
+                .collect()
+        };
         drop(rehoming_guard);
+        if targets.is_empty() {
+            // Nothing declares it outright anywhere.  The local implicit
+            // sites first, in the same order the in-document provider gives
+            // them, then the sibling documents'.
+            targets.extend(
+                core_namespace_symbol::namespace_implicit_parent_spans(source, analysis, cell)
+                    .into_iter()
+                    .map(|span| (uri.as_str().to_owned(), span)),
+            );
+            for (row_uri, qualified, span) in descendants {
+                let Ok(parsed) = Uri::from_str(&row_uri) else {
+                    continue;
+                };
+                let Some(doc) = self.read_document(&parsed).await else {
+                    continue;
+                };
+                // The covering prefix is a sub-range of the written word, so
+                // it can only be computed against that document's own text.
+                if let Some(prefix) = core_namespace_symbol::namespace_implicit_parent_span_in(
+                    &doc.text, span, &qualified, cell,
+                ) {
+                    targets.push((row_uri, prefix));
+                }
+            }
+        }
         dedup_span_targets(&mut targets);
         self.resolve_target_locations(targets).await
     }
@@ -5830,9 +5871,14 @@ impl Backend {
     /// differently — they differ only in how wide a set they counted, which
     /// the text states.
     ///
-    /// `None` when nothing anywhere declares it: hover then shows nothing,
-    /// which is the correct answer for a namespace no file in view creates —
-    /// never a fall-through to command documentation.
+    /// `None` when nothing anywhere declares it — outright *or* implicitly:
+    /// hover then shows nothing, which is the correct answer for a namespace
+    /// no file in view creates — never a fall-through to command
+    /// documentation.  A sibling file's deeper `namespace eval` counts as an
+    /// implicit creator here exactly as it does in the local tally, so the
+    /// "implicitly created by" wording is reachable cross-document
+    /// (issue #1246); the count is pure name arithmetic, so unlike the
+    /// definition tier it needs no document text.
     async fn namespace_hover(
         &self,
         uri: &Uri,
@@ -5855,6 +5901,16 @@ impl Backend {
                 } else {
                     merged.references += 1;
                 }
+                if seen.insert(row.uri.as_str()) {
+                    merged.documents += 1;
+                }
+            }
+            // Deeper blocks in sibling documents create the cell as a parent.
+            // Disjoint from the rows above by construction — that query is an
+            // exact-name match, this one a strict-descendant match — so no
+            // occurrence is counted twice.
+            for row in index.namespace_declarations_under(cell, uri.as_str()) {
+                merged.implicit_declarations += 1;
                 if seen.insert(row.uri.as_str()) {
                     merged.documents += 1;
                 }
