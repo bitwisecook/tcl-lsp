@@ -369,12 +369,13 @@ fn a_mixin_dispatch_without_an_upvar_still_abstains() {
         &uri,
         "oo::class create Utility {\n    method NameProcess {arguments object} { set name $object }\n}\noo::class create Widget {\n    mixin Utility\n    constructor {arguments} {\n        my NameProcess $arguments [self object]\n        puts \"name=$name\"\n    }\n}\n",
     );
+    // Line 7 col 21 — inside the `name` of `puts "name=$name"`.
     assert!(
-        hover_text(&lsp.hover(&uri, 6, 22)).is_empty(),
+        hover_text(&lsp.hover(&uri, 7, 21)).is_empty(),
         "an unbound `$`-led read must draw no hover"
     );
     assert!(
-        locations(&lsp.definition(&uri, 6, 22)).is_empty(),
+        locations(&lsp.definition(&uri, 7, 21)).is_empty(),
         "…and no definition"
     );
 }
