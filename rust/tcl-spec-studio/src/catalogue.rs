@@ -84,6 +84,14 @@ pub const ARG_ROLES: &[Variant] = &[
         "NamespaceName",
         "names a namespace (`namespace children ::ns`)",
     ),
+    v(
+        "Boolean",
+        "consumed as a boolean (`Tcl_GetBoolean` spellings)",
+    ),
+    v(
+        "NumericOrBoolean",
+        "consumed as a number or a boolean (`-validate 0`/`yes`)",
+    ),
 ];
 
 /// [`TclType`] — the intrep a value carries.
@@ -736,7 +744,9 @@ mod tests {
             | ArgRole::CommandName
             | ArgRole::CommandNameProbe
             | ArgRole::LambdaLiteral
-            | ArgRole::NamespaceName => true,
+            | ArgRole::NamespaceName
+            | ArgRole::Boolean
+            | ArgRole::NumericOrBoolean => true,
         }
     }
 
