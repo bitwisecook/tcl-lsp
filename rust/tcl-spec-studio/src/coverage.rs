@@ -1326,6 +1326,37 @@ mod tests {
         );
     }
 
+    /// The `binds_handle` expression above, written as the Rust a rendered
+    /// module contains: an inline `&`-borrow of a constant struct literal,
+    /// inside a `fn` returning the spec.
+    ///
+    /// The point is that this *compiles*. `binds_handle` wants a `&'static`,
+    /// and only rvalue static promotion makes an inline literal satisfy it —
+    /// so if the renderer's chosen shape ever stopped being promotable, the
+    /// build breaks here rather than in the file an author downloads.
+    fn promoted_binding_spec() -> CommandSpec {
+        CommandSpec {
+            binds_handle: Some(&HandleBindingSpec {
+                name_at: 0,
+                class_from: HandleClassSource::Word(2),
+                keyword: Some(HandleKeyword {
+                    at: 1,
+                    word: "using",
+                }),
+            }),
+            ..CommandSpec::DEFAULT
+        }
+    }
+
+    #[test]
+    fn the_rendered_descriptor_expression_is_the_rust_that_compiles() {
+        assert_eq!(
+            draft::from_command_spec(&promoted_binding_spec())["binds_handle"],
+            draft::from_command_spec(&witness_spec())["binds_handle"],
+            "the promotable literal above and the rendered expression must be the same tokens"
+        );
+    }
+
     /// Every `Expression` entry's field name really appears in the literal the
     /// renderer emits — the mechanical half of the assertions above, so a new
     /// descriptor field that nobody wired into `draft.rs` fails here too.
