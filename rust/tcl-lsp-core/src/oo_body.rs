@@ -91,7 +91,42 @@ pub fn outer_definition_grammar(
     Some(grammar)
 }
 
-/// The grammar the recursion into `command`'s body arguments should carry,
+/// A command head in its two forms — the spelling the source wrote, and the
+/// registry name that spelling effectively resolves to.
+///
+/// The two are the same for almost every head, and differ once the document
+/// rebinds a name (`namespace import`, `interp alias`, `rename`, a built-in
+/// shadowing `proc` — see [`tcl_compiler::head_identity`]).  Which of the two a
+/// test must read is a real distinction, not a convenience:
+///
+/// * a **global command** lookup reads [`Self::resolved`], so `::snit::type`,
+///   a proven alias of it, and the bare spelling all answer alike (and a
+///   rebound spelling answers nothing);
+/// * a **lexical keyword** test reads [`Self::written`], because a member
+///   sub-keyword (`method`, `constructor`) exists only inside a definition
+///   body and is not a command binding at all — a top-level
+///   `rename method …` says nothing about the word inside an `oo::define`.
+#[derive(Debug, Clone, Copy)]
+pub struct HeadWords<'a> {
+    /// The head exactly as the source spells it.
+    pub written: &'a str,
+    /// The registry name the spelling resolves to — empty when the head was
+    /// provably rebound, which every registry query then answers "unknown" for.
+    pub resolved: &'a str,
+}
+
+impl<'a> HeadWords<'a> {
+    /// A head with nothing proven about it: written and resolved alike.
+    #[must_use]
+    pub fn plain(written: &'a str) -> Self {
+        Self {
+            written,
+            resolved: written,
+        }
+    }
+}
+
+/// The grammar the recursion into `head`'s body arguments should carry,
 /// given the enclosing grammar `cur` (`None` = not in a definition body).
 /// `args` excludes the command head.
 ///
@@ -102,12 +137,14 @@ pub fn outer_definition_grammar(
 ///   a member body drops out of it.
 #[must_use]
 pub fn next_definition_grammar(
-    command: &str,
+    head: HeadWords<'_>,
     args: &[&str],
     cur: Option<&'static DefinitionBodyGrammar>,
     registry: &CommandRegistry,
 ) -> Option<&'static DefinitionBodyGrammar> {
-    if let Some(g) = outer_definition_grammar(command, args, registry) {
+    let HeadWords { written, resolved } = head;
+    let command = written;
+    if let Some(g) = outer_definition_grammar(resolved, args, registry) {
         Some(g)
     } else if let Some(g) = cur.filter(|g| is_member(g, command)) {
         // A member command inside a definition body normally drops out of
@@ -559,22 +596,54 @@ mod tests {
         let tcloo = Some(&TCLOO_GRAMMAR);
         // Entering an outer (metaclass create) body switches on.
         assert!(
-            next_definition_grammar("oo::class", &["create", "C", "{b}"], None, &reg).is_some()
+            next_definition_grammar(
+                HeadWords::plain("oo::class"),
+                &["create", "C", "{b}"],
+                None,
+                &reg
+            )
+            .is_some()
         );
-        assert!(next_definition_grammar("snit::type", &["C", "{b}"], None, &reg).is_some());
-        // `oo::define` script form switches on; member form does not.
-        assert!(next_definition_grammar("oo::define", &["C", "{script}"], None, &reg).is_some());
         assert!(
-            next_definition_grammar("oo::define", &["C", "method", "m", "{}", "{b}"], None, &reg)
-                .is_none()
+            next_definition_grammar(HeadWords::plain("snit::type"), &["C", "{b}"], None, &reg)
+                .is_some()
+        );
+        // `oo::define` script form switches on; member form does not.
+        assert!(
+            next_definition_grammar(
+                HeadWords::plain("oo::define"),
+                &["C", "{script}"],
+                None,
+                &reg
+            )
+            .is_some()
+        );
+        assert!(
+            next_definition_grammar(
+                HeadWords::plain("oo::define"),
+                &["C", "method", "m", "{}", "{b}"],
+                None,
+                &reg
+            )
+            .is_none()
         );
         // A method body inside a class body switches off.
-        assert!(next_definition_grammar("method", &["m", "{}", "{b}"], tcloo, &reg).is_none());
+        assert!(
+            next_definition_grammar(HeadWords::plain("method"), &["m", "{}", "{b}"], tcloo, &reg)
+                .is_none()
+        );
         // Control flow inherits.
-        assert!(next_definition_grammar("if", &["{c}", "{b}"], tcloo, &reg).is_some());
-        assert!(next_definition_grammar("if", &["{c}", "{b}"], None, &reg).is_none());
+        assert!(
+            next_definition_grammar(HeadWords::plain("if"), &["{c}", "{b}"], tcloo, &reg).is_some()
+        );
+        assert!(
+            next_definition_grammar(HeadWords::plain("if"), &["{c}", "{b}"], None, &reg).is_none()
+        );
         // Inner commands at top level (no enclosing grammar) don't fire.
-        assert!(next_definition_grammar("method", &["m", "{}", "{b}"], None, &reg).is_none());
+        assert!(
+            next_definition_grammar(HeadWords::plain("method"), &["m", "{}", "{b}"], None, &reg)
+                .is_none()
+        );
     }
 
     #[test]
@@ -585,22 +654,45 @@ mod tests {
         // definition script — the block keeps the enclosing grammar so its
         // members (`method`, `variable`, …) are still recognised.
         assert!(
-            next_definition_grammar("private", &["{ method m {} {} }"], tcloo, &reg).is_some(),
+            next_definition_grammar(
+                HeadWords::plain("private"),
+                &["{ method m {} {} }"],
+                tcloo,
+                &reg
+            )
+            .is_some(),
             "private {{ … }} block keeps the class grammar",
         );
         assert!(
-            next_definition_grammar("self", &["{ method m {} {} }"], tcloo, &reg).is_some(),
+            next_definition_grammar(
+                HeadWords::plain("self"),
+                &["{ method m {} {} }"],
+                tcloo,
+                &reg
+            )
+            .is_some(),
             "self {{ … }} block keeps the class grammar",
         );
         // But the wrapper form that nests an inner member (`self method …`,
         // `private method …`) is an ordinary member body and drops out.
         assert!(
-            next_definition_grammar("self", &["method", "m", "{}", "{b}"], tcloo, &reg).is_none(),
+            next_definition_grammar(
+                HeadWords::plain("self"),
+                &["method", "m", "{}", "{b}"],
+                tcloo,
+                &reg
+            )
+            .is_none(),
             "self method … body is ordinary Tcl",
         );
         assert!(
-            next_definition_grammar("private", &["method", "m", "{}", "{b}"], tcloo, &reg)
-                .is_none(),
+            next_definition_grammar(
+                HeadWords::plain("private"),
+                &["method", "m", "{}", "{b}"],
+                tcloo,
+                &reg
+            )
+            .is_none(),
             "private method … body is ordinary Tcl",
         );
         // The block form only preserves grammar for a member that actually

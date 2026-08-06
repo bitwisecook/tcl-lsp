@@ -44,7 +44,7 @@ use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{Lexer, LineIndex, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
-use crate::oo_body::{is_member, member_body_indices, next_definition_grammar};
+use crate::oo_body::{HeadWords, is_member, member_body_indices, next_definition_grammar};
 use tcl_registry::definer::DefinitionBodyGrammar;
 
 /// LSP folding-range kind.
@@ -123,8 +123,11 @@ pub fn folding_ranges(
     );
     collect_comment_folds(source, &mut seen, &mut ranges);
     collect_continuation_folds(source, &line_index, &mut seen, &mut ranges);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     let mut ctx = FoldCtx {
         registry,
+        identities: &identities,
         line_index: &line_index,
         original_source: source,
         seen: &mut seen,
@@ -340,6 +343,11 @@ fn collect_continuation_folds(
 /// vary per call — they stay as direct parameters.
 struct FoldCtx<'a> {
     registry: &'a CommandRegistry,
+    /// The document's statically proven command-identity facts, so a body-arg
+    /// role is resolved against the command a head *is* rather than the one it
+    /// is spelled as (issue #1275).  Empty — and lookup-free — for the
+    /// overwhelmingly common document that binds nothing.
+    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
     line_index: &'a LineIndex,
     original_source: &'a str,
     seen: &'a mut FxHashSet<(u32, u32)>,
@@ -355,6 +363,27 @@ struct FoldCtx<'a> {
 /// compiler analyser's `MAX_BODY_DEPTH` so deeply (but validly) nested code
 /// keeps full folding support. Real source never nests anywhere near this.
 const MAX_FOLD_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
+
+/// One segmented command's head, as written and as it resolves.
+///
+/// The written spelling is sliced from the command itself; the resolved name
+/// comes from the document's [`HeadIdentityMap`](tcl_compiler::head_identity::HeadIdentityMap)
+/// at the head's own byte offset, so a binding never retroactively re-tags an
+/// earlier call.  A document that binds nothing skips the lookup entirely.
+fn resolve_head<'a>(
+    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    cmd: &'a tcl_compiler::segmenter::SegmentedCommand,
+) -> HeadWords<'a> {
+    let written = cmd.name();
+    if identities.is_empty() {
+        return HeadWords::plain(written);
+    }
+    let at = cmd.argv.first().map_or(0, |t| t.span.start());
+    HeadWords {
+        written,
+        resolved: identities.resolve(written, at).spec_name(),
+    }
+}
 
 fn collect_body_folds(
     body_source: &str,
@@ -379,6 +408,15 @@ fn collect_body_folds(
             continue;
         }
         let args_borrow: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
+        // The head's *effective command identity*, resolved exactly as the
+        // semantic-token walk resolves it: a proven `interp alias` / `rename` /
+        // `namespace import` answers with the command the head really names, and
+        // a spelling whose binding was provably taken over answers with nothing,
+        // so no registry grammar is applied to it (issue #1275).  The member
+        // sub-keyword test below deliberately keeps the *written* spelling —
+        // `method` inside a class body is a lexical keyword, not a command
+        // binding a top-level `rename` could move.
+        let head = resolve_head(ctx.identities, cmd);
 
         // Outer definer commands (`oo::class`, `oo::define`, `snit::type`, …)
         // carry their body-arg shapes in the registry — `arg_indices_for_role`
@@ -387,10 +425,12 @@ fn collect_body_folds(
         // no `CommandSpec`; their body indices come from the enclosing
         // definition-body grammar ([`crate::oo_body`]).
         let body_indices: Vec<usize> = match oo_grammar {
-            Some(g) if is_member(g, cmd.name()) => member_body_indices(g, cmd.name(), &args_borrow),
+            Some(g) if is_member(g, head.written) => {
+                member_body_indices(g, head.written, &args_borrow)
+            }
             _ => ctx
                 .registry
-                .arg_indices_for_role(cmd.name(), &args_borrow, ArgRole::Body),
+                .arg_indices_for_role(head.resolved, &args_borrow, ArgRole::Body),
         };
 
         // A clause-list command (`switch … {pat body …}`, Expect's `expect
@@ -403,7 +443,7 @@ fn collect_body_folds(
         // walk names no command.
         let case_list = ctx
             .registry
-            .get(cmd.name())
+            .get(head.resolved)
             .and_then(|s| s.case_list)
             .and_then(|spec| {
                 tcl_syntax::case_list::clause_list_call(&args_borrow, &call_shape(spec))
@@ -413,8 +453,7 @@ fn collect_body_folds(
         // The grammar the recursion into THIS command's bodies should carry:
         // outer definer bodies switch to their grammar, member bodies switch
         // off, everything else inherits.
-        let next_grammar =
-            next_definition_grammar(cmd.name(), &args_borrow, oo_grammar, ctx.registry);
+        let next_grammar = next_definition_grammar(head, &args_borrow, oo_grammar, ctx.registry);
 
         for idx in body_indices {
             let arg_tokens = cmd.arg_tokens();
@@ -475,7 +514,7 @@ fn collect_body_folds(
             );
         }
 
-        collect_lambda_folds(cmd, &args_borrow, depth, ctx);
+        collect_lambda_folds(cmd, head.resolved, &args_borrow, depth, ctx);
     }
 }
 
@@ -487,13 +526,14 @@ fn collect_body_folds(
 /// the real body's own nested folds.
 fn collect_lambda_folds(
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    resolved_head: &str,
     args: &[&str],
     depth: u32,
     ctx: &mut FoldCtx<'_>,
 ) {
     for idx in ctx
         .registry
-        .arg_indices_for_role(cmd.name(), args, ArgRole::LambdaLiteral)
+        .arg_indices_for_role(resolved_head, args, ArgRole::LambdaLiteral)
     {
         let arg_tokens = cmd.arg_tokens();
         let Some(&lambda_tok) = arg_tokens.get(idx) else {
@@ -1593,5 +1633,91 @@ mod tests {
                 r.end_line,
             );
         }
+    }
+
+    /// Issue #1275 — folding must resolve a command head's *effective
+    /// identity*, not its written spelling.
+    ///
+    /// `while`'s second word is `ArgRole::Body`; nothing else in the provider
+    /// folds it (the analyser's scope walk only covers `proc` / `namespace
+    /// eval` bodies), so a fold starting on the call's own line is a clean
+    /// witness that the body role was resolved.
+    ///
+    /// tclsh oracle (8.6.16 and 9.0.4, byte-identical): after `interp alias {}
+    /// loop {} while` a `loop` call runs `while`; after `rename while loop` the
+    /// same holds and `while` itself is gone (`info commands while` → empty);
+    /// after `proc while …` the call runs the user proc.
+    fn body_fold_on_call_line(source: &str) -> bool {
+        folding_ranges_default(source, "tcl8.6")
+            .iter()
+            .any(|r| r.kind == FoldKind::Region && r.start_line == 1)
+    }
+
+    const REBOUND_CALL: &str = "loop {$x} {\n    puts a\n    puts b\n}\n";
+    const WRITTEN_CALL: &str = "while {$x} {\n    puts a\n    puts b\n}\n";
+
+    #[test]
+    fn folding_folds_an_aliased_body_command() {
+        assert!(
+            body_fold_on_call_line(&format!(
+                "interp alias {{}} loop {{}} while\n{REBOUND_CALL}"
+            )),
+            "an alias of `while` must contribute `while`'s body fold"
+        );
+        // The `::`-qualified spelling of the alias classifies alike.
+        assert!(
+            body_fold_on_call_line(&format!(
+                "interp alias {{}} loop {{}} while\n::loop {{$x}} {{\n    puts a\n    puts b\n}}\n"
+            )),
+            "`::loop` must fold exactly like `loop`"
+        );
+        // Guard: the same call with no alias folds nothing — `loop` is an
+        // ordinary unknown command with no body argument.
+        assert!(
+            !body_fold_on_call_line(&format!("set y 1\n{REBOUND_CALL}")),
+            "an unbound `loop` has no body role"
+        );
+    }
+
+    #[test]
+    fn folding_folds_a_renamed_body_command_and_drops_the_old_name() {
+        assert!(
+            body_fold_on_call_line(&format!("rename while loop\n{REBOUND_CALL}")),
+            "`rename while loop` must move `while`'s body grammar to `loop`"
+        );
+        // … and the old spelling is gone from the rename onwards, so it must
+        // abstain rather than keep folding.
+        assert!(
+            !body_fold_on_call_line(&format!("rename while loop\n{WRITTEN_CALL}")),
+            "a renamed-away `while` must not keep the built-in's body grammar"
+        );
+    }
+
+    #[test]
+    fn folding_abstains_for_a_builtin_shadowed_by_a_user_proc() {
+        assert!(
+            !body_fold_on_call_line(&format!(
+                "proc while {{c b}} {{ return 1 }}\n{WRITTEN_CALL}"
+            )),
+            "a user `proc while` takes the name over; no registry body grammar applies"
+        );
+        // Guard: without the shadowing proc the very same call folds.
+        assert!(
+            body_fold_on_call_line(&format!("set y 1\n{WRITTEN_CALL}")),
+            "the unshadowed built-in still folds"
+        );
+    }
+
+    #[test]
+    fn folding_abstains_for_a_dynamic_binding() {
+        // `rename $old loop` proves nothing about either name.
+        assert!(
+            !body_fold_on_call_line(&format!("rename $old loop\n{REBOUND_CALL}")),
+            "a dynamic rename must not give `loop` a body grammar"
+        );
+        assert!(
+            body_fold_on_call_line(&format!("rename $old loop\n{WRITTEN_CALL}")),
+            "a dynamic rename must not take `while`'s body grammar away either"
+        );
     }
 }

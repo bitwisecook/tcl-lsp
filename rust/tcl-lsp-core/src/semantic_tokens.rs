@@ -4775,7 +4775,10 @@ fn collect_script(
         // hence the args are consulted.  Command substitutions and expressions
         // always run in ordinary (non-definition) context (see `plain_ctx`).
         let next_oo = crate::oo_body::next_definition_grammar(
-            head_text,
+            crate::oo_body::HeadWords {
+                written: head_text,
+                resolved: resolved_head,
+            },
             &arg_texts,
             ctx.oo_grammar,
             registry,
