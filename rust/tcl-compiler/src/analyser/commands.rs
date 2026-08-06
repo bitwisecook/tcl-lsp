@@ -2542,11 +2542,10 @@ impl Analyser {
             else {
                 continue;
             };
-            if !self
-                .ensemble_record_offsets
-                .get(&cand.ensemble)
-                .is_some_and(|&off| off < cand.span.start())
-            {
+            let Some(&declared_at) = self.ensemble_record_offsets.get(&cand.ensemble) else {
+                continue;
+            };
+            if declared_at >= cand.span.start() {
                 continue;
             }
             self.push_command_reference_with_policy(cand.sub, cand.span, target, cand.argc, true);

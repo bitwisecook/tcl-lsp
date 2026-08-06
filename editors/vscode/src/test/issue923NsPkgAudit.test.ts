@@ -44,6 +44,10 @@ suite("Issue #923 audit: namespaces and packages", () => {
     }
   }
 
+  function codeOf(d: vscode.Diagnostic): string {
+    return typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
+  }
+
   function hoverText(hovers: vscode.Hover[]): string {
     return hovers
       .flatMap((h) => h.contents)
@@ -196,18 +200,29 @@ suite("Issue #923 audit: namespaces and packages", () => {
   // "{ $ns"` prints `{ ctx`, so the variable really is read and the `set`
   // before it is not a dead store.
   test("idx 64: an unmatched brace in a quoted string does not make the set a dead store", async () => {
-    // The trailing unbraced `expr` yields W100, proving analysis ran — the
-    // established way this suite asserts the *absence* of a code.
-    const src = 'set i923ns "ctx"\nputs "{ $i923ns"\nexpr 1 + 1\n';
+    // The trailing unbraced `expr` carries a substitution, so it yields W100 —
+    // the established way this suite proves analysis ran before asserting the
+    // *absence* of a code. It uses its own variables so the read under test is
+    // still only the one beside the unmatched brace.
+    const src =
+      'set i923ns "ctx"\n' +
+      'puts "{ $i923ns"\n' +
+      "set i923a 1\n" +
+      "set i923y [expr $i923a + 1]\n" +
+      "puts $i923y\n";
     await withContent(src, async () => {
-      const diags = await waitForDiagnostics(docUri, { minCount: 1, timeout: 20_000 });
-      const codeOf = (d: vscode.Diagnostic): string =>
-        typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
-      const codes = diags.map(codeOf);
-      assert.ok(codes.includes("W100"), `expected analysis to run (W100) in [${codes}]`);
-      assert.ok(
-        !codes.includes("W220") && !codes.includes("W211"),
-        `\`$i923ns\` is read after the unmatched \`{\`, so no dead-store hint may fire: [${codes}]`,
+      const diags = await waitForDiagnostics(docUri, {
+        timeout: 20_000,
+        predicate: (d) => d.some((x) => codeOf(x) === "W100"),
+      });
+      const dump = JSON.stringify(diags.map((d) => [d.range.start.line, codeOf(d)]));
+      const onSet = diags.filter(
+        (d) => d.range.start.line === 0 && ["W211", "W220"].includes(codeOf(d)),
+      );
+      assert.deepStrictEqual(
+        onSet.map(codeOf),
+        [],
+        `\`$i923ns\` is read after the unmatched \`{\`, so no dead-store hint may fire on its \`set\`: ${dump}`,
       );
     });
   });
