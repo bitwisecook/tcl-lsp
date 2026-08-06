@@ -1659,9 +1659,9 @@ mod tests {
         );
         // The `::`-qualified spelling of the alias classifies alike.
         assert!(
-            body_fold_on_call_line(&format!(
-                "interp alias {{}} loop {{}} while\n::loop {{$x}} {{\n    puts a\n    puts b\n}}\n"
-            )),
+            body_fold_on_call_line(
+                "interp alias {} loop {} while\n::loop {$x} {\n    puts a\n    puts b\n}\n"
+            ),
             "`::loop` must fold exactly like `loop`"
         );
         // Guard: the same call with no alias folds nothing — `loop` is an

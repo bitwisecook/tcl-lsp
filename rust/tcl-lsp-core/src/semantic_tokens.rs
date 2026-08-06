@@ -4679,6 +4679,66 @@ fn emit_command_head(
 /// executed code, not a value that might or might not be invoked later, so
 /// list-quoted detection inside it is decided fresh at the next `[…]` hop
 /// rather than inherited.
+/// The head's *effective command identity*, resolved once so every
+/// registry-driven pass in [`collect_script`] keys off it (issue #1185).
+///
+/// Covers a command imported from an exported namespace (`namespace import
+/// tcltest::*` → `test` = `tcltest::test`, issue #776), a static `interp alias`
+/// / `rename`, and a top-level `proc` that shadows a built-in.  Facts are
+/// offset-keyed, so a binding never retroactively re-tags an earlier call, and
+/// a head with nothing proven about it keeps its own spelling.
+///
+/// The overwhelmingly common document binds nothing, so the lookup is skipped
+/// entirely rather than hashing every head in the file.
+fn head_identity_of<'a>(
+    ctx: ScriptCtx<'a>,
+    head_text: &'a str,
+    head_tok: Token,
+) -> tcl_compiler::head_identity::HeadIdentity<'a> {
+    if ctx.head_identities.is_empty() {
+        return tcl_compiler::head_identity::HeadIdentity::Command(head_text);
+    }
+    ctx.head_identities
+        .resolve(head_text, head_tok.span.start())
+}
+
+/// Emit the command-head token for a *static* head word — a resolvable command
+/// name, painted as a single function / keyword / namespace token.
+///
+/// A *computed* head — `$obj method …`, `[dict get …] method …`, `[Class new]
+/// method …`, a multi-fragment `chartV$node` — is not a command name we can
+/// resolve, so it must not be painted as one; the caller gates on
+/// [`head_is_computed`] and lets those tokens fall through to the ordinary
+/// argument path, where a `[…]` recurses into its inner script and a `$var`
+/// reads as a variable — an accurate picture of the runtime dispatch rather
+/// than a misleading command highlight (issue #797).
+fn emit_static_command_head(
+    ctx: ScriptCtx<'_>,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    identity: tcl_compiler::head_identity::HeadIdentity<'_>,
+    entries: &mut Vec<Entry>,
+) {
+    let Some(&head_tok) = seg.argv.first() else {
+        return;
+    };
+    emit_command_head(
+        ctx.line_index,
+        ctx.full_source,
+        CommandHead {
+            tok: head_tok,
+            text: &seg.texts[0],
+            resolved: identity.spec_name(),
+            rebound: identity.is_rebound(),
+        },
+        HeadContext {
+            oo_grammar: ctx.oo_grammar,
+            scoped_env: ctx.scoped_env,
+        },
+        ctx.registry,
+        entries,
+    );
+}
+
 fn collect_script(
     ctx: ScriptCtx<'_>,
     text: &str,
@@ -4691,7 +4751,6 @@ fn collect_script(
         return;
     }
     let full_source = ctx.full_source;
-    let line_index = ctx.line_index;
     let registry = ctx.registry;
     for seg in segment_commands_with_offset_and_config(
         text,
@@ -4705,50 +4764,11 @@ fn collect_script(
         // built-in carries the `defaultLibrary` modifier.
         let head_tok = seg.argv[0];
         let head_text = &seg.texts[0];
-        // Resolve the head's *effective command identity* once, and let every
-        // registry-driven pass below key off it (issue #1185).  This covers a
-        // command imported from an exported namespace (`namespace import
-        // tcltest::*` → `test` = `tcltest::test`, issue #776), a static
-        // `interp alias` / `rename`, and a top-level `proc` that shadows a
-        // built-in.  Facts are offset-keyed, so a binding never retroactively
-        // re-tags an earlier call, and a head with nothing proven about it
-        // keeps its own spelling.
-        // The overwhelmingly common document binds nothing, so skip the lookup
-        // entirely rather than hashing every head in the file.
-        let identity = if ctx.head_identities.is_empty() {
-            tcl_compiler::head_identity::HeadIdentity::Command(head_text.as_str())
-        } else {
-            ctx.head_identities
-                .resolve(head_text, head_tok.span.start())
-        };
+        let identity = head_identity_of(ctx, head_text, head_tok);
         let resolved_head: &str = identity.spec_name();
-        // A *static* head word is a resolvable command name: emit it as a
-        // single command-head token (function / keyword / namespace).  A
-        // *computed* head — `$obj method …`, `[dict get …] method …`,
-        // `[Class new] method …`, a multi-fragment `chartV$node` — is not a
-        // command name we can resolve, so it must not be painted as one.  Its
-        // tokens fall through to the ordinary argument path below, where a
-        // `[…]` recurses into its inner script (`dict get $Pins $pin`) and a
-        // `$var` reads as a variable — an accurate picture of the runtime
-        // dispatch rather than a misleading command highlight (issue #797).
         let computed_head = head_is_computed(&seg);
         if !computed_head {
-            emit_command_head(
-                line_index,
-                full_source,
-                CommandHead {
-                    tok: head_tok,
-                    text: head_text,
-                    resolved: resolved_head,
-                    rebound: identity.is_rebound(),
-                },
-                HeadContext {
-                    oo_grammar: ctx.oo_grammar,
-                    scoped_env: ctx.scoped_env,
-                },
-                registry,
-                entries,
-            );
+            emit_static_command_head(ctx, &seg, identity, entries);
         }
 
         // The command's argument words (head excluded), borrowed once as
@@ -4801,11 +4821,14 @@ fn collect_script(
         // on for their bare script form, not their member (`method …`) forms —
         // hence the args are consulted.  Command substitutions and expressions
         // always run in ordinary (non-definition) context (see `plain_ctx`).
+        // The outer-definer lookup reads the *resolved* head; the member
+        // sub-keyword test reads the written one (issue #1275).
+        let head_words = crate::oo_body::HeadWords {
+            written: head_text,
+            resolved: resolved_head,
+        };
         let next_oo = crate::oo_body::next_definition_grammar(
-            crate::oo_body::HeadWords {
-                written: head_text,
-                resolved: resolved_head,
-            },
+            head_words,
             &arg_texts,
             ctx.oo_grammar,
             registry,

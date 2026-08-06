@@ -547,15 +547,27 @@ pub fn build_interprocedural_analysis(
         registry,
         dialect,
         identities,
-        &pure,
-        &effect_reads,
-        &effect_writes,
+        ProcFixpoints {
+            pure: &pure,
+            effect_reads: &effect_reads,
+            effect_writes: &effect_writes,
+        },
     );
 
     InterproceduralAnalysis {
         procedures,
         methods,
     }
+}
+
+/// The three per-procedure fixpoint results a method summary joins against —
+/// its callees' purity and effect sets.  Bundled so [`build_method_summaries`]
+/// keeps a small signature.
+#[derive(Clone, Copy)]
+struct ProcFixpoints<'a> {
+    pure: &'a HashMap<String, bool>,
+    effect_reads: &'a HashMap<String, EffectRegion>,
+    effect_writes: &'a HashMap<String, EffectRegion>,
 }
 
 /// Summarise `TclOO` method bodies into [`MethodSummary`] entries.
@@ -575,10 +587,13 @@ fn build_method_summaries(
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&str>,
     identities: &crate::head_identity::HeadIdentityMap,
-    pure: &HashMap<String, bool>,
-    effect_reads: &HashMap<String, EffectRegion>,
-    effect_writes: &HashMap<String, EffectRegion>,
+    procs: ProcFixpoints<'_>,
 ) -> HashMap<String, MethodSummary> {
+    let ProcFixpoints {
+        pure,
+        effect_reads,
+        effect_writes,
+    } = procs;
     if ir_module.methods.is_empty() {
         return HashMap::new();
     }
@@ -706,6 +721,7 @@ fn build_method_summaries(
 /// the primary [`crate::ir::MethodDef`] and once per retained replacement
 /// body (issue #1166) so the summary joins over every body a dispatch may
 /// run.
+#[derive(Clone, Copy)]
 struct MethodScan<'a> {
     mqname: &'a str,
     method_known: &'a HashSet<String>,
@@ -924,6 +940,7 @@ fn scan_all_procs(
 
 /// One procedure's local-facts scan, bundled so [`scan_proc`] keeps a small
 /// signature.
+#[derive(Clone, Copy)]
 struct ProcScan<'a> {
     qname: &'a str,
     proc: &'a crate::ir::Procedure,

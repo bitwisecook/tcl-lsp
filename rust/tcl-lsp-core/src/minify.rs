@@ -4541,11 +4541,11 @@ mod tests {
     /// its name; unbarred, it compacts to a single letter.
     #[test]
     fn rename_barriers_follow_the_resolved_head() {
-        let registry = CommandRegistry::build_default();
         const UPVAR_BODY: &str =
             "proc p {v} {\n    set local 1\n    upvar 1 $v alias\n    return $local\n}\n";
         const PEEK_BODY: &str =
             "proc p {v} {\n    set local 1\n    peek 1 $v alias\n    return $local\n}\n";
+        let registry = CommandRegistry::build_default();
         let minify = |src: &str| minify_tcl_aggressive(src, "tcl8.6", true, &registry).source;
         let barred = |src: &str| minify(src).contains("set local 1");
 
