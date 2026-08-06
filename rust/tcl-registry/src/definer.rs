@@ -634,6 +634,44 @@ pub struct DefinitionBodyGrammar {
     /// distinguishing the two must keep them apart.  Empty for families with
     /// no such built-ins.
     pub builtin_type_methods: &'static [&'static str],
+
+    /// Commands this class system makes available **inside every member
+    /// body** and nowhere else — snit's `install NAME using TYPE …`.
+    ///
+    /// The command counterpart of [`Self::implicit_vars`], and deliberately
+    /// *not* a global [`crate::spec::CommandSpec`]: `install` is a snit
+    /// instance-namespace alias, so registering it globally would make a
+    /// user's own `proc install` look like a built-in everywhere.  A consumer
+    /// resolves the layout facts (today: [`MemberBodyCommand::binds_handle`])
+    /// from here, so no walker spells the keyword — issue #1185.  Empty for a
+    /// family that injects no such commands.
+    pub member_body_commands: &'static [MemberBodyCommand],
+
+    /// Whether invoking this family's **type command with a bare instance
+    /// name** constructs an instance — snit's `$type $name ?options…?`
+    /// shorthand for `$type create $name`, documented in snit(n)'s "The
+    /// Type Command" ("if the first argument is not a type method name, it
+    /// is assumed to be an instance name and `create` is implied").
+    ///
+    /// `false` for `TclOO` and [incr Tcl], whose class commands only
+    /// construct through an explicit `create` / `new` method.  A consumer
+    /// deciding whether `set w [Foo $win.a]` binds an object handle reads
+    /// this rather than testing the metaclass name for a `snit::` prefix.
+    pub bare_word_construction: bool,
+}
+
+/// One command a class system injects into every member body — see
+/// [`DefinitionBodyGrammar::member_body_commands`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MemberBodyCommand {
+    /// The command word as invoked inside a member body (`install`).
+    pub name: &'static str,
+    /// One-line description, for hover / completion.
+    pub detail: &'static str,
+    /// How the call binds a variable to an object handle, when it does —
+    /// `install NAME using TYPE …` makes `NAME` a handle of class `TYPE`.
+    /// `None` for an injected command that binds no handle.
+    pub binds_handle: Option<crate::handle_binding::HandleBindingSpec>,
 }
 
 impl DefinitionBodyGrammar {
@@ -650,6 +688,14 @@ impl DefinitionBodyGrammar {
     #[must_use]
     pub fn is_builtin_type_method(&self, name: &str) -> bool {
         self.builtin_type_methods.contains(&name)
+    }
+
+    /// The member-body command `name` names, if this family injects one (see
+    /// [`Self::member_body_commands`]).
+    #[must_use]
+    pub fn member_body_command(&self, name: &str) -> Option<&'static MemberBodyCommand> {
+        let idx = self.member_body_commands.iter().position(|c| c.name == name)?;
+        Some(&self.member_body_commands[idx])
     }
 
     /// Whether `keyword` is a recognised member sub-keyword.
@@ -778,6 +824,15 @@ pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // TclOO's class-level surface is `oo::define`/`oo::objdefine`, not a set
     // of built-in typemethods on the class command.
     builtin_type_methods: &[],
+    // TclOO injects no extra *commands* into a method body — its helpers
+    // (`my` / `next` / `self` / `link` / `classvariable`) are real global
+    // commands in `::oo::Helpers` with their own specs, reached through
+    // `member_body_namespace_path` above.
+    member_body_commands: &[],
+    // `Foo $win.a` is not a construction in TclOO: a class command only
+    // constructs through `create` / `new` (tclsh 9.0.4: `::C x` →
+    // `unknown method "x"`).
+    bare_word_construction: false,
 };
 
 /// The `namespace path` a `TclOO` member body runs with — see
@@ -818,6 +873,22 @@ const SNIT_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("expose"),
 ];
 
+/// The commands snit injects into every member body — see
+/// [`DefinitionBodyGrammar::member_body_commands`].
+///
+/// VERIFIED against tcllib snit(n): `install` is available in any snit
+/// instance method / constructor and, in its `using` form, "creates the
+/// component using the specified command, and assigns the result to the
+/// component variable".  The bare `install NAME $widget` form binds a
+/// component whose class is only known at run time, so no
+/// [`MemberBodyCommand::binds_handle`] fires for it — abstention, not a
+/// guess.
+const SNIT_MEMBER_BODY_COMMANDS: &[MemberBodyCommand] = &[MemberBodyCommand {
+    name: "install",
+    detail: "install a snit component into its component variable",
+    binds_handle: Some(crate::handle_binding::SNIT_INSTALL_BINDS_HANDLE),
+}];
+
 /// The definition-body grammar for a plain snit `type`.  `implicit_vars` is
 /// the set snit injects into *every* member body; the widget definers carry
 /// [`SNIT_WIDGET_GRAMMAR`], whose `implicit_vars` add the `win` / `hull`
@@ -832,6 +903,10 @@ pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // snit(n): "Every snit type has the following type methods: create,
     // info, destroy."  `create` is left out — see the field's doc comment.
     builtin_type_methods: &["info", "destroy"],
+    member_body_commands: SNIT_MEMBER_BODY_COMMANDS,
+    // snit(n), "The Type Command": `$type name ?args?` with a non-typemethod
+    // first word is `$type create name ?args?`.
+    bare_word_construction: true,
 };
 
 /// The definition-body grammar for snit `widget` / `widgetadaptor`: the same
@@ -849,6 +924,10 @@ pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // snit(n): "Every snit type has the following type methods: create,
     // info, destroy."  `create` is left out — see the field's doc comment.
     builtin_type_methods: &["info", "destroy"],
+    member_body_commands: SNIT_MEMBER_BODY_COMMANDS,
+    // snit(n), "The Type Command": `$type name ?args?` with a non-typemethod
+    // first word is `$type create name ?args?`.
+    bare_word_construction: true,
 };
 
 // ---------------------------------------------------------------------------
@@ -899,6 +978,12 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // [incr Tcl] class commands expose `::itcl::class` introspection rather
     // than built-in typemethods on the class command itself.
     builtin_type_methods: &[],
+    member_body_commands: &[],
+    // itcl constructs through `ClassName objName` *at the class command* —
+    // but only via the documented `ClassName objName ?args?` form, which the
+    // handle scan reaches through `creates_instance_at`, not through this
+    // snit-specific bare-word shorthand.
+    bare_word_construction: false,
 };
 
 #[cfg(test)]

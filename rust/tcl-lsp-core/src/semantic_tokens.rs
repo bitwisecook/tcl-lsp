@@ -382,14 +382,35 @@ fn is_language_keyword_sub_keyword(name: &str) -> bool {
 /// of the non-command sub-keywords ([`is_language_keyword_sub_keyword`]); a
 /// `::`-qualified name is a `namespace`; everything else is a
 /// `function`.
-fn classify_command_head(name: &str, registry: &CommandRegistry) -> TokenKind {
-    let is_keyword = registry.get(name).is_some_and(|s| {
+///
+/// The keyword / operator tests run against the head's *effective identity*
+/// (`resolved`), so `interp alias {} myforeach {} foreach` makes `myforeach` a
+/// keyword and a `rename foreach ""` stops the bare spelling being one — issue
+/// #1185.  The `::`-qualified test stays on the written spelling: an imported
+/// bare `test` resolves to `tcltest::test` without becoming a namespace token.
+fn classify_command_head(head: CommandHead<'_>, registry: &CommandRegistry) -> TokenKind {
+    let CommandHead {
+        text: name,
+        resolved,
+        rebound,
+        ..
+    } = head;
+    // A head whose registry binding was provably taken over is an ordinary
+    // user command, whatever the built-in of the same spelling would have been.
+    if rebound {
+        return if name.contains("::") {
+            TokenKind::Namespace
+        } else {
+            TokenKind::Function
+        };
+    }
+    let is_keyword = registry.get(resolved).is_some_and(|s| {
         s.traits
             .contains(tcl_registry::prelude::Traits::LANGUAGE_KEYWORD)
     }) || is_language_keyword_sub_keyword(name);
     if is_keyword {
         TokenKind::Keyword
-    } else if is_operator_command(name, registry) {
+    } else if is_operator_command(resolved, registry) {
         // A bare operator used as a command head (`+ 3 4`, `tcl::mathop`
         // style).
         TokenKind::Operator
@@ -4037,15 +4058,15 @@ struct ScriptCtx<'a> {
     /// Def-site literal value words to highlight as regex (regex-source
     /// tracking), keyed by word start.  Empty when disabled.
     regex_sources: &'a FxHashMap<u32, Span>,
-    /// Bare command names imported into the global namespace via
-    /// `namespace import EXPORTING::*`, mapped to their qualified registry
-    /// spec name (`test` → `tcltest::test`) plus the byte offset of the
-    /// enabling `namespace import` statement.  Lets the registry-driven
-    /// overrides resolve an unqualified imported command to its spec (issue
-    /// #776) — but only for a head at or after the import, so an import cannot
-    /// retroactively re-tag an earlier same-named command.  Empty when the
-    /// document has no `namespace import`.
-    head_aliases: &'a FxHashMap<String, (String, u32)>,
+    /// The document's statically proven command-identity facts — which
+    /// registry command each head spelling really names at each point in the
+    /// file.  Folds together `namespace import` (`test` → `tcltest::test`,
+    /// issue #776), `interp alias`, static `rename`, and a top-level `proc`
+    /// that shadows a built-in (issue #1185).  Every fact is offset-keyed, so
+    /// a binding cannot retroactively re-tag an earlier call; every shape that
+    /// cannot be proven leaves the head alone.  Empty for a document that
+    /// binds nothing.  See [`crate::head_identity`].
+    head_identities: &'a crate::head_identity::HeadIdentityMap,
     /// Object-handle → class-name provenance for the whole document, so a
     /// `$var method …` dispatch can resolve the method's options through the
     /// registry's object-class model (issue #748).  Empty when no
@@ -4452,13 +4473,21 @@ struct HeadContext {
 }
 
 /// The command head being classified: its token, the source text, and the
-/// namespace-resolved name (an imported bare name resolves to its qualified
-/// registry spec).  Bundled so [`emit_command_head`] keeps a small signature.
+/// head's *effective command identity* — the registry name the spelling really
+/// resolves to at this point in the document (an imported bare name resolves
+/// to its qualified spec; a static `interp alias` / `rename` resolves to its
+/// target; a shadowed built-in resolves to nothing).  Bundled so
+/// [`emit_command_head`] keeps a small signature.
 #[derive(Clone, Copy)]
 struct CommandHead<'a> {
     tok: Token,
     text: &'a str,
+    /// The registry name to resolve grammar against — empty when the head was
+    /// rebound (see [`crate::head_identity::HeadIdentity::spec_name`]).
     resolved: &'a str,
+    /// Whether the head's registry binding was provably taken over by a
+    /// `rename` / alias / shadowing `proc` (issue #1185).
+    rebound: bool,
 }
 
 fn emit_command_head(
@@ -4473,6 +4502,7 @@ fn emit_command_head(
         tok: head_tok,
         text: head_text,
         resolved: resolved_head,
+        rebound,
     } = head;
     let HeadContext {
         oo_grammar,
@@ -4511,7 +4541,7 @@ fn emit_command_head(
         );
         return;
     }
-    let full_kind = classify_command_head(head_text, registry);
+    let full_kind = classify_command_head(head, registry);
     // Split any `…::name` head (namespace-qualified command or keyword) into a
     // namespace prefix + final-segment command token.
     if head_text.contains("::")
@@ -4525,7 +4555,9 @@ fn emit_command_head(
         // — the prefix is as much part of the built-in's name as the tail, which
         // already gets the modifier below, and a theme that dims stdlib names was
         // dimming only half of one (#898 §11).
-        let builtin_mods = if registry.get(head_text).is_some() {
+        // Resolved, not written: a `rename`d-away built-in must lose the
+        // modifier and a proven alias of one must gain it (issue #1185).
+        let builtin_mods = if registry.get(resolved_head).is_some() {
             MOD_DEFAULT_LIBRARY
         } else {
             0
@@ -4545,16 +4577,17 @@ fn emit_command_head(
         // language keyword (TclOO `oo::class` etc.), else function;
         // `defaultLibrary` when the full name is a registry built-in.
         let tail = &head_text[idx + 2..];
-        let is_keyword = registry.get(head_text).is_some_and(|s| {
-            s.traits
-                .contains(tcl_registry::prelude::Traits::LANGUAGE_KEYWORD)
-        }) || is_language_keyword_sub_keyword(tail);
+        let is_keyword = !rebound
+            && (registry.get(resolved_head).is_some_and(|s| {
+                s.traits
+                    .contains(tcl_registry::prelude::Traits::LANGUAGE_KEYWORD)
+            }) || is_language_keyword_sub_keyword(tail));
         let kind = if is_keyword {
             TokenKind::Keyword
         } else {
             TokenKind::Function
         };
-        let mods = if kind == TokenKind::Function && registry.get(head_text).is_some() {
+        let mods = if kind == TokenKind::Function && registry.get(resolved_head).is_some() {
             MOD_DEFAULT_LIBRARY
         } else {
             0
@@ -4627,18 +4660,22 @@ fn collect_script(
         // built-in carries the `defaultLibrary` modifier.
         let head_tok = seg.argv[0];
         let head_text = &seg.texts[0];
-        // Resolve an unqualified command imported from an exported namespace
-        // (`namespace import tcltest::*` → `test` = `tcltest::test`) to its
-        // qualified registry name, so the registry-driven overrides and the
-        // built-in modifier see the real spec (issue #776).  Only applies when
-        // the enabling import precedes this head in source order (an import
-        // cannot retroactively re-tag an earlier command); falls back to the
-        // literal head otherwise.
-        let resolved_head: &str = ctx
-            .head_aliases
-            .get(head_text)
-            .filter(|(_, import_off)| head_tok.span.start() >= *import_off)
-            .map_or(head_text.as_str(), |(qualified, _)| qualified.as_str());
+        // Resolve the head's *effective command identity* once, and let every
+        // registry-driven pass below key off it (issue #1185).  This covers a
+        // command imported from an exported namespace (`namespace import
+        // tcltest::*` → `test` = `tcltest::test`, issue #776), a static
+        // `interp alias` / `rename`, and a top-level `proc` that shadows a
+        // built-in.  Facts are offset-keyed, so a binding never retroactively
+        // re-tags an earlier call, and a head with nothing proven about it
+        // keeps its own spelling.
+        // The overwhelmingly common document binds nothing, so skip the lookup
+        // entirely rather than hashing every head in the file.
+        let identity = if ctx.head_identities.is_empty() {
+            crate::head_identity::HeadIdentity::Command(head_text.as_str())
+        } else {
+            ctx.head_identities.resolve(head_text, head_tok.span.start())
+        };
+        let resolved_head: &str = identity.spec_name();
         // A *static* head word is a resolvable command name: emit it as a
         // single command-head token (function / keyword / namespace).  A
         // *computed* head — `$obj method …`, `[dict get …] method …`,
@@ -4657,6 +4694,7 @@ fn collect_script(
                     tok: head_tok,
                     text: head_text,
                     resolved: resolved_head,
+                    rebound: identity.is_rebound(),
                 },
                 HeadContext {
                     oo_grammar: ctx.oo_grammar,
@@ -5365,19 +5403,29 @@ fn scan_loop_vars(
     }
 }
 
-/// Syntactic scan for snit object-handle bindings that the compiler CFG does not
+/// Syntactic scan for object-handle bindings that the compiler CFG does not
 /// surface, binding the handle variable to its class so a `$NAME method …`
 /// dispatch in a snit method body resolves.  snit method bodies are **not**
 /// lowered into the compiler CFG (only token-walked, like the `$self` path), so
 /// a source scan is how these classes reach the handle map — the same technique
-/// the loop-var scan uses.  Two shapes are recognised:
+/// the loop-var scan uses.
 ///
-/// - `install NAME using TYPE …` — a snit component install; and
-/// - `set NAME [TYPE inst …]` — snit's *bare-word* constructor (`$type $name`
-///   creates an instance), gated on `TYPE` being a **known snit-family class**
-///   (so we know bare construction is valid) whose first argument is **not a
-///   typemethod** (`info` / `destroy` / a declared `typemethod`), which would be
-///   a type-command call rather than a construction.
+/// Which calls bind a handle, and at which argument indices, is registry data
+/// ([`tcl_registry::HandleBindingSpec`], issue #1185) — the walker names no
+/// command, so `::set` and a provable alias of it bind exactly like `set`.  Two
+/// layouts exist today:
+///
+/// - `install NAME using TYPE …`, snit's component installer, declared on the
+///   snit definition-body grammar's
+///   [`member_body_commands`](tcl_registry::definer::DefinitionBodyGrammar::member_body_commands)
+///   because the word exists only inside a snit member body; and
+/// - `set NAME [TYPE inst …]`, whose value word may be a *bare-word*
+///   construction (`$type $name` creates an instance) — gated on `TYPE` being a
+///   visible class of a family whose grammar declares
+///   [`bare_word_construction`](tcl_registry::definer::DefinitionBodyGrammar::bare_word_construction),
+///   and whose first argument is **not** a typemethod (`info` / `destroy` / a
+///   declared `typemethod`), which would be a type-command call rather than a
+///   construction.
 ///
 /// Highlight-only and sound by abstention: the bare-constructor form only fires
 /// when `TYPE` is visible in the hierarchy (local, or workspace-merged in
@@ -5388,7 +5436,109 @@ fn augment_snit_handles(
     classes: Option<&ClassHierarchy>,
     object_classes: &mut ObjectClassMap,
 ) {
-    scan_snit_handles(source, source, 0, dialect, classes, object_classes, 0);
+    // The member-body installers this dialect's definers inject, resolved once
+    // per document rather than per segment.
+    let member_bindings: FxHashMap<&'static str, tcl_registry::HandleBindingSpec> =
+        tcl_registry::registry_for_dialect(dialect)
+            .member_body_handle_bindings()
+            .into_iter()
+            .collect();
+    scan_snit_handles(
+        source,
+        source,
+        0,
+        dialect,
+        classes,
+        &member_bindings,
+        object_classes,
+        0,
+    );
+}
+
+/// Bind one resolved [`BoundHandle`] into the handle map.
+///
+/// The two class sources are resolved differently and both abstain rather than
+/// guess: a [`HandleClassSource::Word`] is a type name used as written (only a
+/// static bareword qualifies), while a
+/// [`HandleClassSource::ConstructionValue`] must parse as a command
+/// substitution whose head is a visible class of a family that constructs by
+/// bare word.
+///
+/// [`BoundHandle`]: tcl_registry::BoundHandle
+/// [`HandleClassSource::Word`]: tcl_registry::HandleClassSource::Word
+/// [`HandleClassSource::ConstructionValue`]: tcl_registry::HandleClassSource::ConstructionValue
+fn bind_object_handle(
+    bound: &tcl_registry::BoundHandle<'_>,
+    classes: Option<&ClassHierarchy>,
+    registry: &CommandRegistry,
+    handles: &mut ObjectClassMap,
+) {
+    if bound.name.is_empty() || bound.name.contains(['$', '[', ' ']) {
+        return;
+    }
+    match bound.class_source {
+        tcl_registry::HandleClassSource::Word(_) => {
+            let type_name = bound.class_word;
+            if type_name.is_empty() || type_name.contains(['$', '[', ' ']) {
+                return;
+            }
+            let qualified = format!("::{}", type_name.trim_start_matches("::"));
+            handles
+                .entry(bound.name.to_owned())
+                .or_default()
+                .insert(qualified);
+        }
+        tcl_registry::HandleClassSource::ConstructionValue(_) => {
+            let Some(hierarchy) = classes else { return };
+            let Some((cmd, args)) =
+                tcl_compiler::value_shapes::parse_command_substitution(bound.class_word)
+            else {
+                return;
+            };
+            let Some(class) = resolve_class_in_hierarchy(hierarchy, &cmd) else {
+                return;
+            };
+            if !family_constructs_by_bare_word(hierarchy, registry, &class) {
+                return;
+            }
+            // A bare construction needs an instance-name argument that is not a
+            // (non-`create`) typemethod call on the type.
+            if !args
+                .first()
+                .is_some_and(|a| a == "create" || !class_declares_typemethod(hierarchy, registry, &class, a))
+            {
+                return;
+            }
+            handles
+                .entry(bound.name.to_owned())
+                .or_default()
+                .insert(class);
+        }
+    }
+}
+
+/// Whether `class`'s definer family constructs an instance from a **bare
+/// instance name** (`$type $name`), rather than only through an explicit
+/// `create` / `new`.
+///
+/// Registry data — the class's metaclass spec's definition-body grammar
+/// declares it ([`DefinitionBodyGrammar::bare_word_construction`]) — replacing
+/// the `metaclass.starts_with("snit::")` spelling test the scan used to make
+/// (issue #1185).  A class whose metaclass is not in the registry answers
+/// `false`: abstention, so an unknown factory is never treated as one.
+///
+/// [`DefinitionBodyGrammar::bare_word_construction`]: tcl_registry::definer::DefinitionBodyGrammar::bare_word_construction
+fn family_constructs_by_bare_word(
+    hierarchy: &ClassHierarchy,
+    registry: &CommandRegistry,
+    class: &str,
+) -> bool {
+    hierarchy
+        .classes
+        .get(class)
+        .and_then(|cd| registry.get(&cd.metaclass))
+        .and_then(|spec| spec.definition_body)
+        .is_some_and(|grammar| grammar.bare_word_construction)
 }
 
 /// Whether `name` is a type-command call (typemethod) on class `class` — one
@@ -5474,6 +5624,7 @@ fn scan_snit_handles(
     base_offset: u32,
     dialect: &str,
     classes: Option<&ClassHierarchy>,
+    member_bindings: &FxHashMap<&'static str, tcl_registry::HandleBindingSpec>,
     handles: &mut ObjectClassMap,
     depth: u32,
 ) {
@@ -5487,49 +5638,21 @@ fn scan_snit_handles(
         tcl_lexer::LexerConfig::for_file_dialect(dialect).at_depth(depth),
     ) {
         let texts = &seg.texts;
-        match texts.first().map(String::as_str) {
-            // `install NAME using TYPE ?args…?` — snit component installation.
-            // Only a static bareword NAME / TYPE qualify.
-            Some("install") if texts.len() >= 4 && texts[2] == "using" => {
-                let name = texts[1].as_str();
-                let type_name = texts[3].as_str();
-                if !name.is_empty()
-                    && !name.contains(['$', '[', ' '])
-                    && !type_name.is_empty()
-                    && !type_name.contains(['$', '[', ' '])
-                {
-                    let qualified = format!("::{}", type_name.trim_start_matches("::"));
-                    handles
-                        .entry(name.to_owned())
-                        .or_default()
-                        .insert(qualified);
-                }
+        if let Some(head) = texts.first() {
+            let args: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
+            // The layout comes from the registry — `set`'s own
+            // `CommandSpec::binds_handle`, or the member-body installer the
+            // class system's definition-body grammar declares — so no command
+            // word is spelled here and `::set` binds exactly like `set`
+            // (issue #1185).
+            if let Some(binding) = member_bindings
+                .get(head.as_str())
+                .copied()
+                .or_else(|| registry.handle_binding(head).copied())
+                && let Some(bound) = binding.resolve(&args)
+            {
+                bind_object_handle(&bound, classes, registry, handles);
             }
-            // `set NAME [TYPE inst …]` — snit bare-word constructor.
-            Some("set") if texts.len() >= 3 => {
-                if let Some(hierarchy) = classes
-                    && !texts[1].is_empty()
-                    && !texts[1].contains(['$', '[', ' '])
-                    && let Some((cmd, args)) =
-                        tcl_compiler::value_shapes::parse_command_substitution(&texts[2])
-                    && let Some(class) = resolve_class_in_hierarchy(hierarchy, &cmd)
-                    && hierarchy
-                        .classes
-                        .get(&class)
-                        .is_some_and(|cd| cd.metaclass.starts_with("snit::"))
-                    // A bare construction needs an instance-name argument that is
-                    // not a (non-`create`) typemethod call on the type.
-                    && args
-                        .first()
-                        .is_some_and(|a| {
-                            a == "create"
-                                || !class_declares_typemethod(hierarchy, registry, &class, a)
-                        })
-                {
-                    handles.entry(texts[1].clone()).or_default().insert(class);
-                }
-            }
-            _ => {}
         }
         for (i, tok) in seg.argv.iter().enumerate() {
             if !seg.single_token_word.get(i).copied().unwrap_or(false) {
@@ -5553,6 +5676,7 @@ fn scan_snit_handles(
                     u32::try_from(cstart).unwrap_or(0),
                     dialect,
                     classes,
+                    member_bindings,
                     handles,
                     depth + 1,
                 );
@@ -5606,10 +5730,17 @@ fn collect_entries(
             .collect()
     });
 
-    // Bare-name aliases for commands imported from an exported namespace
-    // (`namespace import tcltest::*` → `test` = `tcltest::test`).  Empty (no
-    // lookups) unless the document actually imports something.
-    let head_aliases = imported_command_aliases(source, dialect, registry);
+    // The document's command-identity facts: bare-name aliases for commands
+    // imported from an exported namespace (`namespace import tcltest::*` →
+    // `test` = `tcltest::test`), plus every statically proven `interp alias` /
+    // `rename` / built-in-shadowing `proc` (issue #1185).  Empty (no lookups)
+    // unless the document actually binds something.
+    let head_identities = crate::head_identity::command_head_identities(
+        source,
+        dialect,
+        registry,
+        imported_command_aliases(source, dialect, registry),
+    );
 
     // Object-handle → class provenance (`set chart [ticklecharts::chart new]`
     // → `chart`), so a `$chart Xaxis -name …` dispatch resolves the method's
@@ -5652,7 +5783,7 @@ fn collect_entries(
         oo_grammar: None,
         scoped_env: None,
         regex_sources: &regex_sources,
-        head_aliases: &head_aliases,
+        head_identities: &head_identities,
         object_classes: &object_classes,
         object_collections: &object_collections,
         classes,
@@ -9276,14 +9407,55 @@ mod tests {
         assert_eq!(comments, 41, "expected one token per comment line");
     }
 
+    /// A `CommandHead` for a head with nothing bound about it — the written
+    /// spelling is its own identity.
+    fn plain_head(name: &str) -> CommandHead<'_> {
+        CommandHead {
+            tok: Token {
+                kind: TokenType::Esc,
+                span: tcl_lexer::Span::new(0, u32::try_from(name.len()).unwrap_or(0)),
+                content_offset: 0,
+                in_quote: false,
+            },
+            text: name,
+            resolved: name,
+            rebound: false,
+        }
+    }
+
     #[test]
     fn classify_command_head_picks_namespace_for_qualified() {
         assert_eq!(
-            classify_command_head("::myns::greet", &reg()),
+            classify_command_head(plain_head("::myns::greet"), &reg()),
             TokenKind::Namespace,
         );
-        assert_eq!(classify_command_head("greet", &reg()), TokenKind::Function);
-        assert_eq!(classify_command_head("if", &reg()), TokenKind::Keyword);
+        assert_eq!(
+            classify_command_head(plain_head("greet"), &reg()),
+            TokenKind::Function
+        );
+        assert_eq!(
+            classify_command_head(plain_head("if"), &reg()),
+            TokenKind::Keyword
+        );
+    }
+
+    /// The keyword / operator tests key off the head's *effective identity*,
+    /// so a proven alias of a keyword is a keyword and a rebound head is not
+    /// (issue #1185).
+    #[test]
+    fn classify_command_head_follows_the_effective_identity() {
+        let r = reg();
+        let aliased = CommandHead {
+            resolved: "foreach",
+            ..plain_head("myforeach")
+        };
+        assert_eq!(classify_command_head(aliased, &r), TokenKind::Keyword);
+        let rebound = CommandHead {
+            resolved: "",
+            rebound: true,
+            ..plain_head("foreach")
+        };
+        assert_eq!(classify_command_head(rebound, &r), TokenKind::Function);
     }
 
     // range variant
@@ -9788,6 +9960,143 @@ mod tests {
             kinds_only("puts {%08x}\n", &r),
             kinds_only("puts {plain}\n", &r)
         );
+    }
+
+    // Issue #1185 residual 1 — a head's *effective command identity* (a static
+    // `interp alias`, a `rename`, a shadowing top-level `proc`) drives the
+    // grammar, so calling a built-in through a proven alias classifies exactly
+    // like calling it directly, and calling a name whose binding was taken
+    // over does not.
+
+    /// TP — `interp alias {} myfmt {} format` makes `myfmt %08x 42` classify
+    /// exactly like `format %08x 42`.
+    ///
+    /// tclsh-proof (9.0.4 and 8.6.16, byte-identical): `interp alias {} myfmt
+    /// {} format; myfmt %08x 42` → `0000002a`.
+    #[test]
+    fn a_static_interp_alias_inherits_the_targets_grammar() {
+        let r = reg();
+        let bind = "interp alias {} myfmt {} format\n";
+        // The argument kinds of a direct `format` call — its head token is the
+        // one thing an aliased or qualified spelling legitimately differs in.
+        let direct = kinds_only("format {%08x} 42\n", &r);
+        let direct_args = &direct[1..];
+        for head in ["myfmt", "::myfmt"] {
+            let call = kinds_only(&format!("{bind}{head} {{%08x}} 42\n"), &r);
+            assert_eq!(
+                &call[call.len() - direct_args.len()..],
+                direct_args,
+                "`{head}` must classify its arguments like a direct `format` call"
+            );
+        }
+        // Without the alias the same call is an ordinary unknown command whose
+        // argument stays a plain string.
+        let unaliased = kinds_only("myfmt {%08x} 42\n", &r);
+        assert!(
+            unaliased.len() < direct.len(),
+            "an unbound name must not get format sub-tokens: {unaliased:?}"
+        );
+    }
+
+    /// TP — `rename foreach myforeach` moves the loop grammar (and the
+    /// keyword classification) onto the new name.
+    #[test]
+    fn a_static_rename_moves_the_grammar_to_the_new_name() {
+        let r = reg();
+        let bind = "rename upvar myupvar\n";
+        let direct = kinds_only("upvar 1 src local\n", &r);
+        let renamed = kinds_only(&format!("{bind}myupvar 1 src local\n"), &r);
+        let baseline = kinds_only(bind, &r);
+        assert_eq!(
+            &renamed[baseline.len()..],
+            &direct[..],
+            "a renamed call must classify like the original"
+        );
+    }
+
+    /// FP — a name whose binding was taken over gets **no** registry grammar:
+    /// after `rename format origfmt` the bare `format` is gone, and a top-level
+    /// `proc format` shadows the built-in outright.
+    ///
+    /// tclsh-proof (9.0.4 and 8.6.16): `rename format origfmt; proc format
+    /// {args} {return USER}; format x` → `USER`; `origfmt %d 7` → `7`.
+    #[test]
+    fn a_rebound_builtin_loses_its_grammar() {
+        let r = reg();
+        let direct = kinds_only("format {%08x} 42\n", &r);
+        for bind in [
+            "rename format origfmt\n",
+            "rename format {}\n",
+            "proc format {args} { return USER }\n",
+            "interp alias {} format {} myformatter\n",
+        ] {
+            let baseline = kinds_only(bind, &r);
+            let after = kinds_only(&format!("{bind}format {{%08x}} 42\n"), &r);
+            assert!(
+                after.len() - baseline.len() < direct.len(),
+                "`{}` must strip format's specifier sub-tokens, got {after:?}",
+                bind.trim()
+            );
+        }
+    }
+
+    /// FN guard — a binding only applies from its own statement onwards, so a
+    /// call *before* the `rename` still classifies as the built-in.
+    #[test]
+    fn a_binding_does_not_retroactively_retag_earlier_calls() {
+        let r = reg();
+        let direct = kinds_only("format {%08x} 42\n", &r);
+        let before = kinds_only("format {%08x} 42\nrename format origfmt\n", &r);
+        let rename_only = kinds_only("rename format origfmt\n", &r);
+        assert_eq!(
+            &before[..direct.len()],
+            &direct[..],
+            "the call before the rename must keep the built-in's grammar"
+        );
+        assert_eq!(&before[direct.len()..], &rename_only[..]);
+    }
+
+    /// TN — a binding the analyser cannot prove states nothing, so the head
+    /// keeps its literal identity rather than gaining a wrong one.
+    #[test]
+    fn unprovable_bindings_abstain() {
+        let r = reg();
+        let plain = kinds_only("myfmt {%08x} 42\n", &r);
+        for bind in [
+            // Dynamic alias target / name, dynamic rename source.
+            "interp alias {} myfmt {} $target\n",
+            "interp alias {} $n {} format\n",
+            "rename $old myfmt\n",
+            // Pre-bound arguments shift every index.
+            "interp alias {} myfmt {} format %08x\n",
+            // A child interpreter's command table is not this one's.
+            "interp alias slave myfmt {} format\n",
+            // Not an unconditional top-level statement.
+            "if {$x} { interp alias {} myfmt {} format }\n",
+        ] {
+            let baseline = kinds_only(bind, &r);
+            let after = kinds_only(&format!("{bind}myfmt {{%08x}} 42\n"), &r);
+            assert_eq!(
+                &after[baseline.len()..],
+                &plain[..],
+                "`{}` must not give `myfmt` a grammar",
+                bind.trim()
+            );
+        }
+    }
+
+    /// FP — a `proc` in another namespace, or one that shadows nothing, states
+    /// no fact: only a global-namespace redefinition of a built-in takes a name
+    /// over (tclsh 9.0.4: inside `namespace eval ::n`, `proc format` defines
+    /// `::n::format` and the global `format` is untouched).
+    #[test]
+    fn a_namespaced_proc_does_not_shadow_the_global_builtin() {
+        let r = reg();
+        let direct = kinds_only("format {%08x} 42\n", &r);
+        let bind = "namespace eval ::n { proc format {a} { return 1 } }\n";
+        let baseline = kinds_only(bind, &r);
+        let after = kinds_only(&format!("{bind}format {{%08x}} 42\n"), &r);
+        assert_eq!(&after[baseline.len()..], &direct[..]);
     }
 
     /// TN — a `{*}`-expanded (dynamic) head has no resolvable identity, so no

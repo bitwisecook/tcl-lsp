@@ -111,6 +111,12 @@ pub fn spec() -> CommandSpec {
         arity: Arity::new(1, 2),
         arg_role_resolver: Some(set_arg_roles),
         assigns_variable_at: Some(0),
+        // `set NAME [TYPE inst …]` — when the value word is a construction,
+        // `NAME` ends up holding an object handle.  Registry data so the
+        // object-handle scan resolves the layout for `::set` and a provable
+        // static alias/rename of `set` exactly as for the bare spelling,
+        // instead of matching the word `set` (issue #1185).
+        binds_handle: Some(&crate::handle_binding::SET_BINDS_HANDLE),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {
             summary: "Read the value of a variable, or set it to a new value.",

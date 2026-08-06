@@ -290,7 +290,7 @@ fn command_table_effect_stamps_match_the_former_name_matches() {
     );
 
     // The resolver honours the subcommand-over-spec rule and the
-    // exact-spelling contract the retired matches had.
+    // exact-subcommand-spelling contract the retired matches had.
     assert_eq!(
         reg.command_table_effect("proc", Some("x")),
         Some(E::DefinesProcedure)
@@ -305,6 +305,25 @@ fn command_table_effect_stamps_match_the_former_name_matches() {
     );
     assert_eq!(reg.command_table_effect("interp", Some("aliases")), None);
     assert_eq!(reg.command_table_effect("interp", None), None);
-    // A `::`-qualified head never matched the retired literals.
-    assert_eq!(reg.command_table_effect("::rename", Some("old")), None);
+    // A `::`-qualified head resolves the same effect as the bare one
+    // (issue #1185): C Tcl resolves the explicitly global spelling to the
+    // same command, so `::rename format ::origfmt` / `::interp alias {}
+    // myfmt {} format` / `::proc ::greet {} {…}` really do mutate the
+    // command table — verified byte-identical on tclsh 9.0.4 and 8.6.16.
+    assert_eq!(
+        reg.command_table_effect("::rename", Some("old")),
+        Some(E::RenamesCommands)
+    );
+    assert_eq!(
+        reg.command_table_effect("::interp", Some("alias")),
+        Some(E::CreatesAliases)
+    );
+    assert_eq!(
+        reg.command_table_effect("::proc", Some("x")),
+        Some(E::DefinesProcedure)
+    );
+    // Still nothing for an unrelated qualified name or a non-mutating
+    // subcommand word.
+    assert_eq!(reg.command_table_effect("::interp", Some("aliases")), None);
+    assert_eq!(reg.command_table_effect("::puts", Some("x")), None);
 }

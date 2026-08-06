@@ -58,6 +58,7 @@ pub mod file_ops;
 pub mod folding;
 pub mod formatting;
 pub mod graphs;
+mod head_identity;
 pub mod hover;
 pub mod implementation;
 pub mod inert_text;

@@ -1,0 +1,459 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Effective command identity for a command head (issue #1185).
+//!
+//! Tcl resolves a command by its interpreter-level *binding*, not by the
+//! spelling used to invoke it.  Three statically visible statements move that
+//! binding, and this module turns the ones a document states unconditionally
+//! at top level into a small, offset-keyed table the source-text consumers
+//! (semantic tokens today) consult before they hand a head to the registry:
+//!
+//! ```tcl
+//! namespace import ::tcltest::*   ;# `test`   now *is* `::tcltest::test`
+//! interp alias {} myfmt {} format ;# `myfmt`  now *is* `format`
+//! rename format origfmt           ;# `origfmt` is `format`, and `format` is gone
+//! proc format {args} { … }        ;# `format` is a user proc, not the built-in
+//! ```
+//!
+//! Every fact carries the byte offset of the statement that established it and
+//! applies only to heads **at or after** it, so an alias cannot retroactively
+//! re-tag an earlier call and a `rename` correctly leaves the calls before it
+//! alone.  Verified against tclsh 9.0.4 and 8.6.16 (byte-identical): after
+//! `rename format origfmt; proc format {args} {return USER}`, `format x`
+//! answers `USER` and `origfmt %d 7` answers `7`.
+//!
+//! # What this deliberately does not do
+//!
+//! The table is **sound by abstention** — every shape it cannot prove leaves
+//! the head unchanged, and every shape that provably *breaks* a registry
+//! binding marks the head [`HeadIdentity::Rebound`] so no registry grammar is
+//! applied to it.  Specifically:
+//!
+//! * **Dynamic heads and dynamic bindings** — `rename $old new`,
+//!   `interp alias {} $n {} eval`, `interp alias {} n {} $t` — record nothing
+//!   ([`tcl_syntax::naming::is_dynamic_word`] rejects them), so a call through
+//!   the name keeps its literal identity rather than gaining a wrong one.
+//! * **Pre-bound alias arguments** — `interp alias {} pad {} format %08x`
+//!   shifts every argument index, so the layout cannot be reused; the alias
+//!   name is marked `Rebound` instead of aliased.
+//! * **Another interpreter** — a non-empty `srcPath` (`interp alias slave …`)
+//!   binds a name in a *child* interpreter and changes nothing here, so it
+//!   records nothing at all; a non-empty `targetPath` points at a command this
+//!   document cannot see, so the name is marked `Rebound`.  Hidden commands in
+//!   a safe interpreter are likewise invisible: this document's own command
+//!   table is what is being described.
+//! * **Conditional or nested bindings** — only *top-level* statements are
+//!   scanned.  A `rename` inside an `if` body, a proc, an `eval`, or a
+//!   `namespace eval` block is not an unconditional document-wide fact, and a
+//!   `proc` inside `namespace eval ::n` defines `::n::format`, not `::format`
+//!   (tclsh 9.0.4: `::n::format q` → `ns:q`, global `format` untouched).
+//! * **`unknown` fallback and traces** — nothing is inferred from them.
+
+use rustc_hash::FxHashMap;
+use tcl_compiler::alias::{detect_interp_alias, detect_interp_alias_delete, detect_rename};
+use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+use tcl_registry::{CommandRegistry, CommandTableEffect};
+use tcl_syntax::naming::is_dynamic_word;
+
+/// What a command head resolves to at one point in a document.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum HeadIdentity<'a> {
+    /// The head names this registry command — the head text itself when no
+    /// fact applies, or the effective target of a proven import / alias /
+    /// rename.
+    Command(&'a str),
+    /// The head's binding was provably taken over by something the registry
+    /// does not model: a `rename` moved the built-in away, a user `proc`
+    /// redefined it, or an alias bound it to an unresolvable target.  No
+    /// registry grammar applies.
+    Rebound,
+}
+
+impl<'a> HeadIdentity<'a> {
+    /// The name to resolve registry grammar against.
+    ///
+    /// [`Self::Rebound`] answers with the empty string, which
+    /// [`CommandRegistry::get`] never resolves — so every registry query a
+    /// consumer already makes (`arg_indices_for_role`, `format_string_args`,
+    /// `handle_binding`, …) answers "not a known command" without that
+    /// consumer testing the variant.
+    pub(crate) fn spec_name(self) -> &'a str {
+        match self {
+            Self::Command(name) => name,
+            Self::Rebound => "",
+        }
+    }
+
+    /// Whether the head's registry binding was provably taken over.
+    pub(crate) fn is_rebound(self) -> bool {
+        matches!(self, Self::Rebound)
+    }
+}
+
+/// One binding fact about one head spelling.
+#[derive(Debug, Clone)]
+struct HeadFact {
+    /// Byte offset of the statement that established it; the fact applies to
+    /// heads at or after this offset only.
+    from: u32,
+    /// The registry name the head now resolves to, or `None` when the head was
+    /// rebound to something unmodelled.
+    target: Option<String>,
+}
+
+/// Every statically proven command-identity fact in one document, keyed by the
+/// head spelling as written.
+///
+/// Both the bare and the explicitly global spelling of a bound name are
+/// recorded, because C Tcl resolves them to the same command
+/// (`namespace which -command ::myfmt` → `::myfmt`) and a consumer must not
+/// have to strip qualifiers itself.
+#[derive(Debug, Default)]
+pub(crate) struct HeadIdentityMap {
+    facts: FxHashMap<String, Vec<HeadFact>>,
+}
+
+impl HeadIdentityMap {
+    /// Whether the document stated any binding fact at all — lets a caller
+    /// skip per-head lookups entirely for the overwhelmingly common document
+    /// that imports, aliases, and renames nothing.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.facts.is_empty()
+    }
+
+    /// The effective identity of `head` invoked at byte offset `at`.
+    ///
+    /// The **latest** fact at or before `at` wins, so a document that renames a
+    /// name and then rebinds it again reads correctly at every point between.
+    /// With no applicable fact the head keeps its own spelling.
+    pub(crate) fn resolve<'a>(&'a self, head: &'a str, at: u32) -> HeadIdentity<'a> {
+        let Some(facts) = self.facts.get(head) else {
+            return HeadIdentity::Command(head);
+        };
+        let Some(fact) = facts
+            .iter()
+            .filter(|f| f.from <= at)
+            .max_by_key(|f| f.from)
+        else {
+            return HeadIdentity::Command(head);
+        };
+        fact.target
+            .as_deref()
+            .map_or(HeadIdentity::Rebound, HeadIdentity::Command)
+    }
+
+    /// Whether an *earlier* fact already gives `head` a registry identity at
+    /// offset `at` — used to notice that a `proc` takes back a name a previous
+    /// `rename` / alias had bound to a built-in.
+    fn resolves_to_a_command(&self, head: &str, at: u32) -> bool {
+        matches!(self.resolve(head, at), HeadIdentity::Command(name) if name != head)
+    }
+
+    /// Record `head` → `target` (or a rebinding, with `target` `None`) from
+    /// byte offset `from`.
+    fn record(&mut self, head: &str, target: Option<String>, from: u32) {
+        if head.is_empty() {
+            return;
+        }
+        self.facts.entry(head.to_owned()).or_default().push(HeadFact {
+            from,
+            target,
+        });
+    }
+
+    /// Record a fact under both the written spelling and its explicitly global
+    /// twin, so `myfmt` and `::myfmt` classify alike.
+    fn record_both_spellings(&mut self, name: &str, target: Option<String>, from: u32) {
+        let bare = name.strip_prefix("::").unwrap_or(name);
+        self.record(bare, target.clone(), from);
+        self.record(&format!("::{bare}"), target, from);
+    }
+}
+
+/// Whether `word` is a name this scan may treat as a static command spelling.
+fn is_static_name(word: &str) -> bool {
+    !word.is_empty() && !is_dynamic_word(word) && !word.contains(char::is_whitespace)
+}
+
+/// Scan `source` for the top-level statements that move a command binding and
+/// build the document's [`HeadIdentityMap`].
+///
+/// `imports` is the already-computed `namespace import` alias table (bare name
+/// → `(qualified spec name, enabling offset)`); it is folded in here so every
+/// consumer asks one question rather than two.
+///
+/// Which commands mutate the command table is registry data
+/// ([`CommandTableEffect`]) and the argument shapes come from the compiler's
+/// own detectors ([`detect_interp_alias`] / [`detect_rename`]) — the same ones
+/// the IR-lowering pipeline uses — so no command name is spelled here.
+pub(crate) fn command_head_identities(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+    imports: FxHashMap<String, (String, u32)>,
+) -> HeadIdentityMap {
+    let mut map = HeadIdentityMap::default();
+    for (name, (qualified, offset)) in imports {
+        map.record(&name, Some(qualified), offset);
+    }
+    for seg in segment_commands_with_offset_and_config(
+        source,
+        0,
+        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+    ) {
+        let Some(head) = seg.texts.first() else {
+            continue;
+        };
+        let args = &seg.texts[1..];
+        let Some(effect) = registry.command_table_effect(head, args.first().map(String::as_str))
+        else {
+            continue;
+        };
+        let at = seg.argv[0].span.start();
+        match effect {
+            CommandTableEffect::RenamesCommands => record_rename(&mut map, args, at, registry),
+            CommandTableEffect::CreatesAliases => record_alias(&mut map, args, at, registry),
+            CommandTableEffect::DefinesProcedure => record_proc(&mut map, args, at, registry),
+        }
+    }
+    map
+}
+
+/// `rename OLD NEW` — `NEW` inherits `OLD`'s identity and `OLD` stops existing;
+/// `rename OLD {}` deletes `OLD` outright.
+fn record_rename(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &CommandRegistry) {
+    let Some(old) = args.first() else { return };
+    if !is_static_name(old) {
+        // `rename $old new` — the source is unknown, so neither half of the
+        // move can be stated.  Abstain entirely.
+        return;
+    }
+    if let Some((old, new)) = detect_rename(args)
+        && is_static_name(&new)
+    {
+        // Only a target the registry actually models is worth aliasing; a
+        // rename of a user proc leaves `NEW` an ordinary unknown name, which is
+        // already what an absent fact produces.
+        if registry.get(&old).is_some() {
+            map.record_both_spellings(&new, Some(old.clone()), at);
+        }
+    }
+    // Either way the old name is gone from this point on.
+    map.record_both_spellings(old, None, at);
+}
+
+/// `interp alias {} NEW {} TARGET ?arg…?` and its deletion form.
+fn record_alias(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &CommandRegistry) {
+    if let Some(deleted) = detect_interp_alias_delete(args) {
+        map.record_both_spellings(&deleted, None, at);
+        return;
+    }
+    let Some((qualified, target, prepended)) = detect_interp_alias(args) else {
+        // Not a current-interpreter creation: a foreign `srcPath` binds a name
+        // in a child interpreter (nothing changes here), and a dynamic name or
+        // target cannot be stated.  A *foreign target path* is the one shape
+        // worth marking rebound — the alias exists here but runs elsewhere.
+        if let (Some(src), Some(name), Some(tgt)) = (args.get(1), args.get(2), args.get(3))
+            && matches!(src.as_str(), "" | "{}")
+            && !matches!(tgt.as_str(), "" | "{}")
+            && is_static_name(name)
+        {
+            map.record_both_spellings(name, None, at);
+        }
+        return;
+    };
+    // Pre-bound arguments shift every index, so the target's layout cannot be
+    // reused; an unmodelled target has no layout to reuse either.  Both cases
+    // still *take over* the name, so mark it rebound rather than aliased.
+    let effective = prepended
+        .is_empty()
+        .then(|| registry.get(&target).map(|_| target))
+        .flatten();
+    map.record_both_spellings(&qualified, effective, at);
+}
+
+/// `proc NAME …` at top level — a user proc that shadows a registry built-in
+/// takes the name over (tclsh 9.0.4: after `proc format {args} {return USER}`,
+/// `format x` is `USER`).
+///
+/// Only a name that *would otherwise* resolve to a registry command is
+/// recorded — either directly, or through an earlier fact (a `proc origfmt`
+/// after `rename format origfmt` takes the moved built-in's name back).  Every
+/// other `proc` leaves the head an ordinary unknown name, which is already what
+/// an absent fact produces.
+fn record_proc(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &CommandRegistry) {
+    let Some(name) = args.first() else { return };
+    if !is_static_name(name) || name.contains("::") {
+        // A qualified `proc ::ns::format` defines a *different* command; only
+        // the global-namespace shadow is stated here.
+        return;
+    }
+    if registry.get(name).is_some() || map.resolves_to_a_command(name, at) {
+        map.record_both_spellings(name, None, at);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn map_for(src: &str) -> HeadIdentityMap {
+        let registry = tcl_registry::registry_for_dialect("tcl");
+        command_head_identities(src, "tcl", registry, FxHashMap::default())
+    }
+
+    /// Offset just past the first line of `src`, i.e. "after statement 1".
+    fn after_first_line(src: &str) -> u32 {
+        u32::try_from(src.find('\n').map_or(src.len(), |i| i + 1)).unwrap_or(0)
+    }
+
+    #[test]
+    fn static_rename_moves_the_identity_and_clears_the_old_name() {
+        let src = "rename format origfmt\norigfmt %d 7\nformat x\n";
+        let map = map_for(src);
+        let at = after_first_line(src);
+        assert_eq!(map.resolve("origfmt", at), HeadIdentity::Command("format"));
+        // The `::`-qualified spelling of the new name resolves alike.
+        assert_eq!(map.resolve("::origfmt", at), HeadIdentity::Command("format"));
+        // The old name is gone from the rename onwards …
+        assert_eq!(map.resolve("format", at), HeadIdentity::Rebound);
+        // … but calls *before* it still see the built-in.
+        let src = "format {%08x} 42\nrename format origfmt\n";
+        let map = map_for(src);
+        assert_eq!(map.resolve("format", 0), HeadIdentity::Command("format"));
+        assert_eq!(
+            map.resolve("format", after_first_line(src)),
+            HeadIdentity::Rebound
+        );
+    }
+
+    #[test]
+    fn interp_alias_aliases_only_the_argument_preserving_form() {
+        let src = "interp alias {} myfmt {} format\n";
+        let map = map_for(src);
+        let at = after_first_line(src);
+        assert_eq!(map.resolve("myfmt", at), HeadIdentity::Command("format"));
+        assert_eq!(map.resolve("::myfmt", at), HeadIdentity::Command("format"));
+
+        // Pre-bound arguments shift every index — the layout cannot be reused.
+        let src = "interp alias {} pad {} format %08x\n";
+        let map = map_for(src);
+        assert_eq!(map.resolve("pad", after_first_line(src)), HeadIdentity::Rebound);
+    }
+
+    #[test]
+    fn dynamic_bindings_abstain() {
+        for src in [
+            "rename $old myfmt\n",
+            "interp alias {} $n {} format\n",
+            "interp alias {} myfmt {} $t\n",
+        ] {
+            let map = map_for(src);
+            let at = after_first_line(src);
+            assert_eq!(
+                map.resolve("myfmt", at),
+                HeadIdentity::Command("myfmt"),
+                "dynamic binding must not state a fact: {src}"
+            );
+            // A dynamic `rename` must not claim the *old* name is gone either.
+            assert_eq!(map.resolve("format", at), HeadIdentity::Command("format"));
+        }
+    }
+
+    #[test]
+    fn a_child_interpreter_alias_changes_nothing_here() {
+        let src = "interp alias slave myfmt {} format\n";
+        let map = map_for(src);
+        assert!(map.is_empty(), "a foreign srcPath states no fact here");
+    }
+
+    #[test]
+    fn a_foreign_target_path_rebinds_without_aliasing() {
+        let src = "interp alias {} myfmt slave format\n";
+        let map = map_for(src);
+        assert_eq!(
+            map.resolve("myfmt", after_first_line(src)),
+            HeadIdentity::Rebound
+        );
+    }
+
+    #[test]
+    fn a_top_level_proc_shadows_the_builtin_it_names() {
+        let src = "proc format {args} { return USER }\n";
+        let map = map_for(src);
+        assert_eq!(
+            map.resolve("format", after_first_line(src)),
+            HeadIdentity::Rebound
+        );
+        // A proc that shadows nothing states nothing.
+        let src = "proc mything {args} { return 1 }\n";
+        assert!(map_for(src).is_empty());
+        // A qualified proc defines a different command entirely.
+        let src = "proc ::ns::format {args} { return 1 }\n";
+        assert!(map_for(src).is_empty());
+    }
+
+    #[test]
+    fn a_nested_binding_is_not_a_document_wide_fact() {
+        // Neither the conditional rename nor the namespaced proc is an
+        // unconditional top-level statement.
+        for src in [
+            "if {$x} { rename format origfmt }\n",
+            "namespace eval ::n { proc format {a} { return 1 } }\n",
+            "proc p {} { rename format origfmt }\n",
+        ] {
+            assert!(map_for(src).is_empty(), "nested binding leaked: {src}");
+        }
+    }
+
+    #[test]
+    fn a_qualified_mutator_head_states_the_same_fact() {
+        // C Tcl resolves `::rename` to `::rename` — the mutator's own spelling
+        // must not be a false negative either (issue #1185).
+        let src = "::rename format origfmt\n";
+        let map = map_for(src);
+        assert_eq!(
+            map.resolve("origfmt", after_first_line(src)),
+            HeadIdentity::Command("format")
+        );
+    }
+
+    #[test]
+    fn the_latest_applicable_fact_wins() {
+        let src = "rename format origfmt\norigfmt %d 7\nproc origfmt {args} { return 1 }\n";
+        let map = map_for(src);
+        let after_all = u32::try_from(src.len()).unwrap_or(0);
+        // Between the `rename` and the `proc`, `origfmt` *is* the built-in …
+        assert_eq!(
+            map.resolve("origfmt", after_first_line(src)),
+            HeadIdentity::Command("format")
+        );
+        // … and after the `proc` takes the name back it is a user command,
+        // even though `origfmt` is not itself a registry name.
+        assert_eq!(map.resolve("origfmt", after_all), HeadIdentity::Rebound);
+    }
+
+    #[test]
+    fn a_rebound_head_resolves_to_no_registry_spec() {
+        // The `Rebound` sentinel must be unresolvable, since that is what makes
+        // every registry query answer "unknown" without a variant check.
+        let registry = tcl_registry::registry_for_dialect("tcl");
+        assert!(registry.get(HeadIdentity::Rebound.spec_name()).is_none());
+    }
+}
