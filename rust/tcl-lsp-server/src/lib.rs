@@ -26658,6 +26658,119 @@ mod tests {
         assert_eq!(consumer_edits[0].new_text, "ListToArray");
     }
 
+    /// idx 45 (differential-audit main audit wave): the *nested,
+    /// cross-namespace* self-redefinition the finding was actually mined
+    /// from — `nico-robert/ticklecharts`' `proc ticklecharts::activate`
+    /// whose body declares an unqualified `proc activate`.
+    ///
+    /// Distinct from idx 31's shape above (two verbatim-identical top-level
+    /// declarations in one namespace) in the half that matters: the inner
+    /// declaration is written *unqualified inside a qualified proc's body*,
+    /// so getting the cross-file caller back depends on the namespace
+    /// resolution of the fix, not only on keeping every physical
+    /// declaration's span.
+    ///
+    /// Oracle, byte-identical on tclsh 9.0.4 and 8.6.16: running `main.tcl`
+    /// prints `activating for the first time` then `already activated`, and
+    /// probing the command table afterwards reports `::ticklecharts::activate`
+    /// present with no global `::activate` at all — the nested `proc`
+    /// redefines the *same* command in the enclosing namespace.
+    #[tokio::test]
+    async fn cross_document_references_reach_caller_from_nested_self_redefinition() {
+        let backend = test_backend();
+        let lib = Uri::from_str("file:///lib45_refs.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer45_refs.tcl").unwrap();
+        let lib_src = "namespace eval ticklecharts {}\n\
+                       proc ticklecharts::activate {bool} {\n\
+                       \x20if {$bool} {\n\
+                       \x20 proc activate {bool} {puts \"already activated\"}\n\
+                       \x20 puts \"activating for the first time\"\n\
+                       \x20}\n\
+                       }\n";
+        register(&backend, &lib, lib_src).await;
+        register(
+            &backend,
+            &consumer,
+            "ticklecharts::activate 1\nticklecharts::activate 1\n",
+        )
+        .await;
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(lib_src, "tcl8.6").clone()
+        };
+        // Both physical declarations must answer the same cross-file set:
+        // the OUTER header (line 1, on `activate` of `ticklecharts::activate`)
+        // and the NESTED one (line 3, on the bare `activate`).
+        for (line, character, which) in [(1u32, 20u32, "outer"), (3, 7, "nested")] {
+            let cross = backend
+                .cross_document_references(
+                    &lib,
+                    lib_src,
+                    &analysis,
+                    Position::new(line, character),
+                    false,
+                )
+                .await;
+            assert_eq!(
+                cross.len(),
+                2,
+                "both cross-file callers must be reached from the {which} \
+                 declaration: {cross:?}"
+            );
+            assert!(cross.iter().all(|l| l.uri == consumer), "{cross:?}");
+        }
+    }
+
+    /// The rename half of the same shape — the severe one. An edit set that
+    /// drops the cross-file callers leaves them bound to the old name while
+    /// the *other* declaration of the very same command is still lying
+    /// around under it.
+    #[tokio::test]
+    async fn cross_document_rename_reaches_caller_from_nested_self_redefinition() {
+        let backend = test_backend();
+        let lib = Uri::from_str("file:///lib45_rename.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer45_rename.tcl").unwrap();
+        let lib_src = "namespace eval ticklecharts {}\n\
+                       proc ticklecharts::activate {bool} {\n\
+                       \x20if {$bool} {\n\
+                       \x20 proc activate {bool} {puts \"already activated\"}\n\
+                       \x20}\n\
+                       }\n";
+        register(&backend, &lib, lib_src).await;
+        register(
+            &backend,
+            &consumer,
+            "ticklecharts::activate 1\nticklecharts::activate 1\n",
+        )
+        .await;
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(lib_src, "tcl8.6").clone()
+        };
+        for (line, character, which) in [(1u32, 20u32, "outer"), (3, 7, "nested")] {
+            let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
+                std::collections::HashMap::new();
+            backend
+                .add_cross_document_rename_edits(
+                    &lib,
+                    lib_src,
+                    &analysis,
+                    Position::new(line, character),
+                    "enable",
+                    &mut changes,
+                )
+                .await;
+            let consumer_edits = changes.get(&consumer).cloned().unwrap_or_default();
+            assert_eq!(
+                consumer_edits.len(),
+                2,
+                "both cross-file callers must be rewritten from the {which} \
+                 declaration: {changes:?}"
+            );
+            assert!(consumer_edits.iter().all(|e| e.new_text == "enable"));
+        }
+    }
+
     /// Build an on-disk autoload library (`tclIndex` + defining file, like a
     /// `TCLLIBPATH` entry) whose `Rbc_Wire` also calls `Rbc_ActiveLegend`
     /// internally, and point the backend's package database at it.  Returns

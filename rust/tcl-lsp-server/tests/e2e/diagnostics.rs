@@ -4766,3 +4766,230 @@ fn opt_proc_arity_is_deliberately_unchecked_in_both_directions_end_to_end() {
         codes(&diags)
     );
 }
+
+/// idx 5 (differential-audit): `rename OLD NEW` must validate that `OLD`
+/// resolves to a known command.
+///
+/// tclsh 9.0.4 and 8.6.16 both abort the script:
+/// `can't rename "definitelyNotDefinedAnywhere": command doesn't exist`
+/// (exit 1). The whole rename statement is a guaranteed runtime error, so
+/// the source word draws W123 end to end.
+#[test]
+fn w123_rename_of_a_nonexistent_command_is_published() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "rename definitelyNotDefinedAnywhere someAlias\n");
+    assert!(
+        has_code(&diags, "W123"),
+        "the rename source must be resolved like any other command word: {diags:?}"
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| message(d).contains("definitelyNotDefinedAnywhere")),
+        "the message names the missing command: {diags:?}"
+    );
+}
+
+/// The delete form of the same statement. tclsh: `can't delete
+/// "totallyBogusCommand": command doesn't exist` (exit 1) — `rename X {}`
+/// was the form the original fix nearly missed.
+#[test]
+fn w123_deleting_rename_of_a_nonexistent_command_is_published() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "rename totallyBogusCommand {}\nputs done\n");
+    assert!(
+        has_code(&diags, "W123"),
+        "`rename X {{}}` deletes X, so X must exist: {diags:?}"
+    );
+    assert_eq!(
+        on_line(&diags, "W123"),
+        [0].into_iter().collect::<BTreeSet<i64>>(),
+        "flagged at the rename statement, nowhere else: {diags:?}"
+    );
+}
+
+/// TN control for the two above: renaming a command that really does exist
+/// is silent, so the check is a resolution, not a blanket flag on `rename`.
+#[test]
+fn w123_rename_of_an_existing_command_is_silent() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc greet {} { return hi }\nrename greet hello\nrename puts _oldputs\n",
+    );
+    assert!(
+        !has_code(&diags, "W123"),
+        "a user proc and a builtin are both renameable: {diags:?}"
+    );
+}
+
+/// idx 24 (differential-audit): a variable assigned indirectly through
+/// `uplevel` in an outer frame is not read-before-set, however many ordinary
+/// call frames sit between the writer and the frame it writes.
+///
+/// Oracle (tclsh 9.0.4 and 8.6.16, byte-identical): the script below prints
+/// `99` — `answer` really is set in `outer`'s frame by a proc `outer` never
+/// calls directly.
+#[test]
+fn w210_not_published_for_a_multi_frame_uplevel_assignment() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc setUp2 {var} {\n    uplevel 2 [list set $var 99]\n}\n\
+         proc middle {} {\n    setUp2 answer\n}\n\
+         proc outer {} {\n    middle\n    return $answer\n}\n",
+    );
+    assert!(
+        !has_code(&diags, "W210"),
+        "`uplevel 2` writes the plain caller's caller: {diags:?}"
+    );
+}
+
+/// The one-hop spellings of the same idiom, both `[list …]`-built and
+/// word-concatenated. Silent before the multi-frame fix, pinned here because
+/// nothing else did.
+#[test]
+fn w210_not_published_for_a_single_hop_uplevel_assignment() {
+    for body in [
+        "uplevel 1 [list set $var 99]",
+        "uplevel 1 set $var 99",
+        "uplevel [expr {[info level] - 1}] [list set $var 99]",
+    ] {
+        let mut lsp = Lsp::tcl();
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(
+            &uri,
+            &format!(
+                "proc setInCaller {{var}} {{\n    {body}\n}}\n\
+                 proc useIt {{}} {{\n    setInCaller answer\n    return $answer\n}}\n"
+            ),
+        );
+        assert!(
+            !has_code(&diags, "W210"),
+            "`{body}` defines the caller's variable: {diags:?}"
+        );
+    }
+}
+
+/// TP control for both of the above: with the `uplevel` replaced by a
+/// callee-local `set`, nothing reaches the caller's frame and W210 must
+/// still be published.
+#[test]
+fn w210_still_published_when_nothing_writes_the_outer_frame() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc setInCaller {var} {\n    set $var 99\n}\n\
+         proc useIt {} {\n    setInCaller answer\n    return $answer\n}\n",
+    );
+    assert!(
+        has_code(&diags, "W210"),
+        "a callee-local `set` never reaches the caller: {diags:?}"
+    );
+}
+
+/// idx 24, second half: W212 must not read the literal word `set` inside a
+/// `[list …]`-built script as a directly-written `set $var` confusion — the
+/// substitution happens in the building frame and is the idiom itself.
+#[test]
+fn w212_not_published_for_a_list_built_variable_name_word() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc setInCaller {var} {\n    uplevel 1 [list set $var 99]\n}\n",
+    );
+    assert!(
+        !has_code(&diags, "W212"),
+        "a list-built name word is pre-substituted, not a confusion: {diags:?}"
+    );
+}
+
+/// TP control: the directly-written spelling is exactly what W212 is for.
+#[test]
+fn w212_still_published_for_a_directly_written_name_word() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc setInCaller {var} {\n    set $var 99\n}\n");
+    assert!(
+        has_code(&diags, "W212"),
+        "a written `$` in a name position is still W212: {diags:?}"
+    );
+}
+
+/// idx 38 (differential-audit): the canonical caller-frame-injection idiom
+/// the `tclopt` corpus is built from — a `[list set $varName $value]` built
+/// inside a `foreach`, with both words substituted.
+///
+/// Oracle (tclsh 9.0.4 and 8.6.16): the script prints `1 1 1`, so all three
+/// names really are materialised in `Qfrac2`'s frame. Neither the
+/// read-before-set nor the name/value check may fire.
+#[test]
+fn neither_w210_nor_w212_is_published_for_a_looped_list_built_injection() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc NewArrays {varNames value} {\n\
+         \x20   foreach varName $varNames {\n\
+         \x20       uplevel 1 [list set $varName $value]\n\
+         \x20   }\n\
+         }\n\
+         proc Qfrac2 {} {\n\
+         \x20   NewArrays {rdiagArray acnormArray waArray} 1\n\
+         \x20   return [list $rdiagArray $acnormArray $waArray]\n\
+         }\n",
+    );
+    assert!(
+        !has_code(&diags, "W212"),
+        "a list-built name word is the idiom, not a confusion: {diags:?}"
+    );
+    assert!(
+        !has_code(&diags, "W210"),
+        "the three names are materialised in the caller's frame: {diags:?}"
+    );
+}
+
+/// TP control: with the injecting call removed, nothing writes those names
+/// and all three reads are genuinely unset (tclsh: `can't read
+/// "rdiagArray": no such variable`).
+#[test]
+fn w210_still_published_without_the_injecting_call() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc Qfrac2 {} {\n\
+         \x20   return [list $rdiagArray $acnormArray $waArray]\n\
+         }\n",
+    );
+    assert!(
+        has_code(&diags, "W210"),
+        "nothing writes those names: {diags:?}"
+    );
+}
+
+/// TP control for the W212 carve-out in the same proc shape: the directly
+/// written `set $varName $value` is exactly the confusion the code is for.
+#[test]
+fn w212_still_published_for_a_directly_written_looped_name() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc NewArrays {varNames value} {\n\
+         \x20   foreach varName $varNames {\n\
+         \x20       set $varName $value\n\
+         \x20   }\n\
+         }\n",
+    );
+    assert!(
+        has_code(&diags, "W212"),
+        "a written `$` in a name position is still W212: {diags:?}"
+    );
+}

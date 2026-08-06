@@ -211,6 +211,39 @@ suite("Diagnostics", () => {
     );
   });
 
+  test("W123 flags a rename whose source command does not exist", async () => {
+    // Issue #923 audit idx 5. `rename OLD NEW` requires OLD to resolve;
+    // tclsh 9.0.4 and 8.6.16 both abort the fixture at line 8 with
+    // `can't rename "definitelyNotDefinedAnywhere": command doesn't exist`,
+    // and the delete form (`rename X {}`, line 9) with `can't delete
+    // "totallyBogusCommand": command doesn't exist`. Both are guaranteed
+    // runtime errors, so both source words must be flagged — while the
+    // genuine `rename greet hail` on line 12 stays silent.
+    const renameUri = getDocUri("diagnostics-rename-nonexistent.tcl");
+    await activate(renameUri);
+    const diagnostics = await waitForDiagnostics(renameUri, { minCount: 1 });
+
+    const w123 = diagnostics.filter((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "W123";
+    });
+    const lines = w123.map((d) => d.range.start.line).sort((a, b) => a - b);
+    assert.deepStrictEqual(
+      lines,
+      [8, 9],
+      `Expected W123 on both bogus rename sources and nowhere else, got ${lines}: ` +
+        `${w123.map((d) => d.message).join("; ")}`,
+    );
+    assert.ok(
+      w123.some((d) => d.message.includes("definitelyNotDefinedAnywhere")),
+      `Expected the rename form to be named, got: ${w123.map((d) => d.message).join("; ")}`,
+    );
+    assert.ok(
+      w123.some((d) => d.message.includes("totallyBogusCommand")),
+      `Expected the delete form to be named, got: ${w123.map((d) => d.message).join("; ")}`,
+    );
+  });
+
   test("W143 flags private ::tcl:: namespace calls only, and only fixes the legal rewrites", async () => {
     const privateUri = getDocUri("diagnostics-private-tcl-namespace.tcl");
     await activate(privateUri);

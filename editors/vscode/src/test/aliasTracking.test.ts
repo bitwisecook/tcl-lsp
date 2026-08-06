@@ -23,7 +23,13 @@ import { getDocUri, activate } from "./helper";
 // End-to-end coverage that an ``upvar`` alias is tracked as its own local
 // symbol over the wire: references and rename stay scoped to the alias name
 // (``alias_x``) and never bleed into the differently-named caller variable
-// (``caller_x``).  The fixture aliasTracking.tcl is:
+// (``caller_x``).
+//
+// This file is about ``upvar`` VARIABLE aliasing ONLY.  The unrelated
+// ``interp alias`` COMMAND aliasing (issue #923 audit idx 21 / idx 89) lives
+// in ``commandAliasTracking.test.ts``; nothing here covers it.
+//
+// The fixture aliasTracking.tcl is:
 //
 //   0: proc fixed {} {
 //   1:     upvar 1 caller_x alias_x
@@ -33,7 +39,7 @@ import { getDocUri, activate } from "./helper";
 //   5: }
 //   6: set caller_x 0
 //   7: fixed
-suite("Alias Tracking (upvar)", () => {
+suite("Alias Tracking (upvar variable aliases)", () => {
   const docUri = getDocUri("aliasTracking.tcl");
 
   test("references for an upvar alias stay within the proc", async () => {
