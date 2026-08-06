@@ -24597,6 +24597,168 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
+    /// The three-file Tk shape of issue #1276, written to a scratch workspace.
+    ///
+    /// Ground truth (tclsh 8.6.14 and 9.0.4 agree, `source`ing the three in
+    /// order): `::IconList` is a real class, `info class superclasses
+    /// ::IconList` is `::tk::MegawidgetClass ::FocusableWidget`, and
+    /// `info class methods ::IconList -private` is `CreateHull GetSpecs`.
+    fn write_metaclass_workspace(root: &std::path::Path) {
+        std::fs::write(
+            root.join("megawidget.tcl"),
+            concat!(
+                "oo::class create ::tk::MegawidgetClass {\n",
+                "    method TraceOption {a b} { return traced }\n",
+                "}\n",
+                "oo::class create ::tk::Megawidget {\n",
+                "    superclass oo::class\n",
+                "    self method create {name superclasses body} {\n",
+                "        next $name [list superclass ::tk::MegawidgetClass",
+                " {*}$superclasses]\\;$body\n",
+                "    }\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("base.tcl"),
+            concat!(
+                "::tk::Megawidget create FocusableWidget {} {\n",
+                "    method CreateHull {} { return h }\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("iconlist.tcl"),
+            concat!(
+                "::tk::Megawidget create IconList FocusableWidget {\n",
+                "    method GetSpecs {} { return iconlist }\n",
+                "    method CreateHull {} { return hull }\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+    }
+
+    /// The salsa analysis a scanned (unopened) workspace file resolves to.
+    async fn scanned_analysis(
+        backend: &Backend,
+        root: &std::path::Path,
+        name: &str,
+    ) -> Arc<AnalysisResult> {
+        let uri = Uri::from_file_path(root.join(name)).unwrap();
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        let file = *files.get(&uri).expect("scanned file is a salsa input");
+        let config = *backend.db_config.lock().await;
+        tcl_lsp_db::file_analysis_incremental(&*db, file, config)
+    }
+
+    #[tokio::test]
+    async fn a_cross_file_metaclass_resolves_after_the_workspace_scan() {
+        // TP — issue #1276, the whole point. `iconlist.tcl` names
+        // `::tk::Megawidget` and nothing else about it; the scan publishes the
+        // factory index and the file's own analysis then records the class the
+        // interpreter really makes, superclasses and members included.
+        let root = unique_scratch_dir("metaclass");
+        write_metaclass_workspace(&root);
+        let backend = test_backend();
+        *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+        backend.scan_workspace_folders().await;
+
+        let analysis = scanned_analysis(&backend, &root, "iconlist.tcl").await;
+        let class = analysis
+            .all_classes
+            .get("::IconList")
+            .unwrap_or_else(|| panic!("::IconList: {:?}", analysis.all_classes.keys()));
+        let mut methods: Vec<&str> = class.methods.keys().map(String::as_str).collect();
+        methods.sort_unstable();
+        assert_eq!(methods, ["CreateHull", "GetSpecs"], "{class:?}");
+        assert_eq!(
+            class.superclasses,
+            ["::tk::MegawidgetClass", "FocusableWidget"],
+            "{class:?}"
+        );
+        assert!(!class.inheritance_unknown, "{class:?}");
+
+        // The outline is what the audit actually complained about: it was
+        // empty for this file.
+        let symbols = tcl_lsp_core::document_symbols::document_symbols_from_analysis(
+            &std::fs::read_to_string(root.join("iconlist.tcl")).unwrap(),
+            &analysis,
+        );
+        assert!(
+            symbols.iter().any(|s| s.name.contains("IconList")),
+            "outline names the class: {symbols:?}"
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
+    async fn a_dynamic_metaclass_head_abstains_even_with_the_scan_index() {
+        // TN, the non-negotiable half — the index is populated and correct,
+        // but the creation call's head is a runtime value, so nothing about it
+        // is provable and no class may be invented.
+        let root = unique_scratch_dir("metaclass-dyn");
+        write_metaclass_workspace(&root);
+        std::fs::write(
+            root.join("dynamic.tcl"),
+            concat!(
+                "set meta ::tk::Megawidget\n",
+                "$meta create Invented FocusableWidget {\n",
+                "    method GetSpecs {} { return nope }\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+        let backend = test_backend();
+        *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+        backend.scan_workspace_folders().await;
+
+        // Non-vacuity: the very same scan *does* resolve the provable file, so
+        // this abstention is not just "the index never arrived".
+        let resolved = scanned_analysis(&backend, &root, "iconlist.tcl").await;
+        assert!(resolved.all_classes.contains_key("::IconList"));
+
+        let analysis = scanned_analysis(&backend, &root, "dynamic.tcl").await;
+        assert!(
+            !analysis.all_classes.contains_key("::Invented"),
+            "a dynamic head proves nothing: {:?}",
+            analysis.all_classes.keys().collect::<Vec<_>>()
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
+    async fn a_workspace_with_no_metaclass_never_sets_the_factory_oracle() {
+        // The no-op guarantee: an ordinary workspace must not acquire a new
+        // cross-file input at all, or every file in every project would be
+        // invalidated by a fact none of them use.
+        let root = unique_scratch_dir("metaclass-none");
+        std::fs::write(root.join("a.tcl"), "proc greet {n} { puts $n }\n").unwrap();
+        std::fs::write(
+            root.join("b.tcl"),
+            "oo::class create Dog { method bark {} {} }\n",
+        )
+        .unwrap();
+        let backend = test_backend();
+        *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+        backend.scan_workspace_folders().await;
+
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        for (uri, file) in files.iter() {
+            assert!(
+                file.workspace_class_factories(&*db).is_none(),
+                "{uri:?} acquired a factory oracle it has no use for"
+            );
+        }
+        drop(files);
+        drop(db);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
     #[tokio::test]
     async fn scan_workspace_folders_skips_open_documents() {
         let root = unique_scratch_dir("scan-open");
