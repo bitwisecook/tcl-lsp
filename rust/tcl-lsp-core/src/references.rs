@@ -3344,6 +3344,45 @@ pub enum HighlightKind {
     Text,
 }
 
+/// The class-name highlight set at the cursor, or `None` when the cursor is
+/// not on one — the class arm of [`document_highlights`], lifted out so the
+/// entry point stays a readable dispatch over symbol kinds.
+fn class_highlights(
+    source: &str,
+    line_index: &LineIndex,
+    analysis: &AnalysisResult,
+    line: u32,
+    character: u32,
+    word: &str,
+) -> Option<Vec<(LspRange, HighlightKind)>> {
+    let cursor_off = crate::definition::byte_offset_at(line_index, source, line, character);
+    // Declaration-span hit, else the namespace-aware candidate resolution —
+    // never a namespace-blind `c.name == word` first-hit scan (the M1
+    // wrong-symbol drift class).
+    let (qname, class_def) = crate::definition::resolve_class_target_at(
+        analysis,
+        crate::definition::CallResolution::document_only(),
+        cursor_off,
+        word,
+    )?;
+    // Non-variable symbols (procs / classes / methods) highlight as `Text` for
+    // both declaration and uses — only variables carry the Write/Read
+    // distinction.
+    let mut out = vec![(
+        span_to_range(source, line_index, class_def.name_span),
+        HighlightKind::Text,
+    )];
+    for span in class_reference_spans(
+        analysis,
+        crate::definition::CallResolution::document_only(),
+        qname,
+        class_def,
+    ) {
+        out.push((span_to_range(source, line_index, span), HighlightKind::Text));
+    }
+    Some(dedup_kinded(out))
+}
+
 /// Compute the document-highlight spans for the symbol at the
 /// cursor with read / write kinds.
 ///
@@ -3399,39 +3438,8 @@ pub fn document_highlights(
         return Vec::new();
     };
 
-    {
-        let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
-        // Declaration-span hit, else the namespace-aware candidate
-        // resolution — never a namespace-blind `c.name == word` first-hit
-        // scan (the M1 wrong-symbol drift class).
-        let class_match = crate::definition::resolve_class_target_at(
-            analysis,
-            crate::definition::CallResolution::document_only(),
-            cursor_off,
-            &word,
-        );
-        if let Some((qname, class_def)) = class_match {
-            let mut out = Vec::new();
-            // Non-variable symbols (procs / classes / methods) highlight as
-            // `Text` for both declaration and uses — only variables carry the
-            // Write/Read distinction.
-            out.push((
-                span_to_range(source, &line_index, class_def.name_span),
-                HighlightKind::Text,
-            ));
-            for span in class_reference_spans(
-                analysis,
-                crate::definition::CallResolution::document_only(),
-                qname,
-                class_def,
-            ) {
-                out.push((
-                    span_to_range(source, &line_index, span),
-                    HighlightKind::Text,
-                ));
-            }
-            return dedup_kinded(out);
-        }
+    if let Some(out) = class_highlights(source, &line_index, analysis, line, character, &word) {
+        return out;
     }
 
     {
