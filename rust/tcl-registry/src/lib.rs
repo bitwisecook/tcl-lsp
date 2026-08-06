@@ -122,7 +122,7 @@ pub mod prelude {
     pub use crate::forms::{CommandForm, SubCommandForm};
     pub use crate::frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevel, FrameLevelWord};
     pub use crate::handle_binding::{
-        BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword,
+        BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
     };
     pub use crate::hooks::{
         AnalyserHookId, ArgTypeHint, CodegenHookId, LoweringHookId, TclVersion,
@@ -162,7 +162,9 @@ pub use dialects::{
     detect_dialect_directive, detect_dialect_from_source, dialect_from_extension,
 };
 pub use frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevel, FrameLevelWord};
-pub use handle_binding::{BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword};
+pub use handle_binding::{
+    BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
+};
 pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
 pub use presentation::ArgPresentation;
