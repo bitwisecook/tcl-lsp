@@ -3329,10 +3329,29 @@ impl WorkspaceIndex {
         links: Option<&std::collections::HashMap<String, String>>,
         wci: &WildcardImportIndex<'_>,
     ) -> Option<String> {
-        if let Some(winner) = inv
-            .resolution_candidates
-            .iter()
-            .find(|c| defined.contains(c.trim_start_matches("::")))
+        let call = CallSite {
+            uri: &inv.uri,
+            at: inv.range.start(),
+            enclosing_body: inv.enclosing_body,
+        };
+        // A live `namespace import -force` has *replaced* the importing
+        // namespace's own command of this name, so no candidate naming that
+        // command may settle the call — it reaches the import's source, which
+        // the wildcard tier below resolves (issue #1116 item 1). The same rule
+        // `definition::resolve_called_proc` applies in-document, so without it
+        // find-references files the call under the definition the import
+        // deleted while go-to-definition jumps to the source.
+        //
+        // Only in the link-following view, matching the rule below: a glob
+        // import introduces no fixed link, so the direct-only view rename
+        // relies on does not see it in either direction.
+        let forced_shadow = links.is_some()
+            && wci.forced_shadow_over_candidates(&inv.name, &inv.resolution_candidates, call);
+        if !forced_shadow
+            && let Some(winner) = inv
+                .resolution_candidates
+                .iter()
+                .find(|c| defined.contains(c.trim_start_matches("::")))
         {
             let winner = winner.trim_start_matches("::");
             return Some(
@@ -3348,17 +3367,8 @@ impl WorkspaceIndex {
         // on — a call spelling the local imported name is not text-rewritten
         // just because its ultimate source is renamed.
         links?;
-        self.resolve_wildcard_import_indexed(
-            &inv.name,
-            &inv.resolution_candidates,
-            CallSite {
-                uri: &inv.uri,
-                at: inv.range.start(),
-                enclosing_body: inv.enclosing_body,
-            },
-            wci,
-        )
-        .map(|resolved| resolved.trim_start_matches("::").to_owned())
+        self.resolve_wildcard_import_indexed(&inv.name, &inv.resolution_candidates, call, wci)
+            .map(|resolved| resolved.trim_start_matches("::").to_owned())
     }
 
     /// The command name-link map (`::`-stripped `linked → immediate target`)
@@ -3741,6 +3751,13 @@ struct WildcardImportIndex<'a> {
     /// ordered wherever the graph proves an order and unrankable everywhere
     /// else (issue #1104 item 3).
     order: Arc<crate::source_graph::RunOrder>,
+    /// The `::`-stripped namespaces this workspace can say anything about —
+    /// [`WorkspaceIndex::observable_namespaces`]. Only
+    /// [`Self::forced_shadow_at`] reads it, and only to abstain the way the
+    /// single-document tier does: a `-force` import of a namespace no indexed
+    /// file declares deletes the local command whether or not the export can
+    /// be proven here.
+    observable: HashSet<&'a str>,
 }
 
 impl<'a> WildcardImportIndex<'a> {
@@ -3810,7 +3827,61 @@ impl<'a> WildcardImportIndex<'a> {
             deletions_by_name,
             declarations_by_qname,
             order: index.run_order(),
+            observable: index.observable_namespaces(),
         }
+    }
+
+    /// Whether a live `namespace import -force` in `ns` has taken `name` away
+    /// from `ns`'s own command table by the time the call at `call` runs — the
+    /// cross-document twin of `definition::forced_import_shadows`.
+    ///
+    /// `-force` is the one import that outranks a command the importing
+    /// namespace already holds, so it is the one case where a *defined*
+    /// candidate must not settle a call ([`WorkspaceIndex::settle_invocation`]).
+    /// No conflict check: a forced import never conflicts, which is what
+    /// `-force` means.
+    ///
+    /// The export gate abstains toward the shadow for a source namespace no
+    /// indexed file declares — the same direction the single-document tier
+    /// takes and the same one [`WorkspaceIndex::live_command_links`] takes for
+    /// exact imports. Answering with a command the import may have deleted is
+    /// worse than answering nothing.
+    fn forced_shadow_at(&self, ns: &str, name: &str, call: CallSite<'_>) -> bool {
+        self.imports_by_ns.get(ns).is_some_and(|imports| {
+            imports.iter().any(|imp| {
+                imp.forced
+                    && tcl_syntax::glob::string_match(&imp.tail_pattern, name)
+                    && (!self
+                        .observable
+                        .contains(imp.source_ns.trim_start_matches("::"))
+                        || self.exports_name_at(&imp.source_ns, name, imp.site()))
+                    && self.alias_live_at(ns, &imp.source_ns, name, imp.site(), call)
+            })
+        })
+    }
+
+    /// [`Self::forced_shadow_at`] over a call's own candidate list, in Tcl's
+    /// resolution order — the shape [`WorkspaceIndex::settle_invocation`] has
+    /// in hand.
+    fn forced_shadow_over_candidates(
+        &self,
+        name: &str,
+        resolution_candidates: &[String],
+        call: CallSite<'_>,
+    ) -> bool {
+        if name.contains("::") {
+            return false;
+        }
+        resolution_candidates.iter().any(|cand| {
+            cand.rsplit_once("::").is_some_and(|(prefix, tail)| {
+                tail == name
+                    && self.forced_shadow_at(
+                        if prefix.is_empty() { "::" } else { prefix },
+                        name,
+                        call,
+                    )
+            })
+        })
     }
 
     /// Every removal event bearing on the alias `importing_ns` took from
@@ -8006,6 +8077,58 @@ mod tests {
 
     /// The `-force` shape whose source namespace is wholly in another file.
     const WHOLLY_FOREIGN: &str = "namespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
+
+    #[test]
+    fn the_settled_call_moves_to_the_import_source_when_the_shadow_is_live() {
+        // The same fact on the *settle* path find-references reads (issue
+        // #1116 item 1): a candidate naming the command a `-force` import
+        // deleted must not settle the call, or find-references files it under
+        // a definition go-to-definition no longer answers with.
+        let exports = analyse("namespace eval src {\n    namespace export helper\n}\n");
+        let main = analyse(MAIN);
+        let index = WorkspaceIndex::from_documents([
+            ("file:///main.tcl", &main),
+            ("file:///exports.tcl", &exports),
+        ]);
+        assert_eq!(
+            index
+                .linked_invocations_of("::src::helper", "file:///exports.tcl")
+                .len(),
+            1,
+            "the shadowed call is a reference to the import source",
+        );
+        assert!(
+            index
+                .linked_invocations_of("::app::helper", "file:///exports.tcl")
+                .is_empty(),
+            "…and not to the command the import deleted",
+        );
+    }
+
+    #[test]
+    fn the_settled_call_stays_local_when_the_program_exports_nothing() {
+        // TN, byte-identical `MAIN` — with nothing exporting `helper` the
+        // import binds nothing and the call still belongs to the local proc.
+        let unrelated = analyse("namespace eval other {\n    proc q {} {}\n}\n");
+        let main = analyse(MAIN);
+        let index = WorkspaceIndex::from_documents([
+            ("file:///main.tcl", &main),
+            ("file:///unrelated.tcl", &unrelated),
+        ]);
+        assert_eq!(
+            index
+                .linked_invocations_of("::app::helper", "file:///unrelated.tcl")
+                .len(),
+            1,
+            "the surviving local definition owns the call",
+        );
+        assert!(
+            index
+                .linked_invocations_of("::src::helper", "file:///unrelated.tcl")
+                .is_empty(),
+            "…and an import that bound nothing creates no reference",
+        );
+    }
 
     #[test]
     fn the_export_snapshot_answers_unknown_for_a_namespace_no_file_declares() {
