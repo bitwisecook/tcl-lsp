@@ -1586,6 +1586,22 @@ pub struct AnalysisResult {
     /// namespace.  Consumed by command resolution so a bare call reaches a proc
     /// on the namespace path before falling through to global.
     pub namespace_paths: HashMap<String, Vec<String>>,
+    /// Spans of `namespace path` list words the analyser **could not** read
+    /// statically — `namespace path $paths`, `namespace path "$ns ::a"` — in
+    /// source order.
+    ///
+    /// [`Self::namespace_paths`] records only the resolvable declarations, so
+    /// its absence cannot tell "this document declares no path" from "this
+    /// document declares one whose entries are unknowable". A post-analysis
+    /// consumer that must be exhaustive about namespace occurrences — the
+    /// namespace rename tier, which rewrites each literal entry through the
+    /// per-element [`NamespaceRef`] rows — needs the difference: an entry it
+    /// cannot see is an entry it cannot rewrite (issue #1261).
+    ///
+    /// A *braced* word is not dynamic: braces suppress substitution, so
+    /// `namespace path {::$ns ::a}` names a namespace literally called
+    /// `::$ns` and is recorded as an ordinary literal path (issue #1245).
+    pub namespace_path_computed: Vec<Span>,
     /// `auto_path` mutations (``lappend auto_path …`` / ``set auto_path …``).
     pub auto_path_entries: Vec<AutoPathEntry>,
     /// Namespace-qualified variable occurrences, in source order — see
