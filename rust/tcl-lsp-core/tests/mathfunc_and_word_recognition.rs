@@ -389,6 +389,41 @@ fn tp_references_are_symmetric_at_a_mathfunc_call_site() {
     );
 }
 
+/// TP: the reference-count **lens** — the fourth surface fed by the same
+/// `proc_reference_spans` substrate — agrees with the symmetric reference set
+/// above: exactly one call site for the override (`f(2)`), and exactly one for
+/// the unrelated global `proc f` (`puts [f 1]`).  The two must not be pooled:
+/// tclsh 9.0.4 / 8.6.16 print `200` for `ns::use` and `GLOBAL` for `f 1`, so
+/// they are two different commands that merely share a tail.
+#[test]
+fn tp_reference_lens_counts_the_mathfunc_override_and_the_global_proc_apart() {
+    let analysis = analyse(SWEEP);
+    let lenses = tcl_lsp_core::code_lens::code_lenses(SWEEP, "tcl8.6", Some(&analysis), None, "");
+    let title_for = |qname: &str| {
+        lenses
+            .iter()
+            .find(|lens| lens.qname == qname)
+            .map(|lens| lens.command_title.clone())
+            .unwrap_or_else(|| {
+                panic!(
+                    "no lens for {qname}; got {:?}",
+                    lenses.iter().map(|l| &l.qname).collect::<Vec<_>>()
+                )
+            })
+    };
+    assert_eq!(
+        title_for("::ns::tcl::mathfunc::f"),
+        "1 reference",
+        "the `f(2)` application is the override's one call site",
+    );
+    assert_eq!(
+        title_for("::f"),
+        "1 reference",
+        "`puts [f 1]` is the global proc's one call site, and the expr \
+         application is not one of them",
+    );
+}
+
 /// TP: call hierarchy and linked-editing — the other two consumers that ride
 /// on `resolve_proc_target_at` — reach the override from the call site too.
 #[test]
