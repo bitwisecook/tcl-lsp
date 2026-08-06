@@ -1969,6 +1969,23 @@ pub struct AnalysisResult {
 }
 
 impl AnalysisResult {
+    /// Every **class factory** this document declares, keyed by qualified
+    /// name — the slice a host merges into the workspace factory index it
+    /// feeds back through
+    /// [`Analyser::with_workspace_class_factories`](super::Analyser::with_workspace_class_factories)
+    /// (issue #1276).
+    ///
+    /// A document that declares no user metaclass — nearly all of them —
+    /// contributes an empty map, so the merged index stays empty and every
+    /// consuming walk behaves exactly as it did before.
+    #[must_use]
+    pub fn class_factories(&self) -> ClassFactoryIndex {
+        self.all_classes
+            .iter()
+            .filter_map(|(qname, class)| Some((qname.clone(), class.factory.clone()?)))
+            .collect()
+    }
+
     /// The [`ClassHierarchy`](super::class_hierarchy::ClassHierarchy) for
     /// this result's classes, built once and cached.  Prefer this over
     /// calling [`build_class_hierarchy`](super::class_hierarchy::build_class_hierarchy)

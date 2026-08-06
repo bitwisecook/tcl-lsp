@@ -245,6 +245,7 @@ impl Analyser {
     pub fn analyse_per_item(&mut self, source: &str, dialect: &str) -> AnalysisResult {
         let disabled = self.disabled_diagnostics.clone();
         let non_ascii = self.non_ascii_mode;
+        let factories = self.workspace_class_factories.clone();
         let empty_overlay = super::types::build_stub_overlay(&[]);
         let mut body_fn = |db: &DeferredBody| {
             analyse_proc_body_isolated(
@@ -253,6 +254,7 @@ impl Analyser {
                 &disabled,
                 non_ascii,
                 Some(empty_overlay.clone()),
+                factories.clone(),
             )
         };
         self.analyse_per_item_with(source, dialect, &mut body_fn)
@@ -1136,10 +1138,19 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     disabled: &std::collections::HashSet<String, S>,
     non_ascii: super::state::NonAsciiMode,
     stub_overlay: Option<tcl_registry::stub_overlay::StubOverlay>,
+    workspace_class_factories: Option<std::sync::Arc<super::types::ClassFactoryIndex>>,
 ) -> BodyFragment {
     // Rebuild into the default-hasher set `Analyser` stores.
     let disabled: std::collections::HashSet<String> = disabled.iter().cloned().collect();
-    let mut a = Analyser::with_disabled_diagnostics(disabled).with_non_ascii_mode(non_ascii);
+    // The workspace factory oracle travels with the body: a `Meta create …`
+    // inside a proc body is classified by the whole-file walk, so it must be
+    // classified identically here or the two strategies diverge on a class
+    // (issue #1276; the same trap the ensemble-call-site and global-cell bugs
+    // fell into).  Gated by
+    // `the_per_item_walk_agrees_with_the_whole_file_walk_cross_file`.
+    let mut a = Analyser::with_disabled_diagnostics(disabled)
+        .with_non_ascii_mode(non_ascii)
+        .with_workspace_class_factories(workspace_class_factories);
     a.profile = tcl_dialect::DialectProfile::by_name(dialect);
     a.stub_overlay = stub_overlay;
     // Offset 0: the body content is the whole source; a synthetic `Str` body
