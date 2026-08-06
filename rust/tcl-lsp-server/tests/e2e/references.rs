@@ -556,7 +556,7 @@ fn references_from_a_shadowed_original_exclude_the_redirected_call() {
     let lines = start_lines(&lsp.references(&uri, 2, 12, true));
     assert_eq!(
         lines,
-        vec![2],
+        [2].into_iter().collect::<std::collections::BTreeSet<i64>>(),
         "only its own declaration — the alias took the name over: {lines:?}"
     );
 }
