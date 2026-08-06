@@ -1101,7 +1101,7 @@ fn rehome_member(
                     text: text.clone(),
                     token: elsewhere,
                 },
-                other => other.clone(),
+                splice @ FactoryWord::CallerSplice(_) => splice.clone(),
             })
             .collect(),
     })

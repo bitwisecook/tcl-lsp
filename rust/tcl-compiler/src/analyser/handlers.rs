@@ -519,25 +519,28 @@ fn resolve_factory_member(
     args: &[String],
     arg_tokens: &[Token],
 ) -> Option<InjectedMember> {
-    let mut texts: Vec<String> = Vec::new();
-    let mut argv: Vec<Token> = Vec::new();
+    let mut member_words: Vec<String> = Vec::new();
+    let mut member_tokens: Vec<Token> = Vec::new();
     for word in &member.words {
         match word {
             FactoryWord::Literal { text, token } => {
-                texts.push(text.clone());
-                argv.push(*token);
+                member_words.push(text.clone());
+                member_tokens.push(*token);
             }
             FactoryWord::CallerSplice(arg_index) => {
                 let call_tok = *arg_tokens.get(*arg_index)?;
                 let call_text = args.get(*arg_index)?;
                 for (element, element_tok) in literal_list_words(call_text, call_tok)? {
-                    texts.push(element);
-                    argv.push(element_tok);
+                    member_words.push(element);
+                    member_tokens.push(element_tok);
                 }
             }
         }
     }
-    Some(InjectedMember { texts, argv })
+    Some(InjectedMember {
+        texts: member_words,
+        argv: member_tokens,
+    })
 }
 
 /// The word layout a class factory's `args[0]` manufacturer imposes on this
@@ -5737,11 +5740,11 @@ impl Analyser {
                 .keys()
                 .chain(std::iter::once(&seed_key)),
         );
-        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut queue: Vec<String> = vec![seed_key.clone()];
         // Bounded by the recorded class count — every class is visited once.
         while let Some(class_qname) = queue.pop() {
-            if !seen.insert(class_qname.clone()) {
+            if !visited.insert(class_qname.clone()) {
                 continue;
             }
             // The seed is the class being recorded, which is not in

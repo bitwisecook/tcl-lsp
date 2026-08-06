@@ -11,7 +11,9 @@ all-editors, analyser
 
 A class, a method, or a proc that a real interpreter genuinely creates is
 absent from the document outline, and go-to-definition, find-references, and
-hover all return nothing at its call sites. Sometimes a `W308 Unknown
+hover all return nothing at its call sites. The class factory case has a
+cross-file variant: the outline is empty for a file that creates classes
+through a metaclass **declared in another file**. Sometimes a `W308 Unknown
 method` fires on a call that tclsh runs happily, or the outline shows a
 nonsense entry named after the unsubstituted source text (`${ptype}`,
 `@dynclass@1859`).
@@ -53,14 +55,25 @@ latter.
   [command registry](../design/compiler/command-registry.md). A class whose
   own superclass chain reaches one of them is *also* a class factory —
   that is TclOO language semantics, not per-command knowledge — so
-  `Analyser::user_metaclass_of_command` walks the recorded superclass chain
+  `Analyser::user_metaclass_of_class` walks the recorded superclass chain
   from the registry seed. Tk's `library/megawidget.tcl` is the canonical
   real user of the idiom.
 - **The factory's word layout.** A factory that overrides the manufacturer
   (`self method create {name superclasses body}`) changes where the body
   word sits — argument 3, not the builtin `create Name Body` argument 2 —
   and splices superclasses the caller never wrote. Both facts are read off
-  the override's own `next` call, never assumed.
+  the override's own `next` call, never assumed, and recorded **once** on
+  the metaclass's own `ClassDef::factory` rather than re-derived at each
+  creation call.
+- **The metaclass in another file.** Because the factory description is a
+  derived fact rather than a re-walk of local state, it can be published to
+  the rest of the workspace. The LSP merges every file's factories
+  (`ItemTree::class_factories` → `project_class_factories`) and sets the
+  result on each `SourceFile::workspace_class_factories`, so a file that
+  writes `::tk::Megawidget create IconList FocusableWidget {…}` and nothing
+  else — Tk's own `library/iconlist.tcl` — records the class it really
+  makes. Without an index entry the call stays unrecognised: it is
+  shape-identical to `interp create`.
 - **`{*}` expansion.** Tcl applies `{*}` while *parsing*, so a `{*}`-marked
   braced literal is not one word but the elements of the list it holds. The
   member grammar's fixed argument layout applies to those elements.
@@ -130,7 +143,27 @@ latter.
    the command is re-run per element and nothing does.
    `every_installer_spec_lands_on_a_live_redispatch_arm` fails the build
    for exactly that.
-11. **Re-dispatch must be idempotent per source site.** The ordinary body
+11. **A cross-file factory must be *proved*, never guessed.** The workspace
+   index narrows the abstention; it does not remove it. A dynamic head
+   (`$meta create …`) is rejected before any lookup. The name is resolved
+   through Tcl's own current-namespace-then-global candidate order and only
+   an exact candidate hit counts, so a global `Megawidget create …` never
+   reaches an indexed `::tk::Megawidget`. A locally-written class of the
+   same qualified name shadows the index, as the interpreter would. With no
+   entry, nothing is recorded and nothing is diagnosed.
+12. **A cross-document factory's literal spans are not the caller's.** They
+   index the *metaclass's* document, so they are re-homed onto a token of
+   the creation call — and an injected member whose registry spec actually
+   reads those tokens (`MemberSpec::retraction`) collapses the injection to
+   `inheritance_unknown` rather than being applied against a substituted
+   span.
+13. **The oracle must reach the per-item path too.** A `Meta create …`
+   inside a proc body is classified by the whole-file walk from the index,
+   so the isolated body pass must carry the same index or the two
+   strategies disagree about whether a class exists. It travels on
+   `analyse_proc_body_isolated` and is part of `ItemBodyKey::body_env` so
+   salsa cannot serve a stale verdict.
+14. **Re-dispatch must be idempotent per source site.** The ordinary body
    walk already covered the first element, so a site is visited twice under
    the loop variable's own key. One source site can never declare the same
    member twice, so `(objdefine_offset, member name)` is an exact
@@ -140,9 +173,11 @@ latter.
 ## File-path anchors
 
 - `rust/tcl-compiler/src/analyser/handlers.rs` —
-  `handle_oo_class_command`, `user_metaclass_of_command`,
+  `handle_oo_class_command`, `class_factory_for_command`,
+  `class_factory_of`, `user_metaclass_of_class`,
   `manufacturer_layout`, `manufacturer_word_positions`,
-  `manufacturer_injected_members`, `injected_member_from_group`,
+  `manufacturer_injected_template`, `injected_member_from_group`,
+  `template_injected_member`, `resolve_factory_member`,
   `prologue_pieces`, `literal_list_words`, `handle_oo_define_command`,
   `handle_oo_objdefine`, `record_object_methods`,
   `handle_foreach_command`, `simulate_remaining_foreach_iterations`,
@@ -155,7 +190,14 @@ latter.
 - `rust/tcl-compiler/src/analyser/commands.rs` —
   `resolve_dynamic_command_head`, `head_is_whole_word_variable`
 - `rust/tcl-compiler/src/analyser/types.rs` —
-  `ClassDef::inheritance_unknown`
+  `ClassDef::inheritance_unknown`, `ClassDef::factory`, `ClassFactory`,
+  `ClassFactoryIndex`, `AnalysisResult::class_factories`
+- `rust/tcl-compiler/src/analyser/per_item.rs` —
+  `analyse_proc_body_isolated` (the oracle travelling with a deferred body)
+- `rust/tcl-lsp-db/src/lib.rs` — `file_class_factories`,
+  `project_class_factories`, `SourceFile::workspace_class_factories`,
+  `ItemBodyKey::body_env`
+- `rust/tcl-lsp-server/src/lib.rs` — `sync_workspace_class_factories`
 - `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` —
   `has_external_super_or_mixin` (the W308 abstention)
 - `rust/tcl-registry/src/traits.rs` — `Traits::INSTALLS_NAMED_DEFINITION`,
@@ -209,11 +251,27 @@ latter.
 8. If a namespaced factory chain does not resolve, check the owner
    namespace the `superclass` word was written in, not just its bare and
    global spellings.
+9. If a *cross-file* factory call records nothing, check in order: is the
+   head literal? is the metaclass's file in the workspace scan? does
+   `project_class_factories` carry its qualified name? does the call's name
+   resolve to that exact qualified name under the enclosing namespace? Each
+   "no" is a deliberate abstention, not a bug.
 
 ## Test anchors
 
 - `rust/tcl-compiler/tests/analyser.rs` — the `class_factories` module
-  (26 TP/TN cases covering all four shapes plus their abstentions)
+  (TP/TN cases covering all four shapes plus their abstentions), including
+  `a_workspace_indexed_metaclass_creates_real_classes`,
+  `the_cross_file_result_matches_the_same_file_result`,
+  `the_per_item_walk_agrees_with_the_whole_file_walk_cross_file`,
+  `a_dynamic_metaclass_name_still_abstains`,
+  `a_metaclass_defined_in_another_file_abstains_rather_than_guessing`,
+  `a_workspace_metaclass_is_not_reached_by_a_same_tailed_bare_name`,
+  `a_local_metaclass_shadows_the_workspace_one`
+- `rust/tcl-lsp-server/src/lib.rs` —
+  `a_cross_file_metaclass_resolves_after_the_workspace_scan`,
+  `a_dynamic_metaclass_head_abstains_even_with_the_scan_index`,
+  `a_workspace_with_no_metaclass_never_sets_the_factory_oracle`
 - `rust/tcl-compiler/src/analyser/handlers.rs` —
   `every_installer_spec_lands_on_a_live_redispatch_arm`,
   `foreach_objdefine_records_per_object_facts_for_every_literal_element`,
