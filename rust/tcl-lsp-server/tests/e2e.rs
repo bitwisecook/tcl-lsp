@@ -57,6 +57,8 @@ mod invariants;
 mod irules;
 #[path = "e2e/issue1001.rs"]
 mod issue1001;
+#[path = "e2e/issue1019_proc_args.rs"]
+mod issue1019_proc_args;
 #[path = "e2e/issue1088_namespace_symbols.rs"]
 mod issue1088_namespace_symbols;
 #[path = "e2e/issue1122_sticky_scroll.rs"]
