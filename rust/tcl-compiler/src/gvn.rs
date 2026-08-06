@@ -1079,25 +1079,6 @@ pub fn find_redundancies(
 
 // Loop-invariant detection
 
-/// True when `ancestor` dominates `node` in `ssa.idom`.
-fn dominates(ssa: &SsaFunction, ancestor: BlockId, node: BlockId) -> bool {
-    if ancestor == node {
-        return true;
-    }
-    let mut curr = node;
-    loop {
-        match ssa.idom.get(&curr) {
-            Some(Some(parent)) => {
-                if *parent == ancestor {
-                    return true;
-                }
-                curr = *parent;
-            }
-            _ => return false,
-        }
-    }
-}
-
 /// Enumerate blocks reachable from `entry` via CFG edges.
 fn reachable_from(cfg: &CfgFunction, entry: BlockId) -> FxHashSet<BlockId> {
     let mut out = FxHashSet::default();
@@ -1197,6 +1178,11 @@ pub fn find_loop_invariants(
 ) -> Vec<RedundantComputation> {
     let executable = reachable_from(cfg, ssa.entry);
     let mut results: Vec<RedundantComputation> = Vec::new();
+    // One O(V) dominator-tree numbering serves every dominance query below.
+    // Walking the idom chain per query instead made this pass O(V²) on a wide
+    // CFG — a flat N-branch dispatch chain is one idom chain N blocks deep
+    // (issue #1250).
+    let dom = ssa.dominator_intervals();
 
     // Collect unique header → loop_blocks pairs via back-edge
     // detection: edge tail → succ where succ dominates tail. The
@@ -1221,7 +1207,7 @@ pub fn find_loop_invariants(
             if !executable.contains(&succ) {
                 continue;
             }
-            if !dominates(ssa, succ, *tail) {
+            if !dom.dominates(succ, *tail) {
                 continue;
             }
             let blocks = natural_loop_blocks(cfg, succ, *tail, &executable);
@@ -1250,7 +1236,7 @@ pub fn find_loop_invariants(
             // on some iterations (it sits behind a branch inside the loop),
             // so hoisting it changes *when* it runs. Only blocks that
             // dominate every latch are guaranteed to execute each iteration.
-            if !latches.iter().all(|latch| dominates(ssa, *bn, *latch)) {
+            if !latches.iter().all(|latch| dom.dominates(*bn, *latch)) {
                 continue;
             }
             let Some(ssa_block) = ssa.blocks.get(bn) else {
@@ -2964,10 +2950,42 @@ mod tests {
         ssa.idom.insert(entry, None);
         ssa.idom.insert(a, Some(entry));
         ssa.idom.insert(b, Some(a));
-        assert!(dominates(&ssa, entry, b));
-        assert!(dominates(&ssa, a, b));
-        assert!(!dominates(&ssa, b, a));
-        assert!(dominates(&ssa, b, b));
+        let dom = ssa.dominator_intervals();
+        assert!(dom.dominates(entry, b));
+        assert!(dom.dominates(a, b));
+        assert!(!dom.dominates(b, a));
+        assert!(dom.dominates(b, b));
+    }
+
+    #[test]
+    fn dominator_intervals_answer_siblings_and_unreachable() {
+        // Issue #1250: the interval index must give the same answers the idom
+        // chain walk gave — including "no", which is the case an interval
+        // scheme can get wrong if the numbering is off by one.
+        //
+        //   entry → a → { b, c },  d unreachable (no idom entry)
+        let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
+        let a = cfg.intern_block("a");
+        let b = cfg.intern_block("b");
+        let c = cfg.intern_block("c");
+        let d = cfg.intern_block("d");
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.idom.insert(entry, None);
+        ssa.idom.insert(a, Some(entry));
+        ssa.idom.insert(b, Some(a));
+        ssa.idom.insert(c, Some(a));
+        let dom = ssa.dominator_intervals();
+        for node in [a, b, c] {
+            assert!(dom.dominates(entry, node), "entry must dominate {node:?}");
+            assert!(dom.dominates(node, node), "{node:?} dominates itself");
+        }
+        assert!(dom.dominates(a, b) && dom.dominates(a, c));
+        assert!(!dom.dominates(b, c) && !dom.dominates(c, b));
+        assert!(!dom.dominates(b, a) && !dom.dominates(c, entry));
+        // A block outside the dominator forest dominates only itself.
+        assert!(dom.dominates(d, d));
+        assert!(!dom.dominates(entry, d) && !dom.dominates(d, entry));
     }
 
     #[test]
