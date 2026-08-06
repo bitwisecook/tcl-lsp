@@ -1200,4 +1200,117 @@ mod bug_dict_update_value_var {
             codes(src, D)
         );
     }
+
+    // -----------------------------------------------------------------------
+    // Issue #1247 depth: the FP above was re-introduced once by a registry
+    // change and caught only by the single assertion above. The mechanism is
+    // worth pinning from every side it can break from, because the harvester
+    // has three independent moving parts: the *role* the registry gives the
+    // value-var word, the *pair stride* the harvester walks, and the *dict
+    // value* it resolves (SCCP version, or the same-block literal `set`).
+    //
+    // The registry half is pinned in `tcl-registry`'s
+    // `repeated_layouts_answer_through_arg_indices_for_role`: `dict update`'s
+    // pair locals answer `ArgRole::LoopVarList`, never `ArgRole::VarWrite`.
+    // The re-introduction was exactly that role being `VarWrite`, which makes
+    // SSA model an unconditional def of the value-var at the barrier; the def
+    // lands in `UndefSuppression::explicitly_defined`, whose `!contains`
+    // clause then gates off `dict_with_known_keys` in `suppresses_strict`.
+    // The tests below pin the same invariant from the *behaviour* side, so
+    // the two layers cannot drift apart silently.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn dict_update_value_var_is_not_an_unconditional_definition() {
+        // Second angle on the same root cause. `dict update` binds the
+        // value-var *conditionally* (only when the key is present), so it is
+        // not an assignment the analyser owns. Were the value-var modelled as
+        // an unconditional SSA def, this body — which never reads `v` — would
+        // become a dead store and draw W211/W220.
+        // tclsh: `set d {k 5}; dict update d k v {}` assigns nothing the user
+        // wrote; the binding is the command's own doing.
+        let src = "proc f {} { set d {k 5}; dict update d k v { } }\n";
+        assert!(
+            !fires(src, D, "W211") && !fires(src, D, "W220"),
+            "a `dict update` value-var is not a user store and must not be reported \
+dead; emitted {:?}",
+            codes(src, D)
+        );
+    }
+
+    #[test]
+    fn dict_update_absent_key_in_a_non_empty_dict_fires_w210() {
+        // TP that the empty-dict control cannot reach: the dict HAS keys, just
+        // not this one. A harvester that suppressed every value-var whenever
+        // the dict resolved to *any* literal would still pass the empty-dict
+        // control and fail here.
+        // tclsh: `set d {k 5}; dict update d q w {info exists w}` → 0.
+        let src = "proc f {} { set d {k 5}; dict update d q w { puts $w } }\n";
+        assert!(
+            fires(src, D, "W210"),
+            "an absent key leaves the value-var unset; must fire W210; emitted {:?}",
+            codes(src, D)
+        );
+    }
+
+    #[test]
+    fn dict_update_resolves_each_pair_independently() {
+        // Per-pair precision, pinned as two one-variable reads of the same
+        // two-pair call so the verdict is unambiguous without inspecting spans.
+        // tclsh: `set d {k 5}; dict update d k v q w {list [info exists v] \
+        // [info exists w]}` → `1 0`.
+        let present = "proc f {} { set d {k 5}; dict update d k v q w { puts $v } }\n";
+        assert!(
+            !fires(present, D, "W210"),
+            "the present key's value-var is bound; emitted {:?}",
+            codes(present, D)
+        );
+        let absent = "proc f {} { set d {k 5}; dict update d k v q w { puts $w } }\n";
+        assert!(
+            fires(absent, D, "W210"),
+            "the absent key's value-var is unset; must fire W210; emitted {:?}",
+            codes(absent, D)
+        );
+    }
+
+    #[test]
+    fn dict_update_binds_the_value_var_not_the_key_word() {
+        // Stride/parity pin. `dict update` binds `v`, NOT `k` — the key word
+        // is data. A harvester that walked the pairs off by one would suppress
+        // `$k` (and expose `$v`), which the key-present test alone cannot
+        // detect. This is also what separates `dict update` from `dict with`,
+        // where the KEY is what the body sees.
+        // tclsh: `set d {k 5}; dict update d k v {info exists k}` → 0.
+        let src = "proc f {} { set d {k 5}; dict update d k v { puts $k } }\n";
+        assert!(
+            fires(src, D, "W210"),
+            "`dict update` does not bind the key word; must fire W210; emitted {:?}",
+            codes(src, D)
+        );
+    }
+
+    #[test]
+    fn dict_update_harvests_keys_through_the_sccp_version() {
+        // The harvester prefers the SCCP CONST of the SPECIFIC version the
+        // `dict update` statement reads, falling back to a same-block literal
+        // `set`. Every test above exercises the fallback (a literal `set` in
+        // the same block); these two pin the SCCP branch, where the only
+        // truth source is an interprocedurally propagated caller argument.
+        // tclsh: `proc f {d} {dict update d k v {info exists v}}`
+        //        → `f {k 5}` = 1, `f {}` = 0.
+        let present = "proc f {d} { dict update d k v { puts $v } }\nproc g {} { f {k 5} }\n";
+        assert!(
+            !fires(present, D, "W210"),
+            "an interprocedurally-propagated key-present literal binds the value-var; \
+emitted {:?}",
+            codes(present, D)
+        );
+        let absent = "proc f {d} { dict update d k v { puts $v } }\nproc g {} { f {} }\n";
+        assert!(
+            fires(absent, D, "W210"),
+            "an interprocedurally-propagated empty literal leaves the value-var unset; \
+must fire W210; emitted {:?}",
+            codes(absent, D)
+        );
+    }
 }
