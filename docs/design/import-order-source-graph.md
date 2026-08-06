@@ -132,17 +132,27 @@ lexical `.`/`..` folding, no filesystem access).
 
 ## 4. Which abstentions it lifts
 
-| Issue | Abstention | Lifted by |
+| Issue | Abstention | Status |
 |---|---|---|
-| #1104 item 3 | foreign `namespace export` patterns always count; foreign `-clear`s never revoke | §3.2 all three cases |
-| #1116 item 6 | two imports of one name in different files never conflict | §3.2, case 2 (the earlier file's import is known to have run) |
-| #1116 (finding 1 note) | `source lib.tcl ; namespace forget ::lib::p` — install counts, forget revokes nothing | §3.2, cases 2 and 3 together |
-| #1116 item 1 | in-document `-force` shadow with the export in another file | *not* lifted by ordering — it is an *observability* question, answered by the workspace tier's `observable_namespaces` |
+| #1104 item 3 | foreign `namespace export` patterns always count; foreign `-clear`s never revoke | **lifted** — `RunOrder::has_run`, all three §3.2 cases |
+| #1116 item 6 | two imports of one name in different files never conflict | **lifted** — `RunOrder::cmp_run` in `WildcardImportIndex::conflicting_alias_at` |
+| #1116 (finding 1 note) | `source lib.tcl ; namespace forget ::lib::p` — install counts, forget revokes nothing | **lifted** — §3.2 cases 2 and 3 together |
+| #1116 item 1 | in-document `-force` shadow with the export in another file | *not* lifted by ordering — it is an *observability* question, answered by the workspace tier's whole-program export view, which has to be threaded through `resolve_called_proc` |
 | #1116 item 4 | import-error control flow (a failed import aborts the rest of its script) | *not* lifted — a different model (intra-script abort), though it shares the "what has run" vocabulary |
 
 Note the two negatives. A load order says *when* a statement ran; it does not
 say whether a statement exists in a file nobody indexed, and it does not model
 a script aborting part-way. Those stay separate.
+
+**Measured reach.** Over the repository's Tcl corpora — Tcl 9.0.4's own
+`library/`, `samples/`, and the multi-file editor/CLI fixtures: 247 documents,
+19 `source` statements of which 3 resolve to an indexed document, 13 752 bare
+call sites — the order changes **0** resolutions. Real Tcl code overwhelmingly
+writes `source [file join $tcl_library init.tcl]`, whose `$tcl_library` no
+static fold can place, so no edge is built and the pre-existing abstention
+stands. The order is therefore a strict refinement that fires only where a
+load order is genuinely provable; the cases where it does fire are pinned by
+unit and end-to-end tests rather than by the corpus.
 
 ## 5. Cost, and why this is not a one-liner
 

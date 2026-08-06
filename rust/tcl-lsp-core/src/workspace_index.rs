@@ -1517,11 +1517,21 @@ pub struct WorkspaceIndex {
     settled_invocations: [Derived<SettledTargets>; 2],
     /// The `source`-path → document-URI resolver, when the host has installed
     /// one — see [`WorkspaceIndex::set_source_resolver`].
-    source_resolver: Option<fn(&str, &str, bool) -> Option<String>>,
+    source_resolver: Option<SourceResolver>,
     /// The `source`-graph load order derived from it — see
     /// [`WorkspaceIndex::run_order`].
     run_order: Derived<crate::source_graph::RunOrder>,
 }
+
+/// The host's `source`-path → document-URI resolver: `(sourcing document's
+/// URI, the path word as written, whether that word is a plain literal)` to
+/// the sourced document's URI, or `None` for a path the host cannot place.
+///
+/// `WorkspaceIndex` holds no URI ↔ filesystem-path mapping of its own, so this
+/// is how the `source`-graph load order gets its edges — see
+/// [`WorkspaceIndex::set_source_resolver`].  The signature is
+/// [`WorkspaceIndex::source_seed_map`]'s, so one host resolver serves both.
+pub type SourceResolver = fn(&str, &str, bool) -> Option<String>;
 
 /// A whole-index **derived view**: a value that is a pure function of the
 /// index's contents, built at most once per [`WorkspaceIndex::generation`] and
@@ -1746,7 +1756,7 @@ impl WorkspaceIndex {
     /// **Without a resolver the order is empty**, and both tiers behave
     /// exactly as they did before the `source` graph existed — every
     /// cross-document event unrankable, every same-document one ordered.
-    pub fn set_source_resolver(&mut self, resolve: fn(&str, &str, bool) -> Option<String>) {
+    pub fn set_source_resolver(&mut self, resolve: SourceResolver) {
         self.source_resolver = Some(resolve);
         self.run_order = Derived::default();
     }
@@ -3985,24 +3995,34 @@ impl<'a> WildcardImportIndex<'a> {
     ///   reinstalls — oracle).
     /// - One in another document has no static load order and revokes
     ///   nothing, exactly as in [`Self::alias_live_at`].
-    /// - A destroyed source command revokes regardless: the command object is
-    ///   gone workspace-wide (oracle: `rename ::src::p {}` makes `::dst::p`
-    ///   an `invalid command name` and empties `info commands ::dst::*`), so
-    ///   it is passed at [`u32::MAX`] — later than any install.
+    /// - A destroyed source command revokes regardless, and is **not** put on
+    ///   the timeline at all: the command object is gone workspace-wide
+    ///   (oracle: `rename ::src::p {}` makes `::dst::p` an `invalid command
+    ///   name` and empties `info commands ::dst::*`) and no load order brings
+    ///   it back, so with no query point to order anything against it is
+    ///   decided before the fold runs.  Encoding it as an event at `u32::MAX`
+    ///   instead would be wrong for a **body-local** import gate: the
+    ///   load-order rule reads a removal written outside the import's own body
+    ///   as having run *before* it — right for a `namespace forget`, which the
+    ///   import then undoes, and exactly backwards for a destruction the
+    ///   import cannot undo.
     fn link_alias_live(&self, importing_ns: &str, gate: &WorkspaceImportGate, uri: &str) -> bool {
         use crate::namespace_import::{AliasEvent, AliasEventKind};
+        if self
+            .deletions_by_name
+            .contains_key(tcl_syntax::naming::qualify(&gate.source_ns, &gate.name).as_str())
+        {
+            return false;
+        }
         let install = std::iter::once(AliasEvent {
             kind: AliasEventKind::Install,
             at: gate.site(uri).point(),
         });
-        // The destruction is passed in the *import's* document at `u32::MAX`
-        // so it ranks after every install wherever it was written: the command
-        // object is gone workspace-wide and no load order brings it back.
         let mut events =
             install.chain(
-                self.removal_events(importing_ns, &gate.source_ns, &gate.name, |_| RunPoint {
-                    uri,
-                    at: u32::MAX,
+                self.removal_events(importing_ns, &gate.source_ns, &gate.name, |d| RunPoint {
+                    uri: d.uri.as_str(),
+                    at: d.at,
                     enclosing_body: None,
                 }),
             );
@@ -6604,6 +6624,70 @@ mod tests {
         assert_eq!(
             index.resolve_command_target("::app::helper"),
             "::mymod::helper"
+        );
+    }
+
+    #[test]
+    fn a_destroyed_source_kills_a_body_local_exact_import_link() {
+        // TN (CRITICAL): the destruction is not a timeline event — the command
+        // object is gone workspace-wide and no load order brings it back — so
+        // it must revoke however the import is written. A **body-local**
+        // import gate is the case that separates the two encodings: the
+        // load-order rule reads a removal written outside the import's own
+        // body as having run before it, which is right for a `namespace
+        // forget` (the import then undoes it) and backwards for a destruction
+        // the import cannot undo. Oracle: `rename ::mymod::helper {}` makes
+        // `::app::helper` an `invalid command name` and empties `info commands
+        // ::app::*`.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    proc setup {} { namespace import ::mymod::helper }\n}\nrename ::mymod::helper {}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        assert_eq!(
+            index.resolve_command_target("::app::helper"),
+            "::app::helper",
+            "destroying the source command revokes the link wherever the import sits"
+        );
+        assert!(!index.workspace_command_exists("::app::helper"));
+        // …and the top-level spelling of the same import, for the control.
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::helper\n}\nrename ::mymod::helper {}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        assert_eq!(
+            index.resolve_command_target("::app::helper"),
+            "::app::helper"
+        );
+    }
+
+    #[test]
+    fn a_body_local_exact_import_survives_a_top_level_forget() {
+        // FN guard for the row above, and the reason the destruction cannot
+        // simply be encoded as "a removal at `u32::MAX`": a `namespace forget`
+        // at the file's load level runs *before* a body-local import, which
+        // then reinstalls the alias. Oracle: `::app::setup` followed by
+        // `namespace origin ::app::helper` answers `::mymod::helper`.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    proc setup {} { namespace import ::mymod::helper }\n}\nnamespace eval ::app { namespace forget ::mymod::helper }\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        assert_eq!(
+            index.resolve_command_target("::app::helper"),
+            "::mymod::helper",
+            "a load-level forget runs before the body-local import that reinstalls it"
         );
     }
 
