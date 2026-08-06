@@ -144,10 +144,10 @@ fn is_numeric_spelling(word: &str) -> bool {
 /// `None` when the word is not an unambiguous boolean, already has the target
 /// spelling, or the site does not license the rewrite.
 ///
-/// tclsh-proof (8.6.16): `string is boolean tru` → `1` and `expr {tru ? 1 :
+/// tclsh-proof (8.6.14): `string is boolean tru` → `1` and `expr {tru ? 1 :
 /// 0}` → `1`, so `tru` is the same truth value as `true`; `string is boolean
-/// o` → `0`, so the one ambiguous prefix is not a boolean at all and keeps its
-/// bytes.
+/// o` → `0` (and `expr {o ? 1 : 0}` is an error), so the one ambiguous prefix
+/// is not a boolean at all and keeps its bytes.
 fn canonical_boolean(word: &str, form: BooleanForm, site: BooleanSite) -> Option<String> {
     if site == BooleanSite::None {
         return None;
@@ -159,7 +159,8 @@ fn canonical_boolean(word: &str, form: BooleanForm, site: BooleanSite) -> Option
     // the written word nor the replacement may be one: rewriting `-validate 0`
     // to `false`, or `-validate yes` to `1`, would move the value between the
     // two languages the position accepts.
-    if site == BooleanSite::WordFormsOnly && (is_numeric_spelling(word) || is_numeric_spelling(target))
+    if site == BooleanSite::WordFormsOnly
+        && (is_numeric_spelling(word) || is_numeric_spelling(target))
     {
         return None;
     }
@@ -613,7 +614,7 @@ mod tests {
     /// A numeric-or-boolean position rewrites the word spellings and leaves
     /// the numeric ones alone.
     ///
-    /// tclsh-proof (8.6.16): `expr {yes ? 1 : 0}` → `1`, so `yes` at such a
+    /// tclsh-proof (8.6.14): `expr {yes ? 1 : 0}` → `1`, so `yes` at such a
     /// position can only be the truth value — while `0` there is equally a
     /// count, and `string is integer 0` → `1`. Moving a value between the two
     /// languages the position accepts is the one thing the rewrite must not
