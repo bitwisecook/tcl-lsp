@@ -45,7 +45,7 @@
 //! and an 8.6/8.7 one gated on Tcllib's `ooutil`, which installs a real
 //! `proc ::oo::Helpers::mymethod` (tcllib-2-0 `modules/ooutil/ooutil.tcl:18`).
 //! `callback` gets only the core entry — `ooutil` does not provide that
-//! spelling, and under 8.6 the name reaches only a hand-rolled "TclOO Tricks"
+//! spelling, and under 8.6 the name reaches only a hand-rolled "`TclOO` Tricks"
 //! wiki helper, i.e. an ordinary user `proc` the workspace index resolves on
 //! its own (issue #923 audit, `ticklecharts` idx 51).
 //!
