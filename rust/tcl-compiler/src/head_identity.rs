@@ -16,13 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Effective command identity for a command head (issue #1185).
+//! Effective command identity for a command head (issues #1185, #1275).
 //!
 //! Tcl resolves a command by its interpreter-level *binding*, not by the
 //! spelling used to invoke it.  Three statically visible statements move that
 //! binding, and this module turns the ones a document states unconditionally
 //! at top level into a small, offset-keyed table the source-text consumers
-//! (semantic tokens today) consult before they hand a head to the registry:
+//! consult before they hand a head to the registry:
 //!
 //! ```tcl
 //! namespace import ::tcltest::*   ;# `test`   now *is* `::tcltest::test`
@@ -64,16 +64,29 @@
 //!   `proc` inside `namespace eval ::n` defines `::n::format`, not `::format`
 //!   (tclsh 9.0.4: `::n::format q` → `ns:q`, global `format` untouched).
 //! * **`unknown` fallback and traces** — nothing is inferred from them.
+//!
+//! # Positioned and unpositioned readers
+//!
+//! [`HeadIdentityMap::resolve`] answers for a head at a known byte offset.
+//! Several consumers re-lex a body out of its own decoded text (the formatter
+//! reformats `arg.text`, the minifier re-minifies a body slice, the call-graph
+//! scan segments a body string at offset 0), so no absolute offset exists at
+//! the point of the query.  Those read
+//! [`HeadIdentityMap::resolve_unpositioned`], which considers *every* fact
+//! about the spelling at once and abstains ([`HeadIdentity::Rebound`]) unless
+//! they all agree — a document that binds a name twice cannot be read without
+//! a position, and guessing one of the two is exactly the fallback-to-spelling
+//! this module exists to remove.
 
+use crate::alias::{detect_interp_alias, detect_interp_alias_delete, detect_rename};
+use crate::segmenter::segment_commands_with_offset_and_config;
 use rustc_hash::FxHashMap;
-use tcl_compiler::alias::{detect_interp_alias, detect_interp_alias_delete, detect_rename};
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_registry::{CommandRegistry, CommandTableEffect};
 use tcl_syntax::naming::is_dynamic_word;
 
 /// What a command head resolves to at one point in a document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum HeadIdentity<'a> {
+pub enum HeadIdentity<'a> {
     /// The head names this registry command — the head text itself when no
     /// fact applies, or the effective target of a proven import / alias /
     /// rename.
@@ -93,7 +106,8 @@ impl<'a> HeadIdentity<'a> {
     /// consumer already makes (`arg_indices_for_role`, `format_string_args`,
     /// `handle_binding`, …) answers "not a known command" without that
     /// consumer testing the variant.
-    pub(crate) fn spec_name(self) -> &'a str {
+    #[must_use]
+    pub fn spec_name(self) -> &'a str {
         match self {
             Self::Command(name) => name,
             Self::Rebound => "",
@@ -101,7 +115,8 @@ impl<'a> HeadIdentity<'a> {
     }
 
     /// Whether the head's registry binding was provably taken over.
-    pub(crate) fn is_rebound(self) -> bool {
+    #[must_use]
+    pub fn is_rebound(self) -> bool {
         matches!(self, Self::Rebound)
     }
 }
@@ -125,15 +140,28 @@ struct HeadFact {
 /// (`namespace which -command ::myfmt` → `::myfmt`) and a consumer must not
 /// have to strip qualifiers itself.
 #[derive(Debug, Default)]
-pub(crate) struct HeadIdentityMap {
+pub struct HeadIdentityMap {
     facts: FxHashMap<String, Vec<HeadFact>>,
 }
 
+/// The shared empty map, for a consumer that has no document to scan (an
+/// IR-only caller, a unit-test harness).  Nothing is bound, so every head
+/// keeps its own spelling.
+static NO_IDENTITIES: std::sync::LazyLock<HeadIdentityMap> =
+    std::sync::LazyLock::new(HeadIdentityMap::default);
+
 impl HeadIdentityMap {
+    /// The empty map — no document, so no binding fact.
+    #[must_use]
+    pub fn none() -> &'static Self {
+        &NO_IDENTITIES
+    }
+
     /// Whether the document stated any binding fact at all — lets a caller
     /// skip per-head lookups entirely for the overwhelmingly common document
     /// that imports, aliases, and renames nothing.
-    pub(crate) fn is_empty(&self) -> bool {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
         self.facts.is_empty()
     }
 
@@ -142,7 +170,8 @@ impl HeadIdentityMap {
     /// The **latest** fact at or before `at` wins, so a document that renames a
     /// name and then rebinds it again reads correctly at every point between.
     /// With no applicable fact the head keeps its own spelling.
-    pub(crate) fn resolve<'a>(&'a self, head: &'a str, at: u32) -> HeadIdentity<'a> {
+    #[must_use]
+    pub fn resolve<'a>(&'a self, head: &'a str, at: u32) -> HeadIdentity<'a> {
         let Some(facts) = self.facts.get(head) else {
             return HeadIdentity::Command(head);
         };
@@ -150,6 +179,31 @@ impl HeadIdentityMap {
             return HeadIdentity::Command(head);
         };
         fact.target
+            .as_deref()
+            .map_or(HeadIdentity::Rebound, HeadIdentity::Command)
+    }
+
+    /// The effective identity of `head` when the call's byte offset is not
+    /// available — a body the consumer re-lexed out of its own decoded text.
+    ///
+    /// Every fact about the spelling is considered at once.  With none, the
+    /// head keeps its own spelling; with facts that all name the same target,
+    /// that target; otherwise [`HeadIdentity::Rebound`], because the reader
+    /// cannot tell which of two bindings is in force and the written spelling
+    /// is precisely the answer that must not be assumed.
+    #[must_use]
+    pub fn resolve_unpositioned<'a>(&'a self, head: &'a str) -> HeadIdentity<'a> {
+        let Some(facts) = self.facts.get(head) else {
+            return HeadIdentity::Command(head);
+        };
+        let Some(first) = facts.first() else {
+            return HeadIdentity::Command(head);
+        };
+        if facts.iter().any(|f| f.target != first.target) {
+            return HeadIdentity::Rebound;
+        }
+        first
+            .target
             .as_deref()
             .map_or(HeadIdentity::Rebound, HeadIdentity::Command)
     }
@@ -194,18 +248,31 @@ fn is_static_name(word: &str) -> bool {
 /// ([`CommandTableEffect`]) and the argument shapes come from the compiler's
 /// own detectors ([`detect_interp_alias`] / [`detect_rename`]) — the same ones
 /// the IR-lowering pipeline uses — so no command name is spelled here.
-pub(crate) fn command_head_identities(
+#[must_use]
+pub fn command_head_identities(
     source: &str,
     dialect: &str,
     registry: &CommandRegistry,
 ) -> HeadIdentityMap {
+    command_head_identities_with_config(
+        source,
+        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+        registry,
+    )
+}
+
+/// [`command_head_identities`] with an explicit lexer configuration, for a
+/// consumer that already holds one (the formatter and the param-trait scan
+/// carry a [`tcl_lexer::LexerConfig`] rather than a dialect string).
+#[must_use]
+pub fn command_head_identities_with_config(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+) -> HeadIdentityMap {
     // One top-level segmentation feeds both halves — the `namespace import`
     // scan and the command-table mutators.
-    let segments = segment_commands_with_offset_and_config(
-        source,
-        0,
-        tcl_lexer::LexerConfig::for_file_dialect(dialect),
-    );
+    let segments = segment_commands_with_offset_and_config(source, 0, config);
     let mut map = HeadIdentityMap::default();
     for (name, (qualified, offset)) in imported_command_aliases(&segments, registry) {
         map.record(&name, Some(qualified), offset);
@@ -247,15 +314,45 @@ fn record_rename(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: 
     if let Some((old, new)) = detect_rename(args)
         && is_static_name(&new)
     {
-        // Only a target the registry actually models is worth aliasing; a
-        // rename of a user proc leaves `NEW` an ordinary unknown name, which is
-        // already what an absent fact produces.
-        if registry.get(&old).is_some() {
-            map.record_both_spellings(&new, Some(old.clone()), at);
+        // Only a source the registry models — directly or through an earlier
+        // fact — is worth aliasing; renaming an ordinary user proc leaves `NEW`
+        // an ordinary unknown name, which is already what an absent fact
+        // produces.  A *provably rebound* source is stated, though: it moves
+        // something the registry does not model onto `NEW`, and `NEW` must not
+        // then be read under the built-in's grammar.
+        let inherited = inherited_target(map, &old, at, registry);
+        if inherited.is_some() || map.resolve(&old, at).is_rebound() {
+            map.record_both_spellings(&new, inherited, at);
         }
     }
     // Either way the old name is gone from this point on.
     map.record_both_spellings(old, None, at);
+}
+
+/// The registry name `source` names at offset `at`, folding in any earlier
+/// fact so a **chain** of bindings composes.
+///
+/// Reading `source` through the map rather than straight off the registry is
+/// what makes `interp alias {} a {} format; rename a b` leave `b` naming
+/// `format` — the behaviour C Tcl has (tclsh 8.6.16 and 9.0.4, byte-identical:
+/// `b %08x 42` answers `0000002a` while `info commands a` answers empty).  The
+/// same read is what stops a chain inheriting a *broken* binding:
+/// `proc format {…} {…}; rename format myfmt` moves the **user proc**, so
+/// `myfmt` must not pick up the built-in's grammar.
+///
+/// `None` means "names nothing the registry models" — either a provably
+/// taken-over spelling or an ordinary unknown name.  The two callers differ in
+/// what they do with that, so the distinction stays at the call site.
+fn inherited_target(
+    map: &HeadIdentityMap,
+    source: &str,
+    at: u32,
+    registry: &CommandRegistry,
+) -> Option<String> {
+    match map.resolve(source, at) {
+        HeadIdentity::Rebound => None,
+        HeadIdentity::Command(name) => registry.get(name).map(|_| name.to_owned()),
+    }
 }
 
 /// `interp alias {} NEW {} TARGET ?arg…?` and its deletion form.
@@ -279,11 +376,15 @@ fn record_alias(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &
         return;
     };
     // Pre-bound arguments shift every index, so the target's layout cannot be
-    // reused; an unmodelled target has no layout to reuse either.  Both cases
-    // still *take over* the name, so mark it rebound rather than aliased.
+    // reused; a target that names nothing the registry models has no layout to
+    // reuse either.  Both cases still *take over* the name — C Tcl lets an
+    // alias shadow an existing command outright (tclsh 8.6.16 / 9.0.4:
+    // `proc myproc …; interp alias {} lindex {} myproc` makes `lindex {a b c}
+    // 1` answer `MINE`) — so the name is marked rebound rather than left alone.
+    // The target is read through the map, so a chain of bindings composes.
     let effective = prepended
         .is_empty()
-        .then(|| registry.get(&target).map(|_| target))
+        .then(|| inherited_target(map, &target, at, registry))
         .flatten();
     map.record_both_spellings(&qualified, effective, at);
 }
@@ -323,7 +424,7 @@ fn record_proc(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &C
 /// lets the registry-driven argument overrides see the real spec for an
 /// unqualified imported command.  Returns an empty map when nothing is imported.
 fn imported_command_aliases(
-    segments: &[tcl_compiler::segmenter::SegmentedCommand],
+    segments: &[crate::segmenter::SegmentedCommand],
     registry: &CommandRegistry,
 ) -> FxHashMap<String, (String, u32)> {
     let mut aliases: FxHashMap<String, (String, u32)> = FxHashMap::default();
@@ -600,6 +701,97 @@ mod tests {
         // … and after the `proc` takes the name back it is a user command,
         // even though `origfmt` is not itself a registry name.
         assert_eq!(map.resolve("origfmt", after_all), HeadIdentity::Rebound);
+    }
+
+    /// Issue #1275's "chained bindings do not compose" residual.
+    ///
+    /// tclsh oracle (8.6.16 and 9.0.4, byte-identical):
+    ///
+    /// ```tcl
+    /// interp alias {} a {} format ; rename a b ; b %08x 42   ;# 0000002a
+    /// info commands a                                        ;# (empty)
+    /// rename lindex li1 ; rename li1 li2 ; li2 {x y z} 2      ;# z
+    /// rename lsort mysort ; interp alias {} sorter {} mysort
+    /// sorter {c a b}                                          ;# a b c
+    /// ```
+    #[test]
+    fn chained_bindings_compose() {
+        // alias → rename
+        let src = "interp alias {} a {} format\nrename a b\n";
+        let map = map_for(src);
+        let end = u32::try_from(src.len()).unwrap_or(0);
+        assert_eq!(map.resolve("b", end), HeadIdentity::Command("format"));
+        assert_eq!(map.resolve("::b", end), HeadIdentity::Command("format"));
+        // The intermediate name is gone once the rename moves it.
+        assert_eq!(map.resolve("a", end), HeadIdentity::Rebound);
+
+        // rename → rename
+        let src = "rename lindex li1\nrename li1 li2\n";
+        let map = map_for(src);
+        let end = u32::try_from(src.len()).unwrap_or(0);
+        assert_eq!(map.resolve("li2", end), HeadIdentity::Command("lindex"));
+
+        // rename → alias
+        let src = "rename lsort mysort\ninterp alias {} sorter {} mysort\n";
+        let map = map_for(src);
+        let end = u32::try_from(src.len()).unwrap_or(0);
+        assert_eq!(map.resolve("sorter", end), HeadIdentity::Command("lsort"));
+    }
+
+    /// A chain must not inherit a *broken* binding: the rename moves the user
+    /// proc, not the built-in it shadowed, so the new name gets no grammar.
+    #[test]
+    fn a_chain_through_a_shadowed_builtin_stays_rebound() {
+        let src = "proc format {args} { return USER }\nrename format myfmt\n";
+        let map = map_for(src);
+        let end = u32::try_from(src.len()).unwrap_or(0);
+        assert_eq!(map.resolve("myfmt", end), HeadIdentity::Rebound);
+        assert_eq!(map.resolve("::myfmt", end), HeadIdentity::Rebound);
+    }
+
+    /// An alias whose target is an ordinary user proc still *takes over* the
+    /// name it binds — C Tcl lets an alias shadow an existing command
+    /// (tclsh 8.6.16 / 9.0.4: `proc myproc …; interp alias {} lindex {} myproc`
+    /// makes `lindex {a b c} 1` answer `MINE`).
+    #[test]
+    fn an_alias_over_a_builtin_rebinds_it() {
+        let src = "proc myproc {args} { return MINE }\ninterp alias {} lindex {} myproc\n";
+        let map = map_for(src);
+        let end = u32::try_from(src.len()).unwrap_or(0);
+        assert_eq!(map.resolve("lindex", end), HeadIdentity::Rebound);
+    }
+
+    #[test]
+    fn an_unpositioned_read_abstains_when_the_facts_disagree() {
+        // One fact — the unpositioned read matches the positioned one.
+        let src = "rename format origfmt\n";
+        let map = map_for(src);
+        assert_eq!(
+            map.resolve_unpositioned("origfmt"),
+            HeadIdentity::Command("format")
+        );
+        assert_eq!(map.resolve_unpositioned("format"), HeadIdentity::Rebound);
+        // A head nothing binds keeps its own spelling.
+        assert_eq!(
+            map.resolve_unpositioned("lindex"),
+            HeadIdentity::Command("lindex")
+        );
+
+        // Two facts that disagree — without a position, neither can be chosen.
+        let src = "rename format origfmt\nproc origfmt {args} { return 1 }\n";
+        let map = map_for(src);
+        assert_eq!(map.resolve_unpositioned("origfmt"), HeadIdentity::Rebound);
+    }
+
+    #[test]
+    fn the_shared_empty_map_binds_nothing() {
+        let map = HeadIdentityMap::none();
+        assert!(map.is_empty());
+        assert_eq!(map.resolve("format", 0), HeadIdentity::Command("format"));
+        assert_eq!(
+            map.resolve_unpositioned("format"),
+            HeadIdentity::Command("format")
+        );
     }
 
     #[test]

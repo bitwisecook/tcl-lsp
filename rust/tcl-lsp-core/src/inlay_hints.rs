@@ -544,7 +544,7 @@ fn regsub_short(c: char) -> Option<&'static str> {
 fn format_args(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
-    identities: &crate::head_identity::HeadIdentityMap,
+    identities: &tcl_compiler::head_identity::HeadIdentityMap,
 ) -> Vec<(usize, tcl_registry::FormatType)> {
     let Some(head) = seg.texts.first() else {
         return Vec::new();
@@ -624,7 +624,8 @@ fn collect_format_string_hints(
     );
     // The document's proven command-identity facts, computed once for the
     // whole file (empty, and lookup-free, unless it binds something).
-    let identities = crate::head_identity::command_head_identities(source, dialect, registry);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     for seg in &segments {
         for (idx, kind) in format_args(seg, registry, &identities) {
             let Some(tok) = seg.argv.get(idx) else {

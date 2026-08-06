@@ -4089,8 +4089,8 @@ struct ScriptCtx<'a> {
     /// that shadows a built-in (issue #1185).  Every fact is offset-keyed, so
     /// a binding cannot retroactively re-tag an earlier call; every shape that
     /// cannot be proven leaves the head alone.  Empty for a document that
-    /// binds nothing.  See [`crate::head_identity`].
-    head_identities: &'a crate::head_identity::HeadIdentityMap,
+    /// binds nothing.  See [`tcl_compiler::head_identity`].
+    head_identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
     /// Object-handle → class-name provenance for the whole document, so a
     /// `$var method …` dispatch can resolve the method's options through the
     /// registry's object-class model (issue #748).  Empty when no
@@ -4507,7 +4507,7 @@ struct CommandHead<'a> {
     tok: Token,
     text: &'a str,
     /// The registry name to resolve grammar against — empty when the head was
-    /// rebound (see [`crate::head_identity::HeadIdentity::spec_name`]).
+    /// rebound (see [`tcl_compiler::head_identity::HeadIdentity::spec_name`]).
     resolved: &'a str,
     /// Whether the head's registry binding was provably taken over by a
     /// `rename` / alias / shadowing `proc` (issue #1185).
@@ -4695,7 +4695,7 @@ fn collect_script(
         // The overwhelmingly common document binds nothing, so skip the lookup
         // entirely rather than hashing every head in the file.
         let identity = if ctx.head_identities.is_empty() {
-            crate::head_identity::HeadIdentity::Command(head_text.as_str())
+            tcl_compiler::head_identity::HeadIdentity::Command(head_text.as_str())
         } else {
             ctx.head_identities
                 .resolve(head_text, head_tok.span.start())
@@ -5671,7 +5671,8 @@ fn collect_entries(
     // `test` = `tcltest::test`), plus every statically proven `interp alias` /
     // `rename` / built-in-shadowing `proc` (issue #1185).  Empty (no lookups)
     // unless the document actually binds something.
-    let head_identities = crate::head_identity::command_head_identities(source, dialect, registry);
+    let head_identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
 
     // Object-handle → class provenance (`set chart [ticklecharts::chart new]`
     // → `chart`), so a `$chart Xaxis -name …` dispatch resolves the method's
