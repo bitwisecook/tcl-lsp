@@ -1410,29 +1410,6 @@ impl Analyser {
         }
     }
 
-    /// Dispatch-site diagnostic emitters, run from
-    /// [`Self::process_command`] before the early-returning handlers so
-    /// option-bearing / body-owning commands still get checked.
-    ///
-    /// - **W302** (`catch` without a result variable) — fires before
-    ///   the early-returning `handle_catch_command`.
-    /// - **W001** (unknown subcommand on a `SubcommandSig` command) —
-    ///   before `handle_namespace_eval_command` so `namespace foo` is
-    ///   flagged.
-    /// - **E004** (malformed `if`) — dispatched generically off the
-    ///   resolved spec's `clause_shape_check` hook, not off `cmd_name`,
-    ///   so `if` is the trigger today only because it is the one
-    ///   command carrying that hook.
-    /// - **W101** (`eval` with substituted args) — before body-walk
-    ///   dispatch so the `ArgRole::Body` recursion into the `eval`
-    ///   body still runs.
-    /// - **W304** (missing `--` option terminator) — driven by the
-    ///   registry's option-terminator profile.
-    /// - **W004** (option not available in the active dialect).
-    /// - **E002 / E003** (arity) — collected here and flushed
-    ///   post-walk by [`Self::flush_arity_diagnostics`].
-    /// - **W143** (direct call into a private `::tcl::` implementation
-    ///   namespace) — dialect-independent, registry-driven.
     /// The script-injection family — a script or command line built by
     /// concatenating substituted words, which the interpreter then re-parses.
     ///
@@ -1456,6 +1433,29 @@ impl Analyser {
         self.emit_w303_redos(cmd_name, args, arg_tokens);
     }
 
+    /// Dispatch-site diagnostic emitters, run from
+    /// [`Self::process_command`] before the early-returning handlers so
+    /// option-bearing / body-owning commands still get checked.
+    ///
+    /// - **W302** (`catch` without a result variable) — fires before
+    ///   the early-returning `handle_catch_command`.
+    /// - **W001** (unknown subcommand on a `SubcommandSig` command) —
+    ///   before `handle_namespace_eval_command` so `namespace foo` is
+    ///   flagged.
+    /// - **E004** (malformed `if`) — dispatched generically off the
+    ///   resolved spec's `clause_shape_check` hook, not off `cmd_name`,
+    ///   so `if` is the trigger today only because it is the one
+    ///   command carrying that hook.
+    /// - **W101** (`eval` with substituted args) — before body-walk
+    ///   dispatch so the `ArgRole::Body` recursion into the `eval`
+    ///   body still runs.
+    /// - **W304** (missing `--` option terminator) — driven by the
+    ///   registry's option-terminator profile.
+    /// - **W004** (option not available in the active dialect).
+    /// - **E002 / E003** (arity) — collected here and flushed
+    ///   post-walk by [`Self::flush_arity_diagnostics`].
+    /// - **W143** (direct call into a private `::tcl::` implementation
+    ///   namespace) — dialect-independent, registry-driven.
     fn emit_dispatch_site_diagnostics(&mut self, site: &DispatchSite<'_>) {
         let DispatchSite {
             cmd_name,
