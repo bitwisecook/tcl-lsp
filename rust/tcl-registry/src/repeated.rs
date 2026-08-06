@@ -68,6 +68,34 @@ pub struct RepeatedArgLayout {
     /// `upvar 1 a b` (3 words, a level) binds it at index 2 — and both are
     /// the same declaration.
     pub optional_leading_word: bool,
+    /// Whether the local this position names is bound only when a runtime
+    /// **data** condition holds — a dict/array key actually being present —
+    /// rather than unconditionally whenever the statement executes.
+    ///
+    /// `dict update dictVar key varName …` binds `varName` only if `key` is
+    /// present in the dict at that moment (tclsh: an absent key leaves
+    /// `varName` unset); a plain `global`/`variable`/`upvar`/`namespace
+    /// upvar` local, by contrast, is bound whenever the statement runs at
+    /// all — it does not depend on the *content* of anything, only on the
+    /// statement not erroring.
+    ///
+    /// This is the fact
+    /// `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`
+    /// (`tcl-registry/tests/registry_sweep.rs`) checks against
+    /// [`ArgRole`]: every generic write-detection site the compiler has
+    /// (`tcl-compiler`'s `ssa::defs_of_with_registry`, `var_scoping`,
+    /// `cfg_builder`, `lowering`, `ir_helpers`) resolves "does this argument
+    /// write a variable" through `ArgRole::VarWrite` alone — none of them
+    /// consult any other role — so `VarWrite` is read everywhere as "this
+    /// position unconditionally defines the named variable when the
+    /// statement executes". A `conditional_binding: true` layout must never
+    /// use it: doing so is exactly the mechanism that produced the `dict
+    /// update` W210 false positive investigated for issue #1247/#1278 —
+    /// `VarWrite` fed an unconditional SSA def, which pre-empted the
+    /// key-aware suppression `harvest_dict_with_suppression`
+    /// (`tcl-compiler/src/analyser/diagnostics/helpers.rs`) had already
+    /// computed for the very same read.
+    pub conditional_binding: bool,
 }
 
 impl RepeatedArgLayout {
@@ -81,6 +109,7 @@ impl RepeatedArgLayout {
             stride: 1,
             exclude_trailing: 0,
             optional_leading_word: false,
+            conditional_binding: false,
         }
     }
 
@@ -93,6 +122,7 @@ impl RepeatedArgLayout {
             stride,
             exclude_trailing: 0,
             optional_leading_word: false,
+            conditional_binding: false,
         }
     }
 

@@ -448,6 +448,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // its suppression and would hide the genuine absent-key warning.
         repeated_args: &[RepeatedArgLayout {
             exclude_trailing: 1,
+            conditional_binding: true,
             ..RepeatedArgLayout::strided(ArgRole::LoopVarList, 2, 2)
         }],
         arg_types: &[(
