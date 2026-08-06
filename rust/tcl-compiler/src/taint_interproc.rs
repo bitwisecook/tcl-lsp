@@ -48,7 +48,7 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::interprocedural::resolve_call_target;
 use crate::naming::normalise_var_name;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
-use crate::taint::{TaintColour, TaintCtx, TaintLattice, propagate_taints, word_taint};
+use crate::taint::{TaintColour, TaintCtx, TaintGraph, TaintLattice, propagate_taints, word_taint};
 use crate::value_shapes::parse_command_substitution;
 
 // Basis lattices
@@ -320,7 +320,12 @@ fn collect_return_taint(
 
 /// Run intra-procedural taint propagation over `fu` with the given entry
 /// taints and summaries. A thin wrapper threading the common arguments.
+///
+/// `graph` carries the CFG-derived indices, built once by the caller: one
+/// summary inference runs this `1 + params × BASIS_ORDER` times and the
+/// indices are identical across all of them (issue #1251).
 fn run_propagation(
+    graph: &TaintGraph<'_>,
     fu: &FunctionUnit,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
@@ -329,9 +334,7 @@ fn run_propagation(
     summaries: &HashMap<String, ProcTaintSummary>,
 ) -> HashMap<ValueKey, TaintLattice> {
     propagate_taints(
-        &fu.cfg,
-        &fu.ssa,
-        &fu.sccp,
+        graph,
         registry,
         Some(&fu.rendered_props),
         interproc,
@@ -435,12 +438,15 @@ pub fn infer_proc_summary(
     // Prune 1 — the return taint does not depend on the taint map at all, so
     // neither the clean base nor any of the `15P` seeded scenarios needs a
     // solve.  Every scenario is `clean`, which is exactly what
-    // `ProcTaintSummary::untainted` builds.
+    // `ProcTaintSummary::untainted` builds.  Checked before the index build
+    // below, so a constant-return procedure costs nothing at all.
     if return_taint_is_constant(fu) {
         return ProcTaintSummary::untainted(qname, params);
     }
 
-    let base_taints = run_propagation(fu, registry, interproc, dialect, None, summaries);
+    // One index build for the baseline propagation and every scenario below.
+    let graph = TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp);
+    let base_taints = run_propagation(&graph, fu, registry, interproc, dialect, None, summaries);
     let ctx = return_ctx(fu, registry, interproc, dialect, known, summaries);
     let return_base = collect_return_taint(fu, &base_taints, ctx);
 
@@ -461,7 +467,15 @@ pub fn infer_proc_summary(
         for basis in BASIS_ORDER {
             let mut seed: HashMap<String, TaintLattice> = HashMap::new();
             seed.insert(param.clone(), basis_lattice(basis));
-            let seeded = run_propagation(fu, registry, interproc, dialect, Some(&seed), summaries);
+            let seeded = run_propagation(
+                &graph,
+                fu,
+                registry,
+                interproc,
+                dialect,
+                Some(&seed),
+                summaries,
+            );
             scenario_values.push(collect_return_taint(fu, &seeded, ctx));
         }
         by_param_basis.push((param.clone(), scenario_values));
@@ -959,6 +973,7 @@ pub fn solve_interprocedural_taints_with(
 
     // Top-level taints under the converged summaries.
     let top_taints = run_propagation(
+        &TaintGraph::new(&cu.top_level.cfg, &cu.top_level.ssa, &cu.top_level.sccp),
         &cu.top_level,
         registry,
         interproc,
@@ -999,13 +1014,29 @@ pub fn solve_interprocedural_taints_with(
         }
     }
 
+    // The entry-taint worklist re-propagates a procedure every time one of its
+    // callers' argument taints move, so its CFG-derived indices are built once
+    // per procedure and cached rather than once per dequeue (issue #1251).
+    let mut graphs: HashMap<String, TaintGraph<'_>> = HashMap::new();
+
     while let Some(qname) = queue.pop_front() {
         queued.remove(&qname);
         let Some(fu) = cu.procedures.get(&qname) else {
             continue;
         };
         let entry = entry_taints.get(&qname).cloned().unwrap_or_default();
-        let taints = run_propagation(fu, registry, interproc, dialect, Some(&entry), &summaries);
+        let graph = graphs
+            .entry(qname.clone())
+            .or_insert_with(|| TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp));
+        let taints = run_propagation(
+            graph,
+            fu,
+            registry,
+            interproc,
+            dialect,
+            Some(&entry),
+            &summaries,
+        );
 
         let flows = resolve_call_flows(
             fu, &taints, registry, interproc, dialect, &known, &summaries,
@@ -1125,7 +1156,8 @@ mod tests {
         let proc = &cu.ir_module.procedures[target];
         let fu = &cu.procedures[target];
 
-        let base = run_propagation(fu, &reg, interproc, None, None, &summaries);
+        let graph = TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp);
+        let base = run_propagation(&graph, fu, &reg, interproc, None, None, &summaries);
         let ctx = return_ctx(fu, &reg, interproc, None, &known, &summaries);
         let return_base = collect_return_taint(fu, &base, ctx);
         let mut by_param_basis = Vec::new();
@@ -1134,7 +1166,8 @@ mod tests {
             for basis in BASIS_ORDER {
                 let mut seed = HashMap::new();
                 seed.insert(param.clone(), basis_lattice(basis));
-                let seeded = run_propagation(fu, &reg, interproc, None, Some(&seed), &summaries);
+                let seeded =
+                    run_propagation(&graph, fu, &reg, interproc, None, Some(&seed), &summaries);
                 values.push(collect_return_taint(fu, &seeded, ctx));
             }
             by_param_basis.push((param.clone(), values));
