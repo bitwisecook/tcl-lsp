@@ -5442,6 +5442,28 @@ mod tests {
     }
 
     #[test]
+    fn obj_method_hover_fires_for_a_literal_foreach_installed_method() {
+        // Issue #1277: the member's name comes from the loop's own literal
+        // list, not a written `method NAME` word, but a call site must
+        // still resolve to a hover — go-to-definition and hover share the
+        // same member table this walk populates.
+        let src = concat!(
+            "oo::class create Widget {\n",
+            "    foreach m {alpha beta gamma} {\n",
+            "        method $m {args} { return $args }\n",
+            "    }\n",
+            "}\n",
+            "set d [Widget new]\n",
+            "$d alpha\n",
+        );
+        let analysis = analyse(src);
+        // Line 6 `$d alpha` — cursor on `alpha` (col 3).
+        let h = hover(src, 6, 3, &analysis, None).expect("hover");
+        assert!(h.value.contains("**method**"), "{}", h.value);
+        assert!(h.value.contains("::Widget::alpha"), "{}", h.value);
+    }
+
+    #[test]
     fn obj_method_hover_none_for_unknown_instance() {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\n$x bark\n";
         let analysis = analyse(src);

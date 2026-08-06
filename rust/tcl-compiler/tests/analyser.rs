@@ -5034,9 +5034,16 @@ mod class_factories {
     fn a_foreach_member_installer_marks_the_member_set_incomplete() {
         // TP — idx 53's other half: the ticklecharts `chart3D` installer
         // loop.  `foreach` is not a member word and carries a script the
-        // member walk never descends into, so every `method` it installs is
-        // invisible; the class must say so.  tclsh 9.0.4 / 8.6.16: `info
-        // class methods ::C3` really lists `options` and `globalOptions`.
+        // member walk never descends into, so the class must say its member
+        // tables are a lower bound. tclsh 9.0.4 / 8.6.16: `info class
+        // methods ::C3` really lists `options` and `globalOptions`.
+        //
+        // Since issue #1277, the loop's own literal list means the two
+        // *names* are no longer invisible either (see
+        // `a_literal_foreach_installer_records_member_names_as_signature_unknown`
+        // below for the full positive case) — but the set stays incomplete
+        // regardless, because knowing these two names is not the same as
+        // knowing there could never be a third from elsewhere.
         let src = concat!(
             "oo::class create C3 {\n",
             "    foreach m {options globalOptions} {\n",
@@ -5047,6 +5054,93 @@ mod class_factories {
         );
         let cd = class(src, "::C3");
         assert!(cd.methods.contains_key("getType"), "{cd:?}");
+        assert!(cd.methods.contains_key("options"), "{cd:?}");
+        assert!(cd.methods.contains_key("globalOptions"), "{cd:?}");
+        assert!(cd.member_set_incomplete, "{cd:?}");
+    }
+
+    #[test]
+    fn a_literal_foreach_installer_records_member_names_as_signature_unknown() {
+        // TP — issue #1277's headline case: `foreach m {alpha beta gamma} {
+        // method $m {args} {…} }`. tclsh 9.0.4 / 8.6.16 both agree `alpha`,
+        // `beta`, `gamma` are real members of any arity (`args` — see the
+        // oracle transcript in the PR description); the walk can read their
+        // *names* off the loop's own literal list even though it still
+        // cannot say anything honest about their signatures.
+        let src = concat!(
+            "oo::class create C3 {\n",
+            "    foreach m {alpha beta gamma} {\n",
+            "        method $m {args} { return $args }\n",
+            "    }\n",
+            "    method getType {} { return c3 }\n",
+            "}\n",
+        );
+        let cd = class(src, "::C3");
+        for name in ["alpha", "beta", "gamma"] {
+            let md = cd
+                .methods
+                .get(name)
+                .unwrap_or_else(|| panic!("{name} recorded: {cd:?}"));
+            assert!(md.params.is_empty(), "{name}: {md:?}");
+            assert!(md.params_computed, "{name}: {md:?}");
+            // Abstains rather than validating against an invented
+            // parameter list (E002/E003/E005) — `arity()` reads as
+            // unbounded, not "zero args".
+            assert_eq!(
+                md.arity(),
+                tcl_registry::Arity::new(0, tcl_registry::Arity::UNLIMITED),
+                "{name}: {md:?}"
+            );
+        }
+        // A directly-written literal declaration is untouched by the loop.
+        let getter = cd.methods.get("getType").expect("getType recorded");
+        assert!(!getter.params_computed, "{getter:?}");
+        // The lower bound still holds even though three names are now known
+        // (the subtle half of the acceptance criteria: knowing three names
+        // is not knowing them all).
+        assert!(cd.member_set_incomplete, "{cd:?}");
+    }
+
+    #[test]
+    fn a_computed_foreach_member_name_still_abstains_entirely() {
+        // TN — the loop-installed name must be *exactly* a reference to the
+        // loop variable; anything else built from it (or a name that isn't
+        // the loop variable at all) is left exactly as opaque as before
+        // #1277, matching the pre-existing `method $someVar …` abstention.
+        let src = concat!(
+            "oo::class create C4 {\n",
+            "    set prefix pre\n",
+            "    foreach m {alpha beta} {\n",
+            "        method ${prefix}_$m {args} { return $args }\n",
+            "    }\n",
+            "    method getType {} { return c4 }\n",
+            "}\n",
+        );
+        let cd = class(src, "::C4");
+        assert!(cd.methods.contains_key("getType"), "{cd:?}");
+        assert!(!cd.methods.contains_key("alpha"), "{cd:?}");
+        assert!(!cd.methods.contains_key("pre_alpha"), "{cd:?}");
+        assert_eq!(cd.methods.len(), 1, "{cd:?}");
+        assert!(cd.member_set_incomplete, "{cd:?}");
+    }
+
+    #[test]
+    fn a_multi_pair_foreach_installer_still_abstains_entirely() {
+        // TN — two var/list pairs share one body; no single member `$var`
+        // word could unambiguously mean one pair over the other, so this is
+        // left exactly as opaque as any other unreadable installer.
+        let src = concat!(
+            "oo::class create C5 {\n",
+            "    foreach m {alpha beta} n {1 2} {\n",
+            "        method $m {args} { return $n }\n",
+            "    }\n",
+            "    method getType {} { return c5 }\n",
+            "}\n",
+        );
+        let cd = class(src, "::C5");
+        assert!(cd.methods.contains_key("getType"), "{cd:?}");
+        assert!(!cd.methods.contains_key("alpha"), "{cd:?}");
+        assert_eq!(cd.methods.len(), 1, "{cd:?}");
         assert!(cd.member_set_incomplete, "{cd:?}");
     }
 

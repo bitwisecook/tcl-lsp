@@ -539,7 +539,28 @@ pub struct MethodDef {
     pub name: String,
     /// Parameters parsed from the method's parameter list.
     /// Empty for ``destructor`` (no parameter slot in the syntax).
+    ///
+    /// Empty *and* [`Self::params_computed`] set means "unknown", not
+    /// "none" — see that field.
     pub params: Vec<ParamDef>,
+    /// The method's formals are unmodelled: either the parameter-list word
+    /// was itself computed, or — the case this field was added for
+    /// (issue #1277) — the *method* itself was installed by a literal
+    /// loop (`foreach m {alpha beta gamma} { method $m {args} {…} }`)
+    /// whose per-iteration name this walk can read off the loop's own
+    /// literal list, but whose per-iteration signature it deliberately
+    /// does not attempt to re-derive (a reflective installer's parameter
+    /// list can itself be computed per iteration — `method $m {*}[classDef
+    /// $m]` — so treating one iteration's literal `{args}` as
+    /// representative of every other would be a fabrication for the
+    /// general shape this exists to cover, even on the rare iteration
+    /// where it happens to be right).
+    ///
+    /// Mirrors [`crate::analyser::ProcDef::params_computed`] exactly: every
+    /// arity-shaped consumer must ask [`Self::arity`] rather than compute
+    /// one from [`Self::params`] directly, so the abstention cannot be
+    /// forgotten at one call site.
+    pub params_computed: bool,
     /// Source span of the name token.
     pub name_span: Span,
     /// Source span of the method body (braces excluded).
@@ -574,6 +595,27 @@ pub struct MethodDef {
     /// arity). `None` for every other kind, and for a `forward` whose
     /// target couldn't be parsed.
     pub forward_target: Option<(String, Vec<String>)>,
+}
+
+impl MethodDef {
+    /// The method's declared argument arity — or the **abstaining**
+    /// `0..unlimited` when its parameter list is unmodelled
+    /// ([`Self::params_computed`], issue #1277).
+    ///
+    /// Exactly [`ProcDef::arity`]'s contract, extended to `MethodDef`: every
+    /// arity consumer (`$obj method` call-site checking, `next`/`nextto`
+    /// dispatch) asks here rather than calling
+    /// [`crate::signature_scan::arity::arity_of`] on [`Self::params`]
+    /// directly, so a member whose name is all this walk could honestly
+    /// record never has its absent parameter list mistaken for a
+    /// zero-argument one.
+    #[must_use]
+    pub fn arity(&self) -> tcl_registry::Arity {
+        if self.params_computed {
+            return tcl_registry::Arity::new(0, tcl_registry::Arity::UNLIMITED);
+        }
+        crate::signature_scan::arity::arity_of(&self.params)
+    }
 }
 
 /// Stable composite key naming a class's instance method or class method:

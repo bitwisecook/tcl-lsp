@@ -1165,6 +1165,7 @@ mod tests {
                 MethodDef {
                     name: (*m).to_string(),
                     params: Vec::new(),
+                    params_computed: false,
                     name_span: Span::new(0, 0),
                     body_span: Span::new(0, 0),
                     kind: "method".into(),

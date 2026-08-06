@@ -641,7 +641,7 @@ impl Analyser {
         let mut arity = None;
         for _ in 0..MAX_HOPS {
             if method_def.kind != "forward" {
-                arity = Some(crate::signature_scan::arity::arity_of(&method_def.params));
+                arity = Some(method_def.arity());
                 break;
             }
             let Some((target, prepended)) = method_def.forward_target.as_ref() else {

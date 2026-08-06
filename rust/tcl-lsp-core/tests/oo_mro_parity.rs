@@ -578,14 +578,21 @@ Megawidget create IconList FocusableWidget {
     );
 }
 
-/// idx 53 (abstention): a class whose members are installed by *reflection*
-/// keeps its member tables as a lower bound, so the LSP answers nothing
-/// rather than answering wrongly.
+/// idx 53 (abstention) / issue #1277 (partial recovery): a class whose
+/// members are installed by *reflection* keeps its member tables as a lower
+/// bound, so W308 answers nothing rather than answering wrongly.
 ///
 /// tclsh 9.0.4 / 8.6.16 both prove the members are real (`info class methods
-/// ::C3` lists `options`; `[C3 new] options` runs), so a "no such method"
-/// answer would be a lie.  Navigation abstaining is the honest reading —
-/// what must never happen is the W308 that used to fire here.
+/// ::C3` lists `options`; `[C3 new] options` runs). Since issue #1277, the
+/// installer's `method $m …` names itself with exactly the loop variable
+/// bound to a **literal** list (`foreach m {options} { … }`), so the walk
+/// can honestly say where `options`'s name comes from — the list element
+/// itself — even though it still knows nothing about the method's
+/// parameter list (`{*}[info class definition ::Donor $m]` is itself
+/// computed, so the signature stays `params_computed`). Definition/hover
+/// now resolve to that honest source location instead of finding nothing;
+/// what must still never happen is the W308 that used to fire here, or an
+/// invented arity diagnostic on a call of any shape.
 #[test]
 fn idx53_reflectively_installed_members_abstain_instead_of_warning() {
     let src = "\
@@ -610,12 +617,22 @@ $c3 options
         outline_members(src).contains(&("C3".to_string(), "getType".to_string())),
         "the abstention must not erase what *was* readable",
     );
-    // And the abstention is an abstention: no wrong target is offered.
+    // The *name* is now honestly known (issue #1277) — go-to-definition
+    // lands on the loop's own literal list, line 5 (`foreach m {options}
+    // …`), not on a wrong or invented target.
     let t = trio_at(src, cursor_at_line(src, "$c3 options", "options"));
-    assert!(
-        t.definition.is_empty(),
-        "no location may be invented: {:?}",
+    assert_eq!(
+        start_lines(&t.definition),
+        vec![5],
+        "the name's one real source location, not an invented one: {:?}",
         t.definition
+    );
+    // …but the *signature* is still unknown: a call of any arity must not
+    // draw E002/E003.
+    assert!(
+        !diag_codes(src).iter().any(|c| c == "E002" || c == "E003"),
+        "an unmodelled signature must never be checked: {:?}",
+        diag_codes(src),
     );
 }
 

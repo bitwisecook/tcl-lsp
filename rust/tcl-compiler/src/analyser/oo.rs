@@ -211,6 +211,121 @@ fn unwrap_wrapper_member<'a>(
     }
 }
 
+/// The `(var_idx, list_idx, body_idx)` post-head argument positions of a
+/// registry-declared "var/list pairs then a trailing body" loop command
+/// (`foreach`/`lmap`), when it has **exactly one** var/list pair — the only
+/// shape [`Analyser::record_loop_installed_members`] can read a member name
+/// off of. `None` for anything else: no [`tcl_registry::Traits::LOOP_LIST_HEADER`]
+/// trait, no single matching [`tcl_registry::repeated::RepeatedArgLayout`],
+/// or more (or fewer) than one pair — a multi-list `foreach` has no single
+/// variable a member's name word could unambiguously mean.
+fn loop_installer_pair(
+    spec: &'static tcl_registry::CommandSpec,
+    post_head: usize,
+) -> Option<(usize, usize, usize)> {
+    if !spec.traits.contains(tcl_registry::Traits::LOOP_LIST_HEADER) {
+        return None;
+    }
+    let [layout] = spec.repeated_args else {
+        return None;
+    };
+    if layout.role != ArgRole::LoopVarList || layout.stride != 2 || layout.exclude_trailing != 1 {
+        return None;
+    }
+    let var_indices = layout.indices(post_head);
+    let &[var_idx] = var_indices.as_slice() else {
+        return None;
+    };
+    Some((var_idx, var_idx + 1, post_head - 1))
+}
+
+/// Split a loop's literal list word into `(element, absolute source span)`
+/// pairs, or `None` when the word is not literal (a single brace/quote/bare
+/// token with no substitutions — same predicate the parameter-list literal
+/// check uses) or fails to parse as a Tcl list.
+fn literal_loop_elements(
+    list_word: &str,
+    list_tok: Token,
+    list_single_token: bool,
+) -> Option<Vec<(String, Span)>> {
+    if !crate::signature_scan::params::param_word_is_literal(list_tok.kind, list_single_token) {
+        return None;
+    }
+    let list_content_start = list_tok.span.start() + u32::from(list_tok.content_offset);
+    let mut members = Vec::new();
+    let mut pos = 0usize;
+    loop {
+        match tcl_syntax::list::find_element(list_word, pos) {
+            Ok(Some(el)) => {
+                let raw = &list_word[el.value.clone()];
+                let value = if el.literal {
+                    raw.to_string()
+                } else {
+                    tcl_lexer::backslash_subst(raw).into_owned()
+                };
+                let span = Span::new(
+                    list_content_start + u32::try_from(el.value.start).unwrap_or(0),
+                    list_content_start + u32::try_from(el.value.end).unwrap_or(0),
+                );
+                members.push((value, span));
+                pos = el.next;
+            }
+            Ok(None) => break,
+            // A malformed list is left exactly as opaque — no partial guess.
+            Err(_) => return None,
+        }
+    }
+    if members.is_empty() {
+        None
+    } else {
+        Some(members)
+    }
+}
+
+/// Whether a loop's body is exactly one member declaration (per `grammar`,
+/// unwrapped of any `self`/`private`) that names itself with exactly a
+/// reference to the loop variable `var_name` — `foreach`'s installer idiom.
+/// Returns the member's `(kind, body_span)` on a match; `None` for anything
+/// else (more than one statement, a fixed name, a name built from more than
+/// the bare variable, a non-`method`/`classmethod` member) — left exactly as
+/// opaque as before, not a partial guess.
+fn loop_installed_member_shape(
+    grammar: &DefinitionBodyGrammar,
+    body_word: &str,
+    body_content_start: u32,
+    lexer_config: tcl_lexer::LexerConfig,
+    var_name: &str,
+) -> Option<(&'static str, Span)> {
+    let inner_cmds = crate::segmenter::segment_commands_with_offset_and_config(
+        body_word,
+        body_content_start,
+        lexer_config,
+    );
+    let mut real_cmds = inner_cmds
+        .iter()
+        .filter(|c| !c.is_partial && !c.argv.is_empty());
+    let inner = real_cmds.next()?;
+    if real_cmds.next().is_some() {
+        return None; // more than one statement — not the simple installer shape
+    }
+    let (inner_keyword, inner_texts, inner_argv, _modifier) =
+        unwrap_wrapper_member(grammar, &inner.texts, &inner.argv)?;
+    let kind = match inner_keyword {
+        "method" => "method",
+        "classmethod" => "classmethod",
+        _ => return None,
+    };
+    let member = grammar.member(inner_keyword)?;
+    let name_idx = member.indices_for(ArgRole::Name).next()?;
+    let name_word = inner_texts.get(name_idx)?;
+    if crate::static_loops::simple_var_ref(name_word).as_deref() != Some(var_name) {
+        return None;
+    }
+    let body_idx = member.indices_for(ArgRole::Body).next()?;
+    let body_span = inner_argv.get(body_idx).map_or(inner.span, |t| t.span);
+    Some((kind, body_span))
+}
+
 /// The synthetic name for a nameless snit member (one with no
 /// [`ArgRole::Name`]): `<keyword>`, with a leading roleless option word
 /// (snit 1.x `onconfigure`/`oncget`'s `-option`) appended when present so the
@@ -408,6 +523,134 @@ impl Analyser {
         })
     }
 
+    /// Record the per-name members a **literal** loop-installer declares,
+    /// even though [`Self::member_declaration_is_opaque`] has already (and
+    /// correctly) marked the class's member set incomplete because of it
+    /// (issue #1277).
+    ///
+    /// `foreach m {alpha beta gamma} { method $m {args} {…} }` computes
+    /// each member's *name* from the loop variable, which is why the
+    /// ordinary member walk cannot read it — but the loop's own list is
+    /// written right there in the source, so the set of names it will bind
+    /// `$m` to really is knowable without running the program. This adds
+    /// what can honestly be said on top of the existing abstention; it
+    /// never narrows `member_set_incomplete` back to "complete", because
+    /// knowing three names is not the same as knowing them all (a sibling
+    /// `oo::define` elsewhere, or a second, unreadable installer in the
+    /// same body, could still add more).
+    ///
+    /// Deliberately narrow — every condition below is a bail, not a best
+    /// effort, and any miss just leaves the loop as opaque as it already
+    /// was:
+    ///
+    /// * the head word must be a registry-declared "var/list pairs then a
+    ///   trailing body" loop shape ([`tcl_registry::Traits::LOOP_LIST_HEADER`]
+    ///   plus exactly one [`tcl_registry::repeated::RepeatedArgLayout`]
+    ///   covering a var/list pair) — `foreach`/`lmap`, decided from registry
+    ///   data, never a keyword;
+    /// * exactly one var/list pair (a multi-list `foreach` has no single
+    ///   variable a member's name word could unambiguously mean);
+    /// * the loop variable is one bare name, not a multi-variable group
+    ///   (`foreach {a b} $list …`);
+    /// * the list word is a **literal** Tcl list (no `$`/`[`) that parses
+    ///   cleanly;
+    /// * the body is exactly one member declaration (per `grammar`, unwrapped
+    ///   of any `self`/`private`) whose `Name` argument is exactly a
+    ///   reference to the loop variable — anything else (a fixed name, a
+    ///   name built from more than the bare variable, more than one
+    ///   statement) is left unread, exactly as before this ran.
+    ///
+    /// The recorded member's parameter list is always `params_computed`
+    /// (never re-derived from the loop body's own written params, even when
+    /// they look literal): a reflective installer's signature can itself be
+    /// computed per iteration (`method $m {*}[classDef $m]`), so treating
+    /// one binding's `{args}` as representative of every other would be a
+    /// fabrication for the general shape this exists to cover.
+    fn record_loop_installed_members(
+        &self,
+        grammar: &DefinitionBodyGrammar,
+        cmd: &crate::segmenter::SegmentedCommand,
+        class_def: &mut ClassDef,
+    ) {
+        let Some(keyword) = cmd.texts.first().map(String::as_str) else {
+            return;
+        };
+        let Some(spec) = self.registry.and_then(|r| r.get(keyword)) else {
+            return;
+        };
+        // Post-head argument count (`texts` still carries the keyword at 0).
+        let post_head = cmd.texts.len().saturating_sub(1);
+        let Some((var_idx, list_idx, body_idx)) = loop_installer_pair(spec, post_head) else {
+            return;
+        };
+        let (Some(var_word), Some(list_word), Some(body_word)) = (
+            cmd.texts.get(var_idx + 1),
+            cmd.texts.get(list_idx + 1),
+            cmd.texts.get(body_idx + 1),
+        ) else {
+            return;
+        };
+        // The loop variable must be one bare name.
+        let Ok(var_names) = tcl_syntax::list::split_list(var_word) else {
+            return;
+        };
+        if var_names.len() != 1 {
+            return; // a multi-variable group — no single name a `$var` could mean
+        }
+        let var_name = &var_names[0];
+        if !crate::value_shapes::is_static_var_word(var_name) {
+            return;
+        }
+        let Some(list_tok) = cmd.argv.get(list_idx + 1) else {
+            return;
+        };
+        let list_single = cmd
+            .single_token_word
+            .get(list_idx + 1)
+            .copied()
+            .unwrap_or(false);
+        let Some(members) = literal_loop_elements(list_word, *list_tok, list_single) else {
+            return;
+        };
+        let Some(body_tok) = cmd.argv.get(body_idx + 1) else {
+            return;
+        };
+        let body_content_start = body_tok.span.start() + u32::from(body_tok.content_offset);
+        let Some((kind, body_span)) = loop_installed_member_shape(
+            grammar,
+            body_word,
+            body_content_start,
+            self.lexer_config(),
+            var_name,
+        ) else {
+            return;
+        };
+        for (name, name_span) in members {
+            let md = MethodDef {
+                visibility: default_visibility(grammar, &name),
+                name,
+                params: Vec::new(),
+                params_computed: true,
+                name_span,
+                body_span,
+                kind: kind.to_string(),
+                is_self_method: false,
+                doc: String::new(),
+                forward_target: None,
+            };
+            // A literal, directly-written declaration elsewhere in the class
+            // always outranks a name merely *inferred* from the loop's list —
+            // this only ever fills a gap, never overrides real data, however
+            // the two are ordered in the source.
+            let table = if kind == "classmethod" {
+                &mut class_def.class_methods
+            } else {
+                &mut class_def.methods
+            };
+            table.entry(md.name.clone()).or_insert(md);
+        }
+    }
+
     pub(super) fn record_member_command_references(
         &mut self,
         grammar: &DefinitionBodyGrammar,
@@ -530,6 +773,11 @@ impl Analyser {
             // (see [`ClassDef::member_set_incomplete`], issue #923 idx 53).
             if self.member_declaration_is_opaque(grammar, cmd, texts) {
                 class_def.member_set_incomplete = true;
+                // The class surface stays a lower bound either way — this
+                // only ever adds names on top of that abstention when the
+                // opaque command turns out to be a literal loop installer
+                // (issue #1277).
+                self.record_loop_installed_members(grammar, cmd, class_def);
             }
             // A wrapper member's bare *script-block* form (`self { method m …
             // }`, `private { … }`) declares exactly the members its block
@@ -1242,6 +1490,7 @@ impl Analyser {
         let method_def = MethodDef {
             name: name.clone(),
             params: params.clone(),
+            params_computed: false,
             name_span,
             body_span,
             kind: kind.to_string(),
@@ -2463,6 +2712,7 @@ fn apply_oo_forward(
         let md = MethodDef {
             name: name.clone(),
             params: Vec::new(),
+            params_computed: false,
             name_span: span,
             body_span: span,
             kind: "forward".to_string(),
@@ -2783,6 +3033,7 @@ fn extract_method_def(
     Some(MethodDef {
         name,
         params,
+        params_computed: false,
         name_span,
         body_span,
         kind: kind.to_string(),

@@ -1865,7 +1865,7 @@ impl Analyser {
                 }) else {
                     continue;
                 };
-                let arity = crate::signature_scan::arity::arity_of(&ctor.params);
+                let arity = ctor.arity();
                 let arity = bump_arity(arity, cand.form.extra_leading_words());
                 let display_name = format!("{} {}", cand.class_name, cand.form.as_str());
                 if let Some(diag) = arity_verdict(
@@ -1957,7 +1957,7 @@ impl Analyser {
                 if method_def.kind == "forward" {
                     continue;
                 }
-                let arity = crate::signature_scan::arity::arity_of(&method_def.params);
+                let arity = method_def.arity();
                 if let Some(diag) = arity_verdict(
                     &cand.display_name,
                     arity,

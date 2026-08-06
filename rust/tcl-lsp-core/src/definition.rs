@@ -6636,6 +6636,29 @@ mod tests {
     }
 
     #[test]
+    fn definition_resolves_a_literal_foreach_installed_method() {
+        // Issue #1277: `alpha` has no written `method alpha` word anywhere —
+        // its only textual appearance is inside the loop's own literal list
+        // — but go-to-definition must still land somewhere real rather than
+        // finding nothing, exactly as hover/outline/completion do.
+        let src = concat!(
+            "oo::class create Widget {\n",
+            "    foreach m {alpha beta gamma} {\n",
+            "        method $m {args} { return $args }\n",
+            "    }\n",
+            "}\n",
+            "set d [Widget new]\n",
+            "$d alpha\n",
+        );
+        let analysis = analyse(src);
+        // Line 6 `$d alpha` — `alpha` starts at col 3.
+        let locs = definition(src, 6, 3, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // The list `{alpha beta gamma}` is on line 1.
+        assert_eq!(locs[0].start_line, 1, "{locs:?}");
+    }
+
+    #[test]
     fn definition_resolves_obj_method_in_bracket() {
         // `[$d bark]` bracketed form.
         let src =
