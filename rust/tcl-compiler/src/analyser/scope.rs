@@ -1211,10 +1211,19 @@ impl Analyser {
             let ns: String = match resolved.strip_suffix(suffix.as_str()) {
                 Some("") => "::".to_owned(),
                 Some(prefix) => prefix.to_owned(),
-                // Not the `{ns}::{name}` shape the walk produces (an unusual
-                // spelling); the settled name is then the sole candidate.
+                // Not the `{ns}::{name}` shape the walk produces.  A folded
+                // dynamic head (`${ns}::setdef`) is exactly this case — the
+                // written name is not the dispatched one — and the walk
+                // already recorded its candidate list from the *folded* name,
+                // so settle against that instead of discarding it (issue #923
+                // idx 54 residual: without this the local-first guess
+                // `::tk::tk::setdef` was never demoted to the global
+                // `::tk::setdef` the call really reaches, and find-references
+                // from the declaration missed the site).  An unusual spelling
+                // with no recorded candidates keeps the old behaviour: the
+                // settled name is the sole candidate.
                 None => {
-                    inv.resolution_candidates = vec![resolved];
+                    settle_prebuilt_candidates(inv, resolved, &known_ctx);
                     continue;
                 }
             };
@@ -1265,7 +1274,41 @@ impl Analyser {
         // last-write-wins across `if`/loop joins and discards the defining
         // literal's writable span).
     }
+}
 
+/// Settle an invocation whose candidate list was built at **walk** time
+/// rather than by [`Analyser::finalise_invocation_resolutions`] — a folded
+/// dynamic head, whose written name is not the dispatched one and so does
+/// not carry the `{ns}::{name}` shape the namespace recovery needs.
+///
+/// The first known candidate wins, exactly as
+/// [`crate::naming::resolve_command_with`] would.  With no recorded
+/// candidates this keeps the pre-existing behaviour: the settled name is the
+/// sole candidate (issue #923 idx 54 residual — before this, the walk's
+/// local-first guess `::tk::tk::setdef` was never demoted to the global
+/// `::tk::setdef` the call really reaches, so find-references from the
+/// declaration missed the site while go-to-definition found it).
+fn settle_prebuilt_candidates<A>(
+    inv: &mut crate::signature_scan::types::SignatureCommandInvocation,
+    resolved: String,
+    known_ctx: &KnownPredicateCtx<'_, A>,
+) {
+    if inv.resolution_candidates.is_empty() {
+        inv.resolution_candidates = vec![resolved];
+        return;
+    }
+    let call_off = inv.range.start();
+    if let Some(winner) = inv
+        .resolution_candidates
+        .iter()
+        .find(|c| known_ctx.known(c, call_off))
+        && *winner != resolved
+    {
+        inv.resolved_qualified_name = Some(winner.clone());
+    }
+}
+
+impl Analyser {
     /// Record a constant string assignment for `var_name` in the
     /// scope at `scope_path`.
     pub fn set_const_string(
