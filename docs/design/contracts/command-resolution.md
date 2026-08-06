@@ -183,7 +183,7 @@ not change the rule, and must not grow bespoke resolution logic. Every
     (`tcl_lsp_core::namespace_import::NamespaceExportOracle`, implemented by
     `WorkspaceIndex::export_snapshot`) rather than reading one file (issue
     #1116 item 1). Two programs whose importing document is *byte-identical*
-    disagree, decided entirely by another file (pinned, tclsh 8.6.16 + 9.0.4):
+    disagree, decided entirely by another file (pinned, tclsh 8.6.14 + 9.0.4):
     with `::src` holding `proc helper`, `proc other` and `namespace export
     other` in that document, a `-force` import of `::src::*` over a local
     `::app::helper` reaches `::src::helper` when some other file also declares

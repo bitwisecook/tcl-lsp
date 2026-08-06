@@ -690,7 +690,7 @@ fn references_do_not_reach_the_indirect_site_when_the_head_is_renamed() {
 // The importing document is byte-identical in both tests; only the presence of
 // `namespace eval ::src {namespace export helper}` in a sibling file differs,
 // and with it which proc the bare `helper` call is a reference *to* (oracle
-// tclsh 8.6.16 / 9.0.4 — the transcript is on the matching definition tests).
+// tclsh 8.6.14 / 9.0.4 — the transcript is on the matching definition tests).
 //
 //  line 0  namespace eval src {
 //  line 1      proc helper {a b} { return SRC }

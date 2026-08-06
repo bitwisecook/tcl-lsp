@@ -181,7 +181,7 @@ pub enum ExportVerdict {
 /// document can hold the source namespace's procs, its importing namespace,
 /// the `-force` import and the call, and still not hold the one `namespace
 /// export` that decides the question. Two whole programs whose *single
-/// document* is byte-identical then disagree (tclsh 8.6.16 / 9.0.4, verbatim):
+/// document* is byte-identical then disagree (tclsh 8.6.14 / 9.0.4, verbatim):
 ///
 /// ```text
 /// # shared_main.tcl — identical in both programs

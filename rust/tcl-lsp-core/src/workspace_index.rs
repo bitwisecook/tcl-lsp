@@ -7843,7 +7843,7 @@ mod tests {
     // `MAIN` below is one document, byte-for-byte identical in every test of
     // this group. What changes is the *rest of the program*, and with it the
     // correct answer — which is exactly why the single-document tier needed a
-    // whole-program export oracle. Oracle transcript (tclsh 8.6.16 and 9.0.4,
+    // whole-program export oracle. Oracle transcript (tclsh 8.6.14 and 9.0.4,
     // byte-identical), running `MAIN` from a loader that does or does not also
     // source the `namespace export helper`:
     //

@@ -990,7 +990,7 @@ fn a_computed_source_path_keeps_the_pre_graph_abstention_end_to_end() {
 // `PARTLY_OBSERVABLE_MAIN` below is one document, byte-for-byte identical in
 // both tests of this pair. `::src` is *partly* observable in it: its procs and
 // one of its exports (`other`) are right there, while whether it also exports
-// `helper` is decided in another file. Oracle (tclsh 8.6.16 and 9.0.4,
+// `helper` is decided in another file. Oracle (tclsh 8.6.14 and 9.0.4,
 // byte-identical), loading this document with and without a sibling file
 // holding `namespace eval ::src {namespace export helper}`:
 //

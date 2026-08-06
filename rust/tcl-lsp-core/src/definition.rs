@@ -5510,7 +5510,7 @@ mod tests {
     // The single document [`PARTLY_OBSERVABLE`] is the *same bytes* in every
     // test below. Only the program around it changes, and with it the correct
     // answer — which is the whole reason this tier needed an oracle. Oracle
-    // transcript (tclsh 8.6.16 and 9.0.4, byte-identical), the file loaded
+    // transcript (tclsh 8.6.14 and 9.0.4, byte-identical), the file loaded
     // from a two-line loader that does or does not also source an
     // `exports.tcl` holding `namespace eval ::src {namespace export helper}`:
     //
