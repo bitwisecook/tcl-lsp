@@ -2374,7 +2374,7 @@ fn insert_object_method_overrides(
     if let Some(hierarchy) = classes
         && let Some(cls) = candidates
             .iter()
-            .find(|c| user_class_provides_method(hierarchy, c, method))
+            .find(|c| user_class_provides_method(hierarchy, registry, c, method))
     {
         mark_method_word(seg, overrides);
         insert_user_configure_options(seg, hierarchy, cls, method, overrides);
@@ -2500,26 +2500,46 @@ fn collection_head_element_classes<'a>(
 /// ancestor), or it is an `TclOO` builtin every instance answers — `destroy`,
 /// or `configure` / `cget` on an `oo::configurable` receiver.  `hierarchy` is
 /// the local file's hierarchy or a workspace-merged project index.
-fn user_class_provides_method(hierarchy: &ClassHierarchy, class: &str, method: &str) -> bool {
+fn user_class_provides_method(
+    hierarchy: &ClassHierarchy,
+    registry: &CommandRegistry,
+    class: &str,
+    method: &str,
+) -> bool {
     if hierarchy.method_target(class, method).is_some() {
         return true;
     }
     match method {
         "destroy" => true,
-        "configure" | "cget" => class_is_configurable(hierarchy, class),
+        "configure" | "cget" => class_is_configurable(hierarchy, registry, class),
         _ => false,
     }
 }
 
-/// Whether `class` (or any class in its MRO) is `oo::configurable` or declares
-/// configurable properties — the classes whose `configure` / `cget` accept
-/// `-property` options.
-fn class_is_configurable(hierarchy: &ClassHierarchy, class: &str) -> bool {
+/// Whether `class` (or any class in its MRO) is created by a metaclass whose
+/// instances answer `configure` / `cget` against declared properties, or itself
+/// declares such properties.
+///
+/// The metaclass test is registry data
+/// ([`Traits::CONFIGURES_BY_PROPERTY`](tcl_registry::Traits::CONFIGURES_BY_PROPERTY)),
+/// not the `metaclass == "oo::configurable"` spelling comparison this used to
+/// make (issue #1275).  A metaclass the registry does not model answers
+/// `false`: abstention, so an unknown factory is never treated as configurable.
+/// tclsh 9.0.4: an `oo::configurable` instance answers `[$pt configure]` with
+/// its property dict, an `oo::class` one answers `unknown method "configure"`.
+fn class_is_configurable(
+    hierarchy: &ClassHierarchy,
+    registry: &CommandRegistry,
+    class: &str,
+) -> bool {
     class_mro(hierarchy, class).iter().any(|c| {
-        hierarchy
-            .classes
-            .get(c)
-            .is_some_and(|cd| cd.metaclass == "oo::configurable" || !cd.properties.is_empty())
+        hierarchy.classes.get(c).is_some_and(|cd| {
+            !cd.properties.is_empty()
+                || registry.get(&cd.metaclass).is_some_and(|spec| {
+                    spec.traits
+                        .contains(tcl_registry::prelude::Traits::CONFIGURES_BY_PROPERTY)
+                })
+        })
     })
 }
 
@@ -2716,6 +2736,7 @@ fn resolve_class_in_hierarchy(hierarchy: &ClassHierarchy, name: &str) -> Option<
 fn insert_self_method_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     classes: Option<&ClassHierarchy>,
+    registry: &CommandRegistry,
     enclosing_class: Option<&str>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
@@ -2742,7 +2763,7 @@ fn insert_self_method_overrides(
     let Some(class) = resolve_class_in_hierarchy(hierarchy, class_name) else {
         return;
     };
-    if !user_class_provides_method(hierarchy, &class, method) {
+    if !user_class_provides_method(hierarchy, registry, &class, method) {
         return;
     }
     mark_method_word(seg, overrides);
@@ -4762,7 +4783,13 @@ fn collect_script(
         merge_list_quoted_command_overrides(&seg, ctx, registry, deferred_role, &mut overrides);
         // `my method …` inside a class body resolves against the enclosing
         // class's MRO (the most common `TclOO` dispatch form).
-        insert_self_method_overrides(&seg, ctx.classes, ctx.enclosing_class, &mut overrides);
+        insert_self_method_overrides(
+            &seg,
+            ctx.classes,
+            registry,
+            ctx.enclosing_class,
+            &mut overrides,
+        );
         // Regex-source tracking: retag a `set` value word that feeds a regexp
         // pattern as a (substitution-aware) regex.
         mark_regex_source_words(&seg, ctx.regex_sources, &mut overrides);
@@ -7729,6 +7756,48 @@ mod tests {
     /// the Tk option database."  The second documented form, `installhull
     /// $win`, names an already-created widget and carries no static type word,
     /// so it must state nothing.
+    /// Issue #1275's third residual — `configure` / `cget` resolution must key
+    /// off registry data about the metaclass, not the `oo::configurable`
+    /// spelling.
+    ///
+    /// tclsh 9.0.4 oracle: an `oo::configurable create Point { property x y … }`
+    /// instance answers `[$pt configure]` with `-x 27 -y 0`, while an
+    /// `oo::class` instance answers `unknown method "configure": must be
+    /// destroy or m` for both `configure` and `cget`.
+    #[test]
+    fn configure_resolves_by_metaclass_trait_not_spelling() {
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let resolves = |src: &str, line: u32| {
+            let cu = CompilationUnit::build_for(src, &registry, false);
+            let analysis = Analyser::new().analyse(src, "tcl9.0");
+            decode_semantic(&full_with_cu_and_analysis(
+                src,
+                "tcl9.0",
+                &registry,
+                Some(&cu),
+                Some(&analysis),
+            ))
+            .iter()
+            .any(|&(l, _, _, k, m)| l == line && k == TokenKind::Method as u32 && m == 0)
+        };
+        // A configurable class declaring no property of its own: only the
+        // metaclass fact can answer, and it must.
+        let src = "oo::configurable create Point {}\nset pt [Point new]\n$pt configure -x 1\n";
+        assert!(
+            resolves(src, 2),
+            "`configure` on an `oo::configurable` instance must resolve"
+        );
+        // A plain `oo::class` instance answers no `configure` at all.
+        let src =
+            "oo::class create Plain { method m {} {} }\nset p [Plain new]\n$p configure -x 1\n";
+        assert!(
+            !resolves(src, 2),
+            "`configure` on a plain `oo::class` instance must not resolve"
+        );
+    }
+
     #[test]
     fn snit_installhull_types_the_implicit_hull_component() {
         use tcl_compiler::analyser::Analyser;

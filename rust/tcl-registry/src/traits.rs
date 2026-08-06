@@ -361,6 +361,20 @@ declare_traits! {
     IrulesTopLevelOnly => IRULES_TOP_LEVEL_ONLY;
     /// `TclOO` metaclass (`oo::class`, `oo::abstract`).
     IsOoMetaclass => IS_OO_METACLASS;
+    /// A metaclass whose **instances** answer `configure` / `cget` against
+    /// declared properties — Tcl 9.0's `oo::configurable`.
+    ///
+    /// VERIFIED on tclsh 9.0.4: an `oo::configurable create Point { property x
+    /// y … }` instance answers `[$pt configure]` with `-x 27 -y 0`, while an
+    /// `oo::class` instance answers `unknown method "configure": must be
+    /// destroy or m` for both `configure` and `cget`.  A class created by a
+    /// *further* `oo::configurable` subclass answers too.
+    ///
+    /// The metaclasses all share one `definition_body` grammar, so this is a
+    /// per-command fact rather than a grammar flag — it replaces the
+    /// `metaclass == "oo::configurable"` spelling test the method-resolution
+    /// scan used to make (issue #1275).
+    ConfiguresByProperty => CONFIGURES_BY_PROPERTY;
 
     // Codegen/diagram
     /// Included in diagram extraction.
