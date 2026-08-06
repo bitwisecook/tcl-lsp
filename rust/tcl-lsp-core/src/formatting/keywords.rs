@@ -41,24 +41,32 @@
 //! * Strict tables are never touched.
 //! * Command names are never touched: Tcl does not prefix-match them.
 //! * A dynamic word (`$sub`, `[pick]`, `{*}`-expanded) abstains.
-//! * A boolean word is rewritten **only** where the registry declares
-//!   [`tcl_registry::ArgRole::Boolean`] — the word is consumed through
-//!   `Tcl_GetBooleanFromObj` and its bytes are never otherwise observable
-//!   (issue #1256). A value-definition site (`set flag yes`) keeps its
-//!   bytes, because `$flag` may later meet `eq "yes"`, a `switch` arm, or a
-//!   log line — `true` and `yes` are different strings even though both are
-//!   truthy.
+//! * A boolean word is rewritten **only** where the registry declares the
+//!   role — [`tcl_registry::ArgRole::consumes_boolean`] is the single query,
+//!   so every option that declares
+//!   [`tcl_registry::ArgRole::Boolean`] is covered and a new one is covered
+//!   the day it is declared (issue #1256). The word is consumed through
+//!   `Tcl_GetBooleanFromObj` and its bytes are never otherwise observable. A
+//!   value-definition site (`set flag yes`) keeps its bytes, because `$flag`
+//!   may later meet `eq "yes"`, a `switch` arm, or a log line — `true` and
+//!   `yes` are different strings even though both are truthy.
 //! * `0`/`1` are also valid integers, so a
-//!   [`tcl_registry::ArgRole::NumericOrBoolean`] position is a distinct
-//!   declared fact and abstains rather than guess.
+//!   [`tcl_registry::ArgRole::NumericOrBoolean`] position rewrites only the
+//!   spellings that are unambiguously boolean: `-validate yes` normalises,
+//!   `-validate 0` keeps its bytes because the command reads it as a number,
+//!   and the `0/1` form has nothing safe to write there at all.
+//! * The rewrite must hold across the document's target release range as well
+//!   (issue #1257): the option word has to name the *same* option, carrying
+//!   the *same* boolean role, in every release of the range. An option a
+//!   later release removes, renames the prefix of, or re-roles is left alone.
 //!
 //! Both rewrites are idempotent: a canonical spelling resolves to itself, and
 //! the configured boolean form maps to itself.
 
-use tcl_registry::CommandRegistry;
 use tcl_registry::abbrev::PrefixMatching;
 use tcl_registry::hover::OptionSpec;
 use tcl_registry::prelude::DialectSet;
+use tcl_registry::{ArgRole, CommandRegistry, CommandSpec};
 
 use super::config::{BooleanForm, FormatterConfig};
 
@@ -82,12 +90,80 @@ fn is_static_word(word: &str) -> bool {
         && !word.contains('\\')
 }
 
-/// The canonical spelling of a boolean `word` under `form`, or `None` when
-/// the word is not an unambiguous boolean or already has the target spelling.
-fn canonical_boolean(word: &str, form: BooleanForm) -> Option<String> {
+/// How much of the boolean vocabulary the formatter may rewrite at a value
+/// position — decided by the position's **declared** [`ArgRole`], never by
+/// what its value set happens to enumerate.
+///
+/// Ordered least- to most-permissive so a range check can `min` the releases'
+/// verdicts and land on the most conservative one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum BooleanSite {
+    /// Not a boolean position at all: the bytes are data.
+    None,
+    /// Only the spellings that are unambiguously boolean. The position also
+    /// accepts a number ([`ArgRole::NumericOrBoolean`]), so `0` and `1` belong
+    /// to both languages and keep their bytes — and a numeric target form has
+    /// nothing safe to write here.
+    WordFormsOnly,
+    /// Every spelling of the same truth value is interchangeable
+    /// ([`ArgRole::Boolean`]): the word goes through `Tcl_GetBooleanFromObj`
+    /// and its bytes are never otherwise observable.
+    Interchangeable,
+}
+
+impl BooleanSite {
+    /// The site a declared role describes.
+    ///
+    /// [`ArgRole::consumes_boolean`] is the single query for "is this word
+    /// consumed as a boolean" (issue #1256) — reading it here is what makes
+    /// every declared boolean option a rewrite site, and a newly declared one
+    /// a site the day it lands, with no list to keep in step.
+    fn of(role: Option<ArgRole>) -> Self {
+        match role {
+            Some(role) if role.consumes_boolean() => Self::Interchangeable,
+            Some(ArgRole::NumericOrBoolean) => Self::WordFormsOnly,
+            _ => Self::None,
+        }
+    }
+}
+
+/// Whether `word`'s bytes read as a number — the half of the boolean
+/// vocabulary a [`BooleanSite::WordFormsOnly`] position consumes as a count
+/// rather than a truth value.
+///
+/// Deliberately generous about what counts as numeric: only the boolean
+/// table's own spellings ever reach here, of which `0` and `1` are the
+/// numeric ones, and erring towards "numeric" errs towards leaving bytes
+/// alone.
+fn is_numeric_spelling(word: &str) -> bool {
+    let digits = word.strip_prefix(['-', '+']).unwrap_or(word);
+    !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit() || c == '.')
+}
+
+/// The canonical spelling of a boolean `word` under `form` at `site`, or
+/// `None` when the word is not an unambiguous boolean, already has the target
+/// spelling, or the site does not license the rewrite.
+///
+/// tclsh-proof (8.6.14): `string is boolean tru` → `1` and `expr {tru ? 1 :
+/// 0}` → `1`, so `tru` is the same truth value as `true`; `string is boolean
+/// o` → `0` (and `expr {o ? 1 : 0}` is an error), so the one ambiguous prefix
+/// is not a boolean at all and keeps its bytes.
+fn canonical_boolean(word: &str, form: BooleanForm, site: BooleanSite) -> Option<String> {
+    if site == BooleanSite::None {
+        return None;
+    }
     let (yes, no) = form.pair()?;
     let value = tcl_registry::abbrev::resolve_boolean(word)?;
     let target = if value { yes } else { no };
+    // A numeric-or-boolean position reads `0`/`1` as an integer, so neither
+    // the written word nor the replacement may be one: rewriting `-validate 0`
+    // to `false`, or `-validate yes` to `1`, would move the value between the
+    // two languages the position accepts.
+    if site == BooleanSite::WordFormsOnly
+        && (is_numeric_spelling(word) || is_numeric_spelling(target))
+    {
+        return None;
+    }
     (target != word).then(|| target.to_owned())
 }
 
@@ -151,6 +227,60 @@ fn resolves_across_range(
         })
         .collect();
     tcl_registry::abbrev::resolve_over_versions(&tables, word).unique() == Some(canonical)
+}
+
+/// The option specs `scope` names on `spec`, for a release other than the
+/// document's own. Empty when that release's spec has no such table.
+fn options_for_scope(spec: &'static CommandSpec, scope: RangeTable<'_>) -> &'static [OptionSpec] {
+    match scope {
+        // Subcommand *words* are not a value position; nothing to say.
+        RangeTable::Subcommands => &[],
+        RangeTable::CommandOptions => spec.options,
+        RangeTable::SubcommandOptions(name) => spec
+            .subcommands
+            .iter()
+            .find(|s| s.name == name)
+            .map_or(&[][..], |sub| sub.options),
+    }
+}
+
+/// The boolean site every release of the document's target range agrees on for
+/// the value of `canonical` (issue #1257), starting from the target release's
+/// own verdict in `target`.
+///
+/// The word already resolves to `canonical` in the target, and
+/// [`resolves_across_range`] separately proves it still names that option in
+/// every release. This is the other half: the *role* has to hold too. A
+/// release that dropped the option, or that declares its value numeric-or-
+/// boolean where the target declares it boolean, drags the verdict down to the
+/// most conservative one — the formatter rewrites what is safe everywhere in
+/// the range or it rewrites nothing.
+///
+/// An empty range (the default, and every vendor dialect with no core version
+/// bit) means "no range was declared", so the target's own verdict stands.
+fn boolean_site_across_range(
+    config: &FormatterConfig,
+    cmd_name: &str,
+    scope: RangeTable<'_>,
+    canonical: &str,
+    target: BooleanSite,
+) -> BooleanSite {
+    let releases = tcl_registry::version_range::core_releases_in(config.target_range);
+    if releases.is_empty() {
+        return target;
+    }
+    releases.iter().fold(target, |site, release| {
+        let bits = DialectSet::parse(release);
+        let found = tcl_registry::registry_for_dialect(release)
+            .get(cmd_name)
+            .and_then(|spec| {
+                options_for_scope(spec, scope)
+                    .iter()
+                    .find(|opt| opt.matches(canonical) && opt.supports_dialect(bits, spec.dialects))
+                    .map(|opt| BooleanSite::of(opt.value_role()))
+            });
+        site.min(found.unwrap_or(BooleanSite::None))
+    })
 }
 
 /// The option table a command's leading subcommand word selects, and where the
@@ -301,14 +431,21 @@ pub(crate) fn rewrites_for_command(
             continue;
         };
         let consumed = opt.value_word_count(args, i);
-        // The option's value word, when the registry proves it is consumed as
-        // a boolean and nothing else.
+        // The option's value word, when the registry *declares* the position
+        // boolean (issue #1256) and every release of the target range agrees
+        // about both the option and its role (issue #1257).
+        let site = BooleanSite::of(opt.value_role());
         if consumed == 1
             && config.boolean_form != BooleanForm::Preserve
-            && opt.value_is_boolean()
+            && site != BooleanSite::None
             && touchable(i + 1)
+            && resolves_across_range(config, cmd_name, scope.range_table, word, canonical)
             && let Some(value) = args.get(i + 1)
-            && let Some(text) = canonical_boolean(value, config.boolean_form)
+            && let Some(text) = canonical_boolean(
+                value,
+                config.boolean_form,
+                boolean_site_across_range(config, cmd_name, scope.range_table, canonical, site),
+            )
         {
             out.push(KeywordRewrite { index: i + 1, text });
         }
@@ -409,6 +546,7 @@ mod tests {
 
     #[test]
     fn boolean_words_normalise_to_the_configured_form() {
+        let site = BooleanSite::Interchangeable;
         for (form, yes, no) in [
             (BooleanForm::TrueFalse, "true", "false"),
             (BooleanForm::YesNo, "yes", "no"),
@@ -416,23 +554,162 @@ mod tests {
             (BooleanForm::ZeroOne, "1", "0"),
         ] {
             assert_eq!(
-                canonical_boolean("t", form).as_deref(),
+                canonical_boolean("t", form, site).as_deref(),
                 Some(yes),
                 "{form:?}"
             );
             assert_eq!(
-                canonical_boolean("fals", form).as_deref(),
+                canonical_boolean("fals", form, site).as_deref(),
                 Some(no),
                 "{form:?}"
             );
             // Already in the target form — idempotent.
-            assert_eq!(canonical_boolean(yes, form), None, "{form:?}");
-            assert_eq!(canonical_boolean(no, form), None, "{form:?}");
+            assert_eq!(canonical_boolean(yes, form, site), None, "{form:?}");
+            assert_eq!(canonical_boolean(no, form, site), None, "{form:?}");
         }
         // `preserve` never rewrites.
-        assert_eq!(canonical_boolean("yes", BooleanForm::Preserve), None);
+        assert_eq!(canonical_boolean("yes", BooleanForm::Preserve, site), None);
         // A non-boolean, and the one ambiguous boolean prefix, abstain.
-        assert_eq!(canonical_boolean("x", BooleanForm::TrueFalse), None);
-        assert_eq!(canonical_boolean("o", BooleanForm::TrueFalse), None);
+        assert_eq!(canonical_boolean("x", BooleanForm::TrueFalse, site), None);
+        assert_eq!(canonical_boolean("o", BooleanForm::TrueFalse, site), None);
+        // A position that is not a boolean site at all never rewrites.
+        assert_eq!(
+            canonical_boolean("yes", BooleanForm::TrueFalse, BooleanSite::None),
+            None
+        );
+    }
+
+    #[test]
+    fn the_site_comes_from_the_declared_role() {
+        assert_eq!(
+            BooleanSite::of(Some(ArgRole::Boolean)),
+            BooleanSite::Interchangeable
+        );
+        assert_eq!(
+            BooleanSite::of(Some(ArgRole::NumericOrBoolean)),
+            BooleanSite::WordFormsOnly
+        );
+        assert_eq!(BooleanSite::of(Some(ArgRole::Value)), BooleanSite::None);
+        assert_eq!(BooleanSite::of(None), BooleanSite::None);
+        // The whole role space is covered: exactly one role is a boolean
+        // consumption site, and it is the one `consumes_boolean()` names.
+        for role in ArgRole::ALL {
+            assert_eq!(
+                BooleanSite::of(Some(*role)) == BooleanSite::Interchangeable,
+                role.consumes_boolean(),
+                "{role:?}"
+            );
+        }
+        // Most conservative wins when releases disagree.
+        assert_eq!(
+            BooleanSite::Interchangeable.min(BooleanSite::WordFormsOnly),
+            BooleanSite::WordFormsOnly
+        );
+        assert_eq!(
+            BooleanSite::WordFormsOnly.min(BooleanSite::None),
+            BooleanSite::None
+        );
+    }
+
+    /// A numeric-or-boolean position rewrites the word spellings and leaves
+    /// the numeric ones alone.
+    ///
+    /// tclsh-proof (8.6.14): `expr {yes ? 1 : 0}` → `1`, so `yes` at such a
+    /// position can only be the truth value — while `0` there is equally a
+    /// count, and `string is integer 0` → `1`. Moving a value between the two
+    /// languages the position accepts is the one thing the rewrite must not
+    /// do, in either direction.
+    #[test]
+    fn a_numeric_or_boolean_site_rewrites_only_word_spellings() {
+        let site = BooleanSite::WordFormsOnly;
+        // TP: an unambiguously boolean spelling normalises.
+        assert_eq!(
+            canonical_boolean("yes", BooleanForm::TrueFalse, site).as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            canonical_boolean("of", BooleanForm::TrueFalse, site).as_deref(),
+            Some("false")
+        );
+        // TN: `1`/`0` are numbers here — byte-identical round trip.
+        assert_eq!(canonical_boolean("1", BooleanForm::TrueFalse, site), None);
+        assert_eq!(canonical_boolean("0", BooleanForm::TrueFalse, site), None);
+        // TN: the `0/1` form has nothing safe to write at such a position, so
+        // even a word spelling is left alone.
+        for word in ["yes", "no", "true", "off"] {
+            assert_eq!(
+                canonical_boolean(word, BooleanForm::ZeroOne, site),
+                None,
+                "{word}"
+            );
+        }
+        // The same words at a purely boolean position do rewrite, including
+        // to the numeric form.
+        assert_eq!(
+            canonical_boolean("1", BooleanForm::TrueFalse, BooleanSite::Interchangeable).as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            canonical_boolean("yes", BooleanForm::ZeroOne, BooleanSite::Interchangeable).as_deref(),
+            Some("1")
+        );
+    }
+
+    #[test]
+    fn a_numeric_or_boolean_option_value_is_rewritten_through_the_registry() {
+        // No core command declares a bare numeric-or-boolean *option* value
+        // today, so the end-to-end path is exercised against a synthetic spec
+        // — the point being that the formatter reads the declared role and
+        // nothing else.
+        use tcl_registry::hover::{OptionSpec, OptionValue};
+
+        static OPTIONS: &[OptionSpec] = &[
+            OptionSpec {
+                name: "-validate",
+                value: OptionValue::numeric_or_boolean("level"),
+                detail: "A level count, or a boolean.",
+                ..OptionSpec::DEFAULT
+            },
+            OptionSpec {
+                name: "-strict",
+                value: OptionValue::boolean(),
+                detail: "Purely boolean.",
+                ..OptionSpec::DEFAULT
+            },
+        ];
+        let spec = CommandSpec {
+            name: "g26probe",
+            options: OPTIONS,
+            ..CommandSpec::DEFAULT
+        };
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(spec);
+        let run = |args: &[&str], form: BooleanForm| {
+            let owned: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
+            let dynamic = vec![false; owned.len()];
+            rewrites_for_command(
+                &registry,
+                None,
+                &config(false, form),
+                "g26probe",
+                &owned,
+                &dynamic,
+            )
+            .into_iter()
+            .map(|r| (r.index, r.text))
+            .collect::<Vec<_>>()
+        };
+        // TP: a word spelling at the numeric-or-boolean position normalises.
+        assert_eq!(
+            run(&["-validate", "yes"], BooleanForm::TrueFalse),
+            vec![(1, "true".to_owned())]
+        );
+        // TN: the numeric spelling is a count there, and keeps its bytes.
+        assert!(run(&["-validate", "0"], BooleanForm::TrueFalse).is_empty());
+        // The purely boolean option beside it rewrites either spelling.
+        assert_eq!(
+            run(&["-strict", "0"], BooleanForm::TrueFalse),
+            vec![(1, "false".to_owned())]
+        );
     }
 }
