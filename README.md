@@ -875,6 +875,34 @@ private variable and method visibility (TIP 500), and property/configurable
 support (TIP 558).  The VM executes TclOO code with 85% native test
 conformance against the Tcl 9.0.3 oo.test suite.
 
+Classes made by a **user-defined metaclass** are modelled too, including
+when the metaclass lives in a different file — the shape Tk's
+`library/megawidget.tcl` and `library/iconlist.tcl` use:
+
+```tcl
+# megawidget.tcl
+oo::class create ::tk::Megawidget {
+    superclass oo::class
+    self method create {name superclasses body} {
+        next $name [list superclass ::tk::MegawidgetClass {*}$superclasses]\;$body
+    }
+}
+
+# iconlist.tcl -- names the metaclass and nothing else about it
+::tk::Megawidget create IconList FocusableWidget {
+    method GetSpecs {} { ... }
+}
+# Outline lists IconList and its methods; hover shows
+# IconList -> ::tk::MegawidgetClass -> FocusableWidget
+```
+
+The server reads the metaclass's own `create` override to find which
+argument is the class name, which is its body, and which superclasses the
+override splices in.  When any of that cannot be proved — a metaclass named
+by a runtime value, or one the workspace scan never saw — it records nothing
+and reports nothing rather than inventing a class from a command that merely
+looks similar (`interp create`, `image create`).
+
 ### Compiler pipeline
 
 The server lowers source to an intermediate representation, builds a
