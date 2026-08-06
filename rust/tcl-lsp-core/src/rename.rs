@@ -492,46 +492,65 @@ pub fn rename_with_diagnosis(
     // Method rename — match `word` against any class's methods
     // / classmethods / properties at the cursor's byte offset.
     let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-    // The safety gate again, for the member *this* tier resolves.
-    //
-    // `pre_edit_refusal` can only speak for a cursor a trusted dispatch tier
-    // claims; this tier answers the rest — the method word inside an
-    // untracked `[$other X]`, the bareword in `export … X …` — and those are
-    // precisely the positions from which the idx-79 hazard used to emit a
-    // declaration-only edit set that breaks the program once applied. Asking
-    // the same question about the same member here makes the verdict
-    // independent of *which occurrence* the rename was triggered from
-    // (issue #923 idx 79, verification pass).
-    //
-    // It runs here rather than in `pre_edit_refusal` so the tier order is
-    // preserved exactly: a cursor an earlier tier claims (a local variable, a
-    // proc, a class) is renamed by that tier and never consulted about a
-    // same-spelled member.
+    gated_untargeted_member_rename(
+        source,
+        dialect,
+        (&word, new_name),
+        analysis,
+        cursor_offset,
+        &line_index,
+    )
+    .map(Option::unwrap_or_default)
+}
+
+/// The **untargeted** member-rename tier, behind the safety gate — the last
+/// tier [`rename_with_diagnosis`] tries, and the one that answers every
+/// cursor position no trusted dispatch tier claims.
+///
+/// `Err` is a refusal, `Ok(None)` means the cursor names no member here.
+///
+/// The gate runs *here* rather than in [`pre_edit_refusal`] so the tier order
+/// is preserved exactly: a cursor an earlier tier claims (a local variable, a
+/// proc, a class) is renamed by that tier and never consulted about a
+/// same-spelled member. And it runs at all because `pre_edit_refusal` can
+/// only speak for a cursor [`method_rename_target`] resolves — the member's
+/// own declaration name, a `my` dispatch, a tracked `$obj` dispatch. The
+/// positions this tier owns (the method word inside an untracked `[$other
+/// X]`, the bareword in `export … X …`) are precisely the ones from which the
+/// idx-79 hazard used to emit a declaration-only edit set that breaks the
+/// program once applied. Asking the same question about the same member here
+/// makes the verdict independent of *which occurrence* the rename was
+/// triggered from (issue #923 idx 79, verification pass).
+fn gated_untargeted_member_rename(
+    source: &str,
+    dialect: &str,
+    (word, new_name): (&str, &str),
+    analysis: &AnalysisResult,
+    cursor_offset: u32,
+    line_index: &LineIndex,
+) -> Result<Option<Vec<TextEdit>>, crate::rename_safety::RenameRefusal> {
     if let Some((seed_class, method, is_classmethod)) =
-        untargeted_member_rename_target(analysis, &word, cursor_offset)
+        untargeted_member_rename_target(analysis, word, cursor_offset)
         && let Some(refusal) = member_rename_hazard(
             source,
             dialect,
             analysis,
             (&seed_class, &method, is_classmethod),
             new_name,
-            &line_index,
+            line_index,
         )
     {
         return Err(refusal);
     }
-    if let Some(edits) = rename_method(
+    Ok(rename_method(
         source,
         dialect,
-        &word,
+        word,
         new_name,
         analysis,
         cursor_offset,
-        &line_index,
-    ) {
-        return Ok(edits);
-    }
-    Ok(Vec::new())
+        line_index,
+    ))
 }
 
 /// The refusal for a cursor sitting on a **namespace name** — a word the
@@ -3869,7 +3888,7 @@ mod tests {
 
     /// The exact source the trigger-position tests share — the copy-
     /// constructor shape from nico-robert/tomato's `Vector3d.tcl`, with the
-    /// `export` list the finding's WorkspaceEdit also rewrote.
+    /// `export` list the finding's `WorkspaceEdit` also rewrote.
     ///
     /// Line/column map (0-based):
     ///   4  col 23 — the `X` inside `[$other X]`   (untracked call site)

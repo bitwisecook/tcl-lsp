@@ -3413,7 +3413,7 @@ fn method_dispatch_hover(
 /// visible in the requesting document's own analysis. The real corpus shape
 /// is the opposite: `my ArgsPreprocess` in one file, the `mixin`/`superclass`
 /// that provides `ArgsPreprocess` in another (issue #923 idx 28 — the
-/// SpiceGenTcl `RModel` / `Utility` split). Go-to-definition and
+/// `SpiceGenTcl` `RModel` / `Utility` split). Go-to-definition and
 /// find-references already crossed that boundary through the workspace index;
 /// hover answered nothing, because `hover.rs` has no cross-document tier at
 /// all. Rather than grow one here — the index and the document store live in
