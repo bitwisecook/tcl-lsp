@@ -176,8 +176,16 @@ pub fn range_formatting(
     // against the whole document, not the slice, so a one-line selection in a
     // CRLF file is not re-emitted with `\n`.
     let line_ending = config.resolved_line_ending(source);
+    // The identity facts come from the **whole document**, not the slice: a
+    // `rename` above the selection still governs what the selected commands
+    // are (issue #1275).
+    let identities = tcl_compiler::head_identity::command_head_identities_with_config(
+        source,
+        config.lexer_config,
+        registry,
+    );
     let formatted_slice = finalise_slice(
-        &engine::format_body(&slice_text, config, registry, depth),
+        &engine::format_body(&slice_text, config, registry, &identities, depth),
         config,
         line_ending,
     );
