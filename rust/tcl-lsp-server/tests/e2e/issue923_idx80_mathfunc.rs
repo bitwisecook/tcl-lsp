@@ -111,7 +111,7 @@ fn caret(line: u32, ch: u32) -> Value {
 
 /// Titles offered at the `Pi()` call site (line 2) of [`VECTOR`].
 fn titles_at_pi(lsp: &mut Lsp, uri: &str) -> Vec<String> {
-    action_titles(&lsp.code_actions(uri, caret(2, 32), json!([])))
+    action_titles(&lsp.code_actions(uri, caret(2, 30), json!([])))
 }
 
 /// Titles offered at the genuinely-undefined call site (line 8) of [`VECTOR`].
