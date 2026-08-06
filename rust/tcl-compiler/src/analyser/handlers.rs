@@ -2970,7 +2970,7 @@ impl Analyser {
             return;
         };
         let entries: Vec<String> = elements.iter().map(ToString::to_string).collect();
-        self.record_namespace_path_element_refs(&args[1], arg_tokens.get(1), &ns);
+        self.record_namespace_path_element_refs(&args[1], arg_tokens.get(1), braced, &ns);
         self.namespace_paths.insert(ns, entries);
     }
 
@@ -2987,7 +2987,20 @@ impl Analyser {
     /// Silently does nothing when the word is not a braced/bare literal the
     /// span arithmetic can trust (`token` absent, or the element offsets fall
     /// outside it).
-    fn record_namespace_path_element_refs(&mut self, raw: &str, token: Option<&Token>, here: &str) {
+    ///
+    /// `word_braced` says whether the *whole* path word was brace-quoted. If
+    /// it was, no element substitutes however many `$`/`[` characters it
+    /// holds, so the per-element dynamism scan must be suppressed exactly as
+    /// the whole-word one already is (issue #1252) — otherwise `namespace
+    /// path {::$ns ::a}` records `::$ns` as a path entry but not as a
+    /// reference, and the same function disagrees with itself.
+    fn record_namespace_path_element_refs(
+        &mut self,
+        raw: &str,
+        token: Option<&Token>,
+        word_braced: bool,
+        here: &str,
+    ) {
         let Some(token) = token else { return };
         let base = token.span.start() + u32::from(token.content_offset);
         let mut scan = 0usize;
@@ -3000,7 +3013,7 @@ impl Analyser {
             let Some(text) = raw.get(start..end) else {
                 continue;
             };
-            if text.is_empty() || crate::naming::is_dynamic_word(text) {
+            if text.is_empty() || tcl_syntax::naming::word_is_dynamic(text, word_braced) {
                 continue;
             }
             let Ok(start_u32) = u32::try_from(start) else {
@@ -3618,8 +3631,11 @@ impl Analyser {
         // re-dispatches just `rename`/`proc` for every *additional* literal
         // element, since those are the only two commands go-to-definition/
         // references/rename need to see resolved here.
+        let list_braced = arg_tokens
+            .get(1)
+            .is_some_and(|tok| tok.kind == TokenType::Str);
         let literal_binding = (args.len() == 3)
-            .then(|| Self::literal_foreach_binding(&args[0], &args[1]))
+            .then(|| Self::literal_foreach_binding(&args[0], &args[1], list_braced))
             .flatten();
         if let Some((var, elements)) = &literal_binding
             && let Some(first) = elements.first()
@@ -3643,9 +3659,20 @@ impl Analyser {
     /// single plain identifier (not itself dynamic, not a multi-name list)
     /// bound to a Tcl-list-valued sequence of literal (non-dynamic)
     /// elements. Returns `(var, elements)`.
+    ///
+    /// `list_braced` says whether the value word was brace-quoted. Braces
+    /// suppress substitution across the whole word, so *every* element of a
+    /// braced list is literal however many `$`/`[` characters it holds — the
+    /// element text arrives with the braces stripped, and scanning it alone
+    /// made one odd element abstain from the whole simulation (issue #1252).
+    /// tclsh-proof (8.6.16 / 9.0.4):
+    ///   foreach n {aa {$b} cc} { puts $n }   ->  aa / $b / cc
+    /// i.e. the loop runs three times over literal values, and no read of
+    /// `b` happens at any point.
     fn literal_foreach_binding(
         var_list_text: &str,
         list_text: &str,
+        list_braced: bool,
     ) -> Option<(String, Vec<String>)> {
         let mut vars = var_list_text.split_whitespace();
         let var = vars.next()?;
@@ -3666,7 +3693,11 @@ impl Analyser {
             .into_iter()
             .map(std::borrow::Cow::into_owned)
             .collect();
-        if elements.is_empty() || elements.iter().any(|e| crate::naming::is_dynamic_word(e)) {
+        if elements.is_empty()
+            || elements
+                .iter()
+                .any(|e| tcl_syntax::naming::word_is_dynamic(e, list_braced))
+        {
             return None;
         }
         Some((var.to_owned(), elements))
