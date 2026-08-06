@@ -2763,17 +2763,27 @@ fn snit_install_is_a_member_body_binding_not_a_global_command() {
 fn bare_word_construction_is_declared_per_definer_family() {
     use tcl_registry::definer::{ITCL_GRAMMAR, SNIT_GRAMMAR, SNIT_WIDGET_GRAMMAR, TCLOO_GRAMMAR};
 
-    // snit(n), "The Type Command": `$type name ?args?` implies `create`.
-    assert!(SNIT_GRAMMAR.bare_word_construction);
-    assert!(SNIT_WIDGET_GRAMMAR.bare_word_construction);
-    // tclsh 9.0.4: `oo::class create ::C {}; ::C x` -> `unknown method "x"`.
-    assert!(!TCLOO_GRAMMAR.bare_word_construction);
-    assert!(!ITCL_GRAMMAR.bare_word_construction);
-
-    // Only snit injects member-body commands today; the others inject none.
-    assert!(SNIT_GRAMMAR.member_body_command("install").is_some());
-    assert!(TCLOO_GRAMMAR.member_body_command("install").is_none());
-    assert!(ITCL_GRAMMAR.member_body_command("install").is_none());
-    // An unknown word is not a member-body command of any family.
-    assert!(SNIT_GRAMMAR.member_body_command("nosuchword").is_none());
+    // snit(n), "The Type Command": `$type name ?args?` implies `create`;
+    // tclsh 9.0.4: `oo::class create ::C {}; ::C x` -> `unknown method "x"`,
+    // so only the snit family constructs by bare word.
+    let families = [
+        ("snit::type", &SNIT_GRAMMAR, true),
+        ("snit::widget", &SNIT_WIDGET_GRAMMAR, true),
+        ("TclOO", &TCLOO_GRAMMAR, false),
+        ("itcl::class", &ITCL_GRAMMAR, false),
+    ];
+    for (name, grammar, expected) in families {
+        assert_eq!(
+            grammar.bare_word_construction, expected,
+            "{name}: bare_word_construction"
+        );
+        // Only snit injects member-body commands today; the others inject none.
+        assert_eq!(
+            grammar.member_body_command("install").is_some(),
+            expected,
+            "{name}: member-body `install`"
+        );
+        // An unknown word is not a member-body command of any family.
+        assert!(grammar.member_body_command("nosuchword").is_none());
+    }
 }

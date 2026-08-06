@@ -229,6 +229,12 @@ pub(crate) fn command_head_identities(
 /// `rename OLD NEW` — `NEW` inherits `OLD`'s identity and `OLD` stops existing;
 /// `rename OLD {}` deletes `OLD` outright.
 fn record_rename(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &CommandRegistry) {
+    // `rename` takes exactly two arguments; any other arity is a `wrong # args`
+    // error that moves nothing, so a malformed call must state nothing rather
+    // than half a fact.
+    if args.len() != 2 {
+        return;
+    }
     let Some(old) = args.first() else { return };
     if !is_static_name(old) {
         // `rename $old new` — the source is unknown, so neither half of the
@@ -487,6 +493,52 @@ mod tests {
         assert!(map.is_empty(), "a foreign srcPath states no fact here");
     }
 
+    /// FP guard — a **safe / sub-interpreter** command table is not this
+    /// document's own, so hiding or exposing a command there states nothing
+    /// about a bare call here.
+    ///
+    /// tclsh-proof (9.0.4 / 8.6.16): `interp create -safe s; interp hide s
+    /// format` leaves the parent's `format %d 7` answering `7`, while
+    /// `s eval {format %d 7}` fails `invalid command name "format"`.
+    #[test]
+    fn a_safe_interpreters_hidden_command_states_nothing_here() {
+        for src in [
+            "interp create -safe s\n",
+            "interp hide s format\n",
+            "interp expose s format\n",
+            "interp invokehidden s format %d 7\n",
+        ] {
+            let map = map_for(src);
+            assert!(
+                map.is_empty(),
+                "a child interpreter's command table must state nothing here: {src}"
+            );
+        }
+    }
+
+    /// TN — a malformed call states nothing rather than half a fact.
+    #[test]
+    fn malformed_binding_calls_abstain() {
+        for src in [
+            // Arity too short for a rename / an alias creation.
+            "rename\n",
+            "rename format\n",
+            "interp alias\n",
+            "interp alias {}\n",
+            // Not the alias subcommand at all (`aliases` merely queries).
+            "interp aliases {}\n",
+            // `proc` with no name.
+            "proc\n",
+        ] {
+            let map = map_for(src);
+            assert_eq!(
+                map.resolve("format", u32::MAX),
+                HeadIdentity::Command("format"),
+                "a malformed binding must not disturb `format`: {src}"
+            );
+        }
+    }
+
     #[test]
     fn a_foreign_target_path_rebinds_without_aliasing() {
         let src = "interp alias {} myfmt slave format\n";
@@ -521,6 +573,9 @@ mod tests {
             "if {$x} { rename format origfmt }\n",
             "namespace eval ::n { proc format {a} { return 1 } }\n",
             "proc p {} { rename format origfmt }\n",
+            "eval { rename format origfmt }\n",
+            "uplevel #0 { rename format origfmt }\n",
+            "interp eval $child { rename format origfmt }\n",
         ] {
             assert!(map_for(src).is_empty(), "nested binding leaked: {src}");
         }
