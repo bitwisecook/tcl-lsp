@@ -2548,7 +2548,7 @@ fn existence_query_vars(stmt: &crate::ir::Statement) -> Vec<String> {
         _ => &[],
     };
     for t in texts {
-        if let Some(v) = existence_query_in_text(t.trim()) {
+        if let Some((v, _command)) = existence_query_in_text(t.trim()) {
             out.push(v);
         }
     }

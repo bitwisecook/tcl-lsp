@@ -678,39 +678,77 @@ pub fn expr_text(node: &ExprNode) -> String {
     }
 }
 
+/// Which command asked an existence question.
+///
+/// The two spellings are *not* interchangeable when the queried name is
+/// known to be a scalar: `info exists` answers "is this name bound",
+/// `array exists` answers "is this name bound **to an array**".  A consumer
+/// that folds the query to a constant has to know which one it is looking
+/// at (issue #1239).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExistenceCommand {
+    /// `info exists NAME` — true for any bound name, scalar or array.
+    Info,
+    /// `array exists NAME` — true only when `NAME` is bound to an array.
+    Array,
+}
+
+/// A recognised `[info exists X]` / `[array exists X]` existence query.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExistenceQuery {
+    /// The queried variable name, exactly as written.
+    pub var: String,
+    /// True for `![info exists X]` — the condition is the query's negation.
+    pub negated: bool,
+    /// Which of the two spellings asked.
+    pub command: ExistenceCommand,
+}
+
 /// Recognise an `[info exists X]` / `[array exists X]` existence-query
-/// condition, returning `(variable, negated)` where `negated` is true
-/// for `![info exists X]`.  Used to inject guarded-region
-/// read narrowing (`cfg_lower::lower_if`), suppress the existence-query
-/// word's W210 read, and fold the predicate to a constant (analyser I230).
+/// condition.  Used to inject guarded-region read narrowing
+/// (`cfg_lower::lower_if`), suppress the existence-query word's W210 read,
+/// and fold the predicate to a constant (analyser I230).
 ///
 /// Only the simple two-/three-word command-substitution form is matched
 /// (e.g. `[info exists name]`); anything embedded in a larger expression
 /// returns `None`.
 #[must_use]
-pub fn existence_query_var(node: &ExprNode) -> Option<(String, bool)> {
+pub fn existence_query_var(node: &ExprNode) -> Option<ExistenceQuery> {
     match node {
         ExprNode::Unary {
             op: UnaryOp::Not,
             operand,
-        } => existence_query_var(operand).map(|(v, neg)| (v, !neg)),
-        ExprNode::Command { text, .. } => existence_query_in_text(text).map(|v| (v, false)),
+        } => existence_query_var(operand).map(|q| ExistenceQuery {
+            negated: !q.negated,
+            ..q
+        }),
+        ExprNode::Command { text, .. } => {
+            existence_query_in_text(text).map(|(var, command)| ExistenceQuery {
+                var,
+                negated: false,
+                command,
+            })
+        }
         _ => None,
     }
 }
 
 /// Parse a bracketed command-substitution `text` (e.g. `"[info exists
-/// x]"`) and return the queried variable when it is exactly
-/// `info exists NAME` or `array exists NAME`.
+/// x]"`) and return the queried variable plus the spelling that asked, when
+/// it is exactly `info exists NAME` or `array exists NAME`.
 #[must_use]
-pub fn existence_query_in_text(text: &str) -> Option<String> {
+pub fn existence_query_in_text(text: &str) -> Option<(String, ExistenceCommand)> {
     let inner = text.strip_prefix('[')?.strip_suffix(']')?;
     let words: Vec<&str> = inner.split_whitespace().collect();
-    if words.len() == 3 && matches!(words[0], "info" | "array") && words[1] == "exists" {
-        Some(words[2].to_owned())
-    } else {
-        None
+    if words.len() != 3 || words[1] != "exists" {
+        return None;
     }
+    let command = match words[0] {
+        "info" => ExistenceCommand::Info,
+        "array" => ExistenceCommand::Array,
+        _ => return None,
+    };
+    Some((words[2].to_owned(), command))
 }
 
 #[cfg(test)]
