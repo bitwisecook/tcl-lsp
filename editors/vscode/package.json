@@ -3541,7 +3541,7 @@
               "null"
             ],
             "default": null,
-            "description": "Resolve diagnostics across the whole workspace: suppress \"unknown command\" (W120/W123) for a proc defined in another file, and report wrong-argument-count errors (E002/E003) for cross-file calls. Off by default (scans every workspace file); set true to enable. Independent of XC Migration diagnostics below.",
+            "description": "Resolve diagnostics across the whole workspace: suppress \"unknown command\" (W120/W123) for a proc defined in another file, and report wrong-argument-count errors (E002/E003) for cross-file calls. Off by default (scans every workspace file); set true to enable. An expr math function the workspace injects into ::tcl::mathfunc resolves without this setting, since that namespace is one table per interpreter. Independent of XC Migration diagnostics below.",
             "order": 27
           }
         }
