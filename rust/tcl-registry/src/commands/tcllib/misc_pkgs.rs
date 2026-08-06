@@ -484,7 +484,7 @@ const BIBTEX_PARSE_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-casesensitivestrings",
-        value: OptionValue::value("bool"),
+        value: OptionValue::boolean(),
         detail: "Treat @string macro names case-sensitively.",
         ..OptionSpec::DEFAULT
     },

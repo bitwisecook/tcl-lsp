@@ -101,7 +101,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-exportselection",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Whether the selection is exported to the X selection.",
         dialects: None,
         aliases: &[],

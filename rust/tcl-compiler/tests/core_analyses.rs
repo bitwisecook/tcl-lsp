@@ -48,7 +48,8 @@
 //! The analyser is deliberately conservative in a few places — it leaves a value
 //! `Overdefined` (sound: never substitutes a wrong constant) rather than folding
 //! a registry command, and it folds an existence check only for the two
-//! false-positive-free cases (a parameter always exists → true; a never-defined
+//! false-positive-free cases (a parameter always exists, as a scalar →
+//! `info exists` true / `array exists` false; a never-defined
 //! local never exists → false), declining flow-sensitive must-define / narrowing
 //! precision. None of these is unsound (no case folds a check C-Tcl leaves
 //! dynamic, nor suppresses a genuine read-before-set), so each is asserted at the
@@ -1114,6 +1115,152 @@ mod provably_present_folds_true {
         // tclsh: `set X 1; unset X; info exists X` → 0.
         let src = "proc p {} { set X 1; unset X; if {[info exists X]} { puts a } else { puts b } }";
         assert!(!i230_messages(src).iter().any(|m| m.contains("always true")));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Issue #1239 — `array exists PARAM` is constant **false**, not constant true.
+//
+// A formal parameter is bound as a scalar on entry (Tcl has no
+// pass-an-array-by-value), so the two existence spellings disagree on it. The
+// fold used to collapse both into one query shape and report `true` for each,
+// which inverted I230's live-branch report and made O101 fold the arm that
+// actually runs.
+//
+// tclsh-proof (8.6.16 / 9.0.4):
+//   proc f {a} { if {[array exists a]} { puts yes } else { puts no } }
+//   f 1                       ;# → no
+//   proc g {a} { info exists a }
+//   g 1                       ;# → 1
+//   proc h {a} { array set a {x 1} }
+//   h 1                       ;# → can't set "a(x)": variable isn't array
+//   proc k {a} { unset a; array set a {x 1}; array exists a }
+//   k 1                       ;# → 1
+// ---------------------------------------------------------------------------
+mod array_exists_parameter_is_false {
+    use super::*;
+
+    /// The `ConstantBranch` values recorded for `::p`'s existence fold.
+    fn branch_values(src: &str) -> Vec<bool> {
+        let cu = build(src);
+        let fn_p = cu.procedures.get("::p").expect("::p lowered");
+        fn_p.sccp
+            .constant_branches
+            .iter()
+            .map(|b| b.value)
+            .collect()
+    }
+
+    #[test]
+    fn tp_array_exists_parameter_folds_false() {
+        // TP: the fold fires, with value false — the `else` arm is the live one.
+        let src = "proc p {a} { if {[array exists a]} { puts dead } else { puts runs } }";
+        assert!(
+            i230_messages(src)
+                .iter()
+                .any(|m| m.contains("always false")),
+            "expected an 'always false' I230; got {:?}",
+            i230_messages(src)
+        );
+        assert_eq!(branch_values(src), vec![false]);
+    }
+
+    #[test]
+    fn tp_negated_array_exists_parameter_folds_true() {
+        // `![array exists a]` on a parameter → always true.
+        let src = "proc p {a} { if {![array exists a]} { puts runs } else { puts dead } }";
+        assert!(
+            i230_messages(src).iter().any(|m| m.contains("always true")),
+            "expected an 'always true' I230; got {:?}",
+            i230_messages(src)
+        );
+        assert_eq!(branch_values(src), vec![true]);
+    }
+
+    #[test]
+    fn tp_o101_folds_the_dead_arm_not_the_live_one() {
+        // O101/DCE consumes the recorded branch: the taken target must be the
+        // `else` block, and the unreachable arm the `then` block.
+        let src = "proc p {a} { if {[array exists a]} { puts dead } else { puts runs } }";
+        let cu = build(src);
+        let fn_p = cu.procedures.get("::p").expect("::p lowered");
+        let branch = fn_p
+            .sccp
+            .constant_branches
+            .first()
+            .expect("a constant branch is recorded");
+        assert!(
+            !branch.taken_target.contains("then"),
+            "the then arm must not be the taken target; got {branch:?}"
+        );
+        assert!(
+            branch.not_taken_target.contains("then"),
+            "the then arm must be the dead target; got {branch:?}"
+        );
+    }
+
+    #[test]
+    fn fp_info_exists_parameter_still_folds_true() {
+        // FP guard: the `info` spelling is unchanged — a parameter exists.
+        let src = "proc p {a} { if {[info exists a]} { puts runs } else { puts dead } }";
+        assert!(
+            i230_messages(src).iter().any(|m| m.contains("always true")),
+            "the info spelling must still fold true; got {:?}",
+            i230_messages(src)
+        );
+        assert_eq!(branch_values(src), vec![true]);
+    }
+
+    #[test]
+    fn fp_array_exists_never_defined_local_still_folds_false() {
+        // FP guard: the never-defined direction is spelling-independent —
+        // absent is absent under both. tclsh: `array exists FOO` → 0.
+        let src = "proc p {} { if {[array exists FOO]} { puts dead } else { puts runs } }";
+        assert_eq!(branch_values(src), vec![false]);
+    }
+
+    #[test]
+    fn tn_unset_parameter_abstains() {
+        // TN: `unset a` removes the scalar binding, after which `array set a`
+        // legitimately makes `a` an array — the fold must abstain, as it
+        // already did for the `info` spelling.
+        for src in [
+            "proc p {a} { unset a; array set a {x 1}; if {[array exists a]} { puts x } else { puts y } }",
+            "proc p {a} { unset a; if {[array exists a]} { puts x } else { puts y } }",
+        ] {
+            assert!(
+                branch_values(src).is_empty(),
+                "an unset parameter must abstain; got {:?} for {src:?}",
+                i230_messages(src)
+            );
+        }
+    }
+
+    #[test]
+    fn tn_dynamic_destroy_abstains() {
+        // TN: `unset $n` can name the parameter, so the same abstention as the
+        // `info` spelling applies. tclsh 9.0.4 / 8.6.16:
+        //   proc f {p n} { unset $n; array set p {x 1}; array exists p }
+        //   f hello p  → 1
+        let src = "proc p {a n} { unset $n; if {[array exists a]} { puts x } else { puts y } }";
+        assert!(
+            branch_values(src).is_empty(),
+            "a dynamic destroy must abstain; got {:?}",
+            i230_messages(src)
+        );
+    }
+
+    #[test]
+    fn tn_array_parameter_with_upvar_alias_abstains() {
+        // TN: an `upvar`-bound local tracks the linked variable, which may well
+        // be an array — never folded either way, both spellings.
+        let src =
+            "proc p {name} { upvar 1 $name a; if {[array exists a]} { puts x } else { puts y } }";
+        assert!(
+            branch_values(src).is_empty(),
+            "an upvar alias must abstain; got {:?}",
+            i230_messages(src)
+        );
     }
 }
 

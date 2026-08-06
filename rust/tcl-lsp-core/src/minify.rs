@@ -1679,15 +1679,19 @@ fn command_word_runs(sm: &SourceMap, tokens: &[Token]) -> Vec<Vec<CommandWord>> 
 
 /// The core-Tcl registries for every release *after* `dialect`, so a prefix
 /// that a later Tcl makes ambiguous is never emitted.
+///
+/// The range and its packs come from
+/// [`tcl_registry::version_range`] — the one helper the formatter and the
+/// analyser share — rather than a release list kept here (issue #1257). The
+/// target's own pack is dropped because the caller already holds it and
+/// [`keyword_tables`] puts it first.
 fn later_core_registries(dialect: &str) -> Vec<&'static CommandRegistry> {
-    const CORE_ORDER: &[&str] = &["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"];
-    let Some(pos) = CORE_ORDER.iter().position(|d| *d == dialect) else {
-        return Vec::new();
-    };
-    CORE_ORDER[pos + 1..]
-        .iter()
-        .map(|d| tcl_registry::registry_for_dialect(d))
-        .collect()
+    use tcl_registry::version_range::{forward_range, registries_over_range};
+    let mut packs = registries_over_range(forward_range(dialect));
+    if !packs.is_empty() {
+        packs.remove(0);
+    }
+    packs
 }
 
 /// Shorten every abbreviable keyword word of one command.

@@ -194,3 +194,167 @@ fn formatting_never_changes_a_range_it_was_not_asked_about() {
         "the second line is outside the range: {text}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Issue #1256 — the boolean consumption site is a declared registry fact
+// (`ArgRole::Boolean`), not something inferred from an option's value set.
+//
+// tclsh-proof (8.6.16 / 9.0.4): the value's bytes are consumed and discarded,
+// so every spelling of the same truth value is interchangeable —
+//   set c [open /dev/null]
+//   chan configure $c -blocking yes ; chan configure $c -blocking   ;# -> 1
+//   chan configure $c -blocking off ; chan configure $c -blocking   ;# -> 0
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_declared_boolean_option_value_normalises() {
+    // Before the fact existed, the inference reached exactly two options in
+    // the whole registry (`tcltest::configure -limitconstraints`/
+    // `-singleproc`); every core boolean option was invisible to it.
+    for (src, want) in [
+        ("fconfigure $c -blocking yes\n", "-blocking true"),
+        ("fconfigure $c -blocking 0\n", "-blocking false"),
+        ("socket -server $cb -reuseaddr on 0\n", "-reuseaddr true"),
+        ("clock format $t -gmt 1\n", "-gmt true"),
+    ] {
+        let out = default_fmt(src);
+        assert!(out.contains(want), "{src} -> {out}");
+    }
+}
+
+#[test]
+fn the_configured_form_reaches_a_declared_boolean_option() {
+    for (form, want) in [
+        (BooleanForm::YesNo, "-blocking yes"),
+        (BooleanForm::OnOff, "-blocking on"),
+        (BooleanForm::ZeroOne, "-blocking 1"),
+    ] {
+        let config = FormatterConfig {
+            boolean_form: form,
+            ..FormatterConfig::default()
+        };
+        let out = fmt("fconfigure $c -blocking true\n", &config);
+        assert!(out.contains(want), "{form:?} -> {out}");
+    }
+}
+
+#[test]
+fn a_non_boolean_option_value_is_never_rewritten() {
+    // TN: `-translation` takes an enum, `-buffersize` a count. Neither is a
+    // boolean consumption site, so `binary`/`1` keep their bytes.
+    let out = default_fmt("fconfigure $c -translation binary -buffersize 1\n");
+    assert!(out.contains("-translation binary"), "{out}");
+    assert!(out.contains("-buffersize 1"), "{out}");
+}
+
+#[test]
+fn boolean_option_rewriting_is_idempotent() {
+    let once = default_fmt("fconfigure $c -blocking yes\n");
+    assert_eq!(once, default_fmt(&once));
+}
+
+#[test]
+fn a_dynamic_boolean_option_value_abstains() {
+    // FP guard: the value is a substitution, so there are no bytes to
+    // canonicalise.
+    let out = default_fmt("fconfigure $c -blocking $flag\n");
+    assert!(out.contains("-blocking $flag"), "{out}");
+}
+
+// ---------------------------------------------------------------------------
+// Issue #1257 — the formatter config carries the document's dialect and target
+// version range, so a version-range-aware rewrite can apply it.
+//
+// tclsh ground truth: `string c` is unique in 8.5 (only `compare` starts with
+// `c`) but ambiguous in 8.6+, where `string cat` arrived —
+//   tclsh8.5: string c abc abc  -> 0
+//   tclsh8.6: string c abc abc  -> ambiguous subcommand "c": must be ...
+// so expanding `string c` to `string compare` in a file that may be run on
+// 8.6 changes what a newer interpreter does with the source.
+// ---------------------------------------------------------------------------
+
+/// Format `src` against `dialect`'s registry, with the target range set to
+/// that release and every later one.
+fn fmt_over_range(src: &str, dialect: &str) -> String {
+    let registry = tcl_registry::registry_for_dialect(dialect);
+    let config = FormatterConfig {
+        dialect: Some(dialect.to_owned()),
+        target_range: tcl_registry::version_range::forward_range(dialect),
+        ..FormatterConfig::default()
+    };
+    format_tcl(src, &config, registry)
+}
+
+/// Format `src` against `dialect`'s registry with no declared range — the
+/// pre-#1257 behaviour, kept as the control.
+fn fmt_no_range(src: &str, dialect: &str) -> String {
+    let registry = tcl_registry::registry_for_dialect(dialect);
+    format_tcl(src, &FormatterConfig::default(), registry)
+}
+
+#[test]
+fn the_default_config_declares_no_range() {
+    let cfg = FormatterConfig::default();
+    assert_eq!(cfg.dialect, None);
+    assert!(cfg.target_range.is_empty());
+    // No dialect and no range: every declared keyword stays a candidate, the
+    // pre-#1257 conservative direction. `string c` is ambiguous under that
+    // rule (8.6's `cat` is in the table whatever the target), so it is left
+    // alone — unchanged behaviour.
+    assert!(fmt_no_range("string c $a $b\n", "tcl8.5").contains("string c $a $b"));
+}
+
+#[test]
+fn a_prefix_ambiguous_later_in_the_range_is_not_expanded() {
+    // `info e` is unique in 8.4 — `exists` is the only `e…` subcommand — but
+    // `info errorstack` (9.0) collides at `e`. Declaring the range makes the
+    // 8.4 table precise *and* keeps the expansion off, because the whole
+    // range must agree.
+    //
+    // tclsh ground truth:
+    //   tclsh8.4: info e x        -> 0          (resolves to `info exists`)
+    //   tclsh9.0: info e x        -> ambiguous option "e": must be args, ...
+    let out = fmt_over_range("info e x\n", "tcl8.4");
+    assert!(out.contains("info e x"), "{out}");
+    assert!(!out.contains("info exists"), "{out}");
+}
+
+#[test]
+fn a_subcommand_a_later_release_removes_is_not_expanded() {
+    // `trace vd` is `vdelete` in 8.4/8.5 and the subcommand is gone in 9.0,
+    // so no spelling of it survives the whole range. Not expanded.
+    //
+    // tclsh ground truth:
+    //   tclsh8.5: trace vdelete x w handler   -> ok (deprecated form)
+    //   tclsh9.0: trace vdelete ...           -> unknown option "vdelete"
+    let out = fmt_over_range("trace vd x w handler\n", "tcl8.5");
+    assert!(out.contains("trace vd x w handler"), "{out}");
+    assert!(!out.contains("vdelete"), "{out}");
+}
+
+#[test]
+fn a_prefix_unique_across_the_whole_range_still_expands() {
+    // TN: `le` is `length` in every release from 8.5 on, so the range check
+    // does not cost the ordinary expansion.
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+        let out = fmt_over_range("string le $s\n", dialect);
+        assert!(out.contains("string length $s"), "{dialect} -> {out}");
+    }
+}
+
+#[test]
+fn an_option_prefix_is_checked_over_the_range_too() {
+    // The same rule applies to option words, not just subcommands.
+    let out = fmt_over_range("lsearch -noc $x $p\n", "tcl8.6");
+    assert!(out.contains("lsearch -nocase $x $p"), "{out}");
+}
+
+#[test]
+fn a_vendor_dialect_has_no_core_range_and_behaves_as_before() {
+    // `f5-irules` names a runtime, not a core release: the forward range is
+    // empty, so the handed registry stays the whole story.
+    let cfg_range = tcl_registry::version_range::forward_range("f5-irules");
+    assert!(cfg_range.is_empty());
+    let out = fmt_over_range("string le $s\n", "f5-irules");
+    assert!(out.contains("string length $s"), "{out}");
+}

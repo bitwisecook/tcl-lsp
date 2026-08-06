@@ -124,23 +124,6 @@ const PRESERVECORE_LEVELS: &[ArgValue] = &[
     },
 ];
 
-/// Boolean values (`AcceptBoolean`) — the two canonical spellings; Tcl also
-/// accepts `true`/`false`/`yes`/`no`/`on`/`off`, so the set is not closed.
-const BOOL_VALUES: &[ArgValue] = &[
-    ArgValue {
-        value: "0",
-        detail: "off",
-        min_tcl: None,
-        code: None,
-    },
-    ArgValue {
-        value: "1",
-        detail: "on",
-        min_tcl: None,
-        code: None,
-    },
-];
-
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-verbose",
@@ -192,13 +175,13 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-limitconstraints",
-        value: OptionValue::enumerated(BOOL_VALUES, false, "boolean"),
+        value: OptionValue::boolean(),
         detail: "run only tests with the listed constraints",
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-singleproc",
-        value: OptionValue::enumerated(BOOL_VALUES, false, "boolean"),
+        value: OptionValue::boolean(),
         detail: "run all tests in one process rather than one per file",
         ..OptionSpec::DEFAULT
     },

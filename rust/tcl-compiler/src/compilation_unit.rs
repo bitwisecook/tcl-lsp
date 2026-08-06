@@ -42,7 +42,7 @@ use crate::memory_ssa::{MemorySsaFunction, build_memory_ssa};
 use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
 use crate::sccp::{SccpResult, sccp_with_extra_escaping};
 use crate::ssa::{SsaFunction, ValueKey, build_ssa};
-use crate::taint::{TaintLattice, propagate_taints};
+use crate::taint::{TaintGraph, TaintLattice, propagate_taints};
 use crate::type_infer::propagate_types;
 use crate::types::TypeLattice;
 use crate::unit_scope::{
@@ -648,9 +648,7 @@ impl FunctionUnit {
         );
         let rendered_props = propagate_rendered_props(&cfg, &ssa, &sccp, registry);
         let taints = propagate_taints(
-            &cfg,
-            &ssa,
-            &sccp,
+            &TaintGraph::new(&cfg, &ssa, &sccp),
             registry,
             Some(&rendered_props),
             None,
@@ -755,9 +753,7 @@ impl FunctionUnit {
         dialect: Option<&str>,
     ) -> HashMap<ValueKey, TaintLattice> {
         propagate_taints(
-            &self.cfg,
-            &self.ssa,
-            &self.sccp,
+            &TaintGraph::new(&self.cfg, &self.ssa, &self.sccp),
             registry,
             Some(&self.rendered_props),
             Some(ia),
@@ -1578,9 +1574,11 @@ impl CompilationUnit {
         // `interproc` immutably while each function unit re-runs
         // `propagate_taints`.
         self.top_level.taints = Arc::new(propagate_taints(
-            &self.top_level.cfg,
-            &self.top_level.ssa,
-            &self.top_level.sccp,
+            &TaintGraph::new(
+                &self.top_level.cfg,
+                &self.top_level.ssa,
+                &self.top_level.sccp,
+            ),
             registry,
             Some(&self.top_level.rendered_props),
             Some(&interproc),
@@ -1590,9 +1588,7 @@ impl CompilationUnit {
         ));
         for fu in self.procedures.values_mut() {
             fu.taints = Arc::new(propagate_taints(
-                &fu.cfg,
-                &fu.ssa,
-                &fu.sccp,
+                &TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp),
                 registry,
                 Some(&fu.rendered_props),
                 Some(&interproc),

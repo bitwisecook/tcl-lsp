@@ -527,6 +527,14 @@ fn context_aware_completions(
         if !values.is_empty() {
             return Some(arg_value_completions(values, partial));
         }
+        // A boolean-valued option has no enumerable `values` — Tcl accepts
+        // every spelling `abbrev::boolean_table` resolves, prefixes included,
+        // which a closed set cannot express. The registry says so with
+        // `ArgRole::Boolean` (issue #1256), and the vocabulary comes from the
+        // one place that models it.
+        if opt.value_is_boolean() {
+            return Some(boolean_value_completions(partial));
+        }
     }
     // Command-level positional arg-value completion — the
     // bareword value sets declared directly on the command
@@ -1817,6 +1825,35 @@ fn nth_word_on_line(source: &str, line: u32, n: usize) -> Option<String> {
 /// values (e.g. `string is <class>`), filtered by `partial`.
 fn arg_value_completions(values: &[tcl_registry::ArgValue], partial: &str) -> Vec<CompletionItem> {
     arg_value_completions_from(values.iter().collect(), partial)
+}
+
+/// Build completions for a value position the registry declares boolean
+/// (`ArgRole::Boolean`), filtered by `partial`.
+///
+/// The vocabulary is `tcl_registry::abbrev::BOOLEAN_KEYWORDS` — the same list
+/// `resolve_boolean` accepts, so completion, the formatter's canonical-boolean
+/// rewrite, and the analyser cannot disagree about what a boolean word is.
+fn boolean_value_completions(partial: &str) -> Vec<CompletionItem> {
+    let candidates: Vec<&&str> = tcl_registry::abbrev::BOOLEAN_KEYWORDS.iter().collect();
+    let FilteredCandidates { candidates, fuzzy } = filter_candidates(partial, candidates, |v| **v);
+    let mut items: Vec<CompletionItem> = candidates
+        .into_iter()
+        .map(|value| CompletionItem {
+            label: (*value).to_owned(),
+            insert_text: (*value).to_owned(),
+            kind: CompletionKind::EnumValue,
+            detail: Some("boolean".to_owned()),
+            sort_text: None,
+            is_snippet: false,
+            filter_text: None,
+            text_edit: None,
+            documentation: None,
+        })
+        .collect();
+    if fuzzy {
+        decorate_fuzzy_items(&mut items, partial);
+    }
+    items
 }
 
 fn arg_value_completions_from(

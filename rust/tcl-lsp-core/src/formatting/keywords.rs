@@ -41,19 +41,22 @@
 //! * Strict tables are never touched.
 //! * Command names are never touched: Tcl does not prefix-match them.
 //! * A dynamic word (`$sub`, `[pick]`, `{*}`-expanded) abstains.
-//! * A boolean word is rewritten **only** at a consumption site the registry
-//!   proves boolean. A value-definition site (`set flag yes`) keeps its
+//! * A boolean word is rewritten **only** where the registry declares
+//!   [`tcl_registry::ArgRole::Boolean`] — the word is consumed through
+//!   `Tcl_GetBooleanFromObj` and its bytes are never otherwise observable
+//!   (issue #1256). A value-definition site (`set flag yes`) keeps its
 //!   bytes, because `$flag` may later meet `eq "yes"`, a `switch` arm, or a
 //!   log line — `true` and `yes` are different strings even though both are
 //!   truthy.
-//! * `0`/`1` are also valid integers, so a site whose role is
-//!   numeric-or-boolean abstains rather than guess.
+//! * `0`/`1` are also valid integers, so a
+//!   [`tcl_registry::ArgRole::NumericOrBoolean`] position is a distinct
+//!   declared fact and abstains rather than guess.
 //!
 //! Both rewrites are idempotent: a canonical spelling resolves to itself, and
 //! the configured boolean form maps to itself.
 
 use tcl_registry::CommandRegistry;
-use tcl_registry::abbrev::KeywordMatch;
+use tcl_registry::abbrev::PrefixMatching;
 use tcl_registry::hover::OptionSpec;
 use tcl_registry::prelude::DialectSet;
 
@@ -88,6 +91,117 @@ fn canonical_boolean(word: &str, form: BooleanForm) -> Option<String> {
     (target != word).then(|| target.to_owned())
 }
 
+/// Which keyword table of a command the version-range check should build.
+#[derive(Debug, Clone, Copy)]
+enum RangeTable<'a> {
+    /// The ensemble's subcommand words.
+    Subcommands,
+    /// The command's own option words (a command with no subcommands).
+    CommandOptions,
+    /// The named subcommand's option words.
+    SubcommandOptions(&'a str),
+}
+
+/// Whether `word` still resolves to `canonical` in **every** release of the
+/// document's target range (issue #1257).
+///
+/// The target release has already answered `Unique(canonical)` — this is the
+/// forward-compatibility half: a prefix unique today can become ambiguous
+/// when a later Tcl adds a keyword (`string cat` arrived in 8.6.2 and
+/// shortened what `string c…` could mean), and expanding it would rewrite
+/// source that a newer interpreter reads differently.
+///
+/// An empty range (the default, and every vendor dialect with no core version
+/// bit) means "no range was declared", so the target's own answer stands —
+/// the pre-existing behaviour. A release that no longer carries the command
+/// contributes an empty table, which can never vouch for the word, so the
+/// rewrite is abandoned.
+fn resolves_across_range(
+    config: &FormatterConfig,
+    cmd_name: &str,
+    scope: RangeTable<'_>,
+    word: &str,
+    canonical: &str,
+) -> bool {
+    let releases = tcl_registry::version_range::core_releases_in(config.target_range);
+    if releases.is_empty() {
+        return true;
+    }
+    let empty =
+        || tcl_registry::abbrev::KeywordTable::new(std::iter::empty(), PrefixMatching::Enabled);
+    let tables: Vec<_> = releases
+        .iter()
+        .map(|release| {
+            // Each release's table is filtered by *its own* dialect bit — a
+            // keyword added in 9.0 is a candidate in 9.0's table and not in
+            // 8.6's, which is what makes the range question meaningful.
+            let bits = DialectSet::parse(release);
+            let Some(spec) = tcl_registry::registry_for_dialect(release).get(cmd_name) else {
+                return empty();
+            };
+            match scope {
+                RangeTable::Subcommands => spec.subcommand_table(bits, None, None),
+                RangeTable::CommandOptions => spec.option_table(bits, None, None),
+                RangeTable::SubcommandOptions(name) => spec
+                    .subcommands
+                    .iter()
+                    .find(|s| s.name == name)
+                    .map_or_else(empty, |sub| sub.option_table(bits, None, None)),
+            }
+        })
+        .collect();
+    tcl_registry::abbrev::resolve_over_versions(&tables, word).unique() == Some(canonical)
+}
+
+/// The option table a command's leading subcommand word selects, and where the
+/// option scan starts.
+struct OptionScope {
+    /// The option specs to resolve `-option` words against.
+    options: &'static [OptionSpec],
+    /// The table's prefix-matching strictness.
+    prefix: PrefixMatching,
+    /// Which table the version-range check should rebuild per release.
+    range_table: RangeTable<'static>,
+    /// The first argument index the option scan looks at.
+    start: usize,
+}
+
+/// Resolve an ensemble's subcommand word, pushing its expansion rewrite when
+/// one applies, and return the option scope it selects.
+///
+/// `None` when the word is ambiguous or unknown — the formatter never guesses,
+/// and it cannot know which option table applies either.
+fn subcommand_scope(
+    spec: &tcl_registry::CommandSpec,
+    dialect: Option<DialectSet>,
+    config: &FormatterConfig,
+    cmd_name: &str,
+    word: &str,
+    out: &mut Vec<KeywordRewrite>,
+) -> Option<OptionScope> {
+    let canonical = spec
+        .resolve_subcommand_word(word, dialect, None, None)
+        .unique()?;
+    if config.expand_abbreviations
+        && canonical != word
+        && resolves_across_range(config, cmd_name, RangeTable::Subcommands, word, canonical)
+    {
+        out.push(KeywordRewrite {
+            index: 0,
+            text: canonical.to_owned(),
+        });
+    }
+    let sub = spec.subcommands.iter().find(|s| s.name == canonical);
+    Some(OptionScope {
+        options: sub.map_or(spec.options, |sub| sub.options),
+        prefix: sub.map_or(spec.prefix_matching, |sub| sub.prefix_matching),
+        range_table: sub.map_or(RangeTable::CommandOptions, |sub| {
+            RangeTable::SubcommandOptions(sub.name)
+        }),
+        start: 1,
+    })
+}
+
 /// Compute every keyword rewrite for one command invocation.
 ///
 /// `args` are the written argument words (after the command name).
@@ -115,37 +229,29 @@ pub(crate) fn rewrites_for_command(
     let mut out: Vec<KeywordRewrite> = Vec::new();
 
     // The subcommand word, and the option table it selects.
-    let mut options: &'static [OptionSpec] = spec.options;
-    let mut start = 0usize;
-    let mut sub_prefix = spec.prefix_matching;
-    if !spec.subcommands.is_empty() {
+    let scope = if spec.subcommands.is_empty() {
+        OptionScope {
+            options: spec.options,
+            prefix: spec.prefix_matching,
+            range_table: RangeTable::CommandOptions,
+            start: 0,
+        }
+    } else {
         if !touchable(0) {
             return out;
         }
-        let word = &args[0];
-        match spec.resolve_subcommand_word(word, dialect, None, None) {
-            KeywordMatch::Unique(canonical) => {
-                if config.expand_abbreviations && canonical != word {
-                    out.push(KeywordRewrite {
-                        index: 0,
-                        text: canonical.to_owned(),
-                    });
-                }
-                if let Some(sub) = spec.subcommands.iter().find(|s| s.name == canonical) {
-                    options = sub.options;
-                    sub_prefix = sub.prefix_matching;
-                }
-            }
+        match subcommand_scope(spec, dialect, config, cmd_name, &args[0], &mut out) {
+            Some(scope) => scope,
             // Ambiguous or unknown: the formatter never guesses, and it
             // cannot know which option table applies either.
-            KeywordMatch::Ambiguous(_) | KeywordMatch::Unknown => return out,
+            None => return out,
         }
-        start = 1;
-    }
+    };
 
-    if options.is_empty() {
+    if scope.options.is_empty() {
         return out;
     }
+    let options = scope.options;
     let table = tcl_registry::abbrev::KeywordTable::from_keywords(
         options
             .iter()
@@ -158,10 +264,10 @@ pub(crate) fn rewrites_for_command(
                         min_abbrev: opt.min_abbrev,
                     })
             }),
-        sub_prefix,
+        scope.prefix,
     );
 
-    let mut i = start;
+    let mut i = scope.start;
     while i < args.len() {
         let word = args[i].as_str();
         if word == "--" {
@@ -181,7 +287,10 @@ pub(crate) fn rewrites_for_command(
             i += 1;
             continue;
         };
-        if config.expand_abbreviations && canonical != word {
+        if config.expand_abbreviations
+            && canonical != word
+            && resolves_across_range(config, cmd_name, scope.range_table, word, canonical)
+        {
             out.push(KeywordRewrite {
                 index: i,
                 text: canonical.to_owned(),
@@ -196,7 +305,7 @@ pub(crate) fn rewrites_for_command(
         // a boolean and nothing else.
         if consumed == 1
             && config.boolean_form != BooleanForm::Preserve
-            && option_value_is_boolean(opt)
+            && opt.value_is_boolean()
             && touchable(i + 1)
             && let Some(value) = args.get(i + 1)
             && let Some(text) = canonical_boolean(value, config.boolean_form)
@@ -206,24 +315,6 @@ pub(crate) fn rewrites_for_command(
         i += 1 + consumed;
     }
     out
-}
-
-/// Whether this option's value is consumed *purely* as a boolean.
-///
-/// The signal is the option's own declared value set: a closed set that is
-/// exactly the boolean vocabulary. A set that also admits integers, or an
-/// open value, abstains — `0`/`1` are valid integers too, so a
-/// numeric-or-boolean site must not be rewritten.
-fn option_value_is_boolean(opt: &OptionSpec) -> bool {
-    let values = opt.value_values();
-    if values.is_empty() || opt.value_integer_domain().is_some() {
-        return false;
-    }
-    values
-        .iter()
-        .all(|v| tcl_registry::abbrev::resolve_boolean(v.value).is_some())
-        // A single-valued set is a literal keyword, not a boolean pair.
-        && values.len() >= 2
 }
 
 #[cfg(test)]

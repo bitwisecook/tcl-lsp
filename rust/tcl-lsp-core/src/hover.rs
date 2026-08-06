@@ -1137,6 +1137,20 @@ fn option_hover_text(
     if opt.takes_value() && !opt.value_hint().is_empty() {
         let _ = write!(out, "\nTakes a `{}` value.\n", opt.value_hint());
     }
+    // A boolean-valued option accepts the whole boolean vocabulary, prefixes
+    // included — a fact the registry now declares (`ArgRole::Boolean`, issue
+    // #1256) rather than something a reader has to know.
+    if opt.value_is_boolean() {
+        let _ = write!(
+            out,
+            "\nAccepts any boolean spelling: {}.\n",
+            tcl_registry::abbrev::BOOLEAN_KEYWORDS
+                .iter()
+                .map(|k| format!("`{k}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
     // §5.2 profile gating: intersects membership + the version ceiling —
     // an inherited option on a vendor command counts as available under
     // that vendor's composed profile.

@@ -65,7 +65,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-multiple",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Allow the user to select multiple files.",
         dialects: None,
         aliases: &[],

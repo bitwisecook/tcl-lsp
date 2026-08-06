@@ -160,7 +160,7 @@ const INPUTMODE_VALUES: &[ArgValue] = &[
 static CONFIGURE_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-blocking",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Whether I/O on the channel may block the process indefinitely. Channels are blocking by default; nonblocking mode affects chan gets/read/puts/flush/close and requires the event loop (vwait/update) to drive it.",
         dialects: None,
         aliases: &[],
@@ -241,7 +241,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
     // channel driver, not to chan configure's own generic option set.
     OptionSpec {
         name: "-nodelay",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "TCP_NODELAY on a socket channel: disables Nagle's algorithm so small writes are sent immediately (Tcl 9.0+, TIP 344). Documented on socket(n).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
@@ -250,7 +250,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-keepalive",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "SO_KEEPALIVE on a socket channel (Tcl 9.0+, TIP 344). Documented on socket(n).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
@@ -836,7 +836,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 const CMD_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-blocking",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Set blocking mode.",
         dialects: None,
         aliases: &[],

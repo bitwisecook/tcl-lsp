@@ -522,7 +522,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-blockcursor",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Specifies a boolean that says whether the blinking insertion cursor should be drawn as a character-sized.",
         dialects: None,
         aliases: &[],
@@ -549,7 +549,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertunfocussed",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: ".",
         dialects: None,
         aliases: &[],

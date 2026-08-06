@@ -164,6 +164,41 @@ pub enum ArgRole {
     /// role carries navigation identity only, the same split
     /// [`Self::CommandName`] / [`Self::CommandNameProbe`] draw for commands.
     NamespaceName,
+    /// A word consumed **purely as a boolean** — the command runs it through
+    /// `Tcl_GetBooleanFromObj` (or the Tcl-level equivalent) and its bytes
+    /// are never otherwise observable, so every accepted spelling of the same
+    /// truth value is interchangeable (issue #1256).
+    ///
+    /// That interchangeability is the whole point: it is what lets the
+    /// formatter's canonical-boolean rewrite turn `-strict yes` into
+    /// `-strict true` without changing behaviour, and what lets completion
+    /// and hover offer the boolean vocabulary
+    /// ([`crate::abbrev::BOOLEAN_KEYWORDS`]) at the position. Before this
+    /// role the fact had to be *inferred* from an option's declared value set
+    /// happening to enumerate the boolean words, which covered two options in
+    /// the whole registry.
+    ///
+    /// Stamp it only where the bytes truly do not escape. A value that is
+    /// stored and later compared as a string (`set flag yes` … `$flag eq
+    /// "yes"`), or echoed back by an introspection subcommand, is **not** in
+    /// this role — `true` and `yes` are different strings even though both
+    /// are truthy.
+    ///
+    /// tclsh-proof (8.6.16 / 9.0.4): `fconfigure $c -blocking` accepts every
+    /// spelling and reports back the canonical integer —
+    /// `chan configure $c -blocking yes; chan configure $c -blocking` → `1`,
+    /// and `-blocking tru` → `1` as well (prefix matching, per
+    /// [`crate::abbrev::boolean_table`]).
+    Boolean,
+    /// A word consumed as **either** a boolean or a number — `0` and `1` are
+    /// valid integers as well as booleans, so a consumer cannot tell which
+    /// language the author meant and must leave the bytes alone.
+    ///
+    /// Distinct from [`Self::Boolean`] precisely so a rewriting consumer
+    /// abstains here by construction rather than by a guess: the formatter's
+    /// canonical-boolean rewrite would turn a deliberate `1` into `true` at a
+    /// position where the command reads a count.
+    NumericOrBoolean,
 }
 
 impl ArgRole {
@@ -192,7 +227,22 @@ impl ArgRole {
         Self::CommandNameProbe,
         Self::LambdaLiteral,
         Self::NamespaceName,
+        Self::Boolean,
+        Self::NumericOrBoolean,
     ];
+
+    /// Whether a word in this role is consumed **purely as a boolean**, so
+    /// every accepted spelling of the same truth value is interchangeable.
+    ///
+    /// The one place that answers "is this word consumed as a boolean" —
+    /// the formatter's canonical-boolean rewrite, completion's value list,
+    /// and hover all read it, so they cannot drift apart. Deliberately
+    /// `false` for [`Self::NumericOrBoolean`]: that position also accepts an
+    /// integer, and `0`/`1` belong to both languages.
+    #[must_use]
+    pub const fn consumes_boolean(self) -> bool {
+        matches!(self, Self::Boolean)
+    }
 
     /// Whether an argument in this role carries **executable Tcl** that a
     /// consumer walking the code must descend into.
@@ -240,6 +290,8 @@ impl ArgRole {
             | Self::Channel
             | Self::Index
             | Self::NamespaceName
+            | Self::Boolean
+            | Self::NumericOrBoolean
             | Self::Keyword => false,
         }
     }
@@ -284,6 +336,8 @@ impl ArgRole {
             | Self::Channel
             | Self::Index
             | Self::NamespaceName
+            | Self::Boolean
+            | Self::NumericOrBoolean
             | Self::Keyword => false,
         }
     }
@@ -334,6 +388,8 @@ impl ArgRole {
             | Self::Channel
             | Self::Index
             | Self::NamespaceName
+            | Self::Boolean
+            | Self::NumericOrBoolean
             | Self::Keyword => false,
         }
     }

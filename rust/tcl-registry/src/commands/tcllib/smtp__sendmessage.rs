@@ -59,7 +59,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-usetls",
-        value: OptionValue::value("bool"),
+        value: OptionValue::boolean(),
         detail: "Whether to attempt STARTTLS negotiation.",
         ..OptionSpec::DEFAULT
     },

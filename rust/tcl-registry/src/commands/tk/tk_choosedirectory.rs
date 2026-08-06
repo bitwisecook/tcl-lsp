@@ -38,7 +38,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-mustexist",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::boolean(),
         detail: "Whether the user must select an existing directory.",
         dialects: None,
         aliases: &[],
