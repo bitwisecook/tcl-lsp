@@ -2170,6 +2170,9 @@ impl<'r> Lowerer<'r> {
                 iterators: vec![ForeachIterator {
                     vars,
                     list_arg: args[2].clone(),
+                    // `array for {k v} {arr} …` — a braced array-name word
+                    // is a literal name, not a substitution (issue #1260).
+                    list_braced: Self::cmd_tokens(seg).arg_is_braced_literal(2),
                 }],
                 body,
                 body_span: body_tok.span,

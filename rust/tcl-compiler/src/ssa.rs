@@ -1676,7 +1676,7 @@ fn scan_command_words(
     // Whether the registry describes this command at all — the difference
     // between a braced word that is known **data** and one that is merely
     // *unclassified*. See [`braced_word_class`].
-    let described = registry.get(lookup).is_some();
+    let described = registry_describes(registry, lookup);
     for (idx, arg) in args.iter().enumerate() {
         if body_indices.contains(&idx) || name_role_braced.contains(&idx) {
             continue;
@@ -1696,6 +1696,27 @@ fn scan_command_words(
             };
         }
     }
+}
+
+/// Whether the registry describes `name` — accepting a space-joined
+/// *ensemble subcommand* spelling (`dict for`, `dict map`) as well as a plain
+/// command name.
+///
+/// The CFG's synthetic loop header names itself that way
+/// (`cfg_builder::cfg_lower::lower_foreach`), and `registry.get` keys only on
+/// whole command names, so a plain `get` would report a `dict for` header as
+/// *unclassified* and read its braced value word as a substitution.  Mirrors
+/// the base/sub split `shimmer::use_site::foreach_header_expected_type`
+/// already does for the same statement (issue #1260).
+fn registry_describes(registry: &CommandRegistry, name: &str) -> bool {
+    if registry.get(name).is_some() {
+        return true;
+    }
+    name.split_once(' ').is_some_and(|(base, sub)| {
+        registry
+            .get(base)
+            .is_some_and(|spec| spec.resolve_subcommand(sub).is_some())
+    })
 }
 
 /// One `(argument word, name found in it)` pair, with the facts
@@ -1863,6 +1884,18 @@ fn reads_in_stmt(
             iterators, body, ..
         } => {
             for it in iterators {
+                // `it.list_braced` is deliberately NOT consulted here. This
+                // walk feeds [`free_reads_in_script`], whose caller
+                // ([`switch_reads`]) merges everything into
+                // `ClassifiedUses::substituted` — the whole path drops
+                // [`UseClass`], so a name omitted here loses its *liveness*
+                // use too and resurrects W211/W220 on a store whose only
+                // mention is the braced word. The same collapse already
+                // keeps `puts {$y}` a read inside an opaque switch arm; the
+                // fix is to thread the classification through this walk, not
+                // to drop reads one statement kind at a time (issue #1260
+                // fixes the lowered path; the collapsed-arm residual is
+                // tracked separately).
                 reads.extend(scanner.scan_word(&it.list_arg, registry));
             }
             reads.extend(reads_in_script(body, scanner, registry));
