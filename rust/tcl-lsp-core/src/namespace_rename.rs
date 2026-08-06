@@ -632,20 +632,18 @@ mod tests {
     #[test]
     fn written_segment_is_the_namespace_segment_only() {
         let src = "set ::app::old::v 1\n";
-        let at = src.find("::app").expect("word") as u32;
-        let word = Span::new(at, at + "::app::old::v".len() as u32);
-        let span = written_cell_segment(src, word, "::app::old::v", "::app::old").expect("segment");
+        let at = u32::try_from(src.find("::app").expect("word")).expect("offset fits");
+        let len = u32::try_from("::app::old::v".len()).expect("length fits");
+        let span =
+            written_cell_segment(src, Span::new(at, at + len), "::app::old::v", "::app::old")
+                .expect("segment");
         assert_eq!(
             &src[span.start() as usize..span.end() as usize],
             "old",
             "only the namespace's own segment is rewritten",
         );
-        // A word that does not spell the segment yields nothing to rewrite.
-        let bare = src
-            .find("::v")
-            .map(|_| ())
-            .map_or(Span::new(0, 0), |()| Span::new(0, 0));
-        let _ = bare;
+        // A word that does not spell the segment yields nothing to rewrite —
+        // a bare `v` inside the namespace still resolves after the rename.
         assert!(
             written_cell_segment("v\n", Span::new(0, 1), "::app::old::v", "::app::old").is_none()
         );

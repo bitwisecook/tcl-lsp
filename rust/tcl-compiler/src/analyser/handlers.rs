@@ -1273,9 +1273,10 @@ impl Analyser {
         // removal: the tombstone would suppress a name in some other document
         // for a body that never runs at all. Drop it and keep the diagnostic.
         if !aborts.is_empty() {
-            class.retracted_members.retain(|(name, _)| {
+            class.retracted_members.retain(|record| {
                 !aborts.iter().any(|a| {
-                    a.kind == super::types::DefinitionAbortKind::MissingMember && a.member == *name
+                    a.kind == super::types::DefinitionAbortKind::MissingMember
+                        && a.member == record.member
                 })
             });
         }
