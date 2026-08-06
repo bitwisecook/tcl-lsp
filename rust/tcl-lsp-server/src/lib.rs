@@ -2583,11 +2583,14 @@ async fn run_deep_diagnostics(
         Vec::new()
     };
     // idx 80: the workspace's own definitions, as the cross-file
-    // unknown-command refinement's known-name set — read whenever a W123
-    // survived (both refinement tiers need it, and the always-on one is not
-    // gated on the toggle), and read from the index's own derived-set cache, so
-    // this is an `Arc` clone rather than a walk of every indexed symbol.
-    let workspace_known_names = if analyser_diags.iter().any(|d| d.code == DiagCode::W123) {
+    // unknown-command refinement's known-name set — demanded only when it can
+    // change this document's verdict (see `needs_workspace_command_names`), and
+    // read from the index's own derived-set cache.
+    let workspace_known_names = if needs_workspace_command_names(
+        &analyser_diags,
+        &analysis,
+        inputs.cross_file_resolution,
+    ) {
         Some(inputs.workspace_index.read().await.command_names())
     } else {
         None
@@ -10950,13 +10953,15 @@ impl Backend {
             dialect,
         )
         .await;
-        // Read whenever a W123 survived, not only when the toggle is on: the
-        // math-function tier of the refinement below is always on.
-        let workspace_known_names = if analyser_diags.iter().any(|d| d.code == DiagCode::W123) {
-            Some(self.workspace_index.read().await.command_names())
-        } else {
-            None
-        };
+        // Demanded whenever the refinement below can change a verdict, which
+        // is no longer only when the toggle is on: its math-function tier is
+        // always on.
+        let workspace_known_names =
+            if needs_workspace_command_names(&analyser_diags, analysis, cross_file_on) {
+                Some(self.workspace_index.read().await.command_names())
+            } else {
+                None
+            };
         refine_workspace_index_w123(
             analyser_diags,
             analysis,
@@ -17067,7 +17072,8 @@ fn refine_w123_diagnostics(
 ///
 /// Cost is one hash lookup per surviving W123 plus, only when the document has
 /// math-function call sites at all, one pass over them: `names` is the
-/// generation-keyed memo, so nothing is walked or rebuilt here.
+/// generation-keyed memo, so nothing is walked or rebuilt here.  Callers decide
+/// whether to demand that memo at all — see [`needs_workspace_command_names`].
 fn refine_workspace_index_w123(
     diags: Vec<tcl_compiler::analyser::Diagnostic>,
     analysis: &AnalysisResult,
@@ -17108,6 +17114,29 @@ fn refine_workspace_index_w123(
                 && w123_command_name(&d.message).is_some_and(|name| names.contains(name)))
         })
         .collect()
+}
+
+/// Whether [`refine_workspace_index_w123`] can change anything for this
+/// document, i.e. whether its `names` argument is worth demanding.
+///
+/// The set is a per-index-generation memo, but the *first* call after any
+/// document is indexed walks every proc and class in the workspace — so on a
+/// large project, demanding it for every analysis would put that walk on the
+/// keystroke path. It is only ever consulted for a W123, and then only by the
+/// always-on tier (which needs an `expr` math-function call site to match
+/// against) or the opt-in project tier. A document with neither pays nothing,
+/// exactly as it did before the always-on tier existed.
+fn needs_workspace_command_names(
+    diags: &[tcl_compiler::analyser::Diagnostic],
+    analysis: &AnalysisResult,
+    project_tier: bool,
+) -> bool {
+    diags.iter().any(|d| d.code == DiagCode::W123)
+        && (project_tier
+            || analysis
+                .command_invocations
+                .iter()
+                .any(|inv| inv.is_mathfunc_call))
 }
 
 /// Apply the issue-#832 workspace W123 refinement to `analyser_diags`: resolve
