@@ -3096,6 +3096,15 @@ pub struct Backend {
     /// `.tcl-lsp.ini [project]`) and discovery when building the package
     /// database.
     editor_library_paths: Mutex<Vec<String>>,
+    /// `tclLsp.packages.preferLatest` — the interpreter's **starting**
+    /// `package prefer` mode.
+    ///
+    /// C Tcl starts at `stable` unless `TCL_PKG_PREFER_LATEST` is set in the
+    /// environment (or, on 9.0+, the running Tcl is itself an unstable build).
+    /// Neither is a fact about the source tree, so it is carried as a setting
+    /// rather than inferred from the server's own environment — which is not
+    /// the environment the user's interpreter runs in (issue #1253).
+    package_prefer_latest_default: Mutex<bool>,
     /// User-declared extra command names (`tclLsp.extraCommands`) treated as
     /// known by the unknown-command (W123) check; mirrored onto the salsa
     /// `AnalyserConfig`.
@@ -3851,6 +3860,7 @@ impl Backend {
             rehoming_gate: Arc::new(tokio::sync::Mutex::new(())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
+            package_prefer_latest_default: Mutex::new(false),
             extra_commands: Mutex::new(Vec::new()),
             bigip_version: Mutex::new(None),
             generic_variable_patterns: Mutex::new(None),
@@ -6183,6 +6193,19 @@ impl Backend {
                 }
             }
         }
+        // The interpreter's `package prefer` state on entry to this document:
+        // the mode a file that (transitively) `source`s it already latched.
+        // The state is interpreter-global, and along the `source` graph "ran
+        // first" is a static fact, so a `package prefer latest` in the entry
+        // file really is in force here (issue #1253).
+        let inherited_prefer = {
+            let index = self.workspace_index.read().await;
+            if index.source_ancestor_prefers_latest(uri.as_str(), resolve_source_uri) {
+                tcl_lsp_core::package_resolver::PackagePrefer::Latest
+            } else {
+                self.default_package_prefer().await
+            }
+        };
         let files = {
             let resolver = self.package_resolver.read().await;
             let mut files: Vec<PathBuf> = Vec::new();
@@ -6199,8 +6222,11 @@ impl Backend {
                 // position**, so a document that raised the interpreter to
                 // `latest` above it navigates into the prerelease it really
                 // loads (issue #1126 item 1).
-                let prefer =
-                    tcl_lsp_core::package_resolver::package_prefer_at(analysis, req.range.start());
+                let prefer = tcl_lsp_core::package_resolver::package_prefer_at(
+                    analysis,
+                    req.range.start(),
+                    inherited_prefer,
+                );
                 for f in
                     resolver.resolve_require(&req.name, req.version.as_deref(), req.exact, prefer)
                 {
@@ -9676,6 +9702,26 @@ impl Backend {
             if changed {
                 self.scan_workspace_folders().await;
             }
+        }
+        // `tclLsp.packages.preferLatest` — the interpreter's starting
+        // `package prefer` mode. See the field doc for why this is a setting
+        // and not read off the server's own environment (issue #1253).
+        if let Some(flag) = cfg
+            .get("packages")
+            .and_then(|p| p.get("preferLatest"))
+            .and_then(serde_json::Value::as_bool)
+        {
+            *self.package_prefer_latest_default.lock().await = flag;
+        }
+    }
+
+    /// The interpreter's **starting** `package prefer` mode — the base
+    /// `package_prefer_at` latches up from (issue #1253).
+    async fn default_package_prefer(&self) -> tcl_lsp_core::package_resolver::PackagePrefer {
+        if *self.package_prefer_latest_default.lock().await {
+            tcl_lsp_core::package_resolver::PackagePrefer::Latest
+        } else {
+            tcl_lsp_core::package_resolver::PackagePrefer::Stable
         }
     }
 
@@ -21324,6 +21370,7 @@ mod tests {
             rehoming_gate: Arc::new(tokio::sync::Mutex::new(())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
+            package_prefer_latest_default: Mutex::new(false),
             extra_commands: Mutex::new(Vec::new()),
             bigip_version: Mutex::new(None),
             generic_variable_patterns: Mutex::new(None),
@@ -23039,6 +23086,7 @@ mod tests {
             "dialect": "tcl9.0",
             "style": { "nonAscii": "strict" },
             "diagnostics": { "W211": false },
+            "packages": { "preferLatest": true },
         });
         backend.apply_global_config(&cfg).await;
         assert!(!backend.feature_toggles.lock().await.is_enabled("hover"));
@@ -23060,6 +23108,18 @@ mod tests {
         assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
         assert_eq!(*backend.non_ascii_mode.lock().await, NonAsciiMode::Strict);
         assert!(backend.disabled_diagnostics.lock().await.contains("W211"));
+        // Issue #1253 item 2 — the interpreter's starting `package prefer`
+        // mode is a setting, since neither `TCL_PKG_PREFER_LATEST` nor an
+        // unstable 9.0+ build is visible in the source tree.
+        assert_eq!(
+            backend.default_package_prefer().await,
+            tcl_lsp_core::package_resolver::PackagePrefer::Latest,
+        );
+        // TN control: a fresh backend starts at the interpreter default.
+        assert_eq!(
+            test_backend().default_package_prefer().await,
+            tcl_lsp_core::package_resolver::PackagePrefer::Stable,
+        );
     }
 
     /// Fix #4 regression guard: the retired `features.inlayHints` alias must

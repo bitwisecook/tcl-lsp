@@ -2620,10 +2620,12 @@ mod tests {
                 ForeachIterator {
                     vars: vec!["a".into(), "b".into()],
                     list_arg: "L1".into(),
+                    list_braced: false,
                 },
                 ForeachIterator {
                     vars: vec!["c".into()],
                     list_arg: "L2".into(),
+                    list_braced: false,
                 },
             ],
             body,

@@ -67,8 +67,8 @@ pub use tcl_dialect::PackagePrefer;
 /// interpreter-global selection rule [`PackageResolver::resolve_require`]
 /// needs (issue #1126 item 1).
 ///
-/// `package prefer` is a monotone latch: the default is
-/// [`PackagePrefer::Stable`], a `package prefer latest` raises it, and
+/// `package prefer` is a monotone latch: it starts at `default`, a
+/// `package prefer latest` raises it, and
 /// nothing lowers it again (`package prefer stable` afterwards is silently
 /// ineffective — transcript on
 /// [`tcl_compiler::signature_scan::types::SignaturePackagePrefer`]). So the
@@ -82,21 +82,39 @@ pub use tcl_dialect::PackagePrefer;
 /// runs), while a raise inside a body does not reach back to a top-level
 /// require.
 ///
-/// Two abstentions, both toward the interpreter default:
+/// A **conditional** raise (inside `if` / `catch` / `try`) is ignored — it may
+/// not run, and flipping the selection rule would move go-to-definition onto a
+/// different release of the package.  That abstention is toward `default`.
 ///
-/// * a **conditional** raise (inside `if` / `catch` / `try`) is ignored — it
-///   may not run, and flipping the selection rule would move go-to-definition
-///   onto a different release of the package;
-/// * a raise in **another document** is not seen at all. The state is
-///   interpreter-global, so a `package prefer latest` in a file sourced first
-///   really does change this file's answer, but which file runs first is not
-///   a static fact — the same abstention the import family records for every
-///   cross-file event (`docs/design/import-order-source-graph.md`).
+/// # What `default` carries (issue #1253)
+///
+/// The interpreter's own starting mode is not always `stable`:
+/// `TCL_PKG_PREFER_LATEST` in the environment makes it `latest`, and on 9.0+
+/// so does running an unstable build of Tcl itself (the registry's `prefer`
+/// subcommand detail documents both).  Neither is a fact about the source
+/// tree, so it is a caller-supplied input rather than an inference —
+/// [`PackagePrefer::Stable`] unless the workspace says otherwise.
+///
+/// It is also where a raise in **another document** arrives.  The state is
+/// interpreter-global, so a `package prefer latest` in a file that runs first
+/// really does change this file's answer; along the `source` graph "runs
+/// first" is a static fact, and
+/// [`WorkspaceIndex::source_ancestor_prefers_latest`](crate::workspace_index::WorkspaceIndex::source_ancestor_prefers_latest)
+/// answers it.  A raise reaching this file some *other* way (a load order no
+/// `source` edge records) is still unseen — the abstention the import family
+/// records for every cross-file event
+/// (`docs/design/import-order-source-graph.md`).
 #[must_use]
 pub fn package_prefer_at(
     analysis: &tcl_compiler::analyser::AnalysisResult,
     at: u32,
+    default: PackagePrefer,
 ) -> PackagePrefer {
+    // Monotone latch: once raised, nothing lowers it, so an inherited
+    // `latest` default is the answer whatever this document writes.
+    if default == PackagePrefer::Latest {
+        return PackagePrefer::Latest;
+    }
     let raised = analysis.package_prefer_latest.iter().any(|p| {
         !p.conditional
             && tcl_compiler::analyser::indirection::in_effect(analysis, p.range.start(), at)
@@ -104,7 +122,7 @@ pub fn package_prefer_at(
     if raised {
         PackagePrefer::Latest
     } else {
-        PackagePrefer::Stable
+        default
     }
 }
 

@@ -3266,6 +3266,13 @@
             "default": false,
             "description": "Hide Tcl diagnostics (errors and warnings) for a file while it is shown only in a diff editor — a Git change in Source Control, 'Compare With…', or 'Compare with Saved'. Diagnostics in a diff are the underlying file's own full-file diagnostics (the analyser never runs on diff content), so they are shown by default; enable this to read changes without the analyser's noise. The file always keeps its diagnostics when it is also open in a normal editor. Purely a client-side display choice; the server keeps analysing. (Deliberately not under tclLsp.diagnostics.*, which is reserved for per-code on/off toggles.)",
             "order": 6
+          },
+          "tclLsp.packages.preferLatest": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": false,
+            "description": "Start the modelled interpreter with ``package prefer latest`` already in force, as TCL_PKG_PREFER_LATEST in the environment (or, on Tcl 9.0+, an unstable build of Tcl itself) does. Neither is visible in the source tree, so it is a setting rather than an inference. Affects which release a ``package require`` navigates into when a prerelease and a stable version both satisfy it.",
+            "order": 7
           }
         }
       },

@@ -59,9 +59,11 @@
 //! * a **computed** namespace word (`namespace eval $ns { … }`) that could
 //!   spell this namespace — there is no word to rewrite, and the value may be
 //!   this very name;
-//! * a `namespace path` entry naming it — the entry is one element inside a
-//!   list word the analyser records without a per-element span, so the tier
-//!   cannot rewrite it (tracked separately);
+//! * a `namespace path` word built from a **computed** value (`namespace path
+//!   $paths`) — its entries are unknowable, and any of them may be this
+//!   namespace.  A *literal* path list is rewritten, not refused: each of its
+//!   elements is recorded as a `NamespaceRef` at its own span, so the entry
+//!   moves through the ordinary edit path (issue #1261);
 //! * a **collision** with a namespace that already exists — the server's
 //!   half, since it is a workspace question.
 //!
@@ -321,21 +323,28 @@ fn namespace_rename_hazard(
     considered: &[Span],
     line_index: &LineIndex,
 ) -> Option<RenameRefusal> {
-    // A `namespace path {…}` entry naming the namespace.  The entry is one
-    // element of a list word the analyser records without a per-element span,
-    // so there is nothing to rewrite; leaving it behind would leave the
-    // path pointing at a namespace that no longer exists.
-    for entries in analysis.namespace_paths.values() {
-        if entries.iter().any(|entry| names_at_or_under(cell, entry)) {
-            return Some(RenameRefusal {
-                reason: format!(
-                    "cannot rename `{cell}`: a `namespace path` list names it, and the \
-                     entry is one element of a list word this rename cannot span, so the \
-                     path would keep naming a namespace that no longer exists."
-                ),
-                range: None,
-            });
-        }
+    // A `namespace path` word the analyser could not read as a literal list —
+    // `namespace path $paths`, `namespace path "$ns ::a"`.  Its entries are
+    // whatever the value turns out to be, which may include this namespace,
+    // and there is no element word to rewrite.  A *literal* list needs no
+    // arm here: each of its elements is recorded as a `NamespaceRef` at its
+    // own span, so the edit collector rewrites the ones naming the renamed
+    // cell like any other spelling (issue #1261).
+    if let Some(&span) = analysis.namespace_path_computed.first() {
+        let written = source
+            .get(span.start() as usize..span.end() as usize)
+            .unwrap_or("");
+        return Some(RenameRefusal::at(
+            format!(
+                "cannot rename `{cell}`: a `namespace path` is built from a value computed \
+                 at run time (`{written}`), whose entries may name this very namespace — \
+                 there is no element word to rewrite, so the path could keep naming a \
+                 namespace that no longer exists."
+            ),
+            source,
+            line_index,
+            Some(span),
+        ));
     }
     let registry = tcl_registry::registry_for_dialect(dialect);
     let mut hazard: Option<(Span, HazardKind)> = None;
@@ -606,13 +615,103 @@ mod tests {
         assert!(renamed(src, "::old", "new").is_ok());
     }
 
-    /// TP (refusal) — a `namespace path` entry naming it cannot be spanned.
+    /// TP, issue #1261 — a literal `namespace path` entry naming the
+    /// namespace is *rewritten*, not refused: each element carries its own
+    /// span, so the tier edits the element's segment like any other spelling.
+    ///
+    /// tclsh-proof (8.6.14) that the before/after programs agree: the source
+    /// below prints `P`, and the same script with `old` spelled `new`
+    /// throughout prints `P` too — while leaving the entry behind fails with
+    /// `namespace "::old" not found in "::"`.
     #[test]
-    fn tp_refuses_a_namespace_path_entry() {
+    fn tp_rewrites_a_namespace_path_entry() {
+        let src = "namespace eval ::old { proc p {} { return P } ; namespace export p }\n\
+                   namespace eval ::user { namespace path {::old}\n\
+                   \x20   proc use {} { return [p] } }\n\
+                   puts [::user::use]\n";
+        let out = renamed(src, "::old", "new").expect("a literal path entry is rewritable");
+        assert!(out.contains("namespace path {::new}"), "{out}");
+        assert!(out.contains("namespace eval ::new {"), "{out}");
+    }
+
+    /// TP — only the entries naming the renamed namespace move; siblings in
+    /// the same list word are left exactly as written.
+    #[test]
+    fn tp_rewrites_only_the_matching_namespace_path_entries() {
         let src = "namespace eval ::old { proc p {} {} }\n\
-                   namespace eval ::user { namespace path {::old} }\n";
-        let reason = renamed(src, "::old", "new").expect_err("a path entry must refuse");
-        assert!(reason.contains("namespace path"), "{reason}");
+                   namespace eval ::keep { proc q {} {} }\n\
+                   namespace eval ::user { namespace path {::keep ::old::deep ::other} }\n";
+        let out = renamed(src, "::old", "new").expect("rename");
+        assert!(
+            out.contains("namespace path {::keep ::new::deep ::other}"),
+            "{out}"
+        );
+    }
+
+    /// TP — a **relative** entry roots against the namespace the `namespace
+    /// path` runs in, and only the segment that spells the renamed namespace
+    /// moves.
+    ///
+    /// tclsh-proof (8.6.14): inside `namespace eval ::app`, `namespace path
+    /// {old}` echoes `::app::old` — the entry roots against the namespace the
+    /// command runs in, current-namespace-only (the same block written one
+    /// level deeper, in `::app::user`, fails `namespace "old" not found in
+    /// "::app::user"`).  So a rename of `::app::old` must rewrite the bare
+    /// `old` word.
+    #[test]
+    fn tp_rewrites_a_relatively_written_namespace_path_entry() {
+        let src = "namespace eval ::app {\n\
+                   \x20   namespace eval old { proc p {} {} }\n\
+                   \x20   namespace path {old}\n\
+                   }\n";
+        let out = renamed(src, "::app::old", "new").expect("rename");
+        assert!(out.contains("namespace path {new}"), "{out}");
+    }
+
+    /// TN — a path list that names nothing beneath the renamed namespace is
+    /// untouched and does not refuse.
+    #[test]
+    fn tn_an_unrelated_namespace_path_neither_moves_nor_refuses() {
+        let src = "namespace eval ::old { proc p {} {} }\n\
+                   namespace eval ::user { namespace path {::a ::b} }\n";
+        let out = renamed(src, "::old", "new").expect("an unrelated path must not refuse");
+        assert!(out.contains("namespace path {::a ::b}"), "{out}");
+    }
+
+    /// TP (refusal), issue #1261 — a `namespace path` built from a value
+    /// computed at run time still refuses: its entries are unknowable, any of
+    /// them may be this namespace, and there is no element word to rewrite.
+    #[test]
+    fn tp_refuses_a_computed_namespace_path() {
+        for src in [
+            "namespace eval ::old { proc p {} {} }\n\
+             namespace eval ::user { namespace path $paths }\n",
+            "namespace eval ::old { proc p {} {} }\n\
+             namespace eval ::user { namespace path \"$ns ::a\" }\n",
+        ] {
+            let reason = renamed(src, "::old", "new").expect_err("a computed path must refuse");
+            assert!(reason.contains("namespace path"), "{reason}");
+            assert!(reason.contains("computed at run time"), "{reason}");
+        }
+    }
+
+    /// TN — a **braced** `$`-spelled entry is not computed: braces suppress
+    /// substitution, so the word is a literal path list and the tier neither
+    /// refuses nor rewrites it.
+    ///
+    /// tclsh-proof (8.6.14): `namespace eval n { namespace path {::$ns ::a} }`
+    /// (with a namespace literally named `::$ns`) echoes `{::$ns} ::a` — the
+    /// entry is a name, never a variable read.
+    #[test]
+    fn tn_a_braced_dollar_entry_is_a_literal_path() {
+        let src = "namespace eval ::old { proc p {} {} }\n\
+                   namespace eval ::user { namespace path {::a ::b} }\n";
+        let analysis = analyse(src);
+        assert!(
+            analysis.namespace_path_computed.is_empty(),
+            "a braced literal list records no abstention",
+        );
+        assert!(renamed(src, "::old", "new").is_ok());
     }
 
     /// TP — import patterns follow the namespace.

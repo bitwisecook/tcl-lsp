@@ -2947,6 +2947,13 @@ impl Analyser {
             .get(1)
             .is_some_and(|tok| tok.kind == TokenType::Str);
         if tcl_syntax::naming::word_is_dynamic(&args[1], braced) {
+            // Record the abstention rather than merely staying silent: a
+            // consumer that has to be exhaustive about namespace occurrences
+            // (the namespace rename tier) cannot otherwise tell this document
+            // from one that declares no path at all (issue #1261).
+            if let Some(tok) = arg_tokens.get(1) {
+                self.result.namespace_path_computed.push(tok.span);
+            }
             return;
         }
         // The `namespace path` command-resolution tier is an 8.5 addition

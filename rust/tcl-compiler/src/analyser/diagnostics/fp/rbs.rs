@@ -1983,3 +1983,84 @@ fn issue_1237_quoted_use_still_keeps_the_variable_live() {
         codes(unmentioned, D)
     );
 }
+
+// ---------------------------------------------------------------------------
+// Issue #1260 — a `$var` inside a **braced** `foreach` / `lmap` / `dict for`
+// value word is a literal list element, not a substitution.
+//
+// tclsh-proof (tclsh 8.6.14 — the only interpreter available in this
+// container):
+//
+//   foreach n {a $b c} { puts $n }          -> a / $b / c  (b undefined)
+//   dict for {k v} {a $b} { puts "$k=$v" }  -> a=$b        (b undefined)
+//
+// Braces are the only thing separating the literal spelling from the
+// substituting one, and the IR's `list_arg` stores the word's *content*, so
+// `ForeachIterator::list_braced` is what the CFG's synthetic loop-header call
+// carries the fact on.
+// ---------------------------------------------------------------------------
+
+/// #1260 FP — a braced value word reads nothing, at top level and inside a
+/// proc, for every loop that lowers to `Statement::Foreach`.
+#[test]
+fn issue_1260_braced_loop_value_word_is_not_a_read() {
+    for src in [
+        "foreach n {a $b c} { }\n",
+        "lmap n {a $b c} { }\n",
+        "proc p {} { foreach n {a $b c} { } }\n",
+        "proc p {} { lmap n {a $b c} { } }\n",
+        "dict for {k v} {a $b} { }\n",
+        "dict map {k v} {a $b} { }\n",
+        // Multi-group: the braced group stays quiet alongside a
+        // substituting one whose own read is satisfied.
+        "proc p {l} { foreach x {a $b c} y $l { } }\n",
+    ] {
+        assert!(
+            !fires(src, D, "W210"),
+            "#1260: a braced loop value word substitutes nothing; {src} emitted: {:?}",
+            codes(src, D)
+        );
+    }
+}
+
+/// #1260 TP — the substituting spellings of the same word must still fire.
+/// This is what separates "carry the braced flag" from "stop scanning the
+/// loop's value word".
+#[test]
+fn issue_1260_substituted_loop_value_word_still_fires() {
+    for src in [
+        "foreach n \"a $b c\" { }\n",
+        "foreach n $b { }\n",
+        "lmap n \"a $b c\" { }\n",
+        "proc p {} { foreach n \"a $b c\" { } }\n",
+        "proc p {} { foreach n $b { } }\n",
+        "dict for {k v} $b { }\n",
+    ] {
+        assert!(
+            fires(src, D, "W210"),
+            "#1260 TP: a substituted loop value word is a real read; {src} emitted: {:?}",
+            codes(src, D)
+        );
+    }
+}
+
+/// #1260 TN — the braced word still keeps the mentioned store *live*: the use
+/// is classified (`UseClass::Quoted`), not dropped, so W211/W220 must not
+/// resurrect on a variable whose only mention is inside the braced list. Same
+/// guard rail as `issue_1237_quoted_use_still_keeps_the_variable_live`.
+#[test]
+fn issue_1260_braced_loop_value_word_keeps_the_store_live() {
+    let src = "proc p {} { set x 1; foreach n {$x} { } }\n";
+    assert!(
+        !fires(src, D, "W211") && !fires(src, D, "W220"),
+        "#1260: a quoted mention keeps the store live; emitted: {:?}",
+        codes(src, D)
+    );
+    // TP control: with no mention of any kind the dead store is reported.
+    let unmentioned = "proc p {} { set x 1; foreach n {$y} { } }\n";
+    assert!(
+        fires(unmentioned, D, "W211") || fires(unmentioned, D, "W220"),
+        "#1260 TP: an unmentioned store is still dead; emitted: {:?}",
+        codes(unmentioned, D)
+    );
+}
