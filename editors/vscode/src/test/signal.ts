@@ -393,7 +393,7 @@ export function bounded<T>(
 
   const guard = (async (): Promise<never> => {
     let budget = scaledTimeout(base);
-    for (let extensions = 0; ; ) {
+    for (let extensions = 0; ;) {
       const remaining = started + budget - Date.now();
       if (remaining > 0) await sleepDetached(remaining);
       if (!settled) {

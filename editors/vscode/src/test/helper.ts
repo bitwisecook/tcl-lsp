@@ -19,7 +19,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 
-import { awaitSignal, bounded, scaledTimeout, sleep, WAIT_TIMEOUT_MARKER } from "./signal";
+import { awaitSignal, bounded, scaledTimeout, WAIT_TIMEOUT_MARKER } from "./signal";
 
 export { awaitSignal, bounded, loadFactor, scaledTimeout, sleep } from "./signal";
 
@@ -437,11 +437,8 @@ export async function waitForCodeActions(
   return waitForProviderResult<vscode.CodeAction[]>(
     uri,
     async () =>
-      ((await vscode.commands.executeCommand(
-        "vscode.executeCodeActionProvider",
-        uri,
-        range,
-      )) as vscode.CodeAction[] | undefined) ?? [],
+      ((await vscode.commands.executeCommand("vscode.executeCodeActionProvider", uri, range)) as
+        vscode.CodeAction[] | undefined) ?? [],
     predicate,
     {
       timeout: opts?.timeout,

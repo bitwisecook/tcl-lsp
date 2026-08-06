@@ -18,7 +18,13 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics, pollUntil } from "./helper";
+import {
+  getDocUri,
+  activate,
+  waitForDiagnostics,
+  waitForCodeActions,
+  waitForProviderResult,
+} from "./helper";
 
 suite("Code Actions", () => {
   const docUri = getDocUri("diagnostics.tcl");
@@ -36,15 +42,13 @@ suite("Code Actions", () => {
     assert.ok(w100, "W100 diagnostic should be present");
 
     // Request code actions at the W100 range
-    const actions = (await pollUntil(
-      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, w100.range),
-      (r) =>
-        Array.isArray(r) &&
-        (r as vscode.CodeAction[]).some(
-          (a) => a.kind && a.kind.value === vscode.CodeActionKind.QuickFix.value,
-        ),
+    const actions = await waitForCodeActions(
+      docUri,
+      w100.range,
+      (actions) =>
+        actions.some((a) => a.kind && a.kind.value === vscode.CodeActionKind.QuickFix.value),
       { timeout: 10_000, label: "W100 quick fix" },
-    )) as vscode.CodeAction[];
+    );
 
     assert.ok(actions, "Code actions should not be null");
     assert.ok(actions.length > 0, "Should have at least one code action");
@@ -67,15 +71,15 @@ suite("Code Actions", () => {
     });
     assert.ok(w304, "W304 diagnostic should be present");
 
-    const actions = (await pollUntil(
-      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, w304.range),
-      (r) =>
-        Array.isArray(r) &&
-        (r as vscode.CodeAction[]).some(
+    const actions = await waitForCodeActions(
+      docUri,
+      w304.range,
+      (actions) =>
+        actions.some(
           (a) => typeof a.title === "string" && a.title.toLowerCase().includes("option terminator"),
         ),
       { timeout: 10_000, label: "W304 option terminator quick fix" },
-    )) as vscode.CodeAction[];
+    );
 
     const quickFix = actions.find(
       (a) => typeof a.title === "string" && a.title.toLowerCase().includes("option terminator"),
@@ -96,15 +100,12 @@ suite("Code Actions", () => {
     });
     assert.ok(t102, "T102 diagnostic should be present");
 
-    const actions = (await pollUntil(
-      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, t102.range),
-      (r) =>
-        Array.isArray(r) &&
-        (r as vscode.CodeAction[]).some(
-          (a) => typeof a.title === "string" && a.title.includes("--"),
-        ),
+    const actions = await waitForCodeActions(
+      docUri,
+      t102.range,
+      (actions) => actions.some((a) => typeof a.title === "string" && a.title.includes("--")),
       { timeout: 10_000, label: "T102 insert '--' quick fix" },
-    )) as vscode.CodeAction[];
+    );
 
     const quickFix = actions.find((a) => typeof a.title === "string" && a.title.includes("--"));
     assert.ok(quickFix, "Should provide an insert '--' quick fix for T102");
@@ -120,18 +121,16 @@ suite("Code Actions", () => {
     });
     assert.ok(w302, "W302 diagnostic should be present");
 
-    const actions = (await pollUntil(
-      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, w302.range),
-      (r) =>
-        Array.isArray(r) &&
-        (r as vscode.CodeAction[]).some(
+    const actions = await waitForCodeActions(
+      docUri,
+      w302.range,
+      (actions) =>
+        actions.some(
           (a) => typeof a.title === "string" && a.title.includes("catch result variable"),
         ) &&
-        (r as vscode.CodeAction[]).some(
-          (a) => typeof a.title === "string" && a.title.includes("result + options"),
-        ),
+        actions.some((a) => typeof a.title === "string" && a.title.includes("result + options")),
       { timeout: 10_000, label: "W302 catch result quick fixes" },
-    )) as vscode.CodeAction[];
+    );
 
     const resultFix = actions.find(
       (a) => typeof a.title === "string" && a.title.includes("catch result variable"),
@@ -153,16 +152,16 @@ suite("Code Actions", () => {
     });
     assert.ok(e100, "E100 diagnostic should be present");
 
-    const actions = (await pollUntil(
-      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, e100.range),
-      (r) =>
-        Array.isArray(r) &&
-        (r as vscode.CodeAction[]).some(
+    const actions = await waitForCodeActions(
+      docUri,
+      e100.range,
+      (actions) =>
+        actions.some(
           (a) =>
             typeof a.title === "string" && a.title.toLowerCase().includes("insert missing '['"),
         ),
       { timeout: 10_000, label: "E100 insert bracket quick fix" },
-    )) as vscode.CodeAction[];
+    );
 
     const quickFix = actions.find(
       (a) => typeof a.title === "string" && a.title.toLowerCase().includes("insert missing '['"),
@@ -189,15 +188,15 @@ suite("Code Actions", () => {
     });
     assert.ok(e102, "E102 diagnostic should be present");
 
-    const actions = (await pollUntil(
-      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, e102.range),
-      (r) =>
-        Array.isArray(r) &&
-        (r as vscode.CodeAction[]).some(
+    const actions = await waitForCodeActions(
+      docUri,
+      e102.range,
+      (actions) =>
+        actions.some(
           (a) => typeof a.title === "string" && a.title.toLowerCase().includes("remove extra '}'"),
         ),
       { timeout: 10_000, label: "E102 remove brace quick fix" },
-    )) as vscode.CodeAction[];
+    );
 
     const quickFix = actions.find(
       (a) => typeof a.title === "string" && a.title.toLowerCase().includes("remove extra '}'"),
@@ -215,20 +214,13 @@ suite("Code Actions", () => {
     );
     assert.ok(extraWords, "extra-words E004 diagnostic should be present");
 
-    const actions = (await pollUntil(
-      () =>
-        vscode.commands.executeCommand(
-          "vscode.executeCodeActionProvider",
-          e004Uri,
-          extraWords.range,
-        ),
-      (r) =>
-        Array.isArray(r) &&
-        (r as vscode.CodeAction[]).some(
-          (a) => typeof a.title === "string" && a.title.toLowerCase().includes("merge"),
-        ),
+    const actions = await waitForCodeActions(
+      e004Uri,
+      extraWords.range,
+      (actions) =>
+        actions.some((a) => typeof a.title === "string" && a.title.toLowerCase().includes("merge")),
       { timeout: 10_000, label: "E004 extra-words merge quick fix" },
-    )) as vscode.CodeAction[];
+    );
 
     const mergeFix = actions.find(
       (a) => typeof a.title === "string" && a.title.toLowerCase().includes("merge"),
@@ -246,20 +238,15 @@ suite("Code Actions", () => {
     );
     assert.ok(danglingElseif, "dangling-elseif E004 diagnostic should be present");
 
-    const actions = (await pollUntil(
-      () =>
-        vscode.commands.executeCommand(
-          "vscode.executeCodeActionProvider",
-          e004Uri,
-          danglingElseif.range,
-        ),
-      (r) =>
-        Array.isArray(r) &&
-        (r as vscode.CodeAction[]).some(
+    const actions = await waitForCodeActions(
+      e004Uri,
+      danglingElseif.range,
+      (actions) =>
+        actions.some(
           (a) => typeof a.title === "string" && a.title.toLowerCase().includes("remove"),
         ),
       { timeout: 10_000, label: "E004 dangling-clause remove quick fix" },
-    )) as vscode.CodeAction[];
+    );
 
     const removeFix = actions.find(
       (a) => typeof a.title === "string" && a.title.toLowerCase().includes("remove"),
@@ -310,15 +297,12 @@ suite("Code Actions", () => {
     });
     assert.ok(w004, "W004 diagnostic for -stride should be present");
 
-    const actions = (await pollUntil(
-      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", w004Uri, w004.range),
-      (r) =>
-        Array.isArray(r) &&
-        (r as vscode.CodeAction[]).some(
-          (a) => typeof a.title === "string" && a.title.includes("-stride"),
-        ),
+    const actions = await waitForCodeActions(
+      w004Uri,
+      w004.range,
+      (actions) => actions.some((a) => typeof a.title === "string" && a.title.includes("-stride")),
       { timeout: 10_000, label: "W004 remove-option quick fix" },
-    )) as vscode.CodeAction[];
+    );
 
     const removeFix = actions.find(
       (a) => typeof a.title === "string" && a.title.includes("-stride"),
@@ -347,23 +331,18 @@ suite("Code Actions", () => {
     });
     assert.ok(irule1005, "IRULE1005 diagnostic should be present");
 
-    const actions = (await pollUntil(
-      () =>
-        vscode.commands.executeCommand(
-          "vscode.executeCodeActionProvider",
-          irulesDocUri,
-          irule1005.range,
-        ),
-      (r) =>
-        Array.isArray(r) &&
-        (r as vscode.CodeAction[]).some(
+    const actions = await waitForCodeActions(
+      irulesDocUri,
+      irule1005.range,
+      (actions) =>
+        actions.some(
           (a) =>
             typeof a.title === "string" &&
             a.title.includes("collect") &&
             a.title.includes("CLIENT_ACCEPTED"),
         ),
       { timeout: 10_000, label: "IRULE1005 collect bootstrap quick fix" },
-    )) as vscode.CodeAction[];
+    );
 
     const collectFix = actions.find(
       (a) =>
@@ -394,15 +373,13 @@ suite("Code Actions", () => {
     // whole `puts $x` statement.
     assert.strictEqual(t101.range.start.character, t101.range.end.character - 2);
 
-    const actions = (await pollUntil(
-      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", t101Uri, t101.range),
-      (r) =>
-        Array.isArray(r) &&
-        (r as vscode.CodeAction[]).some(
-          (a) => typeof a.title === "string" && a.title.includes("strip CR/LF"),
-        ),
+    const actions = await waitForCodeActions(
+      t101Uri,
+      t101.range,
+      (actions) =>
+        actions.some((a) => typeof a.title === "string" && a.title.includes("strip CR/LF")),
       { timeout: 10_000, label: "T101 sanitise quick fix" },
-    )) as vscode.CodeAction[];
+    );
 
     const sanitiseFix = actions.find(
       (a) => typeof a.title === "string" && a.title.includes("strip CR/LF"),
@@ -428,16 +405,15 @@ suite("Code Actions", () => {
     });
     assert.ok(s100, "S100 diagnostic on line 7 should be present");
 
-    const actions = (await pollUntil(
-      () =>
-        vscode.commands.executeCommand("vscode.executeCodeActionProvider", shimmerUri, s100.range),
-      (r) =>
-        Array.isArray(r) &&
-        (r as vscode.CodeAction[]).some(
+    const actions = await waitForCodeActions(
+      shimmerUri,
+      s100.range,
+      (actions) =>
+        actions.some(
           (a) => typeof a.title === "string" && a.title === "Suppress S100 with a noqa comment",
         ),
       { timeout: 10_000, label: "S100 noqa suppress quick fix" },
-    )) as vscode.CodeAction[];
+    );
 
     const suppressFix = actions.find(
       (a) => typeof a.title === "string" && a.title === "Suppress S100 with a noqa comment",
@@ -479,11 +455,12 @@ suite("Code Actions", () => {
   test("offers 'package require' on an unresolved command head", async () => {
     await activate(packageContextUri);
     await waitForDiagnostics(packageContextUri, { minCount: 0 });
-    const titles = (await pollUntil(
+    const titles = await waitForProviderResult(
+      packageContextUri,
       () => quickFixTitlesAt(packageContextUri, 11, 3),
-      (t) => (t as string[]).some((title) => title.startsWith("Add 'package require")),
-      { timeout: 10_000, label: "package require suggestion" },
-    )) as string[];
+      (t) => t.some((title) => title.startsWith("Add 'package require")),
+      { timeout: 10_000, label: "the 'package require' suggestion on the call at 11:3" },
+    );
     assert.ok(
       titles.includes("Add 'package require http'"),
       `expected the http suggestion on the call, got: ${JSON.stringify(titles)}`,
