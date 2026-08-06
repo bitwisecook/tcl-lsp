@@ -151,6 +151,14 @@ impl RenameRefusal {
             range: span.map(|s| span_to_range(source, line_index, s)),
         }
     }
+
+    /// [`Self::new`] for the sibling gates that live in their own modules
+    /// ([`crate::namespace_rename`]) — one constructor, so every refusal
+    /// resolves its span against the document it came from the same way.
+    #[must_use]
+    pub fn at(reason: String, source: &str, line_index: &LineIndex, span: Option<Span>) -> Self {
+        Self::new(reason, source, line_index, span)
+    }
 }
 
 /// The member rename a [`method_rename_hazard`] check is about.
@@ -546,7 +554,11 @@ fn dispatch_hazard(
 /// can be written in — the top-level stream, every proc body, and every
 /// class member body, descending both same-frame and frame-shifted nested
 /// regions exactly as the reference scan does.
-fn walk_document(
+///
+/// Shared with [`crate::namespace_rename`] so the two rename gates scan the
+/// same regions — a gate that visits fewer regions than its edit collector is
+/// a hollow guarantee (issue #1092).
+pub(crate) fn walk_document(
     source: &str,
     dialect: &str,
     analysis: &AnalysisResult,

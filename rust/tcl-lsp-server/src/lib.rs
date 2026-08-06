@@ -65,6 +65,7 @@ use tcl_lsp_core::implementation as core_implementation;
 use tcl_lsp_core::inlay_hints as core_inlay_hints;
 use tcl_lsp_core::linked_editing_range as core_linked_editing_range;
 use tcl_lsp_core::minify as core_minify;
+use tcl_lsp_core::namespace_rename as core_namespace_rename;
 use tcl_lsp_core::namespace_symbol as core_namespace_symbol;
 use tcl_lsp_core::package_resolver::PackageResolver;
 use tcl_lsp_core::references as core_references;
@@ -7603,26 +7604,28 @@ impl Backend {
         pos: Position,
         new_name: &str,
     ) -> Option<jsonrpc::Result<Option<WorkspaceEdit>>> {
-        // Namespace names refuse outright.  This has to be a *refusal* and
-        // not an empty edit set: an empty set falls through to the ordinary
-        // and workspace-resolved rename tiers, which resolve the cursor
-        // **word** as a command — so `namespace children widget` beside a
-        // `proc widget` renamed the proc instead (issue #1088 review,
-        // finding 1).  Renaming a namespace itself is not implemented: the
-        // edit set would have to rewrite every qualified name declared
-        // beneath it and every `namespace eval` block that reopens it.
-        if let Some(cell) = Self::namespace_cell(&doc.text, analysis, pos) {
-            return Some(Err(rename_refusal_error(
-                &core_rename_safety::RenameRefusal {
-                    reason: format!(
-                        "`{cell}` is a namespace name. Renaming a namespace is not \
-                         supported: it would have to rewrite every qualified name \
-                         declared beneath it and every `namespace eval` block that \
-                         reopens it."
-                    ),
-                    range: None,
+        // Namespace tier (issue #1114): the cursor names a namespace, so
+        // rename it across the whole workspace or refuse with the reason.
+        // Either answer is returned from here and never falls through: an
+        // empty edit set would reach the ordinary and workspace-resolved
+        // rename tiers, which resolve the cursor **word** as a command — so
+        // `namespace children widget` beside a `proc widget` renamed the proc
+        // instead (issue #1088 review, finding 1).
+        if Self::namespace_cell(&doc.text, analysis, pos).is_some() {
+            return Some(
+                match self
+                    .cross_document_namespace_rename(uri, doc, analysis, pos, new_name)
+                    .await
+                {
+                    Err(refusal) => Err(rename_refusal_error(&refusal)),
+                    Ok(changes) if changes.is_empty() => Ok(None),
+                    Ok(changes) => Ok(Some(WorkspaceEdit {
+                        changes: Some(changes),
+                        document_changes: None,
+                        change_annotations: None,
+                    })),
                 },
-            )));
+            );
         }
         // Safety gate: when the cursor names a `TclOO` member whose dispatch
         // this rename cannot account for anywhere in the workspace, refuse
@@ -7649,6 +7652,117 @@ impl Backend {
             }))),
             Ok(_) => None,
         }
+    }
+
+    /// Rename the **namespace** the cursor names, across the whole workspace
+    /// (issue #1114).
+    ///
+    /// A namespace is spelled in every file that reaches into it — a
+    /// `namespace eval` block that reopens it, a `$::ns::v`, a `::ns::p` call,
+    /// an import pattern — so a rename that stopped at one document would be
+    /// exactly the partial edit set the safety bar forbids.  Each document's
+    /// share is [`core_namespace_rename::namespace_rename_edits`], the same
+    /// function the in-document tier uses, so the two cannot disagree about
+    /// which occurrences exist.
+    ///
+    /// # Why every indexed document is scanned
+    ///
+    /// The gate refuses on an occurrence the analyser cannot attribute — a
+    /// rooted name beneath the namespace sitting in a data word.  Such a word
+    /// puts *nothing* in any index table, so no index query can find the
+    /// document holding it; a candidate set derived from the index would scan
+    /// only documents that already name the namespace in an attributed
+    /// position, and the one file with the embedded callback string would be
+    /// neither scanned nor rewritten.  Coverage therefore has to be the whole
+    /// workspace, which is affordable because a namespace rename is a rare,
+    /// deliberate refactor rather than a per-keystroke query.
+    ///
+    /// `Err` is a refusal: the target namespace already exists, or some
+    /// document holds an occurrence this rename can neither rewrite nor rule
+    /// out.
+    async fn cross_document_namespace_rename(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        pos: Position,
+        new_name: &str,
+    ) -> Result<std::collections::HashMap<Uri, Vec<TextEdit>>, core_rename_safety::RenameRefusal>
+    {
+        let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
+            std::collections::HashMap::new();
+        let Some(cell) = Self::namespace_cell(&doc.text, analysis, pos) else {
+            return Ok(changes);
+        };
+        if !core_rename::is_safe_symbol_name(new_name) {
+            return Ok(changes);
+        }
+        // Only the final segment moves, so the new namespace is the old one
+        // with its tail replaced.
+        let trimmed = cell.trim_end_matches(':');
+        let new_cell = match trimmed.rfind("::") {
+            Some(at) => format!("{}::{new_name}", &trimmed[..at]),
+            None => format!("::{new_name}"),
+        };
+        let candidates: Vec<String> = {
+            let _rehoming_guard = self.rehomed_index_guard().await;
+            let index = self.workspace_index.read().await;
+            // Collision gate: renaming onto a namespace that already exists
+            // merges two namespaces into one, silently moving every name in
+            // this one into a namespace that already has its own contents.
+            let occupied = !index
+                .namespace_declarations_qualified(&new_cell, "")
+                .is_empty()
+                || !core_namespace_symbol::namespace_declaration_spans(analysis, &new_cell)
+                    .is_empty();
+            if occupied {
+                return Err(core_rename_safety::RenameRefusal {
+                    reason: format!(
+                        "cannot rename `{cell}`: `{new_cell}` already exists in this \
+                         workspace, and renaming would merge two distinct namespaces \
+                         into one."
+                    ),
+                    range: None,
+                });
+            }
+            let mut c = index.document_uris();
+            c.push(uri.as_str().to_owned());
+            c.sort();
+            c.dedup();
+            c
+        };
+        for u in candidates {
+            let Ok(parsed) = Uri::from_str(&u) else {
+                continue;
+            };
+            let Some(target_doc) = self.read_document(&parsed).await else {
+                continue;
+            };
+            let target_analysis = self
+                .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
+                .await;
+            let edits = core_namespace_rename::namespace_rename_edits(
+                &target_doc.text,
+                &target_doc.dialect,
+                &target_analysis,
+                &cell,
+                new_name,
+            )?;
+            if edits.is_empty() {
+                continue;
+            }
+            let bucket = changes.entry(parsed).or_default();
+            for e in edits {
+                let range = lift_lsp_range(e.range);
+                if !bucket.iter().any(|x| x.range == range) {
+                    bucket.push(TextEdit {
+                        range,
+                        new_text: e.new_text,
+                    });
+                }
+            }
+        }
+        Ok(changes)
     }
 
     /// The rename **safety refusal** for the `TclOO` member at `pos`, if any —

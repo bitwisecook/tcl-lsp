@@ -385,13 +385,18 @@ fn tn_references_never_fall_through_to_the_proc_tier() {
     );
 }
 
-// TN (finding 1) — and for rename.  Prepare must offer no UI, and a client
-// that skips prepare must meet a *refusal*, not an empty edit set: an empty
-// set falls through to the server's workspace-resolved rename branch, which
-// resolved the word as a command and rewrote the same-spelled proc — pointing
-// the editor's highlight at a declaration on a completely different line.
+// TN (finding 1) — and for rename.  The namespace tier (#1114) answers the
+// word, so a rename here moves the *namespace* and leaves the same-spelled
+// proc exactly where it is.  The failure this guards against is the original
+// one: an empty edit set falling through to the server's workspace-resolved
+// rename branch, which resolved the word as a command and rewrote the proc.
+//
+// tclsh-proof (8.6.14): a proc and a namespace may share a name — `proc
+// widget {} {return 1}` then `namespace eval widget {}` leaves `widget` -> 1
+// and `namespace exists ::widget` -> 1, and the same script with the
+// namespace spelled `gadget` behaves identically for the proc.
 #[test]
-fn tn_rename_refuses_a_namespace_word_rather_than_renaming_a_proc() {
+fn tn_renaming_a_namespace_word_does_not_rename_the_same_spelled_proc() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(
@@ -399,18 +404,29 @@ fn tn_rename_refuses_a_namespace_word_rather_than_renaming_a_proc() {
         "proc widget {} { return 1 }\nnamespace eval widget {}\nnamespace children widget\n",
     );
 
+    let prepare = lsp.prepare_rename(&uri, 2, 20);
     assert!(
-        lsp.prepare_rename(&uri, 2, 20).is_null(),
-        "prepare-rename must not offer to rename a namespace word",
+        !prepare.is_null(),
+        "prepare-rename must offer the namespace segment: {prepare:?}",
     );
-    let err = lsp.rename_error(&uri, 2, 20, "gadget");
-    let message = err
-        .get("message")
-        .and_then(Value::as_str)
+    let result = lsp.rename(&uri, 2, 20, "gadget");
+    let edits = rename_edits(&result);
+    let lines: Vec<i64> = edits
+        .get(&uri)
+        .map(|es| {
+            es.iter()
+                .filter_map(|e| {
+                    e.get("range")
+                        .and_then(|r| r.get("start"))
+                        .and_then(|s| s.get("line"))
+                        .and_then(Value::as_i64)
+                })
+                .collect()
+        })
         .unwrap_or_default();
     assert!(
-        message.contains("is a namespace name"),
-        "rename must refuse with a reason naming the namespace, got {err}",
+        lines.contains(&1) && lines.contains(&2) && !lines.contains(&0),
+        "the namespace's two words move and `proc widget` does not: {edits:?}",
     );
 }
 

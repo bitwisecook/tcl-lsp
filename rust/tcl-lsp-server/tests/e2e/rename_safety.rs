@@ -642,3 +642,128 @@ fn fn_guard_namespace_variable_rename_ignores_a_computed_alias_of_another_cell()
         "and it must not be edited: {edits:?}"
     );
 }
+
+// -- Issue #1114: the namespace rename tier -----------------------------
+//
+// Renaming a namespace rewrites every *written* spelling of it — the
+// `namespace eval` blocks that open it, the qualified names beneath it, the
+// `NamespaceName`-role arguments, the import patterns — across every
+// document, or refuses with the reason.  Only the namespace's final segment
+// moves, which is what makes rooted and relative spellings work out of one
+// rule.
+//
+// tclsh-proof (8.6.14, the interpreter available in this container): the
+// before and after programs behave identically.
+//   namespace eval ::old {variable v 1; proc p {} {return P}}
+//   puts $::old::v ; puts [::old::p]                       -> 1 / P
+//   …the same script with `old` spelled `new` throughout   -> 1 / P
+
+// TP — the rename spans documents: the declaring file and the consumer file
+// both move.
+#[test]
+fn tp_namespace_rename_spans_documents() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(
+        &decl,
+        "namespace eval ::old {\n\
+         \x20   variable v 1\n\
+         \x20   proc p {} { return P }\n\
+         }\n",
+    );
+    let user = unique_uri("tcl");
+    lsp.open_ready(
+        &user,
+        "namespace children ::old\nputs $::old::v\nputs [::old::p]\n",
+    );
+
+    // The cursor is on the `NamespaceName`-role word, which is what makes the
+    // request a *namespace* rename rather than a proc one.
+    let result = lsp.rename(&user, 0, 21, "new");
+    let edits = rename_edits(&result);
+    assert!(
+        edits.contains_key(&decl) && edits.contains_key(&user),
+        "both documents must move: {edits:?}",
+    );
+    assert_eq!(
+        edits.get(&user).map(Vec::len),
+        Some(3),
+        "the namespace word, the qualified variable, and the call all move: {edits:?}",
+    );
+    for (uri, es) in &edits {
+        for e in es {
+            assert_eq!(
+                e.get("newText").and_then(Value::as_str),
+                Some("new"),
+                "only the namespace's own segment is rewritten ({uri}): {e:?}",
+            );
+        }
+    }
+}
+
+// TN — a sibling namespace that merely shares the tail is untouched.
+#[test]
+fn tn_namespace_rename_leaves_a_same_tailed_sibling_alone() {
+    let mut lsp = Lsp::tcl();
+    let a = unique_uri("tcl");
+    lsp.open_ready(&a, "namespace eval ::a::old { proc p {} { return A } }\n");
+    let b = unique_uri("tcl");
+    lsp.open_ready(&b, "namespace eval ::b::old { proc p {} { return B } }\n");
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "puts [::a::old::p]\n");
+
+    let result = lsp.rename(&user, 0, 12, "new");
+    let edits = rename_edits(&result);
+    assert!(edits.contains_key(&a), "`::a::old` must move: {edits:?}");
+    assert!(
+        !edits.contains_key(&b),
+        "`::b::old` is a different namespace: {edits:?}",
+    );
+}
+
+// FP guard — a document holding a rooted name beneath the namespace in a data
+// word attributes nothing, so the whole rename refuses rather than leaving
+// that word naming a namespace that no longer exists.
+#[test]
+fn fp_namespace_rename_refuses_an_unattributed_embedded_name() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(&decl, "namespace eval ::old { proc tick {} {} }\n");
+    let holder = unique_uri("tcl");
+    lsp.open_ready(&holder, "set handlers [list ::old::tick]\n");
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "namespace children ::old\n");
+
+    let err = lsp.rename_error(&user, 0, 21, "new");
+    let message = err
+        .get("message")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    assert!(
+        message.contains("cannot attribute"),
+        "the refusal must say why, got {err}",
+    );
+}
+
+// FP guard — renaming onto a namespace that already exists would merge two
+// namespaces into one.
+#[test]
+fn fp_namespace_rename_refuses_a_collision_with_an_existing_namespace() {
+    let mut lsp = Lsp::tcl();
+    let decl = unique_uri("tcl");
+    lsp.open_ready(&decl, "namespace eval ::old { proc p {} {} }\n");
+    let other = unique_uri("tcl");
+    lsp.open_ready(&other, "namespace eval ::taken { proc q {} {} }\n");
+    let user = unique_uri("tcl");
+    lsp.open_ready(&user, "namespace children ::old\n");
+
+    let err = lsp.rename_error(&user, 0, 21, "taken");
+    let message = err
+        .get("message")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    assert!(
+        message.contains("already exists"),
+        "the refusal must name the collision, got {err}",
+    );
+}
