@@ -997,6 +997,10 @@ impl Analyser {
         // is only sorted by `canonicalize_result_order`, which runs after this
         // emitter).  This keeps the result walk-strategy-independent, as the
         // tail already enforces for other order-sensitive collections.
+        // The document's own declarations, for the shadowing gate below —
+        // the same fact table the arity path's suppression is built from, so
+        // the two agree about what "this file defines that command" means.
+        let declared = super::validity::UserResolutionFacts::build(self);
         let mut best: HashMap<&str, &crate::signature_scan::types::SignatureCommandInvocation> =
             HashMap::new();
         for inv in &self.result.command_invocations {
@@ -1020,6 +1024,26 @@ impl Analyser {
             // in a tclpkg manifest is the entry-point directive, never the
             // Tk widget, so no `package require Tk` is missing.
             if self.is_scoped_command_resolved(&inv.name, inv.range) {
+                continue;
+            }
+            // The document defines the command itself — a `proc`, a class, an
+            // `interp alias`, a static `rename` target, an ensemble, or a
+            // declared stub. Then the name resolves to *that*, and no
+            // `package require` is missing however the registry happens to
+            // spell the same word. The real corpus case is the package's own
+            // implementation file: georgtree/argparse's `proc ::argparse
+            // {args}` beside its own uses was told to `package require
+            // argparse` — i.e. to require the very package it is
+            // (issue #923 idx 11, verification pass; the sibling W113
+            // false positive on the same declaration is gated by
+            // `is_package_gated_non_ambient`).
+            let candidates: Vec<String> = if inv.resolution_candidates.is_empty() {
+                crate::naming::bareword_resolution_candidates("", &inv.name)
+            } else {
+                inv.resolution_candidates.clone()
+            };
+            let bare = inv.name.rsplit("::").next().unwrap_or(&inv.name);
+            if declared.declares_any(&candidates, bare) {
                 continue;
             }
             best.entry(inv.name.as_str())

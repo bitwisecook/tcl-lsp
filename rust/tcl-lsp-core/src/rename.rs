@@ -492,6 +492,34 @@ pub fn rename_with_diagnosis(
     // Method rename — match `word` against any class's methods
     // / classmethods / properties at the cursor's byte offset.
     let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    // The safety gate again, for the member *this* tier resolves.
+    //
+    // `pre_edit_refusal` can only speak for a cursor a trusted dispatch tier
+    // claims; this tier answers the rest — the method word inside an
+    // untracked `[$other X]`, the bareword in `export … X …` — and those are
+    // precisely the positions from which the idx-79 hazard used to emit a
+    // declaration-only edit set that breaks the program once applied. Asking
+    // the same question about the same member here makes the verdict
+    // independent of *which occurrence* the rename was triggered from
+    // (issue #923 idx 79, verification pass).
+    //
+    // It runs here rather than in `pre_edit_refusal` so the tier order is
+    // preserved exactly: a cursor an earlier tier claims (a local variable, a
+    // proc, a class) is renamed by that tier and never consulted about a
+    // same-spelled member.
+    if let Some((seed_class, method, is_classmethod)) =
+        untargeted_member_rename_target(analysis, &word, cursor_offset)
+        && let Some(refusal) = member_rename_hazard(
+            source,
+            dialect,
+            analysis,
+            (&seed_class, &method, is_classmethod),
+            new_name,
+            &line_index,
+        )
+    {
+        return Err(refusal);
+    }
     if let Some(edits) = rename_method(
         source,
         dialect,
@@ -572,7 +600,38 @@ fn method_rename_refusal(
 ) -> Option<crate::rename_safety::RenameRefusal> {
     let (seed_class, method, is_classmethod) =
         method_rename_target(source, line, character, analysis)?;
-    let family = override_family(analysis, &seed_class, &method);
+    member_rename_hazard(
+        source,
+        dialect,
+        analysis,
+        (&seed_class, &method, is_classmethod),
+        new_name,
+        line_index,
+    )
+}
+
+/// The safety verdict for renaming `method` on `seed_class`'s whole override
+/// family — the one call both member-rename gates make, so a hazard is a
+/// property of *which member the rename rewrites*, never of how the cursor
+/// happened to name it.
+///
+/// Split out of [`method_rename_refusal`] because that entry point can only
+/// speak for cursors a *trusted dispatch tier* resolves
+/// ([`method_rename_target`]: the member's own declaration name, a `my`
+/// dispatch, a tracked `$obj` / class-command dispatch). Every other position
+/// that still reaches a member — the untracked call site the gate exists to
+/// protect, an `export`/`unexport` bareword — is resolved by
+/// [`untargeted_member_rename_target`] instead and asked the same question
+/// here (issue #923 idx 79, verification pass).
+fn member_rename_hazard(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    (seed_class, method, is_classmethod): (&str, &str, bool),
+    new_name: &str,
+    line_index: &LineIndex,
+) -> Option<crate::rename_safety::RenameRefusal> {
+    let family = override_family(analysis, seed_class, method);
     if family.is_empty() {
         return None;
     }
@@ -582,12 +641,47 @@ fn method_rename_refusal(
         analysis,
         crate::rename_safety::MethodRenameTarget {
             family: &family,
-            method: &method,
+            method,
             is_classmethod,
             new_name,
         },
         line_index,
     )
+}
+
+/// The member the **untargeted** member-rename tier ([`rename_method`]) would
+/// rewrite for a cursor at `cursor_offset`, or `None` when that tier declines
+/// the cursor.
+///
+/// This is deliberately the *same* resolution `rename_method` performs —
+/// "which class body encloses the cursor, and does `word` name one of its
+/// members" ([`crate::definition::enclosing_class_at`] +
+/// [`resolve_member_span`]) — and not a re-derivation. That tier answers
+/// exactly the cursor positions no trusted dispatch tier claims: the method
+/// name inside `[$untracked X]`, and the bareword in an `export … X …` list.
+/// Both of those used to reach `rename_method` with no hazard check at all,
+/// so the very shape [`crate::rename_safety`] refuses when the cursor sits on
+/// the declaration silently emitted a declaration-only edit set from one line
+/// away — applying it and running under tclsh 9.0.4 / 8.6.16 gives `unknown
+/// method "X"` at the untouched dispatch (issue #923 idx 79).
+///
+/// Restricted to `method` / `classmethod`: a *property* has no dispatch
+/// (see [`rename_method`]'s own property branch), so it has no dispatch
+/// hazard to check.
+#[must_use]
+pub fn untargeted_member_rename_target(
+    analysis: &AnalysisResult,
+    word: &str,
+    cursor_offset: u32,
+) -> Option<(String, String, bool)> {
+    let class_q = crate::definition::enclosing_class_at(analysis, cursor_offset)?;
+    let class_def = analysis.all_classes.get(class_q)?;
+    let (kind, _span) = resolve_member_span(class_def, word, cursor_offset)?;
+    match kind {
+        MemberSel::Method => Some((class_def.qualified_name.clone(), word.to_owned(), false)),
+        MemberSel::ClassMethod => Some((class_def.qualified_name.clone(), word.to_owned(), true)),
+        MemberSel::Property => None,
+    }
 }
 
 /// The variable-rename edits for a cursor that names one, or `None` when it

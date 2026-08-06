@@ -14596,8 +14596,17 @@ impl LanguageServer for Backend {
         let analysis_for_worker = analysis.clone();
         let new_name_worker = new_name.clone();
         let registry_worker = registry;
+        // `rename_with_diagnosis`, not `rename`: the in-document tiers carry
+        // their own safety gate for the cursor positions the workspace gate
+        // above cannot resolve — an untracked `[$other X]` dispatch, an
+        // `export … X …` bareword — and a refusal from them must reach the
+        // editor as an error with its reason, exactly like the workspace
+        // gate's.  Flattening it to an empty edit set would present the one
+        // hazard the gate exists to stop as "nothing renameable here" and let
+        // the cross-document tier below build edits for it (issue #923 idx
+        // 79, verification pass).
         let edits = tokio::task::spawn_blocking(move || {
-            core_rename::rename(
+            core_rename::rename_with_diagnosis(
                 &text,
                 &dialect,
                 pos.line,
@@ -14612,7 +14621,8 @@ impl LanguageServer for Backend {
             code: jsonrpc::ErrorCode::InternalError,
             message: format!("rename worker panicked: {err}").into(),
             data: None,
-        })?;
+        })?
+        .map_err(|refusal| rename_refusal_error(&refusal))?;
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
         // An empty in-document result means the rename was *rejected*
