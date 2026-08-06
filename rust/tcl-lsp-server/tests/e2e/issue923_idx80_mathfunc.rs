@@ -61,8 +61,13 @@ const HELPER: &str = "namespace eval ::tcl::mathfunc {\n\
                       \x20   proc Inv {x} { return [expr {-1.0 * $x}] }\n\
                       }\n";
 
-/// The consumer: `Pi()` on line 2, `Inv($x)` on line 5, and a math function
-/// nothing anywhere defines on line 8 (the true-positive control).
+/// The consumer: `Pi()` on line 2, `Inv($x)` on line 5, a math function nothing
+/// anywhere defines on line 8, and — on line 10 — an unknown command *close
+/// enough to a real one to attract a suggestion*, which is the true-positive
+/// control the code-action half needs. A quick-fix only exists where the
+/// analyser found a "did you mean…?" candidate, so a control has to be a
+/// near-miss (`puta` → `puts`); an arbitrary long name draws the W123 but
+/// carries no fix, and asserting on its absence would prove nothing.
 const VECTOR: &str = "namespace eval tomato::vector {}\n\
                       proc tomato::vector::AngleBetween {c} {\n\
                       \x20   return [expr {acos($c) * (Pi() / acos(-1.0))}]\n\
@@ -72,7 +77,8 @@ const VECTOR: &str = "namespace eval tomato::vector {}\n\
                       }\n\
                       proc tomato::vector::Broken {} {\n\
                       \x20   return [expr {NeverDefinedAnywhere()}]\n\
-                      }\n";
+                      }\n\
+                      puta hi\n";
 
 /// The names W123 reports, in source order.
 fn w123_names(diags: &[Value]) -> Vec<String> {
@@ -114,9 +120,11 @@ fn titles_at_pi(lsp: &mut Lsp, uri: &str) -> Vec<String> {
     action_titles(&lsp.code_actions(uri, caret(2, 30), json!([])))
 }
 
-/// Titles offered at the genuinely-undefined call site (line 8) of [`VECTOR`].
+/// Titles offered at [`VECTOR`]'s line-10 `puta` call — a name nothing
+/// defines, one edit from the real `puts`, so the unresolved-command quick-fix
+/// genuinely exists there.
 fn titles_at_undefined(lsp: &mut Lsp, uri: &str) -> Vec<String> {
-    action_titles(&lsp.code_actions(uri, caret(8, 20), json!([])))
+    action_titles(&lsp.code_actions(uri, caret(10, 1), json!([])))
 }
 
 /// Whether any offered title is a "did you mean…?" command rewrite.
@@ -272,6 +280,14 @@ fn cross_file_resolution_on_keeps_the_mathfunc_verdict_and_the_action_agrees() {
     );
 }
 
+/// The sibling proc the project-tier tests call across files, and the caller
+/// that calls it. Both names are one edit from the real `puts` so the
+/// unresolved-command quick-fix genuinely exists for each: `putz` is defined
+/// next door (line 0), `puta` is defined nowhere (line 1, the control that
+/// must never be suppressed).
+const CROSS_FILE_LIB: &str = "proc putz {a} { return $a }\n";
+const CROSS_FILE_CALLER: &str = "putz hi\nputa hi\n";
+
 /// The **project tier**, which stays opt-in: an ordinary bareword call to a
 /// proc in a sibling document. It draws W123 by default (a workspace is not
 /// automatically one program — a bare `helper` in an unrelated script is a
@@ -280,21 +296,21 @@ fn cross_file_resolution_on_keeps_the_mathfunc_verdict_and_the_action_agrees() {
 fn a_plain_cross_file_proc_call_still_draws_w123_by_default() {
     let mut lsp = Lsp::tcl();
     let lib = unique_uri("tcl");
-    lsp.open_ready(&lib, "proc renderReport {a b} { return [list $a $b] }\n");
+    lsp.open_ready(&lib, CROSS_FILE_LIB);
     let caller = unique_uri("tcl");
-    // The second call is the settle marker: nothing anywhere defines it, so a
-    // batch carrying its W123 is a deep-pass batch with the refinements run.
-    lsp.open_ready(&caller, "renderReport 1 2\nnoSuchCommandAnywhere 1\n");
+    // `puta` is the settle marker: nothing anywhere defines it, so a batch
+    // carrying its W123 is a deep-pass batch with the refinements run.
+    lsp.open_ready(&caller, CROSS_FILE_CALLER);
     let diags = lsp.await_diagnostics_settled(&caller, Duration::from_secs(20), |d| {
-        w123_names(d).iter().any(|n| n == "noSuchCommandAnywhere")
+        w123_names(d).iter().any(|n| n == "puta")
     });
     assert!(
-        w123_names(&diags).iter().any(|n| n == "renderReport"),
+        w123_names(&diags).iter().any(|n| n == "putz"),
         "the project tier is opt-in; without it a cross-file bareword call is \
          still unknown, got: {:?}",
         w123_names(&diags),
     );
-    let at_call = action_titles(&lsp.code_actions(&caller, caret(0, 4), json!([])));
+    let at_call = action_titles(&lsp.code_actions(&caller, caret(0, 1), json!([])));
     assert!(
         has_replace_fix(&at_call),
         "…and the quick-fix is offered because the diagnostic is: {at_call:?}",
@@ -311,28 +327,27 @@ fn cross_file_resolution_on_clears_a_plain_proc_w123_and_its_quick_fix() {
         "features": { "linkedEditingRange": true, "crossFileResolution": true }
     }));
     let lib = unique_uri("tcl");
-    lsp.open_ready(&lib, "proc renderReport {a b} { return [list $a $b] }\n");
+    lsp.open_ready(&lib, CROSS_FILE_LIB);
     let caller = unique_uri("tcl");
-    let src = "renderReport 1 2\nnoSuchCommandAnywhere 1\n";
-    lsp.open_ready(&caller, src);
+    lsp.open_ready(&caller, CROSS_FILE_CALLER);
     let diags = lsp.await_diagnostics_settled(&caller, Duration::from_secs(20), |d| {
-        w123_names(d).iter().any(|n| n == "noSuchCommandAnywhere")
+        w123_names(d).iter().any(|n| n == "puta")
     });
     let names = w123_names(&diags);
     assert!(
-        !names.iter().any(|n| n == "renderReport"),
+        !names.iter().any(|n| n == "putz"),
         "the sibling document defines it, got: {names:?}",
     );
     assert!(
-        names.iter().any(|n| n == "noSuchCommandAnywhere"),
+        names.iter().any(|n| n == "puta"),
         "TP control: got: {names:?}",
     );
 
-    let at_call = action_titles(&lsp.code_actions(&caller, caret(0, 4), json!([])));
+    let at_call = action_titles(&lsp.code_actions(&caller, caret(0, 1), json!([])));
     assert!(
         !has_replace_fix(&at_call),
         "the diagnostic is suppressed, so its quick-fix must be too: {at_call:?}",
     );
-    let at_unknown = action_titles(&lsp.code_actions(&caller, caret(1, 4), json!([])));
+    let at_unknown = action_titles(&lsp.code_actions(&caller, caret(1, 1), json!([])));
     assert!(has_replace_fix(&at_unknown), "TP control: {at_unknown:?}");
 }
