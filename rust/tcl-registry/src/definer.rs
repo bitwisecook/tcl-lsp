@@ -892,6 +892,25 @@ const SNIT_MEMBER_BODY_COMMANDS: &[MemberBodyCommand] = &[MemberBodyCommand {
     binds_handle: Some(crate::handle_binding::SNIT_INSTALL_BINDS_HANDLE),
 }];
 
+/// The member-body commands a snit **widget** definer injects: `install`, plus
+/// the hull installer only a widget has.
+///
+/// VERIFIED against tcllib snit(n): `installhull` exists for `snit::widget` /
+/// `snit::widgetadaptor`, whose instances have a hull; a plain `snit::type`
+/// has none, so it is deliberately absent from [`SNIT_MEMBER_BODY_COMMANDS`].
+const SNIT_WIDGET_MEMBER_BODY_COMMANDS: &[MemberBodyCommand] = &[
+    MemberBodyCommand {
+        name: "install",
+        detail: "install a snit component into its component variable",
+        binds_handle: Some(crate::handle_binding::SNIT_INSTALL_BINDS_HANDLE),
+    },
+    MemberBodyCommand {
+        name: "installhull",
+        detail: "install the widget's hull component",
+        binds_handle: Some(crate::handle_binding::SNIT_INSTALLHULL_BINDS_HANDLE),
+    },
+];
+
 /// The definition-body grammar for a plain snit `type`.  `implicit_vars` is
 /// the set snit injects into *every* member body; the widget definers carry
 /// [`SNIT_WIDGET_GRAMMAR`], whose `implicit_vars` add the `win` / `hull`
@@ -927,7 +946,7 @@ pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // snit(n): "Every snit type has the following type methods: create,
     // info, destroy."  `create` is left out — see the field's doc comment.
     builtin_type_methods: &["info", "destroy"],
-    member_body_commands: SNIT_MEMBER_BODY_COMMANDS,
+    member_body_commands: SNIT_WIDGET_MEMBER_BODY_COMMANDS,
     // snit(n), "The Type Command": `$type name ?args?` with a non-typemethod
     // first word is `$type create name ?args?`.
     bare_word_construction: true,

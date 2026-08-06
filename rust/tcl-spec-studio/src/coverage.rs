@@ -793,7 +793,7 @@ pub const REPEATED_ARG_LAYOUT: &[Field] = &[
 /// Compile-time witness for [`HANDLE_BINDING_SPEC`].
 pub fn witness_handle_binding_spec(spec: &HandleBindingSpec) {
     let HandleBindingSpec {
-        name_at: _,
+        name_from: _,
         class_from: _,
         keyword: _,
     } = spec;
@@ -801,7 +801,7 @@ pub fn witness_handle_binding_spec(spec: &HandleBindingSpec) {
 
 /// Where the studio surfaces each [`HandleBindingSpec`] field (issue #1185).
 pub const HANDLE_BINDING_SPEC: &[Field] = &[
-    f("name_at", Surface::Expression("binds_handle")),
+    f("name_from", Surface::Expression("binds_handle")),
     f("class_from", Surface::Expression("binds_handle")),
     f("keyword", Surface::Expression("binds_handle")),
 ];
@@ -972,7 +972,7 @@ mod tests {
     use serde_json::{Map, Value, json};
     use tcl_core_types::DiagCode;
     use tcl_registry::arg_role::ArgRole;
-    use tcl_registry::handle_binding::HandleClassSource;
+    use tcl_registry::handle_binding::{HandleClassSource, HandleName};
     use tcl_registry::hover::{FormKind, OptionArity, OptionValue};
     use tcl_registry::side_effects::{ConnectionSide, SideEffectTarget};
     use tcl_registry::symbol_def::DefinedSymbolKind;
@@ -1224,7 +1224,7 @@ mod tests {
     // `name:` in the expected text.
 
     const WITNESS_BINDING: HandleBindingSpec = HandleBindingSpec {
-        name_at: 0,
+        name_from: HandleName::Word(0),
         class_from: HandleClassSource::Word(2),
         keyword: Some(HandleKeyword {
             at: 1,
@@ -1291,7 +1291,8 @@ mod tests {
         assert_eq!(
             d["binds_handle"],
             json!(
-                "Some(&HandleBindingSpec { name_at: 0, class_from: HandleClassSource::Word(2), \
+                "Some(&HandleBindingSpec { name_from: HandleName::Word(0), \
+                 class_from: HandleClassSource::Word(2), \
                  keyword: Some(HandleKeyword { at: 1, word: \"using\" }) })"
             )
         );
@@ -1337,7 +1338,7 @@ mod tests {
     fn promoted_binding_spec() -> CommandSpec {
         CommandSpec {
             binds_handle: Some(&HandleBindingSpec {
-                name_at: 0,
+                name_from: HandleName::Word(0),
                 class_from: HandleClassSource::Word(2),
                 keyword: Some(HandleKeyword {
                     at: 1,
@@ -1407,7 +1408,9 @@ mod tests {
         );
         let source = render_rs::render(&draft::from_command_spec(spec));
         assert!(
-            source.contains("binds_handle: Some(&HandleBindingSpec { name_at: 0, "),
+            source.contains(
+                "binds_handle: Some(&HandleBindingSpec { name_from: HandleName::Word(0), "
+            ),
             "the live binding must render as a literal:\n{source}"
         );
     }

@@ -47,7 +47,9 @@ use serde_json::{Map, Value, json};
 use tcl_dialect::DialectSet;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::Arity;
-use tcl_registry::handle_binding::{HandleBindingSpec, HandleClassSource, HandleKeyword};
+use tcl_registry::handle_binding::{
+    HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
+};
 use tcl_registry::hooks::ArgTypeHint;
 use tcl_registry::hover::{
     ArgValue, FormSpec, HoverSnippet, IntegerDomain, OptionArity, OptionSpec, OptionValue,
@@ -445,6 +447,14 @@ fn repeated_args_expr(layouts: &[RepeatedArgLayout]) -> String {
     format!("&[{}]", items.join(", "))
 }
 
+/// The Rust expression for a [`HandleName`].
+fn handle_name_expr(name: HandleName) -> String {
+    match name {
+        HandleName::Word(i) => format!("HandleName::Word({i})"),
+        HandleName::Implicit(v) => format!("HandleName::Implicit({})", rust_string(v)),
+    }
+}
+
 /// The Rust expression for a [`HandleClassSource`].
 fn handle_class_source_expr(source: HandleClassSource) -> String {
     match source {
@@ -472,8 +482,8 @@ fn handle_keyword_expr(keyword: HandleKeyword) -> String {
 /// literal promotes to the `&'static` the field wants (issue #1185).
 fn handle_binding_expr(spec: &HandleBindingSpec) -> String {
     format!(
-        "Some(&HandleBindingSpec {{ name_at: {}, class_from: {}, keyword: {} }})",
-        spec.name_at,
+        "Some(&HandleBindingSpec {{ name_from: {}, class_from: {}, keyword: {} }})",
+        handle_name_expr(spec.name_from),
         handle_class_source_expr(spec.class_from),
         spec.keyword.map_or_else(
             || "None".to_owned(),

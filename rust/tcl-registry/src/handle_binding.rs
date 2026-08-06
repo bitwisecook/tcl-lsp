@@ -39,6 +39,26 @@
 //! [`CommandSpec::binds_handle`]: crate::spec::CommandSpec::binds_handle
 //! [`MemberBodyCommand`]: crate::definer::MemberBodyCommand
 
+/// Which variable a call binds an object handle *to*.
+///
+/// Almost every installer names it in the call (`install NAME using TYPE …`),
+/// but a class system can also bind a variable it provides implicitly: snit's
+/// `installhull using TYPE …` installs the widget's **hull** component, whose
+/// name appears nowhere in the call (snit(n): "Given this form, `installhull`
+/// creates the hull widget"; the hull is reached as `$hull` inside any member
+/// body, which is why it is already one of the widget grammar's
+/// `implicit_vars`).  That is a different *kind* of binding, not another index,
+/// so it is a variant rather than a sentinel value in a `u8`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HandleName {
+    /// The word at this 0-based argument index (after the command name) names
+    /// the variable that receives the handle.
+    Word(u8),
+    /// The call binds a fixed variable the class system provides implicitly in
+    /// every member body — snit's `hull`.  Nothing in the call spells it.
+    Implicit(&'static str),
+}
+
 /// Where the **class** of a bound object handle is written in the call.
 ///
 /// Both variants name a 0-based argument index (after the command name); they
@@ -87,9 +107,8 @@ pub struct HandleKeyword {
 /// How one command binds a variable to an object handle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HandleBindingSpec {
-    /// 0-based argument index (after the command name) of the word naming the
-    /// **variable** that receives the handle.
-    pub name_at: u8,
+    /// Which variable receives the handle.
+    pub name_from: HandleName,
     /// Where the handle's class is written.
     pub class_from: HandleClassSource,
     /// A literal keyword the layout requires, or `None` when the positional
@@ -126,7 +145,10 @@ impl HandleBindingSpec {
         {
             return None;
         }
-        let name = *args.get(self.name_at as usize)?;
+        let name = match self.name_from {
+            HandleName::Word(i) => *args.get(i as usize)?,
+            HandleName::Implicit(name) => name,
+        };
         let class_word = *args.get(self.class_from.index())?;
         Some(BoundHandle {
             name,
@@ -145,7 +167,7 @@ impl HandleBindingSpec {
 ///
 /// [`CommandSpec::binds_handle`]: crate::spec::CommandSpec::binds_handle
 pub const SET_BINDS_HANDLE: HandleBindingSpec = HandleBindingSpec {
-    name_at: 0,
+    name_from: HandleName::Word(0),
     class_from: HandleClassSource::ConstructionValue(1),
     keyword: None,
 };
@@ -157,10 +179,34 @@ pub const SET_BINDS_HANDLE: HandleBindingSpec = HandleBindingSpec {
 /// the resulting command in the component variable `NAME`, and takes the type
 /// command as the word after the literal `using`.
 pub const SNIT_INSTALL_BINDS_HANDLE: HandleBindingSpec = HandleBindingSpec {
-    name_at: 0,
+    name_from: HandleName::Word(0),
     class_from: HandleClassSource::Word(2),
     keyword: Some(HandleKeyword {
         at: 1,
+        word: "using",
+    }),
+};
+
+/// snit's `installhull using WIDGETTYPE ?args…?` — the hull installer
+/// available inside a `snit::widget` / `snit::widgetadaptor` member body.
+///
+/// VERIFIED against tcllib snit(n), which documents exactly two forms:
+///
+/// * `installhull using widgetType args...` — "Given this form, `installhull`
+///   creates the hull widget, and initializes any options delegated to the
+///   hull from the Tk option database."  The class is the word after `using`.
+/// * `installhull name` — "the hull widget has already been created; note that
+///   its name must be `$win`."  There is no static class word in that form, so
+///   the missing `using` keyword makes [`HandleBindingSpec::resolve`] abstain.
+///
+/// Unlike `install`, the variable it binds is not written in the call at all:
+/// it is the widget's implicit `hull` component, which is why this needs
+/// [`HandleName::Implicit`] rather than another `name_at` row (issue #1275).
+pub const SNIT_INSTALLHULL_BINDS_HANDLE: HandleBindingSpec = HandleBindingSpec {
+    name_from: HandleName::Implicit("hull"),
+    class_from: HandleClassSource::Word(1),
+    keyword: Some(HandleKeyword {
+        at: 0,
         word: "using",
     }),
 };
@@ -199,6 +245,26 @@ mod tests {
         );
         // The one-argument read form (`set x`) binds nothing.
         assert_eq!(spec.resolve(&["axis"]), None);
+    }
+
+    /// snit's hull installer binds the implicit `hull` component, so the
+    /// bound name comes from the descriptor rather than from any argument.
+    #[test]
+    fn installhull_binds_the_implicit_hull_component() {
+        let spec = SNIT_INSTALLHULL_BINDS_HANDLE;
+        assert_eq!(
+            spec.resolve(&["using", "ttk::frame", "-borderwidth", "2"]),
+            Some(BoundHandle {
+                name: "hull",
+                class_word: "ttk::frame",
+                class_source: HandleClassSource::Word(1),
+            })
+        );
+        // `installhull $win` — the already-created form has no static class
+        // word, so the missing keyword makes the layout abstain.
+        assert_eq!(spec.resolve(&["$win"]), None);
+        // A `using` with nothing after it is too short to carry a type word.
+        assert_eq!(spec.resolve(&["using"]), None);
     }
 
     #[test]

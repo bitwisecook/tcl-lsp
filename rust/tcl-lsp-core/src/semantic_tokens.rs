@@ -7721,6 +7721,57 @@ mod tests {
         );
     }
 
+    /// snit's `installhull using TYPE …` binds the widget's **implicit** hull
+    /// component, whose name appears nowhere in the call (issue #1275).
+    ///
+    /// VERIFIED against tcllib snit(n): "Given this form, `installhull` creates
+    /// the hull widget, and initializes any options delegated to the hull from
+    /// the Tk option database."  The second documented form, `installhull
+    /// $win`, names an already-created widget and carries no static type word,
+    /// so it must state nothing.
+    #[test]
+    fn snit_installhull_types_the_implicit_hull_component() {
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let resolves = |src: &str| {
+            let cu = CompilationUnit::build_for(src, &registry, false);
+            let analysis = Analyser::new().analyse(src, "tcl9.0");
+            decode_semantic(&full_with_cu_and_analysis(
+                src,
+                "tcl9.0",
+                &registry,
+                Some(&cu),
+                Some(&analysis),
+            ))
+            .iter()
+            .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Method as u32 && m == 0)
+        };
+        let src = "snit::widget frameish { method draw {} {} }\n\
+                   snit::widgetadaptor chart {\n\
+                   \x20   constructor {args} {\n\
+                   \x20     installhull using frameish\n\
+                   \x20     $hull draw\n\
+                   \x20   }\n\
+                   }\n";
+        assert!(
+            resolves(src),
+            "`installhull using frameish` must type the implicit `hull` component"
+        );
+        // The already-created form has no static type word — abstain.
+        let src = "snit::widget frameish { method draw {} {} }\n\
+                   snit::widgetadaptor chart {\n\
+                   \x20   constructor {args} {\n\
+                   \x20     installhull $win\n\
+                   \x20     $hull draw\n\
+                   \x20   }\n\
+                   }\n";
+        assert!(
+            !resolves(src),
+            "`installhull $win` states no class; `$hull draw` must not resolve"
+        );
+    }
+
     #[test]
     fn snit_bare_constructor_dispatch_resolves() {
         // snit's bare-word constructor `set eng [Engine ${selfns}::e]` (no

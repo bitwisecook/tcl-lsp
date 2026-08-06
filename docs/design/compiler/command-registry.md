@@ -428,9 +428,14 @@ handle scan. They are now registry data
 
 ```rust
 pub struct HandleBindingSpec {
-    pub name_at: u8,                     // the variable that receives the handle
+    pub name_from: HandleName,           // which variable receives the handle
     pub class_from: HandleClassSource,   // where the class is written
     pub keyword: Option<HandleKeyword>,  // a literal word the layout requires
+}
+
+pub enum HandleName {
+    Word(u8),                 // the word at this index names the variable
+    Implicit(&'static str),   // a fixed variable the class system provides
 }
 
 pub enum HandleClassSource {
@@ -450,6 +455,7 @@ Where the descriptor hangs depends on whether the command is global:
 |---|---|---|
 | `set` | `CommandSpec::binds_handle` | a real global command; `CommandRegistry::handle_binding` resolves it through `get`, so `::set` answers identically |
 | snit `install` | `DefinitionBodyGrammar::member_body_commands` | the word exists **only** inside a snit member body -- a global spec would make a user's own `proc install` look like a built-in everywhere. `CommandRegistry::member_body_handle_bindings()` enumerates them once per document |
+| snit `installhull` | `DefinitionBodyGrammar::member_body_commands` (widget grammars only) | same reason, and only a `snit::widget` / `snit::widgetadaptor` has a hull, so it is absent from the plain `snit::type` grammar |
 
 The paired grammar flag `DefinitionBodyGrammar::bare_word_construction`
 says whether a family's *type command* constructs from a bare instance
@@ -457,15 +463,20 @@ name (`$type $name`, snit(n)'s "The Type Command"). It is `true` for snit
 and `false` for `TclOO` / `[incr Tcl]`, and it replaced a
 `metaclass.starts_with("snit::")` spelling test in the scan.
 
-**Limits.** The descriptor covers a *fixed* pair of indices plus one
-optional literal keyword -- enough for both shapes above and for a
+snit's `installhull using TYPE ?args…?` is the shape that forced
+`HandleName` to be an enum rather than an index. It binds the widget's
+**implicit** `hull` component, whose name appears nowhere in the call, so
+`HandleName::Implicit("hull")` supplies it from the descriptor. snit(n)
+documents a second form, `installhull $win`, which names an
+already-created widget and carries no static type word; the required
+`using` keyword makes `resolve` abstain on it.
+
+**Limits.** The descriptor covers a *fixed* pair of positions plus one
+optional literal keyword -- enough for the three shapes above and for a
 comparable installer in another class system, and deliberately not a
-general option parser. snit's `installhull ?using TYPE …?` is **not**
-modelled: it binds the implicit `hull` component rather than a named
-variable, so it has no `name_at`, and adding it needs another variant
-rather than another row. `install NAME $widget` (a run-time-typed
-component) is likewise not modelled -- there is no static class word, so
-the scan abstains.
+general option parser. `install NAME $widget` (a run-time-typed
+component) is not modelled -- there is no static class word, so the scan
+abstains.
 
 ### ArgPresentation -- how a formatter lays an argument out
 
