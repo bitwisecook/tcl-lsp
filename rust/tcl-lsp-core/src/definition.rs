@@ -5528,10 +5528,12 @@ mod tests {
     /// namespace absent from it is [`ExportVerdict::Unknown`], one present
     /// answers from its listed names.
     ///
-    /// Deliberately position-blind — the *ordering* of a real workspace's
-    /// export events is `WorkspaceIndex`'s job and is pinned against it in
-    /// [`both_tiers_agree`]-style tests below. What this fixture isolates is
-    /// the three-way verdict itself.
+    /// Deliberately position-blind: what this fixture isolates is the
+    /// three-way verdict itself. Ordering a real workspace's export events
+    /// against an import site is `WorkspaceIndex`'s job, pinned against the
+    /// real snapshot in
+    /// [`the_real_oracle_does_not_resurrect_an_export_written_after_the_import`]
+    /// and in `workspace_index`'s own both-tiers tests.
     struct FakeExports(&'static [(&'static str, &'static [&'static str])]);
 
     impl NamespaceExportOracle for FakeExports {
@@ -5629,26 +5631,54 @@ mod tests {
     }
 
     #[test]
-    fn an_oracle_does_not_resurrect_an_export_written_after_the_import() {
-        // FP guard, issue #1027 Direction B under the oracle: the export that
-        // covers the name is in *this* document but written after the import,
-        // so it is not retroactive (oracle: `invalid command name`). The
-        // document's own export records are consulted first and rank by
-        // position, so the oracle is never asked to overrule them — and the
-        // real `WorkspaceIndex` oracle ranks its own rows against the import's
-        // real URI for the same reason (`ProgramExports::uri`).
+    fn the_real_oracle_does_not_resurrect_an_export_written_after_the_import() {
+        // FP guard, issue #1027 Direction B under the oracle, and the reason
+        // [`ProgramExports`] pairs the oracle with the document's **real**
+        // URI. The export covering the name is in this very document but
+        // written *after* the import, so it is not retroactive (oracle:
+        // `invalid command name "p"`). The workspace oracle holds that same
+        // row, tagged with the same URI, so it ranks it against the import by
+        // offset and answers `NotExported`. Handed a placeholder URI instead
+        // it could not rank the row at all, and
+        // `exported_at_import_site`'s abstain-toward-exported rule would have
+        // installed an import Tcl never made.
+        //
+        // Deliberately run against the real `WorkspaceIndex` snapshot rather
+        // than [`FakeExports`], which is position-blind by design.
         let src = "namespace eval src {\n    proc p {} { return SRC }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
         let call = after_last(src, "    p\n");
+        let index = crate::workspace_index::WorkspaceIndex::from_documents([(
+            "file:///main.tcl",
+            &analysis,
+        )]);
+        let exports = index.export_snapshot();
         let ctx = DOC.in_program(ProgramExports {
             uri: "file:///main.tcl",
-            // The oracle answers `Exported` unconditionally — the strongest
-            // possible pressure toward the wrong answer.
-            oracle: &FakeExports(&[("src", &["p"])]),
+            oracle: exports.as_ref(),
         });
         assert!(
             proc_visible_via_wildcard_import(&analysis, ctx, "::dst", "p", call).is_none(),
             "an export written after the import must not install it retroactively",
+        );
+        // …and a *second* import written after the export does pick it up,
+        // so the guard above is the ordering rule and not a blanket refusal.
+        let src2 = format!("{src}namespace eval dst {{\n    namespace import ::src::*\n}}\n");
+        let analysis2 = analyse(&src2);
+        let index2 = crate::workspace_index::WorkspaceIndex::from_documents([(
+            "file:///main.tcl",
+            &analysis2,
+        )]);
+        let exports2 = index2.export_snapshot();
+        let ctx2 = DOC.in_program(ProgramExports {
+            uri: "file:///main.tcl",
+            oracle: exports2.as_ref(),
+        });
+        let after = u32::try_from(src2.len()).expect("tiny test source");
+        assert!(
+            proc_visible_via_wildcard_import(&analysis2, ctx2, "::dst", "p", after)
+                .is_some_and(|p| p.qualified_name == "::src::p"),
+            "each import site takes its own export snapshot",
         );
     }
 

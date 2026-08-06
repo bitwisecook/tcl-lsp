@@ -684,3 +684,78 @@ fn references_do_not_reach_the_indirect_site_when_the_head_is_renamed() {
         "a renamed fold head must not manufacture a reference: {lines:?}"
     );
 }
+
+// Issue #1116 item 1 — find-references over the two-file `-force` shadow.
+//
+// The importing document is byte-identical in both tests; only the presence of
+// `namespace eval ::src {namespace export helper}` in a sibling file differs,
+// and with it which proc the bare `helper` call is a reference *to* (oracle
+// tclsh 8.6.16 / 9.0.4 — the transcript is on the matching definition tests).
+//
+//  line 0  namespace eval src {
+//  line 1      proc helper {a b} { return SRC }
+//  line 2      proc other {} { return O }
+//  line 3      namespace export other
+//  line 4  }
+//  line 5  namespace eval app {
+//  line 6      proc helper {} { return LOCAL }
+//  line 7  }
+//  line 8  namespace eval app {
+//  line 9      namespace import -force ::src::*
+//  line 10 }
+//  line 11 namespace eval app {
+//  line 12     helper
+//  line 13 }
+const FORCED_SHADOW_MAIN: &str = "namespace eval src {\n    proc helper {a b} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
+
+#[test]
+fn the_shadowed_call_references_the_import_source_when_another_file_exports_it() {
+    // TP — with the covering export in a sibling file the call on line 12 is a
+    // reference to `::src::helper` (line 1) and **not** to the local
+    // `::app::helper` (line 6), which the `-force` import deleted.
+    let mut lsp = Lsp::tcl();
+    let exports_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &exports_uri,
+        "namespace eval src {\n    namespace export helper\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(&main_uri, FORCED_SHADOW_MAIN);
+    // From the source declaration: the shadowed call is one of its references.
+    let from_src = start_lines(&lsp.references(&main_uri, 1, 9, false));
+    assert!(
+        from_src.contains(&12),
+        "the `-force`d call must reference the import source: {from_src:?}"
+    );
+    // From the deleted local declaration: it must not claim the call.
+    let from_local = start_lines(&lsp.references(&main_uri, 6, 9, false));
+    assert!(
+        !from_local.contains(&12),
+        "a command the import deleted has no call sites: {from_local:?}"
+    );
+}
+
+#[test]
+fn the_unshadowed_call_references_the_local_proc_when_nothing_exports_it() {
+    // TN, byte-identical `main.tcl` — nothing exports `helper`, the import
+    // binds only `other`, and the call on line 12 belongs to the local
+    // `::app::helper` on line 6.
+    let mut lsp = Lsp::tcl();
+    let unrelated_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &unrelated_uri,
+        "namespace eval other {\n    proc q {} { return Q }\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(&main_uri, FORCED_SHADOW_MAIN);
+    let from_local = start_lines(&lsp.references(&main_uri, 6, 9, false));
+    assert!(
+        from_local.contains(&12),
+        "the surviving local definition owns the call: {from_local:?}"
+    );
+    let from_src = start_lines(&lsp.references(&main_uri, 1, 9, false));
+    assert!(
+        !from_src.contains(&12),
+        "an import that bound nothing creates no reference: {from_src:?}"
+    );
+}
