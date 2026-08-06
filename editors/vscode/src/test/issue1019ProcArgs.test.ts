@@ -26,7 +26,13 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import {
+  getDocUri,
+  activate,
+  getServerLogSize,
+  waitForDeepDiagnostics,
+  waitForDiagnostics,
+} from "./helper";
 
 function codeOf(d: vscode.Diagnostic): string {
   return typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
@@ -164,13 +170,19 @@ suite("Issue #1019 idx 11 — a proc named after a package command", () => {
   const docUri = getDocUri("issue1019Idx11Argparse.tcl");
 
   test("fires neither W113 nor W120 nor an arity error (false case)", async () => {
+    // The document is clean, so there is no diagnostic to wait *for*.  Waiting
+    // out a deadline with a predicate that can never hold is the anti-pattern
+    // issue #1274 is about: it costs the full deadline on every run even when
+    // the server settled in milliseconds, and it proves nothing — an empty set
+    // satisfies all three negative assertions below whether analysis ran or
+    // not.  The server's deep-diagnostics marker is the actual signal that the
+    // pass completed for this URI, and it fires on a clean file too
+    // (`diags=0`), so this returns as soon as the work is done and throws if it
+    // never happens.
+    const since = getServerLogSize();
     await activate(docUri);
-    // The document is clean, so there is no diagnostic to wait *for*; give
-    // the server a settled window and assert on whatever it published.
-    const diags = await waitForDiagnostics(docUri, {
-      timeout: 8000,
-      predicate: () => false,
-    }).catch(() => vscode.languages.getDiagnostics(docUri));
+    await waitForDeepDiagnostics(docUri, { since });
+    const diags = vscode.languages.getDiagnostics(docUri);
     const seen = diags.map(codeOf);
     assert.ok(!seen.includes("W113"), `the proc shadows no built-in: ${seen.join(", ")}`);
     assert.ok(!seen.includes("W120"), `the file defines the command itself: ${seen.join(", ")}`);
