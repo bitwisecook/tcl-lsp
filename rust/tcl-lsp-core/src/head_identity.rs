@@ -199,15 +199,18 @@ pub(crate) fn command_head_identities(
     dialect: &str,
     registry: &CommandRegistry,
 ) -> HeadIdentityMap {
-    let mut map = HeadIdentityMap::default();
-    for (name, (qualified, offset)) in imported_command_aliases(source, dialect, registry) {
-        map.record(&name, Some(qualified), offset);
-    }
-    for seg in segment_commands_with_offset_and_config(
+    // One top-level segmentation feeds both halves — the `namespace import`
+    // scan and the command-table mutators.
+    let segments = segment_commands_with_offset_and_config(
         source,
         0,
         tcl_lexer::LexerConfig::for_file_dialect(dialect),
-    ) {
+    );
+    let mut map = HeadIdentityMap::default();
+    for (name, (qualified, offset)) in imported_command_aliases(&segments, registry) {
+        map.record(&name, Some(qualified), offset);
+    }
+    for seg in &segments {
         let Some(head) = seg.texts.first() else {
             continue;
         };
@@ -320,15 +323,10 @@ fn record_proc(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &C
 /// lets the registry-driven argument overrides see the real spec for an
 /// unqualified imported command.  Returns an empty map when nothing is imported.
 fn imported_command_aliases(
-    source: &str,
-    dialect: &str,
+    segments: &[tcl_compiler::segmenter::SegmentedCommand],
     registry: &CommandRegistry,
 ) -> FxHashMap<String, (String, u32)> {
     let mut aliases: FxHashMap<String, (String, u32)> = FxHashMap::default();
-    // Cheap gate: `namespace import` is the only source of aliases.
-    if !source.contains("namespace") {
-        return aliases;
-    }
     // Wholesale imports (`ns::*`) and single-name imports (`ns::name`), each
     // tagged with the byte offset of its `namespace import` statement so an
     // alias only applies to heads at or after it (source order).  Only
@@ -337,11 +335,7 @@ fn imported_command_aliases(
     // global bare alias.
     let mut import_all: Vec<(String, u32)> = Vec::new();
     let mut import_one: Vec<(String, String, u32)> = Vec::new();
-    for seg in segment_commands_with_offset_and_config(
-        source,
-        0,
-        tcl_lexer::LexerConfig::for_file_dialect(dialect),
-    ) {
+    for seg in segments {
         if seg.texts.len() < 3 || seg.texts[0] != "namespace" || seg.texts[1] != "import" {
             continue;
         }
