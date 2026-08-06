@@ -833,7 +833,7 @@ fn fp_namespace_rename_refuses_a_collision_with_an_existing_namespace() {
 /// The idx-79 hazard shape, shared by the trigger-position tests.
 ///
 /// Line/column map (0-based):
-///   5  col 23 — the `X` inside `[$other X]`   (untracked call site)
+///   5  col 27 — the `X` inside `[$other X]`   (untracked call site)
 ///   10 col 11 — the `X` of `method X`          (declaration)
 ///   12 col 11 — the `X` in `export X Get`      (export bareword)
 const IDX79_HAZARD: &str = "oo::class create Vector3d {\n\
@@ -857,7 +857,7 @@ fn fp_rename_refuses_the_untracked_receiver_from_the_call_site_trigger() {
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, IDX79_HAZARD);
     // Cursor on the `X` of `[$other X]` — the dispatch itself.
-    let err = lsp.rename_error(&uri, 5, 23, "GetX");
+    let err = lsp.rename_error(&uri, 5, 27, "GetX");
     let message = err
         .get("message")
         .and_then(Value::as_str)
@@ -911,14 +911,23 @@ fn fp_rename_verdict_is_the_same_from_every_occurrence_of_a_hazardous_member() {
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, IDX79_HAZARD);
     for (line, ch, what) in [
-        (5u32, 23u32, "the untracked `[$other X]` call site"),
+        (5u32, 27u32, "the untracked `[$other X]` call site"),
         (10, 11, "the `method X` declaration"),
         (12, 11, "the `export X Get` bareword"),
     ] {
-        let result = lsp.rename(&uri, line, ch, "GetX");
+        // `rename_error` is the only way to read this: a refusal travels as a
+        // JSON-RPC *error*, and the plain `rename` helper panics on one.  That
+        // asymmetry is the point — a refusal must never be mistakable for an
+        // ordinary empty answer.
+        let err = lsp.rename_error(&uri, line, ch, "GetX");
         assert!(
-            rename_edits(&result).is_empty(),
-            "{what} must never yield an edit set: {result}"
+            !err.is_null(),
+            "{what} must answer a refusal, not an edit set"
+        );
+        assert_eq!(
+            err.get("code").and_then(Value::as_i64),
+            Some(-32600),
+            "{what}: the refusal must be an invalid-request error: {err}"
         );
     }
 }

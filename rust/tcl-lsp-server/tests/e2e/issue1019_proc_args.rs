@@ -296,7 +296,7 @@ fn tp_next_in_a_constructor_resolves_to_the_superclass_constructor() {
     );
     // Control: the ordinary-method `next` on the same class still resolves to
     // the method, so the two forms are symmetric.
-    let method = lsp.definition(&uri, 7, 32);
+    let method = lsp.definition(&uri, 7, 34);
     assert_eq!(
         lines_in(&method, &uri),
         vec![2],
