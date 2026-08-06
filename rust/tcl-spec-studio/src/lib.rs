@@ -31,12 +31,16 @@
 //!   the form, the draft model, and the renderer from a single table.
 //! - [`catalogue`] — the registry's enum and bitflag vocabularies, with
 //!   compile-time witnesses that they stay complete.
+//! - [`coverage`] — the same idea one level down: exhaustive *destructurings*
+//!   of the `CommandSpec` family, so a new registry **field** breaks the build
+//!   until it is surfaced in the studio (or explicitly excluded).
 //! - [`draft`] — the JSON draft model, and seeding a draft from a live spec.
 //! - [`render_rs`] — draft → registry `.rs` source, copyright banner included.
 //! - [`render_stub`] — draft → `# tcl-lsp: stub` block or `.tcl.stubs` file.
 //! - [`infer`] — Tcl package sources → draft specs, via the real analyser.
 
 pub mod catalogue;
+pub mod coverage;
 pub mod draft;
 pub mod infer;
 pub mod render_rs;

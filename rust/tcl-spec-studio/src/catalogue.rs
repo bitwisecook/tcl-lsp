@@ -197,6 +197,10 @@ pub const DEFINED_SYMBOL_KINDS: &[Variant] = &[
         "Matcher",
         "a custom result matcher (`tcltest::customMatch MODE command`)",
     ),
+    v(
+        "Event",
+        "an event handler named for its event (iRules `when EVENT { … }`)",
+    ),
 ];
 
 /// [`SideEffectTarget`] — what kind of state an effect touches.

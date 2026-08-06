@@ -34,5 +34,10 @@ tcl-compiler = { path = "../tcl-compiler" }
 tcl-lexer = { path = "../tcl-lexer" }
 serde_json = { version = "1", features = ["preserve_order"] }
 
+[dev-dependencies]
+# `SetterConstraint::code` is a real `DiagCode`, so the coverage gate needs the
+# type to build the witness constraint it seeds a draft from.
+tcl-core-types = { path = "../tcl-core-types" }
+
 [lints]
 workspace = true

@@ -27,30 +27,45 @@
 //! ## Fields that cannot round-trip
 //!
 //! A handful of spec fields hold a function pointer (`arg_role_resolver`,
-//! `const_fold`, `taint_sink_gate`, …) or a reference to a `&'static`
-//! descriptor (`definition_body`, `case_list`, `object_class`, …). Rust can
-//! tell that such a field is set, but not recover the *expression* that set
-//! it. Seeding records those keys under [`UNRENDERABLE_KEY`] so the form can
-//! flag them and the renderer can emit a `TODO` rather than silently dropping
+//! `const_fold`, `taint_sink_gate`, …) or a reference to a **named** `&'static`
+//! descriptor the registry shares between commands (`definition_body`,
+//! `case_list`, `object_class`, `body_scope`, `frame_effect`, `bpf_op`,
+//! `event_requires`, `command_forms`). Rust can tell that such a field is set,
+//! but not recover the *expression* — the constant's path — that set it.
+//! Seeding records those keys under [`UNRENDERABLE_KEY`] so the form can flag
+//! them and the renderer can emit a `TODO` rather than silently dropping
 //! behaviour the source command had.
+//!
+//! A descriptor that is **plain data** is a different case and does round-trip:
+//! `repeated_args`, `binds_handle`, `byte_array_payload`, `defines_symbol`,
+//! `oo_context_facts`, and a subcommand's `versioned_arg_values` are rendered
+//! back out as full struct literals (every field spelled, never a defaulting
+//! constructor), so drafting and re-rendering a command that sets one loses
+//! nothing. [`crate::coverage`] is what keeps those literals complete.
 
 use serde_json::{Map, Value, json};
 use tcl_dialect::DialectSet;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::Arity;
+use tcl_registry::handle_binding::{HandleBindingSpec, HandleClassSource, HandleKeyword};
 use tcl_registry::hooks::ArgTypeHint;
 use tcl_registry::hover::{
     ArgValue, FormSpec, HoverSnippet, IntegerDomain, OptionArity, OptionSpec, OptionValue,
 };
 use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::presentation::ArgPresentation;
+use tcl_registry::repeated::RepeatedArgLayout;
 use tcl_registry::side_effects::SideEffect;
-use tcl_registry::spec::{CommandSpec, SubCommand, SubSubCommand};
+use tcl_registry::spec::{
+    BytePayloadSpec, CommandSpec, OoContextFact, SubCommand, SubSubCommand, VersionedArgValue,
+};
+use tcl_registry::symbol_def::SymbolDef;
 use tcl_registry::taint::{SetterConstraint, TaintColour};
 use tcl_registry::traits::Traits;
 use tcl_registry::types::{ReturnElements, VarElementsEffect, VarWriteTyping};
 
 use crate::catalogue;
+use crate::render_rs::rust_string;
 
 /// Draft key listing the fields a live spec sets but whose defining Rust
 /// expression could not be recovered. Absent (or empty) when everything
@@ -79,7 +94,7 @@ fn opt_str(value: Option<&'static str>) -> Value {
 /// every registry surface: `introduced_version`, `deprecated_version`, and
 /// `retired_version` (the last exclusive). `null` means the lifecycle never
 /// reached that state.
-fn insert_lifecycle(d: &mut Map<String, Value>, lifecycle: Lifecycle) {
+pub(crate) fn insert_lifecycle(d: &mut Map<String, Value>, lifecycle: Lifecycle) {
     d.insert("introduced_version".into(), opt_str(lifecycle.introduced));
     d.insert("deprecated_version".into(), opt_str(lifecycle.deprecated));
     d.insert("retired_version".into(), opt_str(lifecycle.retired));
@@ -125,7 +140,7 @@ fn taint(value: Option<TaintColour>) -> Value {
     }
 }
 
-fn arity(value: Arity) -> Value {
+pub(crate) fn arity(value: Arity) -> Value {
     json!({
         "min": value.min,
         "max": if value.is_unlimited() { Value::Null } else { json!(value.max) },
@@ -171,7 +186,7 @@ fn prefix_map(entries: &[(u8, AppendedArity)]) -> Value {
     )
 }
 
-fn arg_type_map(entries: &[(u8, ArgTypeHint)]) -> Value {
+pub(crate) fn arg_type_map(entries: &[(u8, ArgTypeHint)]) -> Value {
     Value::Array(
         entries
             .iter()
@@ -192,7 +207,7 @@ fn arg_type_map(entries: &[(u8, ArgTypeHint)]) -> Value {
     )
 }
 
-fn arg_value(value: &ArgValue) -> Value {
+pub(crate) fn arg_value(value: &ArgValue) -> Value {
     json!({
         "value": value.value,
         "detail": value.detail,
@@ -237,7 +252,7 @@ fn option_arity(value: OptionArity) -> (Value, bool) {
 }
 
 /// Draft form of an option, plus whether it round-tripped completely.
-fn option_spec(opt: &OptionSpec) -> (Value, bool) {
+pub(crate) fn option_spec(opt: &OptionSpec) -> (Value, bool) {
     let (value, complete) = match opt.value {
         OptionValue::Flag => (Value::Null, true),
         OptionValue::Takes(arg) => {
@@ -274,7 +289,7 @@ fn option_spec(opt: &OptionSpec) -> (Value, bool) {
     )
 }
 
-fn form_spec(form: &FormSpec) -> Value {
+pub(crate) fn form_spec(form: &FormSpec) -> Value {
     json!({
         "kind": catalogue::variant_name(&form.kind),
         "synopsis": form.synopsis,
@@ -282,7 +297,7 @@ fn form_spec(form: &FormSpec) -> Value {
     })
 }
 
-fn side_effect(effect: &SideEffect) -> Value {
+pub(crate) fn side_effect(effect: &SideEffect) -> Value {
     json!({
         "target": catalogue::variant_name(&effect.target),
         "reads": effect.reads,
@@ -292,7 +307,7 @@ fn side_effect(effect: &SideEffect) -> Value {
     })
 }
 
-fn setter_constraint(constraint: &SetterConstraint) -> Value {
+pub(crate) fn setter_constraint(constraint: &SetterConstraint) -> Value {
     json!({
         "arg_index": constraint.arg_index,
         "required_prefix": constraint.required_prefix,
@@ -301,7 +316,7 @@ fn setter_constraint(constraint: &SetterConstraint) -> Value {
     })
 }
 
-fn hover(value: Option<HoverSnippet>) -> Value {
+pub(crate) fn hover(value: Option<HoverSnippet>) -> Value {
     match value {
         None => Value::Null,
         Some(h) => json!({
@@ -315,7 +330,7 @@ fn hover(value: Option<HoverSnippet>) -> Value {
     }
 }
 
-fn sub_subcommand(sub: &SubSubCommand) -> Value {
+pub(crate) fn sub_subcommand(sub: &SubSubCommand) -> Value {
     json!({
         "name": sub.name,
         "detail": sub.detail,
@@ -373,6 +388,158 @@ fn var_elements_effect_expr(value: VarElementsEffect) -> String {
         VarElementsEffect::ListifiesDictValue => "ListifiesDictValue".to_owned(),
     };
     format!("Some(VarElementsEffect::{inner})")
+}
+
+/// The Rust expression for an `Option<u8>` field of a descriptor literal.
+fn opt_u8_expr(value: Option<u8>) -> String {
+    value.map_or_else(|| "None".to_owned(), |n| format!("Some({n})"))
+}
+
+/// The Rust expression for an `Option<&'static str>` field of a descriptor
+/// literal.
+fn opt_str_expr(value: Option<&'static str>) -> String {
+    value.map_or_else(
+        || "None".to_owned(),
+        |s| format!("Some({})", rust_string(s)),
+    )
+}
+
+/// The Rust expression for a [`Lifecycle`], spelled as a struct literal.
+///
+/// The literal names all three releases rather than chaining the
+/// `introduced_in(…).deprecated_from(…)` builders, so a release the type gains
+/// later cannot be dropped silently — [`crate::coverage`] checks the rendered
+/// text mentions every field.
+fn lifecycle_expr(value: Lifecycle) -> String {
+    format!(
+        "Lifecycle {{ introduced: {}, deprecated: {}, retired: {} }}",
+        opt_str_expr(value.introduced),
+        opt_str_expr(value.deprecated),
+        opt_str_expr(value.retired),
+    )
+}
+
+/// The Rust expression for one [`RepeatedArgLayout`].
+///
+/// Written as a full struct literal rather than one of the `every` / `strided`
+/// constructors: a constructor hides the fields it defaults, and hiding a field
+/// is exactly the drift this module exists to prevent.
+fn repeated_arg_layout_expr(layout: RepeatedArgLayout) -> String {
+    format!(
+        "RepeatedArgLayout {{ role: {}, start: {}, stride: {}, exclude_trailing: {}, optional_leading_word: {} }}",
+        catalogue::qualified_variant("ArgRole", &layout.role),
+        layout.start,
+        layout.stride,
+        layout.exclude_trailing,
+        layout.optional_leading_word,
+    )
+}
+
+/// The Rust expression for a `&'static [RepeatedArgLayout]` field.
+fn repeated_args_expr(layouts: &[RepeatedArgLayout]) -> String {
+    let items: Vec<String> = layouts
+        .iter()
+        .copied()
+        .map(repeated_arg_layout_expr)
+        .collect();
+    format!("&[{}]", items.join(", "))
+}
+
+/// The Rust expression for a [`HandleClassSource`].
+fn handle_class_source_expr(source: HandleClassSource) -> String {
+    match source {
+        HandleClassSource::Word(i) => format!("HandleClassSource::Word({i})"),
+        HandleClassSource::ConstructionValue(i) => {
+            format!("HandleClassSource::ConstructionValue({i})")
+        }
+    }
+}
+
+/// The Rust expression for a [`HandleKeyword`].
+fn handle_keyword_expr(keyword: HandleKeyword) -> String {
+    format!(
+        "HandleKeyword {{ at: {}, word: {} }}",
+        keyword.at,
+        rust_string(keyword.word)
+    )
+}
+
+/// The Rust expression for a [`HandleBindingSpec`] reference, wrapped in
+/// `Some(&…)`.
+///
+/// The whole descriptor is plain data (two indices, a fieldless-payload enum,
+/// and an optional keyword), so it round-trips: `&`-borrowing a constant struct
+/// literal promotes to the `&'static` the field wants (issue #1185).
+fn handle_binding_expr(spec: &HandleBindingSpec) -> String {
+    format!(
+        "Some(&HandleBindingSpec {{ name_at: {}, class_from: {}, keyword: {} }})",
+        spec.name_at,
+        handle_class_source_expr(spec.class_from),
+        spec.keyword.map_or_else(
+            || "None".to_owned(),
+            |k| format!("Some({})", handle_keyword_expr(k))
+        ),
+    )
+}
+
+/// The Rust expression for a [`BytePayloadSpec`], wrapped in `Some(…)`.
+fn byte_payload_expr(spec: BytePayloadSpec) -> String {
+    format!(
+        "Some(BytePayloadSpec {{ replace_data_index: {}, message_flag_shift: {} }})",
+        spec.replace_data_index, spec.message_flag_shift,
+    )
+}
+
+/// The Rust expression for a [`SymbolDef`], wrapped in `Some(…)`.
+fn symbol_def_expr(def: SymbolDef) -> String {
+    format!(
+        "Some(SymbolDef {{ name_arg: {}, detail_arg: {}, requires_arg: {}, kind: {} }})",
+        def.name_arg,
+        opt_u8_expr(def.detail_arg),
+        opt_u8_expr(def.requires_arg),
+        catalogue::qualified_variant("DefinedSymbolKind", &def.kind),
+    )
+}
+
+/// The Rust expression for a `&'static [(&'static str, OoContextFact)]` field.
+fn oo_context_facts_expr(facts: &[(&'static str, OoContextFact)]) -> String {
+    let items: Vec<String> = facts
+        .iter()
+        .map(|(word, fact)| {
+            format!(
+                "({}, {})",
+                rust_string(word),
+                catalogue::qualified_variant("OoContextFact", fact)
+            )
+        })
+        .collect();
+    format!("&[{}]", items.join(", "))
+}
+
+/// The Rust expression for a `&'static [VersionedArgValue]` field.
+fn versioned_arg_values_expr(gates: &[VersionedArgValue]) -> String {
+    let items: Vec<String> = gates
+        .iter()
+        .map(|gate| {
+            format!(
+                "VersionedArgValue {{ index: {}, value: {}, lifecycle: {} }}",
+                gate.index,
+                rust_string(gate.value),
+                lifecycle_expr(gate.lifecycle),
+            )
+        })
+        .collect();
+    format!("&[{}]", items.join(", "))
+}
+
+/// A draft value for a descriptor field: the rendered Rust expression when the
+/// field is set, `null` when it is at its default.
+///
+/// `null` is what the schema's `RustExpr` editor shows as "unset", and what the
+/// renderer reads as "leave it to `..DEFAULT`" — so an unset descriptor stays
+/// out of the emitted spec exactly as before.
+fn expr_or_null(set: bool, render: impl FnOnce() -> String) -> Value {
+    if set { json!(render()) } else { Value::Null }
 }
 
 /// Records the keys whose defining expression could not be recovered.
@@ -434,7 +601,9 @@ fn subcommand_identity(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) 
     );
     d.insert(
         "repeated_args".into(),
-        lost.expr("repeated_args", !sub.repeated_args.is_empty()),
+        expr_or_null(!sub.repeated_args.is_empty(), || {
+            repeated_args_expr(sub.repeated_args)
+        }),
     );
     d.insert(
         "arg_role_resolver".into(),
@@ -537,7 +706,9 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     d.insert("arg_values".into(), arg_value_map(sub.arg_values));
     d.insert(
         "versioned_arg_values".into(),
-        lost.expr("versioned_arg_values", !sub.versioned_arg_values.is_empty()),
+        expr_or_null(!sub.versioned_arg_values.is_empty(), || {
+            versioned_arg_values_expr(sub.versioned_arg_values)
+        }),
     );
     d.insert(
         "subcommand_forms".into(),
@@ -647,7 +818,9 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert(
         "repeated_args".into(),
-        lost.expr("repeated_args", !spec.repeated_args.is_empty()),
+        expr_or_null(!spec.repeated_args.is_empty(), || {
+            repeated_args_expr(spec.repeated_args)
+        }),
     );
     d.insert(
         "arg_role_resolver".into(),
@@ -916,7 +1089,8 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert(
         "byte_array_payload".into(),
-        lost.expr("byte_array_payload", spec.byte_array_payload.is_some()),
+        spec.byte_array_payload
+            .map_or(Value::Null, |p| json!(byte_payload_expr(p))),
     );
     d.insert(
         "byte_array_effect".into(),
@@ -932,7 +1106,9 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert(
         "oo_context_facts".into(),
-        lost.expr("oo_context_facts", !spec.oo_context_facts.is_empty()),
+        expr_or_null(!spec.oo_context_facts.is_empty(), || {
+            oo_context_facts_expr(spec.oo_context_facts)
+        }),
     );
     d.insert(
         "object_class".into(),
@@ -940,7 +1116,8 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert(
         "defines_symbol".into(),
-        lost.expr("defines_symbol", spec.defines_symbol.is_some()),
+        spec.defines_symbol
+            .map_or(Value::Null, |s| json!(symbol_def_expr(s))),
     );
     d.insert(
         "body_scope".into(),
@@ -948,7 +1125,8 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert(
         "binds_handle".into(),
-        lost.expr("binds_handle", spec.binds_handle.is_some()),
+        spec.binds_handle
+            .map_or(Value::Null, |b| json!(handle_binding_expr(b))),
     );
     d.insert(
         "creates_instance_at".into(),

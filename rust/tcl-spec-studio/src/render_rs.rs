@@ -54,7 +54,11 @@ pub const COPYRIGHT_BANNER: &str = "\
 // SPDX-License-Identifier: AGPL-3.0-or-later";
 
 /// Escape `s` as the body of a Rust double-quoted string literal.
-fn rust_string(s: &str) -> String {
+///
+/// Shared with [`crate::draft`], which renders the same literals when it seeds
+/// a descriptor field as a Rust expression — one escaper, so a `"` in a
+/// keyword word cannot compile in one path and not the other.
+pub(crate) fn rust_string(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
     for ch in s.chars() {
