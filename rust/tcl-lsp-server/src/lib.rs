@@ -13138,17 +13138,29 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        // Highlighting is find-references narrowed to one document, so it
+        // takes the same whole-program export view (issue #1116 item 1) —
+        // otherwise a `-force`-shadowed call highlights as an occurrence of a
+        // definition go-to-definition refuses to open.
+        let exports = self.export_snapshot().await;
+        let uri_key = uri.as_str().to_owned();
         let entries = tokio::task::spawn_blocking(move || {
             // The kinded entry
             // point tags variable defining spans as `Write` and
             // their reads as `Read`; command-invocation heads
             // stay `Text`.
-            core_references::document_highlights(
+            core_references::document_highlights_in_program(
                 &doc.text,
                 &doc.dialect,
                 pos.line,
                 pos.character,
                 &analysis,
+                core_definition::CallResolution::document_only().in_program(
+                    core_definition::ProgramExports {
+                        uri: &uri_key,
+                        oracle: exports.as_ref(),
+                    },
+                ),
             )
         })
         .await

@@ -976,12 +976,8 @@ fn class_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     // Declaration under the cursor, else namespace-aware resolution — never a
     // namespace-blind `c.name == word` scan (which from a call site could
     // surface an unrelated same-named class's reference set).
-    let (qname, class_def) = crate::definition::resolve_class_target_at(
-        analysis,
-        crate::definition::CallResolution::document_only(),
-        cursor_off,
-        word,
-    )?;
+    let (qname, class_def) =
+        crate::definition::resolve_class_target_at(analysis, ctx.resolution, cursor_off, word)?;
     let mut out = Vec::new();
     if include_declaration {
         out.push(span_to_range(source, line_index, class_def.name_span));
@@ -1017,12 +1013,17 @@ fn proc_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     // Declaration under the cursor, else C Tcl's namespace-aware call-site
     // resolution — never a namespace-blind `p.name == word` scan (which from a
     // call site could surface an unrelated same-named proc's reference set).
+    // The caller's whole-program view, not a fresh document-only one: the
+    // span pass below already filters with `ctx.resolution`, so resolving the
+    // *target* without it made this function disagree with itself — it would
+    // seed from the local definition a `-force` import deleted and then drop
+    // every span that definition owns (issue #1116 item 1).
     let (qname, proc_def) = crate::definition::resolve_proc_target_at(
         analysis,
         source,
         cursor_off,
         word,
-        crate::definition::CallResolution::document_only(),
+        ctx.resolution,
     )?;
     let mut out = Vec::new();
     if include_declaration {
@@ -3358,17 +3359,14 @@ fn class_highlights(
     line: u32,
     character: u32,
     word: &str,
+    resolution: crate::definition::CallResolution<'_>,
 ) -> Option<Vec<(LspRange, HighlightKind)>> {
     let cursor_off = crate::definition::byte_offset_at(line_index, source, line, character);
     // Declaration-span hit, else the namespace-aware candidate resolution —
     // never a namespace-blind `c.name == word` first-hit scan (the M1
     // wrong-symbol drift class).
-    let (qname, class_def) = crate::definition::resolve_class_target_at(
-        analysis,
-        crate::definition::CallResolution::document_only(),
-        cursor_off,
-        word,
-    )?;
+    let (qname, class_def) =
+        crate::definition::resolve_class_target_at(analysis, resolution, cursor_off, word)?;
     // Non-variable symbols (procs / classes / methods) highlight as `Text` for
     // both declaration and uses — only variables carry the Write/Read
     // distinction.
@@ -3376,12 +3374,7 @@ fn class_highlights(
         span_to_range(source, line_index, class_def.name_span),
         HighlightKind::Text,
     )];
-    for span in class_reference_spans(
-        analysis,
-        crate::definition::CallResolution::document_only(),
-        qname,
-        class_def,
-    ) {
+    for span in class_reference_spans(analysis, resolution, qname, class_def) {
         out.push((span_to_range(source, line_index, span), HighlightKind::Text));
     }
     Some(dedup_kinded(out))
@@ -3403,6 +3396,33 @@ pub fn document_highlights(
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
+) -> Vec<(LspRange, HighlightKind)> {
+    document_highlights_in_program(
+        source,
+        dialect,
+        line,
+        character,
+        analysis,
+        crate::definition::CallResolution::document_only(),
+    )
+}
+
+/// [`document_highlights`] with the caller's whole-program export view
+/// attached — the entry point a host with a workspace index should call.
+///
+/// Highlighting is find-references narrowed to one document, so it must pick
+/// the same target: a bare call a live `namespace import -force` shadows is
+/// not an occurrence of the local definition, and which definition it *does*
+/// reach can only be settled with whole-program export knowledge (issue #1116
+/// item 1).
+#[must_use]
+pub fn document_highlights_in_program(
+    source: &str,
+    dialect: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<(LspRange, HighlightKind)> {
     let line_index = LineIndex::new(source);
 
@@ -3442,18 +3462,22 @@ pub fn document_highlights(
         return Vec::new();
     };
 
-    if let Some(out) = class_highlights(source, &line_index, analysis, line, character, &word) {
+    if let Some(out) = class_highlights(
+        source,
+        &line_index,
+        analysis,
+        line,
+        character,
+        &word,
+        resolution,
+    ) {
         return out;
     }
 
     {
         let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
         if let Some((qname, proc_def)) = crate::definition::resolve_proc_target_at(
-            analysis,
-            source,
-            cursor_off,
-            &word,
-            crate::definition::CallResolution::document_only(),
+            analysis, source, cursor_off, &word, resolution,
         ) {
             let mut out = Vec::new();
             out.push((
