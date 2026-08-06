@@ -139,6 +139,97 @@ pub fn ancestor_requires<S: BuildHasher>(
     out
 }
 
+/// One `source` edge, with the execution-order facts a state question needs.
+///
+/// [`ancestor_requires`] only asks *whether* one file reaches another, so a
+/// bare `(parent, child)` pair is enough for it.  An **interpreter-state**
+/// question — "had this statement already run by the time the child loaded?"
+/// — additionally needs where in the parent the `source` sits, because a
+/// statement written after it has not run yet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceEdge {
+    /// The sourcing document's key.
+    pub parent: String,
+    /// The sourced document's key.
+    pub child: String,
+    /// Byte offset of the `source` statement in `parent`.
+    pub at: u32,
+    /// Span of the innermost proc/class body containing the `source`
+    /// statement in `parent`; `None` at load level.
+    pub enclosing_body: Option<tcl_lexer::Span>,
+}
+
+/// Whether the **interpreter-global** `package prefer latest` latch is already
+/// raised by the time `target` is loaded, given the raises recorded per
+/// document (issue #1253).
+///
+/// `package prefer` is a monotone latch on interpreter state, so a raise in a
+/// file that runs first really does change a later file's version selection.
+/// Which file runs first is not knowable in general — but along the `source`
+/// graph it is a static fact: `source CHILD` loads the whole child *at that
+/// statement*, so everything the parent already ran is in effect for it, and
+/// nothing the parent runs afterwards is.
+///
+/// `raises[node]` holds the offsets of that document's **unconditional**
+/// `package prefer latest` statements (a conditional one may not run, and the
+/// caller abstains toward the interpreter default by omitting it).
+///
+/// Two ways the latch is up when a node is entered:
+///
+/// * a parent raised it **before** the `source` statement — order-gated with
+///   [`tcl_compiler::analyser::indirection::in_effect_within`], so a raise at
+///   the parent's load level still counts for a `source` written inside one of
+///   its proc bodies (the whole file loads before any body runs);
+/// * a parent was **itself** entered with the latch up, in which case it was
+///   up for the parent's whole execution and so for every file it sources.
+///
+/// Cycles terminate on the visited set.  `target`'s *own* raises are not
+/// consulted — those are the single-document question
+/// (`package_resolver::package_prefer_at`), which is position-sensitive within
+/// the document.
+#[must_use]
+pub fn ancestor_prefer_latest_raised<S: BuildHasher>(
+    target: &str,
+    edges: &[SourceEdge],
+    raises: &HashMap<String, Vec<u32>, S>,
+) -> bool {
+    use tcl_compiler::analyser::indirection::in_effect_within;
+
+    let no_raises: Vec<u32> = Vec::new();
+    let raised_before = |node: &str, at: u32, body: Option<tcl_lexer::Span>| {
+        raises
+            .get(node)
+            .unwrap_or(&no_raises)
+            .iter()
+            .any(|&established| in_effect_within(established, at, body))
+    };
+    // Seed: every child whose parent had already raised the latch when it
+    // sourced them.
+    let mut entered_raised: HashSet<&str> = HashSet::new();
+    let mut stack: Vec<&str> = Vec::new();
+    for edge in edges {
+        if raised_before(&edge.parent, edge.at, edge.enclosing_body)
+            && entered_raised.insert(edge.child.as_str())
+        {
+            stack.push(edge.child.as_str());
+        }
+    }
+    // Propagate: a node entered with the latch up passes it to *every* file it
+    // sources, wherever the `source` sits — the latch was already up for the
+    // node's whole execution.
+    while let Some(node) = stack.pop() {
+        if node == target {
+            return true;
+        }
+        for edge in edges.iter().filter(|e| e.parent == node) {
+            if entered_raised.insert(edge.child.as_str()) {
+                stack.push(edge.child.as_str());
+            }
+        }
+    }
+    entered_raised.contains(target)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,5 +315,129 @@ mod tests {
         let edges = vec![("app".to_owned(), "lib".to_owned())];
         let requires = reqs(&[("app", &["Tk"])]);
         assert!(ancestor_requires("app", &edges, &requires).is_empty());
+    }
+
+    // ---------------------------------------------------------------------
+    // `package prefer latest` across the source graph (issue #1253 item 1).
+    //
+    // tclsh-proof (8.6.14) that the latch really is interpreter-global and
+    // crosses `source`:  with `lib.tcl` holding `puts [package prefer]`,
+    //
+    //   # app.tcl:  package prefer latest ; source lib.tcl
+    //   -> latest
+    //   # app.tcl:  source lib.tcl ; package prefer latest
+    //   -> stable
+    // ---------------------------------------------------------------------
+
+    fn edge(parent: &str, child: &str, at: u32) -> SourceEdge {
+        SourceEdge {
+            parent: parent.to_owned(),
+            child: child.to_owned(),
+            at,
+            enclosing_body: None,
+        }
+    }
+
+    fn raises(pairs: &[(&str, &[u32])]) -> HashMap<String, Vec<u32>> {
+        pairs
+            .iter()
+            .map(|(uri, offs)| ((*uri).to_owned(), offs.to_vec()))
+            .collect()
+    }
+
+    /// TP: a raise written **above** the `source` is in force in the child.
+    #[test]
+    fn a_raise_before_the_source_reaches_the_child() {
+        let edges = vec![edge("app", "lib", 30)];
+        assert!(ancestor_prefer_latest_raised(
+            "lib",
+            &edges,
+            &raises(&[("app", &[0])])
+        ));
+    }
+
+    /// TN: a raise written **below** the `source` has not run when the child
+    /// loads, so the child keeps the default.
+    #[test]
+    fn a_raise_after_the_source_does_not_reach_the_child() {
+        let edges = vec![edge("app", "lib", 0)];
+        assert!(!ancestor_prefer_latest_raised(
+            "lib",
+            &edges,
+            &raises(&[("app", &[30])])
+        ));
+    }
+
+    /// TP: the latch is transitive — once up on entry to a node it is up for
+    /// everything that node sources, wherever the `source` sits.
+    #[test]
+    fn the_latch_travels_the_whole_graph_once_raised() {
+        let edges = vec![edge("app", "mid", 30), edge("mid", "leaf", 0)];
+        assert!(ancestor_prefer_latest_raised(
+            "leaf",
+            &edges,
+            &raises(&[("app", &[0])])
+        ));
+    }
+
+    /// TN: a raise in a node the target is **not** reachable from changes
+    /// nothing — the graph, not the workspace, decides.
+    #[test]
+    fn an_unrelated_raise_does_not_reach_the_target() {
+        let edges = vec![edge("app", "lib", 30), edge("other", "sibling", 30)];
+        assert!(!ancestor_prefer_latest_raised(
+            "lib",
+            &edges,
+            &raises(&[("other", &[0])])
+        ));
+    }
+
+    /// TP: a `source` written inside a proc body still sees a raise written
+    /// later at the parent's load level — the whole file loads before any
+    /// body runs, the `in_effect_within` rule every other cross-document
+    /// ordering question uses.
+    #[test]
+    fn a_body_source_sees_a_later_load_level_raise() {
+        let edges = vec![SourceEdge {
+            parent: "app".to_owned(),
+            child: "lib".to_owned(),
+            at: 10,
+            enclosing_body: Some(tcl_lexer::Span::new(0, 20)),
+        }];
+        assert!(ancestor_prefer_latest_raised(
+            "lib",
+            &edges,
+            &raises(&[("app", &[30])])
+        ));
+        // …but a raise inside that same body, after the `source`, has not run.
+        assert!(!ancestor_prefer_latest_raised(
+            "lib",
+            &edges,
+            &raises(&[("app", &[15])])
+        ));
+    }
+
+    /// A cycle terminates, and the target is still answered.
+    #[test]
+    fn the_prefer_walk_tolerates_cycles() {
+        let edges = vec![edge("a", "b", 30), edge("b", "a", 0)];
+        assert!(ancestor_prefer_latest_raised(
+            "b",
+            &edges,
+            &raises(&[("a", &[0])])
+        ));
+        assert!(!ancestor_prefer_latest_raised("b", &edges, &raises(&[])));
+    }
+
+    /// TN: the target's *own* raises are not this question — that is the
+    /// position-sensitive single-document answer.
+    #[test]
+    fn the_targets_own_raise_is_not_an_ancestor_raise() {
+        let edges = vec![edge("app", "lib", 30)];
+        assert!(!ancestor_prefer_latest_raised(
+            "lib",
+            &edges,
+            &raises(&[("lib", &[0])])
+        ));
     }
 }
