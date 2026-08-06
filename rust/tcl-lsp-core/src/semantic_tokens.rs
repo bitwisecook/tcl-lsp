@@ -10011,6 +10011,33 @@ mod tests {
         assert_eq!(&after[baseline.len()..], &direct[..]);
     }
 
+    /// TP — `apply`'s `ArgRole::LambdaLiteral` reaches the renamed and aliased
+    /// spellings too, closing the failure mode written up in the
+    /// apply-lambda-body KCS note: a `[list …]`-quoted or directly-called
+    /// lambda under `rename apply myapply` used to collapse into one opaque
+    /// `string` token.
+    ///
+    /// tclsh-proof (9.0.4 / 8.6.16): `rename apply myapply; myapply {x {puts
+    /// $x}} 5` prints `5`, exactly as the literal call does.
+    #[test]
+    fn apply_lambda_literals_survive_a_rename_or_alias() {
+        let r = reg();
+        let direct = kinds_only("apply {x {puts $x}} 5\n", &r);
+        for bind in [
+            "rename apply myapply\n",
+            "interp alias {} myapply {} apply\n",
+        ] {
+            let baseline = kinds_only(bind, &r);
+            let bound = kinds_only(&format!("{bind}myapply {{x {{puts $x}}}} 5\n"), &r);
+            assert_eq!(
+                &bound[baseline.len()..],
+                &direct[..],
+                "`{}` must keep apply's lambda-literal split",
+                bind.trim()
+            );
+        }
+    }
+
     /// TN — a `{*}`-expanded (dynamic) head has no resolvable identity, so no
     /// grammar is applied to its arguments.
     #[test]
