@@ -5970,6 +5970,221 @@ mod tests {
         );
     }
 
+    // -----------------------------------------------------------------
+    // The `package require` half of the load order (issue #1279).
+    //
+    // Every test below builds the index with `WorkspaceIndex::from_documents`
+    // — no `source` resolver at all — because the package half needs none: a
+    // `package require NAME` names its provider through the index's own
+    // `package provide` records.
+    //
+    // Oracle, byte-identical on tclsh 8.6.14 and 9.0.4, with `pkg/lib.tcl`
+    // holding the provider and `pkg/pkgIndex.tcl` the usual
+    // `[list source [file join $dir lib.tcl]]`:
+    //
+    //   package require mymod
+    //   namespace eval ::mymod { namespace export -clear }
+    //   namespace eval ::app { namespace import ::mymod::* }
+    //     -> NO ALIAS (invalid command name "::app::helper")
+    //
+    //   namespace eval ::mymod { namespace export -clear }
+    //   package require mymod
+    //   namespace eval ::app { namespace import ::mymod::* }
+    //     -> HELP
+    //
+    // …and the second script, byte-identical, answers NO ALIAS when some
+    // other file required `mymod` before it ran.  That flip is the whole
+    // reason the second shape abstains.
+    // -----------------------------------------------------------------
+
+    /// The provider document every `package require` order test shares: it
+    /// defines and exports `helper`, and provides the package.
+    fn package_provider() -> AnalysisResult {
+        analyse(
+            "namespace eval ::mymod { proc helper {} { return HELP }\n namespace export helper }\npackage provide mymod 1.0\n",
+        )
+    }
+
+    /// Whether `helper` still resolves through `::app`'s wildcard import in
+    /// `index` — the question every test below asks.
+    fn helper_resolves(index: &WorkspaceIndex) -> Option<String> {
+        index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+            call_from("file:///p/caller.tcl"),
+        )
+    }
+
+    #[test]
+    fn a_clear_after_a_package_require_revokes_the_providers_export() {
+        // TP (CRITICAL), issue #1279 — the movement the package half exists
+        // for. `app.tcl` requires the package (so `lib.tcl` has run), clears
+        // `::mymod`'s exports, and only then imports. Without the package
+        // order the foreign export counted and the local `-clear` revoked
+        // nothing, so `helper` resolved; real Tcl installs no alias at all.
+        let lib = package_provider();
+        let app = analyse(
+            "package require mymod\nnamespace eval ::mymod { namespace export -clear }\nnamespace eval ::app { namespace import ::mymod::* }\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///p/lib.tcl", &lib),
+            ("file:///p/app.tcl", &app),
+        ]);
+        let resolved = helper_resolves(&index);
+        assert!(
+            resolved.is_none(),
+            "the `-clear` provably ran after the provider's export and before the import: {resolved:?}",
+        );
+        // Non-vacuity: with the `-clear` removed, the same workspace resolves,
+        // so the assertion above is the ordering's doing.
+        let app_no_clear = analyse(
+            "package require mymod\nnamespace eval ::app { namespace import ::mymod::* }\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///p/lib.tcl", &lib),
+            ("file:///p/app.tcl", &app_no_clear),
+        ]);
+        assert_eq!(helper_resolves(&index).as_deref(), Some("::mymod::helper"));
+    }
+
+    #[test]
+    fn abstention_2_a_statement_above_the_require_stays_unordered() {
+        // TN (CRITICAL) — uncertainty 2, the package may already be loaded,
+        // in which case the `package require` runs nothing at all and the
+        // provider's statements are *older* than everything in this file.
+        //
+        // A `source` in this shape settles it — "an export sourced after the
+        // import is not retroactive", the test above. A `package require`
+        // must not, and the oracle is a file whose answer flips with nothing
+        // in it changed. `imp_body.tcl`, byte for byte:
+        //
+        //   namespace eval ::mymod {}
+        //   namespace eval ::app { namespace import ::mymod::* }
+        //   package require mymod
+        //
+        //   sourced on its own            -> NO ALIAS
+        //   sourced after `package require mymod` elsewhere -> HELP
+        //
+        // So the order says nothing and the pre-existing "abstain toward
+        // answering" stands: the foreign export counts, `helper` resolves.
+        let lib = package_provider();
+        let app = analyse(
+            "namespace eval ::mymod {}\nnamespace eval ::app { namespace import ::mymod::* }\npackage require mymod\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///p/lib.tcl", &lib),
+            ("file:///p/app.tcl", &app),
+        ]);
+        assert_eq!(
+            helper_resolves(&index).as_deref(),
+            Some("::mymod::helper"),
+            "a require never proves the provider had *not* yet run",
+        );
+        // …and the same shape with a `-clear` above the require is equally
+        // unordered: run alone the clear hits an empty `::mymod` and the
+        // require then loads the exporting file (oracle: HELP), run after
+        // any other file required `mymod` the very same text revokes
+        // (oracle: NO ALIAS).
+        let app = analyse(
+            "namespace eval ::mymod { namespace export -clear }\npackage require mymod\nnamespace eval ::app { namespace import ::mymod::* }\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///p/lib.tcl", &lib),
+            ("file:///p/app.tcl", &app),
+        ]);
+        assert_eq!(helper_resolves(&index).as_deref(), Some("::mymod::helper"));
+    }
+
+    #[test]
+    fn abstention_1_two_documents_providing_one_package_order_nothing() {
+        // TN — uncertainty 1, `auto_path` is mutable. Two indexed files
+        // provide `mymod`; which one a `package require` runs is decided by
+        // the runtime search-path order, and only one of them exports.
+        // Oracle (8.6.14 / 9.0.4), two directories each holding a `mylib2
+        // 1.0`: `lappend auto_path pkgA pkgB` gives `from A` with `p`
+        // exported, `pkgB pkgA` gives `from B` with nothing exported. So no
+        // edge, and the `-clear` that would otherwise revoke does not.
+        let lib = package_provider();
+        let other = analyse(
+            "namespace eval ::mymod { proc helper {} { return OTHER } }\npackage provide mymod 1.0\n",
+        );
+        let app = analyse(
+            "package require mymod\nnamespace eval ::mymod { namespace export -clear }\nnamespace eval ::app { namespace import ::mymod::* }\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///p/lib.tcl", &lib),
+            ("file:///p/other/lib.tcl", &other),
+            ("file:///p/app.tcl", &app),
+        ]);
+        assert_eq!(helper_resolves(&index).as_deref(), Some("::mymod::helper"));
+    }
+
+    #[test]
+    fn abstention_3_an_indexed_ifneeded_script_orders_nothing() {
+        // TN — uncertainty 3, `ifneeded` bodies are arbitrary. Once the
+        // workspace holds the package's own index script, the statements a
+        // `package require mymod` runs are that script's business, and it may
+        // load something else entirely. Oracle (8.6.14 / 9.0.4): one
+        // `pkgIndex.tcl` whose body branches on the environment answers
+        // `::c::p` -> `real` (with `namespace export p` run) or -> `stub`
+        // (with nothing exported), for the same `package require`.
+        let lib = package_provider();
+        let pkg_index =
+            analyse("package ifneeded mymod 1.0 [list source [file join $dir lib.tcl]]\n");
+        let app = analyse(
+            "package require mymod\nnamespace eval ::mymod { namespace export -clear }\nnamespace eval ::app { namespace import ::mymod::* }\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///p/lib.tcl", &lib),
+            ("file:///p/pkgIndex.tcl", &pkg_index),
+            ("file:///p/app.tcl", &app),
+        ]);
+        assert_eq!(helper_resolves(&index).as_deref(), Some("::mymod::helper"));
+    }
+
+    #[test]
+    fn a_conditional_or_dynamic_require_orders_nothing() {
+        // TN: the optional-dependency idiom `if {[catch {package require …}]}`
+        // may never run, and `package require $pkg` names nothing statically.
+        // Both mirror the gates `package prefer latest` already applies.
+        let lib = package_provider();
+        for app_src in [
+            "catch {package require mymod}\nnamespace eval ::mymod { namespace export -clear }\nnamespace eval ::app { namespace import ::mymod::* }\n",
+            "set pkg mymod\npackage require $pkg\nnamespace eval ::mymod { namespace export -clear }\nnamespace eval ::app { namespace import ::mymod::* }\n",
+        ] {
+            let app = analyse(app_src);
+            let index = WorkspaceIndex::from_documents([
+                ("file:///p/lib.tcl", &lib),
+                ("file:///p/app.tcl", &app),
+            ]);
+            assert_eq!(
+                helper_resolves(&index).as_deref(),
+                Some("::mymod::helper"),
+                "{app_src}",
+            );
+        }
+    }
+
+    #[test]
+    fn one_provider_required_from_many_documents_orders_each_of_them() {
+        // TP: a package required from three files is loaded once, by whichever
+        // require runs first — so it has three upper bounds and no unique
+        // position. Each requiring file is still ordered against it, which a
+        // tree position (one entry site per document) could not express.
+        let lib = package_provider();
+        let clearing = analyse(
+            "package require mymod\nnamespace eval ::mymod { namespace export -clear }\nnamespace eval ::app { namespace import ::mymod::* }\n",
+        );
+        let bystander = analyse("package require mymod\nputs [::mymod::helper]\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///p/lib.tcl", &lib),
+            ("file:///p/app.tcl", &clearing),
+            ("file:///p/one.tcl", &bystander),
+            ("file:///p/two.tcl", &bystander),
+        ]);
+        assert!(helper_resolves(&index).is_none());
+    }
+
     #[test]
     fn a_computed_source_path_orders_nothing() {
         // TN: `source $dir/exp.tcl` names no document statically, so the edge
