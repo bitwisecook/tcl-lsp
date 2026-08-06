@@ -303,18 +303,24 @@ oo::class create Widget {
 }
 ";
 
+/// Character of the `name` inside `puts "name=$name params=$params"` on
+/// line 11 of [`MIXIN_DISPATCH_SRC`].
+fn mixin_read_column() -> u32 {
+    let at = MIXIN_DISPATCH_SRC
+        .lines()
+        .nth(11)
+        .and_then(|l| l.find("$name"))
+        .expect("the read");
+    u32::try_from(at).expect("column fits u32") + 2
+}
+
 #[test]
 fn hover_on_a_mixin_dispatch_caller_frame_read_names_the_creating_call() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, MIXIN_DISPATCH_SRC);
     // Line 11 — inside the `name` of `puts "name=$name params=$params"`.
-    let col = MIXIN_DISPATCH_SRC
-        .lines()
-        .nth(11)
-        .and_then(|l| l.find("$name"))
-        .expect("the read") as u32
-        + 2;
+    let col = mixin_read_column();
     let text = hover_text(&lsp.hover(&uri, 11, col));
     assert!(
         text.contains("Caller-frame variable") && text.contains("NameProcess"),
@@ -327,12 +333,7 @@ fn definition_on_a_mixin_dispatch_caller_frame_read_reaches_the_dispatch() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, MIXIN_DISPATCH_SRC);
-    let col = MIXIN_DISPATCH_SRC
-        .lines()
-        .nth(11)
-        .and_then(|l| l.find("$name"))
-        .expect("the read") as u32
-        + 2;
+    let col = mixin_read_column();
     let locs = locations(&lsp.definition(&uri, 11, col));
     assert_eq!(locs.len(), 1, "one definition: {locs:?}");
     assert_eq!(
@@ -348,12 +349,7 @@ fn references_on_a_mixin_dispatch_link_the_dispatch_and_the_read() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, MIXIN_DISPATCH_SRC);
-    let col = MIXIN_DISPATCH_SRC
-        .lines()
-        .nth(11)
-        .and_then(|l| l.find("$name"))
-        .expect("the read") as u32
-        + 2;
+    let col = mixin_read_column();
     let refs = start_lines(&lsp.references(&uri, 11, col, true));
     assert_eq!(
         refs.iter().copied().collect::<Vec<i64>>(),

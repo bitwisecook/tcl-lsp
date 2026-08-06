@@ -1174,7 +1174,10 @@ oo::class create Widget {
             bindings[0].callee.contains("NameProcess"),
             "the card must name the resolved method: {bindings:?}"
         );
-        assert!(!bindings[0].read_only, "the method writes through the alias");
+        assert!(
+            !bindings[0].read_only,
+            "the method writes through the alias"
+        );
         // The binding span is the dispatch head — the point where the
         // variable comes to exist in this frame.
         assert_eq!(&MIXIN_SRC[bindings[0].arg_span.as_range()], "my");

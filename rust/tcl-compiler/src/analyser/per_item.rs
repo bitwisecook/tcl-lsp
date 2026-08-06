@@ -2063,7 +2063,9 @@ mod tests {
     /// shell's global scope too.
     #[test]
     fn a_body_defined_hash_zero_global_survives_the_graft() {
-        fast_path("proc bump {} { upvar #0 counter c; incr c }\nproc show {} { puts $::counter }\n");
+        fast_path(
+            "proc bump {} { upvar #0 counter c; incr c }\nproc show {} { puts $::counter }\n",
+        );
     }
 
     /// TN — a body-local `upvar` whose target is frame-relative names no

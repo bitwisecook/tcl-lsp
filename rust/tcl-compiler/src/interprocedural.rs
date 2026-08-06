@@ -421,8 +421,8 @@ pub fn collect_opaque_callee_name_args(
     let mut out = HashSet::new();
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
-            let (Statement::Call { command, args, .. }
-            | Statement::Barrier { command, args, .. }) = stmt
+            let (Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. }) =
+                stmt
             else {
                 continue;
             };
